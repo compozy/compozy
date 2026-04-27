@@ -19,6 +19,29 @@ const (
 	defaultSyncScope         = "workflow"
 )
 
+var ErrWorkflowSyncInvalid = errors.New("globaldb: workflow sync invalid")
+
+// WorkflowSyncValidationError reports invalid authored workflow state that
+// prevents sync from projecting the workflow into global.db.
+type WorkflowSyncValidationError struct {
+	Message string
+}
+
+func (e WorkflowSyncValidationError) Error() string {
+	if strings.TrimSpace(e.Message) == "" {
+		return "globaldb: workflow sync invalid"
+	}
+	return e.Message
+}
+
+func (e WorkflowSyncValidationError) Is(target error) bool {
+	return target == ErrWorkflowSyncInvalid
+}
+
+func newWorkflowSyncValidationError(format string, args ...any) error {
+	return WorkflowSyncValidationError{Message: fmt.Sprintf(format, args...)}
+}
+
 // ArtifactSnapshotInput describes one authored workflow artifact snapshot that
 // should be mirrored into global.db.
 type ArtifactSnapshotInput struct {
@@ -171,10 +194,10 @@ func (g *GlobalDB) ReconcileWorkflowSync(
 
 func validateWorkflowSyncInput(input WorkflowSyncInput) error {
 	if strings.TrimSpace(input.WorkspaceID) == "" {
-		return errors.New("globaldb: workflow sync workspace id is required")
+		return newWorkflowSyncValidationError("globaldb: workflow sync workspace id is required")
 	}
 	if strings.TrimSpace(input.WorkflowSlug) == "" {
-		return errors.New("globaldb: workflow sync slug is required")
+		return newWorkflowSyncValidationError("globaldb: workflow sync slug is required")
 	}
 	return nil
 }
@@ -450,13 +473,15 @@ func prepareArtifactSnapshot(input ArtifactSnapshotInput) (preparedArtifactSnaps
 	relativePath := strings.TrimSpace(input.RelativePath)
 	checksum := strings.TrimSpace(input.Checksum)
 	if artifactKind == "" {
-		return preparedArtifactSnapshot{}, "", errors.New("globaldb: artifact kind is required")
+		return preparedArtifactSnapshot{}, "", newWorkflowSyncValidationError("globaldb: artifact kind is required")
 	}
 	if relativePath == "" {
-		return preparedArtifactSnapshot{}, "", errors.New("globaldb: artifact relative path is required")
+		return preparedArtifactSnapshot{}, "", newWorkflowSyncValidationError(
+			"globaldb: artifact relative path is required",
+		)
 	}
 	if checksum == "" {
-		return preparedArtifactSnapshot{}, "", fmt.Errorf(
+		return preparedArtifactSnapshot{}, "", newWorkflowSyncValidationError(
 			"globaldb: artifact checksum is required for %s/%s",
 			artifactKind,
 			relativePath,
@@ -475,7 +500,7 @@ func prepareArtifactSnapshot(input ArtifactSnapshotInput) (preparedArtifactSnaps
 		frontmatterJSON = "{}"
 	}
 	if input.SourceMTime.IsZero() {
-		return preparedArtifactSnapshot{}, "", fmt.Errorf(
+		return preparedArtifactSnapshot{}, "", newWorkflowSyncValidationError(
 			"globaldb: artifact source mtime is required for %s/%s",
 			artifactKind,
 			relativePath,
@@ -662,22 +687,40 @@ func loadExistingTaskItemIDs(ctx context.Context, tx *sql.Tx, workflowID string)
 
 func prepareTaskItem(input TaskItemInput) (TaskItemInput, error) {
 	if input.TaskNumber <= 0 {
-		return TaskItemInput{}, fmt.Errorf("globaldb: task number must be positive (got %d)", input.TaskNumber)
+		return TaskItemInput{}, newWorkflowSyncValidationError(
+			"globaldb: task number must be positive (got %d)",
+			input.TaskNumber,
+		)
 	}
 	if strings.TrimSpace(input.TaskID) == "" {
-		return TaskItemInput{}, fmt.Errorf("globaldb: task id is required for task %d", input.TaskNumber)
+		return TaskItemInput{}, newWorkflowSyncValidationError(
+			"globaldb: task id is required for task %d",
+			input.TaskNumber,
+		)
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return TaskItemInput{}, fmt.Errorf("globaldb: task title is required for task %d", input.TaskNumber)
+		return TaskItemInput{}, newWorkflowSyncValidationError(
+			"globaldb: task title is required for task %d",
+			input.TaskNumber,
+		)
 	}
 	if strings.TrimSpace(input.Status) == "" {
-		return TaskItemInput{}, fmt.Errorf("globaldb: task status is required for task %d", input.TaskNumber)
+		return TaskItemInput{}, newWorkflowSyncValidationError(
+			"globaldb: task status is required for task %d",
+			input.TaskNumber,
+		)
 	}
 	if strings.TrimSpace(input.Kind) == "" {
-		return TaskItemInput{}, fmt.Errorf("globaldb: task kind is required for task %d", input.TaskNumber)
+		return TaskItemInput{}, newWorkflowSyncValidationError(
+			"globaldb: task kind is required for task %d",
+			input.TaskNumber,
+		)
 	}
 	if strings.TrimSpace(input.SourcePath) == "" {
-		return TaskItemInput{}, fmt.Errorf("globaldb: task source path is required for task %d", input.TaskNumber)
+		return TaskItemInput{}, newWorkflowSyncValidationError(
+			"globaldb: task source path is required for task %d",
+			input.TaskNumber,
+		)
 	}
 
 	input.TaskID = strings.TrimSpace(input.TaskID)
@@ -850,16 +893,19 @@ func loadExistingReviewRoundIDs(ctx context.Context, tx *sql.Tx, workflowID stri
 
 func prepareReviewRound(input ReviewRoundInput) (ReviewRoundInput, error) {
 	if input.RoundNumber <= 0 {
-		return ReviewRoundInput{}, fmt.Errorf("globaldb: review round must be positive (got %d)", input.RoundNumber)
+		return ReviewRoundInput{}, newWorkflowSyncValidationError(
+			"globaldb: review round must be positive (got %d)",
+			input.RoundNumber,
+		)
 	}
 	if strings.TrimSpace(input.Provider) == "" {
-		return ReviewRoundInput{}, fmt.Errorf(
+		return ReviewRoundInput{}, newWorkflowSyncValidationError(
 			"globaldb: review round provider is required for round %d",
 			input.RoundNumber,
 		)
 	}
 	if input.ResolvedCount < 0 || input.UnresolvedCount < 0 {
-		return ReviewRoundInput{}, fmt.Errorf(
+		return ReviewRoundInput{}, newWorkflowSyncValidationError(
 			"globaldb: review round counts must be non-negative for round %d",
 			input.RoundNumber,
 		)
@@ -985,19 +1031,19 @@ func loadExistingReviewIssueIDs(ctx context.Context, tx *sql.Tx, roundID string)
 
 func prepareReviewIssue(input ReviewIssueInput) (ReviewIssueInput, error) {
 	if input.IssueNumber <= 0 {
-		return ReviewIssueInput{}, fmt.Errorf(
+		return ReviewIssueInput{}, newWorkflowSyncValidationError(
 			"globaldb: review issue number must be positive (got %d)",
 			input.IssueNumber,
 		)
 	}
 	if strings.TrimSpace(input.Status) == "" {
-		return ReviewIssueInput{}, fmt.Errorf(
+		return ReviewIssueInput{}, newWorkflowSyncValidationError(
 			"globaldb: review issue status is required for issue %d",
 			input.IssueNumber,
 		)
 	}
 	if strings.TrimSpace(input.SourcePath) == "" {
-		return ReviewIssueInput{}, fmt.Errorf(
+		return ReviewIssueInput{}, newWorkflowSyncValidationError(
 			"globaldb: review issue source path is required for issue %d",
 			input.IssueNumber,
 		)

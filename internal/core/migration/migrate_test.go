@@ -91,12 +91,12 @@ func TestMigrateV1ToV2RemapsTypesAndExtractsTitle(t *testing.T) {
 			wantType:  "docs",
 		},
 		{
-			name:          "feature implementation stays empty",
+			name:          "feature implementation falls back to domain inference",
 			rawType:       "Feature Implementation",
 			bodyTitle:     "# Task 1: Needs Human Classification",
 			wantTitle:     "Needs Human Classification",
-			wantType:      "",
-			wantEmptyType: true,
+			wantType:      "backend",
+			wantEmptyType: false,
 		},
 		{
 			name:      "registry match is case insensitive",
@@ -155,6 +155,9 @@ func TestMigrateV1ToV2RemapsTypesAndExtractsTitle(t *testing.T) {
 			}
 			if tt.wantEmptyType && !strings.Contains(migrated.content, "type: \"\"") {
 				t.Fatalf("expected explicit empty type in migrated output, got:\n%s", migrated.content)
+			}
+			if !tt.wantEmptyType && strings.Contains(migrated.content, "type: \"\"") {
+				t.Fatalf("expected migrated output to avoid empty type, got:\n%s", migrated.content)
 			}
 			if !strings.Contains(migrated.content, "dependencies: []") {
 				t.Fatalf("expected migrated output to preserve empty dependencies, got:\n%s", migrated.content)
@@ -236,8 +239,8 @@ func TestMigrateConvertsLegacyArtifactsAndIgnoresLegacyGroupedDirectory(t *testi
 	if result.FilesAlreadyFrontmatter != 1 {
 		t.Fatalf("expected 1 already-frontmatter file, got %d", result.FilesAlreadyFrontmatter)
 	}
-	if !slices.Equal(result.UnmappedTypeFiles, []string{taskPath}) {
-		t.Fatalf("unexpected unmapped type files\nwant: %#v\ngot:  %#v", []string{taskPath}, result.UnmappedTypeFiles)
+	if len(result.UnmappedTypeFiles) != 0 {
+		t.Fatalf("expected no unmapped type files, got %#v", result.UnmappedTypeFiles)
 	}
 
 	taskContent := readMigrationFile(t, taskPath)
@@ -253,8 +256,8 @@ func TestMigrateConvertsLegacyArtifactsAndIgnoresLegacyGroupedDirectory(t *testi
 	if !strings.Contains(taskContent, "dependencies: []") {
 		t.Fatalf("expected migrated task to preserve empty dependencies, got:\n%s", taskContent)
 	}
-	if !strings.Contains(taskContent, "type: \"\"") {
-		t.Fatalf("expected migrated task to record unmapped type explicitly, got:\n%s", taskContent)
+	if !strings.Contains(taskContent, "type: backend") {
+		t.Fatalf("expected migrated task to infer backend type, got:\n%s", taskContent)
 	}
 
 	issueContent := readMigrationFile(t, legacyIssuePath)
@@ -454,8 +457,8 @@ func TestMigrateMixedDirectoryCountsV1ToV2AndTracksUnmappedTypes(t *testing.T) {
 	if result.FilesInvalid != 0 {
 		t.Fatalf("expected no invalid files, got %d", result.FilesInvalid)
 	}
-	if !slices.Equal(result.UnmappedTypeFiles, []string{legacyPath}) {
-		t.Fatalf("unexpected unmapped paths\nwant: %#v\ngot:  %#v", []string{legacyPath}, result.UnmappedTypeFiles)
+	if len(result.UnmappedTypeFiles) != 0 {
+		t.Fatalf("expected no unmapped paths, got %#v", result.UnmappedTypeFiles)
 	}
 
 	if got := readMigrationFile(t, v2Path); got != v2Content {
@@ -464,8 +467,8 @@ func TestMigrateMixedDirectoryCountsV1ToV2AndTracksUnmappedTypes(t *testing.T) {
 	if got := readMigrationFile(t, v1Path); !strings.Contains(got, "type: bugfix") {
 		t.Fatalf("expected v1 file to remap type, got:\n%s", got)
 	}
-	if got := readMigrationFile(t, legacyPath); !strings.Contains(got, "type: \"\"") {
-		t.Fatalf("expected legacy file to keep empty type for manual follow-up, got:\n%s", got)
+	if got := readMigrationFile(t, legacyPath); !strings.Contains(got, "type: backend") {
+		t.Fatalf("expected legacy file to infer backend type, got:\n%s", got)
 	}
 }
 
@@ -554,6 +557,35 @@ types = ["backend", "refactor"]
 	}
 	if !strings.Contains(content, "dependencies: []") {
 		t.Fatalf("expected migrated file to preserve empty dependencies, got:\n%s", content)
+	}
+}
+
+func TestMigrateV1ToV2InfersInfraForFeatureImplementationWhenDomainMatches(t *testing.T) {
+	t.Parallel()
+
+	registry := mustMigrationRegistry(t)
+	content := taskMarkdown(
+		[]string{
+			"status: pending",
+			"domain: Infrastructure, Runtime",
+			"type: Feature Implementation",
+			"scope: full",
+			"complexity: low",
+			"dependencies: []",
+		},
+		"# Task 1: Infrastructure Work",
+		"Body.",
+	)
+
+	migrated, outcome, err := migrateV1ToV2("/tmp/task_01.md", content, registry)
+	if err != nil {
+		t.Fatalf("migrateV1ToV2: %v", err)
+	}
+	if outcome != migrationOutcomeV1ToV2 || migrated == nil {
+		t.Fatalf("unexpected migration result: outcome=%v migrated=%v", outcome, migrated != nil)
+	}
+	if !strings.Contains(migrated.content, "type: infra") {
+		t.Fatalf("expected inferred infra type, got:\n%s", migrated.content)
 	}
 }
 

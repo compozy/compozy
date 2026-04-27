@@ -41,6 +41,14 @@ type migrationScanState struct {
 	invalid  []error
 }
 
+type legacyTaskFrontMatter struct {
+	Status       string   `yaml:"status"`
+	Domain       string   `yaml:"domain"`
+	TaskType     string   `yaml:"type"`
+	Complexity   string   `yaml:"complexity,omitempty"`
+	Dependencies []string `yaml:"dependencies"`
+}
+
 var reviewRoundDirPattern = regexp.MustCompile(`^reviews-\d+$`)
 
 func Migrate(ctx context.Context, cfg Config) (*Result, error) {
@@ -348,8 +356,18 @@ func migrateLegacyTaskToV1(content string) (string, error) {
 		return "", err
 	}
 
-	migrated, err := frontmatter.Format(model.TaskFileMeta{
+	type legacyTaskMigrationMeta struct {
+		Status       string   `yaml:"status"`
+		Domain       string   `yaml:"domain,omitempty"`
+		TaskType     string   `yaml:"type"`
+		Complexity   string   `yaml:"complexity,omitempty"`
+		Dependencies []string `yaml:"dependencies"`
+	}
+
+	domain := strings.TrimSpace(extractLegacyXMLTag(content, "domain"))
+	migrated, err := frontmatter.Format(legacyTaskMigrationMeta{
 		Status:       legacyTask.Status,
+		Domain:       domain,
 		TaskType:     legacyTask.TaskType,
 		Complexity:   legacyTask.Complexity,
 		Dependencies: legacyTask.Dependencies,
@@ -365,7 +383,7 @@ func migrateV1ToV2(
 	content string,
 	registry *tasks.TypeRegistry,
 ) (*pendingFileMigration, migrationOutcome, error) {
-	var meta model.TaskFileMeta
+	var meta legacyTaskFrontMatter
 	body, err := frontmatter.Parse(content, &meta)
 	if err != nil {
 		return nil, migrationOutcomeSkipped, fmt.Errorf("parse v1 task front matter: %w", err)
@@ -377,7 +395,7 @@ func migrateV1ToV2(
 	migrated, err := frontmatter.Format(model.TaskFileMeta{
 		Status:       strings.TrimSpace(meta.Status),
 		Title:        tasks.ExtractTaskBodyTitle(body),
-		TaskType:     tasks.RemapLegacyTaskType(meta.TaskType, registry),
+		TaskType:     migrateTaskType(meta, registry),
 		Complexity:   strings.TrimSpace(meta.Complexity),
 		Dependencies: meta.Dependencies,
 	}, body)
@@ -423,4 +441,88 @@ func migratedTypeIsUnmapped(content string) bool {
 		return false
 	}
 	return strings.TrimSpace(meta.TaskType) == ""
+}
+
+func migrateTaskType(meta legacyTaskFrontMatter, registry *tasks.TypeRegistry) string {
+	if mapped := tasks.RemapLegacyTaskType(meta.TaskType, registry); mapped != "" {
+		return mapped
+	}
+	if !manualTaskTypeNeedsDomainInference(meta.TaskType) {
+		return ""
+	}
+	return inferTaskTypeFromLegacyDomain(meta.Domain, registry)
+}
+
+func manualTaskTypeNeedsDomainInference(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "feature", "feature implementation":
+		return true
+	default:
+		return false
+	}
+}
+
+func inferTaskTypeFromLegacyDomain(domain string, registry *tasks.TypeRegistry) string {
+	normalized := strings.ToLower(strings.TrimSpace(domain))
+	if normalized == "" || registry == nil {
+		return ""
+	}
+
+	switch {
+	case registry.IsAllowed("frontend") && containsAny(normalized, "frontend", "ui", "ux", "web", "tui"):
+		return "frontend"
+	case registry.IsAllowed("docs") && containsAny(normalized, "doc"):
+		return "docs"
+	case registry.IsAllowed("test") && containsAny(normalized, "test", "qa", "validation"):
+		return "test"
+	case registry.IsAllowed("infra") &&
+		containsAny(normalized, "infra", "infrastructure", "config", "configuration", "devops", "ops", "platform"):
+		return "infra"
+	case registry.IsAllowed("backend") &&
+		containsAny(
+			normalized,
+			"backend",
+			"api",
+			"application",
+			"database",
+			"runtime",
+			"network",
+			"agent",
+			"prompt",
+			"server",
+			"core",
+			"execution",
+			"input",
+			"data",
+			"integration",
+			"kernel",
+			"cli",
+		):
+		return "backend"
+	default:
+		return ""
+	}
+}
+
+func containsAny(value string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(value, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractLegacyXMLTag(content, tag string) string {
+	openTag := "<" + tag + ">"
+	start := strings.Index(content, openTag)
+	if start < 0 {
+		return ""
+	}
+	start += len(openTag)
+	end := strings.Index(content[start:], "</"+tag+">")
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(content[start : start+end])
 }

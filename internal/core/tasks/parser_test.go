@@ -331,6 +331,9 @@ func TestWrapParseErrorProvidesMigrationGuidance(t *testing.T) {
 			if !strings.Contains(err.Error(), "run `compozy migrate`") {
 				t.Fatalf("expected migrate guidance, got %v", err)
 			}
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("errors.Is(%v, %v) = false, want true", err, tt.err)
+			}
 		})
 	}
 }

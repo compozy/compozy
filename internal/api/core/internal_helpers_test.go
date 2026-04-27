@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
@@ -115,6 +117,23 @@ func TestProblemAndHelperFunctions(t *testing.T) {
 		}
 		if details := detailsForError(runSchemaErr); details["database"] != "rundb" {
 			t.Fatalf("detailsForError(run schema too new) database = %v, want rundb", details["database"])
+		}
+
+		taskParseErr := tasks.WrapParseError("/tmp/task_01.md", tasks.ErrV1TaskMetadata)
+		if got := statusForError(taskParseErr); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForError(task parse) = %d, want 422", got)
+		}
+
+		reviewParseErr := reviews.WrapParseError("/tmp/issue_001.md", reviews.ErrLegacyReviewMetadata)
+		if got := statusForError(reviewParseErr); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForError(review parse) = %d, want 422", got)
+		}
+
+		syncValidationErr := globaldb.WorkflowSyncValidationError{
+			Message: "globaldb: task kind is required for task 1",
+		}
+		if got := statusForError(syncValidationErr); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForError(sync validation) = %d, want 422", got)
 		}
 	})
 

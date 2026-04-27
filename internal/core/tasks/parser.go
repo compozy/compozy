@@ -22,6 +22,30 @@ var (
 	taskFileNumberRe          = regexp.MustCompile(`^task_(\d+)\.md$`)
 )
 
+// ArtifactParseError preserves the task artifact path and underlying parse
+// failure so callers can classify invalid task content without losing context.
+type ArtifactParseError struct {
+	Path string
+	Err  error
+}
+
+func (e *ArtifactParseError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if errors.Is(e.Err, ErrLegacyTaskMetadata) || errors.Is(e.Err, ErrV1TaskMetadata) {
+		return fmt.Sprintf("legacy task artifact detected at %s; run `compozy migrate`", e.Path)
+	}
+	return fmt.Sprintf("parse task artifact %s: %v", e.Path, e.Err)
+}
+
+func (e *ArtifactParseError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 func ParseTaskFile(content string) (model.TaskEntry, error) {
 	var node yaml.Node
 	if _, err := frontmatter.Parse(content, &node); err != nil {
@@ -123,10 +147,7 @@ func ExtractLegacyTaskBody(content string) (string, error) {
 }
 
 func WrapParseError(path string, err error) error {
-	if errors.Is(err, ErrLegacyTaskMetadata) || errors.Is(err, ErrV1TaskMetadata) {
-		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
-	}
-	return fmt.Errorf("parse task artifact %s: %w", path, err)
+	return &ArtifactParseError{Path: path, Err: err}
 }
 
 func hasTaskV1FrontMatterKeys(node *yaml.Node) bool {

@@ -56,13 +56,11 @@ func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute migrate: %v\noutput:\n%s", err, output)
 	}
-	if !containsAll(output,
-		"V1->V2 migrated: 1",
-		"Unmapped type files: 1",
-		"Fix prompt:",
-		"type value is unmapped; must be one of:",
-	) {
+	if !containsAll(output, "V1->V2 migrated: 1") {
 		t.Fatalf("unexpected migrate output:\n%s", output)
+	}
+	if strings.Contains(output, "Unmapped type files:") || strings.Contains(output, "Fix prompt:") {
+		t.Fatalf("expected migrate output to avoid manual type follow-up, got:\n%s", output)
 	}
 }
 

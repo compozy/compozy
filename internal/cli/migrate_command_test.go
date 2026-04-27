@@ -27,35 +27,14 @@ func TestMigrateCommandPrintsUnmappedTypeSummaryAndValidateFailsUntilFixed(t *te
 	if !strings.Contains(stdout, "V1->V2 migrated: 1") {
 		t.Fatalf("expected migrate summary to include v1->v2 counter, got:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "Unmapped type files: 1") {
-		t.Fatalf("expected migrate summary to include unmapped count, got:\n%s", stdout)
+	if strings.Contains(stdout, "Unmapped type files:") || strings.Contains(stdout, "Fix prompt:") {
+		t.Fatalf("expected migrate output to avoid manual type follow-up, got:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "Fix prompt:") {
-		t.Fatalf("expected migrate output to include fix prompt, got:\n%s", stdout)
-	}
-
-	stdout, stderr, exitCode = runCLICommand(t, workspaceRoot, "tasks", "validate", "--tasks-dir", tasksDir)
-	if exitCode != 1 {
-		t.Fatalf("expected tasks validate exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "Fix prompt:") {
-		t.Fatalf("expected tasks validate output to include fix prompt, got:\n%s", stdout)
-	}
-
-	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
-		[]string{
-			"status: pending",
-			"title: Needs Classification",
-			"type: backend",
-			"complexity: low",
-		},
-		"# Task 1: Needs Classification",
-	))
 
 	stdout, stderr, exitCode = runCLICommand(t, workspaceRoot, "tasks", "validate", "--tasks-dir", tasksDir)
 	if exitCode != 0 {
 		t.Fatalf(
-			"expected tasks validate exit code 0 after fix, got %d\nstdout:\n%s\nstderr:\n%s",
+			"expected tasks validate exit code 0 after migrate, got %d\nstdout:\n%s\nstderr:\n%s",
 			exitCode,
 			stdout,
 			stderr,
