@@ -694,6 +694,9 @@ func (c *clientImpl) resolveStartCommand(ctx context.Context, req SessionRequest
 	if err != nil {
 		return "", nil, err
 	}
+	if err := validateRuntimeModelCompatibility(c.spec, requestedModel, command); err != nil {
+		return "", nil, wrapSessionSetupError(SessionSetupStageStartProcess, err)
+	}
 	return startModel, command, nil
 }
 
@@ -755,7 +758,7 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 			session.finish(model.StatusFailed, context.Canceled)
 			return
 		}
-		wrappedErr := wrapACPError(err)
+		wrappedErr := codexModelCompatibilityHint(c.spec, c.startModel, wrapACPError(err))
 		session.waitForIdle(ctx, 15*time.Millisecond)
 		if shouldDowngradePromptErrorAfterToolFailure(session, wrappedErr) {
 			session.finish(model.StatusCompleted, nil)

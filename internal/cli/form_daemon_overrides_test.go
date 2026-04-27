@@ -126,7 +126,7 @@ func TestReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides(t *testing.T
 			concurrent:      "3",
 			batchSize:       "10",
 			ide:             "codex",
-			model:           "gpt-5.4",
+			model:           "gpt-5.5",
 			reasoningEffort: "high",
 			autoCommit:      true,
 		}
@@ -167,7 +167,7 @@ func TestReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides(t *testing.T
 	if overrides.IDE == nil || *overrides.IDE != "codex" {
 		t.Fatalf("expected ide form override, got %#v", overrides)
 	}
-	if overrides.Model == nil || *overrides.Model != "gpt-5.4" {
+	if overrides.Model == nil || *overrides.Model != "gpt-5.5" {
 		t.Fatalf("expected model form override, got %#v", overrides)
 	}
 	if overrides.ReasoningEffort == nil || *overrides.ReasoningEffort != "high" {
@@ -203,7 +203,7 @@ func TestTasksRunInteractiveFormPropagatesDaemonRuntimeOverrides(t *testing.T) {
 		inputs := &formInputs{
 			name:            "demo",
 			ide:             "claude",
-			model:           "gpt-5.4",
+			model:           "gpt-5.5",
 			reasoningEffort: "high",
 			autoCommit:      true,
 		}
@@ -236,7 +236,7 @@ func TestTasksRunInteractiveFormPropagatesDaemonRuntimeOverrides(t *testing.T) {
 	if overrides.IDE == nil || *overrides.IDE != "claude" {
 		t.Fatalf("expected ide form override, got %#v", overrides)
 	}
-	if overrides.Model == nil || *overrides.Model != "gpt-5.4" {
+	if overrides.Model == nil || *overrides.Model != "gpt-5.5" {
 		t.Fatalf("expected model form override, got %#v", overrides)
 	}
 	if overrides.ReasoningEffort == nil || *overrides.ReasoningEffort != "high" {
@@ -273,7 +273,7 @@ func TestTasksRunInteractiveFormPropagatesTaskRuntimeRulesWithoutExplicitFlagMut
 		inputs := &formInputs{
 			name:            "demo",
 			ide:             "codex",
-			model:           "gpt-5.4",
+			model:           "gpt-5.5",
 			reasoningEffort: "medium",
 		}
 		inputs.apply(cmd, state)
@@ -291,7 +291,7 @@ func TestTasksRunInteractiveFormPropagatesTaskRuntimeRulesWithoutExplicitFlagMut
 			{
 				ID:    stringPointer("task_02"),
 				IDE:   stringPointer("codex"),
-				Model: stringPointer("gpt-5.4-mini"),
+				Model: stringPointer("codex-fast"),
 			},
 		}
 		return nil
@@ -334,7 +334,7 @@ func TestTasksRunInteractiveFormPropagatesTaskRuntimeRulesWithoutExplicitFlagMut
 	if taskRule.ID == nil || *taskRule.ID != "task_02" {
 		t.Fatalf("expected second task runtime rule to target task_02, got %#v", taskRule)
 	}
-	if taskRule.Model == nil || *taskRule.Model != "gpt-5.4-mini" {
+	if taskRule.Model == nil || *taskRule.Model != "codex-fast" {
 		t.Fatalf("expected second task runtime rule to preserve task-specific model override, got %#v", taskRule)
 	}
 }

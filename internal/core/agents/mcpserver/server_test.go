@@ -25,7 +25,7 @@ func TestLoadHostContextFromEnvParsesReservedPayload(t *testing.T) {
 		BaseRuntime: reusableagents.NestedBaseRuntime{
 			WorkspaceRoot:   "/tmp/workspace",
 			IDE:             model.IDECodex,
-			Model:           "gpt-5.4",
+			Model:           "gpt-5.5",
 			ReasoningEffort: "high",
 			AccessMode:      model.AccessModeFull,
 		},
@@ -50,7 +50,7 @@ func TestLoadHostContextFromEnvParsesReservedPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load host context: %v", err)
 	}
-	if host.BaseRuntime.WorkspaceRoot != "/tmp/workspace" || host.BaseRuntime.Model != "gpt-5.4" {
+	if host.BaseRuntime.WorkspaceRoot != "/tmp/workspace" || host.BaseRuntime.Model != "gpt-5.5" {
 		t.Fatalf("unexpected base runtime: %#v", host.BaseRuntime)
 	}
 	if host.Nested.ParentRunID != "run-123" || host.Nested.ParentAgentName != "planner" {

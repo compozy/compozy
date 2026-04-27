@@ -99,7 +99,7 @@ Execution runtimes are separate from skill installation. To run `compozy exec`, 
 | pi ACP             | `pi`           | `pi-acp`                         |
 | Gemini CLI         | `gemini`       | `gemini --acp`                   |
 
-When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally.
+When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally. Codex defaults to `gpt-5.5`; using that model with a local `codex-acp` binary requires `@zed-industries/codex-acp >= 0.12.0`. Update with `npm install -g @zed-industries/codex-acp@latest`, or explicitly choose a model supported by your installed adapter.
 
 ## 🔄 How It Works
 
@@ -158,7 +158,7 @@ Example:
 ```toml
 [defaults]
 ide = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 reasoning_effort = "medium"
 access_mode = "full"
 timeout = "10m"

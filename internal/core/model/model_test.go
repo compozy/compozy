@@ -415,7 +415,7 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 
 		cfg := &model.RuntimeConfig{
 			IDE:             model.IDECodex,
-			Model:           "gpt-5.4",
+			Model:           "gpt-5.5",
 			ReasoningEffort: "medium",
 			TaskRuntimeRules: []model.TaskRuntimeRule{
 				{
@@ -446,7 +446,7 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 		}
 
 		baseOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_03", Type: "backend"})
-		if baseOnly.IDE != model.IDECodex || baseOnly.Model != "gpt-5.4" || baseOnly.ReasoningEffort != "medium" {
+		if baseOnly.IDE != model.IDECodex || baseOnly.Model != "gpt-5.5" || baseOnly.ReasoningEffort != "medium" {
 			t.Fatalf("unexpected base runtime: %#v", baseOnly)
 		}
 	})
@@ -456,7 +456,7 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 
 		cfg := &model.RuntimeConfig{
 			IDE:             model.IDECodex,
-			Model:           "gpt-5.4",
+			Model:           "gpt-5.5",
 			ReasoningEffort: "medium",
 			TaskRuntimeRules: []model.TaskRuntimeRule{{
 				ID:    testStringPointer("task_01"),
@@ -467,7 +467,7 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 		resolved := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_01"})
 		resolved.Model = "mutated"
 
-		if cfg.Model != "gpt-5.4" {
+		if cfg.Model != "gpt-5.5" {
 			t.Fatalf("base runtime was mutated: %#v", cfg)
 		}
 		if len(resolved.TaskRuntimeRules) != 0 {

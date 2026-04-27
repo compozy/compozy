@@ -23,7 +23,7 @@
 ## Launch Contract
 
 - Launch Codex interactively:
-  - `codex --cd <repo-root> --no-alt-screen --model gpt-5.4 -c reasoning_effort="xhigh" -c developer_instructions="<smux pairing codex overlay>"`
+  - `codex --cd <repo-root> --no-alt-screen --model gpt-5.5 -c reasoning_effort="xhigh" -c developer_instructions="<smux pairing codex overlay>"`
   - Prefer `developer_instructions` for the workflow overlay so Codex keeps its bundled base instructions intact.
   - Only switch to `model_instructions_file` if you intentionally want to replace Codex's full model instructions surface.
 - Launch Claude Code interactively:
@@ -87,5 +87,5 @@
 4. **Execution gate**
    - The orchestrator runs the generated start wrapper for `compozy start`.
    - Effective command shape:
-     - `env -u CODEX_THREAD_ID -u TMUX -u TMUX_PANE compozy start --name <feature-name> --ide codex --model gpt-5.4 --reasoning-effort xhigh`
+     - `env -u CODEX_THREAD_ID -u TMUX -u TMUX_PANE compozy start --name <feature-name> --ide codex --model gpt-5.5 --reasoning-effort xhigh`
    - The run uses the generated task set without switching runtimes mid-flight.

@@ -267,7 +267,7 @@ func TestBuildDefaultDispatchesRunStartAndDelegatesToPrepareAndExecute(t *testin
 				Name:          "demo",
 				Mode:          model.ExecutionModePRDTasks,
 				IDE:           model.IDECodex,
-				Model:         "gpt-5.4",
+				Model:         "gpt-5.5",
 				BatchSize:     1,
 				Timeout:       time.Minute,
 			},
@@ -300,7 +300,7 @@ func TestBuildDefaultDispatchesRunStartAndDelegatesToPrepareAndExecute(t *testin
 	if gotCfg.IDE != model.IDECodex {
 		t.Fatalf("unexpected prepare ide: %q", gotCfg.IDE)
 	}
-	if gotCfg.Model != "gpt-5.4" {
+	if gotCfg.Model != "gpt-5.5" {
 		t.Fatalf("unexpected prepare model: %q", gotCfg.Model)
 	}
 

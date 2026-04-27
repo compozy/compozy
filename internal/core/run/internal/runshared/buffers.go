@@ -44,6 +44,7 @@ func (r *LineBuffer) Snapshot() []string {
 type ActivityMonitor struct {
 	mu           sync.Mutex
 	lastActivity time.Time
+	active       int
 }
 
 func NewActivityMonitor() *ActivityMonitor {
@@ -59,12 +60,37 @@ func (a *ActivityMonitor) RecordActivity() {
 	a.lastActivity = time.Now()
 }
 
+func (a *ActivityMonitor) BeginActivity() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.active++
+	a.lastActivity = time.Now()
+}
+
+func (a *ActivityMonitor) EndActivity() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.active > 0 {
+		a.active--
+	}
+	a.lastActivity = time.Now()
+}
+
 func (a *ActivityMonitor) TimeSinceLastActivity() time.Duration {
 	if a == nil {
 		return 0
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.active > 0 {
+		return 0
+	}
 	return time.Since(a.lastActivity)
 }
 

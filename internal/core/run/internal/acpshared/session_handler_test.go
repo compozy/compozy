@@ -112,6 +112,92 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 	}
 }
 
+func TestSessionUpdateHandlerKeepsActivityActiveWhileSubmittingUpdate(t *testing.T) {
+	t.Run("Should keep activity active while submitting update", func(t *testing.T) {
+		t.Parallel()
+
+		submitter := &blockingRuntimeEventSubmitter{
+			entered: make(chan struct{}),
+			release: make(chan struct{}),
+		}
+		activity := newActivityMonitor()
+		handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+			Context:    context.Background(),
+			Index:      1,
+			AgentID:    model.IDECodex,
+			SessionID:  "sess-active-update",
+			RunID:      "run-active-update",
+			RunJournal: submitter,
+			Activity:   activity,
+		})
+
+		textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "active"})
+		errCh := make(chan error, 1)
+		var releaseOnce sync.Once
+		releaseSubmitter := func() {
+			releaseOnce.Do(func() {
+				close(submitter.release)
+			})
+		}
+		drained := false
+		defer func() {
+			releaseSubmitter()
+			if drained {
+				return
+			}
+			select {
+			case <-errCh:
+			case <-time.After(time.Second):
+			}
+		}()
+		go func() {
+			errCh <- handler.HandleUpdate(model.SessionUpdate{
+				Kind:   model.UpdateKindAgentMessageChunk,
+				Blocks: []model.ContentBlock{textBlock},
+				Status: model.StatusRunning,
+			})
+		}()
+
+		select {
+		case <-submitter.entered:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for session update submission")
+		}
+		if got := activity.TimeSinceLastActivity(); got != 0 {
+			t.Fatalf("expected in-flight update handling to report active work, got %v", got)
+		}
+
+		releaseSubmitter()
+		select {
+		case err := <-errCh:
+			drained = true
+			if err != nil {
+				t.Fatalf("handle update: %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for session update handling")
+		}
+	})
+}
+
+type blockingRuntimeEventSubmitter struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *blockingRuntimeEventSubmitter) Submit(ctx context.Context, _ eventspkg.Event) error {
+	s.once.Do(func() {
+		close(s.entered)
+	})
+	select {
+	case <-s.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T) {
 	t.Parallel()
 

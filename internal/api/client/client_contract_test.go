@@ -167,7 +167,7 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 		Jobs: []contract.RunJobState{{
 			Summary: &contract.RunJobSummary{
 				IDE:   "codex",
-				Model: "gpt-5.4",
+				Model: "gpt-5.5",
 			},
 		}},
 		Transcript: []contract.RunTranscriptMessage{{
@@ -220,8 +220,8 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 		t.Fatalf("snapshot run = %#v, want %#v", got.Run, wantSnapshot.Run)
 	}
 	if len(got.Jobs) != 1 || got.Jobs[0].Summary == nil || got.Jobs[0].Summary.IDE != "codex" ||
-		got.Jobs[0].Summary.Model != "gpt-5.4" {
-		t.Fatalf("snapshot jobs = %#v, want codex/gpt-5.4 summary", got.Jobs)
+		got.Jobs[0].Summary.Model != "gpt-5.5" {
+		t.Fatalf("snapshot jobs = %#v, want codex/gpt-5.5 summary", got.Jobs)
 	}
 	if len(got.Transcript) != 1 || got.Transcript[0].Content != "hello" {
 		t.Fatalf("snapshot transcript = %#v, want one hello message", got.Transcript)

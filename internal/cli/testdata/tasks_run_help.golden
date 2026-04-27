@@ -31,6 +31,6 @@ Flags:
       --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately
       --stream                           Force textual stream attach mode
       --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
-      --task-runtime task-runtime        Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.4 or id=task_01,reasoning-effort=xhigh
+      --task-runtime task-runtime        Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.5 or id=task_01,reasoning-effort=xhigh
       --timeout string                   Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period. (default "10m")
       --ui                               Force interactive UI attach mode

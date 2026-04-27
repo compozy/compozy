@@ -332,7 +332,7 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 		WorkspaceRoot:   workspaceRoot,
 		TasksDir:        tasksDir,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4",
+		Model:           "gpt-5.5",
 		ReasoningEffort: "medium",
 		Mode:            model.ExecutionModePRDTasks,
 		TaskRuntimeRules: []model.TaskRuntimeRule{
@@ -344,7 +344,7 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 			},
 			{
 				ID:    testStringPointer("task_02"),
-				Model: testStringPointer("gpt-5.4-mini"),
+				Model: testStringPointer("codex-fast"),
 			},
 		},
 	}, groups, runArtifacts, nil, nil)
@@ -357,7 +357,7 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
 		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
 	}
-	if jobs[1].IDE != model.IDECodex || jobs[1].Model != "gpt-5.4-mini" || jobs[1].ReasoningEffort != "medium" {
+	if jobs[1].IDE != model.IDECodex || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "medium" {
 		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
 	}
 }
@@ -1248,7 +1248,7 @@ complexity: low
 				}
 				payload.Runtime = model.TaskRuntime{
 					IDE:             model.IDECodex,
-					Model:           "gpt-5.4",
+					Model:           "gpt-5.5",
 					ReasoningEffort: "xhigh",
 				}
 				return payload, nil
@@ -1262,7 +1262,7 @@ complexity: low
 		TasksDir:        tasksDir,
 		DryRun:          true,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4-mini",
+		Model:           "codex-fast",
 		ReasoningEffort: "medium",
 		Mode:            model.ExecutionModePRDTasks,
 		RunID:           "plan-pre-resolve-task-runtime",
@@ -1277,8 +1277,8 @@ complexity: low
 	}
 	defer closePreparedJournalForTest(t, prep)
 
-	if got := prep.Jobs[0].Model; got != "gpt-5.4" {
-		t.Fatalf("prepared job model = %q, want %q", got, "gpt-5.4")
+	if got := prep.Jobs[0].Model; got != "gpt-5.5" {
+		t.Fatalf("prepared job model = %q, want %q", got, "gpt-5.5")
 	}
 	if got := prep.Jobs[0].ReasoningEffort; got != "xhigh" {
 		t.Fatalf("prepared job reasoning = %q, want %q", got, "xhigh")
@@ -1309,7 +1309,7 @@ complexity: low
 		mutators: map[string]func(any) (any, error){
 			"plan.post_prepare_jobs": func(input any) (any, error) {
 				payload := input.(planJobsPayload)
-				payload.Jobs[0].Model = "gpt-5.4-mini"
+				payload.Jobs[0].Model = "codex-fast"
 				return payload, nil
 			},
 		},
@@ -1321,7 +1321,7 @@ complexity: low
 		TasksDir:      tasksDir,
 		DryRun:        true,
 		IDE:           model.IDECodex,
-		Model:         "gpt-5.4",
+		Model:         "gpt-5.5",
 		Mode:          model.ExecutionModePRDTasks,
 		RunID:         "plan-post-prepare-jobs-runtime-mutation",
 	}

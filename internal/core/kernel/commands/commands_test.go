@@ -21,7 +21,7 @@ func TestRunStartFromConfigMapsLegacyRuntimeConfig(t *testing.T) {
 	if cmd.Runtime.IDE != model.IDECodex {
 		t.Fatalf("unexpected ide: %q", cmd.Runtime.IDE)
 	}
-	if cmd.Runtime.Model != "gpt-5.4" {
+	if cmd.Runtime.Model != "gpt-5.5" {
 		t.Fatalf("unexpected model: %q", cmd.Runtime.Model)
 	}
 	if cmd.Runtime.Name != "demo" {
@@ -437,7 +437,7 @@ func testCoreConfig() core.Config {
 		Concurrent:                 2,
 		BatchSize:                  1,
 		IDE:                        core.IDECodex,
-		Model:                      "gpt-5.4",
+		Model:                      "gpt-5.5",
 		AddDirs:                    []string{"docs", "src"},
 		TailLines:                  25,
 		ReasoningEffort:            "high",

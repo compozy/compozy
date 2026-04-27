@@ -689,7 +689,7 @@ func prepareRunLayout(t *testing.T, workspaceRoot, runID string) string {
 		"status":         "running",
 		"mode":           "prd-tasks",
 		"ide":            "codex",
-		"model":          "gpt-5.4",
+		"model":          "gpt-5.5",
 		"workspace_root": workspaceRoot,
 		"artifacts_dir":  runDir,
 		"created_at":     time.Now().UTC(),

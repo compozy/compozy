@@ -83,7 +83,7 @@ description: Orchestrates an interactive tmux-based pairing workflow where the c
 
 **Step 7: Execute the workflow**
 1. Run `"$START_COMMAND"` from the orchestrator pane after task validation passes.
-2. Keep the execution runtime aligned with Codex: `--ide codex --model gpt-5.4 --reasoning-effort xhigh`.
+2. Keep the execution runtime aligned with Codex: `--ide codex --model gpt-5.5 --reasoning-effort xhigh`.
 3. Treat the generated start wrapper as authoritative because it strips interactive Codex/tmux session variables such as `CODEX_THREAD_ID`, `TMUX`, and `TMUX_PANE` before launching `compozy start`.
 4. Let the run finish through the normal Compozy cockpit or the output mode already encoded in the command.
 5. Report the resulting `compozy start` state back to the human user.

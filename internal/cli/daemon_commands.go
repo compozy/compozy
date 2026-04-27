@@ -299,7 +299,7 @@ is running, and then sends the workflow request over the daemon transport.`,
 	cmd.Flags().Var(
 		newTaskRuntimeFlagValue(&state.executionTaskRuntimeRules),
 		"task-runtime",
-		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.4 or id=task_01,reasoning-effort=xhigh`,
+		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.5 or id=task_01,reasoning-effort=xhigh`,
 	)
 	return cmd
 }

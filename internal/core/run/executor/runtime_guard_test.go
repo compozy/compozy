@@ -16,7 +16,7 @@ func TestPrepareExecutionConfigRunPreStartRejectsPreparedStateMutation(t *testin
 		mutators: map[string]func(any) (any, error){
 			"run.pre_start": func(input any) (any, error) {
 				payload := input.(runPreStartPayload)
-				payload.Config.Model = "gpt-5.4-mini"
+				payload.Config.Model = "codex-fast"
 				return payload, nil
 			},
 		},
@@ -28,7 +28,7 @@ func TestPrepareExecutionConfigRunPreStartRejectsPreparedStateMutation(t *testin
 		TasksDir:               "/tmp/workspace/.compozy/tasks/demo",
 		Mode:                   model.ExecutionModePRDTasks,
 		IDE:                    model.IDECodex,
-		Model:                  "gpt-5.4",
+		Model:                  "gpt-5.5",
 		ReasoningEffort:        "medium",
 		AccessMode:             model.AccessModeFull,
 		Timeout:                time.Minute,
@@ -71,7 +71,7 @@ func TestPrepareExecutionConfigRunPreStartAllowsLateMutableFields(t *testing.T) 
 		TasksDir:               "/tmp/workspace/.compozy/tasks/demo",
 		Mode:                   model.ExecutionModePRDTasks,
 		IDE:                    model.IDECodex,
-		Model:                  "gpt-5.4",
+		Model:                  "gpt-5.5",
 		ReasoningEffort:        "medium",
 		AccessMode:             model.AccessModeFull,
 		Timeout:                time.Minute,
@@ -110,7 +110,7 @@ func TestJobRunnerDispatchPreExecuteRejectsRuntimeMutation(t *testing.T) {
 		mutators: map[string]func(any) (any, error){
 			"job.pre_execute": func(input any) (any, error) {
 				payload := input.(jobPreExecutePayload)
-				payload.Job.Model = "gpt-5.4-mini"
+				payload.Job.Model = "codex-fast"
 				return payload, nil
 			},
 		},
@@ -120,7 +120,7 @@ func TestJobRunnerDispatchPreExecuteRejectsRuntimeMutation(t *testing.T) {
 		job: &job{
 			SafeName:        "task_01",
 			IDE:             model.IDECodex,
-			Model:           "gpt-5.4",
+			Model:           "gpt-5.5",
 			ReasoningEffort: "medium",
 		},
 		execCtx: &jobExecutionContext{
@@ -157,7 +157,7 @@ func TestJobRunnerDispatchPreExecuteRejectsWhitespaceOnlyRuntimeMutation(t *test
 		job: &job{
 			SafeName:        "task_01",
 			IDE:             model.IDECodex,
-			Model:           "gpt-5.4",
+			Model:           "gpt-5.5",
 			ReasoningEffort: "medium",
 		},
 		execCtx: &jobExecutionContext{

@@ -27,7 +27,7 @@ func TestBuildSessionMCPServersBuildsReservedServerForBaseRuntimeOnlySessions(t 
 	cfg := &model.RuntimeConfig{
 		WorkspaceRoot:   "/tmp/workspace",
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4",
+		Model:           "gpt-5.5",
 		AccessMode:      model.AccessModeDefault,
 		ReasoningEffort: "medium",
 	}
@@ -92,7 +92,7 @@ func TestBuildSessionMCPServersPrependsReservedServerAndSerializesHostContext(t 
 		BaseRuntime: NestedBaseRuntime{
 			WorkspaceRoot: "/tmp/workspace",
 			IDE:           model.IDECodex,
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			AccessMode:    model.AccessModeFull,
 		},
 	}
@@ -241,7 +241,7 @@ func TestNestedBaseRuntimeRuntimeConfigClonesFields(t *testing.T) {
 	base := NestedBaseRuntime{
 		WorkspaceRoot:          "/tmp/workspace",
 		IDE:                    model.IDECodex,
-		Model:                  "gpt-5.4",
+		Model:                  "gpt-5.5",
 		AddDirs:                []string{"/tmp/extra"},
 		ReasoningEffort:        "high",
 		AccessMode:             model.AccessModeFull,
@@ -278,7 +278,7 @@ func TestCaptureNestedBaseRuntimeHandlesNilAndClonesAddDirs(t *testing.T) {
 	cfg := &model.RuntimeConfig{
 		WorkspaceRoot:          "/tmp/workspace",
 		IDE:                    model.IDECodex,
-		Model:                  "gpt-5.4",
+		Model:                  "gpt-5.5",
 		AddDirs:                []string{"/tmp/extra"},
 		ReasoningEffort:        "medium",
 		AccessMode:             model.AccessModeDefault,

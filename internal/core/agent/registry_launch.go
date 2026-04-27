@@ -77,15 +77,24 @@ func EnsureAvailable(ctx context.Context, cfg *model.RuntimeConfig) error {
 	if err != nil {
 		return err
 	}
-	if _, err := resolveLaunchCommand(
+	resolvedModel := resolveModel(spec, cfg.Model)
+	launchModel := spec.DefaultModel
+	if spec.UsesBootstrapModel {
+		launchModel = resolvedModel
+	}
+	command, err := resolveLaunchCommand(
 		ctx,
 		spec,
-		spec.DefaultModel,
+		launchModel,
 		cfg.ReasoningEffort,
 		cfg.AddDirs,
 		cfg.AccessMode,
 		true,
-	); err != nil {
+	)
+	if err != nil {
+		return err
+	}
+	if err := validateRuntimeModelCompatibility(spec, resolvedModel, command); err != nil {
 		return err
 	}
 	return nil
@@ -158,7 +167,24 @@ func resolveModel(spec Spec, modelName string) string {
 	if selected == "" {
 		selected = spec.DefaultModel
 	}
-	return modelprovider.ResolveAlias(selected)
+	return normalizeRuntimeModel(spec, modelprovider.ResolveAlias(selected))
+}
+
+func normalizeRuntimeModel(spec Spec, modelName string) string {
+	trimmed := strings.TrimSpace(modelName)
+	if spec.ID != model.IDECodex {
+		return trimmed
+	}
+	if unprefixed, ok := strings.CutPrefix(trimmed, model.IDECodex+"/"); ok {
+		return strings.TrimSpace(unprefixed)
+	}
+	if provider, unprefixed, ok := strings.Cut(trimmed, "/"); ok && strings.TrimSpace(provider) != "" {
+		candidate := strings.TrimSpace(unprefixed)
+		if candidate != "" && !strings.Contains(candidate, "/") {
+			return candidate
+		}
+	}
+	return trimmed
 }
 
 func sortedEnvAssignments(env map[string]string) []string {
