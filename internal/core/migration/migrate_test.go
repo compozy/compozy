@@ -618,6 +618,11 @@ func TestInferTaskTypeFromLegacyDomainUsesTokenBoundaries(t *testing.T) {
 			domain: "DevOps",
 			want:   "infra",
 		},
+		{
+			name:   "docker token does not map to docs",
+			domain: "Docker Runtime",
+			want:   "backend",
+		},
 	}
 
 	for _, tt := range tests {

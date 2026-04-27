@@ -471,7 +471,8 @@ func inferTaskTypeFromLegacyDomain(domain string, registry *tasks.TypeRegistry) 
 	switch {
 	case registry.IsAllowed("frontend") && hasAnyToken(tokens, "frontend", "ui", "ux", "web", "tui"):
 		return "frontend"
-	case registry.IsAllowed("docs") && hasAnyTokenPrefix(tokens, "doc"):
+	case registry.IsAllowed("docs") &&
+		hasAnyToken(tokens, "doc", "docs", "documentation"):
 		return "docs"
 	case registry.IsAllowed("test") && hasAnyToken(tokens, "test", "qa", "validation"):
 		return "test"
@@ -518,17 +519,6 @@ func hasAnyToken(tokens []string, needles ...string) bool {
 	for _, token := range tokens {
 		for _, needle := range needles {
 			if token == needle {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasAnyTokenPrefix(tokens []string, prefixes ...string) bool {
-	for _, token := range tokens {
-		for _, prefix := range prefixes {
-			if strings.HasPrefix(token, prefix) {
 				return true
 			}
 		}

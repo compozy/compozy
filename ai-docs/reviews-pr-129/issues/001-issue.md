@@ -1,52 +1,28 @@
 # Issue 1 - Review Thread Comment
 
-**File:** `internal/api/core/handlers_service_errors_test.go:367`
-**Date:** 2026-04-27 14:49:00 UTC
+**File:** `internal/core/migration/migrate.go:475`
+**Date:** 2026-04-27 15:04:12 UTC
 **Status:** - [x] RESOLVED
 
 ## Body
 
-_⚠️ Potential issue_ | _🟡 Minor_
+_⚠️ Potential issue_ | _🟠 Major_
 
-**Rename this test case to follow the required `Should...` pattern**
+**Tighten the docs matcher to avoid `Docker` → `docs`.**
 
-Please rename the case label (e.g., `"Should return validation_error for wrapped task parse failures"`) to match the enforced test naming convention.
+Line 474 treats any `doc*` token as documentation, so domains like `Docker` or `docstore` will be migrated to `type: docs` before the `infra`/`backend` branches are even considered. That silently rewrites some legacy feature tasks to the wrong v2 type.
 
 <details>
-<summary>Suggested change</summary>
+<summary>Suggested fix</summary>
 
 ```diff
--			"sync validation error",
-+			"Should return validation_error for wrapped task parse failures",
+-	case registry.IsAllowed("docs") && hasAnyTokenPrefix(tokens, "doc"):
++	case registry.IsAllowed("docs") &&
++		hasAnyToken(tokens, "doc", "docs", "documentation"):
+ 		return "docs"
 ```
 
 </details>
-As per coding guidelines, "MUST use t.Run(\"Should...\") pattern for ALL test cases".
-
-<!-- suggestion_start -->
-
-<details>
-<summary>📝 Committable suggestion</summary>
-
-> ‼️ **IMPORTANT**
-> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
-
-```suggestion
-			"Should return validation_error for wrapped task parse failures",
-			&core.HandlerConfig{Sync: &errorSyncService{
-				err: tasks.WrapParseError("/tmp/task_01.md", tasks.ErrV1TaskMetadata),
-			}},
-			http.MethodPost,
-			"/api/sync",
-			`{"workspace":"ws-1","workflow_slug":"daemon"}`,
-			http.StatusUnprocessableEntity,
-			"validation_error",
-		},
-```
-
-</details>
-
-<!-- suggestion_end -->
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -54,34 +30,41 @@ As per coding guidelines, "MUST use t.Run(\"Should...\") pattern for ALL test ca
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/api/core/handlers_service_errors_test.go` around lines 358 - 367,
-Rename the test case label string "sync validation error" in the table-driven
-tests (the entry that uses &core.HandlerConfig{Sync: &errorSyncService{...}} and
-asserts http.StatusUnprocessableEntity with "validation_error") to follow the
-test naming convention by starting with "Should", e.g. "Should return
-validation_error for wrapped task parse failures", so that the t.Run invocation
-uses the required `t.Run("Should...")` pattern for this case.
+In `@internal/core/migration/migrate.go` around lines 474 - 475, The current case
+using registry.IsAllowed("docs") && hasAnyTokenPrefix(tokens, "doc") incorrectly
+matches tokens like "Docker" and "docstore"; change the matcher to only match
+exact documentation tokens (e.g., "doc", "docs", "documentation") instead of any
+prefix. Update the condition in the migrate switch branch (the case that returns
+"docs") to call an exact-token checker (or extend/replace hasAnyTokenPrefix with
+a check like hasAnyTokenExact(tokens, "doc", "docs", "documentation") or a regex
+that anchors the whole token) so only true documentation tokens trigger return
+"docs".
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:hawk:b27f5408-b987-4945-8b9c-5076daecce81 -->
+<!-- fingerprinting:phantom:medusa:grasshopper:4af99e3f-f4cd-439d-9de3-a76708043e62 -->
 
-<!-- d98c2f50 -->
+<!-- 4e71b3a2 -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
 - Disposition: `VALID`
-- Rationale: o repositório exige nomes de casos `Should...` nos `t.Run` table-driven. O caso adicionado ficou inconsistente com esse padrão.
+- Rationale: o matcher de documentação por prefixo aceitava tokens como `Docker` e `docstore`, o que podia migrar tarefas para `docs` de forma incorreta.
+
+## Triage
+
+- Disposition: `VALID`
+- Rationale: o matcher de `docs` por prefixo aceitava tokens como `Docker`, o que pode reclassificar incorretamente tarefas legadas antes dos ramos `infra`/`backend`.
 
 ## Resolve
 
-Thread ID: `PRRT_kwDORy7nkc593g9h`
+Thread ID: `PRRT_kwDORy7nkc5930EP`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc593g9h
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc5930EP
 ```
 
 ---
