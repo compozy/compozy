@@ -298,10 +298,6 @@ func SetupAgentName(ide string) (string, error) {
 	return spec.SetupAgentName, nil
 }
 
-func codexConfigOverride(key, value string) string {
-	return strings.TrimSpace(key) + "=" + strconv.Quote(strings.TrimSpace(value))
-}
-
 // DriverCatalog returns the stable ACP driver catalog in the supported IDE order.
 func DriverCatalog() []DriverCatalogEntry {
 	snapshot := currentCatalogSnapshot()
