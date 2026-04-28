@@ -37,6 +37,11 @@ func ParseReviewContext(content string) (model.ReviewContext, error) {
 	}
 
 	ctx := model.ReviewContext{
+		Provider:       strings.TrimSpace(meta.Provider),
+		PR:             strings.TrimSpace(meta.PR),
+		Round:          meta.Round,
+		RoundCreatedAt: meta.RoundCreatedAt,
+
 		Status:      strings.ToLower(strings.TrimSpace(meta.Status)),
 		File:        strings.TrimSpace(meta.File),
 		Line:        meta.Line,

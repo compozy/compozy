@@ -2,8 +2,36 @@ import "@testing-library/jest-dom/vitest";
 
 import { afterEach, vi } from "vitest";
 
+import { setWorkspaceEventStreamFactoryOverrideForTests } from "@/systems/app-shell/lib/workspace-events";
+
+setWorkspaceEventStreamFactoryOverrideForTests(() => ({ close: () => {} }));
+
 if (typeof window !== "undefined") {
   window.scrollTo = vi.fn();
+  if (!HTMLElement.prototype.scrollTo) {
+    HTMLElement.prototype.scrollTo = vi.fn();
+  }
+  if (typeof globalThis.ResizeObserver === "undefined") {
+    class TestResizeObserver implements ResizeObserver {
+      observe(): void {
+        return undefined;
+      }
+      unobserve(): void {
+        return undefined;
+      }
+      disconnect(): void {
+        return undefined;
+      }
+    }
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: TestResizeObserver,
+    });
+    Object.defineProperty(globalThis, "ResizeObserver", {
+      configurable: true,
+      value: TestResizeObserver,
+    });
+  }
 }
 
 afterEach(() => {

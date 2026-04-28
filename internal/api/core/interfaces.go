@@ -20,13 +20,14 @@ type HandlerConfig struct {
 	HeartbeatInterval time.Duration
 	StreamDone        <-chan struct{}
 
-	Daemon     DaemonService
-	Workspaces WorkspaceService
-	Tasks      TaskService
-	Reviews    ReviewService
-	Runs       RunService
-	Sync       SyncService
-	Exec       ExecService
+	Daemon          DaemonService
+	Workspaces      WorkspaceService
+	WorkspaceEvents WorkspaceEventService
+	Tasks           TaskService
+	Reviews         ReviewService
+	Runs            RunService
+	Sync            SyncService
+	Exec            ExecService
 }
 
 // DaemonService exposes daemon-wide status, health, metrics, and shutdown control.
@@ -46,6 +47,11 @@ type WorkspaceService interface {
 	Delete(context.Context, string) error
 	Resolve(context.Context, string) (Workspace, error)
 	Sync(context.Context) (WorkspaceSyncResult, error)
+}
+
+// WorkspaceEventService exposes workspace-scoped browser event streams.
+type WorkspaceEventService interface {
+	OpenWorkspaceStream(context.Context, string) (WorkspaceEventStream, error)
 }
 
 // TaskService exposes workflow summary, rich read-model, validation, and run-start surfaces.
@@ -80,6 +86,7 @@ type RunService interface {
 	List(context.Context, RunListQuery) ([]Run, error)
 	Get(context.Context, string) (Run, error)
 	Snapshot(context.Context, string) (RunSnapshot, error)
+	Transcript(context.Context, string) (RunTranscript, error)
 	RunDetail(context.Context, string) (RunDetailPayload, error)
 	Events(context.Context, string, RunEventPageQuery) (RunEventPage, error)
 	OpenStream(context.Context, string, StreamCursor) (RunStream, error)
@@ -112,6 +119,48 @@ type RunStreamItem struct {
 // RunStreamOverflow notifies the transport that the client must reconnect from the last cursor.
 type RunStreamOverflow struct {
 	Reason string
+}
+
+// WorkspaceEventStream is the live workspace event subscription surfaced to the transport layer.
+type WorkspaceEventStream interface {
+	Events() <-chan WorkspaceStreamItem
+	Errors() <-chan error
+	Close() error
+}
+
+// WorkspaceStreamItem carries one workspace event delivery or an overflow notice.
+type WorkspaceStreamItem struct {
+	Event    *WorkspaceEvent
+	Overflow *WorkspaceStreamOverflow
+}
+
+// WorkspaceStreamOverflow notifies the browser that workspace events were dropped.
+type WorkspaceStreamOverflow struct {
+	Reason string `json:"reason"`
+}
+
+type WorkspaceEventKind string
+
+const (
+	WorkspaceEventKindRunCreated            WorkspaceEventKind = "run.created"
+	WorkspaceEventKindRunStatusChanged      WorkspaceEventKind = "run.status_changed"
+	WorkspaceEventKindRunTerminal           WorkspaceEventKind = "run.terminal"
+	WorkspaceEventKindWorkflowSyncCompleted WorkspaceEventKind = "workflow.sync_completed"
+	WorkspaceEventKindArtifactChanged       WorkspaceEventKind = "artifact.changed"
+)
+
+// WorkspaceEvent is a lightweight daemon-owned invalidation event for one workspace.
+type WorkspaceEvent struct {
+	Seq          uint64             `json:"seq"`
+	TS           time.Time          `json:"ts"`
+	WorkspaceID  string             `json:"workspace_id"`
+	WorkflowID   *string            `json:"workflow_id,omitempty"`
+	WorkflowSlug string             `json:"workflow_slug,omitempty"`
+	RunID        string             `json:"run_id,omitempty"`
+	Mode         string             `json:"mode,omitempty"`
+	Status       string             `json:"status,omitempty"`
+	Kind         WorkspaceEventKind `json:"kind"`
+	Paths        []string           `json:"paths,omitempty"`
 }
 
 // MetricsPayload carries pre-rendered metrics text.
@@ -297,6 +346,9 @@ type Run = contract.Run
 type RunJobSummary = contract.RunJobSummary
 type RunJobState = contract.RunJobState
 type RunTranscriptMessage = contract.RunTranscriptMessage
+type RunUIMessage = contract.RunUIMessage
+type RunUIMessagePart = contract.RunUIMessagePart
+type RunTranscript = contract.RunTranscript
 type RunShutdownState = contract.RunShutdownState
 type RunSnapshot = contract.RunSnapshot
 

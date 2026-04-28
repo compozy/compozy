@@ -238,7 +238,7 @@ func collectArtifactSnapshots(tasksDir string) ([]globaldb.ArtifactSnapshotInput
 			return fmt.Errorf("resolve relative artifact path for %s: %w", path, err)
 		}
 		relativePath = filepath.ToSlash(relativePath)
-		if relativePath == "_meta.md" {
+		if relativePath == "_meta.md" || isReviewRoundMetaPath(relativePath) {
 			return nil
 		}
 
@@ -315,8 +315,6 @@ func classifyArtifactKind(relativePath string) string {
 		return "adr"
 	case strings.HasPrefix(clean, "memory/"):
 		return "memory"
-	case isReviewRoundMetaPath(clean):
-		return "review_round_meta"
 	case isReviewIssuePath(clean):
 		return "review_issue"
 	case strings.HasPrefix(clean, "qa/"):
@@ -389,9 +387,9 @@ func collectReviewRounds(tasksDir string) ([]globaldb.ReviewRoundInput, error) {
 	rounds := make([]globaldb.ReviewRoundInput, 0, len(roundNumbers))
 	for _, roundNumber := range roundNumbers {
 		reviewDir := reviews.ReviewDirectory(tasksDir, roundNumber)
-		roundMeta, err := reviews.ReadRoundMeta(reviewDir)
+		roundMeta, err := reviews.SnapshotRoundMeta(reviewDir)
 		if err != nil {
-			return nil, fmt.Errorf("read review round metadata %s: %w", reviewDir, err)
+			return nil, fmt.Errorf("snapshot review round metadata %s: %w", reviewDir, err)
 		}
 		if roundMeta.Round != 0 && roundMeta.Round != roundNumber {
 			return nil, fmt.Errorf(

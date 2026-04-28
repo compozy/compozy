@@ -1,4 +1,4 @@
-import type { Run, RunSnapshot } from "../types";
+import type { Run, RunSnapshot, RunTranscript } from "../types";
 import { workspaceFixture } from "@/systems/app-shell/mocks";
 import { workflowAlphaFixture } from "@/systems/workflows/mocks";
 
@@ -64,6 +64,45 @@ export function buildRunSnapshotFixture(overrides: Partial<RunSnapshot> = {}): R
 }
 
 export const runSnapshotFixture = buildRunSnapshotFixture();
+
+export function buildRunTranscriptFixture(overrides: Partial<RunTranscript> = {}): RunTranscript {
+  return {
+    run_id: "run-task-02",
+    messages: [
+      {
+        id: "msg-1",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Storybook route harness booted.",
+            state: "done",
+          },
+          {
+            type: "dynamic-tool",
+            toolCallId: "tool-1",
+            toolName: "Bash",
+            state: "output-available",
+            input: { command: "bun test" },
+            output: {
+              blocks: [
+                {
+                  type: "terminal_output",
+                  command: "bun test",
+                  output: "1 test passed",
+                  exitCode: 0,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  } as RunTranscript;
+}
+
+export const runTranscriptFixture = buildRunTranscriptFixture();
 
 export const completedRunSnapshotFixture = buildRunSnapshotFixture({
   run: {

@@ -136,8 +136,7 @@ For detailed skill descriptions and inputs/outputs, read `references/skills-refe
       adrs/
         adr-001.md ... adr-NNN.md      # Architecture Decision Records
       reviews-NNN/
-        _meta.md                       # Review round metadata
-        issue_001.md ... issue_N.md    # Review issue files
+        issue_001.md ... issue_N.md    # Review issues with round metadata in frontmatter
       memory/
         MEMORY.md                      # Shared workflow memory
         task_01.md ... task_N.md       # Per-task memory

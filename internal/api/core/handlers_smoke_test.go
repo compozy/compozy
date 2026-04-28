@@ -360,6 +360,7 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 		{"runs list", http.MethodGet, "/api/runs?workspace=ws-1&limit=10", "", http.StatusOK, `"runs":[`},
 		{"run get", http.MethodGet, "/api/runs/run-1", "", http.StatusOK, `"run":{"run_id":"run-1"`},
 		{"run snapshot", http.MethodGet, "/api/runs/run-1/snapshot", "", http.StatusOK, `"next_cursor":"`},
+		{"run transcript", http.MethodGet, "/api/runs/run-1/transcript", "", http.StatusOK, `"messages":[]`},
 		{"run events", http.MethodGet, "/api/runs/run-1/events?limit=10", "", http.StatusOK, `"has_more":true`},
 		{"run cancel", http.MethodPost, "/api/runs/run-1/cancel", "", http.StatusAccepted, `"accepted":true`},
 		{
@@ -578,6 +579,14 @@ func (s *smokeRunService) Get(context.Context, string) (core.Run, error) {
 
 func (s *smokeRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
 	return s.snapshot, nil
+}
+
+func (s *smokeRunService) Transcript(context.Context, string) (core.RunTranscript, error) {
+	return core.RunTranscript{
+		RunID:      s.run.RunID,
+		Messages:   []core.RunUIMessage{},
+		NextCursor: s.snapshot.NextCursor,
+	}, nil
 }
 
 func (s *smokeRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {

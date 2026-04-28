@@ -1,7 +1,6 @@
 package reviews
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,7 +80,7 @@ func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
 			if !meta.CreatedAt.Equal(createdAt) {
 				t.Fatalf("unexpected created_at: %s", meta.CreatedAt.Format(time.RFC3339))
 			}
-			if meta.Total != 1 || meta.Resolved != 0 || meta.Unresolved != 1 {
+			if meta.Total != 0 || meta.Resolved != 0 || meta.Unresolved != 0 {
 				t.Fatalf("unexpected counts: %#v", meta)
 			}
 		})
@@ -114,6 +113,9 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 
 	if err := WriteRound(reviewDir, meta, items); err != nil {
 		t.Fatalf("write round: %v", err)
+	}
+	if _, err := os.Stat(MetaPath(reviewDir)); !os.IsNotExist(err) {
+		t.Fatalf("expected WriteRound to avoid legacy _meta.md, got err=%v", err)
 	}
 
 	readMeta, err := ReadRoundMeta(reviewDir)
@@ -153,6 +155,12 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	}
 	if ctx.SourceReviewSubmittedAt != "2026-04-10T13:33:25Z" {
 		t.Fatalf("unexpected source review submitted_at: %q", ctx.SourceReviewSubmittedAt)
+	}
+	if ctx.Provider != "coderabbit" || ctx.PR != "259" || ctx.Round != 1 {
+		t.Fatalf("unexpected round context: %#v", ctx)
+	}
+	if !ctx.RoundCreatedAt.Equal(meta.CreatedAt) {
+		t.Fatalf("unexpected round created_at: %s", ctx.RoundCreatedAt.Format(time.RFC3339))
 	}
 }
 
@@ -219,11 +227,6 @@ func TestSnapshotRoundMetaCountsResolvedIssuesWithoutWriting(t *testing.T) {
 		t.Fatalf("write round: %v", err)
 	}
 
-	metaPath := MetaPath(reviewDir)
-	before, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("read meta before snapshot: %v", err)
-	}
 	if err := os.WriteFile(
 		filepath.Join(reviewDir, "issue_001.md"),
 		[]byte(strings.Replace(reviewIssueContent("pending"), "status: pending", "status: resolved", 1)),
@@ -240,12 +243,8 @@ func TestSnapshotRoundMetaCountsResolvedIssuesWithoutWriting(t *testing.T) {
 		t.Fatalf("unexpected snapshot counts: %#v", meta)
 	}
 
-	after, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("read meta after snapshot: %v", err)
-	}
-	if !bytes.Equal(after, before) {
-		t.Fatalf("expected snapshot to avoid rewriting round meta\nbefore:\n%s\nafter:\n%s", before, after)
+	if _, err := os.Stat(MetaPath(reviewDir)); !os.IsNotExist(err) {
+		t.Fatalf("expected snapshot to avoid writing legacy _meta.md, got err=%v", err)
 	}
 }
 
@@ -363,6 +362,10 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 func reviewIssueContent(status string) string {
 	return strings.Join([]string{
 		"---",
+		"provider: coderabbit",
+		"pr: \"259\"",
+		"round: 1",
+		"round_created_at: 2026-03-28T10:00:00Z",
 		"status: " + status,
 		"file: internal/app/service.go",
 		"line: 42",

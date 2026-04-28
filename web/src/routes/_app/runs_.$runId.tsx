@@ -15,6 +15,7 @@ import {
   useRunEventFeed,
   useRunSnapshot,
   useRunStream,
+  useRunTranscript,
   type RunStreamOverflow,
 } from "@/systems/runs";
 
@@ -28,6 +29,7 @@ function RunDetailRoute(): ReactElement {
   const queryClient = useQueryClient();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
   const snapshotQuery = useRunSnapshot(runId);
+  const transcriptQuery = useRunTranscript(runId);
   const cancelMutation = useCancelRun();
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -42,6 +44,7 @@ function RunDetailRoute(): ReactElement {
   const handleOverflow = useCallback(
     (_overflow: RunStreamOverflow) => {
       void queryClient.invalidateQueries({ queryKey: runKeys.snapshot(runId) });
+      void queryClient.invalidateQueries({ queryKey: runKeys.transcript(runId) });
     },
     [queryClient, runId]
   );
@@ -53,6 +56,7 @@ function RunDetailRoute(): ReactElement {
         closeStreamRef.current();
         setTerminalEventSeen(true);
         void queryClient.invalidateQueries({ queryKey: runKeys.snapshot(runId) });
+        void queryClient.invalidateQueries({ queryKey: runKeys.transcript(runId) });
         void queryClient.invalidateQueries({ queryKey: runKeys.lists() });
         void queryClient.invalidateQueries({
           queryKey: dashboardKeys.byWorkspace(activeWorkspace.id),
@@ -123,6 +127,8 @@ function RunDetailRoute(): ReactElement {
           cancelSuccess={cancelMessage}
           isCancelling={cancelMutation.isPending}
           isRefreshingSnapshot={snapshotQuery.isRefetching}
+          isLoadingTranscript={transcriptQuery.isLoading}
+          isTranscriptError={transcriptQuery.isError}
           lastHeartbeatAt={runStream.lastHeartbeat?.receivedAt ?? null}
           liveEvents={events}
           onCancelRun={handleCancel}
@@ -136,6 +142,12 @@ function RunDetailRoute(): ReactElement {
           }
           streamEventCount={runStream.eventCount}
           streamStatus={runStream.status}
+          transcript={transcriptQuery.data}
+          transcriptError={
+            transcriptQuery.error
+              ? apiErrorMessage(transcriptQuery.error, "Failed to load run transcript")
+              : null
+          }
         />
       ) : null}
     </AppShellLayout>

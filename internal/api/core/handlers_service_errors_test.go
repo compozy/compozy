@@ -727,6 +727,10 @@ func (s *errorRunService) Snapshot(context.Context, string) (core.RunSnapshot, e
 	return core.RunSnapshot{}, s.err
 }
 
+func (s *errorRunService) Transcript(context.Context, string) (core.RunTranscript, error) {
+	return core.RunTranscript{}, s.err
+}
+
 func (s *errorRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
 	return core.RunDetailPayload{}, s.err
 }

@@ -96,6 +96,17 @@ const taskDetailPayload = {
   },
 };
 
+const taskRunTranscriptBody = {
+  run_id: "run-1",
+  messages: [
+    {
+      id: "msg-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "task run transcript" }],
+    },
+  ],
+};
+
 function matchUrl(pattern: string, method: string = "GET") {
   return (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
@@ -218,12 +229,20 @@ describe("workflow tasks integration", () => {
         status: 200,
         body: taskDetailPayload,
       },
+      {
+        matcher: matchUrl("/api/runs/run-1/transcript"),
+        status: 200,
+        body: taskRunTranscriptBody,
+      },
     ]);
     restore = stub.restore;
     await renderApp("/workflows/alpha/tasks/task_01");
     await screen.findByTestId("task-detail-view");
     expect(screen.getByTestId("task-detail-status")).toHaveTextContent("pending");
     expect(screen.getByTestId("task-detail-run-link-run-1")).toHaveTextContent("run-1");
+    expect(await screen.findByTestId("task-detail-run-transcript")).toHaveTextContent(
+      "task run transcript"
+    );
   });
 
   it("Should surface a not-found alert for stale or invalid task identifiers", async () => {

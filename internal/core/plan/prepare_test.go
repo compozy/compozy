@@ -662,16 +662,6 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 		t.Fatalf("write round: %v", err)
 	}
 
-	metaPath := reviews.MetaPath(reviewDir)
-	metaContent, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("read meta: %v", err)
-	}
-	withoutPR := strings.Replace(string(metaContent), "pr: \n", "", 1)
-	if err := os.WriteFile(metaPath, []byte(withoutPR), 0o600); err != nil {
-		t.Fatalf("rewrite meta without pr: %v", err)
-	}
-
 	cfg := &model.RuntimeConfig{
 		ReviewsDir:    reviewDir,
 		WorkspaceRoot: workspaceRoot,

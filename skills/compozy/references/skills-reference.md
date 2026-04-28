@@ -89,7 +89,7 @@ Executes one PRD task end-to-end using the provided task file, PRD directory, an
 Performs a comprehensive code review of a PRD implementation and generates review issue files.
 
 - **Inputs:** Feature name identifying the workflow under `.compozy/tasks/<slug>/`.
-- **Outputs:** Review round directory `reviews-NNN/` with `_meta.md` and `issue_*.md` files.
+- **Outputs:** Review round directory `reviews-NNN/` with `issue_*.md` files containing round metadata in YAML frontmatter.
 - **Pipeline position:** After execution. Outputs feed into `cy-fix-reviews`.
 - **Use when:** Reviewing implemented PRD tasks without an external review provider.
 - **Do not use for:** Fetching external reviews (use `compozy reviews fetch`), fixing issues (use `compozy reviews fix`).
@@ -102,7 +102,7 @@ Performs a comprehensive code review of a PRD implementation and generates revie
 
 Executes provider-agnostic PR review remediation using existing review round files.
 
-- **Inputs:** Scoped issue files from the review round, PRD review round directory and `_meta.md`.
+- **Inputs:** Scoped issue files from the review round and their YAML frontmatter.
 - **Outputs:** Updated issue files with triage and status, code fixes, verification evidence.
 - **Pipeline position:** Called by `compozy reviews fix`. Operates on output from `cy-review-round` or `compozy reviews fetch`.
 - **Process:** Read round context -> triage issues (valid/invalid) -> fix valid issues in severity order -> verify with `cy-final-verify` -> close out issue files.

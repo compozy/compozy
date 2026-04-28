@@ -102,7 +102,7 @@ Invoke inside an agent session. The skill performs a comprehensive code review o
 
 Fetches review comments from an external provider (currently CodeRabbit) and writes them as issue markdown files under `reviews-NNN/`.
 
-**Both paths produce:** `_meta.md` (round metadata) and `issue_*.md` files with YAML frontmatter (`status`, `severity`, `file`, `line`, `title`).
+**Both paths produce:** `issue_*.md` files with YAML frontmatter containing round metadata (`provider`, `pr`, `round`, `round_created_at`) plus issue metadata (`status`, `severity`, `file`, `line`).
 
 ## Phase 7: Remediation
 

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -42,14 +43,15 @@ const (
 	runStatusCancelled = "canceled"
 	runStatusCrashed   = "crashed"
 
-	defaultRunListLimit      = 100
-	defaultPresentationMode  = "stream"
-	maxRunEventPageLimit     = 1000
-	defaultRunDBCacheIdleTTL = 30 * time.Second
-	runStreamBufferSize      = 64
-	defaultStreamPageLimit   = 256
-	cancelRequestedByDaemon  = "daemon"
-	completedNoWorkSummary   = "no work"
+	defaultRunListLimit       = 100
+	defaultPresentationMode   = "stream"
+	maxRunEventPageLimit      = 1000
+	defaultRunDBCacheIdleTTL  = 30 * time.Second
+	runStreamBufferSize       = 64
+	workspaceStreamBufferSize = 128
+	defaultStreamPageLimit    = 256
+	cancelRequestedByDaemon   = "daemon"
+	completedNoWorkSummary    = "no work"
 )
 
 // RunManagerConfig wires the daemon-owned run manager dependencies.
@@ -101,12 +103,15 @@ type RunManager struct {
 	journalNonTerminalDrops uint64
 	journalDropsByRun       map[string]journalDropTotals
 	incompleteRunIDs        map[string]struct{}
+	workspaceEvents         *eventspkg.Bus[apicore.WorkspaceEvent]
+	workspaceEventSeq       atomic.Uint64
 }
 
 type activeRun struct {
 	runID        string
 	workspaceID  string
 	workflowSlug string
+	workflowID   *string
 	mode         string
 	scope        model.RunScope
 	ctx          context.Context
@@ -197,6 +202,7 @@ type runDBLease struct {
 }
 
 var _ apicore.RunService = (*RunManager)(nil)
+var _ apicore.WorkspaceEventService = (*RunManager)(nil)
 
 // NewRunManager constructs a daemon-owned run manager.
 func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
@@ -225,6 +231,7 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		acpStallTotals:       make(map[string]uint64),
 		journalDropsByRun:    make(map[string]journalDropTotals),
 		incompleteRunIDs:     make(map[string]struct{}),
+		workspaceEvents:      eventspkg.New[apicore.WorkspaceEvent](workspaceStreamBufferSize),
 	}, nil
 }
 
@@ -505,6 +512,14 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 	}()
 	runDB := lease.DB()
 
+	lastEvent, err := runDB.LastEvent(listCtx)
+	if err != nil {
+		return apicore.RunSnapshot{}, err
+	}
+	if isTerminalRunStatus(runView.Status) {
+		return m.compactSnapshot(listCtx, row.RunID, runView, runDB, lastEvent)
+	}
+
 	eventRows, err := runDB.ListEvents(listCtx, 0, 0)
 	if err != nil {
 		return apicore.RunSnapshot{}, err
@@ -514,10 +529,6 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 		return apicore.RunSnapshot{}, err
 	}
 	tokenUsageRows, err := runDB.ListTokenUsage(listCtx)
-	if err != nil {
-		return apicore.RunSnapshot{}, err
-	}
-	lastEvent, err := runDB.LastEvent(listCtx)
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
@@ -807,13 +818,21 @@ func (m *RunManager) prepareReviewStart(
 	return workspaceRow, workflowID, runtimeCfg, presentationMode, nil
 }
 
-func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, workflowRoot string) error {
-	if strings.TrimSpace(workflowRoot) == "" {
+func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, active *activeRun) error {
+	if active == nil || strings.TrimSpace(active.workflowRoot) == "" {
 		return nil
 	}
-	if _, err := corepkg.SyncDirect(ctx, model.SyncConfig{TasksDir: workflowRoot}); err != nil {
-		return fmt.Errorf("daemon: sync workflow %s before run: %w", workflowRoot, err)
+	result, err := corepkg.SyncDirect(ctx, model.SyncConfig{TasksDir: active.workflowRoot})
+	if err != nil {
+		return fmt.Errorf("daemon: sync workflow %s before run: %w", active.workflowRoot, err)
 	}
+	m.publishWorkflowSyncWorkspaceEvent(
+		ctx,
+		active.workspaceID,
+		active.workflowID,
+		active.workflowSlug,
+		result.SyncedPaths,
+	)
 	return nil
 }
 
@@ -996,6 +1015,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	if err != nil {
 		return apicore.Run{}, err
 	}
+	m.publishRunWorkspaceEvent(ctx, row, spec.workflowSlug, apicore.WorkspaceEventKindRunCreated)
 
 	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
 	if err != nil {
@@ -1018,7 +1038,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		}
 	}()
 	active := newActiveRun(runCtx, cancel, row, spec, scope)
-	if err := m.syncWorkflowBeforeRun(runCtx, active.workflowRoot); err != nil {
+	if err := m.syncWorkflowBeforeRun(runCtx, active); err != nil {
 		active.cancel()
 		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
 	}
@@ -1190,6 +1210,7 @@ func newActiveRun(
 		runID:        row.RunID,
 		workspaceID:  row.WorkspaceID,
 		workflowSlug: strings.TrimSpace(spec.workflowSlug),
+		workflowID:   cloneStringPtr(spec.workflowID),
 		mode:         spec.mode,
 		scope:        scope,
 		ctx:          runCtx,
@@ -1213,7 +1234,10 @@ func (m *RunManager) failStartRun(
 	row.ErrorText = err.Error()
 	row.EndedAt = &failedAt
 	m.recordTerminalOutcome(row.Mode, row.Status)
-	_, updateErr := m.globalDB.UpdateRun(detachContext(ctx), row)
+	updatedRow, updateErr := m.globalDB.UpdateRun(detachContext(ctx), row)
+	if updateErr == nil {
+		m.publishRunWorkspaceEvent(ctx, updatedRow, "", apicore.WorkspaceEventKindRunTerminal)
+	}
 	closeErr := closeRunScope(ctx, scope, closeTimeout)
 	if createdRun {
 		if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(row.RunID); artifactsErr == nil {
@@ -1235,7 +1259,11 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 			return err
 		},
 		Emit: func(ctx context.Context, item artifactSyncEvent) error {
-			return emitArtifactUpdatedEvent(ctx, active.scope, active.runID, item)
+			if err := emitArtifactUpdatedEvent(ctx, active.scope, active.runID, item); err != nil {
+				return err
+			}
+			m.publishArtifactWorkspaceEvent(ctx, active, item)
+			return nil
 		},
 		Logger: slog.Default(),
 	})
@@ -1286,6 +1314,7 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 		return
 	}
 	row = updated
+	m.publishRunWorkspaceEvent(active.ctx, row, active.workflowSlug, apicore.WorkspaceEventKindRunStatusChanged)
 
 	prep, err := m.prepare(active.ctx, runtimeCfg, scope)
 	if err != nil {
@@ -1344,6 +1373,7 @@ func (m *RunManager) executeExecRun(active *activeRun, row globaldb.Run, runtime
 		return
 	}
 	row = updated
+	m.publishRunWorkspaceEvent(active.ctx, row, active.workflowSlug, apicore.WorkspaceEventKindRunStatusChanged)
 
 	executionErr := m.executeExec(active.ctx, runtimeCfg, scope)
 	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested())
@@ -1378,6 +1408,7 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 	if _, err := m.globalDB.UpdateRun(detachContext(active.ctx), row); err != nil {
 		return
 	}
+	m.publishRunWorkspaceEvent(active.ctx, row, active.workflowSlug, apicore.WorkspaceEventKindRunTerminal)
 }
 
 func (m *RunManager) streamRun(

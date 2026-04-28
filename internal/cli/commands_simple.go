@@ -152,6 +152,7 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			"Scanned: %d\n" +
 			"Migrated: %d\n" +
 			"V1->V2 migrated: %d\n" +
+			"Legacy review metadata removed: %d\n" +
 			"Already frontmatter: %d\n" +
 			"Skipped: %d\n" +
 			"Invalid: %d\n"
@@ -163,6 +164,7 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			result.FilesScanned,
 			result.FilesMigrated,
 			result.V1ToV2Migrated,
+			result.LegacyReviewMetaRemoved,
 			result.FilesAlreadyFrontmatter,
 			result.FilesSkipped,
 			result.FilesInvalid,

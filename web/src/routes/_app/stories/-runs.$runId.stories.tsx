@@ -2,7 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
 import type { RunStreamFactory } from "@/systems/runs";
-import { completedRunSnapshotFixture, runSnapshotFixture } from "@/systems/runs/mocks";
+import {
+  completedRunSnapshotFixture,
+  runSnapshotFixture,
+  runTranscriptFixture,
+} from "@/systems/runs/mocks";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -46,6 +50,7 @@ export const Success: Story = {
         http.get("/api/runs/:run_id/snapshot", () =>
           HttpResponse.json(completedRunSnapshotFixture)
         ),
+        http.get("/api/runs/:run_id/transcript", () => HttpResponse.json(runTranscriptFixture)),
       ],
     }),
   },
@@ -73,6 +78,10 @@ export const Loading: Story = {
           await delay("infinite");
           return HttpResponse.json(runSnapshotFixture);
         }),
+        http.get("/api/runs/:run_id/transcript", async () => {
+          await delay("infinite");
+          return HttpResponse.json(runTranscriptFixture);
+        }),
       ],
     }),
   },
@@ -94,6 +103,7 @@ export const Error: Story = {
             { status: 404 }
           )
         ),
+        http.get("/api/runs/:run_id/transcript", () => HttpResponse.json(runTranscriptFixture)),
       ],
     }),
   },

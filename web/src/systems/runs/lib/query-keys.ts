@@ -14,4 +14,5 @@ export const runKeys = {
   runs: () => [...runKeys.all, "detail"] as const,
   run: (runId: string) => [...runKeys.runs(), runId, "summary"] as const,
   snapshot: (runId: string) => [...runKeys.runs(), runId, "snapshot"] as const,
+  transcript: (runId: string) => [...runKeys.runs(), runId, "transcript"] as const,
 };

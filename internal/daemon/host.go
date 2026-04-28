@@ -306,14 +306,15 @@ func buildHostHandlers(
 	})
 
 	return apicore.NewHandlers(&apicore.HandlerConfig{
-		TransportName: "daemon",
-		Daemon:        daemonService,
-		Workspaces:    newTransportWorkspaceService(persistence.db),
-		Tasks:         newTransportTaskService(persistence.db, runManager, queryService),
-		Reviews:       newTransportReviewService(persistence.db, runManager, queryService),
-		Runs:          runManager,
-		Sync:          newTransportSyncService(persistence.db),
-		Exec:          newTransportExecService(runManager),
+		TransportName:   "daemon",
+		Daemon:          daemonService,
+		Workspaces:      newTransportWorkspaceService(persistence.db),
+		Tasks:           newTransportTaskService(persistence.db, runManager, queryService),
+		Reviews:         newTransportReviewService(persistence.db, runManager, queryService),
+		Runs:            runManager,
+		Sync:            newTransportSyncService(persistence.db, runManager),
+		Exec:            newTransportExecService(runManager),
+		WorkspaceEvents: runManager,
 	})
 }
 

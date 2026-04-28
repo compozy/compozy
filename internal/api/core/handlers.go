@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -21,6 +22,14 @@ import (
 
 const maxPageLimit = 500
 
+const workspaceSocketWriteTimeout = 5 * time.Second
+
+var workspaceSocketOriginPatterns = []string{
+	"localhost",
+	"127.0.0.1",
+	"::1",
+}
+
 // Handlers contains the shared daemon API handler logic used by both transports.
 type Handlers struct {
 	TransportName     string
@@ -28,13 +37,14 @@ type Handlers struct {
 	Now               func() time.Time
 	HeartbeatInterval time.Duration
 
-	Daemon     DaemonService
-	Workspaces WorkspaceService
-	Tasks      TaskService
-	Reviews    ReviewService
-	Runs       RunService
-	Sync       SyncService
-	Exec       ExecService
+	Daemon          DaemonService
+	Workspaces      WorkspaceService
+	WorkspaceEvents WorkspaceEventService
+	Tasks           TaskService
+	Reviews         ReviewService
+	Runs            RunService
+	Sync            SyncService
+	Exec            ExecService
 
 	settingsMu sync.RWMutex
 	streamDone <-chan struct{}
@@ -76,6 +86,7 @@ func NewHandlers(cfg *HandlerConfig) *Handlers {
 		HeartbeatInterval: interval,
 		Daemon:            cfg.Daemon,
 		Workspaces:        cfg.Workspaces,
+		WorkspaceEvents:   cfg.WorkspaceEvents,
 		Tasks:             cfg.Tasks,
 		Reviews:           cfg.Reviews,
 		Runs:              cfg.Runs,
@@ -100,6 +111,7 @@ func (h *Handlers) Clone() *Handlers {
 		StreamDone:        h.streamDoneChannel(),
 		Daemon:            h.Daemon,
 		Workspaces:        h.Workspaces,
+		WorkspaceEvents:   h.WorkspaceEvents,
 		Tasks:             h.Tasks,
 		Reviews:           h.Reviews,
 		Runs:              h.Runs,
@@ -1038,6 +1050,22 @@ func (h *Handlers) GetRunSnapshot(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.RunSnapshotResponseFromSnapshot(snapshot))
 }
 
+// GetRunTranscript returns the canonical structured transcript for one run.
+func (h *Handlers) GetRunTranscript(c *gin.Context) {
+	if h.Runs == nil {
+		h.respondError(c, serviceUnavailableProblem("run service"))
+		return
+	}
+
+	transcript, err := h.Runs.Transcript(c.Request.Context(), c.Param("run_id"))
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.RunTranscriptResponseFromTranscript(transcript))
+}
+
 // ListRunEvents pages through persisted run events.
 func (h *Handlers) ListRunEvents(c *gin.Context) {
 	if h.Runs == nil {
@@ -1077,6 +1105,133 @@ func (h *Handlers) ListRunEvents(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.RunEventPageResponseFromPage(page))
+}
+
+// StreamWorkspaceSocket streams workspace-scoped invalidation messages for the browser UI.
+func (h *Handlers) StreamWorkspaceSocket(c *gin.Context) {
+	stream, workspaceID, ok := h.prepareWorkspaceSocketStream(c)
+	if !ok {
+		return
+	}
+	defer h.closeWorkspaceSocketStream(stream, workspaceID)
+
+	conn, ok := h.acceptWorkspaceSocket(c, workspaceID)
+	if !ok {
+		return
+	}
+	defer h.closeWorkspaceSocketNow(conn, workspaceID)
+
+	socketCtx := conn.CloseRead(c.Request.Context())
+	status, reason := h.streamWorkspaceSocketLoop(c.Request.Context(), socketCtx, conn, stream, workspaceID)
+	h.closeWorkspaceSocket(conn, workspaceID, status, reason)
+}
+
+func (h *Handlers) prepareWorkspaceSocketStream(c *gin.Context) (WorkspaceEventStream, string, bool) {
+	if h.WorkspaceEvents == nil {
+		h.respondError(c, serviceUnavailableProblem("workspace event service"))
+		return nil, "", false
+	}
+
+	workspaceID := strings.TrimSpace(c.Param("id"))
+	if workspaceID == "" {
+		h.respondError(c, validationProblem("workspace_id_required", "workspace id is required", nil))
+		return nil, "", false
+	}
+
+	stream, err := h.WorkspaceEvents.OpenWorkspaceStream(c.Request.Context(), workspaceID)
+	if err != nil {
+		h.respondError(c, err)
+		return nil, "", false
+	}
+	return stream, workspaceID, true
+}
+
+func (h *Handlers) acceptWorkspaceSocket(c *gin.Context, workspaceID string) (*websocket.Conn, bool) {
+	conn, err := websocket.Accept(c.Writer, c.Request, &websocket.AcceptOptions{
+		OriginPatterns: workspaceSocketOriginPatterns,
+	})
+	if err != nil {
+		if h != nil && h.Logger != nil {
+			h.Logger.Warn("accept workspace websocket", "workspace_id", workspaceID, "error", err)
+		}
+		return nil, false
+	}
+	return conn, true
+}
+
+func (h *Handlers) closeWorkspaceSocketStream(stream WorkspaceEventStream, workspaceID string) {
+	if closeErr := stream.Close(); closeErr != nil && h != nil && h.Logger != nil {
+		h.Logger.Warn("close workspace websocket stream", "workspace_id", workspaceID, "error", closeErr)
+	}
+}
+
+func (h *Handlers) closeWorkspaceSocketNow(conn *websocket.Conn, workspaceID string) {
+	if closeErr := conn.CloseNow(); closeErr != nil && h != nil && h.Logger != nil {
+		h.Logger.Debug("close workspace websocket transport", "workspace_id", workspaceID, "error", closeErr)
+	}
+}
+
+func (h *Handlers) closeWorkspaceSocket(
+	conn *websocket.Conn,
+	workspaceID string,
+	status websocket.StatusCode,
+	reason string,
+) {
+	if err := conn.Close(status, reason); err != nil && h != nil && h.Logger != nil {
+		h.Logger.Debug("close workspace websocket", "workspace_id", workspaceID, "error", err)
+	}
+}
+
+func (h *Handlers) streamWorkspaceSocketLoop(
+	requestCtx context.Context,
+	socketCtx context.Context,
+	conn *websocket.Conn,
+	stream WorkspaceEventStream,
+	workspaceID string,
+) (websocket.StatusCode, string) {
+	timer := time.NewTimer(h.HeartbeatInterval)
+	defer timer.Stop()
+
+	streamDone := h.streamDoneChannel()
+	eventCh := stream.Events()
+	errCh := stream.Errors()
+	for {
+		select {
+		case <-socketCtx.Done():
+			return websocket.StatusNormalClosure, "workspace websocket closed"
+		case <-streamDone:
+			return websocket.StatusNormalClosure, "daemon shutting down"
+		case err, ok := <-errCh:
+			if !ok {
+				errCh = nil
+				continue
+			}
+			if err == nil {
+				continue
+			}
+			if writeErr := h.writeWorkspaceSocketError(socketCtx, requestCtx, conn, err); writeErr != nil {
+				return websocket.StatusInternalError, "workspace stream error"
+			}
+			return websocket.StatusInternalError, "workspace stream error"
+		case item, ok := <-eventCh:
+			if !ok {
+				return websocket.StatusNormalClosure, "workspace stream closed"
+			}
+			stop, err := h.writeWorkspaceSocketItem(socketCtx, conn, workspaceID, item)
+			if err != nil || stop {
+				if stop {
+					return websocket.StatusTryAgainLater, "workspace event overflow"
+				}
+				return websocket.StatusInternalError, "write workspace event"
+			}
+			resetTimer(timer, h.HeartbeatInterval)
+		case <-timer.C:
+			if err := h.writeWorkspaceSocketHeartbeat(socketCtx, conn, workspaceID); err != nil {
+				return websocket.StatusInternalError, "write workspace heartbeat"
+			}
+			resetTimer(timer, h.HeartbeatInterval)
+		}
+	}
 }
 
 // StreamRun streams live run events with cursor resume, heartbeat, and overflow semantics.
@@ -1298,6 +1453,72 @@ func (h *Handlers) writeStreamItem(
 			Stop:           isTerminalRunEvent(item.Event.Kind),
 		}, nil
 	}
+}
+
+func (h *Handlers) writeWorkspaceSocketError(
+	socketCtx context.Context,
+	requestCtx context.Context,
+	conn *websocket.Conn,
+	err error,
+) error {
+	status := statusForError(err)
+	message, buildErr := WorkspaceErrorSocketMessage(contract.TransportErrorEnvelope(
+		RequestIDFromContext(requestCtx),
+		status,
+		err,
+		detailsForError(err),
+		true,
+	))
+	if buildErr != nil {
+		return buildErr
+	}
+	return h.writeWorkspaceSocketMessage(socketCtx, conn, message)
+}
+
+func (h *Handlers) writeWorkspaceSocketItem(
+	socketCtx context.Context,
+	conn *websocket.Conn,
+	workspaceID string,
+	item WorkspaceStreamItem,
+) (bool, error) {
+	switch {
+	case item.Overflow != nil:
+		message, err := WorkspaceOverflowSocketMessage(workspaceID, h.now(), item.Overflow.Reason)
+		if err != nil {
+			return false, err
+		}
+		return true, h.writeWorkspaceSocketMessage(socketCtx, conn, message)
+	case item.Event == nil:
+		return false, nil
+	default:
+		message, err := WorkspaceEventSocketMessage(*item.Event)
+		if err != nil {
+			return false, err
+		}
+		return false, h.writeWorkspaceSocketMessage(socketCtx, conn, message)
+	}
+}
+
+func (h *Handlers) writeWorkspaceSocketHeartbeat(
+	socketCtx context.Context,
+	conn *websocket.Conn,
+	workspaceID string,
+) error {
+	message, err := WorkspaceHeartbeatSocketMessage(workspaceID, h.now())
+	if err != nil {
+		return err
+	}
+	return h.writeWorkspaceSocketMessage(socketCtx, conn, message)
+}
+
+func (h *Handlers) writeWorkspaceSocketMessage(
+	socketCtx context.Context,
+	conn *websocket.Conn,
+	message WorkspaceSocketMessage,
+) error {
+	writeCtx, cancel := context.WithTimeout(socketCtx, workspaceSocketWriteTimeout)
+	defer cancel()
+	return WriteWorkspaceSocketMessage(writeCtx, conn, message)
 }
 
 func (h *Handlers) writeStreamHeartbeat(writer FlushWriter, runID string, lastCursor StreamCursor) error {

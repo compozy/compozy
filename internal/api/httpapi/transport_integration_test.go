@@ -2163,6 +2163,18 @@ func (f *fakeRunService) Snapshot(_ context.Context, runID string) (core.RunSnap
 	return item, nil
 }
 
+func (f *fakeRunService) Transcript(_ context.Context, runID string) (core.RunTranscript, error) {
+	item, ok := f.snapshots[runID]
+	if !ok {
+		return core.RunTranscript{}, globaldb.ErrRunNotFound
+	}
+	return core.RunTranscript{
+		RunID:      item.Run.RunID,
+		Messages:   []core.RunUIMessage{},
+		NextCursor: item.NextCursor,
+	}, nil
+}
+
 func (f *fakeRunService) RunDetail(_ context.Context, runID string) (core.RunDetailPayload, error) {
 	item, ok := f.snapshots[runID]
 	if !ok {

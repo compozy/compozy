@@ -10,6 +10,7 @@ import { isStaleWorkspaceError } from "@/lib/api-client";
 
 import { ActiveWorkspaceContext } from "../lib/active-workspace-context";
 import { useActiveWorkspace } from "../hooks/use-active-workspace";
+import { useWorkspaceEvents } from "../hooks/use-workspace-events";
 import { useSyncWorkspaces } from "../hooks/use-workspaces";
 import type { WorkspaceSyncResult } from "../types";
 import { AppShellBoundary } from "./app-shell-boundary";
@@ -31,6 +32,11 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   const lastResolvedRef = useRef<string | null>(null);
   const activeWorkspaceIdRef = useRef<string | null>(workspace.activeWorkspaceId);
   const selectedWorkspaceIdRef = useRef<string | null>(workspace.selectedWorkspaceId);
+
+  useWorkspaceEvents({
+    workspaceId: workspace.activeWorkspace?.id ?? null,
+    enabled: Boolean(workspace.activeWorkspace?.id),
+  });
 
   useEffect(() => {
     activeWorkspaceIdRef.current = workspace.activeWorkspaceId;

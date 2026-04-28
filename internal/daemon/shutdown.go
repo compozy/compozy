@@ -211,7 +211,7 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 
 	activeRuns := m.activeSnapshot()
 	if len(activeRuns) == 0 {
-		return m.closeRunDBCache(ctx)
+		return errors.Join(m.closeRunDBCache(ctx), m.closeWorkspaceEventBus(ctx))
 	}
 	if !force {
 		return apicore.NewProblem(
@@ -246,7 +246,14 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 	case <-done:
 	case <-waitCtx.Done():
 	}
-	return m.closeRunDBCache(ctx)
+	return errors.Join(m.closeRunDBCache(ctx), m.closeWorkspaceEventBus(ctx))
+}
+
+func (m *RunManager) closeWorkspaceEventBus(ctx context.Context) error {
+	if m == nil || m.workspaceEvents == nil {
+		return nil
+	}
+	return m.workspaceEvents.Close(ctx)
 }
 
 // Purge deletes terminal run directories and their durable index rows according

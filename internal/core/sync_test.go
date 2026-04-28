@@ -227,8 +227,8 @@ func TestSyncTaskMetadataSyncsMixedWorkflowArtifacts(t *testing.T) {
 		_ = sqlDB.Close()
 	}()
 
-	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM artifact_snapshots"); got != 8 {
-		t.Fatalf("artifact_snapshots count = %d, want 8", got)
+	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM artifact_snapshots"); got != 7 {
+		t.Fatalf("artifact_snapshots count = %d, want 7", got)
 	}
 	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM review_rounds"); got != 1 {
 		t.Fatalf("review_rounds count = %d, want 1", got)
@@ -449,7 +449,7 @@ func TestSyncHelpersClassifyKindsAndSortResults(t *testing.T) {
 		"task_01.md":                "task",
 		"adrs/adr-001.md":           "adr",
 		"memory/MEMORY.md":          "memory",
-		"reviews-001/_meta.md":      "review_round_meta",
+		"reviews-001/_meta.md":      "artifact",
 		"reviews-001/issue_001.md":  "review_issue",
 		"prompts/task-run.md":       "prompt",
 		"protocol/handoff.md":       "protocol",

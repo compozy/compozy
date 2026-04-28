@@ -74,11 +74,21 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	if !strings.HasSuffix(result.ReviewsDir, filepath.Join(".compozy", "tasks", "demo", "reviews-001")) {
 		t.Fatalf("unexpected reviews dir: %q", result.ReviewsDir)
 	}
-	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "_meta.md")); err != nil {
-		t.Fatalf("expected meta file: %v", err)
+	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "_meta.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected fetch to avoid legacy _meta.md, got err=%v", err)
 	}
-	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "issue_001.md")); err != nil {
+	issuePath := filepath.Join(result.ReviewsDir, "issue_001.md")
+	if _, err := os.Stat(issuePath); err != nil {
 		t.Fatalf("expected issue file: %v", err)
+	}
+	issueContent, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read issue file: %v", err)
+	}
+	for _, want := range []string{"provider: stub", "pr: \"259\"", "round: 1", "round_created_at:"} {
+		if !strings.Contains(string(issueContent), want) {
+			t.Fatalf("expected issue frontmatter to include %q, got:\n%s", want, string(issueContent))
+		}
 	}
 }
 

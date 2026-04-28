@@ -64,7 +64,8 @@ func TestTimeoutClassesFollowCanonicalRoutePolicy(t *testing.T) {
 		{"read snapshot", http.MethodGet, "/api/runs/run-1/snapshot", contract.TimeoutRead, true, 15 * time.Second},
 		{"mutate cancel", http.MethodPost, "/api/runs/run-1/cancel", contract.TimeoutMutate, true, 30 * time.Second},
 		{"long mutate exec", http.MethodPost, "/api/exec", contract.TimeoutLongMutate, true, 120 * time.Second},
-		{"stream", http.MethodGet, "/api/runs/run-1/stream", contract.TimeoutStream, false, 0},
+		{"run stream", http.MethodGet, "/api/runs/run-1/stream", contract.TimeoutStream, false, 0},
+		{"workspace socket", http.MethodGet, "/api/workspaces/workspace-1/ws", contract.TimeoutStream, false, 0},
 	}
 
 	for _, tt := range testCases {

@@ -1,6 +1,7 @@
 export { RunsListView, resolveStatusTone } from "./components/runs-list-view";
 export { RunDetailView } from "./components/run-detail-view";
 export { RunEventFeed } from "./components/run-event-feed";
+export { RunTranscriptPanel } from "./components/run-transcript-panel";
 export {
   createRunEventStore,
   isTerminalKind,
@@ -14,6 +15,7 @@ export {
   useRun,
   useRuns,
   useRunSnapshot,
+  useRunTranscript,
   useStartWorkflowRun,
 } from "./hooks/use-runs";
 export {
@@ -43,6 +45,7 @@ export {
   cancelRun,
   getRun,
   getRunSnapshot,
+  getRunTranscript,
   listRuns,
   startWorkflowRun,
   type CancelRunParams,
@@ -57,7 +60,10 @@ export type {
   RunListStatusFilter,
   RunShutdownState,
   RunSnapshot,
+  RunTranscript,
   RunTranscriptMessage,
+  RunUIMessage,
+  RunUIMessagePart,
   RunUsage,
   TaskRunRequestBody,
 } from "./types";

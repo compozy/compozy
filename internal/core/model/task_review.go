@@ -10,6 +10,11 @@ type IssueEntry struct {
 }
 
 type ReviewContext struct {
+	Provider       string
+	PR             string
+	Round          int
+	RoundCreatedAt time.Time
+
 	Status      string
 	File        string
 	Line        int
@@ -58,6 +63,11 @@ type TaskFileMeta struct {
 }
 
 type ReviewFileMeta struct {
+	Provider       string    `yaml:"provider,omitempty"`
+	PR             string    `yaml:"pr,omitempty"`
+	Round          int       `yaml:"round,omitempty"`
+	RoundCreatedAt time.Time `yaml:"round_created_at,omitempty"`
+
 	Status      string `yaml:"status"`
 	File        string `yaml:"file,omitempty"`
 	Line        int    `yaml:"line,omitempty"`

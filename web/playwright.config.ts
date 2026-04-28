@@ -9,6 +9,7 @@ const sharedTmpDir = path.join(repoRoot, ".tmp", "playwright");
 
 process.env.COMPOZY_PLAYWRIGHT_REPO_ROOT ??= repoRoot;
 process.env.COMPOZY_PLAYWRIGHT_ENV_FILE ??= path.join(sharedTmpDir, "daemon-ui-env.json");
+delete process.env.NO_COLOR;
 
 export default defineConfig({
   testDir: "./e2e",

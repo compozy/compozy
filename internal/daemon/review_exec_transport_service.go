@@ -80,12 +80,20 @@ func (s *transportReviewService) Fetch(
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
-	if _, err := corepkg.SyncDirect(ctx, corepkg.SyncConfig{
+	syncResult, err := corepkg.SyncDirect(ctx, corepkg.SyncConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
 		Name:          strings.TrimSpace(workflowSlug),
-	}); err != nil {
+	})
+	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
+	s.runManager.publishWorkflowSyncWorkspaceEvent(
+		ctx,
+		workspaceRow.ID,
+		workflowID,
+		workflowSlug,
+		syncResult.SyncedPaths,
+	)
 
 	roundRow, err := s.globalDB.GetReviewRound(ctx, *workflowID, result.Round)
 	if err != nil {

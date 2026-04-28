@@ -10,11 +10,14 @@ import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 
 import { TaskDetailView } from "./task-detail-view";
+import type { RunTranscript } from "@/systems/runs";
 import type { TaskDetailPayload } from "../types";
 
 interface RenderProps {
   payload: TaskDetailPayload;
   isRefreshing?: boolean;
+  runTranscript?: RunTranscript;
+  runTranscriptRunId?: string | null;
 }
 
 async function renderDetail(props: RenderProps) {
@@ -23,7 +26,14 @@ async function renderDetail(props: RenderProps) {
     getParentRoute: () => rootRoute,
     path: "/",
     component: function RootView(): ReactElement {
-      return <TaskDetailView isRefreshing={props.isRefreshing ?? false} payload={props.payload} />;
+      return (
+        <TaskDetailView
+          isRefreshing={props.isRefreshing ?? false}
+          payload={props.payload}
+          runTranscript={props.runTranscript}
+          runTranscriptRunId={props.runTranscriptRunId}
+        />
+      );
     },
   });
   const boardStub = createRoute({
@@ -131,6 +141,17 @@ const sparsePayload: TaskDetailPayload = {
   live_tail_available: false,
 };
 
+const runTranscript: RunTranscript = {
+  run_id: "run-7",
+  messages: [
+    {
+      id: "msg-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Task run reached the renderer." }],
+    },
+  ],
+};
+
 describe("TaskDetailView", () => {
   it("Should render the task metadata, document body, dependencies, memory, and related runs", async () => {
     await renderDetail({ payload: fullPayload });
@@ -156,5 +177,16 @@ describe("TaskDetailView", () => {
   it("Should surface the refreshing indicator", async () => {
     await renderDetail({ payload: fullPayload, isRefreshing: true });
     expect(screen.getByTestId("task-detail-refreshing")).toBeInTheDocument();
+  });
+
+  it("Should render the compact related run transcript when provided", async () => {
+    await renderDetail({
+      payload: fullPayload,
+      runTranscript,
+      runTranscriptRunId: "run-7",
+    });
+    expect(await screen.findByTestId("task-detail-run-transcript")).toHaveTextContent(
+      "Task run reached the renderer."
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { apiErrorMessage, daemonApiClient, requireData } from "@/lib/api-client";
 import { ACTIVE_WORKSPACE_HEADER } from "@/systems/app-shell";
 
-import type { Run, RunListParams, RunSnapshot, TaskRunRequestBody } from "../types";
+import type { Run, RunListParams, RunSnapshot, RunTranscript, TaskRunRequestBody } from "../types";
 
 function normalizeStatus(status?: RunListParams["status"]): string | undefined {
   if (!status || status === "all") {
@@ -55,6 +55,13 @@ export async function getRunSnapshot(runId: string): Promise<RunSnapshot> {
     params: { path: { run_id: runId } },
   });
   return requireData(data, response, `Failed to load run snapshot ${runId}`, error);
+}
+
+export async function getRunTranscript(runId: string): Promise<RunTranscript> {
+  const { data, error, response } = await daemonApiClient.GET("/api/runs/{run_id}/transcript", {
+    params: { path: { run_id: runId } },
+  });
+  return requireData(data, response, `Failed to load run transcript ${runId}`, error);
 }
 
 export interface CancelRunParams {
