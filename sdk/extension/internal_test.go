@@ -80,6 +80,7 @@ func (t *channelTransport) Close() error {
 
 type observeInitializeResponseTransport struct {
 	onWrite func()
+	err     error
 }
 
 func (t observeInitializeResponseTransport) ReadMessage() (Message, error) {
@@ -87,8 +88,10 @@ func (t observeInitializeResponseTransport) ReadMessage() (Message, error) {
 }
 
 func (t observeInitializeResponseTransport) WriteMessage(Message) error {
-	t.onWrite()
-	return nil
+	if t.onWrite != nil {
+		t.onWrite()
+	}
+	return t.err
 }
 
 func (t observeInitializeResponseTransport) Close() error {
@@ -270,6 +273,61 @@ func TestHandleInitializePublishesInitializedStateBeforeResponse(t *testing.T) {
 			t.Fatal("initialize response was not written")
 		}
 	})
+}
+
+func TestHandleInitializeRollsBackStateWhenResponseWriteFails(t *testing.T) {
+	t.Parallel()
+
+	writeErr := errors.New("write failed")
+	ext := New("sdk-ext", "1.0.0").WithCapabilities(CapabilityRunsStart)
+	ext.transport = observeInitializeResponseTransport{err: writeErr}
+
+	err := ext.handleInitialize(Message{
+		ID: json.RawMessage("1"),
+		Params: MustJSON(InitializeRequest{
+			ProtocolVersion:           ProtocolVersion,
+			SupportedProtocolVersions: []string{ProtocolVersion},
+			CompozyVersion:            "dev",
+			Extension: InitializeRequestIdentity{
+				Name:    "sdk-ext",
+				Version: "1.0.0",
+				Source:  "workspace",
+			},
+			GrantedCapabilities: []Capability{CapabilityRunsStart},
+			Runtime: InitializeRuntime{
+				RunID:                "run-test",
+				WorkspaceRoot:        ".",
+				InvokingCommand:      "start",
+				ShutdownTimeoutMS:    1000,
+				DefaultHookTimeoutMS: 5000,
+			},
+		}),
+	})
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("handleInitialize() error = %v, want wrapped write error", err)
+	}
+	if ext.isInitialized() {
+		t.Fatal("extension remained initialized after response write failed")
+	}
+	if request, ok := ext.InitializeRequest(); ok {
+		t.Fatalf("InitializeRequest() = %#v, true; want zero request, false", request)
+	}
+	if got := ext.AcceptedCapabilities(); len(got) != 0 {
+		t.Fatalf("AcceptedCapabilities() = %#v, want none", got)
+	}
+
+	ext.mu.RLock()
+	response := ext.initializeResponse
+	accepted := ext.acceptedCapabilities
+	ext.mu.RUnlock()
+	if response.ProtocolVersion != "" || response.ExtensionInfo != (InitializeResponseInfo{}) ||
+		len(response.AcceptedCapabilities) != 0 || len(response.SupportedHookEvents) != 0 ||
+		len(response.RegisteredReviewProviders) != 0 || response.Supports != (Supports{}) {
+		t.Fatalf("initializeResponse = %#v, want zero value", response)
+	}
+	if accepted != nil {
+		t.Fatalf("acceptedCapabilities = %#v, want nil", accepted)
+	}
 }
 
 func TestExtensionStartBranchesAndOverrides(t *testing.T) {

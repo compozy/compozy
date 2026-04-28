@@ -432,11 +432,22 @@ func (e *Extension) handleInitialize(message Message) error {
 	e.mu.Unlock()
 
 	if err := e.writeResult(message.ID, response); err != nil {
-		return err
+		e.rollbackInitialize()
+		return fmt.Errorf("write initialize response: %w", err)
 	}
 
 	go e.subscribeFilteredEvents()
 	return nil
+}
+
+func (e *Extension) rollbackInitialize() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.initialized = false
+	e.initializeRequest = InitializeRequest{}
+	e.initializeResponse = InitializeResponse{}
+	e.acceptedCapabilities = nil
 }
 
 func (e *Extension) buildInitializeResponse(request InitializeRequest) (InitializeResponse, error) {
