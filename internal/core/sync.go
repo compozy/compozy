@@ -39,8 +39,41 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		_ = db.Close()
 	}()
 
+	return syncResolvedTarget(ctx, db, workspace.ID, target, singleWorkflow, result)
+}
+
+// SyncWithDB reconciles workflow artifacts into an already-open global.db.
+func SyncWithDB(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	cfg SyncConfig,
+) (*SyncResult, error) {
+	target, singleWorkflow, err := resolveSyncTarget(cfg)
+	result := &SyncResult{Target: target}
+	if err != nil {
+		return result, err
+	}
+	if db == nil {
+		return result, errors.New("sync database is required")
+	}
+	workspaceID := strings.TrimSpace(workspace.ID)
+	if workspaceID == "" {
+		return result, errors.New("sync workspace id is required")
+	}
+	return syncResolvedTarget(ctx, db, workspaceID, target, singleWorkflow, result)
+}
+
+func syncResolvedTarget(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	target string,
+	singleWorkflow bool,
+	result *SyncResult,
+) (*SyncResult, error) {
 	if singleWorkflow {
-		if err := syncWorkflow(ctx, db, workspace.ID, target, result); err != nil {
+		if err := syncWorkflow(ctx, db, workspaceID, target, result); err != nil {
 			return result, err
 		}
 		sortSyncResult(result)
@@ -58,7 +91,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		if !entry.IsDir() || !model.IsActiveWorkflowDirName(entry.Name()) {
 			continue
 		}
-		if err := syncWorkflow(ctx, db, workspace.ID, filepath.Join(target, entry.Name()), result); err != nil {
+		if err := syncWorkflow(ctx, db, workspaceID, filepath.Join(target, entry.Name()), result); err != nil {
 			return result, err
 		}
 	}

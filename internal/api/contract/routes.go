@@ -35,6 +35,12 @@ var RouteInventory = []RouteSpec{
 	},
 	{Method: http.MethodPost, Path: "/api/workspaces", ResponseType: "WorkspaceResponse", TimeoutClass: TimeoutMutate},
 	{Method: http.MethodGet, Path: "/api/workspaces", ResponseType: "WorkspaceListResponse", TimeoutClass: TimeoutRead},
+	{
+		Method:       http.MethodPost,
+		Path:         "/api/workspaces/sync",
+		ResponseType: "WorkspaceSyncResult",
+		TimeoutClass: TimeoutLongMutate,
+	},
 	{Method: http.MethodGet, Path: "/api/workspaces/:id", ResponseType: "WorkspaceResponse", TimeoutClass: TimeoutRead},
 	{
 		Method:       http.MethodPatch,

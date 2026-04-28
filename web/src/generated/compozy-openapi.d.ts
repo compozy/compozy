@@ -412,6 +412,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh workspace filesystem state and sync present workspace artifacts. */
+        post: operations["syncWorkspaces"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/resolve": {
         parameters: {
             query?: never;
@@ -902,14 +919,36 @@ export interface components {
         Workspace: {
             /** Format: date-time */
             created_at: string;
+            /** @enum {string} */
+            filesystem_state: "present" | "missing";
+            has_catalog_data: boolean;
             id: string;
+            /** Format: date-time */
+            last_checked_at?: string;
+            /** Format: date-time */
+            last_sync_at?: string;
+            last_sync_error?: string;
             name: string;
+            read_only: boolean;
             root_dir: string;
+            run_count: number;
             /** Format: date-time */
             updated_at: string;
+            workflow_count: number;
         };
         WorkspaceResolveRequest: {
             path: string;
+        };
+        WorkspaceSyncResult: {
+            checked: number;
+            missing: number;
+            removed: number;
+            review_issues_upserted: number;
+            review_rounds_upserted: number;
+            snapshots_upserted: number;
+            synced: number;
+            task_items_upserted: number;
+            warnings?: string[];
         };
         WorkspaceResponse: {
             workspace: components["schemas"]["Workspace"];
@@ -1709,6 +1748,28 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspacesResponse"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    syncWorkspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSyncResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
         };
     };

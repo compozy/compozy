@@ -14,6 +14,7 @@ import (
 
 const (
 	artifactBodyInlineKind   = "inline"
+	artifactBodyBlobKind     = "body"
 	artifactBodyOverflowKind = "overflow"
 	artifactBodyLimitBytes   = 256 * 1024
 	defaultSyncScope         = "workflow"
@@ -300,9 +301,15 @@ func (g *GlobalDB) reconcileArtifactSnapshotsTx(
 		}
 		seen[key] = struct{}{}
 
-		if current, ok := existing[key]; ok && current.Checksum == prepared.Checksum {
+		if current, ok := existing[key]; ok &&
+			current.Checksum == prepared.Checksum &&
+			current.BodyStorageKind != artifactBodyOverflowKind {
 			prepared.BodyText = current.BodyText
 			prepared.BodyStorageKind = current.BodyStorageKind
+		}
+
+		if err := upsertArtifactBody(ctx, stmts.upsertBody, prepared, syncedAt); err != nil {
+			return 0, err
 		}
 
 		if _, err := stmts.upsert.ExecContext(
@@ -328,13 +335,43 @@ func (g *GlobalDB) reconcileArtifactSnapshotsTx(
 	if err := deleteStaleArtifactSnapshots(ctx, stmts.delete, workflowID, existing, seen); err != nil {
 		return 0, err
 	}
+	if err := cleanupUnreferencedArtifactBodies(ctx, tx); err != nil {
+		return 0, err
+	}
 
 	return len(snapshots), nil
 }
 
+func upsertArtifactBody(
+	ctx context.Context,
+	stmt *sql.Stmt,
+	prepared preparedArtifactSnapshot,
+	syncedAt time.Time,
+) error {
+	if prepared.BodyStorageKind != artifactBodyBlobKind {
+		return nil
+	}
+	if _, err := stmt.ExecContext(
+		ctx,
+		prepared.Checksum,
+		prepared.BodyBlobText,
+		len([]byte(prepared.BodyBlobText)),
+		store.FormatTimestamp(syncedAt),
+	); err != nil {
+		return fmt.Errorf(
+			"globaldb: upsert artifact body %s/%s: %w",
+			prepared.ArtifactKind,
+			prepared.RelativePath,
+			err,
+		)
+	}
+	return nil
+}
+
 type artifactSnapshotStatements struct {
-	upsert *sql.Stmt
-	delete *sql.Stmt
+	upsert     *sql.Stmt
+	upsertBody *sql.Stmt
+	delete     *sql.Stmt
 }
 
 func prepareArtifactSnapshotStatements(ctx context.Context, tx *sql.Tx) (artifactSnapshotStatements, error) {
@@ -356,6 +393,19 @@ func prepareArtifactSnapshotStatements(ctx context.Context, tx *sql.Tx) (artifac
 		return artifactSnapshotStatements{}, fmt.Errorf("globaldb: prepare artifact snapshot upsert: %w", err)
 	}
 
+	upsertBody, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO artifact_bodies (checksum, body_text, size_bytes, created_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(checksum) DO UPDATE SET
+			body_text = excluded.body_text,
+			size_bytes = excluded.size_bytes`,
+	)
+	if err != nil {
+		_ = upsert.Close()
+		return artifactSnapshotStatements{}, fmt.Errorf("globaldb: prepare artifact body upsert: %w", err)
+	}
+
 	deleteStmt, err := tx.PrepareContext(
 		ctx,
 		`DELETE FROM artifact_snapshots
@@ -363,14 +413,15 @@ func prepareArtifactSnapshotStatements(ctx context.Context, tx *sql.Tx) (artifac
 	)
 	if err != nil {
 		_ = upsert.Close()
+		_ = upsertBody.Close()
 		return artifactSnapshotStatements{}, fmt.Errorf("globaldb: prepare artifact snapshot delete: %w", err)
 	}
 
-	return artifactSnapshotStatements{upsert: upsert, delete: deleteStmt}, nil
+	return artifactSnapshotStatements{upsert: upsert, upsertBody: upsertBody, delete: deleteStmt}, nil
 }
 
 func (s artifactSnapshotStatements) close() error {
-	return closeSQLStatements(s.upsert, s.delete)
+	return closeSQLStatements(s.upsert, s.upsertBody, s.delete)
 }
 
 func deleteStaleArtifactSnapshots(
@@ -388,6 +439,23 @@ func deleteStaleArtifactSnapshots(
 		if _, err := deleteStmt.ExecContext(ctx, workflowID, artifactKind, relativePath); err != nil {
 			return fmt.Errorf("globaldb: delete stale artifact snapshot %s: %w", key, err)
 		}
+	}
+	return nil
+}
+
+func cleanupUnreferencedArtifactBodies(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(
+		ctx,
+		`DELETE FROM artifact_bodies
+		 WHERE NOT EXISTS (
+			SELECT 1
+			FROM artifact_snapshots snapshots
+			WHERE snapshots.checksum = artifact_bodies.checksum
+			  AND snapshots.body_storage_kind = ?
+		 )`,
+		artifactBodyBlobKind,
+	); err != nil {
+		return fmt.Errorf("globaldb: delete unreferenced artifact bodies: %w", err)
 	}
 	return nil
 }
@@ -441,6 +509,7 @@ type preparedArtifactSnapshot struct {
 	Checksum        string
 	FrontmatterJSON string
 	BodyText        string
+	BodyBlobText    string
 	BodyStorageKind string
 	SourceMTime     time.Time
 }
@@ -465,9 +534,11 @@ func prepareArtifactSnapshot(input ArtifactSnapshotInput) (preparedArtifactSnaps
 
 	bodyStorageKind := artifactBodyInlineKind
 	bodyText := input.BodyText
+	bodyBlobText := ""
 	if len([]byte(bodyText)) > artifactBodyLimitBytes {
-		bodyStorageKind = artifactBodyOverflowKind
-		bodyText = overflowReference(relativePath, checksum)
+		bodyStorageKind = artifactBodyBlobKind
+		bodyBlobText = bodyText
+		bodyText = ""
 	}
 
 	frontmatterJSON := strings.TrimSpace(input.FrontmatterJSON)
@@ -488,14 +559,11 @@ func prepareArtifactSnapshot(input ArtifactSnapshotInput) (preparedArtifactSnaps
 		Checksum:        checksum,
 		FrontmatterJSON: frontmatterJSON,
 		BodyText:        bodyText,
+		BodyBlobText:    bodyBlobText,
 		BodyStorageKind: bodyStorageKind,
 		SourceMTime:     input.SourceMTime.UTC(),
 	}
 	return prepared, artifactKey(artifactKind, relativePath), nil
-}
-
-func overflowReference(relativePath string, checksum string) string {
-	return fmt.Sprintf("overflow:%s#%s", strings.TrimSpace(relativePath), strings.TrimSpace(checksum))
 }
 
 func artifactKey(artifactKind string, relativePath string) string {

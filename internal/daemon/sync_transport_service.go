@@ -89,6 +89,13 @@ func (s *transportSyncService) resolveSyncConfig(
 	if err != nil {
 		return corepkg.SyncConfig{}, "", "", err
 	}
+	if workspaceRow.FilesystemState == globaldb.WorkspaceFilesystemStateMissing {
+		return corepkg.SyncConfig{}, "", "", apicore.WorkspacePathMissingProblem(
+			workspaceRow.ID,
+			workspaceRow.RootDir,
+			nil,
+		)
+	}
 	return corepkg.SyncConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
 		Name:          workflowSlug,

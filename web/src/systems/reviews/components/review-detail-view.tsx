@@ -30,13 +30,21 @@ export interface ReviewDetailViewProps {
   isRefreshing: boolean;
   onDispatchFix: () => void;
   isDispatching: boolean;
+  isReadOnly?: boolean;
   dispatchError?: string | null;
   dispatchedRun?: Run | null;
 }
 
 export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
-  const { payload, isRefreshing, onDispatchFix, isDispatching, dispatchError, dispatchedRun } =
-    props;
+  const {
+    payload,
+    isRefreshing,
+    onDispatchFix,
+    isDispatching,
+    isReadOnly = false,
+    dispatchError,
+    dispatchedRun,
+  } = props;
   const { workflow, round, issue, document } = payload;
   const severityTone = resolveSeverityTone(issue.severity);
   const statusTone = resolveStatusTone(issue.status);
@@ -49,7 +57,7 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
           <div className="flex items-center gap-2">
             <Button
               data-testid="review-detail-dispatch-fix"
-              disabled={isDispatching}
+              disabled={isDispatching || isReadOnly}
               icon={<Wrench className="size-4" />}
               loading={isDispatching}
               onClick={onDispatchFix}
@@ -90,6 +98,11 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
       {dispatchError ? (
         <Alert data-testid="review-detail-dispatch-error" variant="error">
           {dispatchError}
+        </Alert>
+      ) : null}
+      {isReadOnly ? (
+        <Alert data-testid="review-detail-readonly" variant="warning">
+          Workspace path missing. Review fix runs are disabled until the path is restored.
         </Alert>
       ) : null}
 

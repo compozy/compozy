@@ -467,7 +467,7 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 	}
 	assertTransportCode(t, body, "workspace_context_stale")
 
-	statusCode, _, body = mustRequest(
+	statusCode, _, _ = mustRequest(
 		t,
 		http.DefaultClient,
 		http.MethodGet,
@@ -475,10 +475,28 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 		nil,
 		map[string]string{core.HeaderActiveWorkspaceID: "ws-missing"},
 	)
-	if statusCode != http.StatusPreconditionFailed {
-		t.Fatalf("missing root workspace status = %d, want 412", statusCode)
+	if statusCode != http.StatusOK {
+		t.Fatalf("missing root workspace status = %d, want 200", statusCode)
 	}
-	assertTransportCode(t, body, "workspace_context_stale")
+	if got := taskSvc.dashboardWorkspace(); got != "ws-missing" {
+		t.Fatalf("missing root dashboard workspace = %q, want ws-missing", got)
+	}
+
+	statusCode, _, body = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodPost,
+		baseURL+"/api/sync",
+		[]byte(`{"workflow_slug":"wf-1"}`),
+		map[string]string{
+			"Content-Type":               "application/json",
+			core.HeaderActiveWorkspaceID: "ws-missing",
+		},
+	)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("missing root sync status = %d, want 412", statusCode)
+	}
+	assertTransportCode(t, body, "workspace_path_missing")
 
 	statusCode, _, _ = mustRequest(
 		t,
@@ -1909,6 +1927,10 @@ func (f *fakeWorkspaceService) Delete(context.Context, string) error {
 
 func (f *fakeWorkspaceService) Resolve(context.Context, string) (core.Workspace, error) {
 	return f.workspace, nil
+}
+
+func (f *fakeWorkspaceService) Sync(context.Context) (core.WorkspaceSyncResult, error) {
+	return core.WorkspaceSyncResult{Checked: len(f.workspaces), Synced: len(f.workspaces)}, nil
 }
 
 type fakeTaskService struct {

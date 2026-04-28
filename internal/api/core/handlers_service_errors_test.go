@@ -612,6 +612,10 @@ func (s *errorWorkspaceService) Resolve(context.Context, string) (core.Workspace
 	return core.Workspace{}, s.err
 }
 
+func (s *errorWorkspaceService) Sync(context.Context) (core.WorkspaceSyncResult, error) {
+	return core.WorkspaceSyncResult{}, s.err
+}
+
 type errorTaskService struct {
 	err error
 }

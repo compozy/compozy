@@ -117,6 +117,7 @@ function WorkflowsRoute(): ReactElement {
         }
         isLoading={workflowsQuery.isLoading}
         isRefetching={workflowsQuery.isRefetching}
+        isReadOnly={activeWorkspace.read_only}
         isSyncingAll={sync.isPending && pendingSyncSlug === null}
         lastActionError={actionError}
         lastActionMessage={actionMessage}

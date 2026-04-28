@@ -255,6 +255,25 @@ func loadHostPersistence(ctx context.Context, currentHost *Host) (_ hostPersiste
 	if err != nil {
 		return hostPersistence{}, err
 	}
+	workspaceRefresh, err := refreshRegisteredWorkspaces(ctx, db, workspaceRefreshOptions{
+		SyncPresent: false,
+	})
+	if err != nil {
+		return hostPersistence{}, err
+	}
+	if workspaceRefresh.Checked > 0 || len(workspaceRefresh.Warnings) > 0 {
+		slog.Info(
+			"daemon workspace catalog refreshed",
+			"checked",
+			workspaceRefresh.Checked,
+			"removed",
+			workspaceRefresh.Removed,
+			"missing",
+			workspaceRefresh.Missing,
+			"warnings",
+			len(workspaceRefresh.Warnings),
+		)
+	}
 
 	return hostPersistence{
 		db:              db,

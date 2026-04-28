@@ -216,6 +216,9 @@ func (s *transportTaskService) Archive(
 	if err != nil {
 		return apicore.ArchiveResult{}, err
 	}
+	if err := requireWorkspacePathAvailable(workspaceRow); err != nil {
+		return apicore.ArchiveResult{}, err
+	}
 	result, err := corepkg.ArchiveDirect(ctx, corepkg.ArchiveConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
 		Name:          strings.TrimSpace(workflowSlug),

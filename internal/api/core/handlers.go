@@ -431,6 +431,21 @@ func (h *Handlers) ListWorkspaces(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.WorkspaceListResponse{Workspaces: workspaces})
 }
 
+// SyncWorkspaces refreshes registered workspace filesystem state and artifact mirrors.
+func (h *Handlers) SyncWorkspaces(c *gin.Context) {
+	if h.Workspaces == nil {
+		h.respondError(c, serviceUnavailableProblem("workspace service"))
+		return
+	}
+
+	result, err := h.Workspaces.Sync(c.Request.Context())
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // GetWorkspace returns one workspace by ID or normalized path key.
 func (h *Handlers) GetWorkspace(c *gin.Context) {
 	if h.Workspaces == nil {

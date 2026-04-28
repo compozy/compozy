@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 type documentReader struct {
@@ -134,6 +136,34 @@ func normalizeMarkdownDocument(
 		Kind:      strings.TrimSpace(kind),
 		Title:     documentTitle(path, kind, metadata, markdown),
 		UpdatedAt: updatedAt,
+		Markdown:  markdown,
+		Metadata:  cloneMetadataMap(metadata),
+	}
+	return doc, nil
+}
+
+func markdownDocumentFromSnapshot(
+	snapshot globaldb.ArtifactSnapshotRow,
+	kind string,
+	id string,
+) (MarkdownDocument, error) {
+	metadata := make(map[string]any)
+	frontmatterJSON := strings.TrimSpace(snapshot.FrontmatterJSON)
+	if frontmatterJSON != "" && frontmatterJSON != "{}" {
+		if err := json.Unmarshal([]byte(frontmatterJSON), &metadata); err != nil {
+			return MarkdownDocument{}, fmt.Errorf(
+				"daemon: parse snapshot front matter %q: %w",
+				snapshot.RelativePath,
+				err,
+			)
+		}
+	}
+	markdown := snapshot.BodyText
+	doc := MarkdownDocument{
+		ID:        strings.TrimSpace(id),
+		Kind:      strings.TrimSpace(kind),
+		Title:     documentTitle(snapshot.RelativePath, kind, metadata, markdown),
+		UpdatedAt: snapshot.SourceMTime,
 		Markdown:  markdown,
 		Metadata:  cloneMetadataMap(metadata),
 	}

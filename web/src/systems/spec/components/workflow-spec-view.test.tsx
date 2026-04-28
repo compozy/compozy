@@ -18,9 +18,14 @@ const workspace = {
   id: "ws-1",
   name: "one",
   root_dir: "/tmp/one",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
-};
+} as const;
 
 const workflow = { id: "wf-1", slug: "alpha", workspace_id: "ws-1" };
 

@@ -107,15 +107,24 @@ func (s *Server) activeWorkspaceMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if err := validateWorkspaceRoot(workspace.RootDir); err != nil {
-			respondStaleWorkspace(c, workspaceID, workspace.RootDir, err)
-			c.Abort()
-			return
+		if err := workspacePathUnavailable(workspace); err != nil {
+			if requiresWorkspaceFilesystem(fullPath, c.Request.Method) {
+				core.RespondError(c, core.WorkspacePathMissingProblem(workspace.ID, workspace.RootDir, err))
+				c.Abort()
+				return
+			}
 		}
 
 		c.Request = c.Request.WithContext(core.WithActiveWorkspaceID(c.Request.Context(), workspaceID))
 		c.Next()
 	}
+}
+
+func workspacePathUnavailable(workspace core.Workspace) error {
+	if workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing {
+		return errors.New("workspace path is marked missing")
+	}
+	return validateWorkspaceRoot(workspace.RootDir)
 }
 
 func validateWorkspaceRoot(rootDir string) error {
@@ -250,6 +259,20 @@ func requiresActiveWorkspace(fullPath string) bool {
 	case strings.HasPrefix(normalized, "/api/reviews/") &&
 		normalized != "/api/reviews/:slug/fetch" &&
 		!strings.HasSuffix(normalized, "/fetch"):
+		return true
+	default:
+		return false
+	}
+}
+
+func requiresWorkspaceFilesystem(fullPath string, method string) bool {
+	normalized := strings.TrimSpace(fullPath)
+	switch {
+	case normalized == "/api/sync":
+		return true
+	case strings.HasSuffix(normalized, "/runs") && isMutatingMethod(method):
+		return true
+	case strings.HasSuffix(normalized, "/archive") && isMutatingMethod(method):
 		return true
 	default:
 		return false

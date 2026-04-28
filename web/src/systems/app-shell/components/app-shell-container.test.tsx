@@ -17,6 +17,11 @@ const workspaceOne: Workspace = {
   id: "ws-1",
   name: "one",
   root_dir: "/tmp/one",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -25,6 +30,11 @@ const workspaceTwo: Workspace = {
   id: "ws-2",
   name: "two",
   root_dir: "/tmp/two",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };

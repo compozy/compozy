@@ -72,6 +72,7 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"POST /api/tasks/{slug}/archive",
 		"POST /api/tasks/{slug}/runs",
 		"POST /api/workspaces/resolve",
+		"POST /api/workspaces/sync",
 	}
 	sort.Strings(expected)
 
@@ -204,6 +205,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/sync",
 		"POST /api/runs/{run_id}/cancel",
 		"POST /api/workspaces/resolve",
+		"POST /api/workspaces/sync",
 	} {
 		routeKey := routeKey
 		t.Run("Should advertise browser security for "+routeKey, func(t *testing.T) {

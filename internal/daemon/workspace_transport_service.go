@@ -50,8 +50,8 @@ func (s *transportWorkspaceService) List(ctx context.Context) ([]apicore.Workspa
 		return nil, err
 	}
 	workspaces := make([]apicore.Workspace, 0, len(rows))
-	for _, row := range rows {
-		workspaces = append(workspaces, transportWorkspace(row))
+	for idx := range rows {
+		workspaces = append(workspaces, transportWorkspace(rows[idx]))
 	}
 	return workspaces, nil
 }
@@ -93,6 +93,13 @@ func (s *transportWorkspaceService) Resolve(ctx context.Context, path string) (a
 		return apicore.Workspace{}, err
 	}
 	return transportWorkspace(row), nil
+}
+
+func (s *transportWorkspaceService) Sync(ctx context.Context) (apicore.WorkspaceSyncResult, error) {
+	if s == nil || s.globalDB == nil {
+		return apicore.WorkspaceSyncResult{}, workspaceTransportUnavailable("workspace sync")
+	}
+	return refreshRegisteredWorkspaces(ctx, s.globalDB, workspaceRefreshOptions{SyncPresent: true})
 }
 
 func workspaceTransportUnavailable(action string) error {

@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -358,7 +357,7 @@ func TestQueryServiceAssemblesReadModelsFromRealDaemonState(t *testing.T) {
 	}
 }
 
-func TestQueryServiceReportsTypedMissingAndStaleDocumentFailures(t *testing.T) {
+func TestQueryServiceReadsSyncedDocumentsAfterWorkspaceFilesDisappear(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
 	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Missing doc task"))
@@ -393,16 +392,12 @@ func TestQueryServiceReportsTypedMissingAndStaleDocumentFailures(t *testing.T) {
 		t.Fatalf("Remove(task_01.md) error = %v", err)
 	}
 
-	_, err = service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_01")
-	if !errors.Is(err, ErrDocumentMissing) {
-		t.Fatalf("TaskDetail() error = %v, want ErrDocumentMissing", err)
+	taskDetail, err := service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_01")
+	if err != nil {
+		t.Fatalf("TaskDetail() error = %v, want snapshot-backed success", err)
 	}
-	var missingErr DocumentMissingError
-	if !errors.As(err, &missingErr) {
-		t.Fatalf("TaskDetail() error = %v, want DocumentMissingError", err)
-	}
-	if missingErr.RelativePath != "task_01.md" {
-		t.Fatalf("missingErr.RelativePath = %q, want task_01.md", missingErr.RelativePath)
+	if !strings.Contains(taskDetail.Document.Markdown, "Missing doc task") {
+		t.Fatalf("TaskDetail() markdown = %q, want synced task body", taskDetail.Document.Markdown)
 	}
 
 	memoryPath := filepath.Join(env.workflowDir(env.workflowSlug), "memory", "MEMORY.md")
@@ -410,16 +405,12 @@ func TestQueryServiceReportsTypedMissingAndStaleDocumentFailures(t *testing.T) {
 		t.Fatalf("Remove(memory/MEMORY.md) error = %v", err)
 	}
 
-	_, err = service.WorkflowMemoryFile(context.Background(), env.workspaceRoot, env.workflowSlug, fileID)
-	if !errors.Is(err, ErrStaleDocumentReference) {
-		t.Fatalf("WorkflowMemoryFile() error = %v, want ErrStaleDocumentReference", err)
+	memoryDoc, err := service.WorkflowMemoryFile(context.Background(), env.workspaceRoot, env.workflowSlug, fileID)
+	if err != nil {
+		t.Fatalf("WorkflowMemoryFile() error = %v, want snapshot-backed success", err)
 	}
-	var staleErr StaleDocumentReferenceError
-	if !errors.As(err, &staleErr) {
-		t.Fatalf("WorkflowMemoryFile() error = %v, want StaleDocumentReferenceError", err)
-	}
-	if staleErr.Reference != fileID {
-		t.Fatalf("staleErr.Reference = %q, want %q", staleErr.Reference, fileID)
+	if !strings.Contains(memoryDoc.Markdown, "Memory body.") {
+		t.Fatalf("WorkflowMemoryFile() markdown = %q, want synced memory body", memoryDoc.Markdown)
 	}
 }
 

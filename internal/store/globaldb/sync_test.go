@@ -346,7 +346,7 @@ func TestReconcileWorkflowSyncDeletesStaleProjectionRows(t *testing.T) {
 	assertRowCount(t, db, "review_issues", 0)
 }
 
-func TestReconcileWorkflowSyncUsesOverflowMarkerForOversizedBodies(t *testing.T) {
+func TestReconcileWorkflowSyncStoresOversizedBodiesInDeduplicatedTable(t *testing.T) {
 	t.Parallel()
 
 	db := openTestGlobalDB(t)
@@ -389,16 +389,41 @@ func TestReconcileWorkflowSyncUsesOverflowMarkerForOversizedBodies(t *testing.T)
 		result.Workflow.ID,
 		"qa/verification-report.md",
 	).Scan(&bodyStorageKind, &bodyText); err != nil {
-		t.Fatalf("query overflow snapshot: %v", err)
+		t.Fatalf("query oversized snapshot: %v", err)
 	}
-	if bodyStorageKind != artifactBodyOverflowKind {
-		t.Fatalf("body_storage_kind = %q, want %q", bodyStorageKind, artifactBodyOverflowKind)
+	if bodyStorageKind != artifactBodyBlobKind {
+		t.Fatalf("body_storage_kind = %q, want %q", bodyStorageKind, artifactBodyBlobKind)
 	}
-	if !strings.HasPrefix(bodyText, "overflow:qa/verification-report.md#body-overflow-checksum") {
-		t.Fatalf("body_text = %q, want overflow marker", bodyText)
+	if bodyText != "" {
+		t.Fatalf("snapshot body_text = %q, want empty inline body", bodyText)
 	}
-	if len(bodyText) >= len(body) {
-		t.Fatalf("expected overflow marker to be smaller than original body")
+
+	var (
+		storedBody string
+		sizeBytes  int
+	)
+	if err := db.db.QueryRowContext(
+		context.Background(),
+		`SELECT body_text, size_bytes
+		 FROM artifact_bodies
+		 WHERE checksum = ?`,
+		"body-overflow-checksum",
+	).Scan(&storedBody, &sizeBytes); err != nil {
+		t.Fatalf("query artifact body: %v", err)
+	}
+	if storedBody != body {
+		t.Fatalf("artifact body length = %d, want %d", len(storedBody), len(body))
+	}
+	if sizeBytes != len([]byte(body)) {
+		t.Fatalf("artifact body size_bytes = %d, want %d", sizeBytes, len([]byte(body)))
+	}
+
+	snapshots, err := db.ListArtifactSnapshots(context.Background(), result.Workflow.ID)
+	if err != nil {
+		t.Fatalf("ListArtifactSnapshots(): %v", err)
+	}
+	if len(snapshots) != 1 || snapshots[0].BodyText != body {
+		t.Fatalf("ListArtifactSnapshots() body length = %d, want %d", len(snapshots[0].BodyText), len(body))
 	}
 }
 
@@ -438,8 +463,15 @@ func TestWorkflowSyncHelperValidationAndNormalization(t *testing.T) {
 		if prepared.FrontmatterJSON != "{}" {
 			t.Fatalf("FrontmatterJSON = %q, want {}", prepared.FrontmatterJSON)
 		}
-		if prepared.BodyStorageKind != artifactBodyOverflowKind {
-			t.Fatalf("BodyStorageKind = %q, want %q", prepared.BodyStorageKind, artifactBodyOverflowKind)
+		if prepared.BodyStorageKind != artifactBodyBlobKind {
+			t.Fatalf("BodyStorageKind = %q, want %q", prepared.BodyStorageKind, artifactBodyBlobKind)
+		}
+		if prepared.BodyText != "" || prepared.BodyBlobText == "" {
+			t.Fatalf(
+				"prepared body fields = inline %q blob length %d, want blob-only body",
+				prepared.BodyText,
+				len(prepared.BodyBlobText),
+			)
 		}
 		if key != artifactKey("task", "task_01.md") {
 			t.Fatalf("artifact key = %q, want %q", key, artifactKey("task", "task_01.md"))
@@ -547,9 +579,6 @@ func TestWorkflowSyncHelperValidationAndNormalization(t *testing.T) {
 	t.Run("misc helpers", func(t *testing.T) {
 		t.Parallel()
 
-		if got := overflowReference("qa/report.md", "abc"); got != "overflow:qa/report.md#abc" {
-			t.Fatalf("overflowReference() = %q", got)
-		}
 		if left, right := splitArtifactKey("artifact-only"); left != "artifact-only" || right != "" {
 			t.Fatalf("splitArtifactKey(no separator) = %q, %q", left, right)
 		}

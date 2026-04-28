@@ -152,6 +152,24 @@ var migrations = []migration{
 				ON runs(workspace_id, status, started_at DESC, run_id ASC);`,
 		},
 	},
+	{
+		version: 4,
+		name:    "workspace_filesystem_state_and_artifact_bodies",
+		statements: []string{
+			`ALTER TABLE workspaces ADD COLUMN filesystem_state TEXT NOT NULL DEFAULT 'present';`,
+			`ALTER TABLE workspaces ADD COLUMN last_checked_at TEXT;`,
+			`ALTER TABLE workspaces ADD COLUMN last_sync_at TEXT;`,
+			`ALTER TABLE workspaces ADD COLUMN last_sync_error TEXT NOT NULL DEFAULT '';`,
+			`CREATE INDEX IF NOT EXISTS idx_workspaces_filesystem_state
+				ON workspaces(filesystem_state);`,
+			`CREATE TABLE IF NOT EXISTS artifact_bodies (
+				checksum   TEXT PRIMARY KEY,
+				body_text  TEXT NOT NULL,
+				size_bytes INTEGER NOT NULL,
+				created_at TEXT NOT NULL
+			);`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

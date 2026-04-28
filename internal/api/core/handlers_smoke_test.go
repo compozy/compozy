@@ -458,6 +458,10 @@ func (s *smokeWorkspaceService) Resolve(context.Context, string) (core.Workspace
 	return s.workspace, nil
 }
 
+func (*smokeWorkspaceService) Sync(context.Context) (core.WorkspaceSyncResult, error) {
+	return core.WorkspaceSyncResult{Checked: 1, Synced: 1}, nil
+}
+
 type smokeTaskService struct {
 	workflow core.WorkflowSummary
 	item     core.TaskItem

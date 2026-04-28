@@ -1649,21 +1649,59 @@
                         "format": "date-time",
                         "type": "string"
                     },
+                    "filesystem_state": {
+                        "enum": ["present", "missing"],
+                        "type": "string"
+                    },
+                    "has_catalog_data": {
+                        "type": "boolean"
+                    },
                     "id": {
+                        "type": "string"
+                    },
+                    "last_checked_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "last_sync_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "last_sync_error": {
                         "type": "string"
                     },
                     "name": {
                         "type": "string"
                     },
+                    "read_only": {
+                        "type": "boolean"
+                    },
                     "root_dir": {
                         "type": "string"
+                    },
+                    "run_count": {
+                        "type": "integer"
                     },
                     "updated_at": {
                         "format": "date-time",
                         "type": "string"
+                    },
+                    "workflow_count": {
+                        "type": "integer"
                     }
                 },
-                "required": ["created_at", "id", "name", "root_dir", "updated_at"],
+                "required": [
+                    "created_at",
+                    "filesystem_state",
+                    "has_catalog_data",
+                    "id",
+                    "name",
+                    "read_only",
+                    "root_dir",
+                    "run_count",
+                    "updated_at",
+                    "workflow_count"
+                ],
                 "type": "object"
             },
             "WorkspaceResolveRequest": {
@@ -1673,6 +1711,51 @@
                     }
                 },
                 "required": ["path"],
+                "type": "object"
+            },
+            "WorkspaceSyncResult": {
+                "properties": {
+                    "checked": {
+                        "type": "integer"
+                    },
+                    "missing": {
+                        "type": "integer"
+                    },
+                    "removed": {
+                        "type": "integer"
+                    },
+                    "review_issues_upserted": {
+                        "type": "integer"
+                    },
+                    "review_rounds_upserted": {
+                        "type": "integer"
+                    },
+                    "snapshots_upserted": {
+                        "type": "integer"
+                    },
+                    "synced": {
+                        "type": "integer"
+                    },
+                    "task_items_upserted": {
+                        "type": "integer"
+                    },
+                    "warnings": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "checked",
+                    "missing",
+                    "removed",
+                    "review_issues_upserted",
+                    "review_rounds_upserted",
+                    "snapshots_upserted",
+                    "synced",
+                    "task_items_upserted"
+                ],
                 "type": "object"
             },
             "WorkspaceResponse": {
@@ -2598,6 +2681,31 @@
                     }
                 },
                 "summary": "List registered workspaces for browser workspace selection.",
+                "tags": ["workspaces"]
+            }
+        },
+        "/api/workspaces/sync": {
+            "post": {
+                "operationId": "syncWorkspaces",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkspaceSyncResult"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Refresh workspace filesystem state and sync present workspace artifacts.",
                 "tags": ["workspaces"]
             }
         },

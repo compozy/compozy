@@ -147,6 +147,18 @@ func workspaceContextProblem(code string, message string, details map[string]any
 	return NewProblem(http.StatusPreconditionFailed, code, message, details, err)
 }
 
+func WorkspacePathMissingProblem(workspaceID string, rootDir string, err error) error {
+	return workspaceContextProblem(
+		"workspace_path_missing",
+		"workspace path is missing",
+		map[string]any{
+			"workspace": strings.TrimSpace(workspaceID),
+			"root_dir":  strings.TrimSpace(rootDir),
+		},
+		err,
+	)
+}
+
 func serviceUnavailableProblem(resource string) error {
 	message := strings.TrimSpace(resource)
 	if message == "" {

@@ -112,11 +112,19 @@ type DaemonReconcileDiagnostics struct {
 }
 
 type Workspace struct {
-	ID        string    `json:"id"`
-	RootDir   string    `json:"root_dir"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID              string     `json:"id"`
+	RootDir         string     `json:"root_dir"`
+	Name            string     `json:"name"`
+	FilesystemState string     `json:"filesystem_state"`
+	ReadOnly        bool       `json:"read_only"`
+	HasCatalogData  bool       `json:"has_catalog_data"`
+	WorkflowCount   int        `json:"workflow_count"`
+	RunCount        int        `json:"run_count"`
+	LastCheckedAt   *time.Time `json:"last_checked_at,omitempty"`
+	LastSyncedAt    *time.Time `json:"last_sync_at,omitempty"`
+	LastSyncError   string     `json:"last_sync_error,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type WorkspaceRegisterResult struct {
@@ -126,6 +134,18 @@ type WorkspaceRegisterResult struct {
 
 type WorkspaceUpdateInput struct {
 	Name string `json:"name,omitempty"`
+}
+
+type WorkspaceSyncResult struct {
+	Checked              int      `json:"checked"`
+	Removed              int      `json:"removed"`
+	Missing              int      `json:"missing"`
+	Synced               int      `json:"synced"`
+	SnapshotsUpserted    int      `json:"snapshots_upserted"`
+	TaskItemsUpserted    int      `json:"task_items_upserted"`
+	ReviewRoundsUpserted int      `json:"review_rounds_upserted"`
+	ReviewIssuesUpserted int      `json:"review_issues_upserted"`
+	Warnings             []string `json:"warnings,omitempty"`
 }
 
 type WorkflowSummary struct {

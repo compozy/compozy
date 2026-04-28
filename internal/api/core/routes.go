@@ -19,6 +19,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	workspaces := api.Group("/workspaces")
 	workspaces.POST("", handlers.RegisterWorkspace)
 	workspaces.GET("", handlers.ListWorkspaces)
+	workspaces.POST("/sync", handlers.SyncWorkspaces)
 	workspaces.GET("/:id", handlers.GetWorkspace)
 	workspaces.PATCH("/:id", handlers.UpdateWorkspace)
 	workspaces.DELETE("/:id", handlers.DeleteWorkspace)

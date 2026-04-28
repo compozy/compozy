@@ -817,6 +817,20 @@ func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, workflowRoot str
 	return nil
 }
 
+func (m *RunManager) resolveExecWorkspace(ctx context.Context, workspacePath string) (globaldb.Workspace, error) {
+	workspaceRow, err := m.globalDB.Get(ctx, workspacePath)
+	if err == nil {
+		if err := requireWorkspacePathAvailable(workspaceRow); err != nil {
+			return globaldb.Workspace{}, err
+		}
+		return workspaceRow, nil
+	}
+	if !errors.Is(err, globaldb.ErrWorkspaceNotFound) {
+		return globaldb.Workspace{}, err
+	}
+	return m.globalDB.ResolveOrRegister(ctx, workspacePath)
+}
+
 func (m *RunManager) prepareExecStart(
 	ctx context.Context,
 	req apicore.ExecRequest,
@@ -841,7 +855,7 @@ func (m *RunManager) prepareExecStart(
 		)
 	}
 
-	workspaceRow, err := m.globalDB.ResolveOrRegister(ctx, workspacePath)
+	workspaceRow, err := m.resolveExecWorkspace(ctx, workspacePath)
 	if err != nil {
 		return globaldb.Workspace{}, nil, "", err
 	}
@@ -900,6 +914,9 @@ func (m *RunManager) resolveWorkflowContext(
 ) (globaldb.Workspace, *string, workspacecfg.ProjectConfig, error) {
 	workspaceRow, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
 	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, err
+	}
+	if err := requireWorkspacePathAvailable(workspaceRow); err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, err
 	}
 	projectCfg, err := m.loadProjectConfig(ctx, workspaceRow.RootDir)

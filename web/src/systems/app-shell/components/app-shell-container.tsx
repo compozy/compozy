@@ -10,6 +10,8 @@ import { isStaleWorkspaceError } from "@/lib/api-client";
 
 import { ActiveWorkspaceContext } from "../lib/active-workspace-context";
 import { useActiveWorkspace } from "../hooks/use-active-workspace";
+import { useSyncWorkspaces } from "../hooks/use-workspaces";
+import type { WorkspaceSyncResult } from "../types";
 import { AppShellBoundary } from "./app-shell-boundary";
 import { WorkspaceOnboarding } from "./workspace-onboarding";
 import { WorkspacePicker } from "./workspace-picker";
@@ -21,9 +23,11 @@ export interface AppShellContainerProps {
 export function AppShellContainer({ children }: AppShellContainerProps): ReactElement {
   const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
+  const syncWorkspaces = useSyncWorkspaces();
   const clearActiveWorkspaceSelection = workspace.clearActiveWorkspaceSelection;
   const [showPicker, setShowPicker] = useState(false);
   const [staleSignal, setStaleSignal] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const lastResolvedRef = useRef<string | null>(null);
   const activeWorkspaceIdRef = useRef<string | null>(workspace.activeWorkspaceId);
   const selectedWorkspaceIdRef = useRef<string | null>(workspace.selectedWorkspaceId);
@@ -86,10 +90,22 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
     (workspaceId: string) => {
       workspace.setActiveWorkspaceId(workspaceId);
       setStaleSignal(null);
+      setSyncMessage(null);
       setShowPicker(false);
     },
     [workspace]
   );
+
+  const handleSyncWorkspaces = useCallback(async () => {
+    setSyncMessage(null);
+    try {
+      const result = await syncWorkspaces.mutateAsync();
+      setSyncMessage(formatWorkspaceSyncResult(result));
+      setStaleSignal(null);
+    } catch {
+      // Mutation state owns the displayed error.
+    }
+  }, [syncWorkspaces]);
 
   if (workspace.status === "loading") {
     return (
@@ -126,7 +142,13 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   if (shouldShowPicker) {
     return (
       <WorkspacePicker
+        isSyncing={syncWorkspaces.isPending}
         onSelect={handleSelect}
+        onSync={() => {
+          void handleSyncWorkspaces();
+        }}
+        syncError={syncWorkspaces.error?.message ?? null}
+        syncMessage={syncMessage}
         staleWorkspaceId={staleSignal}
         workspaces={workspace.workspaces}
       />
@@ -136,7 +158,13 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   if (!workspace.activeWorkspace) {
     return (
       <WorkspacePicker
+        isSyncing={syncWorkspaces.isPending}
         onSelect={handleSelect}
+        onSync={() => {
+          void handleSyncWorkspaces();
+        }}
+        syncError={syncWorkspaces.error?.message ?? null}
+        syncMessage={syncMessage}
         staleWorkspaceId={staleSignal}
         workspaces={workspace.workspaces}
       />
@@ -154,4 +182,19 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
       {children}
     </ActiveWorkspaceContext.Provider>
   );
+}
+
+function formatWorkspaceSyncResult(result: WorkspaceSyncResult): string {
+  const checked = result.checked;
+  const removed = result.removed;
+  const missing = result.missing;
+  const synced = result.synced;
+  const warnings = result.warnings?.length ?? 0;
+  return [
+    `${checked} checked`,
+    `${synced} synced`,
+    `${missing} missing`,
+    `${removed} removed`,
+    `${warnings} warning${warnings === 1 ? "" : "s"}`,
+  ].join(" · ");
 }

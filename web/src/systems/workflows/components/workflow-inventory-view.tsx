@@ -28,6 +28,7 @@ export interface WorkflowInventoryViewProps {
   isRefetching: boolean;
   error?: string | null;
   workspaceName: string;
+  isReadOnly?: boolean;
   onSyncAll: () => void;
   onSyncOne: (slug: string) => void;
   onStartRun: (slug: string) => void;
@@ -48,6 +49,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
     isRefetching,
     error,
     workspaceName,
+    isReadOnly = false,
     onSyncAll,
     onSyncOne,
     onStartRun,
@@ -70,7 +72,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
         actions={
           <Button
             data-testid="workflow-inventory-sync-all"
-            disabled={isSyncingAll}
+            disabled={isSyncingAll || isReadOnly}
             icon={<RefreshCw className="size-4" />}
             loading={isSyncingAll}
             onClick={onSyncAll}
@@ -87,6 +89,11 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
       {lastActionError ? (
         <Alert data-testid="workflow-inventory-error" variant="error">
           {lastActionError}
+        </Alert>
+      ) : null}
+      {isReadOnly ? (
+        <Alert data-testid="workflow-inventory-readonly" variant="warning">
+          Workspace path missing. Filesystem actions are read-only until the path is restored.
         </Alert>
       ) : null}
       {lastActionMessage ? (
@@ -127,7 +134,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
         <EmptyState
           action={
             <Button
-              disabled={isSyncingAll}
+              disabled={isSyncingAll || isReadOnly}
               icon={<RefreshCw className="size-4" />}
               loading={isSyncingAll}
               onClick={onSyncAll}
@@ -158,6 +165,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
                 onSync={() => onSyncOne(workflow.slug)}
+                readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
                 pendingStart={pendingStartSlug === workflow.slug}
                 pendingSync={pendingSyncSlug === workflow.slug}
@@ -196,6 +204,7 @@ function WorkflowRow({
   pendingSync,
   pendingStart,
   pendingArchive,
+  readOnly,
 }: {
   workflow: WorkflowSummary;
   onSync: () => void;
@@ -204,6 +213,7 @@ function WorkflowRow({
   pendingSync: boolean;
   pendingStart: boolean;
   pendingArchive: boolean;
+  readOnly: boolean;
 }): ReactElement {
   return (
     <li>
@@ -259,7 +269,7 @@ function WorkflowRow({
           </Link>
           <Button
             data-testid={`workflow-start-${workflow.slug}`}
-            disabled={pendingStart}
+            disabled={pendingStart || readOnly}
             icon={<Play className="size-4" />}
             loading={pendingStart}
             onClick={onStartRun}
@@ -269,7 +279,7 @@ function WorkflowRow({
           </Button>
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
-            disabled={pendingSync}
+            disabled={pendingSync || readOnly}
             icon={<RefreshCw className="size-4" />}
             loading={pendingSync}
             onClick={onSync}
@@ -280,7 +290,7 @@ function WorkflowRow({
           </Button>
           <Button
             data-testid={`workflow-archive-${workflow.slug}`}
-            disabled={pendingArchive}
+            disabled={pendingArchive || readOnly}
             icon={<Archive className="size-4" />}
             loading={pendingArchive}
             onClick={onArchive}

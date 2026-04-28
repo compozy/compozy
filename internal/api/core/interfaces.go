@@ -45,6 +45,7 @@ type WorkspaceService interface {
 	Update(context.Context, string, WorkspaceUpdateInput) (Workspace, error)
 	Delete(context.Context, string) error
 	Resolve(context.Context, string) (Workspace, error)
+	Sync(context.Context) (WorkspaceSyncResult, error)
 }
 
 // TaskService exposes workflow summary, rich read-model, validation, and run-start surfaces.
@@ -128,6 +129,7 @@ type DaemonReconcileDiagnostics = contract.DaemonReconcileDiagnostics
 type Workspace = contract.Workspace
 type WorkspaceRegisterResult = contract.WorkspaceRegisterResult
 type WorkspaceUpdateInput = contract.WorkspaceUpdateInput
+type WorkspaceSyncResult = contract.WorkspaceSyncResult
 type WorkflowSummary = contract.WorkflowSummary
 type TaskItem = contract.TaskItem
 type ValidationSuccess = contract.ValidationSuccess
