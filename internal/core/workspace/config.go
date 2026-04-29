@@ -143,6 +143,32 @@ func LoadConfig(ctx context.Context, workspaceRoot string) (ProjectConfig, strin
 	return cfg, paths.effectivePath(), nil
 }
 
+func WriteConfig(ctx context.Context, configPath string, cfg ProjectConfig) error {
+	if err := context.Cause(ctx); err != nil {
+		return fmt.Errorf("write workspace config: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	content, err := toml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("encode workspace config: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir workspace config dir: %w", err)
+	}
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		return fmt.Errorf("write workspace config: %w", err)
+	}
+	return nil
+}
+
+func LoadConfigFile(ctx context.Context, configPath string) (ProjectConfig, bool, error) {
+	cfg, exists, err := loadConfigFile(ctx, configPath, workspaceConfigScope, configBaseDirForPath(configPath))
+	return cfg, exists, err
+}
+
 func LoadGlobalConfig(ctx context.Context) (ProjectConfig, string, error) {
 	if err := context.Cause(ctx); err != nil {
 		return ProjectConfig{}, "", fmt.Errorf("load global config: %w", err)
@@ -217,6 +243,14 @@ func resolveConfigPaths(workspaceRoot string) (configPaths, error) {
 	paths.globalRoot = resolvedHomeDir
 	paths.globalPath = homePaths.ConfigFile
 	return paths, nil
+}
+
+func configBaseDirForPath(configPath string) string {
+	configDir := filepath.Dir(strings.TrimSpace(configPath))
+	if filepath.Base(configDir) == model.WorkflowRootDirName {
+		return filepath.Dir(configDir)
+	}
+	return configDir
 }
 
 func loadConfigFile(
