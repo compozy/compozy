@@ -175,6 +175,113 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 		}
 	})
 
+	t.Run("start review watch preserves typed request payload", func(t *testing.T) {
+		client := &Client{
+			target:  Target{SocketPath: "/tmp/compozy.sock"},
+			baseURL: "http://daemon",
+			httpClient: &http.Client{
+				Timeout: time.Second,
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodPost {
+						t.Fatalf("method = %s, want POST", req.Method)
+					}
+					if req.URL.Path != "/api/reviews/tools-registry/watch" {
+						t.Fatalf("path = %s, want /api/reviews/tools-registry/watch", req.URL.Path)
+					}
+					var payload map[string]any
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("decode review watch body: %v", err)
+					}
+					runtimeOverrides, ok := payload["runtime_overrides"].(map[string]any)
+					if !ok || runtimeOverrides["auto_commit"] != true {
+						t.Fatalf("unexpected runtime overrides payload: %#v", payload)
+					}
+					batching, ok := payload["batching"].(map[string]any)
+					if !ok || batching["concurrent"] != float64(2) {
+						t.Fatalf("unexpected batching payload: %#v", payload)
+					}
+					if payload["workspace"] != "/tmp/workspace" ||
+						payload["provider"] != "coderabbit" ||
+						payload["pr_ref"] != "85" ||
+						payload["until_clean"] != true ||
+						payload["max_rounds"] != float64(6) ||
+						payload["auto_push"] != true ||
+						payload["push_remote"] != "origin" ||
+						payload["push_branch"] != "feature" ||
+						payload["poll_interval"] != "15s" ||
+						payload["review_timeout"] != "10m" ||
+						payload["quiet_period"] != "5s" {
+						t.Fatalf("unexpected review watch payload: %#v", payload)
+					}
+					return jsonResponse(
+						http.StatusCreated,
+						`{"run":{"run_id":"review-watch-1","mode":"review_watch"}}`,
+					), nil
+				}),
+			},
+		}
+
+		run, err := client.StartReviewWatch(
+			context.Background(),
+			" /tmp/workspace ",
+			" tools-registry ",
+			apicore.ReviewWatchRequest{
+				Provider:         " coderabbit ",
+				PRRef:            " 85 ",
+				UntilClean:       true,
+				MaxRounds:        6,
+				AutoPush:         true,
+				PushRemote:       " origin ",
+				PushBranch:       " feature ",
+				PollInterval:     " 15s ",
+				ReviewTimeout:    " 10m ",
+				QuietPeriod:      " 5s ",
+				RuntimeOverrides: json.RawMessage(`{"auto_commit":true}`),
+				Batching:         json.RawMessage(`{"concurrent":2}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("StartReviewWatch() error = %v", err)
+		}
+		if run.RunID != "review-watch-1" || run.Mode != "review_watch" {
+			t.Fatalf("unexpected review watch run: %#v", run)
+		}
+	})
+
+	t.Run("start review watch propagates daemon errors", func(t *testing.T) {
+		client := &Client{
+			target:  Target{SocketPath: "/tmp/compozy.sock"},
+			baseURL: "http://daemon",
+			httpClient: &http.Client{
+				Timeout: time.Second,
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					if req.URL.Path != "/api/reviews/demo/watch" {
+						t.Fatalf("path = %s, want /api/reviews/demo/watch", req.URL.Path)
+					}
+					return jsonResponse(
+						http.StatusConflict,
+						`{"code":"review_watch_already_active","message":"already active"}`,
+					), nil
+				}),
+			},
+		}
+
+		_, err := client.StartReviewWatch(context.Background(), "/tmp/workspace", "demo", apicore.ReviewWatchRequest{
+			Provider: "coderabbit",
+			PRRef:    "85",
+		})
+		if err == nil {
+			t.Fatal("StartReviewWatch() error = nil, want remote error")
+		}
+		var remoteErr *RemoteError
+		if !errors.As(err, &remoteErr) {
+			t.Fatalf("StartReviewWatch() error = %T, want *RemoteError", err)
+		}
+		if remoteErr.Envelope.Code != "review_watch_already_active" {
+			t.Fatalf("remote code = %q, want review_watch_already_active", remoteErr.Envelope.Code)
+		}
+	})
+
 	t.Run("start task run escapes workflow slug in request path", func(t *testing.T) {
 		client := &Client{
 			target:  Target{SocketPath: "/tmp/compozy.sock"},

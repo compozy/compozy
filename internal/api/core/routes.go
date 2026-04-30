@@ -44,6 +44,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	reviews := api.Group("/reviews")
 	reviews.POST("/:slug/fetch", handlers.FetchReview)
+	reviews.POST("/:slug/watch", handlers.StartReviewWatch)
 	reviews.GET("/:slug/rounds/:round/issues", handlers.ListReviewIssues)
 	reviews.GET("/:slug/rounds/:round/issues/:issue_id", handlers.GetReviewIssue)
 	reviews.GET("/:slug/rounds/:round", handlers.GetReviewRound)

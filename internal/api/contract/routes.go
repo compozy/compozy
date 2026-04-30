@@ -130,6 +130,12 @@ var RouteInventory = []RouteSpec{
 		TimeoutClass: TimeoutLongMutate,
 	},
 	{
+		Method:       http.MethodPost,
+		Path:         "/api/reviews/:slug/watch",
+		ResponseType: "RunResponse",
+		TimeoutClass: TimeoutLongMutate,
+	},
+	{
 		Method:       http.MethodGet,
 		Path:         "/api/reviews/:slug",
 		ResponseType: "ReviewSummaryResponse",

@@ -109,6 +109,14 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 				PresentationMode: "stream",
 				StartedAt:        now,
 			},
+			watchRun: core.Run{
+				RunID:            "review-watch-1",
+				WorkspaceID:      "ws-1",
+				Mode:             "review_watch",
+				Status:           "running",
+				PresentationMode: "stream",
+				StartedAt:        now,
+			},
 		},
 		Runs: &smokeRunService{
 			run: core.Run{
@@ -357,6 +365,14 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			http.StatusCreated,
 			`"run":{"run_id":"review-run-1"`,
 		},
+		{
+			"review watch",
+			http.MethodPost,
+			"/api/reviews/daemon/watch",
+			`{"workspace":"ws-1","provider":"coderabbit","pr_ref":"85"}`,
+			http.StatusCreated,
+			`"run":{"run_id":"review-watch-1"`,
+		},
 		{"runs list", http.MethodGet, "/api/runs?workspace=ws-1&limit=10", "", http.StatusOK, `"runs":[`},
 		{"run get", http.MethodGet, "/api/runs/run-1", "", http.StatusOK, `"run":{"run_id":"run-1"`},
 		{"run snapshot", http.MethodGet, "/api/runs/run-1/snapshot", "", http.StatusOK, `"next_cursor":"`},
@@ -529,10 +545,11 @@ func (*smokeTaskService) Archive(context.Context, string, string) (core.ArchiveR
 }
 
 type smokeReviewService struct {
-	summary core.ReviewSummary
-	round   core.ReviewRound
-	issue   core.ReviewIssue
-	run     core.Run
+	summary  core.ReviewSummary
+	round    core.ReviewRound
+	issue    core.ReviewIssue
+	run      core.Run
+	watchRun core.Run
 }
 
 func (s *smokeReviewService) Fetch(
@@ -571,6 +588,9 @@ func (s *smokeReviewService) StartRun(context.Context, string, string, int, core
 }
 
 func (s *smokeReviewService) StartWatch(context.Context, string, string, core.ReviewWatchRequest) (core.Run, error) {
+	if s.watchRun.RunID != "" {
+		return s.watchRun, nil
+	}
 	return s.run, nil
 }
 

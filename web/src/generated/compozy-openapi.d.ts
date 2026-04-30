@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/{slug}/watch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start one daemon-owned review-watch run. */
+        post: operations["startReviewWatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/{slug}/rounds/{round}/issues": {
         parameters: {
             query?: never;
@@ -1028,6 +1045,25 @@ export interface components {
         WorkspacesResponse: {
             workspaces: components["schemas"]["Workspace"][];
         };
+        ReviewWatchRequest: {
+            auto_push?: boolean;
+            batching?: {
+                [key: string]: unknown;
+            };
+            max_rounds?: number;
+            poll_interval?: string;
+            pr_ref: string;
+            provider?: string;
+            push_branch?: string;
+            push_remote?: string;
+            quiet_period?: string;
+            review_timeout?: string;
+            runtime_overrides?: {
+                [key: string]: unknown;
+            };
+            until_clean?: boolean;
+            workspace?: string;
+        };
     };
     responses: {
         /** @description Requested operation conflicts with current daemon state. */
@@ -1227,6 +1263,52 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["StaleWorkspace"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    startReviewWatch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active workspace identifier for browser-scoped daemon requests. */
+                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
+            };
+            path: {
+                /** @description Workflow slug. */
+                slug: components["parameters"]["Slug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewWatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["StaleWorkspace"];
+            422: components["responses"]["ValidationError"];
+            500: components["responses"]["InternalError"];
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransportError"];
+                };
+            };
         };
     };
     listReviewIssues: {

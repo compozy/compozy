@@ -119,6 +119,16 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 		StartedAt:        now,
 		RequestID:        "run-req-review",
 	}
+	reviewWatchRun := core.Run{
+		RunID:            "review-watch-1",
+		WorkspaceID:      "ws-1",
+		WorkflowSlug:     "daemon",
+		Mode:             "review_watch",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        now,
+		RequestID:        "run-req-review-watch",
+	}
 
 	engine := newCanonicalHandlersEngine(core.NewHandlers(&core.HandlerConfig{
 		TransportName: "test",
@@ -126,7 +136,8 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 			run: taskRun,
 		},
 		Reviews: &smokeReviewService{
-			run: reviewRun,
+			run:      reviewRun,
+			watchRun: reviewWatchRun,
 		},
 	}))
 
@@ -153,6 +164,14 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 			requestID:  "req-review",
 			wantStatus: http.StatusCreated,
 			wantRun:    reviewRun,
+		},
+		{
+			name:       "review watch",
+			target:     "/api/reviews/daemon/watch",
+			body:       `{"workspace":"ws-1","provider":"coderabbit","pr_ref":"85","auto_push":true}`,
+			requestID:  "req-review-watch",
+			wantStatus: http.StatusCreated,
+			wantRun:    reviewWatchRun,
 		},
 	}
 

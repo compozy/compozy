@@ -343,6 +343,7 @@ type workflowRefBody = contract.WorkflowRefRequest
 type taskRunBody = contract.TaskRunRequest
 type reviewFetchBody = contract.ReviewFetchRequest
 type reviewRunBody = contract.ReviewRunRequest
+type reviewWatchBody = contract.ReviewWatchRequest
 type syncBody = contract.SyncRequest
 type execBody = contract.ExecRequest
 
@@ -1001,6 +1002,50 @@ func (h *Handlers) StartReviewRun(c *gin.Context) {
 	run, err := h.Reviews.StartRun(c.Request.Context(), workspace, c.Param("slug"), round, ReviewRunRequest{
 		Workspace:        workspace,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
+		RuntimeOverrides: body.RuntimeOverrides,
+		Batching:         body.Batching,
+	})
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
+}
+
+// StartReviewWatch starts one daemon-owned review-watch parent run.
+func (h *Handlers) StartReviewWatch(c *gin.Context) {
+	if h.Reviews == nil {
+		h.respondError(c, NewProblem(
+			http.StatusServiceUnavailable,
+			"review_service_unavailable",
+			"review watch is not available in this daemon build",
+			nil,
+			nil,
+		))
+		return
+	}
+
+	var body reviewWatchBody
+	if !h.bindJSON(c, "decode review watch request", &body) {
+		return
+	}
+	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
+	if !ok {
+		return
+	}
+
+	run, err := h.Reviews.StartWatch(c.Request.Context(), workspace, c.Param("slug"), ReviewWatchRequest{
+		Workspace:        workspace,
+		Provider:         strings.TrimSpace(body.Provider),
+		PRRef:            strings.TrimSpace(body.PRRef),
+		UntilClean:       body.UntilClean,
+		MaxRounds:        body.MaxRounds,
+		AutoPush:         body.AutoPush,
+		PushRemote:       strings.TrimSpace(body.PushRemote),
+		PushBranch:       strings.TrimSpace(body.PushBranch),
+		PollInterval:     strings.TrimSpace(body.PollInterval),
+		ReviewTimeout:    strings.TrimSpace(body.ReviewTimeout),
+		QuietPeriod:      strings.TrimSpace(body.QuietPeriod),
 		RuntimeOverrides: body.RuntimeOverrides,
 		Batching:         body.Batching,
 	})

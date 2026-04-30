@@ -56,6 +56,7 @@ func newReviewsCommandWithDefaults(defaults commandStateDefaults) *cobra.Command
 		newReviewsListCommandWithDefaults(defaults),
 		newReviewsShowCommandWithDefaults(defaults),
 		newReviewsFixCommandWithDefaults(defaults),
+		newReviewsWatchCommandWithDefaults(defaults),
 	)
 	return cmd
 }
@@ -138,6 +139,47 @@ opens the run cockpit by default; in non-TTY environments it falls back to headl
 		"",
 		"Path to a review round directory (.compozy/tasks/<name>/reviews-NNN)",
 	)
+	cmd.Flags().IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1)")
+	cmd.Flags().BoolVar(&state.includeResolved, "include-resolved", false, "Include already-resolved review issues")
+	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "Attach mode: auto, ui, stream, or detach")
+	cmd.Flags().Bool("ui", false, "Force interactive UI attach mode")
+	cmd.Flags().Bool("stream", false, "Force textual stream attach mode")
+	cmd.Flags().Bool("detach", false, "Start the run without attaching a client")
+	return cmd
+}
+
+func newReviewsWatchCommandWithDefaults(defaults commandStateDefaults) *cobra.Command {
+	state := newCommandStateWithDefaults(commandKindWatchReviews, core.ModePRReview, defaults)
+	cmd := &cobra.Command{
+		Use:          "watch [slug]",
+		Short:        "Start a daemon-backed review-watch run",
+		SilenceUsage: true,
+		Args:         cobra.MaximumNArgs(1),
+		Long: `Start a daemon-owned review watch run that waits for provider feedback,
+imports actionable review rounds, starts child review-fix runs, and optionally pushes committed fixes.`,
+		Example: `  compozy reviews watch tools-registry --provider coderabbit --pr 85 --auto-push \
+    --until-clean --max-rounds 6
+  compozy reviews watch --name tools-registry --provider coderabbit --pr 85 --stream
+  compozy reviews watch tools-registry --provider coderabbit --pr 85 --format raw-json`,
+		RunE: state.runReviewWatchDaemon,
+	}
+	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
+	addWorkflowOutputFlags(cmd, state)
+	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name")
+	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
+	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
+	cmd.Flags().
+		BoolVar(&state.untilClean, "until-clean", false, "Keep looping until the current PR head is reviewed clean")
+	cmd.Flags().
+		IntVar(&state.maxRounds, "max-rounds", 0, "Maximum watch rounds before stopping (default: daemon config)")
+	cmd.Flags().BoolVar(&state.autoPush, "auto-push", false, "Push committed fixes after each successful watch round")
+	cmd.Flags().StringVar(&state.pushRemote, "push-remote", "", "Git remote to push when --auto-push is enabled")
+	cmd.Flags().StringVar(&state.pushBranch, "push-branch", "", "Git branch to push when --auto-push is enabled")
+	cmd.Flags().StringVar(&state.pollInterval, "poll-interval", "", "Provider polling interval (e.g., 30s)")
+	cmd.Flags().
+		StringVar(&state.reviewTimeout, "review-timeout", "", "Maximum time to wait for provider review per round")
+	cmd.Flags().
+		StringVar(&state.quietPeriod, "quiet-period", "", "Delay after pushing before checking provider status again")
 	cmd.Flags().IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1)")
 	cmd.Flags().BoolVar(&state.includeResolved, "include-resolved", false, "Include already-resolved review issues")
 	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "Attach mode: auto, ui, stream, or detach")
@@ -314,7 +356,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	runtimeOverrides, err := s.buildReviewRunRuntimeOverrides(cmd)
+	runtimeOverrides, err := s.buildReviewRunRuntimeOverrides(cmd, false)
 	if err != nil {
 		return withExitCode(2, err)
 	}
@@ -337,6 +379,84 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
+
+	switch strings.TrimSpace(s.outputFormat) {
+	case string(core.OutputFormatJSON):
+		return s.streamDaemonWorkflowEvents(ctx, cmd.OutOrStdout(), client, run.RunID, false)
+	case string(core.OutputFormatRawJSON):
+		return s.streamDaemonWorkflowEvents(ctx, cmd.OutOrStdout(), client, run.RunID, true)
+	default:
+		return handleStartedTaskRun(ctx, cmd, client, run)
+	}
+}
+
+func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	assets, cleanup, err := s.prepareWorkspaceContext(ctx, cmd)
+	if err != nil {
+		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
+	}
+	defer cleanup()
+	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
+		return withExitCode(1, err)
+	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return withExitCode(2, err)
+	}
+	if err := s.validateReviewWatchAutoPush(cmd); err != nil {
+		return withExitCode(1, err)
+	}
+
+	effectiveExtensionPacks, err := effectiveExtensionSkillSources(assets.Discovery)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+	if err := s.preflightBundledSkills(cmd, cfg, effectiveExtensionPacks); err != nil {
+		return err
+	}
+
+	presentationMode, err := s.resolveReviewWatchPresentationMode(cmd)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	runtimeOverrides, err := s.buildReviewRunRuntimeOverrides(cmd, s.autoPush)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+	batching, err := s.buildReviewBatchingOverrides(cmd)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+
+	client, err := newCLIDaemonBootstrap().ensure(ctx)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+
+	run, err := client.StartReviewWatch(ctx, s.workspaceRoot, s.name, apicore.ReviewWatchRequest{
+		Workspace:        s.workspaceRoot,
+		Provider:         s.provider,
+		PRRef:            s.pr,
+		UntilClean:       s.untilClean,
+		MaxRounds:        s.maxRounds,
+		AutoPush:         s.autoPush,
+		PushRemote:       s.pushRemote,
+		PushBranch:       s.pushBranch,
+		PollInterval:     s.pollInterval,
+		ReviewTimeout:    s.reviewTimeout,
+		QuietPeriod:      s.quietPeriod,
+		RuntimeOverrides: runtimeOverrides,
+		Batching:         batching,
+	})
+	if err != nil {
+		return mapDaemonCommandError(err)
+	}
+	run.PresentationMode = presentationMode
 
 	switch strings.TrimSpace(s.outputFormat) {
 	case string(core.OutputFormatJSON):
@@ -436,7 +556,32 @@ func (s *commandState) resolveExecPresentationMode(cmd *cobra.Command) (string, 
 	return attachModeDetach, nil
 }
 
-func (s *commandState) buildReviewRunRuntimeOverrides(cmd *cobra.Command) (json.RawMessage, error) {
+func (s *commandState) resolveReviewWatchPresentationMode(cmd *cobra.Command) (string, error) {
+	if isJSONOutputFormat(s.outputFormat) {
+		if commandFlagChanged(cmd, "ui") ||
+			(commandFlagChanged(cmd, "attach") && strings.TrimSpace(s.attachMode) == attachModeUI) {
+			return "", errors.New("ui mode is not supported with json or raw-json output")
+		}
+		return attachModeStream, nil
+	}
+	return s.resolveTaskPresentationMode(cmd)
+}
+
+func (s *commandState) validateReviewWatchAutoPush(cmd *cobra.Command) error {
+	if !s.autoPush {
+		return nil
+	}
+	if commandFlagChanged(cmd, "auto-commit") && !s.autoCommit {
+		return errors.New("invalid_watch_request: --auto-push requires --auto-commit=true")
+	}
+	s.autoCommit = true
+	return nil
+}
+
+func (s *commandState) buildReviewRunRuntimeOverrides(
+	cmd *cobra.Command,
+	forceAutoCommit bool,
+) (json.RawMessage, error) {
 	overrides := daemonRuntimeOverrides{}
 	hasOverrides := false
 	set := func(changed bool, apply func()) {
@@ -448,7 +593,9 @@ func (s *commandState) buildReviewRunRuntimeOverrides(cmd *cobra.Command) (json.
 	}
 
 	set(commandFlagChanged(cmd, "dry-run"), func() { overrides.DryRun = boolPointer(s.dryRun) })
-	set(commandFlagChanged(cmd, "auto-commit"), func() { overrides.AutoCommit = boolPointer(s.autoCommit) })
+	set(commandFlagChanged(cmd, "auto-commit") || forceAutoCommit, func() {
+		overrides.AutoCommit = boolPointer(s.autoCommit)
+	})
 	set(commandFlagChanged(cmd, "ide"), func() { overrides.IDE = stringPointer(s.ide) })
 	set(commandFlagChanged(cmd, "model"), func() { overrides.Model = stringPointer(s.model) })
 	set(commandFlagChanged(cmd, "add-dir"), func() {
@@ -979,7 +1126,17 @@ func shouldEmitLeanWorkflowEvent(event eventspkg.Event) bool {
 		eventspkg.EventKindJobCancelled,
 		eventspkg.EventKindSessionStarted,
 		eventspkg.EventKindSessionCompleted,
-		eventspkg.EventKindSessionFailed:
+		eventspkg.EventKindSessionFailed,
+		eventspkg.EventKindReviewWatchStarted,
+		eventspkg.EventKindReviewWatchWaiting,
+		eventspkg.EventKindReviewWatchRoundFetched,
+		eventspkg.EventKindReviewWatchFixStarted,
+		eventspkg.EventKindReviewWatchFixCompleted,
+		eventspkg.EventKindReviewWatchPushStarted,
+		eventspkg.EventKindReviewWatchPushCompleted,
+		eventspkg.EventKindReviewWatchPushFailed,
+		eventspkg.EventKindReviewWatchClean,
+		eventspkg.EventKindReviewWatchMaxRounds:
 		return true
 	case eventspkg.EventKindSessionUpdate:
 		payload, err := decodeDaemonPayload[kinds.SessionUpdatePayload](event.Payload)
