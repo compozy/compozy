@@ -286,8 +286,9 @@ function RelatedRunsCard({ runs }: { runs: Run[] }): ReactElement {
 function displayReviewTitle(raw: string): string {
   const cleaned = raw
     .replace(/(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]|\uFE0F)/gu, "")
+    .replace(/(^|[\s:[({-])_(?!_)/g, "$1")
+    .replace(/(?<!_)_(?=$|[\s|)\]}:;,.!?-])/g, "")
     .replace(/\s*\|\s*/g, " - ")
-    .replace(/_/g, "")
     .replace(/\s+/g, " ")
     .trim();
   return cleaned.length > 0 ? cleaned : raw;

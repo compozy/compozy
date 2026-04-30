@@ -64,15 +64,36 @@ func (s *transportTaskService) ListWorkflows(
 		return nil, err
 	}
 
+	workflowIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		workflowIDs = append(workflowIDs, row.ID)
+	}
+	taskCountsByWorkflowID, err := s.globalDB.TaskCountsByWorkflowIDs(ctx, workflowIDs)
+	if err != nil {
+		return nil, err
+	}
+	archiveEligibilityByWorkflowID, err := s.globalDB.WorkflowArchiveEligibilityByIDs(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+
 	workflows := make([]apicore.WorkflowSummary, 0, len(rows))
 	for _, row := range rows {
-		taskRows, err := s.globalDB.ListTaskItems(ctx, row.ID)
-		if err != nil {
-			return nil, err
-		}
-		summary := transportWorkflowSummaryWithTaskCounts(row, summarizeTaskRows(taskRows))
-		if err := attachWorkflowArchiveEligibility(ctx, s.globalDB, row, &summary); err != nil {
-			return nil, err
+		taskCounts := taskCountsByWorkflowID[row.ID]
+		summary := transportWorkflowSummaryWithTaskCounts(row, WorkflowTaskCounts{
+			Total:     taskCounts.Total,
+			Completed: taskCounts.Completed,
+			Pending:   taskCounts.Pending,
+		})
+		if row.ArchivedAt != nil {
+			archiveEligible := false
+			summary.ArchiveEligible = &archiveEligible
+			summary.ArchiveReason = workflowArchiveReasonArchived
+		} else {
+			eligibility := archiveEligibilityByWorkflowID[row.ID]
+			archiveEligible := eligibility.Archivable()
+			summary.ArchiveEligible = &archiveEligible
+			summary.ArchiveReason = eligibility.SkipReason()
 		}
 		workflows = append(workflows, summary)
 	}
@@ -96,7 +117,11 @@ func (s *transportTaskService) GetWorkflow(
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
-	summary := transportWorkflowSummary(row)
+	taskRows, err := s.globalDB.ListTaskItems(ctx, row.ID)
+	if err != nil {
+		return apicore.WorkflowSummary{}, err
+	}
+	summary := transportWorkflowSummaryWithTaskCounts(row, summarizeTaskRows(taskRows))
 	if err := attachWorkflowArchiveEligibility(ctx, s.globalDB, row, &summary); err != nil {
 		return apicore.WorkflowSummary{}, err
 	}

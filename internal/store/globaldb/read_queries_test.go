@@ -177,3 +177,89 @@ func TestReadQueriesHandleNotFoundAndInvalidJSONBranches(t *testing.T) {
 		t.Fatal("unmarshalJSONArray(invalid) error = nil, want non-nil")
 	}
 }
+
+func TestReadQueriesBulkWorkflowSummariesByID(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close test global db: %v", err)
+		}
+	}()
+
+	workspace := mustWorkspace(t, db)
+	pending := mustReconcileArchiveWorkflow(t, db, workspace.ID, "bulk-pending", []TaskItemInput{
+		{
+			TaskNumber: 1,
+			TaskID:     "task_1",
+			Title:      "Pending task",
+			Status:     "pending",
+			Kind:       "backend",
+			SourcePath: "task_01.md",
+		},
+		{
+			TaskNumber: 2,
+			TaskID:     "task_2",
+			Title:      "Completed task",
+			Status:     "completed",
+			Kind:       "backend",
+			SourcePath: "task_02.md",
+		},
+	}, nil)
+	resolved := mustReconcileArchiveWorkflow(t, db, workspace.ID, "bulk-review-only", nil, []ReviewRoundInput{
+		{
+			RoundNumber:     1,
+			Provider:        "coderabbit",
+			PRRef:           "259",
+			ResolvedCount:   1,
+			UnresolvedCount: 0,
+			Issues: []ReviewIssueInput{
+				{
+					IssueNumber: 1,
+					Severity:    "medium",
+					Status:      "resolved",
+					SourcePath:  "reviews-001/issue_001.md",
+				},
+			},
+		},
+	})
+
+	counts, err := db.TaskCountsByWorkflowIDs(
+		context.Background(),
+		[]string{pending.Workflow.ID, resolved.Workflow.ID},
+	)
+	if err != nil {
+		t.Fatalf("TaskCountsByWorkflowIDs() error = %v", err)
+	}
+	if got := counts[pending.Workflow.ID]; got.Total != 2 || got.Completed != 1 || got.Pending != 1 {
+		t.Fatalf("pending task counts = %#v, want total=2 completed=1 pending=1", got)
+	}
+	if got := counts[resolved.Workflow.ID]; got.Total != 0 || got.Completed != 0 || got.Pending != 0 {
+		t.Fatalf("resolved task counts = %#v, want zeros", got)
+	}
+
+	eligibility, err := db.WorkflowArchiveEligibilityByIDs(
+		context.Background(),
+		[]Workflow{pending.Workflow, resolved.Workflow},
+	)
+	if err != nil {
+		t.Fatalf("WorkflowArchiveEligibilityByIDs() error = %v", err)
+	}
+	pendingEligibility := eligibility[pending.Workflow.ID]
+	if pendingEligibility.TaskTotal != 2 || pendingEligibility.PendingTasks != 1 {
+		t.Fatalf("pending eligibility counts = %#v, want task total=2 pending=1", pendingEligibility)
+	}
+	if got := pendingEligibility.SkipReason(); got != archiveReasonTasksIncomplete {
+		t.Fatalf("pending SkipReason() = %q, want %q", got, archiveReasonTasksIncomplete)
+	}
+
+	resolvedEligibility := eligibility[resolved.Workflow.ID]
+	if resolvedEligibility.ReviewRoundCount != 1 || resolvedEligibility.ReviewIssueTotal != 1 ||
+		resolvedEligibility.UnresolvedReviewIssues != 0 {
+		t.Fatalf("resolved eligibility counts = %#v, want round=1 issues=1 unresolved=0", resolvedEligibility)
+	}
+	if !resolvedEligibility.Archivable() {
+		t.Fatalf("resolved eligibility should be archivable: %#v", resolvedEligibility)
+	}
+}

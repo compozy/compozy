@@ -214,6 +214,143 @@ func (g *GlobalDB) GetWorkflowArchiveEligibility(
 	return eligibility, nil
 }
 
+// WorkflowArchiveEligibilityByIDs returns archive-eligibility snapshots keyed by workflow id.
+func (g *GlobalDB) WorkflowArchiveEligibilityByIDs(
+	ctx context.Context,
+	workflows []Workflow,
+) (map[string]WorkflowArchiveEligibility, error) {
+	if err := g.requireContext(ctx, "list workflow archive eligibility"); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]WorkflowArchiveEligibility, len(workflows))
+	workflowIDs := make([]string, 0, len(workflows))
+	for _, workflow := range workflows {
+		workflowID := strings.TrimSpace(workflow.ID)
+		if workflowID == "" {
+			continue
+		}
+		if _, ok := result[workflowID]; ok {
+			continue
+		}
+		workflow.ID = workflowID
+		result[workflowID] = WorkflowArchiveEligibility{Workflow: workflow}
+		workflowIDs = append(workflowIDs, workflowID)
+	}
+	if len(workflowIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := g.queryWorkflowArchiveEligibilityByIDs(ctx, workflowIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	if err := scanWorkflowArchiveEligibilityRows(rows, result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (g *GlobalDB) queryWorkflowArchiveEligibilityByIDs(
+	ctx context.Context,
+	workflowIDs []string,
+) (*sql.Rows, error) {
+	valuesClause, args := selectedWorkflowIDsValues(workflowIDs)
+	rows, err := g.db.QueryContext(
+		ctx,
+		`WITH selected_workflow_ids(id) AS (VALUES `+valuesClause+`),
+		 task_counts AS (
+		 	SELECT task_items.workflow_id,
+		 	       COUNT(1) AS total,
+		 	       SUM(CASE WHEN task_items.status <> 'completed' THEN 1 ELSE 0 END) AS pending
+		 	FROM task_items
+		 	JOIN selected_workflow_ids selected ON selected.id = task_items.workflow_id
+		 	GROUP BY task_items.workflow_id
+		 ),
+		 review_round_counts AS (
+		 	SELECT review_rounds.workflow_id,
+		 	       COUNT(1) AS total,
+		 	       COALESCE(SUM(review_rounds.unresolved_count), 0) AS unresolved
+		 	FROM review_rounds
+		 	JOIN selected_workflow_ids selected ON selected.id = review_rounds.workflow_id
+		 	GROUP BY review_rounds.workflow_id
+		 ),
+		 review_issue_counts AS (
+		 	SELECT rounds.workflow_id,
+		 	       COUNT(1) AS total
+		 	FROM review_issues issues
+		 	JOIN review_rounds rounds ON rounds.id = issues.round_id
+		 	JOIN selected_workflow_ids selected ON selected.id = rounds.workflow_id
+		 	GROUP BY rounds.workflow_id
+		 ),
+		 active_run_counts AS (
+		 	SELECT runs.workflow_id,
+		 	       COUNT(1) AS active
+		 	FROM runs
+		 	JOIN selected_workflow_ids selected ON selected.id = runs.workflow_id
+		 	WHERE runs.status NOT IN ('completed', 'failed', 'canceled', 'crashed')
+		 	GROUP BY runs.workflow_id
+		 )
+		 SELECT workflows.id,
+		        COALESCE(task_counts.total, 0),
+		        COALESCE(task_counts.pending, 0),
+		        COALESCE(review_round_counts.total, 0),
+		        COALESCE(review_issue_counts.total, 0),
+		        COALESCE(review_round_counts.unresolved, 0),
+		        COALESCE(active_run_counts.active, 0)
+		 FROM workflows
+		 JOIN selected_workflow_ids selected ON selected.id = workflows.id
+		 LEFT JOIN task_counts ON task_counts.workflow_id = workflows.id
+		 LEFT JOIN review_round_counts ON review_round_counts.workflow_id = workflows.id
+		 LEFT JOIN review_issue_counts ON review_issue_counts.workflow_id = workflows.id
+		 LEFT JOIN active_run_counts ON active_run_counts.workflow_id = workflows.id`,
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query workflow archive eligibility by ids: %w", err)
+	}
+	return rows, nil
+}
+
+func scanWorkflowArchiveEligibilityRows(
+	rows *sql.Rows,
+	result map[string]WorkflowArchiveEligibility,
+) error {
+	for rows.Next() {
+		var (
+			workflowID string
+			snapshot   WorkflowArchiveEligibility
+		)
+		if err := rows.Scan(
+			&workflowID,
+			&snapshot.TaskTotal,
+			&snapshot.PendingTasks,
+			&snapshot.ReviewRoundCount,
+			&snapshot.ReviewIssueTotal,
+			&snapshot.UnresolvedReviewIssues,
+			&snapshot.ActiveRuns,
+		); err != nil {
+			return fmt.Errorf("globaldb: scan workflow archive eligibility by ids: %w", err)
+		}
+		current := result[workflowID]
+		current.TaskTotal = snapshot.TaskTotal
+		current.PendingTasks = snapshot.PendingTasks
+		current.ReviewRoundCount = snapshot.ReviewRoundCount
+		current.ReviewIssueTotal = snapshot.ReviewIssueTotal
+		current.UnresolvedReviewIssues = snapshot.UnresolvedReviewIssues
+		current.ActiveRuns = snapshot.ActiveRuns
+		result[workflowID] = current
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("globaldb: iterate workflow archive eligibility by ids: %w", err)
+	}
+	return nil
+}
+
 // GetLatestArchivedWorkflowBySlug returns the most recently archived row for one workflow slug.
 func (g *GlobalDB) GetLatestArchivedWorkflowBySlug(
 	ctx context.Context,

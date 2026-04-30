@@ -74,9 +74,17 @@ interface RenderProps {
   isReadOnly?: boolean;
   dispatchError?: string | null;
   dispatchedRun?: ReviewRelatedRun | null;
+  documentTitle?: string;
 }
 
 async function renderDetail(props: RenderProps = {}) {
+  const renderPayload: ReviewDetailPayload = {
+    ...payload,
+    document: {
+      ...payload.document,
+      title: props.documentTitle ?? payload.document.title,
+    },
+  };
   const rootRoute = createRootRoute();
   const detailRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -90,7 +98,7 @@ async function renderDetail(props: RenderProps = {}) {
           isReadOnly={props.isReadOnly ?? false}
           isRefreshing={false}
           onDispatchFix={props.onDispatch ?? (() => {})}
-          payload={payload}
+          payload={renderPayload}
         />
       );
     },
@@ -139,6 +147,11 @@ describe("ReviewDetailView", () => {
     expect(screen.getByTestId("review-detail-document-body")).toHaveTextContent("add a test");
     const backLink = screen.getByTestId("review-detail-back") as HTMLAnchorElement;
     expect(backLink.getAttribute("href")).toBe("/reviews/alpha/2");
+  });
+
+  it("Should preserve identifier underscores while stripping markdown emphasis", async () => {
+    await renderDetail({ documentTitle: "Fix _Potential issue_ for my_variable_name" });
+    expect(screen.getByText("Fix Potential issue for my_variable_name")).toBeInTheDocument();
   });
 
   it("Should invoke the dispatch-fix handler", async () => {

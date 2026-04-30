@@ -150,6 +150,16 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		if workflow.Slug != env.workflowSlug {
 			t.Fatalf("GetWorkflow().Slug = %q, want %q", workflow.Slug, env.workflowSlug)
 		}
+		if workflow.TaskCounts == nil || workflow.TaskCounts.Total != 1 || workflow.TaskCounts.Pending != 1 {
+			t.Fatalf("unexpected GetWorkflow() task counts: %#v", workflow.TaskCounts)
+		}
+		if workflow.CanStartRun == nil || !*workflow.CanStartRun || workflow.StartBlockReason != "" {
+			t.Fatalf("unexpected GetWorkflow() start action: %#v", workflow)
+		}
+		if workflow.ArchiveEligible == nil || *workflow.ArchiveEligible ||
+			workflow.ArchiveReason != "task workflow not fully completed" {
+			t.Fatalf("unexpected GetWorkflow() archive action: %#v", workflow)
+		}
 	})
 
 	t.Run("Should mark completed workflows as not startable", func(t *testing.T) {

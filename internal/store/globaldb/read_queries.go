@@ -42,6 +42,13 @@ type ArtifactSnapshotRow struct {
 	SyncedAt        time.Time
 }
 
+// WorkflowTaskCountsRow captures aggregated task counts for one workflow.
+type WorkflowTaskCountsRow struct {
+	Total     int
+	Completed int
+	Pending   int
+}
+
 // ListTaskItems returns synced task-item rows for one workflow in task order.
 func (g *GlobalDB) ListTaskItems(ctx context.Context, workflowID string) ([]TaskItemRow, error) {
 	if err := g.requireContext(ctx, "list task items"); err != nil {
@@ -75,6 +82,60 @@ func (g *GlobalDB) ListTaskItems(ctx context.Context, workflowID string) ([]Task
 		return nil, fmt.Errorf("globaldb: iterate task items for workflow %q: %w", workflowID, err)
 	}
 	return items, nil
+}
+
+// TaskCountsByWorkflowIDs returns aggregated task counts keyed by workflow id.
+func (g *GlobalDB) TaskCountsByWorkflowIDs(
+	ctx context.Context,
+	workflowIDs []string,
+) (map[string]WorkflowTaskCountsRow, error) {
+	if err := g.requireContext(ctx, "list workflow task counts"); err != nil {
+		return nil, err
+	}
+
+	ids := distinctTrimmedStrings(workflowIDs)
+	result := make(map[string]WorkflowTaskCountsRow, len(ids))
+	for _, workflowID := range ids {
+		result[workflowID] = WorkflowTaskCountsRow{}
+	}
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	valuesClause, args := selectedWorkflowIDsValues(ids)
+	rows, err := g.db.QueryContext(
+		ctx,
+		`WITH selected_workflow_ids(id) AS (VALUES `+valuesClause+`)
+		 SELECT task_items.workflow_id,
+		        COUNT(1) AS total,
+		        SUM(CASE WHEN task_items.status = 'completed' THEN 1 ELSE 0 END) AS completed,
+		        SUM(CASE WHEN task_items.status <> 'completed' THEN 1 ELSE 0 END) AS pending
+		 FROM task_items
+		 JOIN selected_workflow_ids selected ON selected.id = task_items.workflow_id
+		 GROUP BY task_items.workflow_id`,
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query workflow task counts: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	for rows.Next() {
+		var (
+			workflowID string
+			counts     WorkflowTaskCountsRow
+		)
+		if err := rows.Scan(&workflowID, &counts.Total, &counts.Completed, &counts.Pending); err != nil {
+			return nil, fmt.Errorf("globaldb: scan workflow task counts: %w", err)
+		}
+		result[workflowID] = counts
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("globaldb: iterate workflow task counts: %w", err)
+	}
+	return result, nil
 }
 
 // GetTaskItemByTaskID returns one synced task-item row by stable task id.
@@ -302,4 +363,40 @@ func unmarshalJSONArray(raw string) ([]string, error) {
 		return nil, nil
 	}
 	return normalized, nil
+}
+
+func distinctTrimmedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
+}
+
+func selectedWorkflowIDsValues(ids []string) (string, []any) {
+	normalized := distinctTrimmedStrings(ids)
+	args := make([]any, 0, len(normalized))
+
+	var values strings.Builder
+	for i, workflowID := range normalized {
+		if i > 0 {
+			values.WriteString(", ")
+		}
+		values.WriteString("(?)")
+		args = append(args, workflowID)
+	}
+	return values.String(), args
 }

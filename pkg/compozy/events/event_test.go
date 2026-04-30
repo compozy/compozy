@@ -394,7 +394,7 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "review watch lifecycle",
+			name: "Should round-trip review watch lifecycle payload",
 			payload: kinds.ReviewWatchPayload{
 				Provider:        "coderabbit",
 				PR:              "123",

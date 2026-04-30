@@ -1187,6 +1187,49 @@ func mustReconcilePruneWorkflow(
 	return result
 }
 
+func TestWorkflowPruneActiveRunSkip(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		activeRuns int
+		wantSkip   bool
+	}{
+		{
+			name:       "Should report a skip when active runs remain",
+			activeRuns: 2,
+			wantSkip:   true,
+		},
+		{
+			name:       "Should ignore zero-active-run delete misses",
+			activeRuns: 0,
+			wantSkip:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			skipped, ok := workflowPruneActiveRunSkip("stale-workflow", tc.activeRuns)
+			if ok != tc.wantSkip {
+				t.Fatalf("workflowPruneActiveRunSkip() ok = %v, want %v", ok, tc.wantSkip)
+			}
+			if !tc.wantSkip {
+				if skipped != (WorkflowPruneSkipped{}) {
+					t.Fatalf("workflowPruneActiveRunSkip() = %#v, want zero value", skipped)
+				}
+				return
+			}
+			if skipped.Slug != "stale-workflow" || skipped.Reason != archiveReasonActiveRuns ||
+				skipped.ActiveRuns != tc.activeRuns {
+				t.Fatalf("workflowPruneActiveRunSkip() = %#v, want active-run skip", skipped)
+			}
+		})
+	}
+}
+
 func equalStringSlices(left []string, right []string) bool {
 	if len(left) != len(right) {
 		return false

@@ -229,16 +229,17 @@ func TestHookIsMutableClassifiesReviewWatchHooks(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		name string
 		hook HookName
 		want bool
 	}{
-		{hook: HookReviewWatchPreRound, want: true},
-		{hook: HookReviewWatchPostRound, want: false},
-		{hook: HookReviewWatchPrePush, want: true},
-		{hook: HookReviewWatchFinished, want: false},
+		{name: "Should classify review.watch_pre_round as mutable", hook: HookReviewWatchPreRound, want: true},
+		{name: "Should classify review.watch_post_round as immutable", hook: HookReviewWatchPostRound, want: false},
+		{name: "Should classify review.watch_pre_push as mutable", hook: HookReviewWatchPrePush, want: true},
+		{name: "Should classify review.watch_finished as immutable", hook: HookReviewWatchFinished, want: false},
 	}
 	for _, tc := range testCases {
-		t.Run(string(tc.hook), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if got := hookIsMutable(tc.hook); got != tc.want {
 				t.Fatalf("hookIsMutable(%q) = %v, want %v", tc.hook, got, tc.want)

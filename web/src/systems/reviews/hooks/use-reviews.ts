@@ -43,12 +43,12 @@ export function useReviewRound(
       if (!slug) {
         throw new Error("workflow slug is required to load a review round");
       }
-      if (round == null) {
+      if (round == null || round <= 0) {
         throw new Error("review round is required to load a review round");
       }
       return getReviewRound({ workspaceId, slug, round });
     },
-    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round >= 0,
+    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
 }
 
@@ -66,12 +66,12 @@ export function useReviewIssues(
       if (!slug) {
         throw new Error("workflow slug is required to load review issues");
       }
-      if (round == null) {
+      if (round == null || round <= 0) {
         throw new Error("review round is required to load review issues");
       }
       return listReviewIssues({ workspaceId, slug, round });
     },
-    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round >= 0,
+    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
 }
 
@@ -95,7 +95,7 @@ export function useReviewIssue(
       if (!slug) {
         throw new Error("workflow slug is required to load a review issue");
       }
-      if (round == null) {
+      if (round == null || round <= 0) {
         throw new Error("review round is required to load a review issue");
       }
       if (!issueId) {
@@ -104,7 +104,7 @@ export function useReviewIssue(
       return getReviewIssue({ workspaceId, slug, round, issueId });
     },
     enabled:
-      Boolean(workspaceId) && Boolean(slug) && round != null && round >= 0 && Boolean(issueId),
+      Boolean(workspaceId) && Boolean(slug) && round != null && round > 0 && Boolean(issueId),
   });
 }
 

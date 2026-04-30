@@ -266,12 +266,8 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 		if err != nil {
 			return WorkflowPruneResult{}, err
 		}
-		if activeRuns > 0 {
-			result.Skipped = append(result.Skipped, WorkflowPruneSkipped{
-				Slug:       workflow.Slug,
-				Reason:     archiveReasonActiveRuns,
-				ActiveRuns: activeRuns,
-			})
+		if skipped, ok := workflowPruneActiveRunSkip(workflow.Slug, activeRuns); ok {
+			result.Skipped = append(result.Skipped, skipped)
 			continue
 		}
 
@@ -288,14 +284,23 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 		if err != nil {
 			return WorkflowPruneResult{}, err
 		}
-		result.Skipped = append(result.Skipped, WorkflowPruneSkipped{
-			Slug:       workflow.Slug,
-			Reason:     archiveReasonActiveRuns,
-			ActiveRuns: activeRuns,
-		})
+		if skipped, ok := workflowPruneActiveRunSkip(workflow.Slug, activeRuns); ok {
+			result.Skipped = append(result.Skipped, skipped)
+		}
 	}
 
 	return result, nil
+}
+
+func workflowPruneActiveRunSkip(slug string, activeRuns int) (WorkflowPruneSkipped, bool) {
+	if activeRuns <= 0 {
+		return WorkflowPruneSkipped{}, false
+	}
+	return WorkflowPruneSkipped{
+		Slug:       slug,
+		Reason:     archiveReasonActiveRuns,
+		ActiveRuns: activeRuns,
+	}, true
 }
 
 func (g *GlobalDB) countActiveRunsForWorkflow(ctx context.Context, workflowID string) (int, error) {

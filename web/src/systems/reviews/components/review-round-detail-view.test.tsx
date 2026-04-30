@@ -6,7 +6,8 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { act, render, screen } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { RenderResult } from "@testing-library/react";
+import { createContext, useContext, type ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { ReviewIssue, ReviewRound } from "@/systems/reviews";
@@ -36,25 +37,32 @@ const issues: ReviewIssue[] = [
   },
 ];
 
-async function renderRoundDetail(
-  props: {
-    issues?: ReviewIssue[];
-    issuesError?: string | null;
-    isIssuesLoading?: boolean;
-    isRefreshing?: boolean;
-  } = {}
-) {
+interface RenderProps {
+  issues?: ReviewIssue[];
+  issuesError?: string | null;
+  isIssuesLoading?: boolean;
+  isRefreshing?: boolean;
+}
+
+const ReviewRoundDetailTestContext = createContext<RenderProps | null>(null);
+
+async function renderRoundDetail(props: RenderProps = {}) {
+  let currentProps = props;
   const rootRoute = createRootRoute();
   const detailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
     component: function DetailRoute(): ReactElement {
+      const value = useContext(ReviewRoundDetailTestContext);
+      if (!value) {
+        throw new Error("expected review round detail test context");
+      }
       return (
         <ReviewRoundDetailView
-          issues={props.issues ?? issues}
-          issuesError={props.issuesError ?? null}
-          isIssuesLoading={props.isIssuesLoading ?? false}
-          isRefreshing={props.isRefreshing ?? false}
+          issues={value.issues ?? issues}
+          issuesError={value.issuesError ?? null}
+          isIssuesLoading={value.isIssuesLoading ?? false}
+          isRefreshing={value.isRefreshing ?? false}
           round={round}
         />
       );
@@ -80,10 +88,30 @@ async function renderRoundDetail(
     defaultPreload: false,
   });
   await router.load();
+  let renderResult: RenderResult | null = null;
   await act(async () => {
-    render(<RouterProvider router={router} />);
+    renderResult = render(
+      <ReviewRoundDetailTestContext.Provider value={currentProps}>
+        <RouterProvider router={router} />
+      </ReviewRoundDetailTestContext.Provider>
+    );
     await Promise.resolve();
   });
+  return {
+    rerender(nextProps: typeof props) {
+      if (renderResult === null) {
+        throw new Error("expected render result");
+      }
+      currentProps = nextProps;
+      act(() => {
+        renderResult!.rerender(
+          <ReviewRoundDetailTestContext.Provider value={currentProps}>
+            <RouterProvider router={router} />
+          </ReviewRoundDetailTestContext.Provider>
+        );
+      });
+    },
+  };
 }
 
 describe("ReviewRoundDetailView", () => {
@@ -97,14 +125,14 @@ describe("ReviewRoundDetailView", () => {
   });
 
   it("Should render loading, error, empty, and refreshing states", async () => {
-    await renderRoundDetail({ issues: [], isIssuesLoading: true, isRefreshing: true });
+    const view = await renderRoundDetail({ issues: [], isIssuesLoading: true, isRefreshing: true });
     expect(screen.getByTestId("review-round-loading")).toBeInTheDocument();
     expect(screen.getByTestId("review-round-refreshing")).toBeInTheDocument();
 
-    await renderRoundDetail({ issues: [], issuesError: "boom" });
+    view.rerender({ issues: [], issuesError: "boom" });
     expect(screen.getByTestId("review-round-issues-error")).toHaveTextContent("boom");
 
-    await renderRoundDetail({ issues: [] });
+    view.rerender({ issues: [] });
     expect(screen.getByTestId("review-round-empty")).toBeInTheDocument();
   });
 });

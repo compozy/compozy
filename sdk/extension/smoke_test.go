@@ -97,6 +97,7 @@ func TestTypedHookRegistrationCoversAllPublicHookBuilders(t *testing.T) {
 		}
 	}
 
+	waitForHostMethod(t, harness, "host.events.subscribe")
 	shutdownHarness(ctx, t, harness, errCh)
 }
 

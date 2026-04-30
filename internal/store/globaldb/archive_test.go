@@ -97,101 +97,110 @@ func TestGetWorkflowArchiveEligibilityUsesSyncedReviewState(t *testing.T) {
 	}
 }
 
-func TestGetWorkflowArchiveEligibilityAllowsResolvedReviewOnlyWorkflow(t *testing.T) {
+func TestGetWorkflowArchiveEligibilityForReviewOnlyWorkflows(t *testing.T) {
 	t.Parallel()
 
-	db := openTestGlobalDB(t)
-	defer func() {
-		_ = db.Close()
-	}()
-
-	workspace := mustWorkspace(t, db)
-	mustReconcileArchiveWorkflow(t, db, workspace.ID, "review-only-resolved", nil, []ReviewRoundInput{
+	testCases := []struct {
+		name                     string
+		slug                     string
+		reviewRounds             []ReviewRoundInput
+		wantReviewIssueTotal     int
+		wantUnresolvedReviewRows int
+		wantArchivable           bool
+		wantSkipReason           string
+	}{
 		{
-			RoundNumber:     1,
-			Provider:        "coderabbit",
-			PRRef:           "259",
-			ResolvedCount:   2,
-			UnresolvedCount: 0,
-			Issues: []ReviewIssueInput{
+			name: "Should allow resolved review-only workflows to archive",
+			slug: "review-only-resolved",
+			reviewRounds: []ReviewRoundInput{
 				{
-					IssueNumber: 1,
-					Severity:    "medium",
-					Status:      "resolved",
-					SourcePath:  "reviews-001/issue_001.md",
-				},
-				{
-					IssueNumber: 2,
-					Severity:    "low",
-					Status:      "resolved",
-					SourcePath:  "reviews-001/issue_002.md",
+					RoundNumber:     1,
+					Provider:        "coderabbit",
+					PRRef:           "259",
+					ResolvedCount:   2,
+					UnresolvedCount: 0,
+					Issues: []ReviewIssueInput{
+						{
+							IssueNumber: 1,
+							Severity:    "medium",
+							Status:      "resolved",
+							SourcePath:  "reviews-001/issue_001.md",
+						},
+						{
+							IssueNumber: 2,
+							Severity:    "low",
+							Status:      "resolved",
+							SourcePath:  "reviews-001/issue_002.md",
+						},
+					},
 				},
 			},
+			wantReviewIssueTotal:     2,
+			wantUnresolvedReviewRows: 0,
+			wantArchivable:           true,
+			wantSkipReason:           "",
 		},
-	})
-
-	eligibility, err := db.GetWorkflowArchiveEligibility(context.Background(), workspace.ID, "review-only-resolved")
-	if err != nil {
-		t.Fatalf("GetWorkflowArchiveEligibility() error = %v", err)
-	}
-	if eligibility.TaskTotal != 0 || eligibility.ReviewIssueTotal != 2 ||
-		eligibility.UnresolvedReviewIssues != 0 {
-		t.Fatalf("unexpected eligibility counts: %#v", eligibility)
-	}
-	if !eligibility.Archivable() {
-		t.Fatalf("Archivable() = false, reason=%q", eligibility.SkipReason())
-	}
-	if got := eligibility.SkipReason(); got != "" {
-		t.Fatalf("SkipReason() = %q, want empty", got)
-	}
-}
-
-func TestGetWorkflowArchiveEligibilityBlocksUnresolvedReviewOnlyWorkflow(t *testing.T) {
-	t.Parallel()
-
-	db := openTestGlobalDB(t)
-	defer func() {
-		_ = db.Close()
-	}()
-
-	workspace := mustWorkspace(t, db)
-	mustReconcileArchiveWorkflow(t, db, workspace.ID, "review-only-pending", nil, []ReviewRoundInput{
 		{
-			RoundNumber:     1,
-			Provider:        "coderabbit",
-			PRRef:           "259",
-			ResolvedCount:   1,
-			UnresolvedCount: 1,
-			Issues: []ReviewIssueInput{
+			name: "Should block unresolved review-only workflows from archiving",
+			slug: "review-only-pending",
+			reviewRounds: []ReviewRoundInput{
 				{
-					IssueNumber: 1,
-					Severity:    "medium",
-					Status:      "resolved",
-					SourcePath:  "reviews-001/issue_001.md",
-				},
-				{
-					IssueNumber: 2,
-					Severity:    "high",
-					Status:      "pending",
-					SourcePath:  "reviews-001/issue_002.md",
+					RoundNumber:     1,
+					Provider:        "coderabbit",
+					PRRef:           "259",
+					ResolvedCount:   1,
+					UnresolvedCount: 1,
+					Issues: []ReviewIssueInput{
+						{
+							IssueNumber: 1,
+							Severity:    "medium",
+							Status:      "resolved",
+							SourcePath:  "reviews-001/issue_001.md",
+						},
+						{
+							IssueNumber: 2,
+							Severity:    "high",
+							Status:      "pending",
+							SourcePath:  "reviews-001/issue_002.md",
+						},
+					},
 				},
 			},
+			wantReviewIssueTotal:     2,
+			wantUnresolvedReviewRows: 1,
+			wantArchivable:           false,
+			wantSkipReason:           "review rounds not fully resolved",
 		},
-	})
+	}
 
-	eligibility, err := db.GetWorkflowArchiveEligibility(context.Background(), workspace.ID, "review-only-pending")
-	if err != nil {
-		t.Fatalf("GetWorkflowArchiveEligibility() error = %v", err)
-	}
-	if eligibility.TaskTotal != 0 || eligibility.ReviewIssueTotal != 2 ||
-		eligibility.UnresolvedReviewIssues != 1 {
-		t.Fatalf("unexpected eligibility counts: %#v", eligibility)
-	}
-	if eligibility.Archivable() {
-		t.Fatal("Archivable() = true, want false for unresolved review-only workflow")
-	}
-	if got := eligibility.SkipReason(); got != "review rounds not fully resolved" {
-		t.Fatalf("SkipReason() = %q, want review rounds not fully resolved", got)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := openTestGlobalDB(t)
+			defer func() {
+				_ = db.Close()
+			}()
+
+			workspace := mustWorkspace(t, db)
+			mustReconcileArchiveWorkflow(t, db, workspace.ID, tc.slug, nil, tc.reviewRounds)
+
+			eligibility, err := db.GetWorkflowArchiveEligibility(context.Background(), workspace.ID, tc.slug)
+			if err != nil {
+				t.Fatalf("GetWorkflowArchiveEligibility() error = %v", err)
+			}
+			if eligibility.TaskTotal != 0 || eligibility.ReviewIssueTotal != tc.wantReviewIssueTotal ||
+				eligibility.UnresolvedReviewIssues != tc.wantUnresolvedReviewRows {
+				t.Fatalf("unexpected eligibility counts: %#v", eligibility)
+			}
+			if eligibility.Archivable() != tc.wantArchivable {
+				t.Fatalf("Archivable() = %v, want %v", eligibility.Archivable(), tc.wantArchivable)
+			}
+			if got := eligibility.SkipReason(); got != tc.wantSkipReason {
+				t.Fatalf("SkipReason() = %q, want %q", got, tc.wantSkipReason)
+			}
+		})
 	}
 }
 

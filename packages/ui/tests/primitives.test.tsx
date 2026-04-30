@@ -132,6 +132,22 @@ describe("shared primitives", () => {
     expect(html).not.toContain('aria-current="page"');
   });
 
+  it("keeps one-child surface card slots shrinkable", () => {
+    const html = renderToStaticMarkup(
+      <SurfaceCard>
+        <SurfaceCardHeader>
+          <div>Header content</div>
+        </SurfaceCardHeader>
+        <SurfaceCardFooter>
+          <div>Footer content</div>
+        </SurfaceCardFooter>
+      </SurfaceCard>
+    );
+
+    expect(html).toContain("[&amp;&gt;*:last-child:not(:only-child)]:shrink-0");
+    expect(html).not.toContain("[&amp;&gt;*:last-child]:shrink-0");
+  });
+
   it("requires an accessible name for icon-only buttons", () => {
     const labeledIconOnly = {
       icon: <DotMark />,

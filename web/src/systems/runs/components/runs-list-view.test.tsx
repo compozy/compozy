@@ -141,6 +141,7 @@ describe("RunsListView", () => {
     const link = screen.getByTestId(`runs-list-link-${longRunId}`);
     expect(link).toHaveClass("truncate");
     expect(screen.getByTestId(`runs-list-status-${longRunId}`)).toHaveTextContent("running");
+    expect(screen.getByTestId(`runs-list-status-${longRunId}`)).toHaveClass("shrink-0");
   });
 
   it("Should render the empty state when no runs match filters", async () => {
