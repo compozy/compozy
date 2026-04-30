@@ -225,6 +225,28 @@ func TestStdIOTransportAndHelperErrors(t *testing.T) {
 	})
 }
 
+func TestHookIsMutableClassifiesReviewWatchHooks(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		hook HookName
+		want bool
+	}{
+		{hook: HookReviewWatchPreRound, want: true},
+		{hook: HookReviewWatchPostRound, want: false},
+		{hook: HookReviewWatchPrePush, want: true},
+		{hook: HookReviewWatchFinished, want: false},
+	}
+	for _, tc := range testCases {
+		t.Run(string(tc.hook), func(t *testing.T) {
+			t.Parallel()
+			if got := hookIsMutable(tc.hook); got != tc.want {
+				t.Fatalf("hookIsMutable(%q) = %v, want %v", tc.hook, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestHandleInitializePublishesInitializedStateBeforeResponse(t *testing.T) {
 	t.Parallel()
 

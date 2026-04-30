@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -326,6 +329,182 @@ func TestRunManagerReviewWatchPushesAndRepeatsUntilClean(t *testing.T) {
 	}
 	requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
 	requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+}
+
+func TestRunManagerReviewWatchPrePushHookVetoStopsPush(t *testing.T) {
+	reviewProvider := &fakeReviewWatchProvider{
+		statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+		fetches:  [][]provider.ReviewItem{{watchReviewItem()}},
+	}
+	git := &fakeReviewWatchGit{
+		states: []ReviewWatchGitState{
+			{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+			{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+			{HeadSHA: "head-2", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+		},
+	}
+	hooks := &reviewWatchTestHookManager{
+		mutable: func(_ context.Context, hook string, payload any) (any, error) {
+			if hook != reviewWatchHookPrePush {
+				return payload, nil
+			}
+			updated, ok := payload.(reviewWatchPrePushHookPayload)
+			if !ok {
+				return payload, nil
+			}
+			updated.Push = false
+			updated.StopReason = "release freeze"
+			return updated, nil
+		},
+	}
+	env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{
+		openRunScope: newTestOpenRunScope(hooks),
+		execute:      resolveReviewIssuesDuringRun(t),
+	})
+
+	run := startReviewWatch(
+		t,
+		env,
+		reviewWatchRequest(`{"run_id":"review-watch-pre-push-veto"}`),
+		func(req *apicore.ReviewWatchRequest) {
+			req.AutoPush = true
+			req.PushRemote = "origin"
+			req.PushBranch = "feature"
+			req.MaxRounds = 2
+		},
+	)
+	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	if row.ErrorText != "" {
+		t.Fatalf("row.ErrorText = %q, want empty", row.ErrorText)
+	}
+	if len(git.pushes) != 0 {
+		t.Fatalf("pushes = %#v, want none after pre-push veto", git.pushes)
+	}
+	if event, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted); ok {
+		t.Fatalf("unexpected push_started event after veto: %#v", event)
+	}
+
+	postRound, ok := hooks.lastObserver(reviewWatchHookPostRound).(reviewWatchPostRoundHookPayload)
+	if !ok {
+		t.Fatalf("post-round hook payload missing or wrong type: %#v", hooks.observed(reviewWatchHookPostRound))
+	}
+	if postRound.Status != "stopped" || postRound.StopReason != "release freeze" || postRound.Pushed {
+		t.Fatalf("post-round payload = %#v, want stopped release freeze without push", postRound)
+	}
+	finished, ok := hooks.lastObserver(reviewWatchHookFinished).(reviewWatchFinishedHookPayload)
+	if !ok {
+		t.Fatalf("finished hook payload missing or wrong type: %#v", hooks.observed(reviewWatchHookFinished))
+	}
+	if !finished.Stopped || finished.TerminalReason != "review watch stopped: release freeze" {
+		t.Fatalf("finished payload = %#v, want explicit stopped reason", finished)
+	}
+}
+
+func TestRunManagerReviewWatchTwoRoundFlowWithTempGitRepository(t *testing.T) {
+	var env *runManagerTestEnv
+	reviewProvider := &fakeReviewWatchProvider{
+		statusFunc: func(ctx context.Context) (provider.WatchStatus, error) {
+			head, err := runGitOutputContext(ctx, env.workspaceRoot, "rev-parse", "HEAD")
+			if err != nil {
+				return provider.WatchStatus{}, err
+			}
+			return currentWatchStatus(head), nil
+		},
+		fetches: [][]provider.ReviewItem{
+			{watchReviewItem()},
+			{},
+		},
+	}
+	env = newReviewWatchTestEnv(t, reviewProvider, newExecReviewWatchGit(), runManagerTestDeps{
+		execute: resolveReviewIssuesAndCommitDuringRun(t),
+	})
+	remoteDir := initializeReviewWatchGitRepository(t, env)
+
+	run := startReviewWatch(
+		t,
+		env,
+		reviewWatchRequest(`{"run_id":"review-watch-temp-git"}`),
+		func(req *apicore.ReviewWatchRequest) {
+			req.AutoPush = true
+			req.PushRemote = "origin"
+			req.PushBranch = "feature"
+			req.QuietPeriod = "1ms"
+			req.MaxRounds = 2
+		},
+	)
+	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	if row.ErrorText != "" {
+		t.Fatalf("row.ErrorText = %q, want empty", row.ErrorText)
+	}
+	localHead := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
+	remoteHead := runGitOutput(t, remoteDir, "rev-parse", "refs/heads/feature")
+	if localHead != remoteHead {
+		t.Fatalf("remote feature head = %q, want local head %q", remoteHead, localHead)
+	}
+	requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchFixStarted)
+	requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
+	requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+}
+
+func TestReviewWatchHookPayloadMutabilityRules(t *testing.T) {
+	beforeRound := reviewWatchPreRoundHookPayload{
+		RunID:       "run-1",
+		Provider:    "coderabbit",
+		PR:          "123",
+		Workflow:    "workflow",
+		Round:       1,
+		HeadSHA:     "head-1",
+		ReviewID:    "review-1",
+		ReviewState: "COMMENTED",
+		Status:      string(provider.WatchStatusPending),
+		Continue:    true,
+	}
+	afterRound := beforeRound
+	afterRound.Status = string(provider.WatchStatusCurrentReviewed)
+	err := validateReviewWatchPreRoundHookPayload(beforeRound, afterRound)
+	if err == nil || !strings.Contains(err.Error(), "may only change") {
+		t.Fatalf("pre-round immutable mutation error = %v, want clear allowlist rejection", err)
+	}
+	afterRound = beforeRound
+	afterRound.Nitpicks = true
+	afterRound.RuntimeOverrides = json.RawMessage(`{"model":"gpt-5.5"}`)
+	afterRound.Batching = json.RawMessage(`{"concurrent":1}`)
+	if err := validateReviewWatchPreRoundHookPayload(beforeRound, afterRound); err != nil {
+		t.Fatalf("valid pre-round patch rejected: %v", err)
+	}
+
+	beforePush := reviewWatchPrePushHookPayload{
+		RunID:    "run-1",
+		Provider: "coderabbit",
+		PR:       "123",
+		Workflow: "workflow",
+		Round:    1,
+		HeadSHA:  "head-1",
+		Remote:   "origin",
+		Branch:   "feature",
+		Push:     true,
+	}
+	afterPush := beforePush
+	afterPush.HeadSHA = "head-2"
+	err = validateReviewWatchPrePushHookPayload(beforePush, afterPush)
+	if err == nil || !strings.Contains(err.Error(), "may only change") {
+		t.Fatalf("pre-push immutable mutation error = %v, want clear allowlist rejection", err)
+	}
+	afterPush = beforePush
+	afterPush.Remote = "fork"
+	afterPush.Branch = "review-watch"
+	if err := validateReviewWatchPrePushHookPayload(beforePush, afterPush); err != nil {
+		t.Fatalf("valid pre-push patch rejected: %v", err)
+	}
+	afterPush.Push = false
+	if err := validateReviewWatchPrePushHookPayload(beforePush, afterPush); err == nil ||
+		!strings.Contains(err.Error(), "stop_reason") {
+		t.Fatalf("pre-push veto without reason error = %v, want stop_reason requirement", err)
+	}
 }
 
 func TestRunManagerReviewWatchFailureStates(t *testing.T) {
@@ -774,16 +953,87 @@ func resolveReviewIssuesDuringRun(
 	}
 }
 
+func resolveReviewIssuesAndCommitDuringRun(
+	t *testing.T,
+) func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+	t.Helper()
+	resolveIssues := resolveReviewIssuesDuringRun(t)
+	return func(ctx context.Context, preparation *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+		if err := resolveIssues(ctx, preparation, cfg); err != nil {
+			return err
+		}
+		if cfg == nil {
+			return errors.New("runtime config is required")
+		}
+		reviewsDir := cfg.ReviewsDir
+		if rel, err := filepath.Rel(cfg.WorkspaceRoot, cfg.ReviewsDir); err == nil {
+			reviewsDir = rel
+		}
+		if _, err := runGitOutputContext(ctx, cfg.WorkspaceRoot, "add", reviewsDir); err != nil {
+			return err
+		}
+		if _, err := runGitOutputContext(ctx, cfg.WorkspaceRoot, "commit", "-m", "resolve review round"); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func initializeReviewWatchGitRepository(t *testing.T, env *runManagerTestEnv) string {
+	t.Helper()
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Review watch temp git flow"))
+	remoteDir := filepath.Join(t.TempDir(), "remote.git")
+	if err := os.MkdirAll(remoteDir, 0o755); err != nil {
+		t.Fatalf("mkdir remote dir: %v", err)
+	}
+	runGitOutput(t, env.workspaceRoot, "init", "--initial-branch=feature")
+	runGitOutput(t, env.workspaceRoot, "config", "user.email", "review-watch@example.com")
+	runGitOutput(t, env.workspaceRoot, "config", "user.name", "Review Watch Test")
+	runGitOutput(t, env.workspaceRoot, "add", ".compozy/tasks/"+env.workflowSlug+"/task_01.md")
+	runGitOutput(t, env.workspaceRoot, "commit", "-m", "initial workflow")
+	runGitOutput(t, remoteDir, "init", "--bare")
+	runGitOutput(t, env.workspaceRoot, "remote", "add", "origin", remoteDir)
+	runGitOutput(t, env.workspaceRoot, "push", "-u", "origin", "HEAD:feature")
+	return remoteDir
+}
+
+func runGitOutput(t *testing.T, workDir string, args ...string) string {
+	t.Helper()
+	output, err := runGitOutputContext(context.Background(), workDir, args...)
+	if err != nil {
+		t.Fatalf("git %v in %s failed: %v", args, workDir, err)
+	}
+	return output
+}
+
+func runGitOutputContext(ctx context.Context, workDir string, args ...string) (string, error) {
+	cmdArgs := append([]string{"-C", workDir}, args...)
+	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 func requireRunEvent(t *testing.T, runID string, kind eventspkg.EventKind) eventspkg.Event {
 	t.Helper()
-	events := allRunEvents(t, runID)
-	for _, event := range events {
-		if event.Kind == kind {
-			return event
-		}
+	if event, ok := findRunEvent(t, runID, kind); ok {
+		return event
 	}
+	events := allRunEvents(t, runID)
 	t.Fatalf("run %s missing event %s; events=%v", runID, kind, eventKinds(events))
 	return eventspkg.Event{}
+}
+
+func findRunEvent(t *testing.T, runID string, kind eventspkg.EventKind) (eventspkg.Event, bool) {
+	t.Helper()
+	for _, event := range allRunEvents(t, runID) {
+		if event.Kind == kind {
+			return event, true
+		}
+	}
+	return eventspkg.Event{}, false
 }
 
 func allRunEvents(t *testing.T, runID string) []eventspkg.Event {
@@ -825,11 +1075,12 @@ func decodeReviewWatchPayloadFromRaw(t *testing.T, raw json.RawMessage) kinds.Re
 }
 
 type fakeReviewWatchProvider struct {
-	mu        sync.Mutex
-	statuses  []provider.WatchStatus
-	statusErr error
-	fetches   [][]provider.ReviewItem
-	fetchErr  error
+	mu         sync.Mutex
+	statuses   []provider.WatchStatus
+	statusErr  error
+	statusFunc func(context.Context) (provider.WatchStatus, error)
+	fetches    [][]provider.ReviewItem
+	fetchErr   error
 }
 
 var _ provider.WatchStatusProvider = (*fakeReviewWatchProvider)(nil)
@@ -839,13 +1090,16 @@ func (*fakeReviewWatchProvider) Name() string {
 }
 
 func (p *fakeReviewWatchProvider) WatchStatus(
-	context.Context,
-	provider.WatchStatusRequest,
+	ctx context.Context,
+	_ provider.WatchStatusRequest,
 ) (provider.WatchStatus, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.statusErr != nil {
 		return provider.WatchStatus{}, p.statusErr
+	}
+	if p.statusFunc != nil {
+		return p.statusFunc(ctx)
 	}
 	if len(p.statuses) == 0 {
 		return provider.WatchStatus{PRHeadSHA: "head", State: provider.WatchStatusPending}, nil
@@ -913,4 +1167,66 @@ func (g *fakeReviewWatchGit) Push(_ context.Context, _ string, remote string, br
 	defer g.mu.Unlock()
 	g.pushes = append(g.pushes, reviewWatchPush{remote: remote, branch: branch})
 	return g.pushErr
+}
+
+type reviewWatchObservedHook struct {
+	hook    string
+	payload any
+}
+
+type reviewWatchTestHookManager struct {
+	mu        sync.Mutex
+	mutable   func(context.Context, string, any) (any, error)
+	observers []reviewWatchObservedHook
+}
+
+func (*reviewWatchTestHookManager) Start(context.Context) error {
+	return nil
+}
+
+func (m *reviewWatchTestHookManager) DispatchMutableHook(ctx context.Context, hook string, payload any) (any, error) {
+	if m != nil && m.mutable != nil {
+		return m.mutable(ctx, hook, payload)
+	}
+	return payload, nil
+}
+
+func (m *reviewWatchTestHookManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.observers = append(m.observers, reviewWatchObservedHook{hook: hook, payload: payload})
+}
+
+func (*reviewWatchTestHookManager) Shutdown(context.Context) error {
+	return nil
+}
+
+func (*reviewWatchTestHookManager) WaitForObserverHooks(context.Context) error {
+	return nil
+}
+
+func (m *reviewWatchTestHookManager) observed(hook string) []any {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	payloads := make([]any, 0)
+	for _, observed := range m.observers {
+		if observed.hook == hook {
+			payloads = append(payloads, observed.payload)
+		}
+	}
+	return payloads
+}
+
+func (m *reviewWatchTestHookManager) lastObserver(hook string) any {
+	payloads := m.observed(hook)
+	if len(payloads) == 0 {
+		return nil
+	}
+	return payloads[len(payloads)-1]
 }

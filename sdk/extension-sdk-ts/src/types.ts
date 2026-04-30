@@ -78,6 +78,10 @@ export const HOOKS = {
   reviewPreBatch: "review.pre_batch",
   reviewPostFix: "review.post_fix",
   reviewPreResolve: "review.pre_resolve",
+  reviewWatchPreRound: "review.watch_pre_round",
+  reviewWatchPostRound: "review.watch_post_round",
+  reviewWatchPrePush: "review.watch_pre_push",
+  reviewWatchFinished: "review.watch_finished",
   artifactPreWrite: "artifact.pre_write",
   artifactPostWrite: "artifact.post_write",
 } as const;
@@ -723,6 +727,75 @@ export interface ReviewPreResolvePayload {
   outcome: FixOutcome;
 }
 
+/** Payload delivered for the {@link HOOKS.reviewWatchPreRound | review.watch_pre_round} hook. */
+export interface ReviewWatchPreRoundPayload {
+  run_id: string;
+  provider: string;
+  pr: string;
+  workflow: string;
+  round: number;
+  head_sha: string;
+  review_id?: string;
+  review_state?: string;
+  status?: string;
+  nitpicks: boolean;
+  runtime_overrides?: JsonValue;
+  batching?: JsonValue;
+  continue: boolean;
+  stop_reason?: string;
+}
+
+/** Payload delivered for the {@link HOOKS.reviewWatchPostRound | review.watch_post_round} hook. */
+export interface ReviewWatchPostRoundPayload {
+  run_id: string;
+  provider: string;
+  pr: string;
+  workflow: string;
+  round: number;
+  head_sha?: string;
+  child_run_id?: string;
+  status?: string;
+  remote?: string;
+  branch?: string;
+  total?: number;
+  resolved?: number;
+  unresolved?: number;
+  pushed?: boolean;
+  stop_reason?: string;
+  error?: string;
+}
+
+/** Payload delivered for the {@link HOOKS.reviewWatchPrePush | review.watch_pre_push} hook. */
+export interface ReviewWatchPrePushPayload {
+  run_id: string;
+  provider: string;
+  pr: string;
+  workflow: string;
+  round: number;
+  head_sha: string;
+  remote: string;
+  branch: string;
+  push: boolean;
+  stop_reason?: string;
+}
+
+/** Payload delivered for the {@link HOOKS.reviewWatchFinished | review.watch_finished} hook. */
+export interface ReviewWatchFinishedPayload {
+  run_id: string;
+  child_run_id?: string;
+  provider: string;
+  pr: string;
+  workflow: string;
+  round?: number;
+  head_sha?: string;
+  status: string;
+  terminal_reason?: string;
+  stopped?: boolean;
+  clean?: boolean;
+  max_rounds?: boolean;
+  error?: string;
+}
+
 /** Payload delivered for the {@link HOOKS.artifactPreWrite | artifact.pre_write} hook. */
 export interface ArtifactPreWritePayload {
   run_id: string;
@@ -816,6 +889,23 @@ export interface FetchConfigPatch {
 export interface ResolveDecisionPatch {
   resolve?: boolean;
   message?: string;
+}
+
+/** Patch that controls one review-watch round before fetch/fix. */
+export interface ReviewWatchPreRoundPatch {
+  nitpicks?: boolean;
+  runtime_overrides?: JsonValue;
+  batching?: JsonValue;
+  continue?: boolean;
+  stop_reason?: string;
+}
+
+/** Patch that controls one review-watch push attempt. */
+export interface ReviewWatchPrePushPatch {
+  remote?: string;
+  branch?: string;
+  push?: boolean;
+  stop_reason?: string;
 }
 
 /** Patch that mutates an artifact write request. */

@@ -247,6 +247,34 @@ func (e *Extension) OnReviewPreResolve(
 	return registerMutableHook(e, HookReviewPreResolve, handler)
 }
 
+// OnReviewWatchPreRound registers the review.watch_pre_round handler.
+func (e *Extension) OnReviewWatchPreRound(
+	handler func(context.Context, HookContext, ReviewWatchPreRoundPayload) (ReviewWatchPreRoundPatch, error),
+) *Extension {
+	return registerMutableHook(e, HookReviewWatchPreRound, handler)
+}
+
+// OnReviewWatchPostRound registers the review.watch_post_round handler.
+func (e *Extension) OnReviewWatchPostRound(
+	handler func(context.Context, HookContext, ReviewWatchPostRoundPayload) error,
+) *Extension {
+	return registerObserverHook(e, HookReviewWatchPostRound, handler)
+}
+
+// OnReviewWatchPrePush registers the review.watch_pre_push handler.
+func (e *Extension) OnReviewWatchPrePush(
+	handler func(context.Context, HookContext, ReviewWatchPrePushPayload) (ReviewWatchPrePushPatch, error),
+) *Extension {
+	return registerMutableHook(e, HookReviewWatchPrePush, handler)
+}
+
+// OnReviewWatchFinished registers the review.watch_finished handler.
+func (e *Extension) OnReviewWatchFinished(
+	handler func(context.Context, HookContext, ReviewWatchFinishedPayload) error,
+) *Extension {
+	return registerObserverHook(e, HookReviewWatchFinished, handler)
+}
+
 // OnArtifactPreWrite registers the artifact.pre_write handler.
 func (e *Extension) OnArtifactPreWrite(
 	handler func(context.Context, HookContext, ArtifactPreWritePayload) (ArtifactWritePatch, error),

@@ -115,6 +115,54 @@ fetch/fix defaults continue to come from `[fetch_reviews]`, `[fix_reviews]`, and
 | `push_remote` | string | Optional push remote. Must be set together with `push_branch`; omit both to resolve upstream later. |
 | `push_branch` | string | Optional push branch. Must be set together with `push_remote`; omit both to resolve upstream later. |
 
+CLI usage:
+
+```bash
+compozy reviews watch --provider coderabbit --pr 123
+compozy reviews watch my-workflow --provider coderabbit --pr 123 --max-rounds 4
+compozy reviews watch my-workflow --provider coderabbit --pr 123 --auto-push --push-remote origin --push-branch feature/reviews
+```
+
+Watch runs are daemon-owned parent runs. They wait until the provider reports a review for the current PR head,
+fetch actionable issues, launch child `reviews fix` runs, optionally push the child commit, then repeat until the
+provider-current fetch is clean or `max_rounds` is reached.
+
+Auto-push safety:
+
+- `auto_push = true` requires committed fixes. The watch parent forces child `auto_commit = true`; an explicit
+  `runtime_overrides.auto_commit = false` is rejected.
+- The daemon never restores, resets, cleans, or manually stages unrelated work. It inspects git state and runs only
+  `git push <remote> HEAD:<branch>` after a child fix run completed, all fetched issues are resolved, and `HEAD`
+  advanced.
+- `push_remote` and `push_branch` can be supplied by config/CLI or resolved from the current upstream. Missing push
+  target information fails before pushing.
+
+Lifecycle events emitted by the parent run:
+
+| Event | Purpose |
+| --- | --- |
+| `review.watch_started` | Initial provider/PR/workflow/git state, including `head_sha`, `remote`, `branch`, `dirty`, and `unpushed_commits`. |
+| `review.watch_waiting` | Provider has not yet reviewed the current PR head; includes `status`, `review_id`, and `review_state` when available. |
+| `review.watch_round_fetched` | A provider-current round produced actionable issues; includes `round`, `total`, `resolved`, and `unresolved`. |
+| `review.watch_fix_started` | Child `reviews fix` run started; includes `child_run_id`. |
+| `review.watch_fix_completed` | Child run reached a terminal state; includes `status` and `error` when failed. |
+| `review.watch_push_started` / `review.watch_push_completed` / `review.watch_push_failed` | Auto-push lifecycle with `head_sha`, `remote`, `branch`, and `error` on failure. |
+| `review.watch_clean` | Provider-current fetch returned no actionable issues. |
+| `review.watch_max_rounds` | The parent stopped because `max_rounds` was reached before a clean result. |
+
+Extension hooks exposed to Go and TypeScript SDKs:
+
+| Hook | Mutable | Payload highlights | Allowed patch fields |
+| --- | --- | --- | --- |
+| `review.watch_pre_round` | yes | `run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `review_id`, `review_state`, `status`, `nitpicks`, `runtime_overrides`, `batching`, `continue` | `nitpicks`, `runtime_overrides`, `batching`, `continue`, `stop_reason` |
+| `review.watch_post_round` | no | `run_id`, `provider`, `pr`, `workflow`, `round`, `child_run_id`, `status`, `total`, `resolved`, `unresolved`, `pushed`, `stop_reason`, `error` | none |
+| `review.watch_pre_push` | yes | `run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `remote`, `branch`, `push` | `remote`, `branch`, `push`, `stop_reason` |
+| `review.watch_finished` | no | `run_id`, `child_run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `status`, `terminal_reason`, `stopped`, `clean`, `max_rounds`, `error` | none |
+
+Hooks may veto a round or push only by returning `continue = false` or `push = false` with a non-empty
+`stop_reason`. Hooks cannot mark a PR clean, skip provider-current detection, or mutate immutable provider/head/status
+fields.
+
 ### `[exec]`
 
 Options specific to `compozy exec`. Inherits all `[defaults]` fields plus:

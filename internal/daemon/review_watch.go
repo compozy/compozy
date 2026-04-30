@@ -67,11 +67,14 @@ type reviewWatchLoopOptions struct {
 }
 
 type preparedReviewWatch struct {
-	workspace    globaldb.Workspace
-	workflowID   *string
-	workflowSlug string
-	workflowRoot string
-	options      reviewWatchOptions
+	workspace      globaldb.Workspace
+	workflowID     *string
+	workflowSlug   string
+	workflowRoot   string
+	options        reviewWatchOptions
+	lastRound      int
+	lastChildRunID string
+	lastHeadSHA    string
 }
 
 type reviewWatchCoordinatorRuntime struct {
@@ -185,13 +188,14 @@ func (m *RunManager) prepareReviewWatchStart(
 	}
 
 	runtimeCfg := &model.RuntimeConfig{
-		WorkspaceRoot: workspaceRow.RootDir,
-		Name:          strings.TrimSpace(workflowSlug),
-		Provider:      options.Provider,
-		PR:            options.PR,
-		TasksDir:      workflowRoot,
-		Mode:          model.ExecutionModePRReview,
-		DaemonOwned:   true,
+		WorkspaceRoot:              workspaceRow.RootDir,
+		Name:                       strings.TrimSpace(workflowSlug),
+		Provider:                   options.Provider,
+		PR:                         options.PR,
+		TasksDir:                   workflowRoot,
+		Mode:                       model.ExecutionModePRReview,
+		DaemonOwned:                true,
+		EnableExecutableExtensions: true,
 	}
 	applySoundConfig(runtimeCfg, projectCfg.Sound)
 	if overrides.RunID != nil {
@@ -199,6 +203,7 @@ func (m *RunManager) prepareReviewWatchStart(
 	}
 	runtimeCfg.ApplyDefaults()
 	runtimeCfg.TUI = false
+	runtimeCfg.EnableExecutableExtensions = true
 
 	return &preparedReviewWatch{
 		workspace:    workspaceRow,
@@ -381,6 +386,9 @@ func (m *RunManager) executeReviewWatchRun(active *activeRun, row globaldb.Run) 
 	m.publishRunWorkspaceEvent(active.ctx, row, active.workflowSlug, apicore.WorkspaceEventKindRunStatusChanged)
 
 	summary, err := m.runReviewWatchCoordinator(active)
+	if hookErr := m.dispatchReviewWatchFinishedHook(active, summary, err); hookErr != nil {
+		err = errors.Join(err, hookErr)
+	}
 	fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested())
 	if err == nil {
 		fallback = completedTerminalState(scope.RunArtifacts(), summary)
@@ -481,7 +489,15 @@ func (m *RunManager) runReviewWatchRound(
 	if done || err != nil {
 		return done, summary, err
 	}
-	status, pending, err := m.fetchReviewWatchPending(active, prepared, runtime)
+	status, err := m.waitForCurrentReview(active, runtime.reviewProvider, runtime.options)
+	if err != nil {
+		return false, "", err
+	}
+	done, summary, err = m.applyReviewWatchPreRoundHook(active, prepared, runtime, status, rounds+1)
+	if done || err != nil {
+		return done, summary, err
+	}
+	pending, err := m.fetchReviewWatchPending(active, prepared, runtime)
 	if err != nil {
 		return false, "", err
 	}
@@ -499,15 +515,41 @@ func (m *RunManager) runReviewWatchRound(
 		return false, "", err
 	}
 	if err := m.waitAndValidateReviewWatchChild(active, prepared, runtime, result.Round, childRun.RunID); err != nil {
-		return false, "", err
+		return false, "", m.dispatchReviewWatchFailedRoundHook(active, runtime, result.Round, childRun.RunID, err)
 	}
-	if err := m.verifyAndMaybePushReviewWatchRound(active, prepared, runtime, result, beforeFix); err != nil {
-		return false, "", err
+	done, summary, err = m.verifyAndMaybePushReviewWatchRound(active, prepared, runtime, result, beforeFix)
+	if err != nil {
+		return false, "", m.dispatchReviewWatchFailedRoundHook(active, runtime, result.Round, childRun.RunID, err)
+	}
+	if done {
+		return true, summary, nil
 	}
 	if !runtime.options.UntilClean {
 		return true, reviewWatchTerminalRoundHandled, nil
 	}
 	return false, "", nil
+}
+
+func (m *RunManager) dispatchReviewWatchFailedRoundHook(
+	active *activeRun,
+	runtime *reviewWatchCoordinatorRuntime,
+	round int,
+	childRunID string,
+	roundErr error,
+) error {
+	if roundErr == nil {
+		return nil
+	}
+	if hookErr := m.dispatchReviewWatchPostRoundHook(active, runtime, reviewWatchPostRoundHookPayload{
+		Round:      round,
+		HeadSHA:    runtime.gitState.HeadSHA,
+		ChildRunID: childRunID,
+		Status:     runStatusFailed,
+		Error:      roundErr.Error(),
+	}); hookErr != nil {
+		return errors.Join(roundErr, hookErr)
+	}
+	return roundErr
 }
 
 func (m *RunManager) finishReviewWatchIfMaxRounds(
@@ -520,6 +562,8 @@ func (m *RunManager) finishReviewWatchIfMaxRounds(
 	if !options.UntilClean || rounds < options.MaxRounds {
 		return false, "", nil
 	}
+	prepared.lastRound = rounds
+	prepared.lastHeadSHA = runtime.gitState.HeadSHA
 	err := m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchMaxRounds, kinds.ReviewWatchPayload{
 		Provider: options.Provider,
 		PR:       options.PR,
@@ -538,12 +582,8 @@ func (m *RunManager) fetchReviewWatchPending(
 	active *activeRun,
 	prepared *preparedReviewWatch,
 	runtime *reviewWatchCoordinatorRuntime,
-) (provider.WatchStatus, *corepkg.FetchedReviewItems, error) {
+) (*corepkg.FetchedReviewItems, error) {
 	options := runtime.options
-	status, err := m.waitForCurrentReview(active, runtime.reviewProvider, options)
-	if err != nil {
-		return provider.WatchStatus{}, nil, err
-	}
 	pending, err := corepkg.FetchReviewItemsWithRegistryDirect(active.ctx, corepkg.Config{
 		WorkspaceRoot: prepared.workspace.RootDir,
 		Name:          prepared.workflowSlug,
@@ -552,9 +592,9 @@ func (m *RunManager) fetchReviewWatchPending(
 		Nitpicks:      options.Nitpicks,
 	}, runtime.registry)
 	if err != nil {
-		return provider.WatchStatus{}, nil, err
+		return nil, err
 	}
-	return status, pending, nil
+	return pending, nil
 }
 
 func (m *RunManager) finishReviewWatchIfClean(
@@ -568,6 +608,7 @@ func (m *RunManager) finishReviewWatchIfClean(
 		return false, "", nil
 	}
 	options := runtime.options
+	prepared.lastHeadSHA = status.PRHeadSHA
 	err := m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchClean, kinds.ReviewWatchPayload{
 		Provider:    options.Provider,
 		PR:          options.PR,
@@ -599,6 +640,8 @@ func (m *RunManager) persistReviewWatchPending(
 		return nil, err
 	}
 	options := runtime.options
+	prepared.lastRound = result.Round
+	prepared.lastHeadSHA = status.PRHeadSHA
 	err = m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchRoundFetched, kinds.ReviewWatchPayload{
 		Provider:   options.Provider,
 		PR:         options.PR,
@@ -640,6 +683,7 @@ func (m *RunManager) startReviewWatchChild(
 	if err != nil {
 		return ReviewWatchGitState{}, apicore.Run{}, err
 	}
+	prepared.lastChildRunID = childRun.RunID
 	err = m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchFixStarted, kinds.ReviewWatchPayload{
 		Provider:   runtime.options.Provider,
 		PR:         runtime.options.PR,
@@ -725,7 +769,7 @@ func (m *RunManager) verifyAndMaybePushReviewWatchRound(
 	runtime *reviewWatchCoordinatorRuntime,
 	result *corepkg.FetchResult,
 	beforeFix ReviewWatchGitState,
-) error {
+) (bool, string, error) {
 	afterFix, err := m.verifyReviewWatchRound(
 		active.ctx,
 		prepared.workspace.RootDir,
@@ -734,16 +778,49 @@ func (m *RunManager) verifyAndMaybePushReviewWatchRound(
 		beforeFix,
 	)
 	if err != nil {
-		return err
+		return false, "", err
 	}
 	runtime.gitState = afterFix
+	prepared.lastHeadSHA = afterFix.HeadSHA
 	if !runtime.options.AutoPush {
-		return nil
+		if err := m.dispatchReviewWatchPostRoundHook(active, runtime, reviewWatchPostRoundHookPayload{
+			Round:      result.Round,
+			HeadSHA:    afterFix.HeadSHA,
+			ChildRunID: prepared.lastChildRunID,
+			Status:     runStatusCompleted,
+			Total:      result.Total,
+			Resolved:   result.Total,
+		}); err != nil {
+			return false, "", err
+		}
+		return false, "", nil
 	}
-	if err := m.pushReviewWatchRound(active, runtime.options, result.Round, afterFix); err != nil {
-		return err
+	options, stopped, stopReason, err := m.pushReviewWatchRound(active, runtime.options, result.Round, afterFix)
+	runtime.options = options
+	if err != nil {
+		return false, "", err
 	}
-	return waitReviewWatchDuration(active.ctx, runtime.options.QuietPeriod)
+	if err := m.dispatchReviewWatchPostRoundHook(active, runtime, reviewWatchPostRoundHookPayload{
+		Round:      result.Round,
+		HeadSHA:    afterFix.HeadSHA,
+		ChildRunID: prepared.lastChildRunID,
+		Status:     reviewWatchPostRoundStatus(nil, stopped),
+		Remote:     options.PushRemote,
+		Branch:     options.PushBranch,
+		Total:      result.Total,
+		Resolved:   result.Total,
+		Pushed:     reviewWatchPostRoundPushed(options, stopped, nil),
+		StopReason: stopReason,
+	}); err != nil {
+		return false, "", err
+	}
+	if stopped {
+		return true, reviewWatchStoppedSummary(stopReason), nil
+	}
+	if err := waitReviewWatchDuration(active.ctx, runtime.options.QuietPeriod); err != nil {
+		return false, "", err
+	}
+	return false, "", nil
 }
 
 func (m *RunManager) waitForCurrentReview(
@@ -835,7 +912,11 @@ func (m *RunManager) pushReviewWatchRound(
 	options reviewWatchOptions,
 	round int,
 	state ReviewWatchGitState,
-) error {
+) (reviewWatchOptions, bool, string, error) {
+	options, stopped, stopReason, err := m.applyReviewWatchPrePushHook(active, options, round, state)
+	if err != nil || stopped {
+		return options, stopped, stopReason, err
+	}
 	if err := m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchPushStarted, kinds.ReviewWatchPayload{
 		Provider: options.Provider,
 		PR:       options.PR,
@@ -845,7 +926,7 @@ func (m *RunManager) pushReviewWatchRound(
 		Remote:   options.PushRemote,
 		Branch:   options.PushBranch,
 	}); err != nil {
-		return err
+		return options, false, "", err
 	}
 	if err := m.reviewWatchGit.Push(
 		active.ctx,
@@ -864,19 +945,23 @@ func (m *RunManager) pushReviewWatchRound(
 			Error:    err.Error(),
 		})
 		if emitErr != nil {
-			return errors.Join(err, fmt.Errorf("emit review watch push failure: %w", emitErr))
+			return options, false, "", errors.Join(err, fmt.Errorf("emit review watch push failure: %w", emitErr))
 		}
-		return err
+		return options, false, "", err
 	}
-	return m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchPushCompleted, kinds.ReviewWatchPayload{
-		Provider: options.Provider,
-		PR:       options.PR,
-		Workflow: active.workflowSlug,
-		Round:    round,
-		HeadSHA:  state.HeadSHA,
-		Remote:   options.PushRemote,
-		Branch:   options.PushBranch,
-	})
+	return options, false, "", m.emitReviewWatchEvent(
+		active,
+		eventspkg.EventKindReviewWatchPushCompleted,
+		kinds.ReviewWatchPayload{
+			Provider: options.Provider,
+			PR:       options.PR,
+			Workflow: active.workflowSlug,
+			Round:    round,
+			HeadSHA:  state.HeadSHA,
+			Remote:   options.PushRemote,
+			Branch:   options.PushBranch,
+		},
+	)
 }
 
 func (m *RunManager) syncFetchedReviewRound(

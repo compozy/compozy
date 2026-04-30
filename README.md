@@ -285,7 +285,7 @@ Extensions are discovered from three scopes with workspace > user > bundled prec
 
 - [Extension author guide](.compozy/docs/extensibility/index.md)
 - [Architecture overview](.compozy/docs/extensibility/architecture.md)
-- [Hook reference](.compozy/docs/extensibility/hook-reference.md) -- 28 hooks across 6 pipeline phases
+- [Hook reference](.compozy/docs/extensibility/hook-reference.md) -- 32 hooks across 6 pipeline phases
 - [Host API reference](.compozy/docs/extensibility/host-api-reference.md) -- 11 typed host methods
 - [Capability reference](.compozy/docs/extensibility/capability-reference.md) -- 19 capability grants
 - [Trust and enablement](.compozy/docs/extensibility/trust-and-enablement.md)

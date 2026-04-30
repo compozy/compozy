@@ -42,6 +42,12 @@ import type {
   ReviewPreBatchPayload,
   ReviewPreFetchPayload,
   ReviewPreResolvePayload,
+  ReviewWatchFinishedPayload,
+  ReviewWatchPostRoundPayload,
+  ReviewWatchPrePushPatch,
+  ReviewWatchPrePushPayload,
+  ReviewWatchPreRoundPatch,
+  ReviewWatchPreRoundPayload,
   RetryDecisionPatch,
   RunPostShutdownPayload,
   RunPostStartPayload,
@@ -118,6 +124,13 @@ export type HookHandlerMatrix = {
   "review.pre_batch": MutableHookHandler<ReviewPreBatchPayload, GroupsPatch>;
   "review.post_fix": ObserverHookHandler<ReviewPostFixPayload>;
   "review.pre_resolve": MutableHookHandler<ReviewPreResolvePayload, ResolveDecisionPatch>;
+  "review.watch_pre_round": MutableHookHandler<
+    ReviewWatchPreRoundPayload,
+    ReviewWatchPreRoundPatch
+  >;
+  "review.watch_post_round": ObserverHookHandler<ReviewWatchPostRoundPayload>;
+  "review.watch_pre_push": MutableHookHandler<ReviewWatchPrePushPayload, ReviewWatchPrePushPatch>;
+  "review.watch_finished": ObserverHookHandler<ReviewWatchFinishedPayload>;
   "artifact.pre_write": MutableHookHandler<ArtifactPreWritePayload, ArtifactWritePatch>;
   "artifact.post_write": ObserverHookHandler<ArtifactPostWritePayload>;
 };
@@ -133,6 +146,8 @@ export function isMutableHook(hook: HookName): boolean {
     case "run.pre_shutdown":
     case "run.post_shutdown":
     case "review.post_fix":
+    case "review.watch_post_round":
+    case "review.watch_finished":
     case "artifact.post_write":
       return false;
     default:

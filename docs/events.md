@@ -420,6 +420,9 @@ Payload type: `kinds.ReviewIssueResolvedPayload`
 - `provider_posted`
 - `posted_at`
 
+Review-watch events are emitted by the daemon-owned parent run created by `compozy reviews watch`. They are persisted
+in the parent run journal, streamed through the regular run stream APIs, and use `kinds.ReviewWatchPayload`.
+
 ### `review.watch_started`
 
 Payload type: `kinds.ReviewWatchPayload`
@@ -485,6 +488,7 @@ Payload type: `kinds.ReviewWatchPayload`
 - `child_run_id`
 - `head_sha`
 - `status`
+- `error`
 
 ### `review.watch_push_started`
 
@@ -538,6 +542,7 @@ Payload type: `kinds.ReviewWatchPayload`
 - `head_sha`
 - `review_id`
 - `review_state`
+- `status`
 
 ### `review.watch_max_rounds`
 
@@ -549,6 +554,7 @@ Payload type: `kinds.ReviewWatchPayload`
 - `round`
 - `run_id`
 - `head_sha`
+- `status`
 
 ## Provider Events
 

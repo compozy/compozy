@@ -70,6 +70,10 @@ const (
 	HookReviewPreBatch            HookName = "review.pre_batch"
 	HookReviewPostFix             HookName = "review.post_fix"
 	HookReviewPreResolve          HookName = "review.pre_resolve"
+	HookReviewWatchPreRound       HookName = "review.watch_pre_round"
+	HookReviewWatchPostRound      HookName = "review.watch_post_round"
+	HookReviewWatchPrePush        HookName = "review.watch_pre_push"
+	HookReviewWatchFinished       HookName = "review.watch_finished"
 	HookArtifactPreWrite          HookName = "artifact.pre_write"
 	HookArtifactPostWrite         HookName = "artifact.post_write"
 )

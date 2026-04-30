@@ -175,6 +175,157 @@ describe("Extension", () => {
     await expect(runPromise).resolves.toBeUndefined();
   });
 
+  it("registers and dispatches review watch fluent hooks", async () => {
+    const seenFinished: unknown[] = [];
+    const extension = new Extension("sdk-ext", "1.0.0")
+      .onReviewWatchPreRound(async (_context, payload) => ({
+        runtime_overrides: {
+          auto_commit: payload.runtime_overrides !== undefined,
+          model: "gpt-5.5",
+        },
+        continue: true,
+      }))
+      .onReviewWatchPostRound(async (_context, payload) => {
+        expect(payload.child_run_id).toBe("child-1");
+      })
+      .onReviewWatchPrePush(async (_context, payload) => ({
+        remote: `${payload.remote}-fork`,
+        push: true,
+      }))
+      .onReviewWatchFinished(async (_context, payload) => {
+        seenFinished.push(payload);
+      });
+    const harness = new TestHarness({
+      granted_capabilities: [CAPABILITIES.reviewMutate],
+    });
+
+    const runPromise = harness.run(extension);
+    const init = await harness.initialize({
+      name: "sdk-ext",
+      version: "1.0.0",
+      source: "workspace",
+    });
+
+    expect(init.supported_hook_events).toEqual([
+      HOOKS.reviewWatchFinished,
+      HOOKS.reviewWatchPostRound,
+      HOOKS.reviewWatchPrePush,
+      HOOKS.reviewWatchPreRound,
+    ]);
+
+    await expect(
+      harness.dispatchHook(
+        "hook-watch-round-1",
+        {
+          name: HOOKS.reviewWatchPreRound,
+          event: HOOKS.reviewWatchPreRound,
+          mutable: true,
+          required: false,
+          priority: 500,
+          timeout_ms: 5000,
+        },
+        {
+          run_id: "run-watch",
+          provider: "coderabbit",
+          pr: "123",
+          workflow: "demo",
+          round: 1,
+          head_sha: "head-1",
+          status: "current_reviewed",
+          nitpicks: true,
+          runtime_overrides: { auto_commit: true },
+          continue: true,
+        }
+      )
+    ).resolves.toEqual({
+      patch: {
+        runtime_overrides: {
+          auto_commit: true,
+          model: "gpt-5.5",
+        },
+        continue: true,
+      },
+    });
+
+    await expect(
+      harness.dispatchHook(
+        "hook-watch-push-1",
+        {
+          name: HOOKS.reviewWatchPrePush,
+          event: HOOKS.reviewWatchPrePush,
+          mutable: true,
+          required: false,
+          priority: 500,
+          timeout_ms: 5000,
+        },
+        {
+          run_id: "run-watch",
+          provider: "coderabbit",
+          pr: "123",
+          workflow: "demo",
+          round: 1,
+          head_sha: "head-2",
+          remote: "origin",
+          branch: "feature",
+          push: true,
+        }
+      )
+    ).resolves.toEqual({
+      patch: {
+        remote: "origin-fork",
+        push: true,
+      },
+    });
+
+    await harness.dispatchHook(
+      "hook-watch-post-round-1",
+      {
+        name: HOOKS.reviewWatchPostRound,
+        event: HOOKS.reviewWatchPostRound,
+        mutable: false,
+        required: false,
+        priority: 500,
+        timeout_ms: 5000,
+      },
+      {
+        run_id: "run-watch",
+        provider: "coderabbit",
+        pr: "123",
+        workflow: "demo",
+        round: 1,
+        child_run_id: "child-1",
+        status: "completed",
+      }
+    );
+    await harness.dispatchHook(
+      "hook-watch-finished-1",
+      {
+        name: HOOKS.reviewWatchFinished,
+        event: HOOKS.reviewWatchFinished,
+        mutable: false,
+        required: false,
+        priority: 500,
+        timeout_ms: 5000,
+      },
+      {
+        run_id: "run-watch",
+        child_run_id: "child-1",
+        provider: "coderabbit",
+        pr: "123",
+        workflow: "demo",
+        status: "completed",
+        terminal_reason: "review watch clean",
+      }
+    );
+    expect(seenFinished).toHaveLength(1);
+
+    await harness.shutdown({
+      reason: "run_completed",
+      deadline_ms: 1000,
+    });
+    await expect(runPromise).resolves.toBeUndefined();
+  });
+
   it("dispatches fetch_reviews to a registered review provider", async () => {
     const extension = new Extension("sdk-ext", "1.0.0").registerReviewProvider("sdk-review", {
       async fetchReviews(context, request) {

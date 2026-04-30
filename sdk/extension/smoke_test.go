@@ -48,6 +48,14 @@ func TestTypedHookRegistrationCoversAllPublicHookBuilders(t *testing.T) {
 	ext.OnReviewPreBatch(zeroMutableHandler[extension.ReviewPreBatchPayload, extension.GroupsPatch]())
 	ext.OnReviewPostFix(zeroObserverHandler[extension.ReviewPostFixPayload]())
 	ext.OnReviewPreResolve(zeroMutableHandler[extension.ReviewPreResolvePayload, extension.ResolveDecisionPatch]())
+	ext.OnReviewWatchPreRound(
+		zeroMutableHandler[extension.ReviewWatchPreRoundPayload, extension.ReviewWatchPreRoundPatch](),
+	)
+	ext.OnReviewWatchPostRound(zeroObserverHandler[extension.ReviewWatchPostRoundPayload]())
+	ext.OnReviewWatchPrePush(
+		zeroMutableHandler[extension.ReviewWatchPrePushPayload, extension.ReviewWatchPrePushPatch](),
+	)
+	ext.OnReviewWatchFinished(zeroObserverHandler[extension.ReviewWatchFinishedPayload]())
 	ext.OnArtifactPreWrite(zeroMutableHandler[extension.ArtifactPreWritePayload, extension.ArtifactWritePatch]())
 	ext.OnArtifactPostWrite(zeroObserverHandler[extension.ArtifactPostWritePayload]())
 	ext.OnEvent(func(context.Context, extension.Event) error { return nil }, extension.EventKind("run.completed"))
@@ -283,6 +291,10 @@ func expectedHookEvents() []extension.HookName {
 		extension.HookReviewPreBatch,
 		extension.HookReviewPostFix,
 		extension.HookReviewPreResolve,
+		extension.HookReviewWatchPreRound,
+		extension.HookReviewWatchPostRound,
+		extension.HookReviewWatchPrePush,
+		extension.HookReviewWatchFinished,
 		extension.HookArtifactPreWrite,
 		extension.HookArtifactPostWrite,
 	}
