@@ -70,7 +70,11 @@ func (s *transportTaskService) ListWorkflows(
 		if err != nil {
 			return nil, err
 		}
-		workflows = append(workflows, transportWorkflowSummaryWithTaskCounts(row, summarizeTaskRows(taskRows)))
+		summary := transportWorkflowSummaryWithTaskCounts(row, summarizeTaskRows(taskRows))
+		if err := attachWorkflowArchiveEligibility(ctx, s.globalDB, row, &summary); err != nil {
+			return nil, err
+		}
+		workflows = append(workflows, summary)
 	}
 	return workflows, nil
 }
@@ -92,7 +96,11 @@ func (s *transportTaskService) GetWorkflow(
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
-	return transportWorkflowSummary(row), nil
+	summary := transportWorkflowSummary(row)
+	if err := attachWorkflowArchiveEligibility(ctx, s.globalDB, row, &summary); err != nil {
+		return apicore.WorkflowSummary{}, err
+	}
+	return summary, nil
 }
 
 func (s *transportTaskService) WorkflowOverview(

@@ -23,8 +23,9 @@ type CommandRunner func(ctx context.Context, args ...string) ([]byte, error)
 type Option func(*Provider)
 
 type Provider struct {
-	botLogin string
-	run      CommandRunner
+	botLogin   string
+	run        CommandRunner
+	workingDir string
 }
 
 var _ provider.Provider = (*Provider)(nil)
@@ -33,8 +34,8 @@ var _ provider.WatchStatusProvider = (*Provider)(nil)
 func New(opts ...Option) *Provider {
 	p := &Provider{
 		botLogin: defaultBotLogin,
-		run:      runGH,
 	}
+	p.run = p.runGH
 	for _, opt := range opts {
 		if opt != nil {
 			opt(p)
@@ -48,6 +49,12 @@ func WithCommandRunner(run CommandRunner) Option {
 		if run != nil {
 			p.run = run
 		}
+	}
+}
+
+func WithWorkingDir(dir string) Option {
+	return func(p *Provider) {
+		p.workingDir = strings.TrimSpace(dir)
 	}
 }
 
@@ -463,8 +470,13 @@ func providerRefValue(ref string, key string) string {
 	return ""
 }
 
-func runGH(ctx context.Context, args ...string) ([]byte, error) {
+func (p *Provider) runGH(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
+	if p != nil {
+		if workingDir := strings.TrimSpace(p.workingDir); workingDir != "" {
+			cmd.Dir = workingDir
+		}
+	}
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		return output, nil

@@ -41,7 +41,7 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	}
 
 	restore := defaultProviderRegistry
-	defaultProviderRegistry = func() *provider.Registry {
+	defaultProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(stubReviewProvider{
 			name: "stub",
@@ -113,7 +113,7 @@ func TestFetchReviewsAutoIncrementsRound(t *testing.T) {
 	}
 
 	restore := defaultProviderRegistry
-	defaultProviderRegistry = func() *provider.Registry {
+	defaultProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(stubReviewProvider{name: "stub"})
 		return registry
@@ -130,6 +130,40 @@ func TestFetchReviewsAutoIncrementsRound(t *testing.T) {
 	}
 	if result.Round != 2 {
 		t.Fatalf("expected auto-incremented round 2, got %d", result.Round)
+	}
+}
+
+func TestFetchReviewsPassesWorkspaceRootToDefaultRegistry(t *testing.T) {
+	tmpDir := t.TempDir()
+	prdDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(prdDir, 0o755); err != nil {
+		t.Fatalf("mkdir prd dir: %v", err)
+	}
+
+	fetchReviewProviderRegistryMu.Lock()
+	defer fetchReviewProviderRegistryMu.Unlock()
+
+	restore := defaultProviderRegistry
+	defer func() { defaultProviderRegistry = restore }()
+
+	gotWorkspaceRoot := ""
+	defaultProviderRegistry = func(workspaceRoot string) *provider.Registry {
+		gotWorkspaceRoot = workspaceRoot
+		registry := provider.NewRegistry()
+		registry.Register(stubReviewProvider{name: "stub"})
+		return registry
+	}
+
+	if _, err := fetchReviews(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: tmpDir,
+		Name:          "demo",
+		Provider:      "stub",
+		PR:            "259",
+	}); err != nil {
+		t.Fatalf("fetch reviews: %v", err)
+	}
+	if gotWorkspaceRoot != tmpDir {
+		t.Fatalf("default registry workspace root = %q, want %q", gotWorkspaceRoot, tmpDir)
 	}
 }
 
@@ -333,7 +367,7 @@ func installStubReviewProviderRegistry(t *testing.T, items []provider.ReviewItem
 	fetchReviewProviderRegistryMu.Lock()
 
 	restore := defaultProviderRegistry
-	defaultProviderRegistry = func() *provider.Registry {
+	defaultProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(stubReviewProvider{
 			name:  "stub",

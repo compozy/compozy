@@ -23,6 +23,7 @@ const workflows: WorkflowSummary[] = [
     task_counts: { total: 2, completed: 2, pending: 0 },
     can_start_run: false,
     start_block_reason: "no pending tasks",
+    archive_eligible: true,
   },
   {
     id: "wf-2",
@@ -81,7 +82,7 @@ async function renderInventory(props: ViewProps) {
 }
 
 describe("WorkflowInventoryView", () => {
-  it("Should render active and archived workflows in separate sections", async () => {
+  it("Should render active, completed, and archived workflows in separate sections", async () => {
     await renderInventory({
       ...defaults,
       onArchive: () => {},
@@ -90,7 +91,10 @@ describe("WorkflowInventoryView", () => {
       onSyncOne: () => {},
       workflows,
     });
+    const completedSlug = workflows[1]!.slug;
     expect(screen.getByTestId("workflow-inventory-active")).toHaveTextContent("alpha");
+    expect(screen.getByTestId("workflow-inventory-active")).not.toHaveTextContent(completedSlug);
+    expect(screen.getByTestId("workflow-inventory-completed")).toHaveTextContent(completedSlug);
     expect(screen.getByTestId("workflow-inventory-archived")).toHaveTextContent("beta");
     const openLink = screen.getByTestId("workflow-view-board-alpha") as HTMLAnchorElement;
     expect(openLink.getAttribute("href")).toBe("/workflows/alpha/tasks");
@@ -131,7 +135,7 @@ describe("WorkflowInventoryView", () => {
     expect(onArchive).toHaveBeenCalledWith("alpha");
   });
 
-  it("Should replace start-run with a completed state when no tasks are pending", async () => {
+  it("Should drop the start-run button and surface a completed header badge when no tasks are pending", async () => {
     const completedWorkflow = workflows[1]!;
     await renderInventory({
       ...defaults,
@@ -145,8 +149,83 @@ describe("WorkflowInventoryView", () => {
       screen.queryByTestId(`workflow-start-${completedWorkflow.slug}`)
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId(`workflow-start-blocked-${completedWorkflow.slug}`)
-    ).toHaveTextContent("completed");
+      screen.queryByTestId(`workflow-start-blocked-${completedWorkflow.slug}`)
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId(`workflow-row-${completedWorkflow.slug}`)).toHaveTextContent(
+      /completed/i
+    );
+  });
+
+  it("Should place completed workflows in the Completed section while keeping Sync and Archive", async () => {
+    const completedWorkflow = workflows[1]!;
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun: () => {},
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows,
+    });
+    const section = screen.getByTestId("workflow-inventory-completed");
+    expect(section).toHaveTextContent(`Completed · 1`);
+    expect(section).toHaveTextContent(completedWorkflow.slug);
+    expect(
+      screen.queryByTestId(`workflow-start-${completedWorkflow.slug}`)
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId(`workflow-sync-${completedWorkflow.slug}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`workflow-archive-${completedWorkflow.slug}`)).toBeInTheDocument();
+  });
+
+  it("Should classify resolved review-only workflows as completed from archive eligibility", async () => {
+    const reviewOnlyWorkflow: WorkflowSummary = {
+      id: "wf-review-only",
+      slug: "review-only",
+      workspace_id: "ws-1",
+      last_synced_at: "2026-01-03T00:00:00Z",
+      task_counts: { total: 0, completed: 0, pending: 0 },
+      can_start_run: true,
+      archive_eligible: true,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun: () => {},
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [reviewOnlyWorkflow],
+    });
+    expect(screen.queryByTestId("workflow-inventory-active")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-inventory-completed")).toHaveTextContent("review-only");
+    expect(screen.queryByTestId("workflow-start-review-only")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-archive-review-only")).toBeInTheDocument();
+  });
+
+  it("Should keep unresolved review-only workflows active even when no tasks can start", async () => {
+    const unresolvedReviewWorkflow: WorkflowSummary = {
+      id: "wf-review-pending",
+      slug: "review-pending",
+      workspace_id: "ws-1",
+      last_synced_at: "2026-01-03T00:00:00Z",
+      task_counts: { total: 0, completed: 0, pending: 0 },
+      can_start_run: false,
+      start_block_reason: "no pending tasks",
+      archive_eligible: false,
+      archive_reason: "review rounds not fully resolved",
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun: () => {},
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [unresolvedReviewWorkflow],
+    });
+    expect(screen.getByTestId("workflow-inventory-active")).toHaveTextContent("review-pending");
+    expect(screen.queryByTestId("workflow-inventory-completed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-start-blocked-review-pending")).toHaveTextContent(
+      "no pending tasks"
+    );
+    expect(screen.getByTestId("workflow-archive-review-pending")).toBeInTheDocument();
   });
 
   it("Should disable filesystem actions when the workspace is read-only", async () => {

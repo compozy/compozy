@@ -1276,6 +1276,33 @@ func TestExtensionBridgeStartRunCreatesDetachedExecRun(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeStartRunRejectsDifferentWorkspaceRoot(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	otherWorkspace := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(otherWorkspace, model.WorkflowRootDirName), 0o755); err != nil {
+		t.Fatalf("MkdirAll(other workspace marker) error = %v", err)
+	}
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	_, err = bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: otherWorkspace,
+		Mode:          model.ExecutionModeExec,
+		PromptText:    "nested exec prompt",
+		ParentRunID:   "parent-run-001",
+	})
+	if err == nil {
+		t.Fatal("StartRun(different workspace) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "workspace_root") {
+		t.Fatalf("StartRun(different workspace) error = %v, want workspace_root context", err)
+	}
+}
+
 func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 

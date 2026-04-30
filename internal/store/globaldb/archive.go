@@ -102,6 +102,7 @@ type WorkflowArchiveEligibility struct {
 	TaskTotal              int
 	PendingTasks           int
 	ReviewRoundCount       int
+	ReviewIssueTotal       int
 	UnresolvedReviewIssues int
 	ActiveRuns             int
 }
@@ -116,12 +117,12 @@ func (e WorkflowArchiveEligibility) SkipReason() string {
 	switch {
 	case e.ActiveRuns > 0:
 		return archiveReasonActiveRuns
-	case e.TaskTotal == 0:
-		return archiveReasonNoTaskFiles
 	case e.PendingTasks > 0:
 		return archiveReasonTasksIncomplete
 	case e.UnresolvedReviewIssues > 0:
 		return archiveReasonReviewsUnresolved
+	case e.TaskTotal == 0 && e.ReviewIssueTotal == 0:
+		return archiveReasonNoTaskFiles
 	default:
 		return ""
 	}
@@ -174,6 +175,12 @@ func (g *GlobalDB) GetWorkflowArchiveEligibility(
 				  AND status <> 'completed'
 			), 0),
 			COALESCE((SELECT COUNT(1) FROM review_rounds WHERE workflow_id = ?), 0),
+			COALESCE((
+				SELECT COUNT(1)
+				FROM review_issues issues
+				JOIN review_rounds rounds ON rounds.id = issues.round_id
+				WHERE rounds.workflow_id = ?
+			), 0),
 			COALESCE((SELECT SUM(unresolved_count) FROM review_rounds WHERE workflow_id = ?), 0),
 			COALESCE((
 				SELECT COUNT(1)
@@ -186,6 +193,7 @@ func (g *GlobalDB) GetWorkflowArchiveEligibility(
 		workflow.ID,
 		workflow.ID,
 		workflow.ID,
+		workflow.ID,
 	)
 
 	eligibility := WorkflowArchiveEligibility{Workflow: workflow}
@@ -193,6 +201,7 @@ func (g *GlobalDB) GetWorkflowArchiveEligibility(
 		&eligibility.TaskTotal,
 		&eligibility.PendingTasks,
 		&eligibility.ReviewRoundCount,
+		&eligibility.ReviewIssueTotal,
 		&eligibility.UnresolvedReviewIssues,
 		&eligibility.ActiveRuns,
 	); err != nil {

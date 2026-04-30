@@ -122,7 +122,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 
 	resolver := &stubResolverProvider{name: "stub"}
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(resolver)
 		return registry
@@ -171,7 +171,7 @@ func TestLookupReviewProviderPrefersRuntimeManagerBridge(t *testing.T) {
 	}
 
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(&stubResolverProvider{
 			name:       "stub",
@@ -243,7 +243,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 
 	resolver := &stubResolverProvider{name: "stub"}
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(resolver)
 		return registry
@@ -328,7 +328,7 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 
 	resolver := &stubResolverProvider{name: "stub"}
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(resolver)
 		return registry
@@ -405,7 +405,7 @@ func TestAfterJobSuccessReviewPreResolveCanSkipProviderResolution(t *testing.T) 
 
 	resolver := &stubResolverProvider{name: "stub"}
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(resolver)
 		return registry
@@ -576,7 +576,7 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 
 	resolver := &stubResolverProvider{name: "stub"}
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(resolver)
 		return registry
@@ -701,7 +701,7 @@ func TestResolveProviderBackedIssuesWarnsAndContinuesOnProviderFailure(t *testin
 		resolveErr: &statusCodeErr{code: 502, err: errors.New("provider unavailable")},
 	}
 	restore := reviewProviderRegistry
-	reviewProviderRegistry = func() *provider.Registry {
+	reviewProviderRegistry = func(_ string) *provider.Registry {
 		registry := provider.NewRegistry()
 		registry.Register(resolver)
 		return registry

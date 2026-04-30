@@ -97,6 +97,104 @@ func TestGetWorkflowArchiveEligibilityUsesSyncedReviewState(t *testing.T) {
 	}
 }
 
+func TestGetWorkflowArchiveEligibilityAllowsResolvedReviewOnlyWorkflow(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	mustReconcileArchiveWorkflow(t, db, workspace.ID, "review-only-resolved", nil, []ReviewRoundInput{
+		{
+			RoundNumber:     1,
+			Provider:        "coderabbit",
+			PRRef:           "259",
+			ResolvedCount:   2,
+			UnresolvedCount: 0,
+			Issues: []ReviewIssueInput{
+				{
+					IssueNumber: 1,
+					Severity:    "medium",
+					Status:      "resolved",
+					SourcePath:  "reviews-001/issue_001.md",
+				},
+				{
+					IssueNumber: 2,
+					Severity:    "low",
+					Status:      "resolved",
+					SourcePath:  "reviews-001/issue_002.md",
+				},
+			},
+		},
+	})
+
+	eligibility, err := db.GetWorkflowArchiveEligibility(context.Background(), workspace.ID, "review-only-resolved")
+	if err != nil {
+		t.Fatalf("GetWorkflowArchiveEligibility() error = %v", err)
+	}
+	if eligibility.TaskTotal != 0 || eligibility.ReviewIssueTotal != 2 ||
+		eligibility.UnresolvedReviewIssues != 0 {
+		t.Fatalf("unexpected eligibility counts: %#v", eligibility)
+	}
+	if !eligibility.Archivable() {
+		t.Fatalf("Archivable() = false, reason=%q", eligibility.SkipReason())
+	}
+	if got := eligibility.SkipReason(); got != "" {
+		t.Fatalf("SkipReason() = %q, want empty", got)
+	}
+}
+
+func TestGetWorkflowArchiveEligibilityBlocksUnresolvedReviewOnlyWorkflow(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	mustReconcileArchiveWorkflow(t, db, workspace.ID, "review-only-pending", nil, []ReviewRoundInput{
+		{
+			RoundNumber:     1,
+			Provider:        "coderabbit",
+			PRRef:           "259",
+			ResolvedCount:   1,
+			UnresolvedCount: 1,
+			Issues: []ReviewIssueInput{
+				{
+					IssueNumber: 1,
+					Severity:    "medium",
+					Status:      "resolved",
+					SourcePath:  "reviews-001/issue_001.md",
+				},
+				{
+					IssueNumber: 2,
+					Severity:    "high",
+					Status:      "pending",
+					SourcePath:  "reviews-001/issue_002.md",
+				},
+			},
+		},
+	})
+
+	eligibility, err := db.GetWorkflowArchiveEligibility(context.Background(), workspace.ID, "review-only-pending")
+	if err != nil {
+		t.Fatalf("GetWorkflowArchiveEligibility() error = %v", err)
+	}
+	if eligibility.TaskTotal != 0 || eligibility.ReviewIssueTotal != 2 ||
+		eligibility.UnresolvedReviewIssues != 1 {
+		t.Fatalf("unexpected eligibility counts: %#v", eligibility)
+	}
+	if eligibility.Archivable() {
+		t.Fatal("Archivable() = true, want false for unresolved review-only workflow")
+	}
+	if got := eligibility.SkipReason(); got != "review rounds not fully resolved" {
+		t.Fatalf("SkipReason() = %q, want review rounds not fully resolved", got)
+	}
+}
+
 func TestGetWorkflowArchiveEligibilityReportsActiveRuns(t *testing.T) {
 	t.Parallel()
 

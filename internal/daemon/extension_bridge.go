@@ -11,6 +11,7 @@ import (
 	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 )
 
 const daemonExtensionPresentationMode = "detach"
@@ -51,7 +52,7 @@ func (b *extensionBridge) StartRun(
 	ctx context.Context,
 	runtimeCfg *model.RuntimeConfig,
 ) (*extensions.RunHandle, error) {
-	normalized, err := b.normalizeRuntime(runtimeCfg)
+	normalized, err := b.normalizeRuntime(ctx, runtimeCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -77,20 +78,45 @@ func (b *extensionBridge) StartRun(
 	}, nil
 }
 
-func (b *extensionBridge) normalizeRuntime(runtimeCfg *model.RuntimeConfig) (*model.RuntimeConfig, error) {
+func (b *extensionBridge) normalizeRuntime(
+	ctx context.Context,
+	runtimeCfg *model.RuntimeConfig,
+) (*model.RuntimeConfig, error) {
 	if b == nil {
 		return nil, fmt.Errorf("daemon: extension bridge is required")
 	}
 	if runtimeCfg == nil {
 		return nil, fmt.Errorf("daemon: child runtime config is required")
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	normalized := runtimeCfg.Clone()
 	if normalized == nil {
 		return nil, fmt.Errorf("daemon: child runtime config is required")
 	}
-	if strings.TrimSpace(normalized.WorkspaceRoot) == "" {
-		normalized.WorkspaceRoot = b.workspaceRoot
+	bridgeWorkspaceRoot, err := resolveExtensionBridgeWorkspaceRoot(ctx, b.workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	requestedWorkspaceRoot := strings.TrimSpace(normalized.WorkspaceRoot)
+	if requestedWorkspaceRoot == "" {
+		normalized.WorkspaceRoot = bridgeWorkspaceRoot
+	} else {
+		resolvedRequestedWorkspaceRoot, err := resolveExtensionBridgeWorkspaceRoot(ctx, requestedWorkspaceRoot)
+		if err != nil {
+			return nil, err
+		}
+		if resolvedRequestedWorkspaceRoot != bridgeWorkspaceRoot {
+			return nil, fmt.Errorf(
+				"daemon: child run workspace_root %q resolves to %q, want extension workspace %q",
+				requestedWorkspaceRoot,
+				resolvedRequestedWorkspaceRoot,
+				bridgeWorkspaceRoot,
+			)
+		}
+		normalized.WorkspaceRoot = bridgeWorkspaceRoot
 	}
 	normalized.ApplyDefaults()
 	normalized.TUI = false
@@ -103,6 +129,14 @@ func (b *extensionBridge) normalizeRuntime(runtimeCfg *model.RuntimeConfig) (*mo
 		return nil, err
 	}
 	return normalized, nil
+}
+
+func resolveExtensionBridgeWorkspaceRoot(ctx context.Context, workspaceRoot string) (string, error) {
+	resolved, err := workspacecfg.Discover(ctx, strings.TrimSpace(workspaceRoot))
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve extension workspace root: %w", err)
+	}
+	return filepath.Clean(resolved), nil
 }
 
 func (b *extensionBridge) startTaskRun(ctx context.Context, runtimeCfg *model.RuntimeConfig) (string, error) {

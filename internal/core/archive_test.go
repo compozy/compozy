@@ -225,6 +225,44 @@ func TestArchiveTaskWorkflowRequiresResyncAfterReviewResolution(t *testing.T) {
 	}
 }
 
+func TestArchiveTaskWorkflowAllowsResolvedReviewOnlyWorkflow(t *testing.T) {
+	rootDir := archiveTestRoot(t)
+	workflowDir := filepath.Join(rootDir, "review-only")
+	writeArchiveReviewRound(t, workflowDir, 1, []string{"resolved", "resolved"}, false)
+	mustSyncArchiveWorkflow(t, workflowDir)
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+	if err != nil {
+		t.Fatalf("Archive(review-only resolved): %v", err)
+	}
+	if result == nil || result.WorkflowsScanned != 1 || result.Archived != 1 ||
+		len(result.ArchivedPaths) != 1 {
+		t.Fatalf("unexpected archive result: %#v", result)
+	}
+	if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected review-only workflow to leave active root, got err=%v", statErr)
+	}
+}
+
+func TestArchiveTaskWorkflowRejectsUnresolvedReviewOnlyWorkflow(t *testing.T) {
+	rootDir := archiveTestRoot(t)
+	workflowDir := filepath.Join(rootDir, "review-only")
+	writeArchiveReviewRound(t, workflowDir, 1, []string{"resolved", "pending"}, false)
+	mustSyncArchiveWorkflow(t, workflowDir)
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+	if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
+		t.Fatalf("Archive(review-only unresolved) error = %v, want ErrWorkflowNotArchivable", err)
+	}
+	if result == nil || result.WorkflowsScanned != 1 || result.Archived != 0 ||
+		result.Skipped != 0 {
+		t.Fatalf("unexpected archive result: %#v", result)
+	}
+	if _, statErr := os.Stat(workflowDir); statErr != nil {
+		t.Fatalf("expected unresolved review-only workflow dir to remain: %v", statErr)
+	}
+}
+
 func TestArchiveTaskWorkflowRejectsArchivedTargetsAndArchivedIdentities(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "alpha")

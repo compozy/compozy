@@ -869,6 +869,7 @@ export interface components {
         SyncResult: {
             checkpoints_updated?: number;
             legacy_artifacts_removed?: number;
+            pruned_workflows?: string[];
             review_issues_upserted?: number;
             review_rounds_upserted?: number;
             snapshots_upserted?: number;
@@ -880,6 +881,7 @@ export interface components {
             warnings?: string[];
             workflow_slug?: string;
             workflows_scanned?: number;
+            workflows_pruned?: number;
             workspace_id?: string;
         };
         TaskBoardPayload: {
@@ -1009,6 +1011,8 @@ export interface components {
             spec: components["schemas"]["WorkflowSpecDocument"];
         };
         WorkflowSummary: {
+            archive_eligible?: boolean;
+            archive_reason?: string;
             /** Format: date-time */
             archived_at?: string;
             can_start_run?: boolean;
@@ -1061,6 +1065,7 @@ export interface components {
             synced: number;
             task_items_upserted: number;
             warnings?: string[];
+            workflows_pruned?: number;
         };
         WorkspaceResponse: {
             workspace: components["schemas"]["Workspace"];

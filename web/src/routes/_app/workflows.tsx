@@ -6,6 +6,7 @@ import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { useStartWorkflowRun, type Run } from "@/systems/runs";
 import {
+  formatWorkflowSyncResult,
   useArchiveWorkflow,
   useSyncWorkflows,
   useWorkflows,
@@ -36,9 +37,7 @@ function WorkflowsRoute(): ReactElement {
     setStartedRun(null);
     try {
       const result = await sync.mutateAsync({ workspaceId: activeWorkspace.id });
-      setActionMessage(
-        `Sync completed — ${result.workflows_scanned ?? 0} workflow${(result.workflows_scanned ?? 0) === 1 ? "" : "s"} scanned.`
-      );
+      setActionMessage(formatWorkflowSyncResult(result));
     } catch (error) {
       setActionError(apiErrorMessage(error, "Sync failed"));
     }

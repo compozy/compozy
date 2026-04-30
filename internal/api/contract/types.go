@@ -157,6 +157,7 @@ type WorkspaceSyncResult struct {
 	Removed              int      `json:"removed"`
 	Missing              int      `json:"missing"`
 	Synced               int      `json:"synced"`
+	WorkflowsPruned      int      `json:"workflows_pruned,omitempty"`
 	SnapshotsUpserted    int      `json:"snapshots_upserted"`
 	TaskItemsUpserted    int      `json:"task_items_upserted"`
 	ReviewRoundsUpserted int      `json:"review_rounds_upserted"`
@@ -173,6 +174,8 @@ type WorkflowSummary struct {
 	TaskCounts       *WorkflowTaskCounts `json:"task_counts,omitempty"`
 	CanStartRun      *bool               `json:"can_start_run,omitempty"`
 	StartBlockReason string              `json:"start_block_reason,omitempty"`
+	ArchiveEligible  *bool               `json:"archive_eligible,omitempty"`
+	ArchiveReason    string              `json:"archive_reason,omitempty"`
 }
 
 type WorkflowTaskCounts struct {
@@ -482,6 +485,7 @@ type SyncResult struct {
 	SyncedAt               *time.Time `json:"synced_at,omitempty"`
 	Target                 string     `json:"target,omitempty"`
 	WorkflowsScanned       int        `json:"workflows_scanned,omitempty"`
+	WorkflowsPruned        int        `json:"workflows_pruned,omitempty"`
 	SnapshotsUpserted      int        `json:"snapshots_upserted,omitempty"`
 	TaskItemsUpserted      int        `json:"task_items_upserted,omitempty"`
 	ReviewRoundsUpserted   int        `json:"review_rounds_upserted,omitempty"`
@@ -489,6 +493,7 @@ type SyncResult struct {
 	CheckpointsUpdated     int        `json:"checkpoints_updated,omitempty"`
 	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
 	SyncedPaths            []string   `json:"synced_paths,omitempty"`
+	PrunedWorkflows        []string   `json:"pruned_workflows,omitempty"`
 	Warnings               []string   `json:"warnings,omitempty"`
 }
 

@@ -16,10 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/core/reviews"
 )
 
-var defaultProviderRegistry = providerdefaults.DefaultRegistry
+var defaultProviderRegistry = providerdefaults.DefaultRegistryForWorkspace
 
 func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, error) {
-	registry := provider.ResolveRegistry(defaultProviderRegistry())
+	registry := provider.ResolveRegistry(defaultProviderRegistry(fetchWorkspaceRoot(cfg)))
 	return fetchReviewsWithRegistry(ctx, cfg, registry)
 }
 
@@ -78,7 +78,7 @@ func fetchReviewItemsWithRegistry(
 	}
 
 	if registry == nil {
-		registry = provider.ResolveRegistry(defaultProviderRegistry())
+		registry = provider.ResolveRegistry(defaultProviderRegistry(cfg.WorkspaceRoot))
 	}
 	reviewProvider, err := resolveFetchReviewProvider(registry, cfg.Provider)
 	if err != nil {
@@ -105,6 +105,13 @@ func fetchReviewItemsWithRegistry(
 		ReviewsDir: reviewsDir,
 		Items:      items,
 	}, nil
+}
+
+func fetchWorkspaceRoot(cfg *model.RuntimeConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.WorkspaceRoot
 }
 
 func writeFetchedReviewRound(pending *FetchedReviewItems) (*FetchResult, error) {

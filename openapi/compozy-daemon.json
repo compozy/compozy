@@ -1260,6 +1260,12 @@
                     "legacy_artifacts_removed": {
                         "type": "integer"
                     },
+                    "pruned_workflows": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
                     "review_issues_upserted": {
                         "type": "integer"
                     },
@@ -1295,6 +1301,9 @@
                         "type": "string"
                     },
                     "workflows_scanned": {
+                        "type": "integer"
+                    },
+                    "workflows_pruned": {
                         "type": "integer"
                     },
                     "workspace_id": {
@@ -1712,6 +1721,12 @@
             },
             "WorkflowSummary": {
                 "properties": {
+                    "archive_eligible": {
+                        "type": "boolean"
+                    },
+                    "archive_reason": {
+                        "type": "string"
+                    },
                     "archived_at": {
                         "format": "date-time",
                         "type": "string"
@@ -1870,6 +1885,9 @@
                             "type": "string"
                         },
                         "type": "array"
+                    },
+                    "workflows_pruned": {
+                        "type": "integer"
                     }
                 },
                 "required": [

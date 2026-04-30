@@ -351,7 +351,7 @@ func buildWorkspaceReviewRegistry(
 	}
 
 	registry, err := provider.BuildOverlayRegistry(
-		provider.ResolveRegistry(providerdefaults.DefaultRegistry()),
+		provider.ResolveRegistry(providerdefaults.DefaultRegistryForWorkspace(workspaceRoot)),
 		entries,
 	)
 	if err != nil {

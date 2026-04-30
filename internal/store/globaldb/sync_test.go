@@ -347,6 +347,129 @@ func TestReconcileWorkflowSyncDeletesStaleProjectionRows(t *testing.T) {
 	assertRowCount(t, db, "review_issues", 0)
 }
 
+func TestPruneMissingActiveWorkflowsDeletesOnlyStaleActiveRows(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := registerSyncTestWorkspace(t, db)
+	otherWorkspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 4, 18, 2, 0, 0, 0, time.UTC)
+
+	present := mustReconcilePruneWorkflow(t, db, workspace.ID, "present", syncedAt)
+	stale := mustReconcilePruneWorkflow(t, db, workspace.ID, "stale", syncedAt)
+	archived := mustReconcilePruneWorkflow(t, db, workspace.ID, "archived", syncedAt)
+	activeRun := mustReconcilePruneWorkflow(t, db, workspace.ID, "active-run", syncedAt)
+	otherWorkspaceStale := mustReconcilePruneWorkflow(t, db, otherWorkspace.ID, "stale", syncedAt)
+
+	var staleRoundID string
+	if err := db.db.QueryRowContext(
+		context.Background(),
+		`SELECT id FROM review_rounds WHERE workflow_id = ? AND round_number = 1`,
+		stale.Workflow.ID,
+	).Scan(&staleRoundID); err != nil {
+		t.Fatalf("query stale review round id: %v", err)
+	}
+
+	terminalEndedAt := syncedAt.Add(time.Minute)
+	if _, err := db.PutRun(context.Background(), Run{
+		RunID:            "run-stale-terminal",
+		WorkspaceID:      workspace.ID,
+		WorkflowID:       &stale.Workflow.ID,
+		Mode:             "task",
+		Status:           "completed",
+		PresentationMode: "stream",
+		StartedAt:        syncedAt,
+		EndedAt:          &terminalEndedAt,
+	}); err != nil {
+		t.Fatalf("PutRun(terminal): %v", err)
+	}
+	if _, err := db.PutRun(context.Background(), Run{
+		RunID:            "run-active",
+		WorkspaceID:      workspace.ID,
+		WorkflowID:       &activeRun.Workflow.ID,
+		Mode:             "task",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        syncedAt,
+	}); err != nil {
+		t.Fatalf("PutRun(active): %v", err)
+	}
+	if _, err := db.MarkWorkflowArchived(
+		context.Background(),
+		archived.Workflow.ID,
+		syncedAt.Add(2*time.Minute),
+	); err != nil {
+		t.Fatalf("MarkWorkflowArchived(): %v", err)
+	}
+
+	result, err := db.PruneMissingActiveWorkflows(context.Background(), workspace.ID, []string{"present"})
+	if err != nil {
+		t.Fatalf("PruneMissingActiveWorkflows(): %v", err)
+	}
+	if !equalStringSlices(result.PrunedSlugs, []string{"stale"}) {
+		t.Fatalf("PrunedSlugs = %#v, want [stale]", result.PrunedSlugs)
+	}
+	if len(result.Skipped) != 1 || result.Skipped[0].Slug != "active-run" ||
+		result.Skipped[0].ActiveRuns != 1 || result.Skipped[0].Reason != archiveReasonActiveRuns {
+		t.Fatalf("unexpected skipped rows: %#v", result.Skipped)
+	}
+
+	if _, err := db.GetActiveWorkflowBySlug(context.Background(), workspace.ID, present.Workflow.Slug); err != nil {
+		t.Fatalf("present active workflow lookup: %v", err)
+	}
+	if _, err := db.GetActiveWorkflowBySlug(context.Background(), workspace.ID, activeRun.Workflow.Slug); err != nil {
+		t.Fatalf("active-run workflow lookup: %v", err)
+	}
+	if _, err := db.GetActiveWorkflowBySlug(
+		context.Background(),
+		otherWorkspace.ID,
+		otherWorkspaceStale.Workflow.Slug,
+	); err != nil {
+		t.Fatalf("other workspace workflow lookup: %v", err)
+	}
+	if _, err := db.GetLatestArchivedWorkflowBySlug(
+		context.Background(),
+		workspace.ID,
+		archived.Workflow.Slug,
+	); err != nil {
+		t.Fatalf("archived workflow lookup: %v", err)
+	}
+	if _, err := db.GetActiveWorkflowBySlug(
+		context.Background(),
+		workspace.ID,
+		stale.Workflow.Slug,
+	); !errors.Is(
+		err,
+		ErrWorkflowNotFound,
+	) {
+		t.Fatalf("stale active lookup error = %v, want ErrWorkflowNotFound", err)
+	}
+
+	assertRowCountByWorkflow(t, db, "artifact_snapshots", stale.Workflow.ID, 0)
+	assertRowCountByWorkflow(t, db, "task_items", stale.Workflow.ID, 0)
+	assertRowCountByWorkflow(t, db, "review_rounds", stale.Workflow.ID, 0)
+	assertRowCountByWorkflow(t, db, "sync_checkpoints", stale.Workflow.ID, 0)
+	if got := queryTableRowCount(t, db, "review_issues", "round_id = ?", staleRoundID); got != 0 {
+		t.Fatalf("review_issues for stale round = %d, want 0", got)
+	}
+
+	var terminalWorkflowID string
+	if err := db.db.QueryRowContext(
+		context.Background(),
+		`SELECT COALESCE(workflow_id, '') FROM runs WHERE run_id = ?`,
+		"run-stale-terminal",
+	).Scan(&terminalWorkflowID); err != nil {
+		t.Fatalf("query terminal run workflow id: %v", err)
+	}
+	if terminalWorkflowID != "" {
+		t.Fatalf("terminal run workflow_id = %q, want empty after ON DELETE SET NULL", terminalWorkflowID)
+	}
+}
+
 func TestReconcileWorkflowSyncStoresOversizedBodiesInDeduplicatedTable(t *testing.T) {
 	t.Parallel()
 
@@ -547,9 +670,20 @@ func TestWorkflowSyncHelperValidationAndNormalization(t *testing.T) {
 		if prepared.Provider != "coderabbit" {
 			t.Fatalf("Provider = %q, want coderabbit", prepared.Provider)
 		}
+		withoutProvider, err := prepareReviewRound(ReviewRoundInput{
+			RoundNumber:     2,
+			ResolvedCount:   1,
+			UnresolvedCount: 0,
+		})
+		if err != nil {
+			t.Fatalf("prepareReviewRound(without provider) error = %v", err)
+		}
+		if withoutProvider.Provider != "" {
+			t.Fatalf("Provider = %q, want empty", withoutProvider.Provider)
+		}
 		cases := []ReviewRoundInput{
-			{RoundNumber: 1},
-			{RoundNumber: 1, Provider: "coderabbit", ResolvedCount: -1},
+			{},
+			{RoundNumber: 1, ResolvedCount: -1},
 			{RoundNumber: 1, Provider: "coderabbit", UnresolvedCount: -1},
 		}
 		for _, tc := range cases {
@@ -992,4 +1126,75 @@ func queryTableRowCount(t *testing.T, db *GlobalDB, tableName string, whereClaus
 		t.Fatalf("query row count for %s: %v", tableName, err)
 	}
 	return count
+}
+
+func mustReconcilePruneWorkflow(
+	t *testing.T,
+	db *GlobalDB,
+	workspaceID string,
+	slug string,
+	syncedAt time.Time,
+) WorkflowSyncResult {
+	t.Helper()
+
+	result, err := db.ReconcileWorkflowSync(context.Background(), WorkflowSyncInput{
+		WorkspaceID:        workspaceID,
+		WorkflowSlug:       slug,
+		SyncedAt:           syncedAt,
+		CheckpointScope:    "workflow",
+		CheckpointChecksum: slug + "-checkpoint",
+		ArtifactSnapshots: []ArtifactSnapshotInput{
+			{
+				ArtifactKind:    "task",
+				RelativePath:    "task_01.md",
+				Checksum:        slug + "-task-checksum",
+				FrontmatterJSON: `{"status":"completed"}`,
+				BodyText:        "# Task 01",
+				SourceMTime:     syncedAt,
+			},
+		},
+		TaskItems: []TaskItemInput{
+			{
+				TaskNumber: 1,
+				TaskID:     "task_1",
+				Title:      slug + " task",
+				Status:     "completed",
+				Kind:       "backend",
+				SourcePath: "task_01.md",
+			},
+		},
+		ReviewRounds: []ReviewRoundInput{
+			{
+				RoundNumber:     1,
+				Provider:        "coderabbit",
+				PRRef:           "123",
+				ResolvedCount:   1,
+				UnresolvedCount: 0,
+				Issues: []ReviewIssueInput{
+					{
+						IssueNumber: 1,
+						Severity:    "medium",
+						Status:      "resolved",
+						SourcePath:  "reviews-001/issue_001.md",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileWorkflowSync(%q): %v", slug, err)
+	}
+	return result
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
 }

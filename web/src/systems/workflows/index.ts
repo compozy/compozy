@@ -7,6 +7,7 @@ export { TaskDetailView } from "./components/task-detail-view";
 export { useArchiveWorkflow, useSyncWorkflows, useWorkflows } from "./hooks/use-workflows";
 export { useWorkflowBoard, useWorkflowTask } from "./hooks/use-tasks";
 export { workflowKeys } from "./lib/query-keys";
+export { formatWorkflowSyncResult } from "./lib/sync-summary";
 export {
   archiveWorkflow,
   listWorkflows,

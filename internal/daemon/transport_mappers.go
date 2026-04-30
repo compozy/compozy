@@ -15,6 +15,8 @@ import (
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 )
 
+const workflowArchiveReasonArchived = "workflow archived"
+
 func transportWorkspace(row globaldb.Workspace) apicore.Workspace {
 	return apicore.Workspace{
 		ID:              row.ID,
@@ -56,9 +58,42 @@ func transportWorkflowSummaryWithTaskCounts(
 	return summary
 }
 
+func attachWorkflowArchiveEligibility(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	row globaldb.Workflow,
+	summary *apicore.WorkflowSummary,
+) error {
+	if summary == nil {
+		return nil
+	}
+	eligible, reason, err := workflowArchiveAction(ctx, db, row)
+	if err != nil {
+		return err
+	}
+	summary.ArchiveEligible = &eligible
+	summary.ArchiveReason = reason
+	return nil
+}
+
+func workflowArchiveAction(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	row globaldb.Workflow,
+) (bool, string, error) {
+	if row.ArchivedAt != nil {
+		return false, workflowArchiveReasonArchived, nil
+	}
+	eligibility, err := db.GetWorkflowArchiveEligibility(ctx, row.WorkspaceID, row.Slug)
+	if err != nil {
+		return false, "", err
+	}
+	return eligibility.Archivable(), eligibility.SkipReason(), nil
+}
+
 func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool, string) {
 	if row.ArchivedAt != nil {
-		return false, "workflow archived"
+		return false, workflowArchiveReasonArchived
 	}
 	if counts.Total > 0 && counts.Pending == 0 {
 		return false, "no pending tasks"
@@ -83,6 +118,7 @@ func transportSyncResult(
 
 	out.Target = result.Target
 	out.WorkflowsScanned = result.WorkflowsScanned
+	out.WorkflowsPruned = result.WorkflowsPruned
 	out.SnapshotsUpserted = result.SnapshotsUpserted
 	out.TaskItemsUpserted = result.TaskItemsUpserted
 	out.ReviewRoundsUpserted = result.ReviewRoundsUpserted
@@ -90,6 +126,7 @@ func transportSyncResult(
 	out.CheckpointsUpdated = result.CheckpointsUpdated
 	out.LegacyArtifactsRemoved = result.LegacyArtifactsRemoved
 	out.SyncedPaths = append([]string(nil), result.SyncedPaths...)
+	out.PrunedWorkflows = append([]string(nil), result.PrunedWorkflows...)
 	out.Warnings = append([]string(nil), result.Warnings...)
 	return out
 }

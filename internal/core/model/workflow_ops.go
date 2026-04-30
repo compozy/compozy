@@ -50,6 +50,7 @@ type ArchiveConfig struct {
 type SyncResult struct {
 	Target                 string
 	WorkflowsScanned       int
+	WorkflowsPruned        int
 	MetaCreated            int
 	MetaUpdated            int
 	SnapshotsUpserted      int
@@ -59,6 +60,7 @@ type SyncResult struct {
 	CheckpointsUpdated     int
 	LegacyArtifactsRemoved int
 	SyncedPaths            []string
+	PrunedWorkflows        []string
 	Warnings               []string
 }
 

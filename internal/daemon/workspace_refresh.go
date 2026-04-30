@@ -133,6 +133,7 @@ func syncWorkspace(
 	result.TaskItemsUpserted += syncResult.TaskItemsUpserted
 	result.ReviewRoundsUpserted += syncResult.ReviewRoundsUpserted
 	result.ReviewIssuesUpserted += syncResult.ReviewIssuesUpserted
+	result.WorkflowsPruned += syncResult.WorkflowsPruned
 	result.Warnings = append(result.Warnings, syncResult.Warnings...)
 	return nil
 }

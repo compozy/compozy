@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
-var reviewProviderRegistry = providerdefaults.DefaultRegistry
+var reviewProviderRegistry = providerdefaults.DefaultRegistryForWorkspace
 
 type runtimeReviewProviderResolver interface {
 	ResolveReviewProviderBridge(name string) (provider.ExtensionBridge, bool)
@@ -331,7 +331,11 @@ func (j *jobExecutionContext) lookupReviewProvider() (provider.Provider, error) 
 		}
 	}
 
-	registry := provider.ResolveRegistry(reviewProviderRegistry())
+	workspaceRoot := ""
+	if j != nil && j.cfg != nil {
+		workspaceRoot = j.cfg.WorkspaceRoot
+	}
+	registry := provider.ResolveRegistry(reviewProviderRegistry(workspaceRoot))
 	return registry.Get(j.cfg.Provider)
 }
 
