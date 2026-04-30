@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createTestQueryClient, installFetchStub, matchPath, withQuery } from "@/test/utils";
+import {
+  createTestQueryClient,
+  flushAsync,
+  installFetchStub,
+  matchPath,
+  withQuery,
+} from "@/test/utils";
 import { WORKSPACE_STORAGE_KEY } from "@/lib/session-storage";
 
 import { resetActiveWorkspaceStoreForTests } from "../stores/active-workspace-store";
@@ -56,6 +62,24 @@ function StaleWorkspaceQueryProbe({
     },
   });
   return <ContextProbe />;
+}
+
+function DeepStaleWorkspaceQueryProbe(): ReactElement {
+  useQuery({
+    queryKey: ["stale-workspace-probe", nestedValue("ws-1", 24)],
+    queryFn: async (): Promise<string> => {
+      throw { code: "workspace_context_stale", message: "stale" };
+    },
+  });
+  return <ContextProbe />;
+}
+
+function nestedValue(value: unknown, depth: number): unknown {
+  let current = value;
+  for (let index = 0; index < depth; index += 1) {
+    current = { nested: current };
+  }
+  return current;
 }
 
 describe("AppShellContainer", () => {
@@ -188,5 +212,30 @@ describe("AppShellContainer", () => {
     expect(await screen.findByTestId("probe-active")).toHaveTextContent("ws-2");
     expect(screen.queryByTestId("workspace-picker-stale")).not.toBeInTheDocument();
     expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe("ws-2");
+  });
+
+  it("Should ignore workspace ids beyond the stale-query search depth limit", async () => {
+    window.sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-1");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws-1" });
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    render(
+      <AppShellContainer>
+        <DeepStaleWorkspaceQueryProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+
+    expect(await screen.findByTestId("probe-active")).toHaveTextContent("ws-1");
+    await flushAsync();
+    expect(screen.queryByTestId("workspace-picker-stale")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe("ws-1");
   });
 });

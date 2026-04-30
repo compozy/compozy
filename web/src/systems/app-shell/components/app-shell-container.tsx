@@ -18,6 +18,8 @@ import { AppShellBoundary } from "./app-shell-boundary";
 import { WorkspaceOnboarding } from "./workspace-onboarding";
 import { WorkspacePicker } from "./workspace-picker";
 
+const MAX_WORKSPACE_ID_SEARCH_DEPTH = 16;
+
 export interface AppShellContainerProps {
   children: ReactNode;
 }
@@ -216,12 +218,23 @@ function extractWorkspaceIdFromSources(
 }
 
 function extractWorkspaceId(source: unknown, workspaceIds: ReadonlySet<string>): string | null {
+  return extractWorkspaceIdWithinDepth(source, workspaceIds, 0);
+}
+
+function extractWorkspaceIdWithinDepth(
+  source: unknown,
+  workspaceIds: ReadonlySet<string>,
+  depth: number
+): string | null {
+  if (depth > MAX_WORKSPACE_ID_SEARCH_DEPTH) {
+    return null;
+  }
   if (typeof source === "string") {
     return workspaceIds.has(source) ? source : null;
   }
   if (Array.isArray(source)) {
     for (const item of source as QueryKey) {
-      const workspaceId = extractWorkspaceId(item, workspaceIds);
+      const workspaceId = extractWorkspaceIdWithinDepth(item, workspaceIds, depth + 1);
       if (workspaceId) {
         return workspaceId;
       }
@@ -232,7 +245,7 @@ function extractWorkspaceId(source: unknown, workspaceIds: ReadonlySet<string>):
     return null;
   }
   for (const value of Object.values(source)) {
-    const workspaceId = extractWorkspaceId(value, workspaceIds);
+    const workspaceId = extractWorkspaceIdWithinDepth(value, workspaceIds, depth + 1);
     if (workspaceId) {
       return workspaceId;
     }

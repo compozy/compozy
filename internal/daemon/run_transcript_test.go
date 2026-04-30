@@ -124,37 +124,39 @@ func TestRunUIMessagesFromSessionMarksFailedTools(t *testing.T) {
 }
 
 func TestAggregateRunTranscriptSessionUsesNewestSessionMetadata(t *testing.T) {
-	t.Parallel()
+	t.Run("Should use newest session metadata", func(t *testing.T) {
+		t.Parallel()
 
-	got := aggregateRunTranscriptSession([]apicore.RunJobState{
-		{
-			Index: 0,
-			Summary: &apicore.RunJobSummary{Session: apicore.SessionViewSnapshot{
-				Revision: 1,
-				Session: apicore.SessionMetaState{
-					Status:        "running",
-					CurrentModeID: "plan",
-				},
-			}},
-		},
-		{
-			Index: 1,
-			Summary: &apicore.RunJobSummary{Session: apicore.SessionViewSnapshot{
-				Revision: 2,
-				Session: apicore.SessionMetaState{
-					Status:        "completed",
-					CurrentModeID: "code",
-				},
-			}},
-		},
+		got := aggregateRunTranscriptSession([]apicore.RunJobState{
+			{
+				Index: 0,
+				Summary: &apicore.RunJobSummary{Session: apicore.SessionViewSnapshot{
+					Revision: 1,
+					Session: apicore.SessionMetaState{
+						Status:        "running",
+						CurrentModeID: "plan",
+					},
+				}},
+			},
+			{
+				Index: 1,
+				Summary: &apicore.RunJobSummary{Session: apicore.SessionViewSnapshot{
+					Revision: 2,
+					Session: apicore.SessionMetaState{
+						Status:        "completed",
+						CurrentModeID: "code",
+					},
+				}},
+			},
+		})
+
+		if got.Revision != 2 {
+			t.Fatalf("Revision = %d, want 2", got.Revision)
+		}
+		if got.Session.Status != "completed" || got.Session.CurrentModeID != "code" {
+			t.Fatalf("Session = %#v, want newest metadata", got.Session)
+		}
 	})
-
-	if got.Revision != 2 {
-		t.Fatalf("Revision = %d, want 2", got.Revision)
-	}
-	if got.Session.Status != "completed" || got.Session.CurrentModeID != "code" {
-		t.Fatalf("Session = %#v, want newest metadata", got.Session)
-	}
 }
 
 func mustContractBlock(t *testing.T, payload any) apicore.ContentBlock {

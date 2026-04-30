@@ -825,7 +825,7 @@ func (s *queryService) listSnapshotMemoryDocuments(
 		if err != nil {
 			return nil, false, err
 		}
-		sizeBytes := int64(len([]byte(snapshot.BodyText)))
+		sizeBytes := int64(len(snapshot.BodyText))
 		snapshotCopy := snapshot
 		refs = append(refs, memoryDocumentRef{
 			entry: WorkflowMemoryEntry{

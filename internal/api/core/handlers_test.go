@@ -207,6 +207,8 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 }
 
 func TestStreamWorkspaceSocketEmitsEventHeartbeatAndOverflowMessages(t *testing.T) {
+	t.Parallel()
+
 	gin.SetMode(gin.TestMode)
 
 	stream := newFakeWorkspaceEventStream()

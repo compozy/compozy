@@ -2,6 +2,15 @@ import { tv, type VariantProps } from "tailwind-variants";
 
 import { cn } from "../lib/utils";
 
+const logoSvgSizes = {
+  xs: { width: 65, height: 14 },
+  sm: { width: 87, height: 18 },
+  md: { width: 116, height: 24 },
+  lg: { width: 145, height: 30 },
+  xl: { width: 181, height: 38 },
+  "2xl": { width: 226, height: 48 },
+} as const;
+
 const logoVariants = tv({
   slots: {
     base: "flex items-center gap-2",
@@ -12,27 +21,21 @@ const logoVariants = tv({
     size: {
       xs: {
         image: "size-[18px]",
-        svg: "h-[14px] w-[65px]",
       },
       sm: {
         image: "size-6",
-        svg: "h-[18px] w-[87px]",
       },
       md: {
         image: "size-8",
-        svg: "h-[24px] w-[116px]",
       },
       lg: {
         image: "size-10",
-        svg: "h-[30px] w-[145px]",
       },
       xl: {
         image: "size-[50px]",
-        svg: "h-[38px] w-[181px]",
       },
       "2xl": {
         image: "size-[63px]",
-        svg: "h-[48px] w-[226px]",
       },
     },
     variant: {
@@ -62,17 +65,7 @@ export interface LogoProps extends LogoVariants {
 
 export function Logo({ className, size = "md", variant = "full", symbolSrc }: LogoProps) {
   const styles = logoVariants({ size, variant });
-
-  const svgSizes = {
-    xs: { width: 65, height: 14 },
-    sm: { width: 87, height: 18 },
-    md: { width: 116, height: 24 },
-    lg: { width: 145, height: 30 },
-    xl: { width: 181, height: 38 },
-    "2xl": { width: 226, height: 48 },
-  };
-
-  const svgSize = svgSizes[size ?? "md"];
+  const svgSize = logoSvgSizes[size ?? "md"];
   const showSymbol = variant === "symbol" || variant === "full";
   const showLettering = variant === "lettering" || variant === "full";
 
