@@ -89,9 +89,6 @@ function statusRank(status: string): number {
   if (normalized === "running" || normalized === "queued" || normalized === "starting") {
     return 2;
   }
-  if (normalized === "completed" || normalized === "succeeded") {
-    return 1;
-  }
   return 0;
 }
 

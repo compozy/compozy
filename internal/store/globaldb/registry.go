@@ -407,15 +407,16 @@ func (g *GlobalDB) DeleteWorkspaceIfNoCatalogData(ctx context.Context, workspace
 		return false, errors.New("globaldb: workspace id is required")
 	}
 
-	stats, err := g.WorkspaceCatalogStats(ctx, workspaceID)
-	if err != nil {
-		return false, err
-	}
-	if stats.WorkflowCount > 0 || stats.RunCount > 0 {
-		return false, nil
-	}
-
-	result, err := g.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID)
+	result, err := g.db.ExecContext(
+		ctx,
+		`DELETE FROM workspaces
+		 WHERE id = ?
+		   AND NOT EXISTS (SELECT 1 FROM workflows WHERE workspace_id = ?)
+		   AND NOT EXISTS (SELECT 1 FROM runs WHERE workspace_id = ?)`,
+		workspaceID,
+		workspaceID,
+		workspaceID,
+	)
 	if err != nil {
 		return false, fmt.Errorf("globaldb: delete empty workspace %q: %w", workspaceID, err)
 	}

@@ -44,9 +44,13 @@ function ContextProbe(): ReactElement {
   return <p data-testid="probe-active">{context.activeWorkspace.id}</p>;
 }
 
-function StaleWorkspaceQueryProbe(): ReactElement {
+function StaleWorkspaceQueryProbe({
+  workspaceId = "ws-1",
+}: {
+  workspaceId?: string;
+}): ReactElement {
   useQuery({
-    queryKey: ["stale-workspace-probe"],
+    queryKey: ["stale-workspace-probe", workspaceId],
     queryFn: async (): Promise<string> => {
       throw { code: "workspace_context_stale", message: "stale" };
     },
@@ -160,5 +164,29 @@ describe("AppShellContainer", () => {
     expect(await screen.findByTestId("workspace-picker-stale")).toBeInTheDocument();
     expect(screen.queryByTestId("probe-active")).not.toBeInTheDocument();
     expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBeNull();
+  });
+
+  it("Should ignore stale workspace errors from an inactive workspace query", async () => {
+    window.sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-2");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws-2" });
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    render(
+      <AppShellContainer>
+        <StaleWorkspaceQueryProbe workspaceId="ws-1" />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+
+    expect(await screen.findByTestId("probe-active")).toHaveTextContent("ws-2");
+    expect(screen.queryByTestId("workspace-picker-stale")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe("ws-2");
   });
 });

@@ -513,7 +513,7 @@ function convertRunMessagePart(part: RunUIMessagePart): ThreadPart[] {
 
 function convertToolPart(part: RunUIMessagePart): ThreadPart {
   const input = toJSONObject(part.input);
-  const output = part.output ?? null;
+  const output = part.output ?? (part.errorText ? { summary: part.errorText } : null);
   return {
     type: "tool-call",
     toolCallId: part.toolCallId || part.id || `${part.toolName || "tool"}-call`,
@@ -529,17 +529,15 @@ function mergeTranscriptMessages(
   baseMessages: readonly RunUIMessage[],
   liveEvents: readonly RunFeedEvent[]
 ): RunUIMessage[] {
-  const messages = [...baseMessages];
-  const seen = new Set(messages.map(message => message.id));
+  const messages = new Map(baseMessages.map(message => [message.id, message] as const));
   for (const event of liveEvents) {
     const message = runUIMessageFromLiveEvent(event);
-    if (!message || seen.has(message.id)) {
+    if (!message) {
       continue;
     }
-    messages.push(message);
-    seen.add(message.id);
+    messages.set(message.id, message);
   }
-  return messages;
+  return [...messages.values()];
 }
 
 function runUIMessageFromLiveEvent(event: RunFeedEvent): RunUIMessage | null {

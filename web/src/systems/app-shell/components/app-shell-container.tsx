@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement, type React
 import {
   useQueryClient,
   type MutationCacheNotifyEvent,
+  type QueryKey,
   type QueryCacheNotifyEvent,
 } from "@tanstack/react-query";
 
@@ -57,12 +58,20 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   }, [workspace.activeWorkspaceId]);
 
   useEffect(() => {
-    const handlePossibleStaleWorkspace = (error: unknown) => {
+    const workspaceIds = new Set(workspace.workspaces.map(entry => entry.id));
+    const handlePossibleStaleWorkspace = (error: unknown, sources: readonly unknown[]) => {
       if (!isStaleWorkspaceError(error)) {
         return;
       }
-      const staleWorkspaceId = selectedWorkspaceIdRef.current ?? activeWorkspaceIdRef.current;
-      setStaleSignal(staleWorkspaceId ?? "unknown");
+      const staleWorkspaceId = extractWorkspaceIdFromSources(sources, workspaceIds);
+      if (
+        !staleWorkspaceId ||
+        (staleWorkspaceId !== selectedWorkspaceIdRef.current &&
+          staleWorkspaceId !== activeWorkspaceIdRef.current)
+      ) {
+        return;
+      }
+      setStaleSignal(staleWorkspaceId);
       clearActiveWorkspaceSelection();
       setShowPicker(true);
     };
@@ -71,14 +80,17 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
       .getQueryCache()
       .subscribe((event: QueryCacheNotifyEvent) => {
         if (event.type === "updated") {
-          handlePossibleStaleWorkspace(event.query.state.error);
+          handlePossibleStaleWorkspace(event.query.state.error, [event.query.queryKey]);
         }
       });
     const unsubscribeMutations = queryClient
       .getMutationCache()
       .subscribe((event: MutationCacheNotifyEvent) => {
         if (event.type === "updated") {
-          handlePossibleStaleWorkspace(event.mutation.state.error);
+          handlePossibleStaleWorkspace(event.mutation.state.error, [
+            event.mutation.options.mutationKey,
+            event.mutation.state.variables,
+          ]);
         }
       });
 
@@ -86,7 +98,7 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
       unsubscribeQueries();
       unsubscribeMutations();
     };
-  }, [clearActiveWorkspaceSelection, queryClient]);
+  }, [clearActiveWorkspaceSelection, queryClient, workspace.workspaces]);
 
   const handleSwitchWorkspace = useCallback(() => {
     setShowPicker(true);
@@ -188,6 +200,44 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
       {children}
     </ActiveWorkspaceContext.Provider>
   );
+}
+
+function extractWorkspaceIdFromSources(
+  sources: readonly unknown[],
+  workspaceIds: ReadonlySet<string>
+): string | null {
+  for (const source of sources) {
+    const workspaceId = extractWorkspaceId(source, workspaceIds);
+    if (workspaceId) {
+      return workspaceId;
+    }
+  }
+  return null;
+}
+
+function extractWorkspaceId(source: unknown, workspaceIds: ReadonlySet<string>): string | null {
+  if (typeof source === "string") {
+    return workspaceIds.has(source) ? source : null;
+  }
+  if (Array.isArray(source)) {
+    for (const item of source as QueryKey) {
+      const workspaceId = extractWorkspaceId(item, workspaceIds);
+      if (workspaceId) {
+        return workspaceId;
+      }
+    }
+    return null;
+  }
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+  for (const value of Object.values(source)) {
+    const workspaceId = extractWorkspaceId(value, workspaceIds);
+    if (workspaceId) {
+      return workspaceId;
+    }
+  }
+  return null;
 }
 
 function formatWorkspaceSyncResult(result: WorkspaceSyncResult): string {

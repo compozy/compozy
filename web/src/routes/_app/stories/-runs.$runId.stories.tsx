@@ -103,7 +103,15 @@ export const Error: Story = {
             { status: 404 }
           )
         ),
-        http.get("/api/runs/:run_id/transcript", () => HttpResponse.json(runTranscriptFixture)),
+        http.get("/api/runs/:run_id/transcript", () =>
+          HttpResponse.json(
+            {
+              code: "run_transcript_missing",
+              message: "Run transcript missing",
+            },
+            { status: 404 }
+          )
+        ),
       ],
     }),
   },

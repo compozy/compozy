@@ -93,7 +93,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
       ) : null}
       {isReadOnly ? (
         <Alert data-testid="workflow-inventory-readonly" variant="warning">
-          Workspace path missing. Filesystem actions are read-only until the path is restored.
+          Filesystem actions are read-only for this workspace.
         </Alert>
       ) : null}
       {lastActionMessage ? (
