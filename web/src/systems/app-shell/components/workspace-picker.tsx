@@ -5,12 +5,12 @@ import { ChevronRight, RefreshCw } from "lucide-react";
 import {
   Alert,
   AppShell,
-  AppShellBrand,
   AppShellContent,
   AppShellHeader,
   AppShellMain,
   AppShellSidebar,
   Button,
+  Logo,
   SectionHeading,
   StatusBadge,
 } from "@compozy/ui";
@@ -39,7 +39,7 @@ export function WorkspacePicker({
   return (
     <AppShell>
       <AppShellSidebar>
-        <AppShellBrand badge={<StatusBadge tone="accent">daemon</StatusBadge>} title="Compozy" />
+        <Logo size="sm" variant="full" symbolSrc="/symbol.png" />
         <p className="text-sm leading-6 text-muted-foreground">
           The shell is single-workspace-per-tab. Pick one to attach and the rest of the navigation
           will unlock for this browser tab.

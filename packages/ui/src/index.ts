@@ -14,6 +14,8 @@ export { Markdown, type MarkdownProps } from "./components/markdown";
 
 export { Button, buttonVariants, type ButtonProps } from "./components/button";
 
+export { Logo, type LogoProps } from "./components/logo";
+
 export {
   StatusBadge,
   type StatusBadgeProps,

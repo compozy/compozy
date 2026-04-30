@@ -3,12 +3,12 @@ import { useId, useState, type ReactElement, type FormEvent } from "react";
 import {
   Alert,
   AppShell,
-  AppShellBrand,
   AppShellContent,
   AppShellHeader,
   AppShellMain,
   AppShellSidebar,
   Button,
+  Logo,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -54,7 +54,7 @@ export function WorkspaceOnboarding({
   return (
     <AppShell>
       <AppShellSidebar>
-        <AppShellBrand badge={<StatusBadge tone="accent">daemon</StatusBadge>} title="Compozy" />
+        <Logo size="sm" variant="full" symbolSrc="/symbol.png" />
         <p className="text-sm leading-6 text-muted-foreground">
           The operator console needs a workspace before it can show any dashboard, workflow, or run
           data. Register one and the shell will unlock the rest of the navigation.

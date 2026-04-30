@@ -12,13 +12,12 @@ import {
 
 import {
   AppShell,
-  AppShellBrand,
   AppShellContent,
   AppShellHeader,
   AppShellMain,
   AppShellNavSection,
   AppShellSidebar,
-  StatusBadge,
+  Logo,
   cn,
 } from "@compozy/ui";
 
@@ -94,7 +93,7 @@ export function AppShellLayout({
   return (
     <AppShell data-testid="app-shell-layout">
       <AppShellSidebar>
-        <AppShellBrand badge={<StatusBadge tone="accent">daemon</StatusBadge>} title="Compozy" />
+        <Logo size="sm" variant="full" symbolSrc="/symbol.png" />
 
         <div className="space-y-5">
           <AppShellNavSection title="Workspace">
