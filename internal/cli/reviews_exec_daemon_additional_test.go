@@ -496,95 +496,97 @@ func TestReviewsFixCommandAutoAttachStreamsWhenNonInteractive(t *testing.T) {
 }
 
 func TestReviewsWatchCommandBuildsDaemonRequest(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "tools-registry"), 0o755); err != nil {
-		t.Fatalf("mkdir workflow dir: %v", err)
-	}
-	withWorkingDir(t, workspaceRoot)
+	t.Run("Should build daemon request for watch command", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "tools-registry"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
 
-	client := &reviewExecCaptureClient{
-		stubDaemonCommandClient: &stubDaemonCommandClient{
-			health: apicore.DaemonHealth{Ready: true},
-			reviewWatchRun: apicore.Run{
-				RunID: "review-watch-001",
-				Mode:  "review_watch",
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewWatchRun: apicore.Run{
+					RunID: "review-watch-001",
+					Mode:  "review_watch",
+				},
 			},
-		},
-	}
-	installTestCLIReadyDaemonBootstrap(t, client)
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
 
-	output, err := executeCommandCombinedOutput(
-		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
-		nil,
-		"watch",
-		"tools-registry",
-		"--provider",
-		"coderabbit",
-		"--pr",
-		"85",
-		"--auto-push",
-		"--until-clean",
-		"--max-rounds",
-		"6",
-		"--poll-interval",
-		"15s",
-		"--review-timeout",
-		"10m",
-		"--quiet-period",
-		"5s",
-		"--push-remote",
-		"origin",
-		"--push-branch",
-		"feature",
-		"--concurrent",
-		"3",
-		"--batch-size",
-		"2",
-		"--include-resolved",
-		"--detach",
-	)
-	if err != nil {
-		t.Fatalf("execute reviews watch: %v\noutput:\n%s", err, output)
-	}
-	if !containsAll(output, "task run started: review-watch-001", "(mode=detach)") {
-		t.Fatalf("unexpected reviews watch output:\n%s", output)
-	}
-	if mustEvalSymlinksCLITest(t, client.startWatchWorkspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
-		t.Fatalf("watch workspace = %q, want %q", client.startWatchWorkspace, workspaceRoot)
-	}
-	if client.startWatchSlug != "tools-registry" {
-		t.Fatalf("watch slug = %q, want tools-registry", client.startWatchSlug)
-	}
-	req := client.startWatchReq
-	if req.Provider != "coderabbit" || req.PRRef != "85" || !req.AutoPush || !req.UntilClean ||
-		req.MaxRounds != 6 || req.PollInterval != "15s" || req.ReviewTimeout != "10m" ||
-		req.QuietPeriod != "5s" || req.PushRemote != "origin" || req.PushBranch != "feature" {
-		t.Fatalf("unexpected watch request: %#v", req)
-	}
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"tools-registry",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+			"--auto-push",
+			"--until-clean",
+			"--max-rounds",
+			"6",
+			"--poll-interval",
+			"15s",
+			"--review-timeout",
+			"10m",
+			"--quiet-period",
+			"5s",
+			"--push-remote",
+			"origin",
+			"--push-branch",
+			"feature",
+			"--concurrent",
+			"3",
+			"--batch-size",
+			"2",
+			"--include-resolved",
+			"--detach",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews watch: %v\noutput:\n%s", err, output)
+		}
+		if !containsAll(output, "task run started: review-watch-001", "(mode=detach)") {
+			t.Fatalf("unexpected reviews watch output:\n%s", output)
+		}
+		if mustEvalSymlinksCLITest(t, client.startWatchWorkspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+			t.Fatalf("watch workspace = %q, want %q", client.startWatchWorkspace, workspaceRoot)
+		}
+		if client.startWatchSlug != "tools-registry" {
+			t.Fatalf("watch slug = %q, want tools-registry", client.startWatchSlug)
+		}
+		req := client.startWatchReq
+		if req.Provider != "coderabbit" || req.PRRef != "85" || !req.AutoPush || !req.UntilClean ||
+			req.MaxRounds != 6 || req.PollInterval != "15s" || req.ReviewTimeout != "10m" ||
+			req.QuietPeriod != "5s" || req.PushRemote != "origin" || req.PushBranch != "feature" {
+			t.Fatalf("unexpected watch request: %#v", req)
+		}
 
-	var overrides daemonRuntimeOverrides
-	if err := json.Unmarshal(req.RuntimeOverrides, &overrides); err != nil {
-		t.Fatalf("decode runtime overrides: %v", err)
-	}
-	if overrides.AutoCommit == nil || !*overrides.AutoCommit {
-		t.Fatalf("expected auto-push to force auto_commit=true, got %#v", overrides)
-	}
+		var overrides daemonRuntimeOverrides
+		if err := json.Unmarshal(req.RuntimeOverrides, &overrides); err != nil {
+			t.Fatalf("decode runtime overrides: %v", err)
+		}
+		if overrides.AutoCommit == nil || !*overrides.AutoCommit {
+			t.Fatalf("expected auto-push to force auto_commit=true, got %#v", overrides)
+		}
 
-	var batching struct {
-		BatchSize       int  `json:"batch_size"`
-		Concurrent      int  `json:"concurrent"`
-		IncludeResolved bool `json:"include_resolved"`
-	}
-	if err := json.Unmarshal(req.Batching, &batching); err != nil {
-		t.Fatalf("decode batching overrides: %v", err)
-	}
-	if batching.BatchSize != 2 || batching.Concurrent != 3 || !batching.IncludeResolved {
-		t.Fatalf("unexpected batching overrides: %#v", batching)
-	}
+		var batching struct {
+			BatchSize       int  `json:"batch_size"`
+			Concurrent      int  `json:"concurrent"`
+			IncludeResolved bool `json:"include_resolved"`
+		}
+		if err := json.Unmarshal(req.Batching, &batching); err != nil {
+			t.Fatalf("decode batching overrides: %v", err)
+		}
+		if batching.BatchSize != 2 || batching.Concurrent != 3 || !batching.IncludeResolved {
+			t.Fatalf("unexpected batching overrides: %#v", batching)
+		}
+	})
 }
 
 func TestReviewsWatchCommandAppliesWatchConfigAndRejectsAutoCommitContradiction(t *testing.T) {
-	t.Run("config auto-push forces auto-commit override", func(t *testing.T) {
+	t.Run("Should force auto-commit override when config enables auto-push", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
 			t.Fatalf("mkdir workflow dir: %v", err)
@@ -654,7 +656,7 @@ func TestReviewsWatchCommandAppliesWatchConfigAndRejectsAutoCommitContradiction(
 		}
 	})
 
-	t.Run("explicit auto-commit false fails before daemon bootstrap", func(t *testing.T) {
+	t.Run("Should reject explicit auto-commit false before daemon bootstrap", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
 			t.Fatalf("mkdir workflow dir: %v", err)
@@ -694,7 +696,7 @@ func TestReviewsWatchCommandAppliesWatchConfigAndRejectsAutoCommitContradiction(
 }
 
 func TestReviewsWatchCommandObservationModes(t *testing.T) {
-	t.Run("stream attach reuses daemon run watch output", func(t *testing.T) {
+	t.Run("Should reuse daemon run watch output for stream attach", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
 			t.Fatalf("mkdir workflow dir: %v", err)
@@ -745,14 +747,14 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 		}
 	})
 
-	t.Run("json and raw-json include watch events with parent run metadata", func(t *testing.T) {
+	t.Run("Should include watch events with parent run metadata in json formats", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
 			format     string
 			wantRawKey string
 		}{
-			{name: "json", format: "json", wantRawKey: "type"},
-			{name: "raw-json", format: "raw-json", wantRawKey: "kind"},
+			{name: "Should emit lean json watch events", format: "json", wantRawKey: "type"},
+			{name: "Should emit raw json watch events", format: "raw-json", wantRawKey: "kind"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				workspaceRoot := t.TempDir()
@@ -829,7 +831,7 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 		}
 	})
 
-	t.Run("json output rejects ui before daemon bootstrap", func(t *testing.T) {
+	t.Run("Should reject ui mode for json output before daemon bootstrap", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
 			t.Fatalf("mkdir workflow dir: %v", err)
@@ -868,7 +870,7 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 		}
 	})
 
-	t.Run("daemon start errors propagate", func(t *testing.T) {
+	t.Run("Should propagate daemon start errors", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
 			t.Fatalf("mkdir workflow dir: %v", err)
@@ -901,7 +903,7 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 		}
 	})
 
-	t.Run("missing workflow name exits before daemon bootstrap", func(t *testing.T) {
+	t.Run("Should reject missing workflow name before daemon bootstrap", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		withWorkingDir(t, workspaceRoot)
 

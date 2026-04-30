@@ -681,8 +681,9 @@ func TestCollectReviewRoundsRejectsInvalidReviewIssue(t *testing.T) {
 		}, "\n"),
 	)
 
-	if _, err := collectReviewRounds(workflowDir); err == nil {
-		t.Fatal("expected invalid review issue to fail")
+	if _, err := collectReviewRounds(workflowDir); err == nil ||
+		!strings.Contains(err.Error(), "review front matter missing status") {
+		t.Fatalf("collectReviewRounds() error = %v, want missing review status validation", err)
 	}
 }
 

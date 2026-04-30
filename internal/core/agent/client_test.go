@@ -65,6 +65,12 @@ func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
 		}
 
 		client := newTestClient(t, scenario)
+		t.Cleanup(func() {
+			if err := client.Close(); err != nil {
+				t.Errorf("close client: %v", err)
+			}
+		})
+
 		session, err := client.CreateSession(context.Background(), SessionRequest{
 			WorkingDir: workingDir,
 			Prompt:     []byte(scenario.ExpectedPrompt),
@@ -82,9 +88,6 @@ func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
 		}
 		if session.Err() != nil {
 			t.Fatalf("unexpected session error: %v", session.Err())
-		}
-		if err := client.Close(); err != nil {
-			t.Fatalf("close client: %v", err)
 		}
 	})
 }

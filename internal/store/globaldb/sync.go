@@ -250,7 +250,11 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 
 	workflows, err := g.ListWorkflows(ctx, ListWorkflowsOptions{WorkspaceID: trimmedWorkspaceID})
 	if err != nil {
-		return WorkflowPruneResult{}, err
+		return WorkflowPruneResult{}, fmt.Errorf(
+			"globaldb: list workflows for prune workspace %q: %w",
+			trimmedWorkspaceID,
+			err,
+		)
 	}
 
 	result := WorkflowPruneResult{

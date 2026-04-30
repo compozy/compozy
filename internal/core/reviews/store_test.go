@@ -260,12 +260,18 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 		createdAt time.Time
 	}{
 		{
-			name:      "empty pr field",
+			name:      "ShouldAllowEmptyPRField",
 			prLine:    "pr:",
 			createdAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
 		},
 		{
-			name:      "missing pr field",
+			name:      "ShouldAllowMissingPRField",
+			createdAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "ShouldPreservePopulatedPRField",
+			prLine:    `pr: "259"`,
+			wantPR:    "259",
 			createdAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
 		},
 	}
