@@ -15,6 +15,8 @@ type workspaceEventStream struct {
 	close  func() error
 }
 
+var _ apicore.WorkspaceEventStream = (*workspaceEventStream)(nil)
+
 func (m *RunManager) OpenWorkspaceStream(
 	ctx context.Context,
 	workspaceRef string,
@@ -31,7 +33,7 @@ func (m *RunManager) OpenWorkspaceStream(
 		events: make(chan apicore.WorkspaceStreamItem, workspaceStreamBufferSize),
 		errors: make(chan error, 1),
 	}
-	streamCtx, cancel := context.WithCancel(detachContext(ctx))
+	streamCtx, cancel := context.WithCancel(ctx)
 	stream.close = func() error {
 		cancel()
 		return nil

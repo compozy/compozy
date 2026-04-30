@@ -184,6 +184,7 @@ func checkWorkspacePath(rootDir string) workspacePathState {
 		}
 	}
 	return workspacePathState{
+		Missing: true,
 		Warning: fmt.Sprintf("%s: workspace path check failed: %v", rootDir, err),
 	}
 }

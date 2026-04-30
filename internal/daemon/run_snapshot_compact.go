@@ -126,9 +126,6 @@ func auditCompactSnapshotIntegrity(
 	if isTerminalRunStatus(run.Status) && !hasTerminalEvent(lastEvent) {
 		reasons = append(reasons, runIntegrityReasonTerminalEventMissing)
 	}
-	if stats.SessionUpdateCount > stats.TranscriptMessageCount {
-		reasons = append(reasons, runIntegrityReasonTranscriptGap)
-	}
 	if len(reasons) == 0 {
 		return rundb.RunIntegrityUpdate{}
 	}

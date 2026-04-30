@@ -314,7 +314,11 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
 	}
-	if strings.Contains(string(content), "\npr:") {
+	frontMatter, _, found := strings.Cut(string(content), "---\n\n")
+	if !found {
+		t.Fatalf("expected generated issue front matter, got:\n%s", content)
+	}
+	if strings.Contains(frontMatter, "\npr:") {
 		t.Fatalf("expected generated issue front matter to omit empty pr")
 	}
 	resolvedContent := strings.Replace(string(content), "status: pending", "status: resolved", 1)

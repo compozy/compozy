@@ -165,7 +165,7 @@ var migrations = []migration{
 			`CREATE TABLE IF NOT EXISTS artifact_bodies (
 				checksum   TEXT PRIMARY KEY,
 				body_text  TEXT NOT NULL,
-				size_bytes INTEGER NOT NULL,
+				size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
 				created_at TEXT NOT NULL
 			);`,
 		},

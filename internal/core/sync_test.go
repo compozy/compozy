@@ -503,6 +503,33 @@ func TestOpenWorkflowGlobalDBRegistersWorkspaceAndRejectsMissingTargets(t *testi
 	}
 }
 
+func TestSyncWithDBRejectsMismatchedWorkspaceAndTarget(t *testing.T) {
+	setSyncTestHome(t)
+
+	workspaceRootA := t.TempDir()
+	workspaceRootB := t.TempDir()
+	workflowDirA := filepath.Join(workspaceRootA, ".compozy", "tasks", "alpha")
+	workflowDirB := filepath.Join(workspaceRootB, ".compozy", "tasks", "beta")
+	writeSyncWorkflowFile(t, workflowDirA, "task_01.md", taskBody("pending", "Alpha"))
+	writeSyncWorkflowFile(t, workflowDirB, "task_01.md", taskBody("pending", "Beta"))
+
+	db, workspaceA, err := openWorkflowGlobalDB(context.Background(), workflowDirA)
+	if err != nil {
+		t.Fatalf("openWorkflowGlobalDB(workspace A): %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	_, err = SyncWithDB(context.Background(), db, workspaceA, SyncConfig{TasksDir: workflowDirB})
+	if err == nil {
+		t.Fatal("SyncWithDB() error = nil, want mismatched workspace error")
+	}
+	if !strings.Contains(err.Error(), "mismatched workspace and sync target") {
+		t.Fatalf("SyncWithDB() error = %v, want mismatch context", err)
+	}
+}
+
 func TestSyncWorkflowRejectsNilInputs(t *testing.T) {
 	if err := syncWorkflow(context.Background(), nil, "ws-1", t.TempDir(), &SyncResult{}); err == nil {
 		t.Fatal("expected nil sync database to fail")

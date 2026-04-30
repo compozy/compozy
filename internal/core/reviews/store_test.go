@@ -1,6 +1,8 @@
 package reviews
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,7 +116,7 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	if err := WriteRound(reviewDir, meta, items); err != nil {
 		t.Fatalf("write round: %v", err)
 	}
-	if _, err := os.Stat(MetaPath(reviewDir)); !os.IsNotExist(err) {
+	if _, err := os.Stat(MetaPath(reviewDir)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected WriteRound to avoid legacy _meta.md, got err=%v", err)
 	}
 
@@ -243,7 +245,7 @@ func TestSnapshotRoundMetaCountsResolvedIssuesWithoutWriting(t *testing.T) {
 		t.Fatalf("unexpected snapshot counts: %#v", meta)
 	}
 
-	if _, err := os.Stat(MetaPath(reviewDir)); !os.IsNotExist(err) {
+	if _, err := os.Stat(MetaPath(reviewDir)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected snapshot to avoid writing legacy _meta.md, got err=%v", err)
 	}
 }

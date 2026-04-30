@@ -163,7 +163,7 @@ func markdownDocumentFromSnapshot(
 		ID:        strings.TrimSpace(id),
 		Kind:      strings.TrimSpace(kind),
 		Title:     documentTitle(snapshot.RelativePath, kind, metadata, markdown),
-		UpdatedAt: snapshot.SourceMTime,
+		UpdatedAt: snapshot.SourceMTime.UTC(),
 		Markdown:  markdown,
 		Metadata:  cloneMetadataMap(metadata),
 	}

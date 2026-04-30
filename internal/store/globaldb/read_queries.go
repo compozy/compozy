@@ -119,7 +119,7 @@ func (g *GlobalDB) ListArtifactSnapshots(ctx context.Context, workflowID string)
 		        snapshots.checksum,
 		        snapshots.frontmatter_json,
 		        CASE
-		        	WHEN snapshots.body_storage_kind = ? THEN bodies.body_text
+		        	WHEN snapshots.body_storage_kind = ? THEN COALESCE(bodies.body_text, snapshots.body_text)
 		        	ELSE snapshots.body_text
 		        END AS body_text,
 		        snapshots.body_storage_kind,

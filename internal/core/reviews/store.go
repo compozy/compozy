@@ -231,13 +231,24 @@ func roundMetaFromIssueFrontMatter(entries []model.IssueEntry) (model.RoundMeta,
 	}
 
 	var meta *model.RoundMeta
+	missingRoundMeta := false
 	for _, entry := range entries {
 		next, ok, err := roundMetaFromReviewEntry(entry)
 		if err != nil {
 			return model.RoundMeta{}, err
 		}
 		if !ok {
+			if meta != nil {
+				return model.RoundMeta{}, fmt.Errorf("review issue %s has missing round metadata", entry.AbsPath)
+			}
+			missingRoundMeta = true
 			continue
+		}
+		if missingRoundMeta {
+			return model.RoundMeta{}, fmt.Errorf(
+				"review issue %s has round metadata mixed with metadata-less entries",
+				entry.AbsPath,
+			)
 		}
 		if meta == nil {
 			meta = &next

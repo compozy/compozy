@@ -426,7 +426,10 @@ func readLegacyRoundMetaForReviewIssue(path string) (model.RoundMeta, bool, erro
 }
 
 func reviewFileNeedsRoundMetadata(meta model.ReviewFileMeta) bool {
-	return strings.TrimSpace(meta.Provider) == "" || meta.Round <= 0 || meta.RoundCreatedAt.IsZero()
+	return strings.TrimSpace(meta.Provider) == "" ||
+		strings.TrimSpace(meta.PR) == "" ||
+		meta.Round <= 0 ||
+		meta.RoundCreatedAt.IsZero()
 }
 
 func formatReviewWithRoundMeta(meta model.ReviewFileMeta, roundMeta model.RoundMeta, body string) (string, error) {

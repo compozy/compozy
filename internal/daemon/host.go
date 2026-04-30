@@ -253,7 +253,7 @@ func loadHostPersistence(ctx context.Context, currentHost *Host) (_ hostPersiste
 		HomePaths: paths,
 	})
 	if err != nil {
-		return hostPersistence{}, err
+		return hostPersistence{}, fmt.Errorf("refresh registered workspaces: %w", err)
 	}
 	workspaceRefresh, err := refreshRegisteredWorkspaces(ctx, db, workspaceRefreshOptions{
 		SyncPresent: false,

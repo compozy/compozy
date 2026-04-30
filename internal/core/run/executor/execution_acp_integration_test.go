@@ -29,7 +29,7 @@ import (
 
 var captureExecuteStreamsMu sync.Mutex
 
-const runACPHelperHappyPathTimeout = 10 * time.Second
+const runACPHelperDefaultTimeout = 10 * time.Second
 
 func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -67,7 +67,7 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		runACPHelperHappyPathTimeout,
+		runACPHelperDefaultTimeout,
 		runJournal,
 		&aggregate,
 		&aggregateMu,
@@ -165,7 +165,7 @@ func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T
 		tmpDir,
 		false,
 		0,
-		runACPHelperHappyPathTimeout,
+		runACPHelperDefaultTimeout,
 		runJournal,
 		nil,
 		nil,
@@ -225,7 +225,7 @@ func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 			ReasoningEffort:        "medium",
 			MaxRetries:             1,
 			RetryBackoffMultiplier: 2,
-			Timeout:                runACPHelperHappyPathTimeout,
+			Timeout:                runACPHelperDefaultTimeout,
 		},
 		cwd: tmpDir,
 	}
@@ -286,7 +286,7 @@ func TestExecuteJobWithTimeoutACPFailedToolCallDoesNotFailJob(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		runACPHelperHappyPathTimeout,
+		runACPHelperDefaultTimeout,
 		nil,
 		nil,
 		nil,
@@ -594,7 +594,7 @@ func TestExecuteJobWithTimeoutACPSubcommandRuntimeUsesLaunchSpec(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		runACPHelperHappyPathTimeout,
+		runACPHelperDefaultTimeout,
 		nil,
 		nil,
 		nil,
@@ -632,7 +632,7 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 			ReasoningEffort:        "medium",
 			Concurrent:             2,
 			RetryBackoffMultiplier: 2,
-			Timeout:                runACPHelperHappyPathTimeout,
+			Timeout:                runACPHelperDefaultTimeout,
 		},
 		jobs:  jobs,
 		total: len(jobs),

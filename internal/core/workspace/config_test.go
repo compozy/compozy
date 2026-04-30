@@ -154,19 +154,23 @@ unknown = "value"
 func TestLoadConfigRejectsLegacyStartSection(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, `
+	t.Run("Should reject legacy start section", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
 [start]
 include_completed = true
 `)
 
-	_, _, err := LoadConfig(context.Background(), root)
-	if err == nil {
-		t.Fatal("expected legacy start section error")
-	}
-	if !strings.Contains(err.Error(), "workspace config section [start] was removed; use [tasks.run] instead") {
-		t.Fatalf("unexpected error: %v", err)
-	}
+		_, _, err := LoadConfig(context.Background(), root)
+		if err == nil {
+			t.Fatal("expected legacy start section error")
+		}
+		if !strings.Contains(err.Error(), "workspace config section [start] was removed; use [tasks.run] instead") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestLoadConfigRejectsInvalidTimeout(t *testing.T) {

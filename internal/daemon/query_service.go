@@ -760,7 +760,8 @@ func (s *queryService) listMemoryDocuments(
 		return refs, nil
 	}
 
-	if target.workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing {
+	if target.workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing &&
+		!workflowReadTargetUsesArchivedFS(target) {
 		return nil, nil
 	}
 
@@ -853,7 +854,8 @@ func (s *queryService) readWorkflowDocument(
 	} else if ok {
 		return doc, true, nil
 	}
-	if target.workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing {
+	if target.workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing &&
+		!workflowReadTargetUsesArchivedFS(target) {
 		return MarkdownDocument{}, false, nil
 	}
 
@@ -934,6 +936,16 @@ func (s *queryService) requireRunManager() error {
 
 func workflowRootDir(workspaceRoot string, workflowSlug string) string {
 	return model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+}
+
+func workflowReadTargetUsesArchivedFS(target workflowReadTarget) bool {
+	archiveRoot := filepath.Clean(model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(target.workspace.RootDir)))
+	rootDir := filepath.Clean(strings.TrimSpace(target.rootDir))
+	rel, err := filepath.Rel(archiveRoot, rootDir)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func readableWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) (string, error) {

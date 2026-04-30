@@ -61,7 +61,24 @@ func SyncWithDB(
 	if workspaceID == "" {
 		return result, errors.New("sync workspace id is required")
 	}
+	if !syncTargetBelongsToWorkspace(target, workspace.RootDir) {
+		return result, fmt.Errorf("mismatched workspace and sync target: %s is outside %s", target, workspace.RootDir)
+	}
 	return syncResolvedTarget(ctx, db, workspaceID, target, singleWorkflow, result)
+}
+
+func syncTargetBelongsToWorkspace(target string, workspaceRoot string) bool {
+	root := strings.TrimSpace(workspaceRoot)
+	if root == "" {
+		return false
+	}
+	tasksRoot := filepath.Clean(model.TasksBaseDirForWorkspace(root))
+	cleanTarget := filepath.Clean(strings.TrimSpace(target))
+	rel, err := filepath.Rel(tasksRoot, cleanTarget)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func syncResolvedTarget(

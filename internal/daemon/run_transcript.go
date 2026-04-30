@@ -134,17 +134,18 @@ func aggregateRunTranscriptSession(jobs []apicore.RunJobState) apicore.SessionVi
 			continue
 		}
 		session := job.Summary.Session
-		if session.Revision > result.Revision {
+		newerRevision := session.Revision > result.Revision
+		if newerRevision {
 			result.Revision = session.Revision
 		}
 		result.Plan.PendingCount += session.Plan.PendingCount
 		result.Plan.RunningCount += session.Plan.RunningCount
 		result.Plan.DoneCount += session.Plan.DoneCount
 		result.Plan.Entries = append(result.Plan.Entries, session.Plan.Entries...)
-		if result.Session.Status == "" {
+		if newerRevision || result.Session.Status == "" {
 			result.Session.Status = session.Session.Status
 		}
-		if result.Session.CurrentModeID == "" {
+		if newerRevision || result.Session.CurrentModeID == "" {
 			result.Session.CurrentModeID = session.Session.CurrentModeID
 		}
 		result.Session.AvailableCommands = append(
