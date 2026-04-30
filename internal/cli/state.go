@@ -34,6 +34,14 @@ type runtimeConfig struct {
 	concurrent                    int
 	batchSize                     int
 	attachMode                    string
+	untilClean                    bool
+	maxRounds                     int
+	autoPush                      bool
+	pushRemote                    string
+	pushBranch                    string
+	pollInterval                  string
+	reviewTimeout                 string
+	quietPeriod                   string
 	agentName                     string
 	ide                           string
 	model                         string
@@ -362,7 +370,7 @@ func (s *commandState) enableExecutableExtensions() bool {
 	}
 
 	switch s.kind {
-	case commandKindTasksRun, commandKindFixReviews:
+	case commandKindTasksRun, commandKindFixReviews, commandKindWatchReviews:
 		return true
 	case commandKindExec:
 		return s.extensionsEnabled
@@ -418,7 +426,7 @@ func (s *commandState) isWorkflowExecutionCommand() bool {
 		return false
 	}
 	switch s.kind {
-	case commandKindTasksRun, commandKindFixReviews:
+	case commandKindTasksRun, commandKindFixReviews, commandKindWatchReviews:
 		return true
 	default:
 		return false
@@ -432,7 +440,7 @@ func (s *commandState) hasConfiguredWorkflowTUI() bool {
 	switch s.kind {
 	case commandKindTasksRun:
 		return s.projectConfig.Tasks.Run.TUI != nil
-	case commandKindFixReviews:
+	case commandKindFixReviews, commandKindWatchReviews:
 		return s.projectConfig.FixReviews.TUI != nil
 	default:
 		return false

@@ -430,6 +430,7 @@ func writeSyncOutput(cmd *cobra.Command, format string, result apicore.SyncResul
 
 	const summaryFormat = "Sync target: %s\n" +
 		"Workflows scanned: %d\n" +
+		"Stale workflows pruned: %d\n" +
 		"Artifact snapshots upserted: %d\n" +
 		"Task items upserted: %d\n" +
 		"Review rounds upserted: %d\n" +
@@ -441,6 +442,7 @@ func writeSyncOutput(cmd *cobra.Command, format string, result apicore.SyncResul
 		summaryFormat,
 		result.Target,
 		result.WorkflowsScanned,
+		result.WorkflowsPruned,
 		result.SnapshotsUpserted,
 		result.TaskItemsUpserted,
 		result.ReviewRoundsUpserted,

@@ -1,5 +1,7 @@
 package extension
 
+import "encoding/json"
+
 // PlanPreDiscoverPayload is delivered for plan.pre_discover.
 type PlanPreDiscoverPayload struct {
 	RunID        string        `json:"run_id"`
@@ -192,6 +194,75 @@ type ReviewPreResolvePayload struct {
 	Outcome FixOutcome `json:"outcome"`
 }
 
+// ReviewWatchPreRoundPayload is delivered for review.watch_pre_round.
+type ReviewWatchPreRoundPayload struct {
+	RunID            string          `json:"run_id"`
+	Provider         string          `json:"provider"`
+	PR               string          `json:"pr"`
+	Workflow         string          `json:"workflow"`
+	Round            int             `json:"round"`
+	HeadSHA          string          `json:"head_sha"`
+	ReviewID         string          `json:"review_id,omitempty"`
+	ReviewState      string          `json:"review_state,omitempty"`
+	Status           string          `json:"status,omitempty"`
+	Nitpicks         bool            `json:"nitpicks"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+	Batching         json.RawMessage `json:"batching,omitempty"`
+	Continue         bool            `json:"continue"`
+	StopReason       string          `json:"stop_reason,omitempty"`
+}
+
+// ReviewWatchPostRoundPayload is delivered for review.watch_post_round.
+type ReviewWatchPostRoundPayload struct {
+	RunID      string `json:"run_id"`
+	Provider   string `json:"provider"`
+	PR         string `json:"pr"`
+	Workflow   string `json:"workflow"`
+	Round      int    `json:"round"`
+	HeadSHA    string `json:"head_sha,omitempty"`
+	ChildRunID string `json:"child_run_id,omitempty"`
+	Status     string `json:"status,omitempty"`
+	Remote     string `json:"remote,omitempty"`
+	Branch     string `json:"branch,omitempty"`
+	Total      int    `json:"total,omitempty"`
+	Resolved   int    `json:"resolved,omitempty"`
+	Unresolved int    `json:"unresolved,omitempty"`
+	Pushed     bool   `json:"pushed,omitempty"`
+	StopReason string `json:"stop_reason,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// ReviewWatchPrePushPayload is delivered for review.watch_pre_push.
+type ReviewWatchPrePushPayload struct {
+	RunID      string `json:"run_id"`
+	Provider   string `json:"provider"`
+	PR         string `json:"pr"`
+	Workflow   string `json:"workflow"`
+	Round      int    `json:"round"`
+	HeadSHA    string `json:"head_sha"`
+	Remote     string `json:"remote"`
+	Branch     string `json:"branch"`
+	Push       bool   `json:"push"`
+	StopReason string `json:"stop_reason,omitempty"`
+}
+
+// ReviewWatchFinishedPayload is delivered for review.watch_finished.
+type ReviewWatchFinishedPayload struct {
+	RunID          string `json:"run_id"`
+	ChildRunID     string `json:"child_run_id,omitempty"`
+	Provider       string `json:"provider"`
+	PR             string `json:"pr"`
+	Workflow       string `json:"workflow"`
+	Round          int    `json:"round,omitempty"`
+	HeadSHA        string `json:"head_sha,omitempty"`
+	Status         string `json:"status"`
+	TerminalReason string `json:"terminal_reason,omitempty"`
+	Stopped        bool   `json:"stopped,omitempty"`
+	Clean          bool   `json:"clean,omitempty"`
+	MaxRounds      bool   `json:"max_rounds,omitempty"`
+	Error          string `json:"error,omitempty"`
+}
+
 // ArtifactPreWritePayload is delivered for artifact.pre_write.
 type ArtifactPreWritePayload struct {
 	RunID          string `json:"run_id"`
@@ -286,6 +357,23 @@ type FetchConfigPatch struct {
 type ResolveDecisionPatch struct {
 	Resolve *bool   `json:"resolve,omitempty"`
 	Message *string `json:"message,omitempty"`
+}
+
+// ReviewWatchPreRoundPatch controls one review-watch round before fetch/fix.
+type ReviewWatchPreRoundPatch struct {
+	Nitpicks         *bool            `json:"nitpicks,omitempty"`
+	RuntimeOverrides *json.RawMessage `json:"runtime_overrides,omitempty"`
+	Batching         *json.RawMessage `json:"batching,omitempty"`
+	Continue         *bool            `json:"continue,omitempty"`
+	StopReason       *string          `json:"stop_reason,omitempty"`
+}
+
+// ReviewWatchPrePushPatch controls one review-watch push attempt.
+type ReviewWatchPrePushPatch struct {
+	Remote     *string `json:"remote,omitempty"`
+	Branch     *string `json:"branch,omitempty"`
+	Push       *bool   `json:"push,omitempty"`
+	StopReason *string `json:"stop_reason,omitempty"`
 }
 
 // ArtifactWritePatch mutates an artifact write request.

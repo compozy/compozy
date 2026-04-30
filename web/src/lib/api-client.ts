@@ -59,7 +59,16 @@ export function isStaleWorkspaceError(error: unknown): boolean {
 export function apiErrorMessage(error: unknown, fallback: string): string {
   const transport = toTransportError(error);
   const candidate = transport?.message?.trim();
-  return candidate && candidate.length > 0 ? candidate : fallback;
+  if (candidate && candidate.length > 0) {
+    return candidate;
+  }
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (message.length > 0) {
+      return message;
+    }
+  }
+  return fallback;
 }
 
 export function requireData<T>(

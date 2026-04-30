@@ -16,6 +16,7 @@ type ProjectConfig struct {
 	Tasks        TasksConfig        `toml:"tasks"`
 	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
 	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
+	WatchReviews WatchReviewsConfig `toml:"watch_reviews"`
 	Exec         ExecConfig         `toml:"exec"`
 	Runs         RunsConfig         `toml:"runs"`
 	Sound        SoundConfig        `toml:"sound"`
@@ -60,6 +61,17 @@ type FixReviewsConfig struct {
 type FetchReviewsConfig struct {
 	Provider *string `toml:"provider"`
 	Nitpicks *bool   `toml:"nitpicks"`
+}
+
+type WatchReviewsConfig struct {
+	MaxRounds     *int    `toml:"max_rounds"`
+	PollInterval  *string `toml:"poll_interval"`
+	ReviewTimeout *string `toml:"review_timeout"`
+	QuietPeriod   *string `toml:"quiet_period"`
+	AutoPush      *bool   `toml:"auto_push"`
+	UntilClean    *bool   `toml:"until_clean"`
+	PushRemote    *string `toml:"push_remote"`
+	PushBranch    *string `toml:"push_branch"`
 }
 
 type ExecConfig struct {

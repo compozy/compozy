@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
-func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
+func TestReadLegacyRoundMetaAllowsOptionalPR(t *testing.T) {
 	t.Parallel()
 
 	createdAt := time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC)
@@ -66,9 +66,9 @@ func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
 				t.Fatalf("write meta: %v", err)
 			}
 
-			meta, err := ReadRoundMeta(reviewDir)
+			meta, err := ReadLegacyRoundMeta(reviewDir)
 			if err != nil {
-				t.Fatalf("read round meta: %v", err)
+				t.Fatalf("read legacy round meta: %v", err)
 			}
 			if meta.Provider != "coderabbit" {
 				t.Fatalf("unexpected provider: %q", meta.Provider)
@@ -82,7 +82,7 @@ func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
 			if !meta.CreatedAt.Equal(createdAt) {
 				t.Fatalf("unexpected created_at: %s", meta.CreatedAt.Format(time.RFC3339))
 			}
-			if meta.Total != 0 || meta.Resolved != 0 || meta.Unresolved != 0 {
+			if meta.Total != 1 || meta.Resolved != 0 || meta.Unresolved != 1 {
 				t.Fatalf("unexpected counts: %#v", meta)
 			}
 		})
@@ -254,41 +254,25 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		content string
+		name      string
+		prLine    string
+		wantPR    string
+		createdAt time.Time
 	}{
 		{
-			name: "empty pr field",
-			content: strings.Join([]string{
-				"---",
-				"provider: coderabbit",
-				"pr:",
-				"round: 1",
-				"created_at: 2026-03-28T10:00:00Z",
-				"---",
-				"",
-				"## Summary",
-				"- Total: 0",
-				"- Resolved: 0",
-				"- Unresolved: 0",
-				"",
-			}, "\n"),
+			name:      "ShouldAllowEmptyPRField",
+			prLine:    "pr:",
+			createdAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "missing pr field",
-			content: strings.Join([]string{
-				"---",
-				"provider: coderabbit",
-				"round: 1",
-				"created_at: 2026-03-28T10:00:00Z",
-				"---",
-				"",
-				"## Summary",
-				"- Total: 0",
-				"- Resolved: 0",
-				"- Unresolved: 0",
-				"",
-			}, "\n"),
+			name:      "ShouldAllowMissingPRField",
+			createdAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+		},
+		{
+			name:      "ShouldPreservePopulatedPRField",
+			prLine:    `pr: "259"`,
+			wantPR:    "259",
+			createdAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -298,39 +282,16 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 			t.Parallel()
 
 			reviewDir := t.TempDir()
-			if err := os.WriteFile(MetaPath(reviewDir), []byte(tc.content), 0o600); err != nil {
-				t.Fatalf("write meta: %v", err)
-			}
 			if err := os.WriteFile(
 				filepath.Join(reviewDir, "issue_001.md"),
-				[]byte(strings.Join([]string{
-					"---",
-					"status: resolved",
-					"file: internal/app/service.go",
-					"line: 42",
-					"author: review-bot",
-					"---",
-					"",
-					"# Issue 001: Example",
-					"",
-				}, "\n")),
+				[]byte(reviewIssueContentWithRound("resolved", tc.prLine, tc.createdAt)),
 				0o600,
 			); err != nil {
 				t.Fatalf("write issue_001.md: %v", err)
 			}
 			if err := os.WriteFile(
 				filepath.Join(reviewDir, "issue_002.md"),
-				[]byte(strings.Join([]string{
-					"---",
-					"status: pending",
-					"file: internal/app/service.go",
-					"line: 43",
-					"author: review-bot",
-					"---",
-					"",
-					"# Issue 002: Example",
-					"",
-				}, "\n")),
+				[]byte(reviewIssueContentWithRound("pending", tc.prLine, tc.createdAt)),
 				0o600,
 			); err != nil {
 				t.Fatalf("write issue_002.md: %v", err)
@@ -340,8 +301,8 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 			if err != nil {
 				t.Fatalf("refresh round meta: %v", err)
 			}
-			if meta.PR != "" {
-				t.Fatalf("expected empty pr, got %q", meta.PR)
+			if meta.PR != tc.wantPR {
+				t.Fatalf("PR = %q, want %q", meta.PR, tc.wantPR)
 			}
 			if meta.Total != 2 || meta.Resolved != 1 || meta.Unresolved != 1 {
 				t.Fatalf("unexpected refreshed counts: %#v", meta)
@@ -351,14 +312,103 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read refreshed round meta: %v", err)
 			}
-			if reloaded.PR != "" {
-				t.Fatalf("expected empty pr after refresh, got %q", reloaded.PR)
+			if reloaded.PR != tc.wantPR {
+				t.Fatalf("reloaded PR = %q, want %q", reloaded.PR, tc.wantPR)
 			}
 			if reloaded.Total != 2 || reloaded.Resolved != 1 || reloaded.Unresolved != 1 {
 				t.Fatalf("unexpected persisted counts: %#v", reloaded)
 			}
 		})
 	}
+}
+
+func TestSnapshotRoundMetaDoesNotReadLegacyMetaFallback(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := t.TempDir()
+	if err := WriteRoundMeta(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("write legacy round meta: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(reviewDir, "issue_001.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"status: pending",
+			"file: internal/app/service.go",
+			"line: 42",
+			"author: review-bot",
+			"---",
+			"",
+			"# Issue 001: Example",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write issue_001.md: %v", err)
+	}
+
+	_, err := SnapshotRoundMeta(reviewDir)
+	if !errors.Is(err, errReviewRoundMetadataUnavailable) {
+		t.Fatalf("SnapshotRoundMeta() error = %v, want round metadata unavailable", err)
+	}
+}
+
+func TestSnapshotRoundMetaWrapsIssueFrontMatterExtractionErrors(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(reviewDir, "issue_001.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"provider: coderabbit",
+			"status: pending",
+			"file: internal/app/service.go",
+			"line: 42",
+			"author: review-bot",
+			"---",
+			"",
+			"# Issue 001: Example",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write issue_001.md: %v", err)
+	}
+
+	_, err := SnapshotRoundMeta(reviewDir)
+	if err == nil || !strings.Contains(err.Error(), "snapshot round meta from issue front matter") ||
+		!strings.Contains(err.Error(), "incomplete round metadata") {
+		t.Fatalf("SnapshotRoundMeta() error = %v, want wrapped front-matter extraction error", err)
+	}
+}
+
+func reviewIssueContentWithRound(status string, prLine string, createdAt time.Time) string {
+	lines := []string{
+		"---",
+		"provider: coderabbit",
+	}
+	if prLine != "" {
+		lines = append(lines, prLine)
+	}
+	lines = append(lines,
+		"round: 1",
+		"round_created_at: "+createdAt.Format(time.RFC3339),
+		"status: "+status,
+		"file: internal/app/service.go",
+		"line: 42",
+		"author: review-bot",
+		"---",
+		"",
+		"# Issue 001: Example",
+		"",
+	)
+	return strings.Join(lines, "\n")
 }
 
 func reviewIssueContent(status string) string {

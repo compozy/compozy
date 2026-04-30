@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -112,7 +113,7 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		t.Helper()
 
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})
-		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Transport task"))
 		initialRun := env.startTaskRun(t, "task-transport-seed-001", nil)
 		waitForRun(t, env.globalDB, initialRun.RunID, func(row globaldb.Run) bool {
 			return row.Status == runStatusCompleted
@@ -129,6 +130,18 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		if len(workflows) != 1 || workflows[0].Slug != env.workflowSlug {
 			t.Fatalf("unexpected workflows: %#v", workflows)
 		}
+		if workflows[0].TaskCounts == nil || workflows[0].TaskCounts.Total != 1 ||
+			workflows[0].TaskCounts.Pending != 1 {
+			t.Fatalf("unexpected workflow task counts: %#v", workflows[0].TaskCounts)
+		}
+		if workflows[0].CanStartRun == nil || !*workflows[0].CanStartRun ||
+			workflows[0].StartBlockReason != "" {
+			t.Fatalf("unexpected workflow start action: %#v", workflows[0])
+		}
+		if workflows[0].ArchiveEligible == nil || *workflows[0].ArchiveEligible ||
+			workflows[0].ArchiveReason != "task workflow not fully completed" {
+			t.Fatalf("unexpected workflow archive action: %#v", workflows[0])
+		}
 
 		workflow, err := service.GetWorkflow(context.Background(), env.workspaceRoot, env.workflowSlug)
 		if err != nil {
@@ -136,6 +149,85 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		}
 		if workflow.Slug != env.workflowSlug {
 			t.Fatalf("GetWorkflow().Slug = %q, want %q", workflow.Slug, env.workflowSlug)
+		}
+		if workflow.TaskCounts == nil || workflow.TaskCounts.Total != 1 || workflow.TaskCounts.Pending != 1 {
+			t.Fatalf("unexpected GetWorkflow() task counts: %#v", workflow.TaskCounts)
+		}
+		if workflow.CanStartRun == nil || !*workflow.CanStartRun || workflow.StartBlockReason != "" {
+			t.Fatalf("unexpected GetWorkflow() start action: %#v", workflow)
+		}
+		if workflow.ArchiveEligible == nil || *workflow.ArchiveEligible ||
+			workflow.ArchiveReason != "task workflow not fully completed" {
+			t.Fatalf("unexpected GetWorkflow() archive action: %#v", workflow)
+		}
+	})
+
+	t.Run("Should mark completed workflows as not startable", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
+		syncWorkflowForDaemonTest(t, env)
+
+		service := newTransportTaskService(env.globalDB, env.manager)
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		if len(workflows) != 1 || workflows[0].TaskCounts == nil {
+			t.Fatalf("unexpected workflows: %#v", workflows)
+		}
+		if workflows[0].TaskCounts.Total != 1 || workflows[0].TaskCounts.Completed != 1 ||
+			workflows[0].TaskCounts.Pending != 0 {
+			t.Fatalf("unexpected completed counts: %#v", workflows[0].TaskCounts)
+		}
+		if workflows[0].CanStartRun == nil || *workflows[0].CanStartRun {
+			t.Fatalf("CanStartRun = %#v, want false", workflows[0].CanStartRun)
+		}
+		if workflows[0].StartBlockReason != "no pending tasks" {
+			t.Fatalf("StartBlockReason = %q, want no pending tasks", workflows[0].StartBlockReason)
+		}
+		if workflows[0].ArchiveEligible == nil || !*workflows[0].ArchiveEligible ||
+			workflows[0].ArchiveReason != "" {
+			t.Fatalf("unexpected completed archive action: %#v", workflows[0])
+		}
+	})
+
+	t.Run("Should expose archive eligibility for review-only workflows", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		resolvedSlug := "review-only-resolved"
+		pendingSlug := "review-only-pending"
+		env.writeWorkflowFile(
+			t,
+			resolvedSlug,
+			filepath.Join("reviews-001", "issue_001.md"),
+			daemonReviewIssueBody("resolved", "medium"),
+		)
+		env.writeWorkflowFile(
+			t,
+			pendingSlug,
+			filepath.Join("reviews-001", "issue_001.md"),
+			daemonReviewIssueBody("pending", "high"),
+		)
+		syncNamedWorkflowForDaemonTest(t, env, resolvedSlug)
+		syncNamedWorkflowForDaemonTest(t, env, pendingSlug)
+
+		service := newTransportTaskService(env.globalDB, env.manager)
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		bySlug := make(map[string]apicore.WorkflowSummary, len(workflows))
+		for _, workflow := range workflows {
+			bySlug[workflow.Slug] = workflow
+		}
+		resolved := bySlug[resolvedSlug]
+		if resolved.ArchiveEligible == nil || !*resolved.ArchiveEligible ||
+			resolved.ArchiveReason != "" {
+			t.Fatalf("unexpected resolved review-only archive action: %#v", resolved)
+		}
+		pending := bySlug[pendingSlug]
+		if pending.ArchiveEligible == nil || *pending.ArchiveEligible ||
+			pending.ArchiveReason != "review rounds not fully resolved" {
+			t.Fatalf("unexpected pending review-only archive action: %#v", pending)
 		}
 	})
 
@@ -168,6 +260,8 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 
 	t.Run("Should archive workflows and surface archived reads", func(t *testing.T) {
 		env, service := newService(t)
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
+		syncWorkflowForDaemonTest(t, env)
 		archiveResult, err := service.Archive(context.Background(), env.workspaceRoot, env.workflowSlug)
 		if err != nil {
 			t.Fatalf("Archive() error = %v", err)
@@ -219,6 +313,27 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 	})
 }
 
+func syncWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv) {
+	t.Helper()
+
+	syncNamedWorkflowForDaemonTest(t, env, env.workflowSlug)
+}
+
+func syncNamedWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv, slug string) {
+	t.Helper()
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		WorkspaceRoot: workspace.RootDir,
+		Name:          slug,
+	}); err != nil {
+		t.Fatalf("SyncWithDB() error = %v", err)
+	}
+}
+
 func TestTransportSyncResult_ShouldMapStructuredFields(t *testing.T) {
 	t.Parallel()
 
@@ -229,23 +344,27 @@ func TestTransportSyncResult_ShouldMapStructuredFields(t *testing.T) {
 		result := transportSyncResult("ws-123", "demo", &syncedAt, &corepkg.SyncResult{
 			Target:                 "/tmp/demo",
 			WorkflowsScanned:       2,
-			SnapshotsUpserted:      3,
-			TaskItemsUpserted:      4,
-			ReviewRoundsUpserted:   5,
-			ReviewIssuesUpserted:   6,
-			CheckpointsUpdated:     7,
-			LegacyArtifactsRemoved: 8,
+			WorkflowsPruned:        3,
+			SnapshotsUpserted:      4,
+			TaskItemsUpserted:      5,
+			ReviewRoundsUpserted:   6,
+			ReviewIssuesUpserted:   7,
+			CheckpointsUpdated:     8,
+			LegacyArtifactsRemoved: 9,
 			SyncedPaths:            []string{"a", "b"},
+			PrunedWorkflows:        []string{"stale"},
 			Warnings:               []string{"warn"},
 		})
 
 		if result.WorkspaceID != "ws-123" || result.WorkflowSlug != "demo" {
 			t.Fatalf("unexpected sync identity payload: %#v", result)
 		}
-		if result.TaskItemsUpserted != 4 || result.ReviewIssuesUpserted != 6 || result.LegacyArtifactsRemoved != 8 {
+		if result.WorkflowsPruned != 3 || result.TaskItemsUpserted != 5 ||
+			result.ReviewIssuesUpserted != 7 || result.LegacyArtifactsRemoved != 9 {
 			t.Fatalf("unexpected sync counts: %#v", result)
 		}
-		if len(result.SyncedPaths) != 2 || len(result.Warnings) != 1 {
+		if len(result.SyncedPaths) != 2 || len(result.PrunedWorkflows) != 1 ||
+			result.PrunedWorkflows[0] != "stale" || len(result.Warnings) != 1 {
 			t.Fatalf("unexpected sync slices: %#v", result)
 		}
 	})

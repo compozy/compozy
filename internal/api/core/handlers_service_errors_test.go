@@ -301,6 +301,51 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
+			"Should return conflict when review watch is already active",
+			&core.HandlerConfig{Reviews: &errorReviewService{err: core.NewProblem(
+				http.StatusConflict,
+				"review_watch_already_active",
+				"review watch is already active",
+				nil,
+				nil,
+			)}},
+			http.MethodPost,
+			"/api/reviews/daemon/watch",
+			`{"workspace":"ws-1","provider":"coderabbit","pr_ref":"85"}`,
+			http.StatusConflict,
+			"review_watch_already_active",
+		},
+		{
+			"Should return unprocessable when watch request is invalid",
+			&core.HandlerConfig{Reviews: &errorReviewService{err: core.NewProblem(
+				http.StatusUnprocessableEntity,
+				"invalid_watch_request",
+				"auto_push requires auto_commit to be true",
+				nil,
+				nil,
+			)}},
+			http.MethodPost,
+			"/api/reviews/daemon/watch",
+			`{"workspace":"ws-1","provider":"coderabbit","pr_ref":"85","auto_push":true}`,
+			http.StatusUnprocessableEntity,
+			"invalid_watch_request",
+		},
+		{
+			"Should return service unavailable when review watch is unavailable",
+			&core.HandlerConfig{Reviews: &errorReviewService{err: core.NewProblem(
+				http.StatusServiceUnavailable,
+				"review_service_unavailable",
+				"review watch is not available",
+				nil,
+				nil,
+			)}},
+			http.MethodPost,
+			"/api/reviews/daemon/watch",
+			`{"workspace":"ws-1","provider":"coderabbit","pr_ref":"85"}`,
+			http.StatusServiceUnavailable,
+			"review_service_unavailable",
+		},
+		{
 			"runs list service error",
 			&core.HandlerConfig{Runs: &errorRunService{err: boom}},
 			http.MethodGet,
@@ -720,6 +765,10 @@ func (s *errorReviewService) ReviewDetail(
 }
 
 func (s *errorReviewService) StartRun(context.Context, string, string, int, core.ReviewRunRequest) (core.Run, error) {
+	return core.Run{}, s.err
+}
+
+func (s *errorReviewService) StartWatch(context.Context, string, string, core.ReviewWatchRequest) (core.Run, error) {
 	return core.Run{}, s.err
 }
 

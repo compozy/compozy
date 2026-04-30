@@ -52,6 +52,46 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 	}
 }
 
+func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should start agent process in provided working directory", func(t *testing.T) {
+		workingDir := t.TempDir()
+		scenario := helperScenario{
+			ExpectedProcessCWD: workingDir,
+			ExpectedCWD:        workingDir,
+			ExpectedPrompt:     "process cwd must match session workspace",
+			StopReason:         string(acp.StopReasonEndTurn),
+		}
+
+		client := newTestClient(t, scenario)
+		t.Cleanup(func() {
+			if err := client.Close(); err != nil {
+				t.Errorf("close client: %v", err)
+			}
+		})
+
+		session, err := client.CreateSession(context.Background(), SessionRequest{
+			WorkingDir: workingDir,
+			Prompt:     []byte(scenario.ExpectedPrompt),
+		})
+		if err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+
+		updates := collectSessionUpdates(t, session)
+		if len(updates) != 1 {
+			t.Fatalf("unexpected updates length: %d", len(updates))
+		}
+		if updates[0].Status != model.StatusCompleted {
+			t.Fatalf("unexpected final status: %q", updates[0].Status)
+		}
+		if session.Err() != nil {
+			t.Fatalf("unexpected session error: %v", session.Err())
+		}
+	})
+}
+
 func TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns(t *testing.T) {
 	t.Parallel()
 
@@ -1345,6 +1385,17 @@ func TestACPHelperProcess(_ *testing.T) {
 		fmt.Fprintf(os.Stderr, "unmarshal helper scenario: %v\n", err)
 		os.Exit(2)
 	}
+	if scenario.ExpectedProcessCWD != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "get helper cwd: %v\n", err)
+			os.Exit(2)
+		}
+		if canonicalTestPath(cwd) != canonicalTestPath(scenario.ExpectedProcessCWD) {
+			fmt.Fprintf(os.Stderr, "unexpected helper cwd %q, want %q\n", cwd, scenario.ExpectedProcessCWD)
+			os.Exit(2)
+		}
+	}
 
 	agent := &helperAgent{
 		scenario:  scenario,
@@ -1361,6 +1412,7 @@ func TestACPHelperProcess(_ *testing.T) {
 type helperScenario struct {
 	SessionID                     string              `json:"session_id,omitempty"`
 	ExpectedCWD                   string              `json:"expected_cwd,omitempty"`
+	ExpectedProcessCWD            string              `json:"expected_process_cwd,omitempty"`
 	ExpectedLoadSessionID         string              `json:"expected_load_session_id,omitempty"`
 	ExpectedNewSessionMCPServers  []acp.McpServer     `json:"expected_new_session_mcp_servers,omitempty"`
 	ExpectedLoadSessionMCPServers []acp.McpServer     `json:"expected_load_session_mcp_servers,omitempty"`
@@ -1620,6 +1672,15 @@ func collectSessionUpdates(t *testing.T, session Session) []model.SessionUpdate 
 	}
 
 	return updates
+}
+
+func canonicalTestPath(path string) string {
+	clean := filepath.Clean(path)
+	resolved, err := filepath.EvalSymlinks(clean)
+	if err != nil {
+		return clean
+	}
+	return filepath.Clean(resolved)
 }
 
 func flattenBlocks(updates []model.SessionUpdate) []model.ContentBlock {

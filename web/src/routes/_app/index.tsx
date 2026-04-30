@@ -6,7 +6,7 @@ import { Alert, SkeletonRow } from "@compozy/ui";
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { DashboardView, useDashboard } from "@/systems/dashboard";
-import { useSyncWorkflows } from "@/systems/workflows";
+import { formatWorkflowSyncResult, useSyncWorkflows } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/")({
   component: DashboardRoute,
@@ -24,9 +24,7 @@ function DashboardRoute(): ReactElement {
     setActionError(null);
     try {
       const result = await syncAll.mutateAsync({ workspaceId: activeWorkspace.id });
-      setActionMessage(
-        `Sync completed — ${result.workflows_scanned ?? 0} workflow${(result.workflows_scanned ?? 0) === 1 ? "" : "s"} scanned.`
-      );
+      setActionMessage(formatWorkflowSyncResult(result));
     } catch (error) {
       setActionError(apiErrorMessage(error, "Sync failed"));
     }

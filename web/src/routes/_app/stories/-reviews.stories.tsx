@@ -13,7 +13,7 @@ import {
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
     "routes/reviews",
-    "Review index stories covering success, loading, empty, partial issues failure, and full error states."
+    "Review index stories covering compact round cards, loading, empty, and full error states."
   ),
 };
 
@@ -54,32 +54,6 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {},
   parameters: appRouteParameters("/reviews"),
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const PartialIssuesError: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters("/reviews"),
-    ...storybookMswParameters({
-      dashboard: [
-        http.get("/api/ui/dashboard", () =>
-          HttpResponse.json({ dashboard: reviewsDashboardFixture })
-        ),
-      ],
-      reviews: [
-        http.get("/api/reviews/:slug/rounds/:round/issues", () =>
-          HttpResponse.json(
-            {
-              code: "review_issues_failed",
-              message: "Failed to load issues for alpha",
-            },
-            { status: 500 }
-          )
-        ),
-      ],
-    }),
-  },
   render: () => <StorybookWorkspaceSetup />,
 };
 

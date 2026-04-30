@@ -80,6 +80,7 @@ type ReviewService interface {
 	ListIssues(context.Context, string, string, int) ([]ReviewIssue, error)
 	ReviewDetail(context.Context, string, string, int, string) (ReviewDetailPayload, error)
 	StartRun(context.Context, string, string, int, ReviewRunRequest) (Run, error)
+	StartWatch(context.Context, string, string, ReviewWatchRequest) (Run, error)
 }
 
 // RunService exposes run snapshots, rich run detail, pagination, streaming, and cancellation.
@@ -228,17 +229,15 @@ type WorkflowOverviewPayload struct {
 }
 
 // WorkflowTaskCounts summarizes task progress for one workflow.
-type WorkflowTaskCounts struct {
-	Total     int `json:"total"`
-	Completed int `json:"completed"`
-	Pending   int `json:"pending"`
-}
+type WorkflowTaskCounts = contract.WorkflowTaskCounts
 
 type ReviewFetchRequest = contract.ReviewFetchRequest
 type ReviewFetchResult = contract.ReviewFetchResult
 type ReviewSummary = contract.ReviewSummary
 type ReviewRound = contract.ReviewRound
 type ReviewIssue = contract.ReviewIssue
+type ReviewWatchRequest = contract.ReviewWatchRequest
+type ReviewWatchResponse = contract.RunResponse
 
 // TaskBoardPayload captures the workflow task-board read model.
 type TaskBoardPayload struct {

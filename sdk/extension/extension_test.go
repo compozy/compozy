@@ -284,6 +284,159 @@ func TestOnReviewPostFetchReceivesIssuesAndReturnsIssuesPatch(t *testing.T) {
 	shutdownHarness(ctx, t, harness, errCh)
 }
 
+func TestOnReviewWatchHooksReceivePayloadsAndReturnPatches(t *testing.T) {
+	t.Parallel()
+
+	const name = "sdk-ext"
+	const version = "1.0.0"
+	seenPreRound := make(chan extension.ReviewWatchPreRoundPayload, 1)
+	seenFinished := make(chan extension.ReviewWatchFinishedPayload, 1)
+	ext := extension.New(name, version).
+		WithCapabilities(extension.CapabilityReviewMutate).
+		OnReviewWatchPreRound(func(
+			_ context.Context,
+			_ extension.HookContext,
+			payload extension.ReviewWatchPreRoundPayload,
+		) (extension.ReviewWatchPreRoundPatch, error) {
+			seenPreRound <- payload
+			updated := json.RawMessage(`{"auto_commit":true,"model":"gpt-5.5"}`)
+			return extension.ReviewWatchPreRoundPatch{
+				RuntimeOverrides: &updated,
+				Continue:         extension.Ptr(true),
+			}, nil
+		}).
+		OnReviewWatchPrePush(func(
+			_ context.Context,
+			_ extension.HookContext,
+			payload extension.ReviewWatchPrePushPayload,
+		) (extension.ReviewWatchPrePushPatch, error) {
+			return extension.ReviewWatchPrePushPatch{
+				Remote: extension.Ptr(payload.Remote + "-fork"),
+				Push:   extension.Ptr(true),
+			}, nil
+		}).
+		OnReviewWatchFinished(func(
+			_ context.Context,
+			_ extension.HookContext,
+			payload extension.ReviewWatchFinishedPayload,
+		) error {
+			seenFinished <- payload
+			return nil
+		})
+
+	harness, ctx, cancel, errCh := runHarnessedExtension(t, ext, exttesting.HarnessOptions{
+		GrantedCapabilities: []extension.Capability{extension.CapabilityReviewMutate},
+	})
+	defer cancel()
+
+	if _, err := harness.Initialize(ctx, extension.InitializeRequestIdentity{
+		Name:    name,
+		Version: version,
+		Source:  "workspace",
+	}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	preRoundResponse, err := harness.DispatchHook(
+		ctx,
+		"hook-watch-round-001",
+		extension.HookInfo{Name: "review.watch_pre_round", Event: extension.HookReviewWatchPreRound, Mutable: true},
+		extension.ReviewWatchPreRoundPayload{
+			RunID:            "run-watch",
+			Provider:         "coderabbit",
+			PR:               "123",
+			Workflow:         "demo",
+			Round:            2,
+			HeadSHA:          "head-1",
+			ReviewID:         "review-1",
+			ReviewState:      "COMMENTED",
+			Status:           "current_reviewed",
+			Nitpicks:         true,
+			RuntimeOverrides: json.RawMessage(`{"auto_commit":true}`),
+			Batching:         json.RawMessage(`{"batch_size":2}`),
+			Continue:         true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("DispatchHook(pre_round) error = %v", err)
+	}
+	var preRoundPatch extension.ReviewWatchPreRoundPatch
+	if err := json.Unmarshal(preRoundResponse.Patch, &preRoundPatch); err != nil {
+		t.Fatalf("unmarshal pre_round patch: %v", err)
+	}
+	if preRoundPatch.RuntimeOverrides == nil ||
+		string(*preRoundPatch.RuntimeOverrides) != `{"auto_commit":true,"model":"gpt-5.5"}` {
+		t.Fatalf("runtime override patch = %s", rawMessageValue(preRoundPatch.RuntimeOverrides))
+	}
+
+	prePushResponse, err := harness.DispatchHook(
+		ctx,
+		"hook-watch-push-001",
+		extension.HookInfo{Name: "review.watch_pre_push", Event: extension.HookReviewWatchPrePush, Mutable: true},
+		extension.ReviewWatchPrePushPayload{
+			RunID:    "run-watch",
+			Provider: "coderabbit",
+			PR:       "123",
+			Workflow: "demo",
+			Round:    2,
+			HeadSHA:  "head-2",
+			Remote:   "origin",
+			Branch:   "feature",
+			Push:     true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("DispatchHook(pre_push) error = %v", err)
+	}
+	var prePushPatch extension.ReviewWatchPrePushPatch
+	if err := json.Unmarshal(prePushResponse.Patch, &prePushPatch); err != nil {
+		t.Fatalf("unmarshal pre_push patch: %v", err)
+	}
+	if prePushPatch.Remote == nil || *prePushPatch.Remote != "origin-fork" {
+		t.Fatalf("pre_push remote patch = %#v, want origin-fork", prePushPatch.Remote)
+	}
+
+	if _, err := harness.DispatchHook(
+		ctx,
+		"hook-watch-finished-001",
+		extension.HookInfo{Name: "review.watch_finished", Event: extension.HookReviewWatchFinished, Mutable: false},
+		extension.ReviewWatchFinishedPayload{
+			RunID:          "run-watch",
+			ChildRunID:     "child-1",
+			Provider:       "coderabbit",
+			PR:             "123",
+			Workflow:       "demo",
+			Round:          2,
+			HeadSHA:        "head-2",
+			Status:         "completed",
+			TerminalReason: "review watch clean",
+			Clean:          true,
+		},
+	); err != nil {
+		t.Fatalf("DispatchHook(finished) error = %v", err)
+	}
+
+	select {
+	case payload := <-seenPreRound:
+		if payload.Provider != "coderabbit" || payload.PR != "123" || payload.Round != 2 ||
+			payload.HeadSHA != "head-1" || payload.RunID != "run-watch" || payload.Workflow != "demo" {
+			t.Fatalf("pre_round payload = %#v", payload)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for review.watch_pre_round payload")
+	}
+	select {
+	case payload := <-seenFinished:
+		if payload.TerminalReason != "review watch clean" || !payload.Clean || payload.ChildRunID != "child-1" {
+			t.Fatalf("finished payload = %#v", payload)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for review.watch_finished payload")
+	}
+
+	shutdownHarness(ctx, t, harness, errCh)
+}
+
 func TestOnEventFilterReceivesOnlyDeclaredKinds(t *testing.T) {
 	t.Parallel()
 
@@ -409,6 +562,13 @@ func runHarnessedExtension(
 	harness := exttesting.NewTestHarness(options)
 	errCh := harness.Run(ctx, ext)
 	return harness, ctx, cancel, errCh
+}
+
+func rawMessageValue(value *json.RawMessage) string {
+	if value == nil {
+		return "<nil>"
+	}
+	return string(*value)
 }
 
 func shutdownHarness(

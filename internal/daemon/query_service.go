@@ -144,7 +144,7 @@ func (s *queryService) WorkflowOverview(
 		latestReview = &summary
 	}
 
-	archiveReason := "workflow archived"
+	archiveReason := workflowArchiveReasonArchived
 	archiveEligible := false
 	if workflow.ArchivedAt == nil {
 		eligibility, eligibilityErr := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, workflow.Slug)
@@ -156,9 +156,13 @@ func (s *queryService) WorkflowOverview(
 	}
 
 	_ = taskItems
+	summary := transportWorkflowSummaryWithTaskCounts(workflow, counts)
+	summary.ArchiveEligible = &archiveEligible
+	summary.ArchiveReason = archiveReason
+
 	return WorkflowOverviewPayload{
 		Workspace:       transportWorkspace(workspace),
-		Workflow:        transportWorkflowSummary(workflow),
+		Workflow:        summary,
 		TaskCounts:      counts,
 		LatestReview:    latestReview,
 		RecentRuns:      recentRuns,
@@ -648,8 +652,13 @@ func (s *queryService) buildWorkflowCard(
 		}
 	}
 
+	summary := transportWorkflowSummaryWithTaskCounts(workflow, taskCounts)
+	if err := attachWorkflowArchiveEligibility(ctx, s.globalDB, workflow, &summary); err != nil {
+		return WorkflowCard{}, err
+	}
+
 	return WorkflowCard{
-		Workflow:         transportWorkflowSummary(workflow),
+		Workflow:         summary,
 		TaskTotal:        taskCounts.Total,
 		TaskCompleted:    taskCounts.Completed,
 		TaskPending:      taskCounts.Pending,

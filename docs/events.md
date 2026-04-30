@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id`         | `string`            | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq`            | `uint64`            | Monotonic sequence number within a run.                                |
 | `ts`             | `RFC3339 timestamp` | Event timestamp in UTC.                                                |
-| `kind`           | `string`            | One of the 41 public event kinds below.                                |
+| `kind`           | `string`            | One of the 51 public event kinds below.                                |
 | `payload`        | `object`            | Kind-specific payload from `pkg/compozy/events/kinds`.                 |
 
 ## Run Events
@@ -419,6 +419,142 @@ Payload type: `kinds.ReviewIssueResolvedPayload`
 - `provider_ref`
 - `provider_posted`
 - `posted_at`
+
+Review-watch events are emitted by the daemon-owned parent run created by `compozy reviews watch`. They are persisted
+in the parent run journal, streamed through the regular run stream APIs, and use `kinds.ReviewWatchPayload`.
+
+### `review.watch_started`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `run_id`
+- `head_sha`
+- `remote`
+- `branch`
+- `dirty`
+- `unpushed_commits`
+
+### `review.watch_waiting`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `run_id`
+- `head_sha`
+- `status`
+- `review_id`
+- `review_state`
+
+### `review.watch_round_fetched`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `head_sha`
+- `total`
+- `resolved`
+- `unresolved`
+
+### `review.watch_fix_started`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `child_run_id`
+- `head_sha`
+
+### `review.watch_fix_completed`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `child_run_id`
+- `head_sha`
+- `status`
+- `error`
+
+### `review.watch_push_started`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `head_sha`
+- `remote`
+- `branch`
+
+### `review.watch_push_completed`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `head_sha`
+- `remote`
+- `branch`
+
+### `review.watch_push_failed`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `head_sha`
+- `remote`
+- `branch`
+- `error`
+
+### `review.watch_clean`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `head_sha`
+- `review_id`
+- `review_state`
+- `status`
+
+### `review.watch_max_rounds`
+
+Payload type: `kinds.ReviewWatchPayload`
+
+- `provider`
+- `pr`
+- `workflow`
+- `round`
+- `run_id`
+- `head_sha`
+- `status`
 
 ## Provider Events
 

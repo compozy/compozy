@@ -51,6 +51,22 @@ type ReviewRunRequest struct {
 	Batching         json.RawMessage `json:"batching,omitempty"`
 }
 
+type ReviewWatchRequest struct {
+	Workspace        string          `json:"workspace"`
+	Provider         string          `json:"provider,omitempty"`
+	PRRef            string          `json:"pr_ref"`
+	UntilClean       bool            `json:"until_clean,omitempty"`
+	MaxRounds        int             `json:"max_rounds,omitempty"`
+	AutoPush         bool            `json:"auto_push,omitempty"`
+	PushRemote       string          `json:"push_remote,omitempty"`
+	PushBranch       string          `json:"push_branch,omitempty"`
+	PollInterval     string          `json:"poll_interval,omitempty"`
+	ReviewTimeout    string          `json:"review_timeout,omitempty"`
+	QuietPeriod      string          `json:"quiet_period,omitempty"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+	Batching         json.RawMessage `json:"batching,omitempty"`
+}
+
 type SyncRequest struct {
 	Workspace    string `json:"workspace,omitempty"`
 	Path         string `json:"path,omitempty"`
@@ -141,6 +157,7 @@ type WorkspaceSyncResult struct {
 	Removed              int      `json:"removed"`
 	Missing              int      `json:"missing"`
 	Synced               int      `json:"synced"`
+	WorkflowsPruned      int      `json:"workflows_pruned,omitempty"`
 	SnapshotsUpserted    int      `json:"snapshots_upserted"`
 	TaskItemsUpserted    int      `json:"task_items_upserted"`
 	ReviewRoundsUpserted int      `json:"review_rounds_upserted"`
@@ -149,11 +166,22 @@ type WorkspaceSyncResult struct {
 }
 
 type WorkflowSummary struct {
-	ID           string     `json:"id"`
-	WorkspaceID  string     `json:"workspace_id"`
-	Slug         string     `json:"slug"`
-	ArchivedAt   *time.Time `json:"archived_at,omitempty"`
-	LastSyncedAt *time.Time `json:"last_synced_at,omitempty"`
+	ID               string              `json:"id"`
+	WorkspaceID      string              `json:"workspace_id"`
+	Slug             string              `json:"slug"`
+	ArchivedAt       *time.Time          `json:"archived_at,omitempty"`
+	LastSyncedAt     *time.Time          `json:"last_synced_at,omitempty"`
+	TaskCounts       *WorkflowTaskCounts `json:"task_counts,omitempty"`
+	CanStartRun      *bool               `json:"can_start_run,omitempty"`
+	StartBlockReason string              `json:"start_block_reason,omitempty"`
+	ArchiveEligible  *bool               `json:"archive_eligible,omitempty"`
+	ArchiveReason    string              `json:"archive_reason,omitempty"`
+}
+
+type WorkflowTaskCounts struct {
+	Total     int `json:"total"`
+	Completed int `json:"completed"`
+	Pending   int `json:"pending"`
 }
 
 type TaskItem struct {
@@ -457,6 +485,7 @@ type SyncResult struct {
 	SyncedAt               *time.Time `json:"synced_at,omitempty"`
 	Target                 string     `json:"target,omitempty"`
 	WorkflowsScanned       int        `json:"workflows_scanned,omitempty"`
+	WorkflowsPruned        int        `json:"workflows_pruned,omitempty"`
 	SnapshotsUpserted      int        `json:"snapshots_upserted,omitempty"`
 	TaskItemsUpserted      int        `json:"task_items_upserted,omitempty"`
 	ReviewRoundsUpserted   int        `json:"review_rounds_upserted,omitempty"`
@@ -464,6 +493,7 @@ type SyncResult struct {
 	CheckpointsUpdated     int        `json:"checkpoints_updated,omitempty"`
 	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
 	SyncedPaths            []string   `json:"synced_paths,omitempty"`
+	PrunedWorkflows        []string   `json:"pruned_workflows,omitempty"`
 	Warnings               []string   `json:"warnings,omitempty"`
 }
 

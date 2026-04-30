@@ -336,6 +336,15 @@ func (c *inProcessDaemonCommandClient) StartReviewRun(
 	return c.manager.StartReviewRun(ctx, workspace, slug, round, req)
 }
 
+func (c *inProcessDaemonCommandClient) StartReviewWatch(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	req apicore.ReviewWatchRequest,
+) (apicore.Run, error) {
+	return c.manager.StartReviewWatch(ctx, workspace, slug, req)
+}
+
 func (c *inProcessDaemonCommandClient) StartExecRun(
 	ctx context.Context,
 	req apicore.ExecRequest,

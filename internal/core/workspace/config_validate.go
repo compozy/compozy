@@ -40,6 +40,9 @@ func (cfg ProjectConfig) validate(scope string) error {
 	if err := validateFetchReviews(scope, cfg.FetchReviews); err != nil {
 		return err
 	}
+	if err := validateWatchReviews(scope, cfg.Defaults, cfg.WatchReviews); err != nil {
+		return err
+	}
 	if err := validateExec(scope, cfg.Defaults, cfg.Exec); err != nil {
 		return err
 	}
@@ -143,6 +146,87 @@ func validateFetchReviews(scope string, cfg FetchReviewsConfig) error {
 	}
 	if _, err := provider.ResolveRegistry(providerdefaults.DefaultRegistry()).Get(name); err != nil {
 		return fmt.Errorf("%s: %w", configFieldName(scope, "fetch_reviews.provider"), err)
+	}
+	return nil
+}
+
+func validateWatchReviews(scope string, defaults DefaultsConfig, cfg WatchReviewsConfig) error {
+	if cfg.MaxRounds != nil && *cfg.MaxRounds < 0 {
+		return fmt.Errorf(
+			"%s must be zero or greater (got %d)",
+			configFieldName(scope, "watch_reviews.max_rounds"),
+			*cfg.MaxRounds,
+		)
+	}
+	if isEnabled(cfg.UntilClean, true) && cfg.MaxRounds != nil && *cfg.MaxRounds == 0 {
+		return fmt.Errorf(
+			"%s must be greater than zero when watch_reviews.until_clean is true",
+			configFieldName(scope, "watch_reviews.max_rounds"),
+		)
+	}
+	if err := validatePositiveDurationField(scope, "watch_reviews.poll_interval", cfg.PollInterval); err != nil {
+		return err
+	}
+	if err := validatePositiveDurationField(scope, "watch_reviews.review_timeout", cfg.ReviewTimeout); err != nil {
+		return err
+	}
+	if err := validatePositiveDurationField(scope, "watch_reviews.quiet_period", cfg.QuietPeriod); err != nil {
+		return err
+	}
+	if err := validateOptionalNonEmptyString(scope, "watch_reviews.push_remote", cfg.PushRemote); err != nil {
+		return err
+	}
+	if err := validateOptionalNonEmptyString(scope, "watch_reviews.push_branch", cfg.PushBranch); err != nil {
+		return err
+	}
+	if (cfg.PushRemote == nil) != (cfg.PushBranch == nil) {
+		return fmt.Errorf(
+			"%s and %s must be set together or both omitted",
+			configFieldName(scope, "watch_reviews.push_remote"),
+			configFieldName(scope, "watch_reviews.push_branch"),
+		)
+	}
+	if isEnabled(cfg.AutoPush, false) && !isEnabled(defaults.AutoCommit, false) {
+		return fmt.Errorf(
+			"%s requires %s to be true",
+			configFieldName(scope, "watch_reviews.auto_push"),
+			configFieldName(scope, "defaults.auto_commit"),
+		)
+	}
+	return nil
+}
+
+func isEnabled(value *bool, defaultValue bool) bool {
+	if value == nil {
+		return defaultValue
+	}
+	return *value
+}
+
+func validatePositiveDurationField(scope string, field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+	durationText := strings.TrimSpace(*value)
+	if durationText == "" {
+		return fmt.Errorf("%s cannot be empty", configFieldName(scope, field))
+	}
+	duration, err := time.ParseDuration(durationText)
+	if err != nil {
+		return fmt.Errorf("%s: %w", configFieldName(scope, field), err)
+	}
+	if duration <= 0 {
+		return fmt.Errorf("%s must be greater than zero (got %s)", configFieldName(scope, field), durationText)
+	}
+	return nil
+}
+
+func validateOptionalNonEmptyString(scope string, field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+	if strings.TrimSpace(*value) == "" {
+		return fmt.Errorf("%s cannot be empty", configFieldName(scope, field))
 	}
 	return nil
 }

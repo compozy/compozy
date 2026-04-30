@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { installFetchStub, matchPath } from "@/test/utils";
 
-import { getLatestReview, getReviewIssue, listReviewIssues, startReviewRun } from "./reviews-api";
+import {
+  getLatestReview,
+  getReviewIssue,
+  getReviewRound,
+  listReviewIssues,
+  startReviewRun,
+} from "./reviews-api";
 
 describe("reviews api adapter", () => {
   let restore: (() => void) | null = null;
@@ -34,6 +40,32 @@ describe("reviews api adapter", () => {
     const result = await getLatestReview({ workspaceId: "ws-1", slug: "alpha" });
     expect(result.round_number).toBe(2);
     expect(result.unresolved_count).toBe(3);
+    expect(stub.calls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
+  });
+
+  it("Should GET one review round with the workspace header", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2"),
+        status: 200,
+        body: {
+          round: {
+            id: "round-2",
+            workflow_slug: "alpha",
+            round_number: 2,
+            pr_ref: "PR-42",
+            provider: "coderabbit",
+            resolved_count: 1,
+            unresolved_count: 3,
+            updated_at: "2026-01-02T00:00:00Z",
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    const result = await getReviewRound({ workspaceId: "ws-1", slug: "alpha", round: 2 });
+    expect(result.round_number).toBe(2);
+    expect(result.workflow_slug).toBe("alpha");
     expect(stub.calls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
   });
 

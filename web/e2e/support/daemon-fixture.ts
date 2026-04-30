@@ -22,7 +22,14 @@ export interface DaemonUIEnvironment {
   seededReviewRunId: string;
 }
 
-export const PLAYWRIGHT_WORKFLOW_SLUGS = ["daemon", "daemon-web-ui"] as const;
+export const PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS = ["daemon", "daemon-web-ui"] as const;
+export const PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG = "playwright-run-seed";
+export const PLAYWRIGHT_START_WORKFLOW_SLUG = "playwright-start-run";
+export const PLAYWRIGHT_WORKFLOW_SLUGS = [
+  ...PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS,
+  PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG,
+  PLAYWRIGHT_START_WORKFLOW_SLUG,
+] as const;
 export const PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG = "archive-ready";
 
 export function resolvePlaywrightPaths(): PlaywrightPaths {

@@ -54,7 +54,7 @@ func (s *transportReviewService) Fetch(
 		return apicore.ReviewFetchResult{}, reviewTransportUnavailable("review fetch")
 	}
 
-	workspaceRow, workflowID, projectCfg, err := s.runManager.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, _, projectCfg, err := s.runManager.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
@@ -65,8 +65,30 @@ func (s *transportReviewService) Fetch(
 	}
 	defer cleanup()
 
+	fetchCfg := reviewFetchConfig(workspaceRow.RootDir, workflowSlug, projectCfg, req)
+
+	result, err := corepkg.FetchReviewsWithRegistryDirect(ctx, fetchCfg, registry)
+	if err != nil {
+		return apicore.ReviewFetchResult{}, err
+	}
+	roundRow, err := s.syncFetchedReviewRound(ctx, workspaceRow, workflowSlug, result)
+	if err != nil {
+		return apicore.ReviewFetchResult{}, err
+	}
+	return apicore.ReviewFetchResult{
+		Summary: transportReviewSummary(strings.TrimSpace(workflowSlug), roundRow),
+		Created: true,
+	}, nil
+}
+
+func reviewFetchConfig(
+	workspaceRoot string,
+	workflowSlug string,
+	projectCfg workspacecfg.ProjectConfig,
+	req apicore.ReviewFetchRequest,
+) corepkg.Config {
 	fetchCfg := corepkg.Config{
-		WorkspaceRoot: workspaceRow.RootDir,
+		WorkspaceRoot: workspaceRoot,
 		Name:          strings.TrimSpace(workflowSlug),
 		Provider:      resolveFetchProvider(projectCfg, req.Provider),
 		PR:            strings.TrimSpace(req.PRRef),
@@ -75,34 +97,84 @@ func (s *transportReviewService) Fetch(
 	if req.Round != nil {
 		fetchCfg.Round = *req.Round
 	}
+	return fetchCfg
+}
 
-	result, err := corepkg.FetchReviewsWithRegistryDirect(ctx, fetchCfg, registry)
-	if err != nil {
-		return apicore.ReviewFetchResult{}, err
-	}
-	syncResult, err := corepkg.SyncDirect(ctx, corepkg.SyncConfig{
+func (s *transportReviewService) syncFetchedReviewRound(
+	ctx context.Context,
+	workspaceRow globaldb.Workspace,
+	workflowSlug string,
+	result *corepkg.FetchResult,
+) (globaldb.ReviewRound, error) {
+	slug := strings.TrimSpace(workflowSlug)
+	syncResult, err := corepkg.SyncWithDB(ctx, s.globalDB, workspaceRow, corepkg.SyncConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
-		Name:          strings.TrimSpace(workflowSlug),
+		Name:          slug,
 	})
 	if err != nil {
-		return apicore.ReviewFetchResult{}, err
+		return globaldb.ReviewRound{}, reviewFetchPostWriteProblem(
+			"review_fetch_sync_failed",
+			"review issues were fetched, but catalog sync failed",
+			slug,
+			result.Round,
+			result.ReviewsDir,
+			err,
+		)
 	}
+
+	syncedWorkflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, slug)
+	if err != nil {
+		return globaldb.ReviewRound{}, reviewFetchPostWriteProblem(
+			"review_fetch_round_lookup_failed",
+			"review issues were fetched, but the synced workflow could not be reloaded",
+			slug,
+			result.Round,
+			result.ReviewsDir,
+			err,
+		)
+	}
+	syncedWorkflowID := syncedWorkflow.ID
 	s.runManager.publishWorkflowSyncWorkspaceEvent(
 		ctx,
 		workspaceRow.ID,
-		workflowID,
-		workflowSlug,
+		&syncedWorkflowID,
+		slug,
 		syncResult.SyncedPaths,
 	)
 
-	roundRow, err := s.globalDB.GetReviewRound(ctx, *workflowID, result.Round)
+	roundRow, err := s.globalDB.GetReviewRound(ctx, syncedWorkflow.ID, result.Round)
 	if err != nil {
-		return apicore.ReviewFetchResult{}, mapReviewLookupError(err)
+		return globaldb.ReviewRound{}, reviewFetchPostWriteProblem(
+			"review_fetch_round_lookup_failed",
+			"review issues were fetched, but the synced review round could not be loaded",
+			slug,
+			result.Round,
+			result.ReviewsDir,
+			err,
+		)
 	}
-	return apicore.ReviewFetchResult{
-		Summary: transportReviewSummary(strings.TrimSpace(workflowSlug), roundRow),
-		Created: true,
-	}, nil
+	return roundRow, nil
+}
+
+func reviewFetchPostWriteProblem(
+	code string,
+	message string,
+	workflowSlug string,
+	round int,
+	reviewsDir string,
+	err error,
+) error {
+	return apicore.NewProblem(
+		http.StatusInternalServerError,
+		code,
+		message,
+		map[string]any{
+			"workflow":    strings.TrimSpace(workflowSlug),
+			"round":       round,
+			"reviews_dir": strings.TrimSpace(reviewsDir),
+		},
+		err,
+	)
 }
 
 func (s *transportReviewService) GetLatest(
@@ -225,6 +297,18 @@ func (s *transportReviewService) StartRun(
 	return s.runManager.StartReviewRun(ctx, workspaceRef, workflowSlug, round, req)
 }
 
+func (s *transportReviewService) StartWatch(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+	req apicore.ReviewWatchRequest,
+) (apicore.Run, error) {
+	if s == nil || s.runManager == nil {
+		return apicore.Run{}, reviewTransportUnavailable("review watch")
+	}
+	return s.runManager.StartReviewWatch(ctx, workspaceRef, workflowSlug, req)
+}
+
 func (s *transportExecService) Start(ctx context.Context, req apicore.ExecRequest) (apicore.Run, error) {
 	if s == nil || s.runManager == nil {
 		return apicore.Run{}, execTransportUnavailable()
@@ -267,7 +351,7 @@ func buildWorkspaceReviewRegistry(
 	}
 
 	registry, err := provider.BuildOverlayRegistry(
-		provider.ResolveRegistry(providerdefaults.DefaultRegistry()),
+		provider.ResolveRegistry(providerdefaults.DefaultRegistryForWorkspace(workspaceRoot)),
 		entries,
 	)
 	if err != nil {

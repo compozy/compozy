@@ -14,6 +14,7 @@ import (
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/setup"
@@ -44,6 +45,10 @@ type reviewExecCaptureClient struct {
 	startReviewSlug      string
 	startReviewRound     int
 	startReviewReq       apicore.ReviewRunRequest
+
+	startWatchWorkspace string
+	startWatchSlug      string
+	startWatchReq       apicore.ReviewWatchRequest
 
 	startExecReq apicore.ExecRequest
 }
@@ -106,6 +111,18 @@ func (c *reviewExecCaptureClient) StartReviewRun(
 	c.startReviewRound = round
 	c.startReviewReq = req
 	return c.stubDaemonCommandClient.StartReviewRun(ctx, workspace, slug, round, req)
+}
+
+func (c *reviewExecCaptureClient) StartReviewWatch(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	req apicore.ReviewWatchRequest,
+) (apicore.Run, error) {
+	c.startWatchWorkspace = workspace
+	c.startWatchSlug = slug
+	c.startWatchReq = req
+	return c.stubDaemonCommandClient.StartReviewWatch(ctx, workspace, slug, req)
 }
 
 func (c *reviewExecCaptureClient) StartExecRun(ctx context.Context, req apicore.ExecRequest) (apicore.Run, error) {
@@ -476,6 +493,447 @@ func TestReviewsFixCommandAutoAttachStreamsWhenNonInteractive(t *testing.T) {
 	if !containsAll(output, "task run started: review-run-stream-007 (mode=stream)", "watching review-run-stream-007") {
 		t.Fatalf("unexpected reviews fix auto stream output:\n%s", output)
 	}
+}
+
+func TestReviewsWatchCommandBuildsDaemonRequest(t *testing.T) {
+	t.Run("Should build daemon request for watch command", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "tools-registry"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewWatchRun: apicore.Run{
+					RunID: "review-watch-001",
+					Mode:  "review_watch",
+				},
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"tools-registry",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+			"--auto-push",
+			"--until-clean",
+			"--max-rounds",
+			"6",
+			"--poll-interval",
+			"15s",
+			"--review-timeout",
+			"10m",
+			"--quiet-period",
+			"5s",
+			"--push-remote",
+			"origin",
+			"--push-branch",
+			"feature",
+			"--concurrent",
+			"3",
+			"--batch-size",
+			"2",
+			"--include-resolved",
+			"--detach",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews watch: %v\noutput:\n%s", err, output)
+		}
+		if !containsAll(output, "task run started: review-watch-001", "(mode=detach)") {
+			t.Fatalf("unexpected reviews watch output:\n%s", output)
+		}
+		if mustEvalSymlinksCLITest(t, client.startWatchWorkspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+			t.Fatalf("watch workspace = %q, want %q", client.startWatchWorkspace, workspaceRoot)
+		}
+		if client.startWatchSlug != "tools-registry" {
+			t.Fatalf("watch slug = %q, want tools-registry", client.startWatchSlug)
+		}
+		req := client.startWatchReq
+		if req.Provider != "coderabbit" || req.PRRef != "85" || !req.AutoPush || !req.UntilClean ||
+			req.MaxRounds != 6 || req.PollInterval != "15s" || req.ReviewTimeout != "10m" ||
+			req.QuietPeriod != "5s" || req.PushRemote != "origin" || req.PushBranch != "feature" {
+			t.Fatalf("unexpected watch request: %#v", req)
+		}
+
+		var overrides daemonRuntimeOverrides
+		if err := json.Unmarshal(req.RuntimeOverrides, &overrides); err != nil {
+			t.Fatalf("decode runtime overrides: %v", err)
+		}
+		if overrides.AutoCommit == nil || !*overrides.AutoCommit {
+			t.Fatalf("expected auto-push to force auto_commit=true, got %#v", overrides)
+		}
+
+		var batching struct {
+			BatchSize       int  `json:"batch_size"`
+			Concurrent      int  `json:"concurrent"`
+			IncludeResolved bool `json:"include_resolved"`
+		}
+		if err := json.Unmarshal(req.Batching, &batching); err != nil {
+			t.Fatalf("decode batching overrides: %v", err)
+		}
+		if batching.BatchSize != 2 || batching.Concurrent != 3 || !batching.IncludeResolved {
+			t.Fatalf("unexpected batching overrides: %#v", batching)
+		}
+	})
+}
+
+func TestReviewsWatchCommandAppliesWatchConfigAndRejectsAutoCommitContradiction(t *testing.T) {
+	t.Run("Should force auto-commit override when config enables auto-push", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		config := strings.Join([]string{
+			"[fetch_reviews]",
+			`provider = "coderabbit"`,
+			"",
+			"[defaults]",
+			"auto_commit = true",
+			"",
+			"[watch_reviews]",
+			"auto_push = true",
+			"until_clean = true",
+			"max_rounds = 4",
+			`poll_interval = "20s"`,
+			`review_timeout = "12m"`,
+			`quiet_period = "8s"`,
+			`push_remote = "upstream"`,
+			`push_branch = "feature/config"`,
+			"",
+		}, "\n")
+		if err := os.WriteFile(
+			filepath.Join(workspaceRoot, ".compozy", "config.toml"),
+			[]byte(config),
+			0o600,
+		); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewWatchRun: apicore.Run{
+					RunID: "review-watch-config",
+					Mode:  "review_watch",
+				},
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"demo",
+			"--pr",
+			"85",
+			"--detach",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews watch with config: %v\noutput:\n%s", err, output)
+		}
+		req := client.startWatchReq
+		if req.Provider != "coderabbit" || req.PRRef != "85" || !req.AutoPush || !req.UntilClean ||
+			req.MaxRounds != 4 || req.PollInterval != "20s" || req.ReviewTimeout != "12m" ||
+			req.QuietPeriod != "8s" || req.PushRemote != "upstream" || req.PushBranch != "feature/config" {
+			t.Fatalf("unexpected config-backed watch request: %#v", req)
+		}
+		var overrides daemonRuntimeOverrides
+		if err := json.Unmarshal(req.RuntimeOverrides, &overrides); err != nil {
+			t.Fatalf("decode runtime overrides: %v", err)
+		}
+		if overrides.AutoCommit == nil || !*overrides.AutoCommit {
+			t.Fatalf("expected config auto-push to force auto_commit=true, got %#v", overrides)
+		}
+	})
+
+	t.Run("Should reject explicit auto-commit false before daemon bootstrap", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		bootstrapCalled := false
+		installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+			resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+				bootstrapCalled = true
+				return compozyconfig.HomePaths{}, errors.New("daemon bootstrap should not run")
+			},
+		})
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"demo",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+			"--auto-push",
+			"--auto-commit=false",
+		)
+		if err == nil {
+			t.Fatalf("execute reviews watch error = nil, want invalid_watch_request\noutput:\n%s", output)
+		}
+		if bootstrapCalled {
+			t.Fatal("daemon bootstrap was called before rejecting invalid watch request")
+		}
+		if !strings.Contains(err.Error(), "invalid_watch_request") {
+			t.Fatalf("error = %v, want invalid_watch_request", err)
+		}
+	})
+}
+
+func TestReviewsWatchCommandObservationModes(t *testing.T) {
+	t.Run("Should reuse daemon run watch output for stream attach", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewWatchRun: apicore.Run{
+					RunID: "review-watch-stream",
+					Mode:  "review_watch",
+				},
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+
+		var watchedRunID string
+		installTestCLIRunObservers(
+			t,
+			nil,
+			func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+				watchedRunID = runID
+				_, _ = io.WriteString(dst, "watching "+runID+"\n")
+				return nil
+			},
+		)
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"demo",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+			"--stream",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews watch stream: %v\noutput:\n%s", err, output)
+		}
+		if watchedRunID != "review-watch-stream" {
+			t.Fatalf("watched run id = %q, want review-watch-stream", watchedRunID)
+		}
+		if !containsAll(output, "task run started: review-watch-stream (mode=stream)", "watching review-watch-stream") {
+			t.Fatalf("unexpected stream output:\n%s", output)
+		}
+	})
+
+	t.Run("Should include watch events with parent run metadata in json formats", func(t *testing.T) {
+		for _, tc := range []struct {
+			name       string
+			format     string
+			wantRawKey string
+		}{
+			{name: "Should emit lean json watch events", format: "json", wantRawKey: "type"},
+			{name: "Should emit raw json watch events", format: "raw-json", wantRawKey: "kind"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				workspaceRoot := t.TempDir()
+				if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+					t.Fatalf("mkdir workflow dir: %v", err)
+				}
+				withWorkingDir(t, workspaceRoot)
+
+				payload, err := json.Marshal(kinds.ReviewWatchPayload{
+					RunID:    "review-watch-json",
+					Provider: "coderabbit",
+					PR:       "85",
+					Workflow: "demo",
+				})
+				if err != nil {
+					t.Fatalf("marshal watch payload: %v", err)
+				}
+				stream := newStaticClientRunStream()
+				stream.items <- apiclient.RunStreamItem{Event: &eventspkg.Event{
+					SchemaVersion: eventspkg.SchemaVersion,
+					RunID:         "review-watch-json",
+					Seq:           1,
+					Kind:          eventspkg.EventKindReviewWatchStarted,
+					Timestamp:     time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC),
+					Payload:       payload,
+				}}
+				stream.items <- apiclient.RunStreamItem{Event: &eventspkg.Event{
+					SchemaVersion: eventspkg.SchemaVersion,
+					RunID:         "review-watch-json",
+					Seq:           2,
+					Kind:          eventspkg.EventKindRunCompleted,
+					Timestamp:     time.Date(2026, 4, 30, 12, 0, 1, 0, time.UTC),
+				}}
+				close(stream.items)
+
+				client := &reviewExecCaptureClient{
+					stubDaemonCommandClient: &stubDaemonCommandClient{
+						health: apicore.DaemonHealth{Ready: true},
+						reviewWatchRun: apicore.Run{
+							RunID: "review-watch-json",
+							Mode:  "review_watch",
+						},
+						stream: stream,
+					},
+				}
+				installTestCLIReadyDaemonBootstrap(t, client)
+
+				output, err := executeCommandCombinedOutput(
+					newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+					nil,
+					"watch",
+					"demo",
+					"--provider",
+					"coderabbit",
+					"--pr",
+					"85",
+					"--format",
+					tc.format,
+				)
+				if err != nil {
+					t.Fatalf("execute reviews watch %s: %v\noutput:\n%s", tc.format, err, output)
+				}
+				events := decodeExecJSONLEvents(t, output)
+				if len(events) < 2 {
+					t.Fatalf("expected at least 2 events, got %d\noutput:\n%s", len(events), output)
+				}
+				if events[0][tc.wantRawKey] != string(eventspkg.EventKindReviewWatchStarted) {
+					t.Fatalf("first event = %#v, want watch started", events[0])
+				}
+				if events[0]["run_id"] != "review-watch-json" {
+					t.Fatalf("first event run_id = %#v, want review-watch-json", events[0]["run_id"])
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject ui mode for json output before daemon bootstrap", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		bootstrapCalled := false
+		installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+			resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+				bootstrapCalled = true
+				return compozyconfig.HomePaths{}, errors.New("daemon bootstrap should not run")
+			},
+		})
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"demo",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+			"--format",
+			"json",
+			"--ui",
+		)
+		if err == nil {
+			t.Fatalf("execute reviews watch error = nil, want ui/json conflict\noutput:\n%s", output)
+		}
+		if bootstrapCalled {
+			t.Fatal("daemon bootstrap was called before rejecting incompatible output mode")
+		}
+		if !strings.Contains(err.Error(), "ui mode is not supported with json or raw-json output") {
+			t.Fatalf("error = %v, want json/ui conflict", err)
+		}
+	})
+
+	t.Run("Should propagate daemon start errors", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health:         apicore.DaemonHealth{Ready: true},
+				reviewWatchErr: errors.New("watch start failed"),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"demo",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+		)
+		if err == nil {
+			t.Fatalf("execute reviews watch error = nil, want daemon error\noutput:\n%s", output)
+		}
+		if !strings.Contains(err.Error(), "watch start failed") {
+			t.Fatalf("error = %v, want daemon start failure", err)
+		}
+	})
+
+	t.Run("Should reject missing workflow name before daemon bootstrap", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		withWorkingDir(t, workspaceRoot)
+
+		bootstrapCalled := false
+		installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+			resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+				bootstrapCalled = true
+				return compozyconfig.HomePaths{}, errors.New("daemon bootstrap should not run")
+			},
+		})
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+			nil,
+			"watch",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+		)
+		if err == nil {
+			t.Fatalf("execute reviews watch error = nil, want missing workflow name\noutput:\n%s", output)
+		}
+		if bootstrapCalled {
+			t.Fatal("daemon bootstrap was called before rejecting missing workflow name")
+		}
+		if !strings.Contains(err.Error(), "requires a workflow slug via [slug] or --name") {
+			t.Fatalf("error = %v, want missing workflow name", err)
+		}
+	})
 }
 
 func TestReviewsExecDaemonHelperFunctions(t *testing.T) {

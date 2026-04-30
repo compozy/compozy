@@ -991,6 +991,8 @@ func hookIsMutable(hook HookName) bool {
 		HookRunPreShutdown,
 		HookRunPostShutdown,
 		HookReviewPostFix,
+		HookReviewWatchPostRound,
+		HookReviewWatchFinished,
 		HookArtifactPostWrite:
 		return false
 	default:

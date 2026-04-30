@@ -112,6 +112,131 @@ func TestSyncTaskMetadataScansWorkflowRootIntoGlobalDB(t *testing.T) {
 	}
 }
 
+func TestSyncTaskMetadataRootScanPrunesDeletedWorkflowRows(t *testing.T) {
+	t.Run("Should prune deleted workflow rows and their review issues", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		setSyncTestHome(t)
+
+		rootDir := filepath.Join(workspaceRoot, ".compozy", "tasks")
+		alphaDir := filepath.Join(rootDir, "alpha")
+		betaDir := filepath.Join(rootDir, "beta")
+		writeSyncWorkflowFile(t, alphaDir, "task_01.md", taskBody("pending", "Alpha"))
+		writeSyncWorkflowFile(t, betaDir, "task_01.md", taskBody("completed", "Beta"))
+		writeSyncWorkflowFile(
+			t,
+			betaDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBody("resolved", "medium"),
+		)
+
+		firstResult, err := Sync(context.Background(), SyncConfig{RootDir: rootDir})
+		if err != nil {
+			t.Fatalf("Sync(first): %v", err)
+		}
+		if firstResult.WorkflowsScanned != 2 || firstResult.WorkflowsPruned != 0 {
+			t.Fatalf("unexpected first sync result: %#v", firstResult)
+		}
+
+		sqlDB := openSyncSQLite(t)
+		defer func() {
+			_ = sqlDB.Close()
+		}()
+		var (
+			betaWorkflowID string
+			betaRoundID    string
+		)
+		if err := sqlDB.QueryRowContext(
+			context.Background(),
+			`SELECT id FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+			"beta",
+		).Scan(&betaWorkflowID); err != nil {
+			t.Fatalf("query beta workflow id: %v", err)
+		}
+		if err := sqlDB.QueryRowContext(
+			context.Background(),
+			`SELECT id FROM review_rounds WHERE workflow_id = ?`,
+			betaWorkflowID,
+		).Scan(&betaRoundID); err != nil {
+			t.Fatalf("query beta review round id: %v", err)
+		}
+
+		if err := os.RemoveAll(betaDir); err != nil {
+			t.Fatalf("remove beta workflow dir: %v", err)
+		}
+		secondResult, err := Sync(context.Background(), SyncConfig{RootDir: rootDir})
+		if err != nil {
+			t.Fatalf("Sync(second): %v", err)
+		}
+		if secondResult.WorkflowsScanned != 1 || secondResult.WorkflowsPruned != 1 {
+			t.Fatalf("unexpected second sync result: %#v", secondResult)
+		}
+		if !reflect.DeepEqual(secondResult.PrunedWorkflows, []string{"beta"}) {
+			t.Fatalf("PrunedWorkflows = %#v, want [beta]", secondResult.PrunedWorkflows)
+		}
+		if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM workflows WHERE archived_at IS NULL"); got != 1 {
+			t.Fatalf("active workflow count = %d, want 1", got)
+		}
+		if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM workflows WHERE slug = 'beta'"); got != 0 {
+			t.Fatalf("beta workflow count = %d, want 0", got)
+		}
+		if got := queryCount(
+			t,
+			sqlDB,
+			"SELECT COUNT(1) FROM task_items WHERE workflow_id = ?",
+			betaWorkflowID,
+		); got != 0 {
+			t.Fatalf("beta task_items count = %d, want 0", got)
+		}
+		if got := queryCount(
+			t,
+			sqlDB,
+			"SELECT COUNT(1) FROM review_rounds WHERE workflow_id = ?",
+			betaWorkflowID,
+		); got != 0 {
+			t.Fatalf("beta review_rounds count = %d, want 0", got)
+		}
+		if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM review_issues WHERE round_id = ?", betaRoundID); got != 0 {
+			t.Fatalf("beta review_issues count = %d, want 0", got)
+		}
+	})
+}
+
+func TestSyncTaskMetadataSingleWorkflowSyncDoesNotPruneDeletedSiblings(t *testing.T) {
+	t.Run("Should avoid pruning deleted siblings during a single-workflow sync", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		setSyncTestHome(t)
+
+		rootDir := filepath.Join(workspaceRoot, ".compozy", "tasks")
+		alphaDir := filepath.Join(rootDir, "alpha")
+		betaDir := filepath.Join(rootDir, "beta")
+		writeSyncWorkflowFile(t, alphaDir, "task_01.md", taskBody("pending", "Alpha"))
+		writeSyncWorkflowFile(t, betaDir, "task_01.md", taskBody("completed", "Beta"))
+
+		if _, err := Sync(context.Background(), SyncConfig{RootDir: rootDir}); err != nil {
+			t.Fatalf("Sync(root): %v", err)
+		}
+		if err := os.RemoveAll(betaDir); err != nil {
+			t.Fatalf("remove beta workflow dir: %v", err)
+		}
+
+		result, err := Sync(context.Background(), SyncConfig{TasksDir: alphaDir})
+		if err != nil {
+			t.Fatalf("Sync(single): %v", err)
+		}
+		if result.WorkflowsScanned != 1 || result.WorkflowsPruned != 0 || len(result.PrunedWorkflows) != 0 {
+			t.Fatalf("unexpected single sync result: %#v", result)
+		}
+
+		sqlDB := openSyncSQLite(t)
+		defer func() {
+			_ = sqlDB.Close()
+		}()
+		if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM workflows WHERE archived_at IS NULL"); got != 2 {
+			t.Fatalf("active workflow count = %d, want 2", got)
+		}
+	})
+}
+
 func TestSyncTaskMetadataResyncUpdatesExistingWorkflowAndTaskIdentity(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	setSyncTestHome(t)
@@ -236,6 +361,35 @@ func TestSyncTaskMetadataSyncsMixedWorkflowArtifacts(t *testing.T) {
 	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM review_issues"); got != 1 {
 		t.Fatalf("review_issues count = %d, want 1", got)
 	}
+}
+
+func TestSyncTaskMetadataSkipsEmptyReviewDirectories(t *testing.T) {
+	t.Run("Should skip empty review directories", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		setSyncTestHome(t)
+
+		workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "empty-review-demo")
+		writeSyncWorkflowFile(t, workflowDir, "task_01.md", taskBody("pending", "Demo task"))
+		if err := os.MkdirAll(filepath.Join(workflowDir, "reviews-002"), 0o755); err != nil {
+			t.Fatalf("mkdir empty reviews dir: %v", err)
+		}
+
+		result, err := Sync(context.Background(), SyncConfig{TasksDir: workflowDir})
+		if err != nil {
+			t.Fatalf("Sync(): %v", err)
+		}
+		if result.WorkflowsScanned != 1 || result.ReviewRoundsUpserted != 0 || result.ReviewIssuesUpserted != 0 {
+			t.Fatalf("unexpected sync result: %#v", result)
+		}
+
+		sqlDB := openSyncSQLite(t)
+		defer func() {
+			_ = sqlDB.Close()
+		}()
+		if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM review_rounds"); got != 0 {
+			t.Fatalf("review_rounds count = %d, want 0", got)
+		}
+	})
 }
 
 func TestSyncTaskMetadataRemovesLegacyGeneratedMetadataOnce(t *testing.T) {
@@ -397,46 +551,176 @@ func TestCollectTaskItemsRejectsInvalidTaskArtifacts(t *testing.T) {
 	}
 }
 
-func TestCollectReviewRoundsBuildsResolvedCountsAndRejectsRoundMismatch(t *testing.T) {
+func TestCollectReviewRoundsProjectsIssueFilesAndSkipsEmptyDirs(t *testing.T) {
 	t.Parallel()
 
-	workflowDir := t.TempDir()
-	writeSyncWorkflowFile(
-		t,
-		workflowDir,
-		filepath.Join("reviews-001", "_meta.md"),
-		reviewRoundMetaBody("coderabbit", "123", 1),
-	)
-	writeSyncWorkflowFile(
-		t,
-		workflowDir,
-		filepath.Join("reviews-001", "issue_001.md"),
-		reviewIssueBody("resolved", "high"),
-	)
+	t.Run("Should project issue files and skip empty review directories", func(t *testing.T) {
+		t.Parallel()
 
-	rounds, err := collectReviewRounds(workflowDir)
-	if err != nil {
-		t.Fatalf("collectReviewRounds(valid): %v", err)
-	}
-	if len(rounds) != 1 || rounds[0].ResolvedCount != 1 || rounds[0].UnresolvedCount != 0 {
-		t.Fatalf("unexpected review round projection: %#v", rounds)
-	}
+		workflowDir := t.TempDir()
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "_meta.md"),
+			reviewRoundMetaBody("coderabbit", "123", 1),
+		)
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBody("resolved", "high"),
+		)
 
-	writeSyncWorkflowFile(
-		t,
-		workflowDir,
-		filepath.Join("reviews-002", "_meta.md"),
-		reviewRoundMetaBody("coderabbit", "123", 3),
-	)
-	writeSyncWorkflowFile(
-		t,
-		workflowDir,
-		filepath.Join("reviews-002", "issue_001.md"),
-		reviewIssueBody("pending", "medium"),
-	)
-	if _, err := collectReviewRounds(workflowDir); err == nil {
-		t.Fatal("expected mismatched review round metadata to fail")
-	}
+		rounds, err := collectReviewRounds(workflowDir)
+		if err != nil {
+			t.Fatalf("collectReviewRounds(): %v", err)
+		}
+		if len(rounds) != 1 || rounds[0].ResolvedCount != 1 || rounds[0].UnresolvedCount != 0 {
+			t.Fatalf("unexpected review round projection: %#v", rounds)
+		}
+		if rounds[0].Provider != "" || rounds[0].PRRef != "" {
+			t.Fatalf(
+				"expected legacy _meta.md to be ignored, got provider=%q pr=%q",
+				rounds[0].Provider,
+				rounds[0].PRRef,
+			)
+		}
+
+		if err := os.MkdirAll(filepath.Join(workflowDir, "reviews-002"), 0o755); err != nil {
+			t.Fatalf("mkdir empty reviews dir: %v", err)
+		}
+		rounds, err = collectReviewRounds(workflowDir)
+		if err != nil {
+			t.Fatalf("collectReviewRounds(with empty dir): %v", err)
+		}
+		if len(rounds) != 1 || rounds[0].RoundNumber != 1 {
+			t.Fatalf("expected empty reviews dir to be skipped, got %#v", rounds)
+		}
+	})
+}
+
+func TestCollectReviewRoundsUsesIssueRoundMetadataAndRejectsConflicts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should project metadata when provider and PR are consistent", func(t *testing.T) {
+		t.Parallel()
+
+		workflowDir := t.TempDir()
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-002", "issue_001.md"),
+			reviewIssueBodyWithRoundMetadata("pending", "medium", "coderabbit", "123", 2),
+		)
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-002", "issue_002.md"),
+			reviewIssueBodyWithRoundMetadata("resolved", "high", "coderabbit", "123", 2),
+		)
+
+		rounds, err := collectReviewRounds(workflowDir)
+		if err != nil {
+			t.Fatalf("collectReviewRounds(): %v", err)
+		}
+		if len(rounds) != 1 || rounds[0].Provider != "coderabbit" || rounds[0].PRRef != "123" {
+			t.Fatalf("unexpected round metadata projection: %#v", rounds)
+		}
+		if rounds[0].ResolvedCount != 1 || rounds[0].UnresolvedCount != 1 {
+			t.Fatalf("unexpected counts: %#v", rounds[0])
+		}
+	})
+
+	t.Run("Should reject review issues whose declared round mismatches the directory", func(t *testing.T) {
+		t.Parallel()
+
+		workflowDir := t.TempDir()
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-002", "issue_001.md"),
+			reviewIssueBodyWithRoundMetadata("pending", "medium", "coderabbit", "123", 3),
+		)
+
+		_, err := collectReviewRounds(workflowDir)
+		if err == nil || !strings.Contains(err.Error(), "declares round=3") {
+			t.Fatalf("collectReviewRounds() error = %v, want round mismatch", err)
+		}
+	})
+
+	t.Run("Should reject mixed providers within a review round", func(t *testing.T) {
+		t.Parallel()
+
+		workflowDir := t.TempDir()
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBodyWithRoundMetadata("pending", "medium", "coderabbit", "123", 1),
+		)
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "issue_002.md"),
+			reviewIssueBodyWithRoundMetadata("pending", "medium", "other", "123", 1),
+		)
+
+		_, err := collectReviewRounds(workflowDir)
+		if err == nil || !strings.Contains(err.Error(), "already uses provider") {
+			t.Fatalf("collectReviewRounds() error = %v, want provider conflict", err)
+		}
+	})
+
+	t.Run("Should reject mixed PR references within a review round", func(t *testing.T) {
+		t.Parallel()
+
+		workflowDir := t.TempDir()
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBodyWithRoundMetadata("pending", "medium", "coderabbit", "123", 1),
+		)
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "issue_002.md"),
+			reviewIssueBodyWithRoundMetadata("pending", "medium", "coderabbit", "456", 1),
+		)
+
+		_, err := collectReviewRounds(workflowDir)
+		if err == nil || !strings.Contains(err.Error(), "already uses pr") {
+			t.Fatalf("collectReviewRounds() error = %v, want pr conflict", err)
+		}
+	})
+}
+
+func TestCollectReviewRoundsRejectsInvalidReviewIssue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject review issues without a status", func(t *testing.T) {
+		t.Parallel()
+
+		workflowDir := t.TempDir()
+		writeSyncWorkflowFile(
+			t,
+			workflowDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			strings.Join([]string{
+				"---",
+				"file: internal/app/service.go",
+				"---",
+				"",
+				"# Issue 001",
+				"",
+			}, "\n"),
+		)
+
+		if _, err := collectReviewRounds(workflowDir); err == nil ||
+			!strings.Contains(err.Error(), "review front matter missing status") {
+			t.Fatalf("collectReviewRounds() error = %v, want missing review status validation", err)
+		}
+	})
 }
 
 func TestSyncHelpersClassifyKindsAndSortResults(t *testing.T) {
@@ -664,6 +948,39 @@ func reviewIssueBody(status string, severity string) string {
 		"Review body.",
 		"",
 	}, "\n")
+}
+
+func reviewIssueBodyWithRoundMetadata(status string, severity string, provider string, pr string, round int) string {
+	lines := []string{
+		"---",
+		"status: " + status,
+		"file: internal/app/service.go",
+		"line: 42",
+		"severity: " + severity,
+		"author: review-bot",
+		"provider_ref: thread:1",
+	}
+	if provider != "" {
+		lines = append(lines, "provider: "+provider)
+	}
+	if pr != "" {
+		lines = append(lines, "pr: "+fmt.Sprintf("%q", pr))
+	}
+	if round > 0 {
+		lines = append(lines,
+			fmt.Sprintf("round: %d", round),
+			"round_created_at: 2026-04-17T12:00:00Z",
+		)
+	}
+	lines = append(lines,
+		"---",
+		"",
+		"# Issue 001",
+		"",
+		"Review body.",
+		"",
+	)
+	return strings.Join(lines, "\n")
 }
 
 func legacyMetaBody() string {

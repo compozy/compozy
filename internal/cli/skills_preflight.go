@@ -267,7 +267,7 @@ func ensureBundledSkillsCurrent(
 }
 
 func (s *commandState) requiresBundledSkillPreflight() bool {
-	return s.kind == commandKindTasksRun || s.kind == commandKindFixReviews
+	return s.kind == commandKindTasksRun || s.kind == commandKindFixReviews || s.kind == commandKindWatchReviews
 }
 
 func buildMissingSkillError(commandPath, agentName string, result requiredSkillState) error {

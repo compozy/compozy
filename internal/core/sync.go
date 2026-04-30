@@ -101,6 +101,7 @@ func syncResolvedTarget(
 	if err != nil {
 		return result, fmt.Errorf("read sync target: %w", err)
 	}
+	presentSlugs := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return result, err
@@ -108,13 +109,44 @@ func syncResolvedTarget(
 		if !entry.IsDir() || !model.IsActiveWorkflowDirName(entry.Name()) {
 			continue
 		}
+		presentSlugs = append(presentSlugs, entry.Name())
 		if err := syncWorkflow(ctx, db, workspaceID, filepath.Join(target, entry.Name()), result); err != nil {
 			return result, err
 		}
 	}
+	if err := pruneMissingWorkflowRows(ctx, db, workspaceID, presentSlugs, result); err != nil {
+		return result, err
+	}
 
 	sortSyncResult(result)
 	return result, nil
+}
+
+func pruneMissingWorkflowRows(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	presentSlugs []string,
+	result *SyncResult,
+) error {
+	pruned, err := db.PruneMissingActiveWorkflows(ctx, workspaceID, presentSlugs)
+	if err != nil {
+		return fmt.Errorf("prune missing workflow rows: %w", err)
+	}
+	result.WorkflowsPruned += len(pruned.PrunedSlugs)
+	result.PrunedWorkflows = append(result.PrunedWorkflows, pruned.PrunedSlugs...)
+	for _, skipped := range pruned.Skipped {
+		result.Warnings = append(
+			result.Warnings,
+			fmt.Sprintf(
+				"%s: skipped stale workflow prune: %s (%d active run(s))",
+				skipped.Slug,
+				skipped.Reason,
+				skipped.ActiveRuns,
+			),
+		)
+	}
+	return nil
 }
 
 func openWorkflowGlobalDB(
@@ -404,58 +436,98 @@ func collectReviewRounds(tasksDir string) ([]globaldb.ReviewRoundInput, error) {
 	rounds := make([]globaldb.ReviewRoundInput, 0, len(roundNumbers))
 	for _, roundNumber := range roundNumbers {
 		reviewDir := reviews.ReviewDirectory(tasksDir, roundNumber)
-		roundMeta, err := reviews.SnapshotRoundMeta(reviewDir)
-		if err != nil {
-			return nil, fmt.Errorf("snapshot review round metadata %s: %w", reviewDir, err)
-		}
-		if roundMeta.Round != 0 && roundMeta.Round != roundNumber {
-			return nil, fmt.Errorf(
-				"review round metadata mismatch in %s: front matter round=%d directory round=%d",
-				reviewDir,
-				roundMeta.Round,
-				roundNumber,
-			)
-		}
-
 		reviewEntries, err := reviews.ReadReviewEntries(reviewDir)
 		if err != nil {
 			return nil, fmt.Errorf("read review entries %s: %w", reviewDir, err)
 		}
-
-		resolvedCount := 0
-		issues := make([]globaldb.ReviewIssueInput, 0, len(reviewEntries))
-		for _, entry := range reviewEntries {
-			reviewCtx, err := reviews.ParseReviewContext(entry.Content)
-			if err != nil {
-				return nil, reviews.WrapParseError(entry.AbsPath, err)
-			}
-			if strings.EqualFold(strings.TrimSpace(reviewCtx.Status), "resolved") {
-				resolvedCount++
-			}
-
-			relativePath, err := filepath.Rel(tasksDir, entry.AbsPath)
-			if err != nil {
-				return nil, fmt.Errorf("resolve review issue path %s: %w", entry.AbsPath, err)
-			}
-			issues = append(issues, globaldb.ReviewIssueInput{
-				IssueNumber: reviews.ExtractIssueNumber(entry.Name),
-				Severity:    strings.TrimSpace(reviewCtx.Severity),
-				Status:      strings.ToLower(strings.TrimSpace(reviewCtx.Status)),
-				SourcePath:  filepath.ToSlash(relativePath),
-			})
+		if len(reviewEntries) == 0 {
+			continue
 		}
 
-		rounds = append(rounds, globaldb.ReviewRoundInput{
-			RoundNumber:     roundNumber,
-			Provider:        strings.TrimSpace(roundMeta.Provider),
-			PRRef:           strings.TrimSpace(roundMeta.PR),
-			ResolvedCount:   resolvedCount,
-			UnresolvedCount: len(issues) - resolvedCount,
-			Issues:          issues,
-		})
+		round, err := collectReviewRound(tasksDir, reviewDir, roundNumber, reviewEntries)
+		if err != nil {
+			return nil, err
+		}
+		rounds = append(rounds, round)
 	}
 
 	return rounds, nil
+}
+
+func collectReviewRound(
+	tasksDir string,
+	reviewDir string,
+	roundNumber int,
+	reviewEntries []model.IssueEntry,
+) (globaldb.ReviewRoundInput, error) {
+	resolvedCount := 0
+	issues := make([]globaldb.ReviewIssueInput, 0, len(reviewEntries))
+	var provider, prRef string
+
+	for _, entry := range reviewEntries {
+		reviewCtx, err := reviews.ParseReviewContext(entry.Content)
+		if err != nil {
+			return globaldb.ReviewRoundInput{}, reviews.WrapParseError(entry.AbsPath, err)
+		}
+		if reviewCtx.Round != 0 && reviewCtx.Round != roundNumber {
+			return globaldb.ReviewRoundInput{}, fmt.Errorf(
+				"review issue %s declares round=%d but directory %s is round=%d",
+				entry.AbsPath,
+				reviewCtx.Round,
+				filepath.Base(reviewDir),
+				roundNumber,
+			)
+		}
+		nextProvider := strings.TrimSpace(reviewCtx.Provider)
+		if nextProvider != "" {
+			if provider != "" && provider != nextProvider {
+				return globaldb.ReviewRoundInput{}, fmt.Errorf(
+					"review issue %s has provider %q but round %s already uses provider %q",
+					entry.AbsPath,
+					nextProvider,
+					filepath.Base(reviewDir),
+					provider,
+				)
+			}
+			provider = nextProvider
+		}
+		nextPR := strings.TrimSpace(reviewCtx.PR)
+		if nextPR != "" {
+			if prRef != "" && prRef != nextPR {
+				return globaldb.ReviewRoundInput{}, fmt.Errorf(
+					"review issue %s has pr %q but round %s already uses pr %q",
+					entry.AbsPath,
+					nextPR,
+					filepath.Base(reviewDir),
+					prRef,
+				)
+			}
+			prRef = nextPR
+		}
+		if strings.EqualFold(strings.TrimSpace(reviewCtx.Status), "resolved") {
+			resolvedCount++
+		}
+
+		relativePath, err := filepath.Rel(tasksDir, entry.AbsPath)
+		if err != nil {
+			return globaldb.ReviewRoundInput{}, fmt.Errorf("resolve review issue path %s: %w", entry.AbsPath, err)
+		}
+		issues = append(issues, globaldb.ReviewIssueInput{
+			IssueNumber: reviews.ExtractIssueNumber(entry.Name),
+			Severity:    strings.TrimSpace(reviewCtx.Severity),
+			Status:      strings.ToLower(strings.TrimSpace(reviewCtx.Status)),
+			SourcePath:  filepath.ToSlash(relativePath),
+		})
+	}
+
+	return globaldb.ReviewRoundInput{
+		RoundNumber:     roundNumber,
+		Provider:        provider,
+		PRRef:           prRef,
+		ResolvedCount:   resolvedCount,
+		UnresolvedCount: len(issues) - resolvedCount,
+		Issues:          issues,
+	}, nil
 }
 
 func cleanupLegacyWorkflowMetadata(tasksDir string) ([]string, error) {
@@ -510,5 +582,6 @@ func sortSyncResult(result *SyncResult) {
 		return
 	}
 	sort.Strings(result.SyncedPaths)
+	sort.Strings(result.PrunedWorkflows)
 	sort.Strings(result.Warnings)
 }

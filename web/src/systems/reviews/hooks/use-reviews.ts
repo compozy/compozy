@@ -4,13 +4,14 @@ import { runKeys } from "@/systems/runs";
 
 import {
   getLatestReview,
+  getReviewRound,
   getReviewIssue,
   listReviewIssues,
   startReviewRun,
   type StartReviewRunParams,
 } from "../adapters/reviews-api";
 import { reviewKeys } from "../lib/query-keys";
-import type { ReviewDetailPayload, ReviewIssue, ReviewSummary, Run } from "../types";
+import type { ReviewDetailPayload, ReviewIssue, ReviewRound, ReviewSummary, Run } from "../types";
 
 export function useLatestReview(workspaceId: string | null, slug: string | null) {
   return useQuery<ReviewSummary>({
@@ -28,6 +29,29 @@ export function useLatestReview(workspaceId: string | null, slug: string | null)
   });
 }
 
+export function useReviewRound(
+  workspaceId: string | null,
+  slug: string | null,
+  round: number | null
+) {
+  return useQuery<ReviewRound>({
+    queryKey: reviewKeys.round(workspaceId ?? "none", slug ?? "none", round ?? -1) as QueryKey,
+    queryFn: () => {
+      if (!workspaceId) {
+        throw new Error("active workspace is required to load a review round");
+      }
+      if (!slug) {
+        throw new Error("workflow slug is required to load a review round");
+      }
+      if (round == null || round <= 0) {
+        throw new Error("review round is required to load a review round");
+      }
+      return getReviewRound({ workspaceId, slug, round });
+    },
+    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
+  });
+}
+
 export function useReviewIssues(
   workspaceId: string | null,
   slug: string | null,
@@ -42,12 +66,12 @@ export function useReviewIssues(
       if (!slug) {
         throw new Error("workflow slug is required to load review issues");
       }
-      if (round == null) {
+      if (round == null || round <= 0) {
         throw new Error("review round is required to load review issues");
       }
       return listReviewIssues({ workspaceId, slug, round });
     },
-    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round >= 0,
+    enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
 }
 
@@ -71,7 +95,7 @@ export function useReviewIssue(
       if (!slug) {
         throw new Error("workflow slug is required to load a review issue");
       }
-      if (round == null) {
+      if (round == null || round <= 0) {
         throw new Error("review round is required to load a review issue");
       }
       if (!issueId) {
@@ -80,7 +104,7 @@ export function useReviewIssue(
       return getReviewIssue({ workspaceId, slug, round, issueId });
     },
     enabled:
-      Boolean(workspaceId) && Boolean(slug) && round != null && round >= 0 && Boolean(issueId),
+      Boolean(workspaceId) && Boolean(slug) && round != null && round > 0 && Boolean(issueId),
   });
 }
 
@@ -91,6 +115,13 @@ export function useStartReviewRun() {
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({
         queryKey: reviewKeys.issues(
+          variables.workspaceId,
+          variables.slug,
+          variables.round
+        ) as QueryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: reviewKeys.round(
           variables.workspaceId,
           variables.slug,
           variables.round

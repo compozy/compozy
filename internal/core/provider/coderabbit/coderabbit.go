@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/provider"
@@ -22,17 +23,19 @@ type CommandRunner func(ctx context.Context, args ...string) ([]byte, error)
 type Option func(*Provider)
 
 type Provider struct {
-	botLogin string
-	run      CommandRunner
+	botLogin   string
+	run        CommandRunner
+	workingDir string
 }
 
 var _ provider.Provider = (*Provider)(nil)
+var _ provider.WatchStatusProvider = (*Provider)(nil)
 
 func New(opts ...Option) *Provider {
 	p := &Provider{
 		botLogin: defaultBotLogin,
-		run:      runGH,
 	}
+	p.run = p.runGH
 	for _, opt := range opts {
 		if opt != nil {
 			opt(p)
@@ -46,6 +49,12 @@ func WithCommandRunner(run CommandRunner) Option {
 		if run != nil {
 			p.run = run
 		}
+	}
+}
+
+func WithWorkingDir(dir string) Option {
+	return func(p *Provider) {
+		p.workingDir = strings.TrimSpace(dir)
 	}
 }
 
@@ -126,6 +135,123 @@ func (p *Provider) FetchReviews(ctx context.Context, req provider.FetchRequest) 
 
 	sortReviewItems(items)
 	return items, nil
+}
+
+func (p *Provider) WatchStatus(
+	ctx context.Context,
+	req provider.WatchStatusRequest,
+) (provider.WatchStatus, error) {
+	if strings.TrimSpace(req.PR) == "" {
+		return provider.WatchStatus{}, errors.New("pull request number is required")
+	}
+
+	owner, repo, err := p.getRepo(ctx)
+	if err != nil {
+		return provider.WatchStatus{}, err
+	}
+	pr, err := p.fetchPullRequest(ctx, owner, repo, req.PR)
+	if err != nil {
+		return provider.WatchStatus{}, err
+	}
+	if strings.TrimSpace(pr.Head.SHA) == "" {
+		return provider.WatchStatus{}, errors.New("pull request metadata response is incomplete")
+	}
+
+	reviews, err := p.fetchPullRequestReviews(ctx, owner, repo, req.PR)
+	if err != nil {
+		return provider.WatchStatus{}, err
+	}
+	latest, ok := latestProviderReview(reviews, p.botLogin)
+	if !ok {
+		return provider.WatchStatus{
+			PRHeadSHA: strings.TrimSpace(pr.Head.SHA),
+			State:     provider.WatchStatusPending,
+		}, nil
+	}
+
+	return classifyWatchStatus(pr.Head.SHA, latest)
+}
+
+func (p *Provider) fetchPullRequest(
+	ctx context.Context,
+	owner string,
+	repo string,
+	pr string,
+) (pullRequest, error) {
+	endpoint := fmt.Sprintf("repos/%s/%s/pulls/%s", owner, repo, pr)
+	output, err := p.run(ctx, "api", endpoint)
+	if err != nil {
+		return pullRequest{}, fmt.Errorf("fetch pull request metadata: %w", err)
+	}
+
+	var payload pullRequest
+	if err := json.Unmarshal(output, &payload); err != nil {
+		return pullRequest{}, fmt.Errorf("decode pull request metadata: %w", err)
+	}
+	return payload, nil
+}
+
+func latestProviderReview(reviews []pullRequestReview, botLogin string) (pullRequestReview, bool) {
+	var latest pullRequestReview
+	found := false
+	for _, review := range reviews {
+		if review.User.Login != botLogin {
+			continue
+		}
+		if !found || reviewIsNewer(review, latest) {
+			latest = review
+			found = true
+		}
+	}
+	return latest, found
+}
+
+func reviewIsNewer(candidate pullRequestReview, current pullRequestReview) bool {
+	candidateTime := parseReviewSubmittedAt(candidate.SubmittedAt)
+	currentTime := parseReviewSubmittedAt(current.SubmittedAt)
+	if candidateTime.IsZero() || currentTime.IsZero() {
+		return compareReviewIDs(strconv.Itoa(candidate.ID), strconv.Itoa(current.ID)) > 0
+	}
+	if candidateTime.After(currentTime) {
+		return true
+	}
+	if currentTime.After(candidateTime) {
+		return false
+	}
+	return compareReviewIDs(strconv.Itoa(candidate.ID), strconv.Itoa(current.ID)) > 0
+}
+
+func classifyWatchStatus(headSHA string, review pullRequestReview) (provider.WatchStatus, error) {
+	status := provider.WatchStatus{
+		PRHeadSHA:       strings.TrimSpace(headSHA),
+		ReviewCommitSHA: strings.TrimSpace(review.CommitID),
+		ReviewID:        strconv.Itoa(review.ID),
+		ReviewState:     strings.TrimSpace(review.State),
+		State:           provider.WatchStatusPending,
+	}
+	if status.ReviewCommitSHA == "" || reviewStateIsPending(status.ReviewState) {
+		return status, nil
+	}
+
+	submittedAt := parseReviewSubmittedAt(review.SubmittedAt)
+	if submittedAt.IsZero() {
+		return provider.WatchStatus{}, fmt.Errorf(
+			"decode pull request review %d submitted_at: %q",
+			review.ID,
+			review.SubmittedAt,
+		)
+	}
+	status.SubmittedAt = submittedAt
+	if status.ReviewCommitSHA != status.PRHeadSHA {
+		status.State = provider.WatchStatusStale
+		return status, nil
+	}
+	status.State = provider.WatchStatusCurrentReviewed
+	return status, nil
+}
+
+func reviewStateIsPending(state string) bool {
+	return strings.EqualFold(strings.TrimSpace(state), "PENDING")
 }
 
 func sortReviewItems(items []provider.ReviewItem) {
@@ -344,8 +470,13 @@ func providerRefValue(ref string, key string) string {
 	return ""
 }
 
-func runGH(ctx context.Context, args ...string) ([]byte, error) {
+func (p *Provider) runGH(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
+	if p != nil {
+		if workingDir := strings.TrimSpace(p.workingDir); workingDir != "" {
+			cmd.Dir = workingDir
+		}
+	}
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		return output, nil
@@ -368,6 +499,12 @@ type pullRequestComment struct {
 	User         struct {
 		Login string `json:"login"`
 	} `json:"user"`
+}
+
+type pullRequest struct {
+	Head struct {
+		SHA string `json:"sha"`
+	} `json:"head"`
 }
 
 func (c pullRequestComment) effectiveLine() int {

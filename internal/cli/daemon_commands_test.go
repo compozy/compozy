@@ -84,6 +84,8 @@ type stubDaemonCommandClient struct {
 	reviewIssuesErr error
 	reviewRun       apicore.Run
 	reviewRunErr    error
+	reviewWatchRun  apicore.Run
+	reviewWatchErr  error
 	execRun         apicore.Run
 	execRunErr      error
 	runEventPage    apicore.RunEventPage
@@ -325,6 +327,21 @@ func (c *stubDaemonCommandClient) StartReviewRun(
 		return apicore.Run{}, c.reviewRunErr
 	}
 	return c.reviewRun, nil
+}
+
+func (c *stubDaemonCommandClient) StartReviewWatch(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ apicore.ReviewWatchRequest,
+) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, errors.New("stub daemon client is required")
+	}
+	if c.reviewWatchErr != nil {
+		return apicore.Run{}, c.reviewWatchErr
+	}
+	return c.reviewWatchRun, nil
 }
 
 func (c *stubDaemonCommandClient) StartExecRun(_ context.Context, _ apicore.ExecRequest) (apicore.Run, error) {

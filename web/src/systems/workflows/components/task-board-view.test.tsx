@@ -124,6 +124,7 @@ describe("TaskBoardView", () => {
     expect(screen.getByTestId("task-board-lane-pending")).toBeInTheDocument();
     const link = screen.getByTestId("task-board-link-task_01") as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe("/workflows/alpha/tasks/task_01");
+    expect(link).toHaveClass("truncate");
     expect(screen.getByTestId("task-board-status-task_01")).toHaveTextContent("pending");
   });
 

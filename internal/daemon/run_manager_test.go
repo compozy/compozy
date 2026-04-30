@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,6 +67,36 @@ func TestRunManagerStartTaskRunAllocatesRunDBAndRejectsDuplicateRunID(t *testing
 	})
 	if !errors.Is(err, globaldb.ErrRunAlreadyExists) {
 		t.Fatalf("StartTaskRun(duplicate) error = %v, want ErrRunAlreadyExists", err)
+	}
+}
+
+func TestRunManagerRejectsCompletedTaskWorkflowBeforeCreatingRun(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))
+
+	const runID = "task-run-no-pending"
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		env.workflowSlug,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) {
+		t.Fatalf("StartTaskRun(completed workflow) error = %v, want problem", err)
+	}
+	if problem.Status != http.StatusConflict || problem.Code != "workflow_no_pending_tasks" {
+		t.Fatalf("problem = status:%d code:%q, want 409 workflow_no_pending_tasks", problem.Status, problem.Code)
+	}
+	if got := problem.Details["task_pending"]; got != 0 {
+		t.Fatalf("problem task_pending = %#v, want 0", got)
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
 	}
 }
 
@@ -1245,6 +1276,53 @@ func TestExtensionBridgeStartRunCreatesDetachedExecRun(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeStartRunRejectsNilContext(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	var nilCtx context.Context
+	_, err = bridge.StartRun(nilCtx, &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Mode:          model.ExecutionModeExec,
+		PromptText:    "nested exec prompt",
+		ParentRunID:   "parent-run-001",
+	})
+	if err == nil || !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("StartRun(nil context) error = %v, want context requirement", err)
+	}
+}
+
+func TestExtensionBridgeStartRunRejectsDifferentWorkspaceRoot(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	otherWorkspace := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(otherWorkspace, model.WorkflowRootDirName), 0o755); err != nil {
+		t.Fatalf("MkdirAll(other workspace marker) error = %v", err)
+	}
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	_, err = bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: otherWorkspace,
+		Mode:          model.ExecutionModeExec,
+		PromptText:    "nested exec prompt",
+		ParentRunID:   "parent-run-001",
+	})
+	if err == nil {
+		t.Fatal("StartRun(different workspace) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "workspace_root") {
+		t.Fatalf("StartRun(different workspace) error = %v, want workspace_root context", err)
+	}
+}
+
 func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
@@ -2037,17 +2115,20 @@ type runManagerTestEnv struct {
 }
 
 type runManagerTestDeps struct {
-	now                  func() time.Time
-	openRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
-	openRunDB            func(context.Context, string) (*rundb.RunDB, error)
-	lookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
-	getWorkflow          func(context.Context, string) (globaldb.Workflow, error)
-	shutdownDrainTimeout time.Duration
-	watcherDebounce      time.Duration
-	runDBCacheTTL        time.Duration
+	now                    func() time.Time
+	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	executeExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	openRunDB              func(context.Context, string) (*rundb.RunDB, error)
+	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	reviewProviderRegistry reviewProviderRegistryFactory
+	reviewWatchGit         ReviewWatchGit
+	lookupWorkflowSlugs    func(context.Context, []string) (map[string]string, error)
+	getWorkflow            func(context.Context, string) (globaldb.Workflow, error)
+	shutdownDrainTimeout   time.Duration
+	watcherDebounce        time.Duration
+	runDBCacheTTL          time.Duration
 }
 
 var runManagerTestHomeMu sync.Mutex
@@ -2103,22 +2184,22 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 	}
 
 	manager, err := NewRunManager(RunManagerConfig{
-		GlobalDB:             globalDB,
-		LifecycleContext:     context.Background(),
-		ShutdownDrainTimeout: deps.shutdownDrainTimeout,
-		Now:                  deps.now,
-		OpenRunScope:         firstOpenRunScope(deps.openRunScope),
-		Prepare:              firstPrepare(deps.prepare),
-		Execute:              firstExecute(deps.execute),
-		ExecuteExec:          firstExecuteExec(deps.executeExec),
-		OpenRunDB:            deps.openRunDB,
-		WatcherDebounce:      deps.watcherDebounce,
-		RunDBCacheTTL:        deps.runDBCacheTTL,
-		LookupWorkflowSlugs:  deps.lookupWorkflowSlugs,
-		GetWorkflow:          deps.getWorkflow,
-		LoadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
-			return workspacecfg.ProjectConfig{}, nil
-		},
+		GlobalDB:               globalDB,
+		LifecycleContext:       context.Background(),
+		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
+		Now:                    deps.now,
+		OpenRunScope:           firstOpenRunScope(deps.openRunScope),
+		Prepare:                firstPrepare(deps.prepare),
+		Execute:                firstExecute(deps.execute),
+		ExecuteExec:            firstExecuteExec(deps.executeExec),
+		OpenRunDB:              deps.openRunDB,
+		ReviewProviderRegistry: deps.reviewProviderRegistry,
+		ReviewWatchGit:         deps.reviewWatchGit,
+		WatcherDebounce:        deps.watcherDebounce,
+		RunDBCacheTTL:          deps.runDBCacheTTL,
+		LookupWorkflowSlugs:    deps.lookupWorkflowSlugs,
+		GetWorkflow:            deps.getWorkflow,
+		LoadProjectConfig:      firstProjectConfig(deps.loadProjectConfig),
 	})
 	if err != nil {
 		tb.Fatalf("NewRunManager() error = %v", err)
@@ -2394,6 +2475,17 @@ func firstExecuteExec(
 	}
 	return func(context.Context, *model.RuntimeConfig, model.RunScope) error {
 		return nil
+	}
+}
+
+func firstProjectConfig(
+	fn func(context.Context, string) (workspacecfg.ProjectConfig, error),
+) func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+	if fn != nil {
+		return fn
+	}
+	return func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+		return workspacecfg.ProjectConfig{}, nil
 	}
 }
 

@@ -22,6 +22,10 @@ class TestSurface implements HookRegistrationSurface {
 describe("handlers helpers", () => {
   it("marks observer hooks as non-mutable", () => {
     expect(isMutableHook(HOOKS.promptPostBuild)).toBe(true);
+    expect(isMutableHook(HOOKS.reviewWatchPreRound)).toBe(true);
+    expect(isMutableHook(HOOKS.reviewWatchPrePush)).toBe(true);
+    expect(isMutableHook(HOOKS.reviewWatchPostRound)).toBe(false);
+    expect(isMutableHook(HOOKS.reviewWatchFinished)).toBe(false);
     expect(isMutableHook(HOOKS.runPostShutdown)).toBe(false);
     expect(isMutableHook(HOOKS.artifactPostWrite)).toBe(false);
   });

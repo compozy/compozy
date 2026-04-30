@@ -23,7 +23,7 @@ export function SurfaceCardHeader({
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4",
+        "flex min-w-0 items-start justify-between gap-4 border-b border-border-subtle px-5 py-4 [&>*:first-child]:min-w-0 [&>*:last-child:not(:only-child)]:shrink-0",
         className
       )}
       {...props}
@@ -66,7 +66,7 @@ export function SurfaceCardFooter({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-t border-border-subtle px-5 py-4",
+        "flex min-w-0 items-center justify-between gap-3 border-t border-border-subtle px-5 py-4 [&>*:first-child]:min-w-0 [&>*:last-child:not(:only-child)]:shrink-0",
         className
       )}
       {...props}

@@ -16,10 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/core/reviews"
 )
 
-var defaultProviderRegistry = providerdefaults.DefaultRegistry
+var defaultProviderRegistry = providerdefaults.DefaultRegistryForWorkspace
 
 func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, error) {
-	registry := provider.ResolveRegistry(defaultProviderRegistry())
+	registry := provider.ResolveRegistry(defaultProviderRegistry(fetchWorkspaceRoot(cfg)))
 	return fetchReviewsWithRegistry(ctx, cfg, registry)
 }
 
@@ -28,6 +28,36 @@ func fetchReviewsWithRegistry(
 	cfg *model.RuntimeConfig,
 	registry provider.RegistryReader,
 ) (*FetchResult, error) {
+	pending, err := fetchReviewItemsWithRegistry(ctx, cfg, registry)
+	if err != nil {
+		return nil, err
+	}
+	result, err := writeFetchedReviewRound(pending)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.Round = result.Round
+	cfg.ReviewsDir = result.ReviewsDir
+	cfg.Provider = result.Provider
+	return result, nil
+}
+
+// FetchedReviewItems captures normalized provider feedback before round files are written.
+type FetchedReviewItems struct {
+	Name       string
+	Provider   string
+	PR         string
+	Round      int
+	ReviewsDir string
+	Items      []provider.ReviewItem
+}
+
+func fetchReviewItemsWithRegistry(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	registry provider.RegistryReader,
+) (*FetchedReviewItems, error) {
 	if err := validateFetchConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -48,7 +78,7 @@ func fetchReviewsWithRegistry(
 	}
 
 	if registry == nil {
-		registry = provider.ResolveRegistry(defaultProviderRegistry())
+		registry = provider.ResolveRegistry(defaultProviderRegistry(cfg.WorkspaceRoot))
 	}
 	reviewProvider, err := resolveFetchReviewProvider(registry, cfg.Provider)
 	if err != nil {
@@ -67,41 +97,58 @@ func fetchReviewsWithRegistry(
 		return nil, err
 	}
 
-	meta := model.RoundMeta{
-		Provider:  reviewProvider.Name(),
-		PR:        cfg.PR,
-		Round:     round,
-		CreatedAt: time.Now().UTC(),
-	}
-	if err := reviews.WriteRound(reviewsDir, meta, items); err != nil {
-		return nil, err
-	}
-
-	cfg.Round = round
-	cfg.ReviewsDir = reviewsDir
-	cfg.Provider = reviewProvider.Name()
-
-	slog.Info(
-		"fetched review issues",
-		"provider",
-		reviewProvider.Name(),
-		"pr",
-		cfg.PR,
-		"count",
-		len(items),
-		"round",
-		round,
-		"reviews_dir",
-		reviewsDir,
-	)
-
-	return &FetchResult{
+	return &FetchedReviewItems{
 		Name:       cfg.Name,
 		Provider:   reviewProvider.Name(),
 		PR:         cfg.PR,
 		Round:      round,
 		ReviewsDir: reviewsDir,
-		Total:      len(items),
+		Items:      items,
+	}, nil
+}
+
+func fetchWorkspaceRoot(cfg *model.RuntimeConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.WorkspaceRoot
+}
+
+func writeFetchedReviewRound(pending *FetchedReviewItems) (*FetchResult, error) {
+	if pending == nil {
+		return nil, fmt.Errorf("fetched review items are required")
+	}
+	meta := model.RoundMeta{
+		Provider:  pending.Provider,
+		PR:        pending.PR,
+		Round:     pending.Round,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := reviews.WriteRound(pending.ReviewsDir, meta, pending.Items); err != nil {
+		return nil, err
+	}
+
+	slog.Info(
+		"fetched review issues",
+		"provider",
+		pending.Provider,
+		"pr",
+		pending.PR,
+		"count",
+		len(pending.Items),
+		"round",
+		pending.Round,
+		"reviews_dir",
+		pending.ReviewsDir,
+	)
+
+	return &FetchResult{
+		Name:       pending.Name,
+		Provider:   pending.Provider,
+		PR:         pending.PR,
+		Round:      pending.Round,
+		ReviewsDir: pending.ReviewsDir,
+		Total:      len(pending.Items),
 	}, nil
 }
 
@@ -125,6 +172,20 @@ func FetchReviewsWithRegistryDirect(
 	registry provider.RegistryReader,
 ) (*FetchResult, error) {
 	return fetchReviewsWithRegistry(ctx, cfg.runtime(), registry)
+}
+
+// FetchReviewItemsWithRegistryDirect fetches normalized review items without writing round files.
+func FetchReviewItemsWithRegistryDirect(
+	ctx context.Context,
+	cfg Config,
+	registry provider.RegistryReader,
+) (*FetchedReviewItems, error) {
+	return fetchReviewItemsWithRegistry(ctx, cfg.runtime(), registry)
+}
+
+// WriteFetchedReviewRoundDirect writes a previously fetched non-empty review round.
+func WriteFetchedReviewRoundDirect(pending *FetchedReviewItems) (*FetchResult, error) {
+	return writeFetchedReviewRound(pending)
 }
 
 func resolveFetchPRDDirectory(cfg *model.RuntimeConfig) (string, error) {

@@ -22,6 +22,11 @@ import type { Run } from "@/systems/runs";
 
 import type { WorkflowSummary } from "../types";
 
+function isWorkflowCompleted(workflow: WorkflowSummary): boolean {
+  if (workflow.archived_at) return false;
+  return workflow.archive_eligible === true;
+}
+
 export interface WorkflowInventoryViewProps {
   workflows: WorkflowSummary[];
   isLoading: boolean;
@@ -63,8 +68,11 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
     lastActionError,
   } = props;
 
-  const active = workflows.filter(workflow => !workflow.archived_at);
-  const archived = workflows.filter(workflow => workflow.archived_at);
+  const archived = workflows.filter(workflow => Boolean(workflow.archived_at));
+  const completed = workflows.filter(isWorkflowCompleted);
+  const active = workflows.filter(
+    workflow => !workflow.archived_at && !isWorkflowCompleted(workflow)
+  );
 
   return (
     <div className="space-y-6" data-testid="workflow-inventory-view">
@@ -176,6 +184,27 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
         </div>
       ) : null}
 
+      {completed.length > 0 ? (
+        <div className="space-y-3" data-testid="workflow-inventory-completed">
+          <p className="eyebrow text-muted-foreground">Completed · {completed.length}</p>
+          <ul className="grid gap-3">
+            {completed.map(workflow => (
+              <WorkflowRow
+                key={workflow.id}
+                onArchive={() => onArchive(workflow.slug)}
+                onStartRun={() => onStartRun(workflow.slug)}
+                onSync={() => onSyncOne(workflow.slug)}
+                readOnly={isReadOnly}
+                pendingArchive={pendingArchiveSlug === workflow.slug}
+                pendingStart={pendingStartSlug === workflow.slug}
+                pendingSync={pendingSyncSlug === workflow.slug}
+                workflow={workflow}
+              />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {archived.length > 0 ? (
         <div className="space-y-3" data-testid="workflow-inventory-archived">
           <p className="eyebrow text-muted-foreground">Archived · {archived.length}</p>
@@ -215,18 +244,23 @@ function WorkflowRow({
   pendingArchive: boolean;
   readOnly: boolean;
 }): ReactElement {
+  const isCompleted = isWorkflowCompleted(workflow);
+  const canStartRun = !isCompleted && workflow.can_start_run !== false;
+  const startBlockReason = workflow.start_block_reason?.trim() ?? "";
+  const startBlockLabel = isCompleted ? "completed" : startBlockReason;
   return (
     <li>
       <SurfaceCard data-interactive="true" data-testid={`workflow-row-${workflow.slug}`}>
         <SurfaceCardHeader>
-          <div>
+          <div className="min-w-0">
             <SurfaceCardEyebrow>Workflow</SurfaceCardEyebrow>
             <SurfaceCardTitle>
               <Link
-                className="text-foreground hover:underline"
+                className="block truncate text-foreground hover:underline"
                 data-testid={`workflow-open-${workflow.slug}`}
                 params={{ slug: workflow.slug }}
                 to="/workflows/$slug/tasks"
+                title={workflow.slug}
               >
                 {workflow.slug}
               </Link>
@@ -237,7 +271,11 @@ function WorkflowRow({
                 : "Not synced yet"}
             </SurfaceCardDescription>
           </div>
-          <StatusBadge tone="info">active</StatusBadge>
+          {isCompleted ? (
+            <StatusBadge tone="success">completed</StatusBadge>
+          ) : (
+            <StatusBadge tone="info">active</StatusBadge>
+          )}
         </SurfaceCardHeader>
         <SurfaceCardBody className="flex flex-wrap gap-2">
           <Link
@@ -267,16 +305,22 @@ function WorkflowRow({
             <BookOpen className="size-3.5" aria-hidden />
             Memory
           </Link>
-          <Button
-            data-testid={`workflow-start-${workflow.slug}`}
-            disabled={pendingStart || readOnly}
-            icon={<Play className="size-4" />}
-            loading={pendingStart}
-            onClick={onStartRun}
-            size="sm"
-          >
-            Start run
-          </Button>
+          {canStartRun ? (
+            <Button
+              data-testid={`workflow-start-${workflow.slug}`}
+              disabled={pendingStart || readOnly}
+              icon={<Play className="size-4" />}
+              loading={pendingStart}
+              onClick={onStartRun}
+              size="sm"
+            >
+              Start run
+            </Button>
+          ) : isCompleted ? null : (
+            <StatusBadge data-testid={`workflow-start-blocked-${workflow.slug}`} tone="warning">
+              {startBlockLabel || "not startable"}
+            </StatusBadge>
+          )}
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
             disabled={pendingSync || readOnly}

@@ -105,6 +105,21 @@ type WorkflowSyncResult struct {
 	CheckpointsUpdated   int
 }
 
+// WorkflowPruneSkipped reports a stale active workflow row that pruning kept
+// because durable state still indicates active work.
+type WorkflowPruneSkipped struct {
+	Slug       string
+	Reason     string
+	ActiveRuns int
+}
+
+// WorkflowPruneResult reports stale active workflow rows removed during a root
+// sync plus rows deliberately kept for conflict reasons.
+type WorkflowPruneResult struct {
+	PrunedSlugs []string
+	Skipped     []WorkflowPruneSkipped
+}
+
 type existingArtifactSnapshot struct {
 	Checksum        string
 	BodyText        string
@@ -208,6 +223,127 @@ func normalizeSyncTimestamp(value time.Time, fallback func() time.Time) time.Tim
 		value = fallback()
 	}
 	return value.UTC()
+}
+
+// PruneMissingActiveWorkflows removes active workflow rows whose source
+// directories were absent from a successful root sync.
+func (g *GlobalDB) PruneMissingActiveWorkflows(
+	ctx context.Context,
+	workspaceID string,
+	presentSlugs []string,
+) (WorkflowPruneResult, error) {
+	if err := g.requireContext(ctx, "prune missing active workflows"); err != nil {
+		return WorkflowPruneResult{}, err
+	}
+
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	if trimmedWorkspaceID == "" {
+		return WorkflowPruneResult{}, errors.New("globaldb: workflow prune workspace id is required")
+	}
+
+	present := make(map[string]struct{}, len(presentSlugs))
+	for _, slug := range presentSlugs {
+		if trimmed := strings.TrimSpace(slug); trimmed != "" {
+			present[trimmed] = struct{}{}
+		}
+	}
+
+	workflows, err := g.ListWorkflows(ctx, ListWorkflowsOptions{WorkspaceID: trimmedWorkspaceID})
+	if err != nil {
+		return WorkflowPruneResult{}, fmt.Errorf(
+			"globaldb: list workflows for prune workspace %q: %w",
+			trimmedWorkspaceID,
+			err,
+		)
+	}
+
+	result := WorkflowPruneResult{
+		PrunedSlugs: make([]string, 0),
+		Skipped:     make([]WorkflowPruneSkipped, 0),
+	}
+	for _, workflow := range workflows {
+		if _, ok := present[workflow.Slug]; ok {
+			continue
+		}
+
+		activeRuns, err := g.countActiveRunsForWorkflow(ctx, workflow.ID)
+		if err != nil {
+			return WorkflowPruneResult{}, err
+		}
+		if skipped, ok := workflowPruneActiveRunSkip(workflow.Slug, activeRuns); ok {
+			result.Skipped = append(result.Skipped, skipped)
+			continue
+		}
+
+		deleted, err := g.deleteActiveWorkflowIfNoActiveRuns(ctx, workflow.ID)
+		if err != nil {
+			return WorkflowPruneResult{}, err
+		}
+		if deleted {
+			result.PrunedSlugs = append(result.PrunedSlugs, workflow.Slug)
+			continue
+		}
+
+		activeRuns, err = g.countActiveRunsForWorkflow(ctx, workflow.ID)
+		if err != nil {
+			return WorkflowPruneResult{}, err
+		}
+		if skipped, ok := workflowPruneActiveRunSkip(workflow.Slug, activeRuns); ok {
+			result.Skipped = append(result.Skipped, skipped)
+		}
+	}
+
+	return result, nil
+}
+
+func workflowPruneActiveRunSkip(slug string, activeRuns int) (WorkflowPruneSkipped, bool) {
+	if activeRuns <= 0 {
+		return WorkflowPruneSkipped{}, false
+	}
+	return WorkflowPruneSkipped{
+		Slug:       slug,
+		Reason:     archiveReasonActiveRuns,
+		ActiveRuns: activeRuns,
+	}, true
+}
+
+func (g *GlobalDB) countActiveRunsForWorkflow(ctx context.Context, workflowID string) (int, error) {
+	var count int
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(1)
+		 FROM runs
+		 WHERE workflow_id = ?
+		   AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')`,
+		strings.TrimSpace(workflowID),
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("globaldb: count active runs for workflow %q: %w", workflowID, err)
+	}
+	return count, nil
+}
+
+func (g *GlobalDB) deleteActiveWorkflowIfNoActiveRuns(ctx context.Context, workflowID string) (bool, error) {
+	result, err := g.db.ExecContext(
+		ctx,
+		`DELETE FROM workflows
+		 WHERE id = ?
+		   AND archived_at IS NULL
+		   AND NOT EXISTS (
+			SELECT 1
+			FROM runs
+			WHERE runs.workflow_id = workflows.id
+			  AND runs.status NOT IN ('completed', 'failed', 'canceled', 'crashed')
+		   )`,
+		strings.TrimSpace(workflowID),
+	)
+	if err != nil {
+		return false, fmt.Errorf("globaldb: delete stale active workflow %q: %w", workflowID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("globaldb: rows affected for stale workflow %q: %w", workflowID, err)
+	}
+	return affected > 0, nil
 }
 
 func (g *GlobalDB) reconcileWorkflowRowTx(
@@ -963,12 +1099,6 @@ func prepareReviewRound(input ReviewRoundInput) (ReviewRoundInput, error) {
 	if input.RoundNumber <= 0 {
 		return ReviewRoundInput{}, newWorkflowSyncValidationError(
 			"globaldb: review round must be positive (got %d)",
-			input.RoundNumber,
-		)
-	}
-	if strings.TrimSpace(input.Provider) == "" {
-		return ReviewRoundInput{}, newWorkflowSyncValidationError(
-			"globaldb: review round provider is required for round %d",
 			input.RoundNumber,
 		)
 	}

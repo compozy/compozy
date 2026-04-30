@@ -4,4 +4,5 @@ export {
   reviewDetailFixture,
   reviewDispatchedRunFixture,
   reviewIssuesFixture,
+  reviewRoundFixture,
 } from "./fixtures";

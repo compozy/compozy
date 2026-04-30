@@ -75,8 +75,15 @@ async function renderDashboardView(props: RenderProps = {}): Promise<void> {
       );
     },
   });
+  const workflowRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/workflows/$slug/tasks",
+    component: function WorkflowRouteComponent(): ReactElement {
+      return <div data-testid="workflow-stub" />;
+    },
+  });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute]),
+    routeTree: rootRoute.addChildren([indexRoute, workflowRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
     defaultPreload: false,
   });
@@ -93,6 +100,8 @@ describe("DashboardView", () => {
     expect(await screen.findByTestId("dashboard-view")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-queue-active")).toHaveTextContent("1");
     expect(screen.getByTestId("dashboard-workflow-row-alpha")).toBeInTheDocument();
+    const workflowLink = screen.getByTestId("dashboard-workflow-link-alpha") as HTMLAnchorElement;
+    expect(workflowLink.getAttribute("href")).toBe("/workflows/alpha/tasks");
   });
 
   it("Should fire the sync-all action", async () => {

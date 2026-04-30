@@ -418,6 +418,30 @@ export class Extension implements HostCaller {
     return this;
   }
 
+  /** Registers the {@link HOOKS.reviewWatchPreRound | review.watch_pre_round} handler. */
+  onReviewWatchPreRound(handler: HookHandlerMatrix["review.watch_pre_round"]): this {
+    registerMutableHook(this, HOOKS.reviewWatchPreRound, handler);
+    return this;
+  }
+
+  /** Registers the {@link HOOKS.reviewWatchPostRound | review.watch_post_round} handler. */
+  onReviewWatchPostRound(handler: HookHandlerMatrix["review.watch_post_round"]): this {
+    registerObserverHook(this, HOOKS.reviewWatchPostRound, handler);
+    return this;
+  }
+
+  /** Registers the {@link HOOKS.reviewWatchPrePush | review.watch_pre_push} handler. */
+  onReviewWatchPrePush(handler: HookHandlerMatrix["review.watch_pre_push"]): this {
+    registerMutableHook(this, HOOKS.reviewWatchPrePush, handler);
+    return this;
+  }
+
+  /** Registers the {@link HOOKS.reviewWatchFinished | review.watch_finished} handler. */
+  onReviewWatchFinished(handler: HookHandlerMatrix["review.watch_finished"]): this {
+    registerObserverHook(this, HOOKS.reviewWatchFinished, handler);
+    return this;
+  }
+
   /** Registers the {@link HOOKS.artifactPreWrite | artifact.pre_write} handler. */
   onArtifactPreWrite(handler: HookHandlerMatrix["artifact.pre_write"]): this {
     registerMutableHook(this, HOOKS.artifactPreWrite, handler);

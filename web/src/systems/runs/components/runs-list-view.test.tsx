@@ -127,6 +127,23 @@ describe("RunsListView", () => {
     expect(screen.getByTestId("runs-list-error-run-2")).toHaveTextContent("exit 1");
   });
 
+  it("Should keep long run identifiers in the truncating text column", async () => {
+    const longRunId =
+      "tasks-autonomous-6c5e11-20260430-161931-000000000-with-extra-provider-suffix";
+    await renderRunsList({
+      runs: [
+        {
+          ...runs[0]!,
+          run_id: longRunId,
+        },
+      ],
+    });
+    const link = screen.getByTestId(`runs-list-link-${longRunId}`);
+    expect(link).toHaveClass("truncate");
+    expect(screen.getByTestId(`runs-list-status-${longRunId}`)).toHaveTextContent("running");
+    expect(screen.getByTestId(`runs-list-status-${longRunId}`)).toHaveClass("shrink-0");
+  });
+
   it("Should render the empty state when no runs match filters", async () => {
     await renderRunsList({ runs: [] });
     expect(screen.getByTestId("runs-list-empty")).toBeInTheDocument();

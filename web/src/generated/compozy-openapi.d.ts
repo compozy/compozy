@@ -72,6 +72,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/{slug}/watch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start one daemon-owned review-watch run. */
+        post: operations["startReviewWatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviews/{slug}/rounds/{round}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one review round summary. */
+        get: operations["getReviewRound"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/{slug}/rounds/{round}/issues": {
         parameters: {
             query?: never;
@@ -616,6 +650,9 @@ export interface components {
             updated_at: string;
             workflow_slug: string;
         };
+        ReviewRoundResponse: {
+            round: components["schemas"]["ReviewRound"];
+        };
         ReviewRunRequest: {
             batching?: {
                 [key: string]: unknown;
@@ -832,6 +869,7 @@ export interface components {
         SyncResult: {
             checkpoints_updated?: number;
             legacy_artifacts_removed?: number;
+            pruned_workflows?: string[];
             review_issues_upserted?: number;
             review_rounds_upserted?: number;
             snapshots_upserted?: number;
@@ -843,6 +881,7 @@ export interface components {
             warnings?: string[];
             workflow_slug?: string;
             workflows_scanned?: number;
+            workflows_pruned?: number;
             workspace_id?: string;
         };
         TaskBoardPayload: {
@@ -972,12 +1011,17 @@ export interface components {
             spec: components["schemas"]["WorkflowSpecDocument"];
         };
         WorkflowSummary: {
+            archive_eligible?: boolean;
+            archive_reason?: string;
             /** Format: date-time */
             archived_at?: string;
+            can_start_run?: boolean;
             id: string;
             /** Format: date-time */
             last_synced_at?: string;
             slug: string;
+            start_block_reason?: string;
+            task_counts?: components["schemas"]["WorkflowTaskCounts"];
             workspace_id: string;
         };
         WorkflowTaskCounts: {
@@ -1021,12 +1065,32 @@ export interface components {
             synced: number;
             task_items_upserted: number;
             warnings?: string[];
+            workflows_pruned?: number;
         };
         WorkspaceResponse: {
             workspace: components["schemas"]["Workspace"];
         };
         WorkspacesResponse: {
             workspaces: components["schemas"]["Workspace"][];
+        };
+        ReviewWatchRequest: {
+            auto_push?: boolean;
+            batching?: {
+                [key: string]: unknown;
+            };
+            max_rounds?: number;
+            poll_interval?: string;
+            pr_ref: string;
+            provider?: string;
+            push_branch?: string;
+            push_remote?: string;
+            quiet_period?: string;
+            review_timeout?: string;
+            runtime_overrides?: {
+                [key: string]: unknown;
+            };
+            until_clean?: boolean;
+            workspace?: string;
         };
     };
     responses: {
@@ -1226,6 +1290,84 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             412: components["responses"]["StaleWorkspace"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    startReviewWatch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active workspace identifier for browser-scoped daemon requests. */
+                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
+            };
+            path: {
+                /** @description Workflow slug. */
+                slug: components["parameters"]["Slug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewWatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["StaleWorkspace"];
+            422: components["responses"]["ValidationError"];
+            500: components["responses"]["InternalError"];
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransportError"];
+                };
+            };
+        };
+    };
+    getReviewRound: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active workspace identifier for browser-scoped daemon requests. */
+                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
+            };
+            path: {
+                /** @description Workflow slug. */
+                slug: components["parameters"]["Slug"];
+                /** @description Review round number. */
+                round: components["parameters"]["Round"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewRoundResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            412: components["responses"]["StaleWorkspace"];
+            422: components["responses"]["ValidationError"];
             500: components["responses"]["InternalError"];
         };
     };

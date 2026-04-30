@@ -74,9 +74,17 @@ interface RenderProps {
   isReadOnly?: boolean;
   dispatchError?: string | null;
   dispatchedRun?: ReviewRelatedRun | null;
+  documentTitle?: string;
 }
 
 async function renderDetail(props: RenderProps = {}) {
+  const renderPayload: ReviewDetailPayload = {
+    ...payload,
+    document: {
+      ...payload.document,
+      title: props.documentTitle ?? payload.document.title,
+    },
+  };
   const rootRoute = createRootRoute();
   const detailRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -90,7 +98,7 @@ async function renderDetail(props: RenderProps = {}) {
           isReadOnly={props.isReadOnly ?? false}
           isRefreshing={false}
           onDispatchFix={props.onDispatch ?? (() => {})}
-          payload={payload}
+          payload={renderPayload}
         />
       );
     },
@@ -102,6 +110,13 @@ async function renderDetail(props: RenderProps = {}) {
       return <div data-testid="reviews-stub" />;
     },
   });
+  const roundRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/reviews/$slug/$round",
+    component: function RoundStub(): ReactElement {
+      return <div data-testid="round-stub" />;
+    },
+  });
   const runRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/runs/$runId",
@@ -110,7 +125,7 @@ async function renderDetail(props: RenderProps = {}) {
     },
   });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([detailRoute, reviewsRoute, runRoute]),
+    routeTree: rootRoute.addChildren([detailRoute, reviewsRoute, roundRoute, runRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
     defaultPreload: false,
   });
@@ -130,6 +145,13 @@ describe("ReviewDetailView", () => {
     expect(screen.getByTestId("review-detail-round-number")).toHaveTextContent("2");
     expect(screen.getByTestId("review-detail-provider")).toHaveTextContent("coderabbit");
     expect(screen.getByTestId("review-detail-document-body")).toHaveTextContent("add a test");
+    const backLink = screen.getByTestId("review-detail-back") as HTMLAnchorElement;
+    expect(backLink.getAttribute("href")).toBe("/reviews/alpha/2");
+  });
+
+  it("Should preserve identifier underscores while stripping markdown emphasis", async () => {
+    await renderDetail({ documentTitle: "Fix _Potential issue_ for my_variable_name" });
+    expect(screen.getByText("Fix Potential issue for my_variable_name")).toBeInTheDocument();
   });
 
   it("Should invoke the dispatch-fix handler", async () => {

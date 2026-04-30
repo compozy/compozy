@@ -62,6 +62,7 @@ type daemonCommandClient interface {
 	ListReviewIssues(context.Context, string, string, int) ([]apicore.ReviewIssue, error)
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
 	StartReviewRun(context.Context, string, string, int, apicore.ReviewRunRequest) (apicore.Run, error)
+	StartReviewWatch(context.Context, string, string, apicore.ReviewWatchRequest) (apicore.Run, error)
 	StartExecRun(context.Context, apicore.ExecRequest) (apicore.Run, error)
 	CancelRun(context.Context, string) error
 	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)

@@ -17,14 +17,11 @@ import {
 } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
 
-import type { ReviewIssue, ReviewSummary } from "../types";
+import type { ReviewSummary } from "../types";
 
 export interface ReviewRoundCard {
   slug: string;
   review: ReviewSummary;
-  issues: ReviewIssue[];
-  isIssuesLoading: boolean;
-  issuesError?: string | null;
 }
 
 export interface ReviewsIndexViewProps {
@@ -41,7 +38,7 @@ export function ReviewsIndexView(props: ReviewsIndexViewProps): ReactElement {
   return (
     <div className="space-y-6" data-testid="reviews-index-view">
       <SectionHeading
-        description={`Review rounds across ${workspaceName}. Drill into an issue to inspect the patch and dispatch a review fix.`}
+        description={`Review rounds across ${workspaceName}. Open a round to inspect issues and dispatch review fixes.`}
         eyebrow="Across workflows"
         title="Reviews"
       />
@@ -86,15 +83,25 @@ export function ReviewsIndexView(props: ReviewsIndexViewProps): ReactElement {
 }
 
 function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
-  const { slug, review, issues, isIssuesLoading, issuesError } = card;
+  const { slug, review } = card;
   const tone = resolveReviewTone(review);
   const roundLabel = String(review.round_number).padStart(3, "0");
   return (
-    <SurfaceCard data-testid={`reviews-index-card-${slug}`}>
+    <SurfaceCard data-interactive="true" data-testid={`reviews-index-card-${slug}`}>
       <SurfaceCardHeader>
-        <div>
+        <div className="min-w-0">
           <SurfaceCardEyebrow>round {roundLabel}</SurfaceCardEyebrow>
-          <SurfaceCardTitle>{slug}</SurfaceCardTitle>
+          <SurfaceCardTitle>
+            <Link
+              className="block truncate text-foreground hover:underline"
+              data-testid={`reviews-index-round-link-${slug}`}
+              params={{ slug, round: String(review.round_number) }}
+              title={slug}
+              to="/reviews/$slug/$round"
+            >
+              {slug}
+            </Link>
+          </SurfaceCardTitle>
           <SurfaceCardDescription>
             {review.pr_ref ? `PR ${review.pr_ref} · ` : ""}updated{" "}
             {formatTimestamp(review.updated_at)}
@@ -117,9 +124,9 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
             value={review.resolved_count}
           />
           <Stat
-            label="Issues loaded"
+            label="Issues"
             testId={`reviews-index-card-loaded-${slug}`}
-            value={issues.length}
+            value={review.resolved_count + review.unresolved_count}
           />
           <Stat
             label="Round"
@@ -127,40 +134,6 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
             value={review.round_number}
           />
         </div>
-
-        {issuesError ? (
-          <Alert data-testid={`reviews-index-card-issues-error-${slug}`} variant="error">
-            {issuesError}
-          </Alert>
-        ) : null}
-
-        {isIssuesLoading && issues.length === 0 ? (
-          <div className="space-y-2" data-testid={`reviews-index-card-issues-loading-${slug}`}>
-            <SkeletonRow />
-            <SkeletonRow />
-          </div>
-        ) : null}
-
-        {!isIssuesLoading && issues.length === 0 && !issuesError ? (
-          <EmptyState
-            className="py-5"
-            data-testid={`reviews-index-card-issues-empty-${slug}`}
-            title="No issues in this round"
-          />
-        ) : null}
-
-        {issues.length > 0 ? (
-          <ul className="space-y-2" data-testid={`reviews-index-card-issues-${slug}`}>
-            {issues.map(issue => (
-              <ReviewIssueRow
-                issue={issue}
-                key={issue.id}
-                round={review.round_number}
-                slug={slug}
-              />
-            ))}
-          </ul>
-        ) : null}
       </SurfaceCardBody>
       <SurfaceCardFooter>
         {review.provider ? (
@@ -173,61 +146,19 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
         ) : (
           <span className="text-xs text-muted-foreground" />
         )}
+        <Link
+          className="text-xs font-semibold uppercase tracking-[0.12em] text-primary transition-colors hover:text-foreground"
+          data-testid={`reviews-index-card-open-${slug}`}
+          params={{ slug, round: String(review.round_number) }}
+          to="/reviews/$slug/$round"
+        >
+          Open round →
+        </Link>
         <span className="text-xs text-muted-foreground">
           {review.unresolved_count} unresolved / {review.resolved_count} resolved
         </span>
       </SurfaceCardFooter>
     </SurfaceCard>
-  );
-}
-
-function ReviewIssueRow({
-  issue,
-  round,
-  slug,
-}: {
-  issue: ReviewIssue;
-  round: number;
-  slug: string;
-}): ReactElement {
-  const severityTone = resolveSeverityTone(issue.severity);
-  const statusTone = resolveStatusTone(issue.status);
-  return (
-    <li
-      className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
-      data-testid={`reviews-index-issue-${slug}-${issue.id}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <p className="eyebrow text-muted-foreground">issue #{issue.issue_number}</p>
-          <Link
-            className="truncate text-sm font-medium text-foreground hover:underline"
-            data-testid={`reviews-index-issue-link-${slug}-${issue.id}`}
-            params={{ slug, round: String(round), issueId: issue.id }}
-            to="/reviews/$slug/$round/$issueId"
-          >
-            {issue.source_path}
-          </Link>
-          <p className="text-xs text-muted-foreground">
-            updated {formatTimestamp(issue.updated_at)}
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center">
-          <StatusBadge
-            data-testid={`reviews-index-issue-severity-${slug}-${issue.id}`}
-            tone={severityTone}
-          >
-            {issue.severity}
-          </StatusBadge>
-          <StatusBadge
-            data-testid={`reviews-index-issue-status-${slug}-${issue.id}`}
-            tone={statusTone}
-          >
-            {issue.status}
-          </StatusBadge>
-        </div>
-      </div>
-    </li>
   );
 }
 

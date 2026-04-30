@@ -147,6 +147,44 @@ func (c *Client) StartReviewRun(
 	return response.Run, nil
 }
 
+// StartReviewWatch starts one daemon-owned review-watch parent run.
+func (c *Client) StartReviewWatch(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	req apicore.ReviewWatchRequest,
+) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, ErrDaemonClientRequired
+	}
+
+	trimmedSlug := strings.TrimSpace(slug)
+	if trimmedSlug == "" {
+		return apicore.Run{}, ErrWorkflowSlugRequired
+	}
+
+	var response contract.RunResponse
+	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/watch"
+	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewWatchRequest{
+		Workspace:        strings.TrimSpace(workspace),
+		Provider:         strings.TrimSpace(req.Provider),
+		PRRef:            strings.TrimSpace(req.PRRef),
+		UntilClean:       req.UntilClean,
+		MaxRounds:        req.MaxRounds,
+		AutoPush:         req.AutoPush,
+		PushRemote:       strings.TrimSpace(req.PushRemote),
+		PushBranch:       strings.TrimSpace(req.PushBranch),
+		PollInterval:     strings.TrimSpace(req.PollInterval),
+		ReviewTimeout:    strings.TrimSpace(req.ReviewTimeout),
+		QuietPeriod:      strings.TrimSpace(req.QuietPeriod),
+		RuntimeOverrides: req.RuntimeOverrides,
+		Batching:         req.Batching,
+	}, &response); err != nil {
+		return apicore.Run{}, err
+	}
+	return response.Run, nil
+}
+
 // StartExecRun starts one daemon-backed exec run.
 func (c *Client) StartExecRun(ctx context.Context, req apicore.ExecRequest) (apicore.Run, error) {
 	if c == nil {

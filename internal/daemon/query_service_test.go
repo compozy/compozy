@@ -234,6 +234,16 @@ func TestQueryServiceAssemblesReadModelsFromRealDaemonState(t *testing.T) {
 	if overview.TaskCounts.Total != 2 || overview.TaskCounts.Completed != 1 || overview.TaskCounts.Pending != 1 {
 		t.Fatalf("unexpected workflow overview counts: %#v", overview.TaskCounts)
 	}
+	if overview.Workflow.TaskCounts == nil ||
+		overview.Workflow.TaskCounts.Total != 2 ||
+		overview.Workflow.TaskCounts.Completed != 1 ||
+		overview.Workflow.TaskCounts.Pending != 1 {
+		t.Fatalf("unexpected embedded workflow task counts: %#v", overview.Workflow.TaskCounts)
+	}
+	if overview.Workflow.CanStartRun == nil || !*overview.Workflow.CanStartRun ||
+		overview.Workflow.StartBlockReason != "" {
+		t.Fatalf("unexpected embedded workflow start metadata: %#v", overview.Workflow)
+	}
 	if overview.LatestReview == nil || overview.LatestReview.RoundNumber != 1 {
 		t.Fatalf("unexpected workflow latest review: %#v", overview.LatestReview)
 	}
@@ -418,10 +428,7 @@ func TestQueryServiceReadsArchivedFilesystemWhenActiveProjectionIsStale(t *testi
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
 	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Archived stale task"))
-	run := env.startTaskRun(t, "query-service-stale-archive-001", nil)
-	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return row.Status == runStatusCompleted
-	})
+	syncWorkflowForDaemonTest(t, env)
 
 	workflow, err := env.globalDB.GetActiveWorkflowBySlug(
 		context.Background(),

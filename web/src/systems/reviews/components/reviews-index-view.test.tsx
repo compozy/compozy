@@ -38,7 +38,7 @@ async function renderIndex(props: RenderProps = {}) {
   });
   const detailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/reviews/$slug/$round/$issueId",
+    path: "/reviews/$slug/$round",
     component: function DetailStub(): ReactElement {
       return <div data-testid="detail-stub" />;
     },
@@ -66,17 +66,6 @@ const populatedCard: ReviewRoundCard = {
     unresolved_count: 3,
     updated_at: "2026-01-02T00:00:00Z",
   },
-  issues: [
-    {
-      id: "issue_001",
-      issue_number: 1,
-      severity: "medium",
-      status: "open",
-      source_path: "packages/x/y.ts",
-      updated_at: "2026-01-02T00:00:00Z",
-    },
-  ],
-  isIssuesLoading: false,
 };
 
 describe("ReviewsIndexView", () => {
@@ -95,55 +84,16 @@ describe("ReviewsIndexView", () => {
     expect(screen.getByTestId("reviews-index-error")).toHaveTextContent("workspace stale");
   });
 
-  it("Should render cards and issue rows with detail links", async () => {
+  it("Should render compact round cards with round-detail links", async () => {
     await renderIndex({ cards: [populatedCard] });
     expect(screen.getByTestId("reviews-index-card-alpha")).toBeInTheDocument();
     expect(screen.getByTestId("reviews-index-card-unresolved-alpha")).toHaveTextContent("3");
     expect(screen.getByTestId("reviews-index-card-resolved-alpha")).toHaveTextContent("1");
-    const link = screen.getByTestId(
-      "reviews-index-issue-link-alpha-issue_001"
-    ) as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("/reviews/alpha/2/issue_001");
-  });
-
-  it("Should render the card issues-loading state when issues are fetching", async () => {
-    await renderIndex({
-      cards: [
-        {
-          ...populatedCard,
-          issues: [],
-          isIssuesLoading: true,
-        },
-      ],
-    });
-    expect(screen.getByTestId("reviews-index-card-issues-loading-alpha")).toBeInTheDocument();
-  });
-
-  it("Should render the card issues empty state", async () => {
-    await renderIndex({
-      cards: [
-        {
-          ...populatedCard,
-          issues: [],
-          isIssuesLoading: false,
-        },
-      ],
-    });
-    expect(screen.getByTestId("reviews-index-card-issues-empty-alpha")).toBeInTheDocument();
-  });
-
-  it("Should render the card issues error state", async () => {
-    await renderIndex({
-      cards: [
-        {
-          ...populatedCard,
-          issues: [],
-          isIssuesLoading: false,
-          issuesError: "boom",
-        },
-      ],
-    });
-    expect(screen.getByTestId("reviews-index-card-issues-error-alpha")).toHaveTextContent("boom");
+    const link = screen.getByTestId("reviews-index-round-link-alpha") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("/reviews/alpha/2");
+    expect(
+      screen.queryByTestId("reviews-index-issue-link-alpha-issue_001")
+    ).not.toBeInTheDocument();
   });
 
   it("Should render the refreshing indicator", async () => {

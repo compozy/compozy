@@ -1,10 +1,41 @@
 package provider
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+var ErrWatchStatusUnsupported = errors.New("review provider does not support watch status")
 
 type FetchRequest struct {
 	PR              string `json:"pr"`
 	IncludeNitpicks bool   `json:"include_nitpicks,omitempty"`
+}
+
+type WatchStatusState string
+
+const (
+	WatchStatusPending         WatchStatusState = "pending"
+	WatchStatusStale           WatchStatusState = "stale"
+	WatchStatusCurrentReviewed WatchStatusState = "current_reviewed"
+	WatchStatusUnsupported     WatchStatusState = "unsupported"
+)
+
+type WatchStatusRequest struct {
+	PR string `json:"pr"`
+}
+
+// WatchStatus reports whether a provider review covers the current PR head.
+type WatchStatus struct {
+	PRHeadSHA       string           `json:"pr_head_sha"`
+	ReviewCommitSHA string           `json:"review_commit_sha,omitempty"`
+	ReviewID        string           `json:"review_id,omitempty"`
+	ReviewState     string           `json:"review_state,omitempty"`
+	State           WatchStatusState `json:"state"`
+	SubmittedAt     time.Time        `json:"submitted_at,omitempty"`
 }
 
 // ReviewItem is the normalized output of a provider fetch operation.
@@ -33,4 +64,22 @@ type Provider interface {
 	Name() string
 	FetchReviews(ctx context.Context, req FetchRequest) ([]ReviewItem, error)
 	ResolveIssues(ctx context.Context, pr string, issues []ResolvedIssue) error
+}
+
+// WatchStatusProvider is an optional review-provider capability used by watch mode.
+type WatchStatusProvider interface {
+	Provider
+	WatchStatus(ctx context.Context, req WatchStatusRequest) (WatchStatus, error)
+}
+
+func FetchWatchStatus(ctx context.Context, p Provider, req WatchStatusRequest) (WatchStatus, error) {
+	watchProvider, ok := p.(WatchStatusProvider)
+	if !ok {
+		name := "<nil>"
+		if p != nil {
+			name = strings.TrimSpace(p.Name())
+		}
+		return WatchStatus{State: WatchStatusUnsupported}, fmt.Errorf("%w: %s", ErrWatchStatusUnsupported, name)
+	}
+	return watchProvider.WatchStatus(ctx, req)
 }

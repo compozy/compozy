@@ -6,6 +6,9 @@ import type { FullConfig } from "@playwright/test";
 
 import {
   PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG,
+  PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG,
+  PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS,
+  PLAYWRIGHT_START_WORKFLOW_SLUG,
   PLAYWRIGHT_WORKFLOW_SLUGS,
   resolvePlaywrightPaths,
   type DaemonUIEnvironment,
@@ -113,7 +116,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
     paths.binaryPath,
     fixtureRoot,
     env,
-    ["tasks", "run", "daemon", "--dry-run", "--detach"]
+    ["tasks", "run", PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG, "--dry-run", "--detach"]
   );
   const seededReviewRunId = await seedDryRun(
     paths.commandLogFile,
@@ -151,14 +154,46 @@ async function assertBinaryExists(binaryPath: string): Promise<void> {
 
 async function createWorkspaceFixture(repoRoot: string, fixtureRoot: string): Promise<void> {
   await mkdir(path.join(fixtureRoot, ".compozy", "tasks"), { recursive: true });
-  for (const slug of PLAYWRIGHT_WORKFLOW_SLUGS) {
+  for (const slug of PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS) {
     await cp(
       path.join(repoRoot, ".compozy", "tasks", slug),
       path.join(fixtureRoot, ".compozy", "tasks", slug),
       { recursive: true }
     );
   }
+  await createRunnableWorkflow(
+    fixtureRoot,
+    PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG,
+    "Seed Runnable Task"
+  );
+  await createRunnableWorkflow(fixtureRoot, PLAYWRIGHT_START_WORKFLOW_SLUG, "Start Runnable Task");
   await createArchiveReadyWorkflow(fixtureRoot);
+}
+
+async function createRunnableWorkflow(
+  fixtureRoot: string,
+  slug: string,
+  title: string
+): Promise<void> {
+  const workflowDir = path.join(fixtureRoot, ".compozy", "tasks", slug);
+  await mkdir(workflowDir, { recursive: true });
+  await writeFile(
+    path.join(workflowDir, "task_001.md"),
+    [
+      "---",
+      "status: pending",
+      `title: ${title}`,
+      "type: test",
+      "complexity: low",
+      "---",
+      "",
+      `# ${title}`,
+      "",
+      "Fixture workflow reserved for daemon-served run smoke coverage.",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
 }
 
 async function createArchiveReadyWorkflow(fixtureRoot: string): Promise<void> {

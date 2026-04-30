@@ -596,6 +596,15 @@
                 ],
                 "type": "object"
             },
+            "ReviewRoundResponse": {
+                "properties": {
+                    "round": {
+                        "$ref": "#/components/schemas/ReviewRound"
+                    }
+                },
+                "required": ["round"],
+                "type": "object"
+            },
             "ReviewRunRequest": {
                 "properties": {
                     "batching": {
@@ -1251,6 +1260,12 @@
                     "legacy_artifacts_removed": {
                         "type": "integer"
                     },
+                    "pruned_workflows": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
                     "review_issues_upserted": {
                         "type": "integer"
                     },
@@ -1286,6 +1301,9 @@
                         "type": "string"
                     },
                     "workflows_scanned": {
+                        "type": "integer"
+                    },
+                    "workflows_pruned": {
                         "type": "integer"
                     },
                     "workspace_id": {
@@ -1703,9 +1721,18 @@
             },
             "WorkflowSummary": {
                 "properties": {
+                    "archive_eligible": {
+                        "type": "boolean"
+                    },
+                    "archive_reason": {
+                        "type": "string"
+                    },
                     "archived_at": {
                         "format": "date-time",
                         "type": "string"
+                    },
+                    "can_start_run": {
+                        "type": "boolean"
                     },
                     "id": {
                         "type": "string"
@@ -1716,6 +1743,12 @@
                     },
                     "slug": {
                         "type": "string"
+                    },
+                    "start_block_reason": {
+                        "type": "string"
+                    },
+                    "task_counts": {
+                        "$ref": "#/components/schemas/WorkflowTaskCounts"
                     },
                     "workspace_id": {
                         "type": "string"
@@ -1852,6 +1885,9 @@
                             "type": "string"
                         },
                         "type": "array"
+                    },
+                    "workflows_pruned": {
+                        "type": "integer"
                     }
                 },
                 "required": [
@@ -1885,6 +1921,53 @@
                     }
                 },
                 "required": ["workspaces"],
+                "type": "object"
+            },
+            "ReviewWatchRequest": {
+                "properties": {
+                    "auto_push": {
+                        "type": "boolean"
+                    },
+                    "batching": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "max_rounds": {
+                        "type": "integer"
+                    },
+                    "poll_interval": {
+                        "type": "string"
+                    },
+                    "pr_ref": {
+                        "type": "string"
+                    },
+                    "provider": {
+                        "type": "string"
+                    },
+                    "push_branch": {
+                        "type": "string"
+                    },
+                    "push_remote": {
+                        "type": "string"
+                    },
+                    "quiet_period": {
+                        "type": "string"
+                    },
+                    "review_timeout": {
+                        "type": "string"
+                    },
+                    "runtime_overrides": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "until_clean": {
+                        "type": "boolean"
+                    },
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "required": ["pr_ref"],
                 "type": "object"
             }
         }
@@ -2004,6 +2087,116 @@
                     }
                 },
                 "summary": "Read the latest review summary for one workflow.",
+                "tags": ["reviews"]
+            }
+        },
+        "/api/reviews/{slug}/watch": {
+            "post": {
+                "operationId": "startReviewWatch",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ActiveWorkspaceHeader"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReviewWatchRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TransportError"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
+                    }
+                },
+                "summary": "Start one daemon-owned review-watch run.",
+                "tags": ["reviews"]
+            }
+        },
+        "/api/reviews/{slug}/rounds/{round}": {
+            "get": {
+                "operationId": "getReviewRound",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ActiveWorkspaceHeader"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Round"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReviewRoundResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one review round summary.",
                 "tags": ["reviews"]
             }
         },

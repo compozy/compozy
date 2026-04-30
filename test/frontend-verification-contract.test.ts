@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG,
+  PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS,
+  PLAYWRIGHT_START_WORKFLOW_SLUG,
   PLAYWRIGHT_WORKFLOW_SLUGS,
   resolvePlaywrightPaths,
 } from "../web/e2e/support/daemon-fixture";
@@ -93,6 +96,12 @@ describe("frontend verification contract", () => {
     expect(playwrightConfig).toContain("globalTeardown:");
     expect(playwrightConfig).not.toContain("webServer:");
     expect(paths.binaryPath).toBe(path.join(rootDir, "bin", "compozy"));
-    expect(PLAYWRIGHT_WORKFLOW_SLUGS).toEqual(["daemon", "daemon-web-ui"]);
+    expect(PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS).toEqual(["daemon", "daemon-web-ui"]);
+    expect(PLAYWRIGHT_WORKFLOW_SLUGS).toEqual([
+      "daemon",
+      "daemon-web-ui",
+      PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG,
+      PLAYWRIGHT_START_WORKFLOW_SLUG,
+    ]);
   });
 });

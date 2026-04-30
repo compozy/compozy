@@ -151,6 +151,8 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			cfg.FixReviews.IncludeResolved,
 			func(val bool) { s.includeResolved = val },
 		)
+	case commandKindWatchReviews:
+		s.applyWatchReviewsConfig(cmd, cfg)
 	case commandKindFetchReviews:
 		applyConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
 		if cfg.FetchReviews.Nitpicks != nil {
@@ -179,6 +181,28 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			func(val float64) { s.retryBackoffMultiplier = val },
 		)
 	}
+}
+
+func (s *commandState) applyWatchReviewsConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
+	applyConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
+	applyConfig(cmd, "format", cfg.FixReviews.OutputFormat, func(val string) { s.outputFormat = val })
+	applyConfig(cmd, "tui", cfg.FixReviews.TUI, func(val bool) { s.tui = val })
+	applyConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
+	applyConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
+	applyConfig(
+		cmd,
+		"include-resolved",
+		cfg.FixReviews.IncludeResolved,
+		func(val bool) { s.includeResolved = val },
+	)
+	applyConfig(cmd, "max-rounds", cfg.WatchReviews.MaxRounds, func(val int) { s.maxRounds = val })
+	applyConfig(cmd, "poll-interval", cfg.WatchReviews.PollInterval, func(val string) { s.pollInterval = val })
+	applyConfig(cmd, "review-timeout", cfg.WatchReviews.ReviewTimeout, func(val string) { s.reviewTimeout = val })
+	applyConfig(cmd, "quiet-period", cfg.WatchReviews.QuietPeriod, func(val string) { s.quietPeriod = val })
+	applyConfig(cmd, "auto-push", cfg.WatchReviews.AutoPush, func(val bool) { s.autoPush = val })
+	applyConfig(cmd, "until-clean", cfg.WatchReviews.UntilClean, func(val bool) { s.untilClean = val })
+	applyConfig(cmd, "push-remote", cfg.WatchReviews.PushRemote, func(val string) { s.pushRemote = val })
+	applyConfig(cmd, "push-branch", cfg.WatchReviews.PushBranch, func(val string) { s.pushBranch = val })
 }
 
 func derefTaskRuntimeRulesConfig(value *[]model.TaskRuntimeRule) []model.TaskRuntimeRule {
