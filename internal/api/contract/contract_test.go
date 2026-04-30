@@ -60,12 +60,47 @@ func TestTimeoutClassesFollowCanonicalRoutePolicy(t *testing.T) {
 		wantUseTTL bool
 		wantTTL    time.Duration
 	}{
-		{"probe health", http.MethodGet, "/api/daemon/health", contract.TimeoutProbe, true, 2 * time.Second},
-		{"read snapshot", http.MethodGet, "/api/runs/run-1/snapshot", contract.TimeoutRead, true, 15 * time.Second},
-		{"mutate cancel", http.MethodPost, "/api/runs/run-1/cancel", contract.TimeoutMutate, true, 30 * time.Second},
-		{"long mutate exec", http.MethodPost, "/api/exec", contract.TimeoutLongMutate, true, 120 * time.Second},
-		{"run stream", http.MethodGet, "/api/runs/run-1/stream", contract.TimeoutStream, false, 0},
-		{"workspace socket", http.MethodGet, "/api/workspaces/workspace-1/ws", contract.TimeoutStream, false, 0},
+		{
+			"Should classify health probe",
+			http.MethodGet,
+			"/api/daemon/health",
+			contract.TimeoutProbe,
+			true,
+			2 * time.Second,
+		},
+		{
+			"Should classify snapshot reads",
+			http.MethodGet,
+			"/api/runs/run-1/snapshot",
+			contract.TimeoutRead,
+			true,
+			15 * time.Second,
+		},
+		{
+			"Should classify cancel mutations",
+			http.MethodPost,
+			"/api/runs/run-1/cancel",
+			contract.TimeoutMutate,
+			true,
+			30 * time.Second,
+		},
+		{
+			"Should classify long exec mutations",
+			http.MethodPost,
+			"/api/exec",
+			contract.TimeoutLongMutate,
+			true,
+			120 * time.Second,
+		},
+		{"Should classify run streams", http.MethodGet, "/api/runs/run-1/stream", contract.TimeoutStream, false, 0},
+		{
+			"Should classify workspace sockets",
+			http.MethodGet,
+			"/api/workspaces/workspace-1/ws",
+			contract.TimeoutStream,
+			false,
+			0,
+		},
 	}
 
 	for _, tt := range testCases {

@@ -300,67 +300,71 @@ func TestScopeInstallFlagAndInstallScopeLabel(t *testing.T) {
 func TestVerifyRequiredSkillStateUsesSetupAgentNameAndExtensionScopeHint(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
-	state.listBundledSkills = func() ([]setup.Skill, error) {
-		return []setup.Skill{{Name: "cy-execute-task"}, {Name: "cy-final-verify"}}, nil
-	}
-	state.verifyBundledSkills = func(cfg setup.VerifyConfig) (setup.VerifyResult, error) {
-		if cfg.AgentName != "codex" {
-			t.Fatalf("unexpected setup agent name: %q", cfg.AgentName)
+	t.Run("Should use setup agent name and extension scope hint", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.listBundledSkills = func() ([]setup.Skill, error) {
+			return []setup.Skill{{Name: "cy-execute-task"}, {Name: "cy-final-verify"}}, nil
 		}
-		if got := strings.Join(cfg.SkillNames, ","); got != "cy-execute-task,cy-final-verify" {
-			t.Fatalf("unexpected bundled skill names: %q", got)
+		state.verifyBundledSkills = func(cfg setup.VerifyConfig) (setup.VerifyResult, error) {
+			if cfg.AgentName != "codex" {
+				t.Fatalf("unexpected setup agent name: %q", cfg.AgentName)
+			}
+			if got := strings.Join(cfg.SkillNames, ","); got != "cy-execute-task,cy-final-verify" {
+				t.Fatalf("unexpected bundled skill names: %q", got)
+			}
+			return setup.VerifyResult{
+				Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+				Scope: setup.InstallScopeGlobal,
+				Mode:  setup.InstallModeSymlink,
+				Skills: []setup.VerifiedSkill{
+					{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateCurrent},
+				},
+			}, nil
 		}
-		return setup.VerifyResult{
-			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
-			Scope: setup.InstallScopeGlobal,
-			Mode:  setup.InstallModeSymlink,
-			Skills: []setup.VerifiedSkill{
-				{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateCurrent},
-			},
-		}, nil
-	}
-	state.verifyExtensionSkills = func(cfg setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error) {
-		if cfg.AgentName != "codex" {
-			t.Fatalf("unexpected extension setup agent name: %q", cfg.AgentName)
-		}
-		if cfg.ScopeHint != setup.InstallScopeGlobal {
-			t.Fatalf("expected bundled scope hint to flow into extension verify, got %q", cfg.ScopeHint)
-		}
-		if len(cfg.Packs) != 1 || cfg.Packs[0].ExtensionName != "workspace-ext" {
-			t.Fatalf("unexpected extension packs: %#v", cfg.Packs)
-		}
-		return setup.ExtensionVerifyResult{
-			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
-			Scope: setup.InstallScopeGlobal,
-			Mode:  setup.InstallModeSymlink,
-			Skills: []setup.ExtensionVerifiedSkill{
-				{
-					VerifiedSkill: setup.VerifiedSkill{
-						Skill: setup.Skill{Name: "ext-pack"},
-						State: setup.VerifyStateCurrent,
+		state.verifyExtensionSkills = func(cfg setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error) {
+			if cfg.AgentName != "codex" {
+				t.Fatalf("unexpected extension setup agent name: %q", cfg.AgentName)
+			}
+			if cfg.ScopeHint != setup.InstallScopeGlobal {
+				t.Fatalf("expected bundled scope hint to flow into extension verify, got %q", cfg.ScopeHint)
+			}
+			if len(cfg.Packs) != 1 || cfg.Packs[0].ExtensionName != "workspace-ext" {
+				t.Fatalf("unexpected extension packs: %#v", cfg.Packs)
+			}
+			return setup.ExtensionVerifyResult{
+				Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+				Scope: setup.InstallScopeGlobal,
+				Mode:  setup.InstallModeSymlink,
+				Skills: []setup.ExtensionVerifiedSkill{
+					{
+						VerifiedSkill: setup.VerifiedSkill{
+							Skill: setup.Skill{Name: "ext-pack"},
+							State: setup.VerifyStateCurrent,
+						},
 					},
 				},
-			},
-		}, nil
-	}
+			}, nil
+		}
 
-	result, err := state.verifyRequiredSkillState(core.Config{IDE: core.IDECodex}, []setup.SkillPackSource{{
-		ExtensionName: "workspace-ext",
-		ManifestPath:  "/tmp/workspace-ext/extension.json",
-	}})
-	if err != nil {
-		t.Fatalf("verify required skill state: %v", err)
-	}
-	if result.AgentName != "codex" {
-		t.Fatalf("unexpected agent name: %q", result.AgentName)
-	}
-	if result.Scope() != setup.InstallScopeGlobal {
-		t.Fatalf("unexpected scope: %q", result.Scope())
-	}
-	if result.Mode() != setup.InstallModeSymlink {
-		t.Fatalf("unexpected mode: %q", result.Mode())
-	}
+		result, err := state.verifyRequiredSkillState(core.Config{IDE: core.IDECodex}, []setup.SkillPackSource{{
+			ExtensionName: "workspace-ext",
+			ManifestPath:  "/tmp/workspace-ext/extension.json",
+		}})
+		if err != nil {
+			t.Fatalf("verify required skill state: %v", err)
+		}
+		if result.AgentName != "codex" {
+			t.Fatalf("unexpected agent name: %q", result.AgentName)
+		}
+		if result.Scope() != setup.InstallScopeGlobal {
+			t.Fatalf("unexpected scope: %q", result.Scope())
+		}
+		if result.Mode() != setup.InstallModeSymlink {
+			t.Fatalf("unexpected mode: %q", result.Mode())
+		}
+	})
 }
 
 func TestRequiredSkillStateFallsBackToExtensionMetadata(t *testing.T) {

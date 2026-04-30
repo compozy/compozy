@@ -55,14 +55,18 @@ func TestBrowserMiddlewareValidatesWorkspaceRoot(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name    string
-		rootDir string
-		wantErr bool
+		name        string
+		rootDir     string
+		errContains string
 	}{
-		{name: "valid directory", rootDir: validRoot, wantErr: false},
-		{name: "empty root", rootDir: " ", wantErr: true},
-		{name: "missing root", rootDir: filepath.Join(t.TempDir(), "missing"), wantErr: true},
-		{name: "file root", rootDir: fileRoot, wantErr: true},
+		{name: "Should accept valid directory", rootDir: validRoot},
+		{name: "Should reject empty root", rootDir: " ", errContains: "workspace root is empty"},
+		{
+			name:        "Should reject missing root",
+			rootDir:     filepath.Join(t.TempDir(), "missing"),
+			errContains: "stat workspace root",
+		},
+		{name: "Should reject file root", rootDir: fileRoot, errContains: "is not a directory"},
 	}
 
 	for _, tc := range testCases {
@@ -70,11 +74,16 @@ func TestBrowserMiddlewareValidatesWorkspaceRoot(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := validateWorkspaceRoot(tc.rootDir)
-			if tc.wantErr && err == nil {
-				t.Fatal("validateWorkspaceRoot() error = nil, want error")
-			}
-			if !tc.wantErr && err != nil {
+			if tc.errContains == "" && err != nil {
 				t.Fatalf("validateWorkspaceRoot() error = %v, want nil", err)
+			}
+			if tc.errContains != "" {
+				if err == nil {
+					t.Fatalf("validateWorkspaceRoot() error = nil, want substring %q", tc.errContains)
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("validateWorkspaceRoot() error = %q, want substring %q", err.Error(), tc.errContains)
+				}
 			}
 		})
 	}

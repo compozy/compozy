@@ -40,7 +40,7 @@
         <mxCell id="daemon-start" value="AUTO-STARTED SINGLETON&lt;br&gt;&lt;font style=&quot;font-size:20px;color:#e7e5e4;&quot;&gt;compozy daemon start&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:13px;color:#a8a29e;&quot;&gt;Lifecycle lock, daemon.json, health, metrics, and workspace registry under ~/.compozy.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2b3118;strokeColor=#7f921f;fontColor=#d6f24a;fontStyle=1;fontSize=12;arcSize=10;spacing=24;fontFamily=Menlo;align=left;" vertex="1" parent="1">
           <mxGeometry x="496" y="350" width="608" height="116" as="geometry"/>
         </mxCell>
-        <mxCell id="transport" value="TRANSPORT CONTRACT&lt;br&gt;&lt;font style=&quot;font-size:14px;color:#e7e5e4;&quot;&gt;UDS for CLI&lt;br&gt;localhost HTTP + SSE for Web&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#24211f;strokeColor=#3a3632;fontColor=#857e77;fontStyle=1;fontSize=12;arcSize=12;spacing=20;fontFamily=Menlo;align=left;" vertex="1" parent="1">
+        <mxCell id="transport" value="TRANSPORT CONTRACT&lt;br&gt;&lt;font style=&quot;font-size:14px;color:#e7e5e4;&quot;&gt;UDS for CLI&lt;br&gt;localhost HTTP + WS for Web&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#24211f;strokeColor=#3a3632;fontColor=#857e77;fontStyle=1;fontSize=12;arcSize=12;spacing=20;fontFamily=Menlo;align=left;" vertex="1" parent="1">
           <mxGeometry x="496" y="504" width="280" height="116" as="geometry"/>
         </mxCell>
         <mxCell id="registry" value="WORKSPACE REGISTRY&lt;br&gt;&lt;font style=&quot;font-size:14px;color:#e7e5e4;&quot;&gt;workspaces resolve/register&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:13px;color:#a8a29e;&quot;&gt;Stable IDs for local roots&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#24211f;strokeColor=#3a3632;fontColor=#857e77;fontStyle=1;fontSize=12;arcSize=12;spacing=20;fontFamily=Menlo;align=left;" vertex="1" parent="1">
@@ -64,7 +64,7 @@
         <mxCell id="attach" value="runs attach / watch&lt;br&gt;&lt;font style=&quot;font-size:13px;color:#a8a29e;&quot;&gt;Snapshot + stream reconnect&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#20252d;strokeColor=#4f6890;fontColor=#e7e5e4;fontStyle=1;fontSize=14;arcSize=12;spacing=16;fontFamily=Menlo;align=left;" vertex="1" parent="1">
           <mxGeometry x="1214" y="610" width="262" height="88" as="geometry"/>
         </mxCell>
-        <mxCell id="archive" value="archive after synced completion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#322917;strokeColor=#7d5b1f;fontColor=#e7e5e4;fontStyle=1;fontSize=14;arcSize=12;spacing=16;fontFamily=Menlo;align=left;" vertex="1" parent="1">
+        <mxCell id="archive" value="archive after sync completion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#322917;strokeColor=#7d5b1f;fontColor=#e7e5e4;fontStyle=1;fontSize=14;arcSize=12;spacing=16;fontFamily=Menlo;align=left;" vertex="1" parent="1">
           <mxGeometry x="1214" y="730" width="262" height="60" as="geometry"/>
         </mxCell>
         <mxCell id="sequence" value="RUNTIME SEQUENCE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1b1917;strokeColor=#3a3632;fontColor=#857e77;fontStyle=1;fontSize=12;arcSize=6;spacing=24;fontFamily=Menlo;align=left;verticalAlign=top;" vertex="1" parent="1">

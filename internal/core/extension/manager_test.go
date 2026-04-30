@@ -80,8 +80,8 @@ func TestManagerStartInitializesExtensionsPublishesReadyAndDispatchesHooks(t *te
 	if got := envRecord.Payload["extension_source"]; got != string(SourceWorkspace) {
 		t.Fatalf("env extension_source = %#v, want %q", got, SourceWorkspace)
 	}
-	if got := requestRecord.Payload["invoking_command"]; got != "tasks run" {
-		t.Fatalf("initialize invoking_command = %#v, want %q", got, "tasks run")
+	if got := requestRecord.Payload["invoking_command"]; got != invokingCommandTasksRun {
+		t.Fatalf("initialize invoking_command = %#v, want %q", got, invokingCommandTasksRun)
 	}
 	if readyPayload.ProtocolVersion != compozyProtocolVersion() {
 		t.Fatalf("ready protocol_version = %q, want %q", readyPayload.ProtocolVersion, compozyProtocolVersion())
@@ -488,7 +488,7 @@ func TestExtensionSessionHandleIncomingRequestWritesResponse(t *testing.T) {
 func TestManagerHelpersCoverNilAndEventSkippingPaths(t *testing.T) {
 	(&Manager{}).DispatchObserver(context.Background(), HookJobPostExecute, map[string]any{"ok": true})
 
-	if got := invokingCommandForMode(model.ExecutionModePRReview); got != "reviews fix" {
+	if got := invokingCommandForMode(model.ExecutionModePRReview); got != invokingCommandFixReviews {
 		t.Fatalf("invokingCommandForMode(PRReview) = %q", got)
 	}
 	if got := invokingCommandForMode(model.ExecutionModeExec); got != executionModeLabelExec {
@@ -834,7 +834,7 @@ func TestStartExtensionReportsSpawnFailure(t *testing.T) {
 	manager := &Manager{
 		runID:           "run-test",
 		workspaceRoot:   t.TempDir(),
-		invokingCommand: "tasks run",
+		invokingCommand: invokingCommandTasksRun,
 		eventBus:        bus,
 	}
 	extension := &RuntimeExtension{

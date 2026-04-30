@@ -201,12 +201,12 @@ func (c *Client) GetRunTranscript(ctx context.Context, runID string) (apicore.Ru
 	var payload contract.RunTranscriptResponse
 	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/transcript"
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &payload); err != nil {
-		return apicore.RunTranscript{}, err
+		return apicore.RunTranscript{}, fmt.Errorf("load run transcript %q: %w", trimmedRunID, err)
 	}
 
 	transcript, err := payload.Decode()
 	if err != nil {
-		return apicore.RunTranscript{}, err
+		return apicore.RunTranscript{}, fmt.Errorf("decode run transcript %q: %w", trimmedRunID, err)
 	}
 	return transcript, nil
 }

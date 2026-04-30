@@ -14,11 +14,12 @@ const defaultHeartbeatInterval = contract.DefaultHeartbeatInterval
 
 // HandlerConfig wires the shared daemon transport handlers.
 type HandlerConfig struct {
-	TransportName     string
-	Logger            *slog.Logger
-	Now               func() time.Time
-	HeartbeatInterval time.Duration
-	StreamDone        <-chan struct{}
+	TransportName                 string
+	Logger                        *slog.Logger
+	Now                           func() time.Time
+	HeartbeatInterval             time.Duration
+	StreamDone                    <-chan struct{}
+	WorkspaceSocketOriginPatterns []string
 
 	Daemon          DaemonService
 	Workspaces      WorkspaceService

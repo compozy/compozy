@@ -287,7 +287,16 @@ func TestGetRunTranscriptPreservesStructuredMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRunTranscript() error = %v", err)
 	}
-	if got.RunID != want.RunID || len(got.Messages) != 1 || got.Messages[0].Parts[0].Text != "hello" {
+	if got.RunID != want.RunID {
+		t.Fatalf("transcript run_id = %q, want %q", got.RunID, want.RunID)
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("transcript messages len = %d, want 1; transcript=%#v", len(got.Messages), got)
+	}
+	if len(got.Messages[0].Parts) != 1 {
+		t.Fatalf("transcript message parts len = %d, want 1; message=%#v", len(got.Messages[0].Parts), got.Messages[0])
+	}
+	if got.Messages[0].Parts[0].Text != "hello" {
 		t.Fatalf("transcript = %#v, want structured hello message", got)
 	}
 	if !got.Incomplete || !reflect.DeepEqual(got.IncompleteReasons, []string{"transcript_gap"}) {

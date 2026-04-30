@@ -212,8 +212,16 @@ func TestStreamWorkspaceSocketEmitsEventHeartbeatAndOverflowMessages(t *testing.
 	stream := newFakeWorkspaceEventStream()
 	sendOverflow := make(chan struct{})
 	overflowOnce := sync.Once{}
+	feederCtx, stopFeeder := context.WithCancel(context.Background())
+	t.Cleanup(stopFeeder)
+	var feederWG sync.WaitGroup
+	feederWG.Add(1)
 	go func() {
-		stream.events <- core.WorkspaceStreamItem{
+		defer feederWG.Done()
+		defer close(stream.events)
+		defer close(stream.errors)
+		select {
+		case stream.events <- core.WorkspaceStreamItem{
 			Event: &core.WorkspaceEvent{
 				Seq:          42,
 				TS:           time.Date(2026, 4, 28, 12, 0, 0, 0, time.UTC),
@@ -224,14 +232,27 @@ func TestStreamWorkspaceSocketEmitsEventHeartbeatAndOverflowMessages(t *testing.
 				Status:       "running",
 				Kind:         core.WorkspaceEventKindRunStatusChanged,
 			},
+		}:
+		case <-feederCtx.Done():
+			return
 		}
-		<-sendOverflow
-		stream.events <- core.WorkspaceStreamItem{
+		select {
+		case <-sendOverflow:
+		case <-feederCtx.Done():
+			return
+		}
+		select {
+		case stream.events <- core.WorkspaceStreamItem{
 			Overflow: &core.WorkspaceStreamOverflow{Reason: "slow consumer"},
+		}:
+		case <-feederCtx.Done():
+			return
 		}
-		close(stream.events)
-		close(stream.errors)
 	}()
+	t.Cleanup(func() {
+		stopFeeder()
+		feederWG.Wait()
+	})
 
 	handlers := core.NewHandlers(&core.HandlerConfig{
 		TransportName:     "test",

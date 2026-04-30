@@ -107,8 +107,8 @@ func (s *Server) activeWorkspaceMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if err := workspacePathUnavailable(workspace); err != nil {
-			if requiresWorkspaceFilesystem(fullPath, c.Request.Method) {
+		if requiresWorkspaceFilesystem(fullPath, c.Request.Method) {
+			if err := workspacePathUnavailable(workspace); err != nil {
 				core.RespondError(c, core.WorkspacePathMissingProblem(workspace.ID, workspace.RootDir, err))
 				c.Abort()
 				return

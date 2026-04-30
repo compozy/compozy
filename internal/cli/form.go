@@ -36,10 +36,22 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 		if err := collectTaskRunRuntimeForm(cmd, state); err != nil {
 			return err
 		}
+	} else if state.kind == commandKindTasksRun {
+		clearTaskRunRuntimeRules(state)
+		markInputFlagChanged(cmd, "task-runtime")
 	}
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormSuccess())
 	return nil
+}
+
+func clearTaskRunRuntimeRules(state *commandState) {
+	if state == nil {
+		return
+	}
+	state.configuredTaskRuntimeRules = nil
+	state.executionTaskRuntimeRules = nil
+	state.replaceConfiguredTaskRunRules = true
 }
 
 type formInputs struct {

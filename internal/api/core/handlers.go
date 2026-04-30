@@ -46,9 +46,10 @@ type Handlers struct {
 	Sync            SyncService
 	Exec            ExecService
 
-	settingsMu sync.RWMutex
-	streamDone <-chan struct{}
-	httpPort   *atomic.Int64
+	settingsMu                    sync.RWMutex
+	streamDone                    <-chan struct{}
+	workspaceSocketOriginPatterns []string
+	httpPort                      *atomic.Int64
 }
 
 // NewHandlers builds the shared handler set with transport-specific defaults applied.
@@ -78,22 +79,24 @@ func NewHandlers(cfg *HandlerConfig) *Handlers {
 	if done == nil {
 		done = make(chan struct{})
 	}
+	originPatterns := normalizeWorkspaceSocketOriginPatterns(cfg.WorkspaceSocketOriginPatterns)
 
 	return &Handlers{
-		TransportName:     strings.TrimSpace(cfg.TransportName),
-		Logger:            logger,
-		Now:               now,
-		HeartbeatInterval: interval,
-		Daemon:            cfg.Daemon,
-		Workspaces:        cfg.Workspaces,
-		WorkspaceEvents:   cfg.WorkspaceEvents,
-		Tasks:             cfg.Tasks,
-		Reviews:           cfg.Reviews,
-		Runs:              cfg.Runs,
-		Sync:              cfg.Sync,
-		Exec:              cfg.Exec,
-		streamDone:        done,
-		httpPort:          &atomic.Int64{},
+		TransportName:                 strings.TrimSpace(cfg.TransportName),
+		Logger:                        logger,
+		Now:                           now,
+		HeartbeatInterval:             interval,
+		Daemon:                        cfg.Daemon,
+		Workspaces:                    cfg.Workspaces,
+		WorkspaceEvents:               cfg.WorkspaceEvents,
+		Tasks:                         cfg.Tasks,
+		Reviews:                       cfg.Reviews,
+		Runs:                          cfg.Runs,
+		Sync:                          cfg.Sync,
+		Exec:                          cfg.Exec,
+		streamDone:                    done,
+		workspaceSocketOriginPatterns: originPatterns,
+		httpPort:                      &atomic.Int64{},
 	}
 }
 
@@ -104,22 +107,39 @@ func (h *Handlers) Clone() *Handlers {
 	}
 
 	clone := NewHandlers(&HandlerConfig{
-		TransportName:     h.TransportName,
-		Logger:            h.Logger,
-		Now:               h.Now,
-		HeartbeatInterval: h.HeartbeatInterval,
-		StreamDone:        h.streamDoneChannel(),
-		Daemon:            h.Daemon,
-		Workspaces:        h.Workspaces,
-		WorkspaceEvents:   h.WorkspaceEvents,
-		Tasks:             h.Tasks,
-		Reviews:           h.Reviews,
-		Runs:              h.Runs,
-		Sync:              h.Sync,
-		Exec:              h.Exec,
+		TransportName:                 h.TransportName,
+		Logger:                        h.Logger,
+		Now:                           h.Now,
+		HeartbeatInterval:             h.HeartbeatInterval,
+		StreamDone:                    h.streamDoneChannel(),
+		WorkspaceSocketOriginPatterns: h.workspaceSocketOrigins(),
+		Daemon:                        h.Daemon,
+		Workspaces:                    h.Workspaces,
+		WorkspaceEvents:               h.WorkspaceEvents,
+		Tasks:                         h.Tasks,
+		Reviews:                       h.Reviews,
+		Runs:                          h.Runs,
+		Sync:                          h.Sync,
+		Exec:                          h.Exec,
 	})
 	clone.httpPort = h.httpPort
 	return clone
+}
+
+func normalizeWorkspaceSocketOriginPatterns(patterns []string) []string {
+	if len(patterns) == 0 {
+		return append([]string(nil), workspaceSocketOriginPatterns...)
+	}
+	normalized := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		if trimmed := strings.TrimSpace(pattern); trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	if len(normalized) == 0 {
+		return append([]string(nil), workspaceSocketOriginPatterns...)
+	}
+	return normalized
 }
 
 // SetStreamDone updates the transport shutdown bridge used by streaming handlers.
@@ -167,6 +187,15 @@ func (h *Handlers) streamDoneChannel() <-chan struct{} {
 	h.settingsMu.RLock()
 	defer h.settingsMu.RUnlock()
 	return h.streamDone
+}
+
+func (h *Handlers) workspaceSocketOrigins() []string {
+	if h == nil {
+		return append([]string(nil), workspaceSocketOriginPatterns...)
+	}
+	h.settingsMu.RLock()
+	defer h.settingsMu.RUnlock()
+	return append([]string(nil), h.workspaceSocketOriginPatterns...)
 }
 
 func (h *Handlers) respondError(c *gin.Context, err error) {
@@ -1148,7 +1177,7 @@ func (h *Handlers) prepareWorkspaceSocketStream(c *gin.Context) (WorkspaceEventS
 
 func (h *Handlers) acceptWorkspaceSocket(c *gin.Context, workspaceID string) (*websocket.Conn, bool) {
 	conn, err := websocket.Accept(c.Writer, c.Request, &websocket.AcceptOptions{
-		OriginPatterns: workspaceSocketOriginPatterns,
+		OriginPatterns: h.workspaceSocketOrigins(),
 	})
 	if err != nil {
 		if h != nil && h.Logger != nil {

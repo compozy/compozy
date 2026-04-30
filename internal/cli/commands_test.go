@@ -9,15 +9,19 @@ import (
 func TestBuildConfigTasksRunAlwaysEnablesExecutableExtensions(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	t.Run("Should enable executable extensions for tasks run", func(t *testing.T) {
+		t.Parallel()
 
-	cfg, err := state.buildConfig()
-	if err != nil {
-		t.Fatalf("buildConfig: %v", err)
-	}
-	if !cfg.EnableExecutableExtensions {
-		t.Fatal("expected tasks run config to enable executable extensions")
-	}
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+
+		cfg, err := state.buildConfig()
+		if err != nil {
+			t.Fatalf("buildConfig: %v", err)
+		}
+		if !cfg.EnableExecutableExtensions {
+			t.Fatal("expected tasks run config to enable executable extensions")
+		}
+	})
 }
 
 func TestBuildConfigFixReviewsAlwaysEnablesExecutableExtensions(t *testing.T) {

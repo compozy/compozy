@@ -85,10 +85,21 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
 	}
-	for _, want := range []string{"provider: stub", "pr: \"259\"", "round: 1", "round_created_at:"} {
-		if !strings.Contains(string(issueContent), want) {
-			t.Fatalf("expected issue frontmatter to include %q, got:\n%s", want, string(issueContent))
-		}
+	reviewContext, err := reviews.ParseReviewContext(string(issueContent))
+	if err != nil {
+		t.Fatalf("parse issue frontmatter: %v", err)
+	}
+	if reviewContext.Provider != "stub" {
+		t.Fatalf("issue provider = %q, want stub", reviewContext.Provider)
+	}
+	if reviewContext.PR != "259" {
+		t.Fatalf("issue pr = %q, want 259", reviewContext.PR)
+	}
+	if reviewContext.Round != 1 {
+		t.Fatalf("issue round = %d, want 1", reviewContext.Round)
+	}
+	if reviewContext.RoundCreatedAt.IsZero() {
+		t.Fatal("issue round_created_at is zero")
 	}
 }
 
