@@ -89,7 +89,7 @@ func (b *extensionBridge) normalizeRuntime(
 		return nil, fmt.Errorf("daemon: child runtime config is required")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, fmt.Errorf("daemon: context is required")
 	}
 
 	normalized := runtimeCfg.Clone()

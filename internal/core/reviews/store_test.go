@@ -352,6 +352,36 @@ func TestSnapshotRoundMetaDoesNotReadLegacyMetaFallback(t *testing.T) {
 	}
 }
 
+func TestSnapshotRoundMetaWrapsIssueFrontMatterExtractionErrors(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(reviewDir, "issue_001.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"provider: coderabbit",
+			"status: pending",
+			"file: internal/app/service.go",
+			"line: 42",
+			"author: review-bot",
+			"---",
+			"",
+			"# Issue 001: Example",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write issue_001.md: %v", err)
+	}
+
+	_, err := SnapshotRoundMeta(reviewDir)
+	if err == nil || !strings.Contains(err.Error(), "snapshot round meta from issue front matter") ||
+		!strings.Contains(err.Error(), "incomplete round metadata") {
+		t.Fatalf("SnapshotRoundMeta() error = %v, want wrapped front-matter extraction error", err)
+	}
+}
+
 func reviewIssueContentWithRound(status string, prLine string, createdAt time.Time) string {
 	lines := []string{
 		"---",

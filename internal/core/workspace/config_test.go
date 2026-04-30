@@ -851,6 +851,9 @@ provider = "coderabbit"
 nitpicks = false
 `)
 	writeWorkspaceConfig(t, root, `
+[defaults]
+auto_commit = true
+
 [watch_reviews]
 max_rounds = 5
 poll_interval = "15s"
@@ -964,6 +967,14 @@ push_branch = "feature"
 push_remote = "origin"
 `,
 			wantErr: "watch_reviews.push_remote",
+		},
+		{
+			name: "auto push requires auto commit when omitted",
+			content: `
+[watch_reviews]
+auto_push = true
+`,
+			wantErr: "watch_reviews.auto_push",
 		},
 		{
 			name: "auto push requires auto commit in config",

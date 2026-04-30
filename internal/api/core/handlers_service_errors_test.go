@@ -301,7 +301,7 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
-			"review watch active conflict",
+			"Should return conflict when review watch is already active",
 			&core.HandlerConfig{Reviews: &errorReviewService{err: core.NewProblem(
 				http.StatusConflict,
 				"review_watch_already_active",
@@ -316,7 +316,7 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"review_watch_already_active",
 		},
 		{
-			"review watch invalid request",
+			"Should return unprocessable when watch request is invalid",
 			&core.HandlerConfig{Reviews: &errorReviewService{err: core.NewProblem(
 				http.StatusUnprocessableEntity,
 				"invalid_watch_request",
@@ -331,7 +331,7 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"invalid_watch_request",
 		},
 		{
-			"review watch unavailable",
+			"Should return service unavailable when review watch is unavailable",
 			&core.HandlerConfig{Reviews: &errorReviewService{err: core.NewProblem(
 				http.StatusServiceUnavailable,
 				"review_service_unavailable",

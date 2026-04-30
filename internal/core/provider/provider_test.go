@@ -21,16 +21,18 @@ func (unsupportedWatchProvider) ResolveIssues(context.Context, string, []Resolve
 }
 
 func TestFetchWatchStatusReturnsUnsupportedError(t *testing.T) {
-	t.Parallel()
+	t.Run("Should return unsupported status when provider lacks watch capability", func(t *testing.T) {
+		t.Parallel()
 
-	status, err := FetchWatchStatus(context.Background(), unsupportedWatchProvider{}, WatchStatusRequest{PR: "259"})
-	if err == nil {
-		t.Fatal("expected unsupported watch-status error")
-	}
-	if !errors.Is(err, ErrWatchStatusUnsupported) {
-		t.Fatalf("expected ErrWatchStatusUnsupported, got %v", err)
-	}
-	if status.State != WatchStatusUnsupported {
-		t.Fatalf("status state = %q, want %q", status.State, WatchStatusUnsupported)
-	}
+		status, err := FetchWatchStatus(context.Background(), unsupportedWatchProvider{}, WatchStatusRequest{PR: "259"})
+		if err == nil {
+			t.Fatal("expected unsupported watch-status error")
+		}
+		if !errors.Is(err, ErrWatchStatusUnsupported) {
+			t.Fatalf("expected ErrWatchStatusUnsupported, got %v", err)
+		}
+		if status.State != WatchStatusUnsupported {
+			t.Fatalf("status state = %q, want %q", status.State, WatchStatusUnsupported)
+		}
+	})
 }

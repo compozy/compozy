@@ -186,7 +186,7 @@ func validateWatchReviews(scope string, defaults DefaultsConfig, cfg WatchReview
 			configFieldName(scope, "watch_reviews.push_branch"),
 		)
 	}
-	if isEnabled(cfg.AutoPush, false) && defaults.AutoCommit != nil && !*defaults.AutoCommit {
+	if isEnabled(cfg.AutoPush, false) && !isEnabled(defaults.AutoCommit, false) {
 		return fmt.Errorf(
 			"%s requires %s to be true",
 			configFieldName(scope, "watch_reviews.auto_push"),

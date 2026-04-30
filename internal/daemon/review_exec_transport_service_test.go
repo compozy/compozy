@@ -124,74 +124,83 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 }
 
 func TestTransportReviewServiceFetchSyncsNoMetaRoundAfterLegacyReview(t *testing.T) {
-	env := newRunManagerTestEnv(t, runManagerTestDeps{})
-	env.createReviewRound(t, 1)
-	recordPath := filepath.Join(t.TempDir(), "sdk-review-records.jsonl")
-	installSDKReviewProviderExtension(t, env.homeDir, env.workspaceRoot, recordPath)
+	t.Run("Should sync a no-meta round after a legacy review round", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		env.createReviewRound(t, 1)
+		recordPath := filepath.Join(t.TempDir(), "sdk-review-records.jsonl")
+		installSDKReviewProviderExtension(t, env.homeDir, env.workspaceRoot, recordPath)
 
-	service := newTransportReviewService(env.globalDB, env.manager)
-	result, err := service.Fetch(context.Background(), env.workspaceRoot, env.workflowSlug, apicore.ReviewFetchRequest{
-		Provider: "sdk-review",
-		PRRef:    "131",
+		service := newTransportReviewService(env.globalDB, env.manager)
+		result, err := service.Fetch(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.ReviewFetchRequest{
+				Provider: "sdk-review",
+				PRRef:    "131",
+			},
+		)
+		if err != nil {
+			t.Fatalf("Fetch() error = %v", err)
+		}
+		if !result.Created || result.Summary.RoundNumber != 2 {
+			t.Fatalf("unexpected fetch result after legacy round: %#v", result)
+		}
+		if result.Summary.Provider != "sdk-review" || result.Summary.PRRef != "131" {
+			t.Fatalf("unexpected fetch summary: %#v", result.Summary)
+		}
+
+		newReviewDir := filepath.Join(env.workflowDir(env.workflowSlug), "reviews-002")
+		if _, err := os.Stat(filepath.Join(newReviewDir, "_meta.md")); !os.IsNotExist(err) {
+			t.Fatalf("expected no legacy _meta.md in fetched round, got err=%v", err)
+		}
+		if _, err := os.Stat(filepath.Join(newReviewDir, "issue_001.md")); err != nil {
+			t.Fatalf("expected review issue in fetched round: %v", err)
+		}
+
+		round, err := service.GetRound(context.Background(), env.workspaceRoot, env.workflowSlug, 2)
+		if err != nil {
+			t.Fatalf("GetRound(2) error = %v", err)
+		}
+		if round.RoundNumber != 2 || round.Provider != "sdk-review" || round.PRRef != "131" {
+			t.Fatalf("unexpected synced review round: %#v", round)
+		}
+		issues, err := service.ListIssues(context.Background(), env.workspaceRoot, env.workflowSlug, 2)
+		if err != nil {
+			t.Fatalf("ListIssues(2) error = %v", err)
+		}
+		if len(issues) != 1 || issues[0].IssueNumber != 1 {
+			t.Fatalf("unexpected synced review issues: %#v", issues)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Fetch() error = %v", err)
-	}
-	if !result.Created || result.Summary.RoundNumber != 2 {
-		t.Fatalf("unexpected fetch result after legacy round: %#v", result)
-	}
-	if result.Summary.Provider != "sdk-review" || result.Summary.PRRef != "131" {
-		t.Fatalf("unexpected fetch summary: %#v", result.Summary)
-	}
-
-	newReviewDir := filepath.Join(env.workflowDir(env.workflowSlug), "reviews-002")
-	if _, err := os.Stat(filepath.Join(newReviewDir, "_meta.md")); !os.IsNotExist(err) {
-		t.Fatalf("expected no legacy _meta.md in fetched round, got err=%v", err)
-	}
-	if _, err := os.Stat(filepath.Join(newReviewDir, "issue_001.md")); err != nil {
-		t.Fatalf("expected review issue in fetched round: %v", err)
-	}
-
-	round, err := service.GetRound(context.Background(), env.workspaceRoot, env.workflowSlug, 2)
-	if err != nil {
-		t.Fatalf("GetRound(2) error = %v", err)
-	}
-	if round.RoundNumber != 2 || round.Provider != "sdk-review" || round.PRRef != "131" {
-		t.Fatalf("unexpected synced review round: %#v", round)
-	}
-	issues, err := service.ListIssues(context.Background(), env.workspaceRoot, env.workflowSlug, 2)
-	if err != nil {
-		t.Fatalf("ListIssues(2) error = %v", err)
-	}
-	if len(issues) != 1 || issues[0].IssueNumber != 1 {
-		t.Fatalf("unexpected synced review issues: %#v", issues)
-	}
 }
 
 func TestTransportReviewServiceStartWatchUsesDaemonRunManager(t *testing.T) {
-	reviewProvider := &fakeReviewWatchProvider{
-		statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
-		fetches:  [][]provider.ReviewItem{{}},
-	}
-	git := &fakeReviewWatchGit{states: []ReviewWatchGitState{{HeadSHA: "head-1"}}}
-	env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
+	t.Run("Should start a watch run through the daemon run manager", func(t *testing.T) {
+		reviewProvider := &fakeReviewWatchProvider{
+			statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+			fetches:  [][]provider.ReviewItem{{}},
+		}
+		git := &fakeReviewWatchGit{states: []ReviewWatchGitState{{HeadSHA: "head-1"}}}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
 
-	service := newTransportReviewService(env.globalDB, env.manager)
-	run, err := service.StartWatch(
-		context.Background(),
-		env.workspaceRoot,
-		env.workflowSlug,
-		reviewWatchRequest(`{"run_id":"review-watch-transport"}`),
-	)
-	if err != nil {
-		t.Fatalf("StartWatch() error = %v", err)
-	}
-	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return row.Status == runStatusCompleted
+		service := newTransportReviewService(env.globalDB, env.manager)
+		run, err := service.StartWatch(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			reviewWatchRequest(`{"run_id":"review-watch-transport"}`),
+		)
+		if err != nil {
+			t.Fatalf("StartWatch() error = %v", err)
+		}
+		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		if row.Mode != runModeReviewWatch {
+			t.Fatalf("row.Mode = %q, want %q", row.Mode, runModeReviewWatch)
+		}
 	})
-	if row.Mode != runModeReviewWatch {
-		t.Fatalf("row.Mode = %q, want %q", row.Mode, runModeReviewWatch)
-	}
 }
 
 func TestTransportExecServiceStartAndReviewHelpers(t *testing.T) {

@@ -156,7 +156,7 @@ func (s *queryService) WorkflowOverview(
 	}
 
 	_ = taskItems
-	summary := transportWorkflowSummary(workflow)
+	summary := transportWorkflowSummaryWithTaskCounts(workflow, counts)
 	summary.ArchiveEligible = &archiveEligible
 	summary.ArchiveReason = archiveReason
 

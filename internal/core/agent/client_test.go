@@ -55,36 +55,38 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 func TestClientCreateSessionStartsAgentProcessInWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
-	workingDir := t.TempDir()
-	scenario := helperScenario{
-		ExpectedProcessCWD: workingDir,
-		ExpectedCWD:        workingDir,
-		ExpectedPrompt:     "process cwd must match session workspace",
-		StopReason:         string(acp.StopReasonEndTurn),
-	}
+	t.Run("Should start agent process in provided working directory", func(t *testing.T) {
+		workingDir := t.TempDir()
+		scenario := helperScenario{
+			ExpectedProcessCWD: workingDir,
+			ExpectedCWD:        workingDir,
+			ExpectedPrompt:     "process cwd must match session workspace",
+			StopReason:         string(acp.StopReasonEndTurn),
+		}
 
-	client := newTestClient(t, scenario)
-	session, err := client.CreateSession(context.Background(), SessionRequest{
-		WorkingDir: workingDir,
-		Prompt:     []byte(scenario.ExpectedPrompt),
+		client := newTestClient(t, scenario)
+		session, err := client.CreateSession(context.Background(), SessionRequest{
+			WorkingDir: workingDir,
+			Prompt:     []byte(scenario.ExpectedPrompt),
+		})
+		if err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+
+		updates := collectSessionUpdates(t, session)
+		if len(updates) != 1 {
+			t.Fatalf("unexpected updates length: %d", len(updates))
+		}
+		if updates[0].Status != model.StatusCompleted {
+			t.Fatalf("unexpected final status: %q", updates[0].Status)
+		}
+		if session.Err() != nil {
+			t.Fatalf("unexpected session error: %v", session.Err())
+		}
+		if err := client.Close(); err != nil {
+			t.Fatalf("close client: %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-
-	updates := collectSessionUpdates(t, session)
-	if len(updates) != 1 {
-		t.Fatalf("unexpected updates length: %d", len(updates))
-	}
-	if updates[0].Status != model.StatusCompleted {
-		t.Fatalf("unexpected final status: %q", updates[0].Status)
-	}
-	if session.Err() != nil {
-		t.Fatalf("unexpected session error: %v", session.Err())
-	}
-	if err := client.Close(); err != nil {
-		t.Fatalf("close client: %v", err)
-	}
 }
 
 func TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns(t *testing.T) {

@@ -225,41 +225,61 @@ func TestArchiveTaskWorkflowRequiresResyncAfterReviewResolution(t *testing.T) {
 	}
 }
 
-func TestArchiveTaskWorkflowAllowsResolvedReviewOnlyWorkflow(t *testing.T) {
-	rootDir := archiveTestRoot(t)
-	workflowDir := filepath.Join(rootDir, "review-only")
-	writeArchiveReviewRound(t, workflowDir, 1, []string{"resolved", "resolved"}, false)
-	mustSyncArchiveWorkflow(t, workflowDir)
+func TestArchiveTaskWorkflowHandlesReviewOnlyWorkflows(t *testing.T) {
+	testCases := []struct {
+		name         string
+		reviewStatus []string
+		wantErr      error
+		wantArchived int
+		wantSkipped  int
+		wantRemoved  bool
+	}{
+		{
+			name:         "Should archive resolved review-only workflow",
+			reviewStatus: []string{"resolved", "resolved"},
+			wantArchived: 1,
+			wantSkipped:  0,
+			wantRemoved:  true,
+		},
+		{
+			name:         "Should reject unresolved review-only workflow",
+			reviewStatus: []string{"resolved", "pending"},
+			wantErr:      globaldb.ErrWorkflowNotArchivable,
+			wantArchived: 0,
+			wantSkipped:  0,
+			wantRemoved:  false,
+		},
+	}
 
-	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
-	if err != nil {
-		t.Fatalf("Archive(review-only resolved): %v", err)
-	}
-	if result == nil || result.WorkflowsScanned != 1 || result.Archived != 1 ||
-		len(result.ArchivedPaths) != 1 {
-		t.Fatalf("unexpected archive result: %#v", result)
-	}
-	if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
-		t.Fatalf("expected review-only workflow to leave active root, got err=%v", statErr)
-	}
-}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			rootDir := archiveTestRoot(t)
+			workflowDir := filepath.Join(rootDir, "review-only")
+			writeArchiveReviewRound(t, workflowDir, 1, tc.reviewStatus, false)
+			mustSyncArchiveWorkflow(t, workflowDir)
 
-func TestArchiveTaskWorkflowRejectsUnresolvedReviewOnlyWorkflow(t *testing.T) {
-	rootDir := archiveTestRoot(t)
-	workflowDir := filepath.Join(rootDir, "review-only")
-	writeArchiveReviewRound(t, workflowDir, 1, []string{"resolved", "pending"}, false)
-	mustSyncArchiveWorkflow(t, workflowDir)
-
-	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
-	if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
-		t.Fatalf("Archive(review-only unresolved) error = %v, want ErrWorkflowNotArchivable", err)
-	}
-	if result == nil || result.WorkflowsScanned != 1 || result.Archived != 0 ||
-		result.Skipped != 0 {
-		t.Fatalf("unexpected archive result: %#v", result)
-	}
-	if _, statErr := os.Stat(workflowDir); statErr != nil {
-		t.Fatalf("expected unresolved review-only workflow dir to remain: %v", statErr)
+			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Archive(review-only) error = %v, want %v", err, tc.wantErr)
+			}
+			if result == nil || result.WorkflowsScanned != 1 || result.Archived != tc.wantArchived ||
+				result.Skipped != tc.wantSkipped {
+				t.Fatalf("unexpected archive result: %#v", result)
+			}
+			if tc.wantRemoved {
+				if len(result.ArchivedPaths) != 1 {
+					t.Fatalf("archived paths = %#v, want one archived path", result.ArchivedPaths)
+				}
+				if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
+					t.Fatalf("expected review-only workflow to leave active root, got err=%v", statErr)
+				}
+				return
+			}
+			if _, statErr := os.Stat(workflowDir); statErr != nil {
+				t.Fatalf("expected unresolved review-only workflow dir to remain: %v", statErr)
+			}
+		})
 	}
 }
 

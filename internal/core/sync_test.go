@@ -570,7 +570,7 @@ func TestCollectReviewRoundsProjectsIssueFilesAndSkipsEmptyDirs(t *testing.T) {
 func TestCollectReviewRoundsUsesIssueRoundMetadataAndRejectsConflicts(t *testing.T) {
 	t.Parallel()
 
-	t.Run("consistent provider and pr", func(t *testing.T) {
+	t.Run("Should project metadata when provider and PR are consistent", func(t *testing.T) {
 		t.Parallel()
 
 		workflowDir := t.TempDir()
@@ -599,7 +599,7 @@ func TestCollectReviewRoundsUsesIssueRoundMetadataAndRejectsConflicts(t *testing
 		}
 	})
 
-	t.Run("declared round mismatch", func(t *testing.T) {
+	t.Run("Should reject review issues whose declared round mismatches the directory", func(t *testing.T) {
 		t.Parallel()
 
 		workflowDir := t.TempDir()
@@ -616,7 +616,7 @@ func TestCollectReviewRoundsUsesIssueRoundMetadataAndRejectsConflicts(t *testing
 		}
 	})
 
-	t.Run("provider conflict", func(t *testing.T) {
+	t.Run("Should reject mixed providers within a review round", func(t *testing.T) {
 		t.Parallel()
 
 		workflowDir := t.TempDir()
@@ -639,7 +639,7 @@ func TestCollectReviewRoundsUsesIssueRoundMetadataAndRejectsConflicts(t *testing
 		}
 	})
 
-	t.Run("pr conflict", func(t *testing.T) {
+	t.Run("Should reject mixed PR references within a review round", func(t *testing.T) {
 		t.Parallel()
 
 		workflowDir := t.TempDir()

@@ -210,7 +210,7 @@ func SnapshotRoundMeta(reviewDir string) (model.RoundMeta, error) {
 
 	meta, err := roundMetaFromIssueFrontMatter(entries)
 	if err != nil {
-		return model.RoundMeta{}, err
+		return model.RoundMeta{}, fmt.Errorf("snapshot round meta from issue front matter: %w", err)
 	}
 
 	if err := applyReviewEntryCounts(&meta, entries); err != nil {

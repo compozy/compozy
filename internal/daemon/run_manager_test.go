@@ -1276,6 +1276,26 @@ func TestExtensionBridgeStartRunCreatesDetachedExecRun(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeStartRunRejectsNilContext(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	var nilCtx context.Context
+	_, err = bridge.StartRun(nilCtx, &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Mode:          model.ExecutionModeExec,
+		PromptText:    "nested exec prompt",
+		ParentRunID:   "parent-run-001",
+	})
+	if err == nil || !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("StartRun(nil context) error = %v, want context requirement", err)
+	}
+}
+
 func TestExtensionBridgeStartRunRejectsDifferentWorkspaceRoot(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 

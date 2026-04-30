@@ -167,28 +167,30 @@ func TestAliasedProviderResolveIssuesDelegatesToTarget(t *testing.T) {
 }
 
 func TestAliasedProviderWatchStatusDelegatesToTarget(t *testing.T) {
-	restore, err := ActivateOverlay([]OverlayEntry{{Name: "ext-review", Command: "base"}})
-	if err != nil {
-		t.Fatalf("activate review overlay: %v", err)
-	}
-	defer restore()
+	t.Run("Should delegate watch status to target provider", func(t *testing.T) {
+		restore, err := ActivateOverlay([]OverlayEntry{{Name: "ext-review", Command: "base"}})
+		if err != nil {
+			t.Fatalf("activate review overlay: %v", err)
+		}
+		defer restore()
 
-	base := NewRegistry()
-	base.Register(&overlayTestProvider{name: "base"})
+		base := NewRegistry()
+		base.Register(&overlayTestProvider{name: "base"})
 
-	registry := ResolveRegistry(base)
-	resolved, err := registry.Get("ext-review")
-	if err != nil {
-		t.Fatalf("resolve overlay provider: %v", err)
-	}
+		registry := ResolveRegistry(base)
+		resolved, err := registry.Get("ext-review")
+		if err != nil {
+			t.Fatalf("resolve overlay provider: %v", err)
+		}
 
-	status, err := FetchWatchStatus(context.Background(), resolved, WatchStatusRequest{PR: "123"})
-	if err != nil {
-		t.Fatalf("delegate overlay watch status: %v", err)
-	}
-	if status.State != WatchStatusCurrentReviewed || status.PRHeadSHA != "head" {
-		t.Fatalf("unexpected watch status: %#v", status)
-	}
+		status, err := FetchWatchStatus(context.Background(), resolved, WatchStatusRequest{PR: "123"})
+		if err != nil {
+			t.Fatalf("delegate overlay watch status: %v", err)
+		}
+		if status.State != WatchStatusCurrentReviewed || status.PRHeadSHA != "head" {
+			t.Fatalf("unexpected watch status: %#v", status)
+		}
+	})
 }
 
 func TestAliasedProviderRejectsInvalidTargets(t *testing.T) {

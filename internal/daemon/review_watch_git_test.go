@@ -191,6 +191,8 @@ func TestReviewWatchGitStateValidatesRunnerWorkspaceAndRequiredReads(t *testing.
 	}
 	for _, failingCall := range requiredReads {
 		t.Run(failingCall, func(t *testing.T) {
+			t.Parallel()
+
 			wantErr := errors.New("read failed")
 			git := &execReviewWatchGit{
 				run: func(_ context.Context, _ string, args ...string) (string, error) {
