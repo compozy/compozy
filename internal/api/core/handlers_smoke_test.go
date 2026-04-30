@@ -570,6 +570,10 @@ func (s *smokeReviewService) StartRun(context.Context, string, string, int, core
 	return s.run, nil
 }
 
+func (s *smokeReviewService) StartWatch(context.Context, string, string, core.ReviewWatchRequest) (core.Run, error) {
+	return s.run, nil
+}
+
 type smokeRunService struct {
 	run      core.Run
 	snapshot core.RunSnapshot

@@ -723,6 +723,10 @@ func (s *errorReviewService) StartRun(context.Context, string, string, int, core
 	return core.Run{}, s.err
 }
 
+func (s *errorReviewService) StartWatch(context.Context, string, string, core.ReviewWatchRequest) (core.Run, error) {
+	return core.Run{}, s.err
+}
+
 type errorRunService struct {
 	err error
 }

@@ -32,6 +32,8 @@ var (
 type pullRequestReview struct {
 	ID          int    `json:"id"`
 	Body        string `json:"body"`
+	CommitID    string `json:"commit_id"`
+	State       string `json:"state"`
 	SubmittedAt string `json:"submitted_at"`
 	User        struct {
 		Login string `json:"login"`

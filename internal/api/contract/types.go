@@ -51,6 +51,22 @@ type ReviewRunRequest struct {
 	Batching         json.RawMessage `json:"batching,omitempty"`
 }
 
+type ReviewWatchRequest struct {
+	Workspace        string          `json:"workspace"`
+	Provider         string          `json:"provider,omitempty"`
+	PRRef            string          `json:"pr_ref"`
+	UntilClean       bool            `json:"until_clean,omitempty"`
+	MaxRounds        int             `json:"max_rounds,omitempty"`
+	AutoPush         bool            `json:"auto_push,omitempty"`
+	PushRemote       string          `json:"push_remote,omitempty"`
+	PushBranch       string          `json:"push_branch,omitempty"`
+	PollInterval     string          `json:"poll_interval,omitempty"`
+	ReviewTimeout    string          `json:"review_timeout,omitempty"`
+	QuietPeriod      string          `json:"quiet_period,omitempty"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+	Batching         json.RawMessage `json:"batching,omitempty"`
+}
+
 type SyncRequest struct {
 	Workspace    string `json:"workspace,omitempty"`
 	Path         string `json:"path,omitempty"`

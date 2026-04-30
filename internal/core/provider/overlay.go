@@ -246,6 +246,14 @@ func (p *aliasedProvider) FetchReviews(ctx context.Context, req FetchRequest) ([
 	return target.FetchReviews(ctx, req)
 }
 
+func (p *aliasedProvider) WatchStatus(ctx context.Context, req WatchStatusRequest) (WatchStatus, error) {
+	target, err := p.resolveTarget(nil)
+	if err != nil {
+		return WatchStatus{}, err
+	}
+	return FetchWatchStatus(ctx, target, req)
+}
+
 func (r *OverlayRegistry) List() []Provider {
 	if r == nil {
 		return nil

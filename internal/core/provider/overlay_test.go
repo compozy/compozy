@@ -28,6 +28,10 @@ func (overlayTestProvider) ResolveIssues(context.Context, string, []ResolvedIssu
 	return nil
 }
 
+func (overlayTestProvider) WatchStatus(context.Context, WatchStatusRequest) (WatchStatus, error) {
+	return WatchStatus{PRHeadSHA: "head", State: WatchStatusCurrentReviewed}, nil
+}
+
 type overlayTestBridge struct {
 	fetchProvider string
 	fetchRequest  FetchRequest
@@ -159,6 +163,31 @@ func TestAliasedProviderResolveIssuesDelegatesToTarget(t *testing.T) {
 	}
 	if err := resolved.ResolveIssues(context.Background(), "123", nil); err != nil {
 		t.Fatalf("delegate overlay resolve issues: %v", err)
+	}
+}
+
+func TestAliasedProviderWatchStatusDelegatesToTarget(t *testing.T) {
+	restore, err := ActivateOverlay([]OverlayEntry{{Name: "ext-review", Command: "base"}})
+	if err != nil {
+		t.Fatalf("activate review overlay: %v", err)
+	}
+	defer restore()
+
+	base := NewRegistry()
+	base.Register(&overlayTestProvider{name: "base"})
+
+	registry := ResolveRegistry(base)
+	resolved, err := registry.Get("ext-review")
+	if err != nil {
+		t.Fatalf("resolve overlay provider: %v", err)
+	}
+
+	status, err := FetchWatchStatus(context.Background(), resolved, WatchStatusRequest{PR: "123"})
+	if err != nil {
+		t.Fatalf("delegate overlay watch status: %v", err)
+	}
+	if status.State != WatchStatusCurrentReviewed || status.PRHeadSHA != "head" {
+		t.Fatalf("unexpected watch status: %#v", status)
 	}
 }
 

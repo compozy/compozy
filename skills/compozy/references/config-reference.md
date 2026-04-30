@@ -99,6 +99,22 @@ Options specific to `compozy reviews fetch`.
 | `provider` | string | Default review provider (e.g., `coderabbit`) |
 | `nitpicks` | bool | Enable or disable CodeRabbit review-body comments (`nitpick`, `minor`, and `major`). Default is enabled when unset |
 
+### `[watch_reviews]`
+
+Options specific to `compozy reviews watch`. Watch-specific loop values come from this section; child review
+fetch/fix defaults continue to come from `[fetch_reviews]`, `[fix_reviews]`, and `[defaults]`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `max_rounds` | int | Maximum watch rounds. Must be greater than zero when `until_clean = true`. |
+| `poll_interval` | string | Positive Go duration between provider status checks (e.g., `30s`). |
+| `review_timeout` | string | Positive Go duration to wait for the provider to review a PR head (e.g., `30m`). |
+| `quiet_period` | string | Positive Go duration to wait after provider-current status before fetching issues. |
+| `auto_push` | bool | Push committed fixes after each successful round. Requires `defaults.auto_commit = true` when enabled from config. |
+| `until_clean` | bool | Continue until the provider has reviewed the current PR head and no actionable issues are fetched. |
+| `push_remote` | string | Optional push remote. Must be set together with `push_branch`; omit both to resolve upstream later. |
+| `push_branch` | string | Optional push branch. Must be set together with `push_remote`; omit both to resolve upstream later. |
+
 ### `[exec]`
 
 Options specific to `compozy exec`. Inherits all `[defaults]` fields plus:
@@ -169,6 +185,14 @@ include_resolved = false
 [fetch_reviews]
 provider = "coderabbit"
 nitpicks = false
+
+[watch_reviews]
+until_clean = true
+max_rounds = 6
+poll_interval = "30s"
+review_timeout = "30m"
+quiet_period = "20s"
+auto_push = false
 
 [exec]
 verbose = false

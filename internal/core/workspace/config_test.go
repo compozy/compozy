@@ -225,6 +225,16 @@ tui = false
 provider = "coderabbit"
 nitpicks = true
 
+[watch_reviews]
+max_rounds = 6
+poll_interval = "30s"
+review_timeout = "30m"
+quiet_period = "20s"
+auto_push = false
+until_clean = true
+push_remote = "origin"
+push_branch = "feature"
+
 [exec]
 model = "gpt-5.5"
 output_format = "json"
@@ -279,6 +289,30 @@ output_format = "json"
 	}
 	if cfg.FetchReviews.Nitpicks == nil || !*cfg.FetchReviews.Nitpicks {
 		t.Fatalf("unexpected fetch_reviews.nitpicks: %#v", cfg.FetchReviews.Nitpicks)
+	}
+	if cfg.WatchReviews.MaxRounds == nil || *cfg.WatchReviews.MaxRounds != 6 {
+		t.Fatalf("unexpected watch_reviews.max_rounds: %#v", cfg.WatchReviews.MaxRounds)
+	}
+	if cfg.WatchReviews.PollInterval == nil || *cfg.WatchReviews.PollInterval != "30s" {
+		t.Fatalf("unexpected watch_reviews.poll_interval: %#v", cfg.WatchReviews.PollInterval)
+	}
+	if cfg.WatchReviews.ReviewTimeout == nil || *cfg.WatchReviews.ReviewTimeout != "30m" {
+		t.Fatalf("unexpected watch_reviews.review_timeout: %#v", cfg.WatchReviews.ReviewTimeout)
+	}
+	if cfg.WatchReviews.QuietPeriod == nil || *cfg.WatchReviews.QuietPeriod != "20s" {
+		t.Fatalf("unexpected watch_reviews.quiet_period: %#v", cfg.WatchReviews.QuietPeriod)
+	}
+	if cfg.WatchReviews.AutoPush == nil || *cfg.WatchReviews.AutoPush {
+		t.Fatalf("unexpected watch_reviews.auto_push: %#v", cfg.WatchReviews.AutoPush)
+	}
+	if cfg.WatchReviews.UntilClean == nil || !*cfg.WatchReviews.UntilClean {
+		t.Fatalf("unexpected watch_reviews.until_clean: %#v", cfg.WatchReviews.UntilClean)
+	}
+	if cfg.WatchReviews.PushRemote == nil || *cfg.WatchReviews.PushRemote != "origin" {
+		t.Fatalf("unexpected watch_reviews.push_remote: %#v", cfg.WatchReviews.PushRemote)
+	}
+	if cfg.WatchReviews.PushBranch == nil || *cfg.WatchReviews.PushBranch != "feature" {
+		t.Fatalf("unexpected watch_reviews.push_branch: %#v", cfg.WatchReviews.PushBranch)
 	}
 	if cfg.Exec.Model == nil || *cfg.Exec.Model != "gpt-5.5" {
 		t.Fatalf("unexpected exec.model: %#v", cfg.Exec.Model)
@@ -788,6 +822,178 @@ provider = "   "
 	}
 	if !strings.Contains(err.Error(), "fetch_reviews.provider") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigMergesWatchReviewsPrecedence(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[defaults]
+auto_commit = true
+
+[watch_reviews]
+max_rounds = 3
+poll_interval = "45s"
+review_timeout = "10m"
+quiet_period = "5s"
+until_clean = true
+auto_push = false
+push_remote = "origin"
+push_branch = "main"
+
+[fix_reviews]
+concurrent = 2
+include_resolved = true
+
+[fetch_reviews]
+provider = "coderabbit"
+nitpicks = false
+`)
+	writeWorkspaceConfig(t, root, `
+[watch_reviews]
+max_rounds = 5
+poll_interval = "15s"
+auto_push = true
+push_remote = "upstream"
+push_branch = "feature"
+
+[fix_reviews]
+concurrent = 4
+
+[fetch_reviews]
+nitpicks = true
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.WatchReviews.MaxRounds == nil || *cfg.WatchReviews.MaxRounds != 5 {
+		t.Fatalf("watch_reviews.max_rounds = %#v, want 5", cfg.WatchReviews.MaxRounds)
+	}
+	if cfg.WatchReviews.PollInterval == nil || *cfg.WatchReviews.PollInterval != "15s" {
+		t.Fatalf("watch_reviews.poll_interval = %#v, want 15s", cfg.WatchReviews.PollInterval)
+	}
+	if cfg.WatchReviews.ReviewTimeout == nil || *cfg.WatchReviews.ReviewTimeout != "10m" {
+		t.Fatalf("watch_reviews.review_timeout = %#v, want 10m", cfg.WatchReviews.ReviewTimeout)
+	}
+	if cfg.WatchReviews.QuietPeriod == nil || *cfg.WatchReviews.QuietPeriod != "5s" {
+		t.Fatalf("watch_reviews.quiet_period = %#v, want 5s", cfg.WatchReviews.QuietPeriod)
+	}
+	if cfg.WatchReviews.AutoPush == nil || !*cfg.WatchReviews.AutoPush {
+		t.Fatalf("watch_reviews.auto_push = %#v, want true", cfg.WatchReviews.AutoPush)
+	}
+	if cfg.WatchReviews.UntilClean == nil || !*cfg.WatchReviews.UntilClean {
+		t.Fatalf("watch_reviews.until_clean = %#v, want true", cfg.WatchReviews.UntilClean)
+	}
+	if cfg.WatchReviews.PushRemote == nil || *cfg.WatchReviews.PushRemote != "upstream" {
+		t.Fatalf("watch_reviews.push_remote = %#v, want upstream", cfg.WatchReviews.PushRemote)
+	}
+	if cfg.WatchReviews.PushBranch == nil || *cfg.WatchReviews.PushBranch != "feature" {
+		t.Fatalf("watch_reviews.push_branch = %#v, want feature", cfg.WatchReviews.PushBranch)
+	}
+	if cfg.FixReviews.Concurrent == nil || *cfg.FixReviews.Concurrent != 4 {
+		t.Fatalf("fix_reviews.concurrent = %#v, want 4", cfg.FixReviews.Concurrent)
+	}
+	if cfg.FixReviews.IncludeResolved == nil || !*cfg.FixReviews.IncludeResolved {
+		t.Fatalf("fix_reviews.include_resolved = %#v, want true", cfg.FixReviews.IncludeResolved)
+	}
+	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
+		t.Fatalf("fetch_reviews.provider = %#v, want coderabbit", cfg.FetchReviews.Provider)
+	}
+	if cfg.FetchReviews.Nitpicks == nil || !*cfg.FetchReviews.Nitpicks {
+		t.Fatalf("fetch_reviews.nitpicks = %#v, want true", cfg.FetchReviews.Nitpicks)
+	}
+}
+
+func TestLoadConfigRejectsInvalidWatchReviewsValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "max rounds must be positive when until clean is true",
+			content: `
+[watch_reviews]
+until_clean = true
+max_rounds = 0
+`,
+			wantErr: "watch_reviews.max_rounds",
+		},
+		{
+			name: "poll interval must be positive",
+			content: `
+[watch_reviews]
+poll_interval = "0s"
+`,
+			wantErr: "watch_reviews.poll_interval",
+		},
+		{
+			name: "review timeout must be positive",
+			content: `
+[watch_reviews]
+review_timeout = "-1s"
+`,
+			wantErr: "watch_reviews.review_timeout",
+		},
+		{
+			name: "quiet period must be positive",
+			content: `
+[watch_reviews]
+quiet_period = "0s"
+`,
+			wantErr: "watch_reviews.quiet_period",
+		},
+		{
+			name: "push remote cannot be empty",
+			content: `
+[watch_reviews]
+push_remote = "  "
+push_branch = "feature"
+`,
+			wantErr: "watch_reviews.push_remote",
+		},
+		{
+			name: "push target must be complete",
+			content: `
+[watch_reviews]
+push_remote = "origin"
+`,
+			wantErr: "watch_reviews.push_remote",
+		},
+		{
+			name: "auto push requires auto commit in config",
+			content: `
+[defaults]
+auto_commit = false
+
+[watch_reviews]
+auto_push = true
+`,
+			wantErr: "watch_reviews.auto_push",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := LoadConfig(context.Background(), root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
 	}
 }
 

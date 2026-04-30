@@ -2022,6 +2022,10 @@ func (f *fakeReviewService) StartRun(context.Context, string, string, int, core.
 	return f.run, nil
 }
 
+func (f *fakeReviewService) StartWatch(context.Context, string, string, core.ReviewWatchRequest) (core.Run, error) {
+	return f.run, nil
+}
+
 type fakeSyncService struct {
 	mu      sync.Mutex
 	lastReq core.SyncRequest

@@ -225,6 +225,15 @@ func (s *transportReviewService) StartRun(
 	return s.runManager.StartReviewRun(ctx, workspaceRef, workflowSlug, round, req)
 }
 
+func (s *transportReviewService) StartWatch(
+	context.Context,
+	string,
+	string,
+	apicore.ReviewWatchRequest,
+) (apicore.Run, error) {
+	return apicore.Run{}, reviewTransportUnavailable("review watch")
+}
+
 func (s *transportExecService) Start(ctx context.Context, req apicore.ExecRequest) (apicore.Run, error) {
 	if s == nil || s.runManager == nil {
 		return apicore.Run{}, execTransportUnavailable()

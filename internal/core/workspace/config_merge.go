@@ -20,6 +20,7 @@ func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig 
 			workspace.FixReviews,
 		),
 		FetchReviews: mergeFetchReviewsConfig(global.FetchReviews, workspace.FetchReviews),
+		WatchReviews: mergeWatchReviewsConfig(global.WatchReviews, workspace.WatchReviews),
 		Exec:         buildEffectiveExecConfig(global.Defaults, global.Exec, workspace.Defaults, workspace.Exec),
 		Runs:         mergeRunsConfig(global.Runs, workspace.Runs),
 		Sound:        mergeSoundConfig(global.Sound, workspace.Sound),
@@ -51,6 +52,19 @@ func mergeFetchReviewsConfig(base, overlay FetchReviewsConfig) FetchReviewsConfi
 	return FetchReviewsConfig{
 		Provider: cloneOptionalValue(preferOverlay(base.Provider, overlay.Provider)),
 		Nitpicks: cloneOptionalValue(preferOverlay(base.Nitpicks, overlay.Nitpicks)),
+	}
+}
+
+func mergeWatchReviewsConfig(base, overlay WatchReviewsConfig) WatchReviewsConfig {
+	return WatchReviewsConfig{
+		MaxRounds:     cloneOptionalValue(preferOverlay(base.MaxRounds, overlay.MaxRounds)),
+		PollInterval:  cloneOptionalValue(preferOverlay(base.PollInterval, overlay.PollInterval)),
+		ReviewTimeout: cloneOptionalValue(preferOverlay(base.ReviewTimeout, overlay.ReviewTimeout)),
+		QuietPeriod:   cloneOptionalValue(preferOverlay(base.QuietPeriod, overlay.QuietPeriod)),
+		AutoPush:      cloneOptionalValue(preferOverlay(base.AutoPush, overlay.AutoPush)),
+		UntilClean:    cloneOptionalValue(preferOverlay(base.UntilClean, overlay.UntilClean)),
+		PushRemote:    cloneOptionalValue(preferOverlay(base.PushRemote, overlay.PushRemote)),
+		PushBranch:    cloneOptionalValue(preferOverlay(base.PushBranch, overlay.PushBranch)),
 	}
 }
 
