@@ -46,7 +46,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantLaunch: []string{
 				"codex-acp",
 				"-c",
-				`model="gpt-5.5"`,
+				`model="` + model.DefaultCodexModel + `"`,
 				"-c",
 				`model_reasoning_effort="medium"`,
 				"-c",
@@ -437,6 +437,27 @@ func TestBuildShellCommandStringUsesFallbackLauncherWhenPrimaryMissing(t *testin
 	got := BuildShellCommandString("fallback-shell-test", "", nil, "medium", model.AccessModeFull)
 	if got != `npx --yes @scope/test-acp` {
 		t.Fatalf("unexpected shell command: %s", got)
+	}
+}
+
+func TestCodexFallbackLaunchBootstrapsDefaultModel(t *testing.T) {
+	tmpDir := t.TempDir()
+	npxPath := filepath.Join(tmpDir, "npx")
+	script := "#!/bin/sh\nexit 0\n"
+	if err := os.WriteFile(npxPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake npx: %v", err)
+	}
+
+	t.Setenv("PATH", tmpDir)
+	got := BuildShellCommandString(model.IDECodex, "", nil, "medium", model.AccessModeDefault)
+	for _, want := range []string{
+		"npx --yes @zed-industries/codex-acp",
+		"-c",
+		`'model="` + model.DefaultCodexModel + `"'`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("BuildShellCommandString() = %q, want to contain %q", got, want)
+		}
 	}
 }
 
@@ -1117,6 +1138,17 @@ func TestDriverCatalogCanonicalCommandExcludesDynamicBootstrapArgs(t *testing.T)
 	}
 	if !entry.UsesBootstrapModel {
 		t.Fatalf("expected droid catalog entry to report bootstrap-model support, got %#v", entry)
+	}
+
+	codexEntry, err := DriverCatalogEntryForIDE(model.IDECodex)
+	if err != nil {
+		t.Fatalf("driver catalog entry for codex: %v", err)
+	}
+	if slices.Contains(codexEntry.CanonicalCommand, "-c") {
+		t.Fatalf("expected canonical command to exclude Codex dynamic config args, got %v", codexEntry.CanonicalCommand)
+	}
+	if !codexEntry.UsesBootstrapModel {
+		t.Fatalf("expected codex catalog entry to report bootstrap-model support, got %#v", codexEntry)
 	}
 }
 

@@ -222,7 +222,7 @@ describe("reviews flow integration", () => {
     await screen.findByTestId("reviews-index-empty");
   });
 
-  it("Should surface a stale-workspace error alert at the reviews index", async () => {
+  it("Should return to workspace selection when the reviews index reports stale workspace context", async () => {
     const stub = installFetchStub([
       {
         matcher: matchUrl("/api/workspaces"),
@@ -241,8 +241,8 @@ describe("reviews flow integration", () => {
     ]);
     restore = stub.restore;
     await renderApp("/reviews");
-    const alert = await screen.findByTestId("reviews-index-error");
-    expect(alert).toHaveTextContent("workspace stale");
+    expect(await screen.findByTestId("workspace-picker-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("reviews-index-error")).not.toBeInTheDocument();
   });
 
   it("Should render review issue detail and dispatch a review-fix run", async () => {

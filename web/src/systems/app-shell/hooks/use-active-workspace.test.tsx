@@ -11,6 +11,11 @@ const workspaceOne: Workspace = {
   id: "ws-1",
   name: "one",
   root_dir: "/tmp/one",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -19,6 +24,11 @@ const workspaceTwo: Workspace = {
   id: "ws-2",
   name: "two",
   root_dir: "/tmp/two",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -110,6 +120,35 @@ describe("useActiveWorkspace", () => {
     await waitFor(() => expect(result.current.status).toBe("many"));
     expect(result.current.selectedWorkspaceId).toBeNull();
     expect(window.sessionStorage.getItem("compozy.web.active-workspace")).toBeNull();
+  });
+
+  it("Should keep a selected read-only workspace when its path is missing", async () => {
+    const missingWorkspace: Workspace = {
+      ...workspaceOne,
+      filesystem_state: "missing",
+      read_only: true,
+      root_dir: "/tmp/missing",
+    };
+    window.sessionStorage.setItem("compozy.web.active-workspace", missingWorkspace.id);
+    const { useActiveWorkspaceStore } = await import("../stores/active-workspace-store");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: missingWorkspace.id });
+
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [missingWorkspace, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    const { result } = renderHook(() => useActiveWorkspace(), {
+      wrapper: withQuery(createTestQueryClient()),
+    });
+    await waitFor(() => expect(result.current.status).toBe("resolved"));
+    expect(result.current.isStaleSelection).toBe(false);
+    expect(result.current.activeWorkspace?.read_only).toBe(true);
+    expect(window.sessionStorage.getItem("compozy.web.active-workspace")).toBe(missingWorkspace.id);
   });
 
   it("Should expose an error status when the daemon request fails", async () => {

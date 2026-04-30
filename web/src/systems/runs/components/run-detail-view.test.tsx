@@ -11,7 +11,7 @@ import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { RunDetailView } from "./run-detail-view";
-import type { RunSnapshot } from "../types";
+import type { RunSnapshot, RunTranscript } from "../types";
 import type { RunStreamStatus } from "../hooks/use-run-stream";
 
 function buildSnapshot(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
@@ -47,6 +47,30 @@ function buildSnapshot(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
   };
 }
 
+function buildTranscript(overrides: Partial<RunTranscript> = {}): RunTranscript {
+  return {
+    run_id: "run-1",
+    messages: [
+      {
+        id: "msg-1",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "hello" },
+          {
+            type: "dynamic-tool",
+            toolCallId: "tool-1",
+            toolName: "Bash",
+            state: "output-available",
+            input: { command: "echo ok" },
+            output: { blocks: [{ type: "text", text: "ok" }] },
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  } as RunTranscript;
+}
+
 interface RenderProps {
   snapshot?: RunSnapshot;
   streamStatus?: RunStreamStatus;
@@ -61,6 +85,10 @@ interface RenderProps {
   onReconnectStream?: () => void;
   onCancelRun?: () => void;
   isRefreshingSnapshot?: boolean;
+  transcript?: RunTranscript;
+  isLoadingTranscript?: boolean;
+  isTranscriptError?: boolean;
+  transcriptError?: string | null;
 }
 
 async function renderRunDetail(props: RenderProps = {}) {
@@ -84,6 +112,10 @@ async function renderRunDetail(props: RenderProps = {}) {
           streamError={props.streamError ?? null}
           streamEventCount={props.streamEventCount ?? 0}
           streamStatus={props.streamStatus ?? "connecting"}
+          transcript={props.transcript ?? buildTranscript()}
+          transcriptError={props.transcriptError ?? null}
+          isLoadingTranscript={props.isLoadingTranscript ?? false}
+          isTranscriptError={props.isTranscriptError ?? false}
         />
       );
     },
@@ -113,11 +145,12 @@ describe("RunDetailView", () => {
     expect(screen.getByTestId("run-detail-view")).toBeInTheDocument();
     expect(screen.getByTestId("run-detail-status")).toHaveTextContent("running");
     expect(screen.getByTestId("run-detail-job-row-job-1")).toBeInTheDocument();
-    expect(screen.getByTestId("run-detail-transcript-1")).toHaveTextContent("hello");
+    expect(await screen.findByTestId("run-detail-transcript")).toHaveTextContent("hello");
+    expect(await screen.findByTestId("run-transcript-tool-tool-1")).toHaveTextContent("Bash");
   });
 
   it("Should show the empty transcript state", async () => {
-    await renderRunDetail({ snapshot: buildSnapshot({ transcript: [] }) });
+    await renderRunDetail({ transcript: buildTranscript({ messages: [] }) });
     expect(screen.getByTestId("run-detail-transcript-empty")).toBeInTheDocument();
   });
 

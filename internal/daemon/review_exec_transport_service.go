@@ -80,12 +80,20 @@ func (s *transportReviewService) Fetch(
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
-	if _, err := corepkg.SyncDirect(ctx, corepkg.SyncConfig{
+	syncResult, err := corepkg.SyncDirect(ctx, corepkg.SyncConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
 		Name:          strings.TrimSpace(workflowSlug),
-	}); err != nil {
+	})
+	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
+	s.runManager.publishWorkflowSyncWorkspaceEvent(
+		ctx,
+		workspaceRow.ID,
+		workflowID,
+		workflowSlug,
+		syncResult.SyncedPaths,
+	)
 
 	roundRow, err := s.globalDB.GetReviewRound(ctx, *workflowID, result.Round)
 	if err != nil {
@@ -106,11 +114,11 @@ func (s *transportReviewService) GetLatest(
 		return apicore.ReviewSummary{}, reviewTransportUnavailable("review lookup")
 	}
 
-	_, workflowID, _, err := s.runManager.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workflow, err := s.resolveReviewWorkflow(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return apicore.ReviewSummary{}, err
+		return apicore.ReviewSummary{}, mapReviewLookupError(err)
 	}
-	row, err := s.globalDB.GetLatestReviewRound(ctx, *workflowID)
+	row, err := s.globalDB.GetLatestReviewRound(ctx, workflow.ID)
 	if err != nil {
 		return apicore.ReviewSummary{}, mapReviewLookupError(err)
 	}
@@ -127,11 +135,11 @@ func (s *transportReviewService) GetRound(
 		return apicore.ReviewRound{}, reviewTransportUnavailable("review round lookup")
 	}
 
-	_, workflowID, _, err := s.runManager.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workflow, err := s.resolveReviewWorkflow(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return apicore.ReviewRound{}, err
+		return apicore.ReviewRound{}, mapReviewLookupError(err)
 	}
-	row, err := s.globalDB.GetReviewRound(ctx, *workflowID, round)
+	row, err := s.globalDB.GetReviewRound(ctx, workflow.ID, round)
 	if err != nil {
 		return apicore.ReviewRound{}, mapReviewLookupError(err)
 	}
@@ -148,11 +156,11 @@ func (s *transportReviewService) ListIssues(
 		return nil, reviewTransportUnavailable("review issue listing")
 	}
 
-	_, workflowID, _, err := s.runManager.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workflow, err := s.resolveReviewWorkflow(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return nil, err
+		return nil, mapReviewLookupError(err)
 	}
-	roundRow, err := s.globalDB.GetReviewRound(ctx, *workflowID, round)
+	roundRow, err := s.globalDB.GetReviewRound(ctx, workflow.ID, round)
 	if err != nil {
 		return nil, mapReviewLookupError(err)
 	}
@@ -165,6 +173,25 @@ func (s *transportReviewService) ListIssues(
 		issues = append(issues, transportReviewIssue(row))
 	}
 	return issues, nil
+}
+
+func (s *transportReviewService) resolveReviewWorkflow(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+) (globaldb.Workflow, error) {
+	workspaceRow, err := resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
+	if err != nil {
+		return globaldb.Workflow{}, err
+	}
+	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, workflowSlug)
+	if err == nil {
+		return workflow, nil
+	}
+	if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+		return globaldb.Workflow{}, err
+	}
+	return s.globalDB.GetLatestArchivedWorkflowBySlug(ctx, workspaceRow.ID, workflowSlug)
 }
 
 func (s *transportReviewService) ReviewDetail(
@@ -278,7 +305,7 @@ func resolveFetchNitpicks(projectCfg workspacecfg.ProjectConfig) bool {
 }
 
 func mapReviewLookupError(err error) error {
-	if errors.Is(err, globaldb.ErrReviewRoundNotFound) {
+	if errors.Is(err, globaldb.ErrReviewRoundNotFound) || errors.Is(err, globaldb.ErrWorkflowNotFound) {
 		return apicore.NewProblem(
 			http.StatusNotFound,
 			"review_round_not_found",

@@ -136,7 +136,7 @@ describe("HostAPI", () => {
         runtime: {
           run_id: "run-1",
           workspace_root: ".",
-          invoking_command: "start",
+          invoking_command: "tasks run",
           shutdown_timeout_ms: 1000,
           default_hook_timeout_ms: 5000,
         },

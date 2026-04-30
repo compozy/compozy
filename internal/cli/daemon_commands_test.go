@@ -1382,7 +1382,7 @@ func TestResolveTaskPresentationModeUsesInjectedInteractiveCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			state := newCommandState(commandKindStart, "")
+			state := newCommandState(commandKindTasksRun, "")
 			state.isInteractive = func() bool { return tt.interactive }
 			cmd := newTaskRunPresentationCommand(state)
 			if tt.configure != nil {
@@ -2033,7 +2033,7 @@ func TestResolveTaskWorkflowName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			state := newCommandState(commandKindStart, "")
+			state := newCommandState(commandKindTasksRun, "")
 			state.name = tt.flagName
 
 			err := state.resolveTaskWorkflowName(tt.args)
@@ -2060,7 +2060,7 @@ func TestResolveTaskWorkflowName(t *testing.T) {
 func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, "")
+	state := newCommandState(commandKindTasksRun, "")
 	state.isInteractive = func() bool { return true }
 	cmd := newTaskRunPresentationCommand(state)
 	if err := cmd.Flags().Set("attach", attachModeStream); err != nil {
@@ -2074,7 +2074,7 @@ func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T
 		t.Fatalf("expected conflicting attach mode error, got %v", err)
 	}
 
-	state = newCommandState(commandKindStart, "")
+	state = newCommandState(commandKindTasksRun, "")
 	state.isInteractive = func() bool { return true }
 	cmd = newTaskRunPresentationCommand(state)
 	state.attachMode = "bogus"
@@ -2087,7 +2087,7 @@ func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T
 func TestBuildTaskRunRuntimeOverridesIncludesOnlyExplicitFlags(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, "")
+	state := newCommandState(commandKindTasksRun, "")
 	cmd := newTaskRunPresentationCommand(state)
 	addCommonFlags(cmd, state, commonFlagOptions{})
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "include completed")
@@ -2120,7 +2120,7 @@ func TestBuildTaskRunRuntimeOverridesIncludesOnlyExplicitFlags(t *testing.T) {
 func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, "")
+	state := newCommandState(commandKindTasksRun, "")
 	cmd := newTaskRunPresentationCommand(state)
 	addCommonFlags(cmd, state, commonFlagOptions{})
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "include completed")

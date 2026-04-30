@@ -191,6 +191,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the structured assistant transcript for one run. */
+        get: operations["getRunTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/stream": {
         parameters: {
             query?: never;
@@ -406,6 +423,40 @@ export interface paths {
         get: operations["listWorkspaces"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{id}/ws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open a workspace-scoped WebSocket for browser cache invalidation. */
+        get: operations["openWorkspaceSocket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh workspace filesystem state and sync present workspace artifacts. */
+        post: operations["syncWorkspaces"];
         delete?: never;
         options?: never;
         head?: never;
@@ -705,6 +756,44 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        RunUIMessage: {
+            id: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            parts: components["schemas"]["RunUIMessagePart"][];
+            /** @enum {string} */
+            role: "system" | "user" | "assistant";
+        };
+        RunUIMessagePart: {
+            data?: {
+                [key: string]: unknown;
+            };
+            errorText?: string;
+            id?: string;
+            input?: {
+                [key: string]: unknown;
+            };
+            output?: {
+                [key: string]: unknown;
+            };
+            preliminary?: boolean;
+            rawInput?: unknown;
+            state?: string;
+            text?: string;
+            title?: string;
+            toolCallId?: string;
+            toolName?: string;
+            type: string;
+        };
+        RunTranscriptPayload: {
+            incomplete?: boolean;
+            incomplete_reasons?: string[];
+            messages: components["schemas"]["RunUIMessage"][];
+            next_cursor?: string;
+            run_id: string;
+            session?: components["schemas"]["SessionViewSnapshot"];
+        };
         RunsResponse: {
             runs: components["schemas"]["Run"][];
         };
@@ -902,14 +991,36 @@ export interface components {
         Workspace: {
             /** Format: date-time */
             created_at: string;
+            /** @enum {string} */
+            filesystem_state: "present" | "missing";
+            has_catalog_data: boolean;
             id: string;
+            /** Format: date-time */
+            last_checked_at?: string;
+            /** Format: date-time */
+            last_sync_at?: string;
+            last_sync_error?: string;
             name: string;
+            read_only: boolean;
             root_dir: string;
+            run_count: number;
             /** Format: date-time */
             updated_at: string;
+            workflow_count: number;
         };
         WorkspaceResolveRequest: {
             path: string;
+        };
+        WorkspaceSyncResult: {
+            checked: number;
+            missing: number;
+            removed: number;
+            review_issues_upserted: number;
+            review_rounds_upserted: number;
+            snapshots_upserted: number;
+            synced: number;
+            task_items_upserted: number;
+            warnings?: string[];
         };
         WorkspaceResponse: {
             workspace: components["schemas"]["Workspace"];
@@ -1006,6 +1117,8 @@ export interface components {
         TaskID: string;
         /** @description Optional workspace filter for run inventory reads. */
         WorkspaceFilterQuery: string;
+        /** @description Workspace identifier. */
+        WorkspaceID: string;
         /** @description Active workspace identifier for browser-scoped daemon requests. */
         ActiveWorkspaceHeader: string;
     };
@@ -1322,6 +1435,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunSnapshotPayload"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getRunTranscript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run identifier. */
+                run_id: components["parameters"]["RunID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunTranscriptPayload"];
                 };
             };
             404: components["responses"]["NotFound"];
@@ -1709,6 +1847,51 @@ export interface operations {
                     "application/json": components["schemas"]["WorkspacesResponse"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    openWorkspaceSocket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace identifier. */
+                id: components["parameters"]["WorkspaceID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching Protocols. */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    syncWorkspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSyncResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
         };
     };

@@ -187,6 +187,30 @@ func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunS
 	return snapshot, nil
 }
 
+// GetRunTranscript loads the canonical structured transcript for one run.
+func (c *Client) GetRunTranscript(ctx context.Context, runID string) (apicore.RunTranscript, error) {
+	if c == nil {
+		return apicore.RunTranscript{}, ErrDaemonClientRequired
+	}
+
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return apicore.RunTranscript{}, ErrRunIDRequired
+	}
+
+	var payload contract.RunTranscriptResponse
+	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/transcript"
+	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &payload); err != nil {
+		return apicore.RunTranscript{}, fmt.Errorf("load run transcript %q: %w", trimmedRunID, err)
+	}
+
+	transcript, err := payload.Decode()
+	if err != nil {
+		return apicore.RunTranscript{}, fmt.Errorf("decode run transcript %q: %w", trimmedRunID, err)
+	}
+	return transcript, nil
+}
+
 // ListRunEvents pages through persisted daemon-backed events for one run.
 func (c *Client) ListRunEvents(
 	ctx context.Context,

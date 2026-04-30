@@ -28,10 +28,10 @@ export function RunEventFeed({ events, maxRows = MAX_ROWS }: RunEventFeedProps):
     <SurfaceCard data-testid="run-event-feed">
       <SurfaceCardHeader>
         <div>
-          <SurfaceCardEyebrow>Live events</SurfaceCardEyebrow>
-          <SurfaceCardTitle>Event feed</SurfaceCardTitle>
+          <SurfaceCardEyebrow>Diagnostics</SurfaceCardEyebrow>
+          <SurfaceCardTitle>Raw event feed</SurfaceCardTitle>
           <SurfaceCardDescription>
-            Stream of the most recent events emitted by this run.
+            Unformatted daemon events for debugging stream delivery and payload shape.
           </SurfaceCardDescription>
         </div>
         <StatusBadge tone="info">{total}</StatusBadge>

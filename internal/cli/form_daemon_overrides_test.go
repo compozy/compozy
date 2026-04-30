@@ -342,8 +342,8 @@ func TestTasksRunInteractiveFormPropagatesTaskRuntimeRulesWithoutExplicitFlagMut
 func TestTasksRunInteractiveFormClearsConfiguredTaskRuntimeRulesExplicitly(t *testing.T) {
 	workspaceRoot, _ := makeValidateTasksWorkspace(t, "demo")
 	writeCLIWorkspaceConfig(t, workspaceRoot, `
-[start]
-  [[start.task_runtime_rules]]
+[tasks.run]
+  [[tasks.run.task_runtime_rules]]
   type = "backend"
   ide = "claude"
   model = "sonnet-4.5"

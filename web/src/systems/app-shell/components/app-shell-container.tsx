@@ -1,20 +1,50 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 
-import { useActiveWorkspace } from "../hooks/use-active-workspace";
+import {
+  useQueryClient,
+  type MutationCacheNotifyEvent,
+  type QueryKey,
+  type QueryCacheNotifyEvent,
+} from "@tanstack/react-query";
+
+import { isStaleWorkspaceError } from "@/lib/api-client";
+
 import { ActiveWorkspaceContext } from "../lib/active-workspace-context";
+import { useActiveWorkspace } from "../hooks/use-active-workspace";
+import { useWorkspaceEvents } from "../hooks/use-workspace-events";
+import { useSyncWorkspaces } from "../hooks/use-workspaces";
+import type { WorkspaceSyncResult } from "../types";
 import { AppShellBoundary } from "./app-shell-boundary";
 import { WorkspaceOnboarding } from "./workspace-onboarding";
 import { WorkspacePicker } from "./workspace-picker";
+
+const MAX_WORKSPACE_ID_SEARCH_DEPTH = 16;
 
 export interface AppShellContainerProps {
   children: ReactNode;
 }
 
 export function AppShellContainer({ children }: AppShellContainerProps): ReactElement {
+  const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
+  const syncWorkspaces = useSyncWorkspaces();
+  const clearActiveWorkspaceSelection = workspace.clearActiveWorkspaceSelection;
   const [showPicker, setShowPicker] = useState(false);
   const [staleSignal, setStaleSignal] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const lastResolvedRef = useRef<string | null>(null);
+  const activeWorkspaceIdRef = useRef<string | null>(workspace.activeWorkspaceId);
+  const selectedWorkspaceIdRef = useRef<string | null>(workspace.selectedWorkspaceId);
+
+  useWorkspaceEvents({
+    workspaceId: workspace.activeWorkspace?.id ?? null,
+    enabled: Boolean(workspace.activeWorkspace?.id),
+  });
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = workspace.activeWorkspaceId;
+    selectedWorkspaceIdRef.current = workspace.selectedWorkspaceId;
+  }, [workspace.activeWorkspaceId, workspace.selectedWorkspaceId]);
 
   useEffect(() => {
     if (workspace.isStaleSelection && workspace.selectedWorkspaceId) {
@@ -29,6 +59,49 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
     }
   }, [workspace.activeWorkspaceId]);
 
+  useEffect(() => {
+    const workspaceIds = new Set(workspace.workspaces.map(entry => entry.id));
+    const handlePossibleStaleWorkspace = (error: unknown, sources: readonly unknown[]) => {
+      if (!isStaleWorkspaceError(error)) {
+        return;
+      }
+      const staleWorkspaceId = extractWorkspaceIdFromSources(sources, workspaceIds);
+      if (
+        !staleWorkspaceId ||
+        (staleWorkspaceId !== selectedWorkspaceIdRef.current &&
+          staleWorkspaceId !== activeWorkspaceIdRef.current)
+      ) {
+        return;
+      }
+      setStaleSignal(staleWorkspaceId);
+      clearActiveWorkspaceSelection();
+      setShowPicker(true);
+    };
+
+    const unsubscribeQueries = queryClient
+      .getQueryCache()
+      .subscribe((event: QueryCacheNotifyEvent) => {
+        if (event.type === "updated") {
+          handlePossibleStaleWorkspace(event.query.state.error, [event.query.queryKey]);
+        }
+      });
+    const unsubscribeMutations = queryClient
+      .getMutationCache()
+      .subscribe((event: MutationCacheNotifyEvent) => {
+        if (event.type === "updated") {
+          handlePossibleStaleWorkspace(event.mutation.state.error, [
+            event.mutation.options.mutationKey,
+            event.mutation.state.variables,
+          ]);
+        }
+      });
+
+    return () => {
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [clearActiveWorkspaceSelection, queryClient, workspace.workspaces]);
+
   const handleSwitchWorkspace = useCallback(() => {
     setShowPicker(true);
   }, []);
@@ -37,10 +110,22 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
     (workspaceId: string) => {
       workspace.setActiveWorkspaceId(workspaceId);
       setStaleSignal(null);
+      setSyncMessage(null);
       setShowPicker(false);
     },
     [workspace]
   );
+
+  const handleSyncWorkspaces = useCallback(async () => {
+    setSyncMessage(null);
+    try {
+      const result = await syncWorkspaces.mutateAsync();
+      setSyncMessage(formatWorkspaceSyncResult(result));
+      setStaleSignal(null);
+    } catch {
+      // Mutation state owns the displayed error.
+    }
+  }, [syncWorkspaces]);
 
   if (workspace.status === "loading") {
     return (
@@ -71,11 +156,19 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   }
 
   const shouldShowPicker =
-    workspace.status === "many" || (showPicker && workspace.workspaces.length > 1);
+    staleSignal !== null ||
+    workspace.status === "many" ||
+    (showPicker && workspace.workspaces.length > 1);
   if (shouldShowPicker) {
     return (
       <WorkspacePicker
+        isSyncing={syncWorkspaces.isPending}
         onSelect={handleSelect}
+        onSync={() => {
+          void handleSyncWorkspaces();
+        }}
+        syncError={syncWorkspaces.error?.message ?? null}
+        syncMessage={syncMessage}
         staleWorkspaceId={staleSignal}
         workspaces={workspace.workspaces}
       />
@@ -85,7 +178,13 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   if (!workspace.activeWorkspace) {
     return (
       <WorkspacePicker
+        isSyncing={syncWorkspaces.isPending}
         onSelect={handleSelect}
+        onSync={() => {
+          void handleSyncWorkspaces();
+        }}
+        syncError={syncWorkspaces.error?.message ?? null}
+        syncMessage={syncMessage}
         staleWorkspaceId={staleSignal}
         workspaces={workspace.workspaces}
       />
@@ -103,4 +202,68 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
       {children}
     </ActiveWorkspaceContext.Provider>
   );
+}
+
+function extractWorkspaceIdFromSources(
+  sources: readonly unknown[],
+  workspaceIds: ReadonlySet<string>
+): string | null {
+  for (const source of sources) {
+    const workspaceId = extractWorkspaceId(source, workspaceIds);
+    if (workspaceId) {
+      return workspaceId;
+    }
+  }
+  return null;
+}
+
+function extractWorkspaceId(source: unknown, workspaceIds: ReadonlySet<string>): string | null {
+  return extractWorkspaceIdWithinDepth(source, workspaceIds, 0);
+}
+
+function extractWorkspaceIdWithinDepth(
+  source: unknown,
+  workspaceIds: ReadonlySet<string>,
+  depth: number
+): string | null {
+  if (depth > MAX_WORKSPACE_ID_SEARCH_DEPTH) {
+    return null;
+  }
+  if (typeof source === "string") {
+    return workspaceIds.has(source) ? source : null;
+  }
+  if (Array.isArray(source)) {
+    for (const item of source as QueryKey) {
+      const workspaceId = extractWorkspaceIdWithinDepth(item, workspaceIds, depth + 1);
+      if (workspaceId) {
+        return workspaceId;
+      }
+    }
+    return null;
+  }
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+  for (const value of Object.values(source)) {
+    const workspaceId = extractWorkspaceIdWithinDepth(value, workspaceIds, depth + 1);
+    if (workspaceId) {
+      return workspaceId;
+    }
+  }
+  return null;
+}
+
+function formatWorkspaceSyncResult(result: WorkspaceSyncResult): string {
+  const checked = result.checked;
+  const removed = result.removed;
+  const missing = result.missing;
+  const synced = result.synced;
+  const warnings = result.warnings?.length ?? 0;
+  return [
+    `${checked} checked`,
+    `${synced} synced`,
+    `${missing} missing`,
+    `${removed} removed`,
+    `${warnings} warning${warnings === 1 ? "" : "s"}`,
+  ].join(" · ");
 }

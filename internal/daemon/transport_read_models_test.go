@@ -141,7 +141,7 @@ func TestTaskTransportServiceExposesRichReadModelsFromRealDaemonState(t *testing
 		context.Background(),
 		fixture.env.workspaceRoot,
 		fixture.env.workflowSlug,
-		"task_1",
+		"task_01",
 	)
 	if err != nil {
 		t.Fatalf("TaskDetail() error = %v", err)
@@ -202,18 +202,17 @@ func TestTaskTransportServiceMapsRichReadFailuresToTransportProblems(t *testing.
 		t.Fatalf("Remove(task_01.md) error = %v", err)
 	}
 
-	_, err = service.TaskDetail(
+	taskDetail, err := service.TaskDetail(
 		context.Background(),
 		fixture.env.workspaceRoot,
 		fixture.env.workflowSlug,
-		"task_1",
+		"task_01",
 	)
-	missingProblem := mustProblem(t, err)
-	if missingProblem.Status != http.StatusNotFound || missingProblem.Code != "document_not_found" {
-		t.Fatalf("TaskDetail(document missing) = %#v, want 404 document_not_found", missingProblem)
+	if err != nil {
+		t.Fatalf("TaskDetail(document removed) error = %v, want snapshot-backed success", err)
 	}
-	if got := missingProblem.Details["relative_path"]; got != "task_01.md" {
-		t.Fatalf("document_not_found relative_path = %#v, want task_01.md", got)
+	if !strings.Contains(taskDetail.Document.Markdown, "Transport task A") {
+		t.Fatalf("TaskDetail(document removed) markdown = %q, want synced task body", taskDetail.Document.Markdown)
 	}
 
 	memoryPath := filepath.Join(fixture.env.workflowDir(fixture.env.workflowSlug), "memory", "MEMORY.md")
@@ -221,18 +220,17 @@ func TestTaskTransportServiceMapsRichReadFailuresToTransportProblems(t *testing.
 		t.Fatalf("Remove(memory/MEMORY.md) error = %v", err)
 	}
 
-	_, err = service.WorkflowMemoryFile(
+	memoryDoc, err := service.WorkflowMemoryFile(
 		context.Background(),
 		fixture.env.workspaceRoot,
 		fixture.env.workflowSlug,
 		workflowMemoryID,
 	)
-	staleProblem := mustProblem(t, err)
-	if staleProblem.Status != http.StatusNotFound || staleProblem.Code != "stale_document_reference" {
-		t.Fatalf("WorkflowMemoryFile(stale) = %#v, want 404 stale_document_reference", staleProblem)
+	if err != nil {
+		t.Fatalf("WorkflowMemoryFile(document removed) error = %v, want snapshot-backed success", err)
 	}
-	if got := staleProblem.Details["reference"]; got != workflowMemoryID {
-		t.Fatalf("stale_document_reference reference = %#v, want %q", got, workflowMemoryID)
+	if !strings.Contains(memoryDoc.Markdown, "Workflow note.") {
+		t.Fatalf("WorkflowMemoryFile(document removed) markdown = %q, want synced memory body", memoryDoc.Markdown)
 	}
 }
 
@@ -359,11 +357,11 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 
 	taskSource := TaskDetailPayload{
 		Task: TaskCard{
-			TaskID:    "task_1",
-			DependsOn: []string{"task_0"},
+			TaskID:    "task_01",
+			DependsOn: []string{"task_00"},
 		},
 		Document: MarkdownDocument{
-			ID:    "task_1",
+			ID:    "task_01",
 			Kind:  "task",
 			Title: "Task 1",
 			Metadata: map[string]any{
@@ -382,8 +380,8 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 	taskMapped.RelatedRuns[0].RunID = "run-x"
 	taskSource.Document.Metadata["status"] = "completed"
 	taskSource.Document.Metadata["details"].(map[string]any)["owner"] = "browser"
-	if got := taskSource.Task.DependsOn[0]; got != "task_0" {
-		t.Fatalf("source task depends_on mutated = %q, want task_0", got)
+	if got := taskSource.Task.DependsOn[0]; got != "task_00" {
+		t.Fatalf("source task depends_on mutated = %q, want task_00", got)
 	}
 	taskMetadata := mustTransportMetadataMap(t, taskMapped.Document.Metadata)
 	if got := taskMetadata["status"]; got != "pending" {

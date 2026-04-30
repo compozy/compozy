@@ -373,7 +373,7 @@ func configureWorkflowInput(prep *model.SolvePreparation, cfg *model.RuntimeConf
 }
 
 func configureReviewInput(prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-	meta, err := reviews.ReadRoundMeta(prep.InputDirPath)
+	meta, err := reviews.SnapshotRoundMeta(prep.InputDirPath)
 	if err != nil {
 		return err
 	}

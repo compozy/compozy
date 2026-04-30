@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -40,8 +42,16 @@ type queryService struct {
 }
 
 type memoryDocumentRef struct {
-	entry   WorkflowMemoryEntry
-	absPath string
+	entry    WorkflowMemoryEntry
+	absPath  string
+	snapshot *globaldb.ArtifactSnapshotRow
+}
+
+type workflowReadTarget struct {
+	workspace       globaldb.Workspace
+	workflow        globaldb.Workflow
+	rootDir         string
+	snapshotsByPath map[string]globaldb.ArtifactSnapshotRow
 }
 
 var _ QueryService = (*queryService)(nil)
@@ -111,10 +121,12 @@ func (s *queryService) WorkflowOverview(
 	workspaceRef string,
 	workflowSlug string,
 ) (WorkflowOverviewPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return WorkflowOverviewPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	taskItems, counts, err := s.taskCardsForWorkflow(ctx, workflow.ID)
 	if err != nil {
@@ -132,9 +144,15 @@ func (s *queryService) WorkflowOverview(
 		latestReview = &summary
 	}
 
-	eligibility, err := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, workflow.Slug)
-	if err != nil {
-		return WorkflowOverviewPayload{}, err
+	archiveReason := "workflow archived"
+	archiveEligible := false
+	if workflow.ArchivedAt == nil {
+		eligibility, eligibilityErr := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, workflow.Slug)
+		if eligibilityErr != nil {
+			return WorkflowOverviewPayload{}, eligibilityErr
+		}
+		archiveEligible = eligibility.Archivable()
+		archiveReason = eligibility.SkipReason()
 	}
 
 	_ = taskItems
@@ -144,8 +162,8 @@ func (s *queryService) WorkflowOverview(
 		TaskCounts:      counts,
 		LatestReview:    latestReview,
 		RecentRuns:      recentRuns,
-		ArchiveEligible: eligibility.Archivable(),
-		ArchiveReason:   eligibility.SkipReason(),
+		ArchiveEligible: archiveEligible,
+		ArchiveReason:   archiveReason,
 	}, nil
 }
 
@@ -154,10 +172,12 @@ func (s *queryService) TaskBoard(
 	workspaceRef string,
 	workflowSlug string,
 ) (TaskBoardPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return TaskBoardPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	cards, counts, err := s.taskCardsForWorkflow(ctx, workflow.ID)
 	if err != nil {
@@ -177,35 +197,56 @@ func (s *queryService) WorkflowSpec(
 	workspaceRef string,
 	workflowSlug string,
 ) (WorkflowSpecDocument, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return WorkflowSpecDocument{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
-	workflowRoot := workflowRootDir(workspace.RootDir, workflow.Slug)
 	spec := WorkflowSpecDocument{
 		Workspace: transportWorkspace(workspace),
 		Workflow:  transportWorkflowSummary(workflow),
 	}
 
-	if prdDoc, ok, err := s.readWorkflowDocument(ctx, workflowRoot, "_prd.md", "prd", "prd"); err != nil {
+	if prdDoc, ok, err := s.readWorkflowDocument(
+		ctx,
+		target,
+		"_prd.md",
+		markdownDocumentKindPRD,
+		markdownDocumentKindPRD,
+	); err != nil {
 		return WorkflowSpecDocument{}, err
 	} else if ok {
 		spec.PRD = &prdDoc
 	}
 	if techspecDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		workflowRoot,
+		target,
 		"_techspec.md",
-		"techspec",
-		"techspec",
+		markdownDocumentKindTechSpec,
+		markdownDocumentKindTechSpec,
 	); err != nil {
 		return WorkflowSpecDocument{}, err
 	} else if ok {
 		spec.TechSpec = &techspecDoc
 	}
 
-	adrsDir := filepath.Join(workflowRoot, "adrs")
+	if adrs, ok, err := snapshotDocumentsByPrefix(
+		target.snapshotsByPath,
+		"adrs/",
+		markdownDocumentKindADR,
+		func(relativePath string) string {
+			return strings.TrimSuffix(filepath.Base(relativePath), filepath.Ext(relativePath))
+		},
+	); err != nil {
+		return WorkflowSpecDocument{}, err
+	} else if ok {
+		spec.ADRs = adrs
+		return spec, nil
+	}
+
+	adrsDir := filepath.Join(target.rootDir, "adrs")
 	entries, err := readMarkdownDir(adrsDir)
 	if err != nil {
 		if !errors.Is(err, ErrDocumentMissing) {
@@ -217,7 +258,7 @@ func (s *queryService) WorkflowSpec(
 		doc, err := s.documents.Read(
 			ctx,
 			entry.absPath,
-			"adr",
+			markdownDocumentKindADR,
 			strings.TrimSuffix(filepath.Base(entry.displayPath), filepath.Ext(entry.displayPath)),
 		)
 		if err != nil {
@@ -233,12 +274,14 @@ func (s *queryService) WorkflowMemoryIndex(
 	workspaceRef string,
 	workflowSlug string,
 ) (WorkflowMemoryIndex, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return WorkflowMemoryIndex{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
-	entries, err := s.listMemoryDocuments(ctx, workspace, workflow)
+	entries, err := s.listMemoryDocuments(ctx, workspace, workflow, target)
 	if err != nil {
 		return WorkflowMemoryIndex{}, err
 	}
@@ -260,12 +303,14 @@ func (s *queryService) WorkflowMemoryFile(
 	workflowSlug string,
 	fileID string,
 ) (MarkdownDocument, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return MarkdownDocument{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
-	entries, err := s.listMemoryDocuments(ctx, workspace, workflow)
+	entries, err := s.listMemoryDocuments(ctx, workspace, workflow, target)
 	if err != nil {
 		return MarkdownDocument{}, err
 	}
@@ -275,10 +320,13 @@ func (s *queryService) WorkflowMemoryFile(
 		if entry.entry.FileID != trimmedID {
 			continue
 		}
-		return s.documents.Read(ctx, entry.absPath, "memory", entry.entry.FileID)
+		if entry.snapshot != nil {
+			return markdownDocumentFromSnapshot(*entry.snapshot, markdownDocumentKindMemory, entry.entry.FileID)
+		}
+		return s.documents.Read(ctx, entry.absPath, markdownDocumentKindMemory, entry.entry.FileID)
 	}
 	return MarkdownDocument{}, StaleDocumentReferenceError{
-		Kind:         "memory",
+		Kind:         markdownDocumentKindMemory,
 		WorkflowSlug: workflow.Slug,
 		Reference:    trimmedID,
 	}
@@ -290,10 +338,12 @@ func (s *queryService) TaskDetail(
 	workflowSlug string,
 	taskID string,
 ) (TaskDetailPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return TaskDetailPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	taskRow, err := s.globalDB.GetTaskItemByTaskID(ctx, workflow.ID, taskID)
 	if err != nil {
@@ -302,17 +352,16 @@ func (s *queryService) TaskDetail(
 
 	document, err := s.readRequiredWorkflowDocument(
 		ctx,
-		workflowRootDir(workspace.RootDir, workflow.Slug),
-		workflow.Slug,
+		target,
 		taskRow.SourcePath,
-		runModeTask,
+		markdownDocumentKindTask,
 		taskRow.TaskID,
 	)
 	if err != nil {
 		return TaskDetailPayload{}, err
 	}
 
-	memoryEntries, err := s.listMemoryDocuments(ctx, workspace, workflow)
+	memoryEntries, err := s.listMemoryDocuments(ctx, workspace, workflow, target)
 	if err != nil {
 		return TaskDetailPayload{}, err
 	}
@@ -346,10 +395,12 @@ func (s *queryService) ReviewDetail(
 	round int,
 	issueRef string,
 ) (ReviewDetailPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return ReviewDetailPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	roundRow, err := s.globalDB.GetReviewRound(ctx, workflow.ID, round)
 	if err != nil {
@@ -362,10 +413,9 @@ func (s *queryService) ReviewDetail(
 
 	document, err := s.readRequiredWorkflowDocument(
 		ctx,
-		workflowRootDir(workspace.RootDir, workflow.Slug),
-		workflow.Slug,
+		target,
 		issueRow.SourcePath,
-		"review_issue",
+		markdownDocumentKindReviewIssue,
 		issueRow.ID,
 	)
 	if err != nil {
@@ -441,20 +491,132 @@ func (s *queryService) resolveWorkspace(ctx context.Context, workspaceRef string
 	return resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
 }
 
-func (s *queryService) resolveWorkflow(
+func (s *queryService) resolveWorkflowReadTarget(
 	ctx context.Context,
 	workspaceRef string,
 	workflowSlug string,
-) (globaldb.Workspace, globaldb.Workflow, error) {
+) (workflowReadTarget, error) {
 	workspace, err := s.resolveWorkspace(ctx, workspaceRef)
 	if err != nil {
-		return globaldb.Workspace{}, globaldb.Workflow{}, err
+		return workflowReadTarget{}, err
 	}
-	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, strings.TrimSpace(workflowSlug))
+	slug := strings.TrimSpace(workflowSlug)
+
+	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, slug)
+	if err == nil {
+		rootDir, rootErr := readableWorkflowRootDir(workspace.RootDir, workflow)
+		if rootErr != nil {
+			return workflowReadTarget{}, rootErr
+		}
+		snapshots, snapshotErr := s.snapshotIndex(ctx, workflow.ID)
+		if snapshotErr != nil {
+			return workflowReadTarget{}, snapshotErr
+		}
+		return workflowReadTarget{
+			workspace:       workspace,
+			workflow:        workflow,
+			rootDir:         rootDir,
+			snapshotsByPath: snapshots,
+		}, nil
+	}
+	if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+		return workflowReadTarget{}, err
+	}
+
+	workflow, err = s.globalDB.GetLatestArchivedWorkflowBySlug(ctx, workspace.ID, slug)
 	if err != nil {
-		return globaldb.Workspace{}, globaldb.Workflow{}, err
+		return workflowReadTarget{}, err
 	}
-	return workspace, workflow, nil
+	rootDir, err := readableWorkflowRootDir(workspace.RootDir, workflow)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	snapshots, err := s.snapshotIndex(ctx, workflow.ID)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	return workflowReadTarget{
+		workspace:       workspace,
+		workflow:        workflow,
+		rootDir:         rootDir,
+		snapshotsByPath: snapshots,
+	}, nil
+}
+
+func (s *queryService) snapshotIndex(
+	ctx context.Context,
+	workflowID string,
+) (map[string]globaldb.ArtifactSnapshotRow, error) {
+	snapshots, err := s.globalDB.ListArtifactSnapshots(ctx, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if len(snapshots) == 0 {
+		return nil, nil
+	}
+	index := make(map[string]globaldb.ArtifactSnapshotRow, len(snapshots))
+	for idx := range snapshots {
+		snapshot := &snapshots[idx]
+		index[filepath.ToSlash(strings.TrimSpace(snapshot.RelativePath))] = *snapshot
+	}
+	return index, nil
+}
+
+func snapshotDocument(
+	snapshots map[string]globaldb.ArtifactSnapshotRow,
+	relativePath string,
+	kind string,
+	id string,
+) (MarkdownDocument, bool, error) {
+	if len(snapshots) == 0 {
+		return MarkdownDocument{}, false, nil
+	}
+	snapshot, ok := snapshots[filepath.ToSlash(strings.TrimSpace(relativePath))]
+	if !ok {
+		return MarkdownDocument{}, false, nil
+	}
+	doc, err := markdownDocumentFromSnapshot(snapshot, kind, id)
+	if err != nil {
+		return MarkdownDocument{}, false, err
+	}
+	return doc, true, nil
+}
+
+func snapshotDocumentsByPrefix(
+	snapshots map[string]globaldb.ArtifactSnapshotRow,
+	prefix string,
+	kind string,
+	idForPath func(string) string,
+) ([]MarkdownDocument, bool, error) {
+	if len(snapshots) == 0 {
+		return nil, false, nil
+	}
+
+	prefix = filepath.ToSlash(strings.TrimSpace(prefix))
+	paths := make([]string, 0)
+	for relativePath := range snapshots {
+		if strings.HasPrefix(relativePath, prefix) {
+			paths = append(paths, relativePath)
+		}
+	}
+	if len(paths) == 0 {
+		return nil, false, nil
+	}
+	sort.Strings(paths)
+
+	docs := make([]MarkdownDocument, 0, len(paths))
+	for _, relativePath := range paths {
+		id := relativePath
+		if idForPath != nil {
+			id = idForPath(relativePath)
+		}
+		doc, err := markdownDocumentFromSnapshot(snapshots[relativePath], kind, id)
+		if err != nil {
+			return nil, false, err
+		}
+		docs = append(docs, doc)
+	}
+	return docs, true, nil
 }
 
 func (s *queryService) buildWorkflowCard(
@@ -590,8 +752,21 @@ func (s *queryService) listMemoryDocuments(
 	ctx context.Context,
 	workspace globaldb.Workspace,
 	workflow globaldb.Workflow,
+	target workflowReadTarget,
 ) ([]memoryDocumentRef, error) {
-	memoryDir := filepath.Join(workflowRootDir(workspace.RootDir, workflow.Slug), "memory")
+	if refs, ok, err := s.listSnapshotMemoryDocuments(target); err != nil {
+		return nil, err
+	} else if ok {
+		return refs, nil
+	}
+
+	if target.workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing &&
+		!workflowReadTargetUsesArchivedFS(target) {
+		return nil, nil
+	}
+
+	workflowRoot := target.rootDir
+	memoryDir := filepath.Join(workflowRoot, "memory")
 	entries, err := readMarkdownDir(memoryDir)
 	if err != nil {
 		if errors.Is(err, ErrDocumentMissing) {
@@ -604,7 +779,7 @@ func (s *queryService) listMemoryDocuments(
 	for _, entry := range entries {
 		displayPath := filepath.ToSlash(filepath.Join("memory", entry.displayPath))
 		fileID := memoryFileID(workspace.ID, workflow.Slug, displayPath)
-		doc, err := s.documents.Read(ctx, entry.absPath, "memory", fileID)
+		doc, err := s.documents.Read(ctx, entry.absPath, markdownDocumentKindMemory, fileID)
 		if err != nil {
 			return nil, err
 		}
@@ -623,13 +798,68 @@ func (s *queryService) listMemoryDocuments(
 	return refs, nil
 }
 
+func (s *queryService) listSnapshotMemoryDocuments(
+	target workflowReadTarget,
+) ([]memoryDocumentRef, bool, error) {
+	if len(target.snapshotsByPath) == 0 {
+		return nil, false, nil
+	}
+
+	paths := make([]string, 0)
+	for relativePath := range target.snapshotsByPath {
+		snapshot := target.snapshotsByPath[relativePath]
+		if snapshot.ArtifactKind == "memory" || strings.HasPrefix(relativePath, "memory/") {
+			paths = append(paths, relativePath)
+		}
+	}
+	if len(paths) == 0 {
+		return nil, false, nil
+	}
+	sort.Strings(paths)
+
+	refs := make([]memoryDocumentRef, 0, len(paths))
+	for _, relativePath := range paths {
+		snapshot := target.snapshotsByPath[relativePath]
+		fileID := memoryFileID(target.workspace.ID, target.workflow.Slug, relativePath)
+		doc, err := markdownDocumentFromSnapshot(snapshot, markdownDocumentKindMemory, fileID)
+		if err != nil {
+			return nil, false, err
+		}
+		sizeBytes := int64(len(snapshot.BodyText))
+		snapshotCopy := snapshot
+		refs = append(refs, memoryDocumentRef{
+			entry: WorkflowMemoryEntry{
+				FileID:      fileID,
+				DisplayPath: relativePath,
+				Kind:        classifyMemoryEntry(relativePath),
+				Title:       doc.Title,
+				SizeBytes:   sizeBytes,
+				UpdatedAt:   snapshot.SourceMTime,
+			},
+			snapshot: &snapshotCopy,
+		})
+	}
+	return refs, true, nil
+}
+
 func (s *queryService) readWorkflowDocument(
 	ctx context.Context,
-	workflowRoot string,
+	target workflowReadTarget,
 	relativePath string,
 	kind string,
 	id string,
 ) (MarkdownDocument, bool, error) {
+	if doc, ok, err := snapshotDocument(target.snapshotsByPath, relativePath, kind, id); err != nil {
+		return MarkdownDocument{}, false, err
+	} else if ok {
+		return doc, true, nil
+	}
+	if target.workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing &&
+		!workflowReadTargetUsesArchivedFS(target) {
+		return MarkdownDocument{}, false, nil
+	}
+
+	workflowRoot := target.rootDir
 	absPath := filepath.Join(workflowRoot, filepath.FromSlash(relativePath))
 	if err := fileInfo(absPath); err != nil {
 		if errors.Is(err, ErrDocumentMissing) {
@@ -646,19 +876,25 @@ func (s *queryService) readWorkflowDocument(
 
 func (s *queryService) readRequiredWorkflowDocument(
 	ctx context.Context,
-	workflowRoot string,
-	workflowSlug string,
+	target workflowReadTarget,
 	relativePath string,
 	kind string,
 	id string,
 ) (MarkdownDocument, error) {
+	if doc, ok, err := snapshotDocument(target.snapshotsByPath, relativePath, kind, id); err != nil {
+		return MarkdownDocument{}, err
+	} else if ok {
+		return doc, nil
+	}
+
+	workflowRoot := target.rootDir
 	absPath := filepath.Join(workflowRoot, filepath.FromSlash(relativePath))
 	doc, err := s.documents.Read(ctx, absPath, kind, id)
 	if err != nil {
 		if errors.Is(err, ErrDocumentMissing) {
 			return MarkdownDocument{}, DocumentMissingError{
 				Kind:         kind,
-				WorkflowSlug: workflowSlug,
+				WorkflowSlug: target.workflow.Slug,
 				RelativePath: filepath.ToSlash(relativePath),
 			}
 		}
@@ -700,6 +936,110 @@ func (s *queryService) requireRunManager() error {
 
 func workflowRootDir(workspaceRoot string, workflowSlug string) string {
 	return model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+}
+
+func workflowReadTargetUsesArchivedFS(target workflowReadTarget) bool {
+	archiveRoot := filepath.Clean(model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(target.workspace.RootDir)))
+	rootDir := filepath.Clean(strings.TrimSpace(target.rootDir))
+	rel, err := filepath.Rel(archiveRoot, rootDir)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+func readableWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) (string, error) {
+	if workflow.ArchivedAt != nil {
+		root := archivedWorkflowRootDir(workspaceRoot, workflow)
+		if err := fileInfo(root); err == nil {
+			return root, nil
+		} else if !errors.Is(err, ErrDocumentMissing) {
+			return "", err
+		}
+		if fallback, ok, err := latestArchivedWorkflowRootDir(workspaceRoot, workflow.Slug); err != nil {
+			return "", err
+		} else if ok {
+			return fallback, nil
+		}
+		return root, nil
+	}
+
+	root := workflowRootDir(workspaceRoot, workflow.Slug)
+	if err := fileInfo(root); err == nil {
+		return root, nil
+	} else if !errors.Is(err, ErrDocumentMissing) {
+		return "", err
+	}
+	if fallback, ok, err := latestArchivedWorkflowRootDir(workspaceRoot, workflow.Slug); err != nil {
+		return "", err
+	} else if ok {
+		return fallback, nil
+	}
+	return root, nil
+}
+
+func archivedWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) string {
+	if workflow.ArchivedAt == nil {
+		return workflowRootDir(workspaceRoot, workflow.Slug)
+	}
+	return filepath.Join(
+		model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(workspaceRoot)),
+		model.ArchivedWorkflowName(workflow.Slug, workflow.ID, *workflow.ArchivedAt),
+	)
+}
+
+func latestArchivedWorkflowRootDir(workspaceRoot string, workflowSlug string) (string, bool, error) {
+	archiveRoot := model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(workspaceRoot))
+	entries, err := os.ReadDir(archiveRoot)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("daemon: read archived workflow directory %q: %w", archiveRoot, err)
+	}
+
+	type candidate struct {
+		name      string
+		path      string
+		timestamp int64
+	}
+	candidates := make([]candidate, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		timestamp, ok := archivedWorkflowTimestampForSlug(entry.Name(), workflowSlug)
+		if !ok {
+			continue
+		}
+		candidates = append(candidates, candidate{
+			name:      entry.Name(),
+			path:      filepath.Join(archiveRoot, entry.Name()),
+			timestamp: timestamp,
+		})
+	}
+	if len(candidates) == 0 {
+		return "", false, nil
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].timestamp == candidates[j].timestamp {
+			return candidates[i].name < candidates[j].name
+		}
+		return candidates[i].timestamp < candidates[j].timestamp
+	})
+	return candidates[len(candidates)-1].path, true, nil
+}
+
+func archivedWorkflowTimestampForSlug(name string, workflowSlug string) (int64, bool) {
+	parts := strings.SplitN(strings.TrimSpace(name), "-", 3)
+	if len(parts) != 3 || parts[2] != strings.TrimSpace(workflowSlug) {
+		return 0, false
+	}
+	timestamp, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return timestamp, true
 }
 
 func taskCardFromRow(row globaldb.TaskItemRow) TaskCard {
@@ -848,11 +1188,11 @@ func classifyMemoryEntry(displayPath string) string {
 	base := filepath.Base(filepath.ToSlash(strings.TrimSpace(displayPath)))
 	switch {
 	case strings.EqualFold(base, "MEMORY.md"):
-		return "workflow"
+		return memoryEntryKindWorkflow
 	case taskscore.ExtractTaskNumber(base) > 0:
-		return runModeTask
+		return memoryEntryKindTask
 	default:
-		return "memory"
+		return memoryEntryKindMemory
 	}
 }
 

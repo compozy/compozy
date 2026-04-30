@@ -278,6 +278,14 @@ func (s integrationRunService) Snapshot(context.Context, string) (core.RunSnapsh
 	return s.snapshot, nil
 }
 
+func (s integrationRunService) Transcript(context.Context, string) (core.RunTranscript, error) {
+	return core.RunTranscript{
+		RunID:      s.snapshot.Run.RunID,
+		Messages:   []core.RunUIMessage{},
+		NextCursor: s.snapshot.NextCursor,
+	}, nil
+}
+
 func (s integrationRunService) Events(context.Context, string, core.RunEventPageQuery) (core.RunEventPage, error) {
 	return core.RunEventPage{}, nil
 }

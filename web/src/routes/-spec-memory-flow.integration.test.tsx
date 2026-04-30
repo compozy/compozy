@@ -248,7 +248,7 @@ describe("spec + memory flow integration", () => {
     });
   });
 
-  it("Should surface a stale-workspace alert when the memory index is stale", async () => {
+  it("Should return to workspace selection when the memory index reports stale workspace context", async () => {
     const stub = installFetchStub([
       {
         matcher: matchUrl("/api/workspaces"),
@@ -267,8 +267,8 @@ describe("spec + memory flow integration", () => {
     ]);
     restore = stub.restore;
     await renderApp("/memory/alpha");
-    const alert = await screen.findByTestId("workflow-memory-load-error");
-    expect(alert).toHaveTextContent("workspace stale");
+    expect(await screen.findByTestId("workspace-picker-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("workflow-memory-load-error")).not.toBeInTheDocument();
   });
 
   it("Should recover when the selected memory file fails but the index is present", async () => {

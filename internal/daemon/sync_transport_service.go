@@ -14,13 +14,21 @@ import (
 )
 
 type transportSyncService struct {
-	globalDB *globaldb.GlobalDB
+	globalDB   *globaldb.GlobalDB
+	runManager *RunManager
 }
 
 var _ apicore.SyncService = (*transportSyncService)(nil)
 
-func newTransportSyncService(globalDB *globaldb.GlobalDB) *transportSyncService {
-	return &transportSyncService{globalDB: globalDB}
+func newTransportSyncService(globalDB *globaldb.GlobalDB, runManager ...*RunManager) *transportSyncService {
+	var manager *RunManager
+	for _, candidate := range runManager {
+		if candidate != nil {
+			manager = candidate
+			break
+		}
+	}
+	return &transportSyncService{globalDB: globalDB, runManager: manager}
 }
 
 func (s *transportSyncService) Sync(ctx context.Context, req apicore.SyncRequest) (apicore.SyncResult, error) {
@@ -36,6 +44,9 @@ func (s *transportSyncService) Sync(ctx context.Context, req apicore.SyncRequest
 	result, err := corepkg.SyncDirect(ctx, cfg)
 	if err != nil {
 		return apicore.SyncResult{}, err
+	}
+	if s.runManager != nil {
+		s.runManager.publishWorkflowSyncWorkspaceEvent(ctx, workspaceID, nil, workflowSlug, result.SyncedPaths)
 	}
 
 	syncedAt := time.Now().UTC()
@@ -88,6 +99,13 @@ func (s *transportSyncService) resolveSyncConfig(
 	workspaceRow, err := resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
 	if err != nil {
 		return corepkg.SyncConfig{}, "", "", err
+	}
+	if workspaceRow.FilesystemState == globaldb.WorkspaceFilesystemStateMissing {
+		return corepkg.SyncConfig{}, "", "", apicore.WorkspacePathMissingProblem(
+			workspaceRow.ID,
+			workspaceRow.RootDir,
+			nil,
+		)
 	}
 	return corepkg.SyncConfig{
 		WorkspaceRoot: workspaceRow.RootDir,

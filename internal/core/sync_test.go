@@ -133,15 +133,16 @@ func TestSyncTaskMetadataResyncUpdatesExistingWorkflowAndTaskIdentity(t *testing
 		workflowID string
 		taskRowID  string
 		taskID     string
+		sourcePath string
 	)
 	if err := sqlDB.QueryRowContext(
 		context.Background(),
-		`SELECT w.id, t.id, t.task_id
+		`SELECT w.id, t.id, t.task_id, t.source_path
 		 FROM workflows w
 		 JOIN task_items t ON t.workflow_id = w.id
 		 WHERE w.slug = ? AND t.task_number = 1`,
 		"identity-demo",
-	).Scan(&workflowID, &taskRowID, &taskID); err != nil {
+	).Scan(&workflowID, &taskRowID, &taskID, &sourcePath); err != nil {
 		t.Fatalf("query first sync identity rows: %v", err)
 	}
 
@@ -175,8 +176,11 @@ func TestSyncTaskMetadataResyncUpdatesExistingWorkflowAndTaskIdentity(t *testing
 	if taskRowIDAfter != taskRowID {
 		t.Fatalf("task row id changed across resync: before=%q after=%q", taskRowID, taskRowIDAfter)
 	}
-	if taskID != "task_1" {
-		t.Fatalf("task_id = %q, want task_1", taskID)
+	if taskID != "task_01" {
+		t.Fatalf("task_id = %q, want task_01", taskID)
+	}
+	if sourcePath != "task_01.md" {
+		t.Fatalf("source_path = %q, want task_01.md", sourcePath)
 	}
 	if taskTitleAfter != "Updated title" || taskStatusAfter != "completed" {
 		t.Fatalf("unexpected task row after resync: title=%q status=%q", taskTitleAfter, taskStatusAfter)
@@ -223,8 +227,8 @@ func TestSyncTaskMetadataSyncsMixedWorkflowArtifacts(t *testing.T) {
 		_ = sqlDB.Close()
 	}()
 
-	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM artifact_snapshots"); got != 8 {
-		t.Fatalf("artifact_snapshots count = %d, want 8", got)
+	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM artifact_snapshots"); got != 7 {
+		t.Fatalf("artifact_snapshots count = %d, want 7", got)
 	}
 	if got := queryCount(t, sqlDB, "SELECT COUNT(1) FROM review_rounds"); got != 1 {
 		t.Fatalf("review_rounds count = %d, want 1", got)
@@ -445,7 +449,7 @@ func TestSyncHelpersClassifyKindsAndSortResults(t *testing.T) {
 		"task_01.md":                "task",
 		"adrs/adr-001.md":           "adr",
 		"memory/MEMORY.md":          "memory",
-		"reviews-001/_meta.md":      "review_round_meta",
+		"reviews-001/_meta.md":      "artifact",
 		"reviews-001/issue_001.md":  "review_issue",
 		"prompts/task-run.md":       "prompt",
 		"protocol/handoff.md":       "protocol",
@@ -496,6 +500,33 @@ func TestOpenWorkflowGlobalDBRegistersWorkspaceAndRejectsMissingTargets(t *testi
 
 	if _, _, err := openWorkflowGlobalDB(context.Background(), filepath.Join(workspaceRoot, "missing")); err == nil {
 		t.Fatal("expected missing sync target to fail workspace resolution")
+	}
+}
+
+func TestSyncWithDBRejectsMismatchedWorkspaceAndTarget(t *testing.T) {
+	setSyncTestHome(t)
+
+	workspaceRootA := t.TempDir()
+	workspaceRootB := t.TempDir()
+	workflowDirA := filepath.Join(workspaceRootA, ".compozy", "tasks", "alpha")
+	workflowDirB := filepath.Join(workspaceRootB, ".compozy", "tasks", "beta")
+	writeSyncWorkflowFile(t, workflowDirA, "task_01.md", taskBody("pending", "Alpha"))
+	writeSyncWorkflowFile(t, workflowDirB, "task_01.md", taskBody("pending", "Beta"))
+
+	db, workspaceA, err := openWorkflowGlobalDB(context.Background(), workflowDirA)
+	if err != nil {
+		t.Fatalf("openWorkflowGlobalDB(workspace A): %v", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	_, err = SyncWithDB(context.Background(), db, workspaceA, SyncConfig{TasksDir: workflowDirB})
+	if err == nil {
+		t.Fatal("SyncWithDB() error = nil, want mismatched workspace error")
+	}
+	if !strings.Contains(err.Error(), "mismatched workspace and sync target") {
+		t.Fatalf("SyncWithDB() error = %v, want mismatch context", err)
 	}
 }
 

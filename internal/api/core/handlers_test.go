@@ -11,9 +11,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -203,6 +206,144 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 	}
 }
 
+func TestStreamWorkspaceSocketEmitsEventHeartbeatAndOverflowMessages(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	stream := newFakeWorkspaceEventStream()
+	sendOverflow := make(chan struct{})
+	overflowOnce := sync.Once{}
+	feederCtx, stopFeeder := context.WithCancel(context.Background())
+	t.Cleanup(stopFeeder)
+	var feederWG sync.WaitGroup
+	feederWG.Add(1)
+	go func() {
+		defer feederWG.Done()
+		defer close(stream.events)
+		defer close(stream.errors)
+		select {
+		case stream.events <- core.WorkspaceStreamItem{
+			Event: &core.WorkspaceEvent{
+				Seq:          42,
+				TS:           time.Date(2026, 4, 28, 12, 0, 0, 0, time.UTC),
+				WorkspaceID:  "workspace-1",
+				WorkflowSlug: "demo",
+				RunID:        "run-1",
+				Mode:         "task",
+				Status:       "running",
+				Kind:         core.WorkspaceEventKindRunStatusChanged,
+			},
+		}:
+		case <-feederCtx.Done():
+			return
+		}
+		select {
+		case <-sendOverflow:
+		case <-feederCtx.Done():
+			return
+		}
+		select {
+		case stream.events <- core.WorkspaceStreamItem{
+			Overflow: &core.WorkspaceStreamOverflow{Reason: "slow consumer"},
+		}:
+		case <-feederCtx.Done():
+			return
+		}
+	}()
+	t.Cleanup(func() {
+		stopFeeder()
+		feederWG.Wait()
+	})
+
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName:     "test",
+		HeartbeatInterval: 10 * time.Millisecond,
+		WorkspaceEvents: &fakeWorkspaceEventService{
+			openStream: func(_ context.Context, workspaceID string) (core.WorkspaceEventStream, error) {
+				if workspaceID != "workspace-1" {
+					t.Fatalf("workspace id = %q, want workspace-1", workspaceID)
+				}
+				return stream, nil
+			},
+		},
+	})
+
+	engine := gin.New()
+	engine.Use(core.RequestIDMiddleware())
+	engine.Use(core.ErrorMiddleware())
+	core.RegisterRoutes(engine, handlers)
+
+	server := httptest.NewServer(engine)
+	defer server.Close()
+
+	socketURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/api/workspaces/workspace-1/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	conn, resp, err := websocket.Dial(ctx, socketURL, nil)
+	if resp != nil && resp.Body != nil {
+		t.Cleanup(func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Errorf("close websocket response body: %v", closeErr)
+			}
+		})
+	}
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := conn.CloseNow(); closeErr != nil {
+			t.Errorf("close websocket client transport: %v", closeErr)
+		}
+	})
+
+	seen := make(map[string]core.WorkspaceSocketMessage)
+	for len(seen) < 3 {
+		var message core.WorkspaceSocketMessage
+		if err := wsjson.Read(ctx, conn, &message); err != nil {
+			t.Fatalf("wsjson.Read() error = %v; seen=%v", err, seen)
+		}
+		seen[message.Type] = message
+		if message.Type == core.WorkspaceHeartbeatSocketType {
+			overflowOnce.Do(func() { close(sendOverflow) })
+		}
+	}
+
+	eventMessage, ok := seen[core.WorkspaceEventSocketType]
+	if !ok {
+		t.Fatalf("missing workspace event message: %#v", seen)
+	}
+	if eventMessage.ID != "42" {
+		t.Fatalf("workspace event id = %q, want 42", eventMessage.ID)
+	}
+	var event core.WorkspaceEvent
+	decodeJSON(t, eventMessage.Payload, &event)
+	if event.Kind != core.WorkspaceEventKindRunStatusChanged || event.RunID != "run-1" {
+		t.Fatalf("workspace event payload = %#v", event)
+	}
+
+	heartbeatMessage, ok := seen[core.WorkspaceHeartbeatSocketType]
+	if !ok {
+		t.Fatalf("missing workspace heartbeat message: %#v", seen)
+	}
+	var heartbeat core.WorkspaceSocketHeartbeatPayload
+	decodeJSON(t, heartbeatMessage.Payload, &heartbeat)
+	if heartbeat.WorkspaceID != "workspace-1" {
+		t.Fatalf("heartbeat workspace id = %q, want workspace-1", heartbeat.WorkspaceID)
+	}
+
+	overflowMessage, ok := seen[core.WorkspaceOverflowSocketType]
+	if !ok {
+		t.Fatalf("missing workspace overflow message: %#v", seen)
+	}
+	var overflow core.WorkspaceSocketOverflowPayload
+	decodeJSON(t, overflowMessage.Payload, &overflow)
+	if overflow.Reason != "slow consumer" {
+		t.Fatalf("overflow reason = %q, want slow consumer", overflow.Reason)
+	}
+}
+
 func TestStreamRunLogsCloseErrors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -263,6 +404,10 @@ func (f *fakeRunService) Snapshot(context.Context, string) (core.RunSnapshot, er
 	return core.RunSnapshot{}, nil
 }
 
+func (f *fakeRunService) Transcript(context.Context, string) (core.RunTranscript, error) {
+	return core.RunTranscript{}, nil
+}
+
 func (f *fakeRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
 	return core.RunDetailPayload{}, nil
 }
@@ -308,6 +453,45 @@ func (f *fakeRunStream) Errors() <-chan error {
 }
 
 func (f *fakeRunStream) Close() error {
+	return f.closeErr
+}
+
+type fakeWorkspaceEventService struct {
+	openStream func(context.Context, string) (core.WorkspaceEventStream, error)
+}
+
+func (f *fakeWorkspaceEventService) OpenWorkspaceStream(
+	ctx context.Context,
+	workspaceID string,
+) (core.WorkspaceEventStream, error) {
+	if f.openStream != nil {
+		return f.openStream(ctx, workspaceID)
+	}
+	return newFakeWorkspaceEventStream(), nil
+}
+
+type fakeWorkspaceEventStream struct {
+	events   chan core.WorkspaceStreamItem
+	errors   chan error
+	closeErr error
+}
+
+func newFakeWorkspaceEventStream() *fakeWorkspaceEventStream {
+	return &fakeWorkspaceEventStream{
+		events: make(chan core.WorkspaceStreamItem, 8),
+		errors: make(chan error, 1),
+	}
+}
+
+func (f *fakeWorkspaceEventStream) Events() <-chan core.WorkspaceStreamItem {
+	return f.events
+}
+
+func (f *fakeWorkspaceEventStream) Errors() <-chan error {
+	return f.errors
+}
+
+func (f *fakeWorkspaceEventStream) Close() error {
 	return f.closeErr
 }
 

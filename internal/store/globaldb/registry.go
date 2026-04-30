@@ -41,13 +41,42 @@ var (
 	ErrRunAlreadyExists = errors.New("globaldb: run already exists")
 )
 
+const workspaceSelectColumns = `
+	w.id,
+	w.root_dir,
+	w.name,
+	w.filesystem_state,
+	w.last_checked_at,
+	w.last_sync_at,
+	w.last_sync_error,
+	w.created_at,
+	w.updated_at,
+	COALESCE((SELECT COUNT(1) FROM workflows wf WHERE wf.workspace_id = w.id), 0) AS workflow_count,
+	COALESCE((SELECT COUNT(1) FROM runs r WHERE r.workspace_id = w.id), 0) AS run_count`
+
+const (
+	// WorkspaceFilesystemStatePresent means the workspace root exists on disk.
+	WorkspaceFilesystemStatePresent = "present"
+	// WorkspaceFilesystemStateMissing means the registry row is retained only
+	// because durable catalog data still exists in global.db.
+	WorkspaceFilesystemStateMissing = "missing"
+)
+
 // Workspace captures one durable workspace registration.
 type Workspace struct {
-	ID        string
-	RootDir   string
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              string
+	RootDir         string
+	Name            string
+	FilesystemState string
+	LastCheckedAt   *time.Time
+	LastSyncedAt    *time.Time
+	LastSyncError   string
+	WorkflowCount   int
+	RunCount        int
+	HasCatalogData  bool
+	ReadOnly        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Workflow captures one durable workflow identity row.
@@ -73,6 +102,12 @@ type ListRunsOptions struct {
 	Status      string
 	Mode        string
 	Limit       int
+}
+
+// WorkspaceCatalogStats captures durable data counts owned by one workspace.
+type WorkspaceCatalogStats struct {
+	WorkflowCount int
+	RunCount      int
 }
 
 // Run captures one durable global run index row.
@@ -200,9 +235,9 @@ func (g *GlobalDB) List(ctx context.Context) ([]Workspace, error) {
 
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT id, root_dir, name, created_at, updated_at
-		 FROM workspaces
-		 ORDER BY root_dir ASC, id ASC`,
+		`SELECT `+workspaceSelectColumns+`
+		 FROM workspaces w
+		 ORDER BY w.root_dir ASC, w.id ASC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("globaldb: query workspaces: %w", err)
@@ -259,6 +294,137 @@ func (g *GlobalDB) Unregister(ctx context.Context, idOrPath string) error {
 	}
 
 	return nil
+}
+
+// WorkspaceStateUpdate describes derived workspace state persisted by daemon maintenance.
+type WorkspaceStateUpdate struct {
+	WorkspaceID     string
+	FilesystemState string
+	CheckedAt       time.Time
+	LastSyncedAt    *time.Time
+	LastSyncError   *string
+}
+
+// UpdateWorkspaceState records derived filesystem/sync state for a workspace.
+func (g *GlobalDB) UpdateWorkspaceState(ctx context.Context, update WorkspaceStateUpdate) (Workspace, error) {
+	if err := g.requireContext(ctx, "update workspace state"); err != nil {
+		return Workspace{}, err
+	}
+
+	workspaceID := strings.TrimSpace(update.WorkspaceID)
+	if workspaceID == "" {
+		return Workspace{}, errors.New("globaldb: workspace id is required")
+	}
+	filesystemState, err := normalizeWorkspaceFilesystemState(update.FilesystemState)
+	if err != nil {
+		return Workspace{}, err
+	}
+	checkedAt := update.CheckedAt
+	if checkedAt.IsZero() {
+		checkedAt = g.now()
+	}
+	checkedAt = checkedAt.UTC()
+	updatedAt := g.now().UTC()
+
+	lastSyncedSet := update.LastSyncedAt != nil
+	lastSyncedValue := any(nil)
+	if update.LastSyncedAt != nil {
+		lastSynced := update.LastSyncedAt.UTC()
+		lastSyncedValue = store.FormatTimestamp(lastSynced)
+	}
+	lastSyncErrorSet := update.LastSyncError != nil
+	lastSyncErrorValue := ""
+	if update.LastSyncError != nil {
+		lastSyncErrorValue = strings.TrimSpace(*update.LastSyncError)
+	}
+
+	result, err := g.db.ExecContext(
+		ctx,
+		`UPDATE workspaces
+		 SET filesystem_state = ?,
+		     last_checked_at = ?,
+		     last_sync_at = CASE WHEN ? THEN ? ELSE last_sync_at END,
+		     last_sync_error = CASE WHEN ? THEN ? ELSE last_sync_error END,
+		     updated_at = ?
+		 WHERE id = ?`,
+		filesystemState,
+		store.FormatTimestamp(checkedAt),
+		lastSyncedSet,
+		lastSyncedValue,
+		lastSyncErrorSet,
+		lastSyncErrorValue,
+		store.FormatTimestamp(updatedAt),
+		workspaceID,
+	)
+	if err != nil {
+		return Workspace{}, fmt.Errorf("globaldb: update workspace state %q: %w", workspaceID, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return Workspace{}, fmt.Errorf("globaldb: rows affected for workspace state %q: %w", workspaceID, err)
+	}
+	if affected == 0 {
+		return Workspace{}, ErrWorkspaceNotFound
+	}
+
+	return g.Get(ctx, workspaceID)
+}
+
+// WorkspaceCatalogStats returns durable catalog counts for one workspace.
+func (g *GlobalDB) WorkspaceCatalogStats(ctx context.Context, workspaceID string) (WorkspaceCatalogStats, error) {
+	if err := g.requireContext(ctx, "workspace catalog stats"); err != nil {
+		return WorkspaceCatalogStats{}, err
+	}
+
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return WorkspaceCatalogStats{}, errors.New("globaldb: workspace id is required")
+	}
+
+	var stats WorkspaceCatalogStats
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT
+			COALESCE((SELECT COUNT(1) FROM workflows WHERE workspace_id = ?), 0),
+			COALESCE((SELECT COUNT(1) FROM runs WHERE workspace_id = ?), 0)`,
+		workspaceID,
+		workspaceID,
+	).Scan(&stats.WorkflowCount, &stats.RunCount); err != nil {
+		return WorkspaceCatalogStats{}, fmt.Errorf("globaldb: count workspace catalog rows %q: %w", workspaceID, err)
+	}
+	return stats, nil
+}
+
+// DeleteWorkspaceIfNoCatalogData removes an empty workspace registry row.
+func (g *GlobalDB) DeleteWorkspaceIfNoCatalogData(ctx context.Context, workspaceID string) (bool, error) {
+	if err := g.requireContext(ctx, "delete empty workspace"); err != nil {
+		return false, err
+	}
+
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return false, errors.New("globaldb: workspace id is required")
+	}
+
+	result, err := g.db.ExecContext(
+		ctx,
+		`DELETE FROM workspaces
+		 WHERE id = ?
+		   AND NOT EXISTS (SELECT 1 FROM workflows WHERE workspace_id = ?)
+		   AND NOT EXISTS (SELECT 1 FROM runs WHERE workspace_id = ?)`,
+		workspaceID,
+		workspaceID,
+		workspaceID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("globaldb: delete empty workspace %q: %w", workspaceID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("globaldb: rows affected for empty workspace %q: %w", workspaceID, err)
+	}
+	return affected > 0, nil
 }
 
 // PutWorkflow inserts or updates one workflow identity row.
@@ -578,20 +744,26 @@ func (g *GlobalDB) registerResolvedWorkspace(
 ) (Workspace, error) {
 	now := g.now()
 	inserted := Workspace{
-		ID:        g.newID("ws"),
-		RootDir:   rootDir,
-		Name:      normalizeWorkspaceName(name, rootDir),
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:              g.newID("ws"),
+		RootDir:         rootDir,
+		Name:            normalizeWorkspaceName(name, rootDir),
+		FilesystemState: WorkspaceFilesystemStatePresent,
+		LastCheckedAt:   &now,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	result, err := g.db.ExecContext(
 		ctx,
-		`INSERT OR IGNORE INTO workspaces (id, root_dir, name, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?)`,
+		`INSERT OR IGNORE INTO workspaces (
+			id, root_dir, name, filesystem_state, last_checked_at, last_sync_error, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		inserted.ID,
 		inserted.RootDir,
 		inserted.Name,
+		inserted.FilesystemState,
+		store.FormatTimestamp(now),
+		"",
 		store.FormatTimestamp(inserted.CreatedAt),
 		store.FormatTimestamp(inserted.UpdatedAt),
 	)
@@ -604,14 +776,23 @@ func (g *GlobalDB) registerResolvedWorkspace(
 		return Workspace{}, fmt.Errorf("globaldb: rows affected for workspace %q: %w", inserted.ID, err)
 	}
 	if affected == 0 {
-		existing, err := g.getWorkspaceByRootDir(ctx, rootDir)
+		workspace, err := g.getWorkspaceByRootDir(ctx, rootDir)
 		if err != nil {
 			return Workspace{}, err
 		}
-		return existing, nil
+		if workspace.FilesystemState == WorkspaceFilesystemStateMissing {
+			syncErr := ""
+			return g.UpdateWorkspaceState(ctx, WorkspaceStateUpdate{
+				WorkspaceID:     workspace.ID,
+				FilesystemState: WorkspaceFilesystemStatePresent,
+				CheckedAt:       now,
+				LastSyncError:   &syncErr,
+			})
+		}
+		return workspace, nil
 	}
 
-	return inserted, nil
+	return g.Get(ctx, inserted.ID)
 }
 
 func (g *GlobalDB) getWorkspaceByID(ctx context.Context, id string) (Workspace, error) {
@@ -625,9 +806,9 @@ func (g *GlobalDB) getWorkspaceByRootDir(ctx context.Context, rootDir string) (W
 func getWorkspaceByID(ctx context.Context, querier singleWorkspaceQuerier, id string) (Workspace, error) {
 	row := querier.QueryRowContext(
 		ctx,
-		`SELECT id, root_dir, name, created_at, updated_at
-		 FROM workspaces
-		 WHERE id = ?`,
+		`SELECT `+workspaceSelectColumns+`
+		 FROM workspaces w
+		 WHERE w.id = ?`,
 		strings.TrimSpace(id),
 	)
 	workspace, err := scanWorkspace(row)
@@ -643,9 +824,9 @@ func getWorkspaceByID(ctx context.Context, querier singleWorkspaceQuerier, id st
 func getWorkspaceByRootDir(ctx context.Context, querier singleWorkspaceQuerier, rootDir string) (Workspace, error) {
 	row := querier.QueryRowContext(
 		ctx,
-		`SELECT id, root_dir, name, created_at, updated_at
-		 FROM workspaces
-		 WHERE root_dir = ?`,
+		`SELECT `+workspaceSelectColumns+`
+		 FROM workspaces w
+		 WHERE w.root_dir = ?`,
 		strings.TrimSpace(rootDir),
 	)
 	workspace, err := scanWorkspace(row)
@@ -668,20 +849,32 @@ type rowScanner interface {
 
 func scanWorkspace(scanner rowScanner) (Workspace, error) {
 	var (
-		workspace    Workspace
-		createdAtRaw string
-		updatedAtRaw string
+		workspace        Workspace
+		lastCheckedAtRaw sql.NullString
+		lastSyncedAtRaw  sql.NullString
+		createdAtRaw     string
+		updatedAtRaw     string
 	)
 	if err := scanner.Scan(
 		&workspace.ID,
 		&workspace.RootDir,
 		&workspace.Name,
+		&workspace.FilesystemState,
+		&lastCheckedAtRaw,
+		&lastSyncedAtRaw,
+		&workspace.LastSyncError,
 		&createdAtRaw,
 		&updatedAtRaw,
+		&workspace.WorkflowCount,
+		&workspace.RunCount,
 	); err != nil {
 		return Workspace{}, err
 	}
 
+	filesystemState, err := normalizeWorkspaceFilesystemState(workspace.FilesystemState)
+	if err != nil {
+		return Workspace{}, err
+	}
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
 		return Workspace{}, err
@@ -691,9 +884,38 @@ func scanWorkspace(scanner rowScanner) (Workspace, error) {
 		return Workspace{}, err
 	}
 
+	workspace.FilesystemState = filesystemState
 	workspace.CreatedAt = createdAt
 	workspace.UpdatedAt = updatedAt
+	if lastCheckedAtRaw.Valid {
+		lastCheckedAt, err := store.ParseTimestamp(lastCheckedAtRaw.String)
+		if err != nil {
+			return Workspace{}, err
+		}
+		workspace.LastCheckedAt = &lastCheckedAt
+	}
+	if lastSyncedAtRaw.Valid {
+		lastSyncedAt, err := store.ParseTimestamp(lastSyncedAtRaw.String)
+		if err != nil {
+			return Workspace{}, err
+		}
+		workspace.LastSyncedAt = &lastSyncedAt
+	}
+	workspace.LastSyncError = strings.TrimSpace(workspace.LastSyncError)
+	workspace.HasCatalogData = workspace.WorkflowCount > 0 || workspace.RunCount > 0
+	workspace.ReadOnly = workspace.FilesystemState == WorkspaceFilesystemStateMissing && workspace.HasCatalogData
 	return workspace, nil
+}
+
+func normalizeWorkspaceFilesystemState(value string) (string, error) {
+	switch strings.TrimSpace(value) {
+	case "", WorkspaceFilesystemStatePresent:
+		return WorkspaceFilesystemStatePresent, nil
+	case WorkspaceFilesystemStateMissing:
+		return WorkspaceFilesystemStateMissing, nil
+	default:
+		return "", fmt.Errorf("globaldb: invalid workspace filesystem state %q", value)
+	}
 }
 
 func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workflow, error) {

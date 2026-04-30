@@ -74,6 +74,15 @@ type TokenUsageRow struct {
 	Timestamp    time.Time
 }
 
+// EventAuditStats summarizes persisted event/projection counts without loading
+// event payloads.
+type EventAuditStats struct {
+	EventCount             uint64
+	MaxSequence            uint64
+	SessionUpdateCount     uint64
+	TranscriptMessageCount uint64
+}
+
 // ArtifactSyncRow is the persisted artifact sync history row.
 type ArtifactSyncRow struct {
 	Sequence     uint64
@@ -384,6 +393,116 @@ func (r *RunDB) ListEvents(ctx context.Context, fromSeq uint64, limit int) (Even
 	return result, nil
 }
 
+// ListEventsByKind returns requested event kinds in sequence order.
+func (r *RunDB) ListEventsByKind(ctx context.Context, eventKinds []events.EventKind) ([]events.Event, error) {
+	if err := r.requireContext(ctx, "list events by kind"); err != nil {
+		return nil, err
+	}
+	if len(eventKinds) == 0 {
+		return nil, nil
+	}
+
+	kindValues := make([]string, 0, len(eventKinds))
+	for _, kind := range eventKinds {
+		kindValues = append(kindValues, string(kind))
+	}
+	rawKinds, err := json.Marshal(kindValues)
+	if err != nil {
+		return nil, fmt.Errorf("rundb: encode event kind filter: %w", err)
+	}
+	rows, err := r.db.QueryContext(
+		ctx,
+		`SELECT sequence, event_kind, payload_json, timestamp
+		 FROM events
+		 WHERE event_kind IN (SELECT value FROM json_each(?))
+		 ORDER BY sequence ASC`,
+		string(rawKinds),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("rundb: query events by kind: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	return r.scanEventRows(rows)
+}
+
+// ListCompactedSessionUpdateEvents returns the session updates needed to
+// rebuild a compact transcript: every non-tool update plus the first and latest
+// update for each tool call.
+func (r *RunDB) ListCompactedSessionUpdateEvents(ctx context.Context) ([]events.Event, error) {
+	if err := r.requireContext(ctx, "list compacted session update events"); err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.QueryContext(
+		ctx,
+		`SELECT sequence, event_kind, payload_json, timestamp
+		 FROM events
+		 WHERE event_kind = ?
+		   AND (
+		     step_key = ''
+		     OR sequence IN (
+		       SELECT MIN(sequence)
+		       FROM events
+		       WHERE event_kind = ? AND step_key <> ''
+		       GROUP BY step_key
+		       UNION
+		       SELECT MAX(sequence)
+		       FROM events
+		       WHERE event_kind = ? AND step_key <> ''
+		       GROUP BY step_key
+		     )
+		   )
+		 ORDER BY sequence ASC`,
+		string(events.EventKindSessionUpdate),
+		string(events.EventKindSessionUpdate),
+		string(events.EventKindSessionUpdate),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("rundb: query compacted session updates: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	return r.scanEventRows(rows)
+}
+
+func (r *RunDB) scanEventRows(rows *sql.Rows) ([]events.Event, error) {
+	items := make([]events.Event, 0)
+	for rows.Next() {
+		var (
+			sequence    int64
+			eventKind   string
+			payloadJSON string
+			timestamp   string
+		)
+		if err := rows.Scan(&sequence, &eventKind, &payloadJSON, &timestamp); err != nil {
+			return nil, fmt.Errorf("rundb: scan event row: %w", err)
+		}
+		seq, err := sequenceValue(sequence, "event sequence")
+		if err != nil {
+			return nil, err
+		}
+		parsedTS, err := store.ParseTimestamp(timestamp)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, events.Event{
+			SchemaVersion: events.SchemaVersion,
+			RunID:         r.runID,
+			Seq:           seq,
+			Kind:          events.EventKind(eventKind),
+			Payload:       json.RawMessage(payloadJSON),
+			Timestamp:     parsedTS,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rundb: iterate events: %w", err)
+	}
+	return items, nil
+}
+
 // LastEvent returns the latest persisted canonical event, if any.
 func (r *RunDB) LastEvent(ctx context.Context) (*events.Event, error) {
 	if err := r.requireContext(ctx, "load last event"); err != nil {
@@ -527,6 +646,143 @@ func (r *RunDB) ListTranscriptMessages(ctx context.Context) ([]TranscriptMessage
 		return nil, fmt.Errorf("rundb: iterate transcript messages: %w", err)
 	}
 	return items, nil
+}
+
+// ListTranscriptMessagesTail returns a bounded transcript tail in sequence order.
+func (r *RunDB) ListTranscriptMessagesTail(
+	ctx context.Context,
+	limit int,
+	maxBytes int,
+) ([]TranscriptMessageRow, error) {
+	if err := r.requireContext(ctx, "list transcript tail"); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		return nil, nil
+	}
+
+	rows, err := r.db.QueryContext(
+		ctx,
+		`SELECT sequence, stream, role, content, metadata_json, timestamp
+		 FROM transcript_messages ORDER BY sequence DESC LIMIT ?`,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("rundb: query transcript tail: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	selected := make([]TranscriptMessageRow, 0, limit)
+	totalBytes := 0
+	for rows.Next() {
+		item, err := scanTranscriptMessageRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		payloadBytes := len(item.Content) + len(item.MetadataJSON)
+		if len(selected) > 0 && maxBytes > 0 && totalBytes+payloadBytes > maxBytes {
+			break
+		}
+		totalBytes += payloadBytes
+		selected = append(selected, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rundb: iterate transcript tail: %w", err)
+	}
+
+	slices.Reverse(selected)
+	return selected, nil
+}
+
+type transcriptMessageScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTranscriptMessageRow(scanner transcriptMessageScanner) (TranscriptMessageRow, error) {
+	var (
+		item      TranscriptMessageRow
+		sequence  int64
+		timestamp string
+	)
+	if err := scanner.Scan(
+		&sequence,
+		&item.Stream,
+		&item.Role,
+		&item.Content,
+		&item.MetadataJSON,
+		&timestamp,
+	); err != nil {
+		return TranscriptMessageRow{}, fmt.Errorf("rundb: scan transcript row: %w", err)
+	}
+	seq, err := sequenceValue(sequence, "transcript sequence")
+	if err != nil {
+		return TranscriptMessageRow{}, err
+	}
+	parsed, err := store.ParseTimestamp(timestamp)
+	if err != nil {
+		return TranscriptMessageRow{}, err
+	}
+	item.Sequence = seq
+	item.Timestamp = parsed
+	return item, nil
+}
+
+// EventAuditStats returns cheap integrity counters without event payload reads.
+func (r *RunDB) EventAuditStats(ctx context.Context) (EventAuditStats, error) {
+	if err := r.requireContext(ctx, "load event audit stats"); err != nil {
+		return EventAuditStats{}, err
+	}
+
+	var (
+		eventCount         int64
+		maxSequence        int64
+		sessionUpdateCount int64
+	)
+	err := r.db.QueryRowContext(
+		ctx,
+		`SELECT
+		   COUNT(*),
+		   COALESCE(MAX(sequence), 0),
+		   COALESCE(SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END), 0)
+		 FROM events`,
+		string(events.EventKindSessionUpdate),
+	).Scan(&eventCount, &maxSequence, &sessionUpdateCount)
+	if err != nil {
+		return EventAuditStats{}, fmt.Errorf("rundb: query event audit stats: %w", err)
+	}
+
+	var transcriptMessageCount int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM transcript_messages`).Scan(
+		&transcriptMessageCount,
+	); err != nil {
+		return EventAuditStats{}, fmt.Errorf("rundb: query transcript audit stats: %w", err)
+	}
+
+	count, err := sequenceValue(eventCount, "event count")
+	if err != nil {
+		return EventAuditStats{}, err
+	}
+	maxSeq, err := sequenceValue(maxSequence, "max event sequence")
+	if err != nil {
+		return EventAuditStats{}, err
+	}
+	sessionUpdates, err := sequenceValue(sessionUpdateCount, "session update count")
+	if err != nil {
+		return EventAuditStats{}, err
+	}
+	transcriptMessages, err := sequenceValue(transcriptMessageCount, "transcript message count")
+	if err != nil {
+		return EventAuditStats{}, err
+	}
+
+	return EventAuditStats{
+		EventCount:             count,
+		MaxSequence:            maxSeq,
+		SessionUpdateCount:     sessionUpdates,
+		TranscriptMessageCount: transcriptMessages,
+	}, nil
 }
 
 // ListHookRuns returns persisted hook audit rows in recorded order.

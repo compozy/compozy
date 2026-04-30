@@ -35,7 +35,14 @@ var RouteInventory = []RouteSpec{
 	},
 	{Method: http.MethodPost, Path: "/api/workspaces", ResponseType: "WorkspaceResponse", TimeoutClass: TimeoutMutate},
 	{Method: http.MethodGet, Path: "/api/workspaces", ResponseType: "WorkspaceListResponse", TimeoutClass: TimeoutRead},
+	{
+		Method:       http.MethodPost,
+		Path:         "/api/workspaces/sync",
+		ResponseType: "WorkspaceSyncResult",
+		TimeoutClass: TimeoutLongMutate,
+	},
 	{Method: http.MethodGet, Path: "/api/workspaces/:id", ResponseType: "WorkspaceResponse", TimeoutClass: TimeoutRead},
+	{Method: http.MethodGet, Path: "/api/workspaces/:id/ws", ResponseType: "websocket", TimeoutClass: TimeoutStream},
 	{
 		Method:       http.MethodPatch,
 		Path:         "/api/workspaces/:id",
@@ -158,6 +165,12 @@ var RouteInventory = []RouteSpec{
 		Method:       http.MethodGet,
 		Path:         "/api/runs/:run_id/snapshot",
 		ResponseType: "RunSnapshotResponse",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/runs/:run_id/transcript",
+		ResponseType: "RunTranscriptResponse",
 		TimeoutClass: TimeoutRead,
 	},
 	{

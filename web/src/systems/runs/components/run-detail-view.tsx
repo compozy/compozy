@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { Suspense, lazy, type ReactElement } from "react";
 
 import { RefreshCw, XCircle } from "lucide-react";
 
@@ -22,14 +22,12 @@ import { resolveStatusTone } from "./runs-list-view";
 import { RunEventFeed } from "./run-event-feed";
 import type { RunFeedEvent } from "../lib/event-store";
 
-import type {
-  RunJobState,
-  RunShutdownState,
-  RunSnapshot,
-  RunTranscriptMessage,
-  RunUsage,
-} from "../types";
+import type { RunJobState, RunShutdownState, RunSnapshot, RunTranscript, RunUsage } from "../types";
 import type { RunStreamStatus } from "../hooks/use-run-stream";
+
+const RunTranscriptPanel = lazy(() =>
+  import("./run-transcript-panel").then(module => ({ default: module.RunTranscriptPanel }))
+);
 
 export interface RunDetailViewProps {
   snapshot: RunSnapshot;
@@ -46,6 +44,10 @@ export interface RunDetailViewProps {
   cancelError?: string | null;
   cancelSuccess?: string | null;
   liveEvents?: readonly RunFeedEvent[];
+  transcript?: RunTranscript;
+  isLoadingTranscript?: boolean;
+  isTranscriptError?: boolean;
+  transcriptError?: string | null;
 }
 
 export function RunDetailView(props: RunDetailViewProps): ReactElement {
@@ -64,9 +66,13 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
     cancelError,
     cancelSuccess,
     liveEvents = [],
+    transcript,
+    isLoadingTranscript = false,
+    isTranscriptError = false,
+    transcriptError = null,
   } = props;
 
-  const { run, jobs, transcript, shutdown, usage } = snapshot;
+  const { run, jobs, shutdown, usage } = snapshot;
   const statusTone = resolveStatusTone(run.status);
 
   return (
@@ -158,9 +164,17 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
         <UsageCard usage={usage} />
       </div>
 
-      <RunEventFeed events={liveEvents} />
+      <Suspense fallback={<TranscriptPanelFallback />}>
+        <RunTranscriptPanel
+          errorMessage={transcriptError}
+          isError={isTranscriptError}
+          isLoading={isLoadingTranscript}
+          liveEvents={liveEvents}
+          transcript={transcript}
+        />
+      </Suspense>
 
-      <TranscriptCard transcript={transcript ?? []} />
+      <RunEventFeed events={liveEvents} />
     </div>
   );
 }
@@ -363,42 +377,20 @@ function UsageCard({ usage }: { usage?: RunUsage }): ReactElement {
   );
 }
 
-function TranscriptCard({ transcript }: { transcript: RunTranscriptMessage[] }): ReactElement {
+function TranscriptPanelFallback(): ReactElement {
   return (
-    <SurfaceCard data-testid="run-detail-transcript">
+    <SurfaceCard data-testid="run-detail-transcript-loading">
       <SurfaceCardHeader>
         <div>
           <SurfaceCardEyebrow>Transcript</SurfaceCardEyebrow>
-          <SurfaceCardTitle>Recent messages</SurfaceCardTitle>
-          <SurfaceCardDescription>
-            Most recent persisted transcript entries from the daemon.
-          </SurfaceCardDescription>
+          <SurfaceCardTitle>Assistant log</SurfaceCardTitle>
+          <SurfaceCardDescription>Loading structured transcript.</SurfaceCardDescription>
         </div>
-        <StatusBadge tone="info">{transcript.length}</StatusBadge>
+        <StatusBadge tone="neutral">loading</StatusBadge>
       </SurfaceCardHeader>
-      <SurfaceCardBody>
-        {transcript.length === 0 ? (
-          <EmptyState
-            data-testid="run-detail-transcript-empty"
-            description="Persisted transcript messages will appear here after the agent writes output."
-            title="Transcript is empty"
-          />
-        ) : (
-          <ul className="space-y-3" data-testid="run-detail-transcript-list">
-            {transcript.slice(-8).map(entry => (
-              <li
-                className="space-y-1 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
-                data-testid={`run-detail-transcript-${entry.sequence}`}
-                key={`${entry.sequence}-${entry.timestamp}`}
-              >
-                <p className="eyebrow text-muted-foreground">
-                  {entry.role} · {formatTimestamp(entry.timestamp)}
-                </p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{entry.content}</p>
-              </li>
-            ))}
-          </ul>
-        )}
+      <SurfaceCardBody className="space-y-2">
+        <div className="h-16 rounded-[var(--radius-md)] bg-muted" />
+        <div className="h-24 rounded-[var(--radius-md)] bg-muted" />
       </SurfaceCardBody>
     </SurfaceCard>
   );

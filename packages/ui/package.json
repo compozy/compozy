@@ -23,7 +23,8 @@
         "react-markdown": "^10.1.0",
         "rehype-sanitize": "^6.0.0",
         "remark-gfm": "^4.0.1",
-        "tailwind-merge": "^3.5.0"
+        "tailwind-merge": "^3.5.0",
+        "tailwind-variants": "^3.2.2"
     },
     "devDependencies": {
         "@storybook/addon-a11y": "^10.3.5",

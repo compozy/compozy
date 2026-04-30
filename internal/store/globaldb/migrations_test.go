@@ -46,6 +46,7 @@ func TestApplyMigrationsIsIdempotent(t *testing.T) {
 	}
 
 	requiredTables := []string{
+		"artifact_bodies",
 		"artifact_snapshots",
 		"review_issues",
 		"review_rounds",

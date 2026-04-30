@@ -43,6 +43,17 @@ const completedRun = {
   workflow_slug: "beta",
 };
 
+const transcriptBody = {
+  run_id: "run-1",
+  messages: [
+    {
+      id: "msg-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "run detail transcript" }],
+    },
+  ],
+};
+
 function matchUrl(pattern: string, method: string = "GET") {
   return (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
@@ -178,6 +189,11 @@ describe("runs console integration", () => {
         status: 200,
         body: snapshotBody,
       },
+      {
+        matcher: matchUrl("/api/runs/run-1/transcript"),
+        status: 200,
+        body: transcriptBody,
+      },
     ]);
     restore = stub.restore;
     await renderApp("/runs/run-1");
@@ -203,6 +219,11 @@ describe("runs console integration", () => {
         matcher: matchUrl("/api/runs/run-1/snapshot"),
         status: 200,
         body: { run: runningRun, jobs: [], transcript: [] },
+      },
+      {
+        matcher: matchUrl("/api/runs/run-1/transcript"),
+        status: 200,
+        body: transcriptBody,
       },
       {
         matcher: matchUrl("/api/runs/run-1/cancel", "POST"),
@@ -252,6 +273,11 @@ describe("runs console integration", () => {
         status: 200,
         body: snapshotBody,
       },
+      {
+        matcher: matchUrl("/api/runs/run-1/transcript"),
+        status: 200,
+        body: transcriptBody,
+      },
     ]);
     restore = stub.restore;
     await renderApp("/runs/run-1");
@@ -288,6 +314,11 @@ describe("runs console integration", () => {
           transcript: [],
           next_cursor: "2026-01-01T00:00:00Z|00000000000000000001",
         },
+      },
+      {
+        matcher: matchUrl("/api/runs/run-1/transcript"),
+        status: 200,
+        body: transcriptBody,
       },
     ]);
     restore = stub.restore;

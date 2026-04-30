@@ -17,11 +17,19 @@ import (
 
 func transportWorkspace(row globaldb.Workspace) apicore.Workspace {
 	return apicore.Workspace{
-		ID:        row.ID,
-		RootDir:   row.RootDir,
-		Name:      row.Name,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		ID:              row.ID,
+		RootDir:         row.RootDir,
+		Name:            row.Name,
+		FilesystemState: row.FilesystemState,
+		ReadOnly:        row.ReadOnly,
+		HasCatalogData:  row.HasCatalogData,
+		WorkflowCount:   row.WorkflowCount,
+		RunCount:        row.RunCount,
+		LastCheckedAt:   row.LastCheckedAt,
+		LastSyncedAt:    row.LastSyncedAt,
+		LastSyncError:   row.LastSyncError,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
 	}
 }
 

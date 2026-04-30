@@ -301,16 +301,6 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 		t.Fatalf("write round: %v", err)
 	}
 
-	metaPath := reviews.MetaPath(reviewDir)
-	metaContent, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("read meta: %v", err)
-	}
-	withoutPR := strings.Replace(string(metaContent), "PR: \n", "", 1)
-	if err := os.WriteFile(metaPath, []byte(withoutPR), 0o600); err != nil {
-		t.Fatalf("rewrite meta without PR: %v", err)
-	}
-
 	entries, err := reviews.ReadReviewEntries(reviewDir)
 	if err != nil {
 		t.Fatalf("read review entries: %v", err)
@@ -323,6 +313,13 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	content, err := os.ReadFile(issuePath)
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
+	}
+	frontMatter, _, found := strings.Cut(string(content), "---\n\n")
+	if !found {
+		t.Fatalf("expected generated issue front matter, got:\n%s", content)
+	}
+	if strings.Contains(frontMatter, "\npr:") {
+		t.Fatalf("expected generated issue front matter to omit empty pr")
 	}
 	resolvedContent := strings.Replace(string(content), "status: pending", "status: resolved", 1)
 	if err := os.WriteFile(issuePath, []byte(resolvedContent), 0o600); err != nil {

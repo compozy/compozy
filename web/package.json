@@ -15,9 +15,14 @@
         "typecheck": "bun run codegen-check && tsc -p tsconfig.json --noEmit"
     },
     "dependencies": {
+        "@ai-sdk/react": "^3.0.170",
+        "@assistant-ui/react": "^0.12.26",
+        "@assistant-ui/react-ai-sdk": "^1.3.20",
         "@compozy/ui": "workspace:*",
         "@tanstack/react-query": "^5.99.0",
         "@tanstack/react-router": "^1.168.22",
+        "@tanstack/react-virtual": "^3.13.24",
+        "ai": "^6.0.168",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^1.8.0",

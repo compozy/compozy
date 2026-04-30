@@ -35,11 +35,11 @@ access_mode = "default"
 timeout = "5m"
 add_dirs = ["../shared", "../docs"]
 
-[start]
+[tasks.run]
 include_completed = true
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 	cmd.Flags().Bool("include-completed", false, "include completed")
 
@@ -131,7 +131,7 @@ func TestApplyWorkspaceDefaultsCanDisableAutomaticRetries(t *testing.T) {
 max_retries = 0
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 
 	chdirCLITest(t, startDir)
@@ -205,12 +205,12 @@ func TestApplyWorkspaceDefaultsUsesStartPresentationOverrides(t *testing.T) {
 [defaults]
 output_format = "text"
 
-[start]
+[tasks.run]
 output_format = "json"
 tui = false
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 
 	chdirCLITest(t, startDir)
@@ -219,10 +219,10 @@ tui = false
 		t.Fatalf("apply workspace defaults: %v", err)
 	}
 	if state.outputFormat != "json" {
-		t.Fatalf("expected start.output_format to override defaults.output_format, got %q", state.outputFormat)
+		t.Fatalf("expected tasks.run.output_format to override defaults.output_format, got %q", state.outputFormat)
 	}
 	if state.tui {
-		t.Fatal("expected start.tui to disable the workflow TUI")
+		t.Fatal("expected tasks.run.tui to disable the workflow TUI")
 	}
 }
 
@@ -235,14 +235,14 @@ func TestApplyWorkspaceDefaultsKeepsConfiguredTaskRuntimeRulesAndBuildConfigAppe
 		t.Fatalf("mkdir start dir: %v", err)
 	}
 	writeCLIWorkspaceConfig(t, root, `
-[start]
-[[start.task_runtime_rules]]
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
 type = "frontend"
 ide = "claude"
 model = "sonnet"
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 	cmd.Flags().Var(
 		newTaskRuntimeFlagValue(&state.executionTaskRuntimeRules),
@@ -532,11 +532,11 @@ func TestApplyWorkspaceDefaultsLoadsGlobalConfigWhenWorkspaceConfigIsMissing(t *
 ide = "claude"
 model = "sonnet"
 
-[start]
+[tasks.run]
 include_completed = true
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 	cmd.Flags().Bool("include-completed", false, "include completed")
 
@@ -552,7 +552,7 @@ include_completed = true
 		t.Fatalf("expected global model to apply, got %q", state.model)
 	}
 	if !state.includeCompleted {
-		t.Fatal("expected global start.include_completed to apply")
+		t.Fatal("expected global tasks.run.include_completed to apply")
 	}
 }
 
@@ -569,18 +569,18 @@ ide = "claude"
 model = "sonnet"
 access_mode = "default"
 
-[start]
+[tasks.run]
 include_completed = false
 `)
 	writeCLIWorkspaceConfig(t, root, `
 [defaults]
 model = "gpt-5.5"
 
-[start]
+[tasks.run]
 include_completed = true
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 	cmd.Flags().Bool("include-completed", false, "include completed")
 
@@ -599,7 +599,7 @@ include_completed = true
 		t.Fatalf("expected global access_mode fallback, got %q", state.accessMode)
 	}
 	if !state.includeCompleted {
-		t.Fatal("expected workspace start.include_completed to override global")
+		t.Fatal("expected workspace tasks.run.include_completed to override global")
 	}
 }
 
@@ -619,7 +619,7 @@ default_attach_mode = "stream"
 default_attach_mode = "detach"
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := &cobra.Command{Use: "tasks run"}
 	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "attach mode")
 	cmd.Flags().Bool("ui", false, "ui mode")
@@ -652,7 +652,7 @@ default_attach_mode = "stream"
 default_attach_mode = "detach"
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := &cobra.Command{Use: "tasks run"}
 	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "attach mode")
 	cmd.Flags().Bool("ui", false, "ui mode")
@@ -685,7 +685,7 @@ func TestApplyWorkspaceDefaultsKeepsWorkspaceDefaultsAheadOfGlobalStartOverrides
 [defaults]
 output_format = "json"
 
-[start]
+[tasks.run]
 output_format = "raw-json"
 tui = false
 `)
@@ -694,7 +694,7 @@ tui = false
 output_format = "text"
 `)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 
 	chdirCLITest(t, startDir)
@@ -704,12 +704,12 @@ output_format = "text"
 	}
 	if state.outputFormat != "text" {
 		t.Fatalf(
-			"expected workspace defaults.output_format to beat global start.output_format, got %q",
+			"expected workspace defaults.output_format to beat global tasks.run.output_format, got %q",
 			state.outputFormat,
 		)
 	}
 	if state.tui {
-		t.Fatal("expected global start.tui to remain applied")
+		t.Fatal("expected global tasks.run.tui to remain applied")
 	}
 }
 
@@ -1012,7 +1012,7 @@ func TestCommandPathHandlesNilCommand(t *testing.T) {
 func TestApplySoundConfigCopiesConfiguredValues(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	enabled := true
 	onCompleted := "done.wav"
 	onFailed := "failed.wav"

@@ -31,10 +31,7 @@ func (cfg ProjectConfig) validate(scope string) error {
 	if err := validateDefaults(scope, cfg.Defaults); err != nil {
 		return err
 	}
-	if err := validateStart(scope, cfg.Defaults, cfg.Start); err != nil {
-		return err
-	}
-	if err := validateTasks(scope, cfg.Tasks); err != nil {
+	if err := validateTasks(scope, cfg.Defaults, cfg.Tasks); err != nil {
 		return err
 	}
 	if err := validateFixReviews(scope, cfg.Defaults, cfg.FixReviews); err != nil {
@@ -80,17 +77,23 @@ func validateDefaults(scope string, cfg DefaultsConfig) error {
 	return validateRuntimeAddDirs(scope, "defaults", overrides, nil)
 }
 
-func validateStart(scope string, defaults DefaultsConfig, cfg StartConfig) error {
-	if err := validateOutputFormatValue(configFieldName(scope, "start.output_format"), cfg.OutputFormat); err != nil {
+func validateTaskRun(scope string, defaults DefaultsConfig, cfg TaskRunConfig) error {
+	if err := validateOutputFormatValue(
+		configFieldName(scope, "tasks.run.output_format"),
+		cfg.OutputFormat,
+	); err != nil {
 		return err
 	}
-	if err := validateWorkflowTUI(scope, "start", defaults, cfg.OutputFormat, cfg.TUI); err != nil {
+	if err := validateWorkflowTUI(scope, "tasks.run", defaults, cfg.OutputFormat, cfg.TUI); err != nil {
 		return err
 	}
-	return validateStartTaskRuntimeRules(scope, cfg.TaskRuntimeRules)
+	return validateTaskRunRuntimeRules(scope, cfg.TaskRuntimeRules)
 }
 
-func validateTasks(scope string, cfg TasksConfig) error {
+func validateTasks(scope string, defaults DefaultsConfig, cfg TasksConfig) error {
+	if err := validateTaskRun(scope, defaults, cfg.Run); err != nil {
+		return err
+	}
 	if cfg.Types == nil {
 		return nil
 	}
@@ -390,12 +393,12 @@ func validateRuntimeRetryBackoffMultiplier(scope, section string, cfg RuntimeOve
 	return nil
 }
 
-func validateStartTaskRuntimeRules(scope string, rules *[]model.TaskRuntimeRule) error {
+func validateTaskRunRuntimeRules(scope string, rules *[]model.TaskRuntimeRule) error {
 	if rules == nil {
 		return nil
 	}
 	for idx, rule := range *rules {
-		fieldPrefix := fmt.Sprintf("%s[%d]", configFieldName(scope, "start.task_runtime_rules"), idx)
+		fieldPrefix := fmt.Sprintf("%s[%d]", configFieldName(scope, "tasks.run.task_runtime_rules"), idx)
 		if rule.ID != nil {
 			return fmt.Errorf("%s.id is not supported; use CLI --task-runtime for per-task ids", fieldPrefix)
 		}

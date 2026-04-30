@@ -396,9 +396,12 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 
 	taskSvc := &capturingTaskService{}
 	syncSvc := &fakeSyncService{}
+	validRoot := t.TempDir()
+	missingRoot := filepath.Join(t.TempDir(), "missing")
 	workspaces := &fakeWorkspaceService{
 		items: map[string]core.Workspace{
-			"ws-header": {ID: "ws-header", RootDir: "/tmp/ws-header", Name: "Header"},
+			"ws-header":  {ID: "ws-header", RootDir: validRoot, Name: "Header"},
+			"ws-missing": {ID: "ws-missing", RootDir: missingRoot, Name: "Missing"},
 		},
 	}
 
@@ -463,6 +466,37 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 		t.Fatalf("stale workspace status = %d, want 412", statusCode)
 	}
 	assertTransportCode(t, body, "workspace_context_stale")
+
+	statusCode, _, _ = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/ui/dashboard",
+		nil,
+		map[string]string{core.HeaderActiveWorkspaceID: "ws-missing"},
+	)
+	if statusCode != http.StatusOK {
+		t.Fatalf("missing root workspace status = %d, want 200", statusCode)
+	}
+	if got := taskSvc.dashboardWorkspace(); got != "ws-missing" {
+		t.Fatalf("missing root dashboard workspace = %q, want ws-missing", got)
+	}
+
+	statusCode, _, body = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodPost,
+		baseURL+"/api/sync",
+		[]byte(`{"workflow_slug":"wf-1"}`),
+		map[string]string{
+			"Content-Type":               "application/json",
+			core.HeaderActiveWorkspaceID: "ws-missing",
+		},
+	)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("missing root sync status = %d, want 412", statusCode)
+	}
+	assertTransportCode(t, body, "workspace_path_missing")
 
 	statusCode, _, _ = mustRequest(
 		t,
@@ -1013,9 +1047,10 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	now := time.Date(2026, 4, 20, 19, 0, 0, 0, time.UTC)
+	workspaceRoot := t.TempDir()
 	workspace := core.Workspace{
 		ID:        "ws-1",
-		RootDir:   "/tmp/workspace",
+		RootDir:   workspaceRoot,
 		Name:      "workspace",
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -1894,6 +1929,10 @@ func (f *fakeWorkspaceService) Resolve(context.Context, string) (core.Workspace,
 	return f.workspace, nil
 }
 
+func (f *fakeWorkspaceService) Sync(context.Context) (core.WorkspaceSyncResult, error) {
+	return core.WorkspaceSyncResult{Checked: len(f.workspaces), Synced: len(f.workspaces)}, nil
+}
+
 type fakeTaskService struct {
 	run core.Run
 }
@@ -2122,6 +2161,18 @@ func (f *fakeRunService) Snapshot(_ context.Context, runID string) (core.RunSnap
 		return core.RunSnapshot{}, globaldb.ErrRunNotFound
 	}
 	return item, nil
+}
+
+func (f *fakeRunService) Transcript(_ context.Context, runID string) (core.RunTranscript, error) {
+	item, ok := f.snapshots[runID]
+	if !ok {
+		return core.RunTranscript{}, globaldb.ErrRunNotFound
+	}
+	return core.RunTranscript{
+		RunID:      item.Run.RunID,
+		Messages:   []core.RunUIMessage{},
+		NextCursor: item.NextCursor,
+	}, nil
 }
 
 func (f *fakeRunService) RunDetail(_ context.Context, runID string) (core.RunDetailPayload, error) {

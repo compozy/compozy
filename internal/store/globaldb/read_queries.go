@@ -113,11 +113,23 @@ func (g *GlobalDB) ListArtifactSnapshots(ctx context.Context, workflowID string)
 
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT workflow_id, artifact_kind, relative_path, checksum, frontmatter_json, body_text,
-		        body_storage_kind, source_mtime, synced_at
-		 FROM artifact_snapshots
-		 WHERE workflow_id = ?
-		 ORDER BY artifact_kind ASC, relative_path ASC`,
+		`SELECT snapshots.workflow_id,
+		        snapshots.artifact_kind,
+		        snapshots.relative_path,
+		        snapshots.checksum,
+		        snapshots.frontmatter_json,
+		        CASE
+		        	WHEN snapshots.body_storage_kind = ? THEN COALESCE(bodies.body_text, snapshots.body_text)
+		        	ELSE snapshots.body_text
+		        END AS body_text,
+		        snapshots.body_storage_kind,
+		        snapshots.source_mtime,
+		        snapshots.synced_at
+		 FROM artifact_snapshots snapshots
+		 LEFT JOIN artifact_bodies bodies ON bodies.checksum = snapshots.checksum
+		 WHERE snapshots.workflow_id = ?
+		 ORDER BY snapshots.artifact_kind ASC, snapshots.relative_path ASC`,
+		artifactBodyBlobKind,
 		strings.TrimSpace(workflowID),
 	)
 	if err != nil {

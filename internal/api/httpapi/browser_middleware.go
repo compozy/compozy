@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -95,25 +97,63 @@ func (s *Server) activeWorkspaceMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if _, err := s.handlers.Workspaces.Get(c.Request.Context(), workspaceID); err != nil {
+		workspace, err := s.handlers.Workspaces.Get(c.Request.Context(), workspaceID)
+		if err != nil {
 			if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
-				core.RespondError(c, core.NewProblem(
-					http.StatusPreconditionFailed,
-					"workspace_context_stale",
-					"active workspace context is stale",
-					map[string]any{"workspace": workspaceID},
-					err,
-				))
+				respondStaleWorkspace(c, workspaceID, "", err)
 			} else {
 				core.RespondError(c, err)
 			}
 			c.Abort()
 			return
 		}
+		if requiresWorkspaceFilesystem(fullPath, c.Request.Method) {
+			if err := workspacePathUnavailable(workspace); err != nil {
+				core.RespondError(c, core.WorkspacePathMissingProblem(workspace.ID, workspace.RootDir, err))
+				c.Abort()
+				return
+			}
+		}
 
 		c.Request = c.Request.WithContext(core.WithActiveWorkspaceID(c.Request.Context(), workspaceID))
 		c.Next()
 	}
+}
+
+func workspacePathUnavailable(workspace core.Workspace) error {
+	if workspace.FilesystemState == globaldb.WorkspaceFilesystemStateMissing {
+		return errors.New("workspace path is marked missing")
+	}
+	return validateWorkspaceRoot(workspace.RootDir)
+}
+
+func validateWorkspaceRoot(rootDir string) error {
+	normalized := strings.TrimSpace(rootDir)
+	if normalized == "" {
+		return errors.New("workspace root is empty")
+	}
+	info, err := os.Stat(normalized)
+	if err != nil {
+		return fmt.Errorf("stat workspace root %q: %w", normalized, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("workspace root %q is not a directory", normalized)
+	}
+	return nil
+}
+
+func respondStaleWorkspace(c *gin.Context, workspaceID string, rootDir string, err error) {
+	details := map[string]any{"workspace": workspaceID}
+	if strings.TrimSpace(rootDir) != "" {
+		details["root_dir"] = strings.TrimSpace(rootDir)
+	}
+	core.RespondError(c, core.NewProblem(
+		http.StatusPreconditionFailed,
+		"workspace_context_stale",
+		"active workspace context is stale",
+		details,
+		err,
+	))
 }
 
 func (s *Server) csrfMiddleware() gin.HandlerFunc {
@@ -219,6 +259,20 @@ func requiresActiveWorkspace(fullPath string) bool {
 	case strings.HasPrefix(normalized, "/api/reviews/") &&
 		normalized != "/api/reviews/:slug/fetch" &&
 		!strings.HasSuffix(normalized, "/fetch"):
+		return true
+	default:
+		return false
+	}
+}
+
+func requiresWorkspaceFilesystem(fullPath string, method string) bool {
+	normalized := strings.TrimSpace(fullPath)
+	switch {
+	case normalized == "/api/sync":
+		return true
+	case strings.HasSuffix(normalized, "/runs") && isMutatingMethod(method):
+		return true
+	case strings.HasSuffix(normalized, "/archive") && isMutatingMethod(method):
 		return true
 	default:
 		return false

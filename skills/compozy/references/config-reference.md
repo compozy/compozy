@@ -26,7 +26,7 @@ Runtime defaults applied to all commands unless overridden.
 | `max_retries` | int | Maximum number of retries on agent failure or inactivity timeout (`0` disables automatic retries) |
 | `retry_backoff_multiplier` | float | Backoff multiplier between retries |
 
-### `[start]`
+### `[tasks.run]`
 
 Options specific to `compozy tasks run`.
 
@@ -35,7 +35,7 @@ Options specific to `compozy tasks run`.
 | `include_completed` | bool | Include tasks already marked as completed |
 | `task_runtime_rules` | `array<table>` | Type-scoped runtime overrides applied after `[defaults]` for `compozy tasks run` |
 
-#### `[[start.task_runtime_rules]]`
+#### `[[tasks.run.task_runtime_rules]]`
 
 Per-task runtime rules let `compozy tasks run` change the runtime for tasks that match a given task `type`. This v1 config surface is intentionally bulk-oriented: config supports `type` selectors only, while one-off task `id` overrides are available from the CLI and TUI for the current run.
 
@@ -48,8 +48,8 @@ Per-task runtime rules let `compozy tasks run` change the runtime for tasks that
 
 Rules are applied in declaration order within config, with later rules for the same `type` replacing earlier ones when workspace and global config are merged. At execution time, the effective precedence is:
 
-1. Base runtime from `[defaults]` and `[start]`
-2. Config `[[start.task_runtime_rules]]` matching the task `type`
+1. Base runtime from `[defaults]` and `[tasks.run]`
+2. Config `[[tasks.run.task_runtime_rules]]` matching the task `type`
 3. CLI or TUI `type` rules for the current run
 4. CLI or TUI `id` rules for the current run
 
@@ -61,12 +61,12 @@ ide = "codex"
 model = "gpt-5.5"
 reasoning_effort = "medium"
 
-[[start.task_runtime_rules]]
+[[tasks.run.task_runtime_rules]]
 type = "frontend"
 model = "gpt-5.5"
 reasoning_effort = "high"
 
-[[start.task_runtime_rules]]
+[[tasks.run.task_runtime_rules]]
 type = "docs"
 ide = "claude"
 model = "opus"
@@ -107,7 +107,7 @@ Options specific to `compozy exec`. Inherits all `[defaults]` fields plus:
 | --- | --- | --- |
 | `verbose` | bool | Emit operational runtime logs to stderr |
 | `tui` | bool | Open the interactive TUI |
-| `persist` | bool | Save artifacts under `.compozy/runs/<run-id>/` |
+| `persist` | bool | Save artifacts under `~/.compozy/runs/<run-id>/` |
 
 ### `[sound]`
 
@@ -155,11 +155,11 @@ timeout = "45m"
 max_retries = 2
 retry_backoff_multiplier = 1.5
 
-[start]
-include_completed = false
-
 [tasks]
 types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
+
+[tasks.run]
+include_completed = false
 
 [fix_reviews]
 concurrent = 2

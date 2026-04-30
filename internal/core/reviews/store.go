@@ -23,6 +23,8 @@ const (
 
 var ErrNoReviewRounds = errors.New("no review rounds found")
 
+var errReviewRoundMetadataUnavailable = errors.New("review round metadata unavailable from issue front matter")
+
 func TaskDirectory(name string) string {
 	return TaskDirectoryForWorkspace("", name)
 }
@@ -161,17 +163,16 @@ func WriteRound(reviewDir string, meta model.RoundMeta, items []provider.ReviewI
 		meta.CreatedAt = time.Now().UTC()
 	}
 
-	if err := WriteRoundMeta(reviewDir, meta); err != nil {
-		return err
-	}
 	for index := range items {
-		if err := writeIssueFile(reviewDir, index+1, items[index]); err != nil {
+		if err := writeIssueFile(reviewDir, index+1, meta, items[index]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// WriteRoundMeta writes a legacy review round metadata file for tests and migrations.
+// Normal review flows store round metadata in issue file front matter.
 func WriteRoundMeta(reviewDir string, meta model.RoundMeta) error {
 	content, err := formatRoundMeta(meta)
 	if err != nil {
@@ -184,6 +185,12 @@ func WriteRoundMeta(reviewDir string, meta model.RoundMeta) error {
 }
 
 func ReadRoundMeta(reviewDir string) (model.RoundMeta, error) {
+	return SnapshotRoundMeta(reviewDir)
+}
+
+// ReadLegacyRoundMeta reads the historical reviews-NNN/_meta.md file.
+// It exists for migration and compatibility fallback only.
+func ReadLegacyRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	body, err := os.ReadFile(MetaPath(reviewDir))
 	if err != nil {
 		return model.RoundMeta{}, fmt.Errorf("read round meta: %w", err)
@@ -192,42 +199,122 @@ func ReadRoundMeta(reviewDir string) (model.RoundMeta, error) {
 }
 
 func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
-	meta, err := SnapshotRoundMeta(reviewDir)
-	if err != nil {
-		return model.RoundMeta{}, err
-	}
-
-	if err := WriteRoundMeta(reviewDir, meta); err != nil {
-		return model.RoundMeta{}, err
-	}
-	return meta, nil
+	return SnapshotRoundMeta(reviewDir)
 }
 
 func SnapshotRoundMeta(reviewDir string) (model.RoundMeta, error) {
-	meta, err := ReadRoundMeta(reviewDir)
-	if err != nil {
-		return model.RoundMeta{}, err
-	}
-
 	entries, err := ReadReviewEntries(reviewDir)
 	if err != nil {
 		return model.RoundMeta{}, err
 	}
 
+	meta, err := roundMetaFromIssueFrontMatter(entries)
+	if err != nil {
+		if !errors.Is(err, errReviewRoundMetadataUnavailable) {
+			return model.RoundMeta{}, err
+		}
+		meta, err = ReadLegacyRoundMeta(reviewDir)
+		if err != nil {
+			return model.RoundMeta{}, errors.Join(errReviewRoundMetadataUnavailable, err)
+		}
+	}
+
+	if err := applyReviewEntryCounts(&meta, entries); err != nil {
+		return model.RoundMeta{}, err
+	}
+	return meta, nil
+}
+
+func roundMetaFromIssueFrontMatter(entries []model.IssueEntry) (model.RoundMeta, error) {
+	if len(entries) == 0 {
+		return model.RoundMeta{}, errReviewRoundMetadataUnavailable
+	}
+
+	var meta *model.RoundMeta
+	missingRoundMeta := false
+	for _, entry := range entries {
+		next, ok, err := roundMetaFromReviewEntry(entry)
+		if err != nil {
+			return model.RoundMeta{}, err
+		}
+		if !ok {
+			if meta != nil {
+				return model.RoundMeta{}, fmt.Errorf("review issue %s has missing round metadata", entry.AbsPath)
+			}
+			missingRoundMeta = true
+			continue
+		}
+		if missingRoundMeta {
+			return model.RoundMeta{}, fmt.Errorf(
+				"review issue %s has round metadata mixed with metadata-less entries",
+				entry.AbsPath,
+			)
+		}
+		if meta == nil {
+			meta = &next
+			continue
+		}
+		if !roundMetaMatches(*meta, next) {
+			return model.RoundMeta{}, fmt.Errorf("review issue %s has inconsistent round metadata", entry.AbsPath)
+		}
+	}
+	if meta == nil {
+		return model.RoundMeta{}, errReviewRoundMetadataUnavailable
+	}
+	return *meta, nil
+}
+
+func roundMetaFromReviewEntry(entry model.IssueEntry) (model.RoundMeta, bool, error) {
+	ctx, err := ParseReviewContext(entry.Content)
+	if err != nil {
+		return model.RoundMeta{}, false, WrapParseError(entry.AbsPath, err)
+	}
+	if !reviewContextHasRoundMetadata(ctx) {
+		return model.RoundMeta{}, false, nil
+	}
+	if reviewContextMissingRequiredRoundMetadata(ctx) {
+		return model.RoundMeta{}, false, fmt.Errorf("review issue %s has incomplete round metadata", entry.AbsPath)
+	}
+	return model.RoundMeta{
+		Provider:  strings.TrimSpace(ctx.Provider),
+		PR:        strings.TrimSpace(ctx.PR),
+		Round:     ctx.Round,
+		CreatedAt: ctx.RoundCreatedAt.UTC(),
+	}, true, nil
+}
+
+func reviewContextHasRoundMetadata(ctx model.ReviewContext) bool {
+	return strings.TrimSpace(ctx.Provider) != "" ||
+		strings.TrimSpace(ctx.PR) != "" ||
+		ctx.Round != 0 ||
+		!ctx.RoundCreatedAt.IsZero()
+}
+
+func reviewContextMissingRequiredRoundMetadata(ctx model.ReviewContext) bool {
+	return strings.TrimSpace(ctx.Provider) == "" || ctx.Round <= 0 || ctx.RoundCreatedAt.IsZero()
+}
+
+func roundMetaMatches(left model.RoundMeta, right model.RoundMeta) bool {
+	return left.Provider == right.Provider &&
+		left.PR == right.PR &&
+		left.Round == right.Round &&
+		left.CreatedAt.Equal(right.CreatedAt)
+}
+
+func applyReviewEntryCounts(meta *model.RoundMeta, entries []model.IssueEntry) error {
 	meta.Total = len(entries)
 	meta.Resolved = 0
 	for _, entry := range entries {
 		resolved, err := IsReviewResolved(entry.Content)
 		if err != nil {
-			return model.RoundMeta{}, fmt.Errorf("refresh round meta from %s: %w", entry.AbsPath, err)
+			return fmt.Errorf("refresh round meta from %s: %w", entry.AbsPath, err)
 		}
 		if resolved {
 			meta.Resolved++
 		}
 	}
 	meta.Unresolved = meta.Total - meta.Resolved
-
-	return meta, nil
+	return nil
 }
 
 func FinalizeIssueStatuses(reviewDir string, entries []model.IssueEntry) error {
@@ -299,8 +386,13 @@ func parseRoundMeta(content string) (model.RoundMeta, error) {
 	return meta, nil
 }
 
-func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) error {
+func writeIssueFile(reviewDir string, number int, round model.RoundMeta, item provider.ReviewItem) error {
 	meta := model.ReviewFileMeta{
+		Provider:       strings.TrimSpace(round.Provider),
+		PR:             strings.TrimSpace(round.PR),
+		Round:          round.Round,
+		RoundCreatedAt: round.CreatedAt.UTC(),
+
 		Status:      reviewStatusPending,
 		File:        fallback(item.File, model.UnknownFileName),
 		Line:        floorAt(item.Line, 0),

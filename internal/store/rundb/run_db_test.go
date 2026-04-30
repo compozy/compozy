@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -345,6 +346,151 @@ func TestRunDBListEventsRespectsLimitAndHasMore(t *testing.T) {
 	}
 }
 
+func TestRunDBCompactHistoricalReadsAvoidUnboundedSessionPayloads(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-compact-history"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	startedAt := time.Date(2026, 4, 28, 18, 0, 0, 0, time.UTC)
+	items := []events.Event{
+		mustEvent(
+			t,
+			runID,
+			1,
+			startedAt,
+			events.EventKindJobQueued,
+			kinds.JobQueuedPayload{Index: 0, SafeName: "batch_001", IDE: "codex"},
+		),
+		mustEvent(
+			t,
+			runID,
+			2,
+			startedAt.Add(time.Second),
+			events.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{
+				Index: 0,
+				Update: kinds.SessionUpdate{
+					Kind:       kinds.UpdateKindToolCallStarted,
+					Status:     kinds.StatusRunning,
+					ToolCallID: "tool-1",
+					Blocks: []kinds.ContentBlock{
+						mustToolUseBlock(t, "tool-1", "Bash", `{"command":"make verify"}`),
+					},
+				},
+			},
+		),
+		mustEvent(
+			t,
+			runID,
+			3,
+			startedAt.Add(2*time.Second),
+			events.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{
+				Index: 0,
+				Update: kinds.SessionUpdate{
+					Kind:       kinds.UpdateKindToolCallUpdated,
+					Status:     kinds.StatusRunning,
+					ToolCallID: "tool-1",
+					Blocks: []kinds.ContentBlock{
+						mustToolResultBlock(t, "tool-1", strings.Repeat("x", 4096)),
+					},
+				},
+			},
+		),
+		mustEvent(
+			t,
+			runID,
+			4,
+			startedAt.Add(3*time.Second),
+			events.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{
+				Index: 0,
+				Update: kinds.SessionUpdate{
+					Kind:       kinds.UpdateKindToolCallUpdated,
+					Status:     kinds.StatusCompleted,
+					ToolCallID: "tool-1",
+					Blocks: []kinds.ContentBlock{
+						mustToolResultBlock(t, "tool-1", "final output"),
+					},
+				},
+			},
+		),
+		mustEvent(
+			t,
+			runID,
+			5,
+			startedAt.Add(4*time.Second),
+			events.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{
+				Index: 0,
+				Update: kinds.SessionUpdate{
+					Kind:   kinds.UpdateKindAgentMessageChunk,
+					Status: kinds.StatusRunning,
+					Blocks: []kinds.ContentBlock{
+						mustTextBlock(t, "done"),
+					},
+				},
+			},
+		),
+		mustEvent(
+			t,
+			runID,
+			6,
+			startedAt.Add(5*time.Second),
+			events.EventKindJobCompleted,
+			kinds.JobCompletedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+			},
+		),
+	}
+	if err := db.StoreEventBatch(context.Background(), items); err != nil {
+		t.Fatalf("StoreEventBatch() error = %v", err)
+	}
+
+	lifecycleEvents, err := db.ListEventsByKind(context.Background(), []events.EventKind{
+		events.EventKindJobQueued,
+		events.EventKindJobCompleted,
+	})
+	if err != nil {
+		t.Fatalf("ListEventsByKind() error = %v", err)
+	}
+	if got := collectedSeqs(lifecycleEvents); !reflect.DeepEqual(got, []uint64{1, 6}) {
+		t.Fatalf("lifecycle seqs = %v, want [1 6]", got)
+	}
+
+	compacted, err := db.ListCompactedSessionUpdateEvents(context.Background())
+	if err != nil {
+		t.Fatalf("ListCompactedSessionUpdateEvents() error = %v", err)
+	}
+	if got := collectedSeqs(compacted); !reflect.DeepEqual(got, []uint64{2, 4, 5}) {
+		t.Fatalf("compacted seqs = %v, want [2 4 5]", got)
+	}
+	if strings.Contains(string(compacted[1].Payload), strings.Repeat("x", 64)) {
+		t.Fatal("compacted session updates kept the superseded large tool update")
+	}
+
+	tail, err := db.ListTranscriptMessagesTail(context.Background(), 2, 0)
+	if err != nil {
+		t.Fatalf("ListTranscriptMessagesTail() error = %v", err)
+	}
+	if got := transcriptSeqs(tail); !reflect.DeepEqual(got, []uint64{4, 5}) {
+		t.Fatalf("transcript tail seqs = %v, want [4 5]", got)
+	}
+
+	stats, err := db.EventAuditStats(context.Background())
+	if err != nil {
+		t.Fatalf("EventAuditStats() error = %v", err)
+	}
+	if stats.EventCount != 6 || stats.MaxSequence != 6 || stats.SessionUpdateCount != 4 ||
+		stats.TranscriptMessageCount != 4 {
+		t.Fatalf("unexpected audit stats: %#v", stats)
+	}
+}
+
 func TestRunDBRequiresContext(t *testing.T) {
 	t.Parallel()
 
@@ -568,10 +714,45 @@ func mustTextBlock(t *testing.T, text string) kinds.ContentBlock {
 	return block
 }
 
+func mustToolUseBlock(t *testing.T, id string, name string, input string) kinds.ContentBlock {
+	t.Helper()
+
+	block, err := kinds.NewContentBlock(kinds.ToolUseBlock{
+		ID:    id,
+		Name:  name,
+		Input: json.RawMessage(input),
+	})
+	if err != nil {
+		t.Fatalf("NewContentBlock(tool use): %v", err)
+	}
+	return block
+}
+
+func mustToolResultBlock(t *testing.T, id string, content string) kinds.ContentBlock {
+	t.Helper()
+
+	block, err := kinds.NewContentBlock(kinds.ToolResultBlock{
+		ToolUseID: id,
+		Content:   content,
+	})
+	if err != nil {
+		t.Fatalf("NewContentBlock(tool result): %v", err)
+	}
+	return block
+}
+
 func collectedSeqs(items []events.Event) []uint64 {
 	seqs := make([]uint64, 0, len(items))
 	for _, item := range items {
 		seqs = append(seqs, item.Seq)
+	}
+	return seqs
+}
+
+func transcriptSeqs(items []TranscriptMessageRow) []uint64 {
+	seqs := make([]uint64, 0, len(items))
+	for _, item := range items {
+		seqs = append(seqs, item.Sequence)
 	}
 	return seqs
 }

@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { installFetchStub, matchPath } from "@/test/utils";
 
-import { cancelRun, getRun, getRunSnapshot, listRuns, startWorkflowRun } from "./runs-api";
+import {
+  cancelRun,
+  getRun,
+  getRunSnapshot,
+  getRunTranscript,
+  listRuns,
+  startWorkflowRun,
+} from "./runs-api";
 
 describe("runs api adapter", () => {
   let restore: (() => void) | null = null;
@@ -130,6 +137,43 @@ describe("runs api adapter", () => {
     expect(snapshot.jobs ?? []).toHaveLength(1);
     expect(snapshot.transcript ?? []).toHaveLength(1);
     expect(snapshot.next_cursor).toMatch(/^2026-01-01/);
+  });
+
+  it("Should fetch a structured run transcript", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/runs/run-2/transcript"),
+        status: 200,
+        body: {
+          run_id: "run-2",
+          messages: [
+            {
+              id: "msg-1",
+              role: "assistant",
+              parts: [
+                {
+                  type: "text",
+                  text: "hello",
+                },
+                {
+                  type: "dynamic-tool",
+                  toolCallId: "tool-1",
+                  toolName: "Bash",
+                  state: "output-available",
+                  input: { command: "echo ok" },
+                  output: { blocks: [{ type: "text", text: "ok" }] },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+    restore = stub.restore;
+    const transcript = await getRunTranscript("run-2");
+    expect(transcript.run_id).toBe("run-2");
+    expect(transcript.messages[0]?.parts).toHaveLength(2);
+    expect(transcript.messages[0]?.parts[1]?.toolName).toBe("Bash");
   });
 
   it("Should POST run cancellation", async () => {

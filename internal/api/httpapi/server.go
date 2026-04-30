@@ -173,7 +173,11 @@ func (s *Server) ensureEngine() {
 		)
 	}))
 	s.engine.Use(core.ErrorMiddleware())
-	s.engine.Use(securityHeadersMiddleware())
+	if s.devProxy != nil {
+		s.engine.Use(devProxySecurityHeadersMiddleware())
+	} else {
+		s.engine.Use(securityHeadersMiddleware())
+	}
 	s.engine.Use(s.hostValidationMiddleware())
 	s.engine.Use(s.originValidationMiddleware())
 	s.engine.Use(s.activeWorkspaceMiddleware())

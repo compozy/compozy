@@ -612,6 +612,10 @@ func (s *errorWorkspaceService) Resolve(context.Context, string) (core.Workspace
 	return core.Workspace{}, s.err
 }
 
+func (s *errorWorkspaceService) Sync(context.Context) (core.WorkspaceSyncResult, error) {
+	return core.WorkspaceSyncResult{}, s.err
+}
+
 type errorTaskService struct {
 	err error
 }
@@ -721,6 +725,10 @@ func (s *errorRunService) Get(context.Context, string) (core.Run, error) {
 
 func (s *errorRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
 	return core.RunSnapshot{}, s.err
+}
+
+func (s *errorRunService) Transcript(context.Context, string) (core.RunTranscript, error) {
+	return core.RunTranscript{}, s.err
 }
 
 func (s *errorRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {

@@ -32,14 +32,26 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
 	inputs.apply(cmd, state)
-	if state.kind == commandKindStart && inputs.defineTaskRuntime {
-		if err := collectStartTaskRuntimeForm(cmd, state); err != nil {
+	if state.kind == commandKindTasksRun && inputs.defineTaskRuntime {
+		if err := collectTaskRunRuntimeForm(cmd, state); err != nil {
 			return err
 		}
+	} else if state.kind == commandKindTasksRun {
+		clearTaskRunRuntimeRules(state)
+		markInputFlagChanged(cmd, "task-runtime")
 	}
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormSuccess())
 	return nil
+}
+
+func clearTaskRunRuntimeRules(state *commandState) {
+	if state == nil {
+		return
+	}
+	state.configuredTaskRuntimeRules = nil
+	state.executionTaskRuntimeRules = nil
+	state.replaceConfiguredTaskRunRules = true
 }
 
 type formInputs struct {
@@ -114,7 +126,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addModelField(&fi.model)
 	builder.addAddDirsField(&fi.addDirs)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
-	if builder.state != nil && builder.state.kind == commandKindStart {
+	if builder.state != nil && builder.state.kind == commandKindTasksRun {
 		builder.addVirtualField(func() huh.Field {
 			return huh.NewConfirm().
 				Key("define-task-runtime").
@@ -222,7 +234,7 @@ func (fb *formBuilder) hideField(flag string) bool {
 	}
 
 	switch fb.state.kind {
-	case commandKindStart:
+	case commandKindTasksRun:
 		switch flag {
 		case "concurrent", "dry-run", "include-completed":
 			return true
@@ -272,8 +284,8 @@ func (fb *formBuilder) addNameField(target *string) {
 
 func (fb *formBuilder) nameFieldOptions() (string, string, []string) {
 	switch fb.state.kind {
-	case commandKindStart:
-		return "Task Name", "Select the task directory to run", listStartTaskSubdirs(fb.tasksBaseDir)
+	case commandKindTasksRun:
+		return "Task Name", "Select the task directory to run", listTaskRunSubdirs(fb.tasksBaseDir)
 	case commandKindFixReviews:
 		return workflowNameTitle, "Select the workflow directory for review fixes", listTaskSubdirs(fb.tasksBaseDir)
 	case commandKindFetchReviews:
@@ -286,7 +298,7 @@ func (fb *formBuilder) nameFieldOptions() (string, string, []string) {
 }
 
 func (fb *formBuilder) nameInputLabels() (string, string) {
-	if fb.state.kind == commandKindStart {
+	if fb.state.kind == commandKindTasksRun {
 		return "Task Name", "Required: task workflow name (for example: multi-repo)"
 	}
 	return workflowNameTitle, "Required: workflow name (for example: my-feature)"
@@ -643,7 +655,7 @@ func providerCatalogOptions() []huh.Option[string] {
 	return options
 }
 
-func listStartTaskSubdirs(baseDir string) []string {
+func listTaskRunSubdirs(baseDir string) []string {
 	dirs := listTaskSubdirs(baseDir)
 	if len(dirs) == 0 {
 		return nil

@@ -12,8 +12,7 @@ func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig 
 	defaults := mergeDefaultsConfig(global.Defaults, workspace.Defaults)
 	return ProjectConfig{
 		Defaults: defaults,
-		Start:    buildEffectiveStartConfig(global.Defaults, global.Start, workspace.Defaults, workspace.Start),
-		Tasks:    mergeTasksConfig(global.Tasks, workspace.Tasks),
+		Tasks:    buildEffectiveTasksConfig(global.Defaults, global.Tasks, workspace.Defaults, workspace.Tasks),
 		FixReviews: buildEffectiveFixReviewsConfig(
 			global.Defaults,
 			global.FixReviews,
@@ -31,8 +30,21 @@ func mergeDefaultsConfig(base, overlay DefaultsConfig) DefaultsConfig {
 	return DefaultsConfig(mergeRuntimeOverrides(RuntimeOverrides(base), RuntimeOverrides(overlay)))
 }
 
-func mergeTasksConfig(base, overlay TasksConfig) TasksConfig {
-	return TasksConfig{Types: cloneStringSlicePointer(preferOverlay(base.Types, overlay.Types))}
+func buildEffectiveTasksConfig(
+	globalDefaults DefaultsConfig,
+	global TasksConfig,
+	workspaceDefaults DefaultsConfig,
+	workspace TasksConfig,
+) TasksConfig {
+	return TasksConfig{
+		Types: cloneStringSlicePointer(preferOverlay(global.Types, workspace.Types)),
+		Run: buildEffectiveTaskRunConfig(
+			globalDefaults,
+			global.Run,
+			workspaceDefaults,
+			workspace.Run,
+		),
+	}
 }
 
 func mergeFetchReviewsConfig(base, overlay FetchReviewsConfig) FetchReviewsConfig {
@@ -42,13 +54,13 @@ func mergeFetchReviewsConfig(base, overlay FetchReviewsConfig) FetchReviewsConfi
 	}
 }
 
-func buildEffectiveStartConfig(
+func buildEffectiveTaskRunConfig(
 	globalDefaults DefaultsConfig,
-	global StartConfig,
+	global TaskRunConfig,
 	workspaceDefaults DefaultsConfig,
-	workspace StartConfig,
-) StartConfig {
-	return StartConfig{
+	workspace TaskRunConfig,
+) TaskRunConfig {
+	return TaskRunConfig{
 		IncludeCompleted: cloneOptionalValue(preferOverlay(global.IncludeCompleted, workspace.IncludeCompleted)),
 		OutputFormat: effectiveCommandOverride(
 			globalDefaults.OutputFormat,
@@ -57,7 +69,7 @@ func buildEffectiveStartConfig(
 			workspace.OutputFormat,
 		),
 		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
-		TaskRuntimeRules: mergeStartTaskRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
+		TaskRuntimeRules: mergeTaskRunRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}
 }
 
@@ -181,7 +193,7 @@ func mergeSoundConfig(base, overlay SoundConfig) SoundConfig {
 	}
 }
 
-func mergeStartTaskRuntimeRules(
+func mergeTaskRunRuntimeRules(
 	base *[]model.TaskRuntimeRule,
 	overlay *[]model.TaskRuntimeRule,
 ) *[]model.TaskRuntimeRule {

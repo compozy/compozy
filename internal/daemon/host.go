@@ -253,7 +253,26 @@ func loadHostPersistence(ctx context.Context, currentHost *Host) (_ hostPersiste
 		HomePaths: paths,
 	})
 	if err != nil {
+		return hostPersistence{}, fmt.Errorf("refresh registered workspaces: %w", err)
+	}
+	workspaceRefresh, err := refreshRegisteredWorkspaces(ctx, db, workspaceRefreshOptions{
+		SyncPresent: false,
+	})
+	if err != nil {
 		return hostPersistence{}, err
+	}
+	if workspaceRefresh.Checked > 0 || len(workspaceRefresh.Warnings) > 0 {
+		slog.Info(
+			"daemon workspace catalog refreshed",
+			"checked",
+			workspaceRefresh.Checked,
+			"removed",
+			workspaceRefresh.Removed,
+			"missing",
+			workspaceRefresh.Missing,
+			"warnings",
+			len(workspaceRefresh.Warnings),
+		)
 	}
 
 	return hostPersistence{
@@ -287,14 +306,15 @@ func buildHostHandlers(
 	})
 
 	return apicore.NewHandlers(&apicore.HandlerConfig{
-		TransportName: "daemon",
-		Daemon:        daemonService,
-		Workspaces:    newTransportWorkspaceService(persistence.db),
-		Tasks:         newTransportTaskService(persistence.db, runManager, queryService),
-		Reviews:       newTransportReviewService(persistence.db, runManager, queryService),
-		Runs:          runManager,
-		Sync:          newTransportSyncService(persistence.db),
-		Exec:          newTransportExecService(runManager),
+		TransportName:   "daemon",
+		Daemon:          daemonService,
+		Workspaces:      newTransportWorkspaceService(persistence.db),
+		Tasks:           newTransportTaskService(persistence.db, runManager, queryService),
+		Reviews:         newTransportReviewService(persistence.db, runManager, queryService),
+		Runs:            runManager,
+		Sync:            newTransportSyncService(persistence.db, runManager),
+		Exec:            newTransportExecService(runManager),
+		WorkspaceEvents: runManager,
 	})
 }
 

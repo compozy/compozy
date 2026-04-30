@@ -122,6 +122,35 @@ describe("WorkflowInventoryView", () => {
     expect(onArchive).toHaveBeenCalledWith("alpha");
   });
 
+  it("Should disable filesystem actions when the workspace is read-only", async () => {
+    const onSyncAll = vi.fn();
+    const onStartRun = vi.fn();
+    const onSyncOne = vi.fn();
+    const onArchive = vi.fn();
+    await renderInventory({
+      ...defaults,
+      isReadOnly: true,
+      onArchive,
+      onStartRun,
+      onSyncAll,
+      onSyncOne,
+      workflows: [workflows[0]!],
+    });
+    expect(screen.getByTestId("workflow-inventory-readonly")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-inventory-sync-all")).toBeDisabled();
+    expect(screen.getByTestId("workflow-start-alpha")).toBeDisabled();
+    expect(screen.getByTestId("workflow-sync-alpha")).toBeDisabled();
+    expect(screen.getByTestId("workflow-archive-alpha")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("workflow-inventory-sync-all"));
+    await userEvent.click(screen.getByTestId("workflow-start-alpha"));
+    await userEvent.click(screen.getByTestId("workflow-sync-alpha"));
+    await userEvent.click(screen.getByTestId("workflow-archive-alpha"));
+    expect(onSyncAll).not.toHaveBeenCalled();
+    expect(onStartRun).not.toHaveBeenCalled();
+    expect(onSyncOne).not.toHaveBeenCalled();
+    expect(onArchive).not.toHaveBeenCalled();
+  });
+
   it("Should surface load and action errors", async () => {
     await renderInventory({
       ...defaults,

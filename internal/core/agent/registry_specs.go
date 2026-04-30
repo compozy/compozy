@@ -104,38 +104,22 @@ var (
 			},
 		},
 		model.IDECodex: {
-			ID:              model.IDECodex,
-			DisplayName:     "Codex",
-			SetupAgentName:  "codex",
-			DefaultModel:    model.DefaultCodexModel,
-			Command:         "codex-acp",
-			SupportsAddDirs: true,
+			ID:                 model.IDECodex,
+			DisplayName:        "Codex",
+			SetupAgentName:     "codex",
+			DefaultModel:       model.DefaultCodexModel,
+			Command:            "codex-acp",
+			SupportsAddDirs:    true,
+			UsesBootstrapModel: true,
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
 					FixedArgs: []string{"--yes", "@zed-industries/codex-acp"},
 				},
 			},
-			DocsURL:            "https://github.com/zed-industries/codex-acp",
-			InstallHint:        "Install or update the Codex ACP adapter with `npm install -g @zed-industries/codex-acp@latest`, then expose `codex-acp` on PATH.",
-			UsesBootstrapModel: true,
-			BootstrapArgs: func(modelName, reasoningEffort string, _ []string, accessMode string) []string {
-				args := make([]string, 0, 10)
-				if strings.TrimSpace(modelName) != "" {
-					args = append(args, "-c", codexConfigOverride("model", modelName))
-				}
-				if strings.TrimSpace(reasoningEffort) != "" {
-					args = append(args, "-c", codexConfigOverride("model_reasoning_effort", reasoningEffort))
-				}
-				if accessMode != model.AccessModeFull {
-					return args
-				}
-				return append(args,
-					"-c", `approval_policy="never"`,
-					"-c", `sandbox_mode="danger-full-access"`,
-					"-c", `web_search="live"`,
-				)
-			},
+			DocsURL:       "https://github.com/zed-industries/codex-acp",
+			InstallHint:   "Install or update the Codex ACP adapter with `npm install -g @zed-industries/codex-acp@latest`, then expose `codex-acp` on PATH.",
+			BootstrapArgs: codexBootstrapArgs,
 		},
 		model.IDEDroid: {
 			ID:             model.IDEDroid,
@@ -259,6 +243,25 @@ var (
 	}
 )
 
+func codexBootstrapArgs(modelName, reasoningEffort string, _ []string, accessMode string) []string {
+	args := make([]string, 0, 10)
+	if selected := strings.TrimSpace(modelName); selected != "" {
+		args = append(args, "-c", "model="+strconv.Quote(selected))
+	}
+	if effort := strings.TrimSpace(reasoningEffort); effort != "" {
+		args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(effort))
+	}
+	if accessMode == model.AccessModeFull {
+		args = append(
+			args,
+			"-c", `approval_policy="never"`,
+			"-c", `sandbox_mode="danger-full-access"`,
+			"-c", `web_search="live"`,
+		)
+	}
+	return args
+}
+
 // DefaultRegistry returns the default ACP runtime registry handle.
 func DefaultRegistry() RuntimeRegistry {
 	return Registry{}
@@ -293,10 +296,6 @@ func SetupAgentName(ide string) (string, error) {
 		return "", fmt.Errorf("agent runtime %q does not declare a setup agent", ide)
 	}
 	return spec.SetupAgentName, nil
-}
-
-func codexConfigOverride(key, value string) string {
-	return strings.TrimSpace(key) + "=" + strconv.Quote(strings.TrimSpace(value))
 }
 
 // DriverCatalog returns the stable ACP driver catalog in the supported IDE order.

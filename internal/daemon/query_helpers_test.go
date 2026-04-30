@@ -324,7 +324,10 @@ func TestQueryServiceReadHelpersHandleOptionalAndErrorBranches(t *testing.T) {
 		env, service := newService(t)
 		if doc, ok, err := service.readWorkflowDocument(
 			context.Background(),
-			env.workflowDir(env.workflowSlug),
+			workflowReadTarget{
+				workspace: globaldb.Workspace{FilesystemState: globaldb.WorkspaceFilesystemStatePresent},
+				rootDir:   env.workflowDir(env.workflowSlug),
+			},
 			"missing.md",
 			"task",
 			"task_missing",

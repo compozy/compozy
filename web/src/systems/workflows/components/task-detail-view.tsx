@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { Suspense, lazy, type ReactElement } from "react";
 
 import {
   EmptyState,
@@ -15,7 +15,7 @@ import {
 import { Link } from "@tanstack/react-router";
 
 import { resolveStatusTone } from "./task-board-view";
-import { resolveStatusTone as resolveRunStatusTone } from "@/systems/runs";
+import { resolveStatusTone as resolveRunStatusTone, type RunTranscript } from "@/systems/runs";
 
 import type {
   MarkdownDocument,
@@ -24,13 +24,32 @@ import type {
   WorkflowMemoryEntry,
 } from "../types";
 
+const RunTranscriptPanel = lazy(() =>
+  import("@/systems/runs/components/run-transcript-panel").then(module => ({
+    default: module.RunTranscriptPanel,
+  }))
+);
+
 export interface TaskDetailViewProps {
   payload: TaskDetailPayload;
   isRefreshing: boolean;
+  runTranscript?: RunTranscript;
+  runTranscriptRunId?: string | null;
+  isLoadingRunTranscript?: boolean;
+  isRunTranscriptError?: boolean;
+  runTranscriptError?: string | null;
 }
 
 export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
-  const { payload, isRefreshing } = props;
+  const {
+    payload,
+    isRefreshing,
+    runTranscript,
+    runTranscriptRunId = null,
+    isLoadingRunTranscript = false,
+    isRunTranscriptError = false,
+    runTranscriptError = null,
+  } = props;
   const { task, workflow, document, memory_entries, related_runs } = payload;
   const tone = resolveStatusTone(task.status);
   const deps = task.depends_on ?? [];
@@ -70,6 +89,20 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
         <aside className="space-y-4" data-testid="task-detail-sidebar">
           <DependenciesCard deps={deps} />
           <RelatedRunsCard runs={runs} />
+          {runTranscriptRunId ? (
+            <Suspense fallback={<TaskRunTranscriptFallback />}>
+              <RunTranscriptPanel
+                compact
+                description={`Related run ${runTranscriptRunId}.`}
+                errorMessage={runTranscriptError}
+                isError={isRunTranscriptError}
+                isLoading={isLoadingRunTranscript}
+                testId="task-detail-run-transcript"
+                title="Run log"
+                transcript={runTranscript}
+              />
+            </Suspense>
+          ) : null}
           <MemoryCard entries={memory} slug={workflow.slug} />
         </aside>
       </div>
@@ -80,6 +113,24 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
         </p>
       ) : null}
     </div>
+  );
+}
+
+function TaskRunTranscriptFallback(): ReactElement {
+  return (
+    <SurfaceCard data-testid="task-detail-run-transcript-loading">
+      <SurfaceCardHeader>
+        <div>
+          <SurfaceCardEyebrow>Transcript</SurfaceCardEyebrow>
+          <SurfaceCardTitle>Run log</SurfaceCardTitle>
+          <SurfaceCardDescription>Loading related run.</SurfaceCardDescription>
+        </div>
+        <StatusBadge tone="neutral">loading</StatusBadge>
+      </SurfaceCardHeader>
+      <SurfaceCardBody>
+        <div className="h-20 rounded-[var(--radius-md)] bg-muted" />
+      </SurfaceCardBody>
+    </SurfaceCard>
   );
 }
 

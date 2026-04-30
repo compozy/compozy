@@ -243,6 +243,70 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 	}
 }
 
+func TestGetRunTranscriptPreservesStructuredMessages(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 28, 12, 0, 0, 0, time.UTC)
+	want := contract.RunTranscript{
+		RunID: "run-transcript",
+		Messages: []contract.RunUIMessage{{
+			ID:   "assistant-1",
+			Role: contract.RunUIMessageRoleAssistant,
+			Parts: []contract.RunUIMessagePart{{
+				Type:  contract.RunUIMessagePartText,
+				Text:  "hello",
+				State: "done",
+			}},
+		}},
+		Incomplete:        true,
+		IncompleteReasons: []string{"transcript_gap"},
+		NextCursor: &contract.StreamCursor{
+			Timestamp: now,
+			Sequence:  12,
+		},
+	}
+	body, err := json.Marshal(contract.RunTranscriptResponseFromTranscript(want))
+	if err != nil {
+		t.Fatalf("marshal transcript response: %v", err)
+	}
+
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path != "/api/runs/run-transcript/transcript" {
+					t.Fatalf("path = %s, want /api/runs/run-transcript/transcript", req.URL.Path)
+				}
+				return jsonResponse(http.StatusOK, string(body)), nil
+			}),
+		},
+	}
+
+	got, err := client.GetRunTranscript(context.Background(), "run-transcript")
+	if err != nil {
+		t.Fatalf("GetRunTranscript() error = %v", err)
+	}
+	if got.RunID != want.RunID {
+		t.Fatalf("transcript run_id = %q, want %q", got.RunID, want.RunID)
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("transcript messages len = %d, want 1; transcript=%#v", len(got.Messages), got)
+	}
+	if len(got.Messages[0].Parts) != 1 {
+		t.Fatalf("transcript message parts len = %d, want 1; message=%#v", len(got.Messages[0].Parts), got.Messages[0])
+	}
+	if got.Messages[0].Parts[0].Text != "hello" {
+		t.Fatalf("transcript = %#v, want structured hello message", got)
+	}
+	if !got.Incomplete || !reflect.DeepEqual(got.IncompleteReasons, []string{"transcript_gap"}) {
+		t.Fatalf("transcript integrity = incomplete:%v reasons:%#v", got.Incomplete, got.IncompleteReasons)
+	}
+	if got.NextCursor == nil || got.NextCursor.Sequence != 12 || !got.NextCursor.Timestamp.Equal(now) {
+		t.Fatalf("transcript cursor = %#v, want seq 12", got.NextCursor)
+	}
+}
+
 func TestOpenRunStreamReconnectsFromLastAcknowledgedCursorAfterHeartbeatGap(t *testing.T) {
 	previousGap := streamHeartbeatGapTolerance
 	streamHeartbeatGapTolerance = 20 * time.Millisecond

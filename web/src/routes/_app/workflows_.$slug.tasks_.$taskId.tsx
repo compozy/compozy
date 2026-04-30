@@ -5,7 +5,8 @@ import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
-import { TaskDetailView, useWorkflowTask } from "@/systems/workflows";
+import { useRunTranscript } from "@/systems/runs";
+import { TaskDetailView, useWorkflowTask, type TaskRelatedRun } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/workflows_/$slug/tasks_/$taskId")({
   component: WorkflowTaskDetailRoute,
@@ -16,6 +17,8 @@ function WorkflowTaskDetailRoute(): ReactElement {
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
   const taskQuery = useWorkflowTask(activeWorkspace.id, slug, taskId);
+  const transcriptRunId = selectTranscriptRunId(taskQuery.data?.related_runs ?? []);
+  const transcriptQuery = useRunTranscript(transcriptRunId);
 
   return (
     <AppShellLayout
@@ -49,8 +52,50 @@ function WorkflowTaskDetailRoute(): ReactElement {
         </Alert>
       ) : null}
       {taskQuery.data ? (
-        <TaskDetailView isRefreshing={taskQuery.isRefetching} payload={taskQuery.data} />
+        <TaskDetailView
+          isRefreshing={taskQuery.isRefetching}
+          isLoadingRunTranscript={transcriptQuery.isLoading}
+          isRunTranscriptError={transcriptQuery.isError}
+          payload={taskQuery.data}
+          runTranscript={transcriptQuery.data}
+          runTranscriptError={
+            transcriptQuery.error
+              ? apiErrorMessage(transcriptQuery.error, "Failed to load related run transcript")
+              : null
+          }
+          runTranscriptRunId={transcriptRunId}
+        />
       ) : null}
     </AppShellLayout>
   );
+}
+
+function selectTranscriptRunId(runs: readonly TaskRelatedRun[]): string | null {
+  if (runs.length === 0) {
+    return null;
+  }
+  const sorted = [...runs].sort((left, right) => {
+    const statusDelta = statusRank(right.status) - statusRank(left.status);
+    if (statusDelta !== 0) {
+      return statusDelta;
+    }
+    return timestampValue(right.started_at) - timestampValue(left.started_at);
+  });
+  return sorted[0]?.run_id ?? null;
+}
+
+function statusRank(status: string): number {
+  const normalized = status.toLowerCase();
+  if (normalized === "running" || normalized === "queued" || normalized === "starting") {
+    return 2;
+  }
+  return 0;
+}
+
+function timestampValue(raw: string | undefined): number {
+  if (!raw) {
+    return 0;
+  }
+  const timestamp = Date.parse(raw);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }

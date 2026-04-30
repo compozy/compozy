@@ -151,6 +151,28 @@ unknown = "value"
 	}
 }
 
+func TestLoadConfigRejectsLegacyStartSection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject legacy start section", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[start]
+include_completed = true
+`)
+
+		_, _, err := LoadConfig(context.Background(), root)
+		if err == nil {
+			t.Fatal("expected legacy start section error")
+		}
+		if !strings.Contains(err.Error(), "workspace config section [start] was removed; use [tasks.run] instead") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
 func TestLoadConfigRejectsInvalidTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -187,7 +209,7 @@ auto_commit = true
 max_retries = 0
 retry_backoff_multiplier = 1.5
 
-[start]
+[tasks.run]
 include_completed = false
 output_format = "json"
 tui = false
@@ -234,14 +256,14 @@ output_format = "json"
 	if cfg.Defaults.AutoCommit == nil || !*cfg.Defaults.AutoCommit {
 		t.Fatalf("unexpected defaults.auto_commit: %#v", cfg.Defaults.AutoCommit)
 	}
-	if cfg.Start.IncludeCompleted == nil || *cfg.Start.IncludeCompleted {
-		t.Fatalf("unexpected start.include_completed: %#v", cfg.Start.IncludeCompleted)
+	if cfg.Tasks.Run.IncludeCompleted == nil || *cfg.Tasks.Run.IncludeCompleted {
+		t.Fatalf("unexpected tasks.run.include_completed: %#v", cfg.Tasks.Run.IncludeCompleted)
 	}
-	if cfg.Start.OutputFormat == nil || *cfg.Start.OutputFormat != "json" {
-		t.Fatalf("unexpected start.output_format: %#v", cfg.Start.OutputFormat)
+	if cfg.Tasks.Run.OutputFormat == nil || *cfg.Tasks.Run.OutputFormat != "json" {
+		t.Fatalf("unexpected tasks.run.output_format: %#v", cfg.Tasks.Run.OutputFormat)
 	}
-	if cfg.Start.TUI == nil || *cfg.Start.TUI {
-		t.Fatalf("unexpected start.tui: %#v", cfg.Start.TUI)
+	if cfg.Tasks.Run.TUI == nil || *cfg.Tasks.Run.TUI {
+		t.Fatalf("unexpected tasks.run.tui: %#v", cfg.Tasks.Run.TUI)
 	}
 	if cfg.FixReviews.Concurrent == nil || *cfg.FixReviews.Concurrent != 2 {
 		t.Fatalf("unexpected fix_reviews.concurrent: %#v", cfg.FixReviews.Concurrent)
@@ -400,8 +422,8 @@ func TestLoadConfigParsesStartTaskRuntimeRules(t *testing.T) {
 
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `
-[start]
-[[start.task_runtime_rules]]
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
 type = "frontend"
 ide = "codex"
 model = "gpt-5.5"
@@ -412,10 +434,10 @@ reasoning_effort = "xhigh"
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if cfg.Start.TaskRuntimeRules == nil || len(*cfg.Start.TaskRuntimeRules) != 1 {
-		t.Fatalf("unexpected start.task_runtime_rules: %#v", cfg.Start.TaskRuntimeRules)
+	if cfg.Tasks.Run.TaskRuntimeRules == nil || len(*cfg.Tasks.Run.TaskRuntimeRules) != 1 {
+		t.Fatalf("unexpected tasks.run.task_runtime_rules: %#v", cfg.Tasks.Run.TaskRuntimeRules)
 	}
-	rule := (*cfg.Start.TaskRuntimeRules)[0]
+	rule := (*cfg.Tasks.Run.TaskRuntimeRules)[0]
 	if rule.Type == nil || *rule.Type != "frontend" {
 		t.Fatalf("unexpected rule type: %#v", rule.Type)
 	}
@@ -434,19 +456,19 @@ func TestLoadConfigMergesStartTaskRuntimeRulesByType(t *testing.T) {
 	homeDir := isolateWorkspaceConfigHome(t)
 	root := t.TempDir()
 	writeGlobalConfig(t, homeDir, `
-[start]
-[[start.task_runtime_rules]]
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
 type = "frontend"
 ide = "claude"
 model = "sonnet"
 
-[[start.task_runtime_rules]]
+[[tasks.run.task_runtime_rules]]
 type = "backend"
 ide = "codex"
 `)
 	writeWorkspaceConfig(t, root, `
-[start]
-[[start.task_runtime_rules]]
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
 type = "frontend"
 ide = "codex"
 model = "gpt-5.5"
@@ -456,10 +478,10 @@ model = "gpt-5.5"
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if cfg.Start.TaskRuntimeRules == nil || len(*cfg.Start.TaskRuntimeRules) != 2 {
-		t.Fatalf("unexpected merged start.task_runtime_rules: %#v", cfg.Start.TaskRuntimeRules)
+	if cfg.Tasks.Run.TaskRuntimeRules == nil || len(*cfg.Tasks.Run.TaskRuntimeRules) != 2 {
+		t.Fatalf("unexpected merged tasks.run.task_runtime_rules: %#v", cfg.Tasks.Run.TaskRuntimeRules)
 	}
-	rules := *cfg.Start.TaskRuntimeRules
+	rules := *cfg.Tasks.Run.TaskRuntimeRules
 	if rules[0].Type == nil || *rules[0].Type != "frontend" || rules[0].IDE == nil || *rules[0].IDE != "codex" {
 		t.Fatalf("expected workspace frontend override to replace global rule, got %#v", rules[0])
 	}
@@ -473,17 +495,17 @@ func TestLoadConfigRejectsUnsupportedStartTaskRuntimeRuleID(t *testing.T) {
 
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `
-[start]
-[[start.task_runtime_rules]]
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
 id = "task_01"
 ide = "codex"
 `)
 
 	_, _, err := LoadConfig(context.Background(), root)
 	if err == nil {
-		t.Fatal("expected unsupported start.task_runtime_rules id error")
+		t.Fatal("expected unsupported tasks.run.task_runtime_rules id error")
 	}
-	if !strings.Contains(err.Error(), "start.task_runtime_rules[0].id is not supported") {
+	if !strings.Contains(err.Error(), "tasks.run.task_runtime_rules[0].id is not supported") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -493,17 +515,17 @@ func TestLoadConfigRejectsInvalidStartTaskRuntimeRuleReasoningEffort(t *testing.
 
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `
-[start]
-[[start.task_runtime_rules]]
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
 type = "frontend"
 reasoning_effort = "turbo"
 `)
 
 	_, _, err := LoadConfig(context.Background(), root)
 	if err == nil {
-		t.Fatal("expected invalid start.task_runtime_rules reasoning_effort error")
+		t.Fatal("expected invalid tasks.run.task_runtime_rules reasoning_effort error")
 	}
-	if !strings.Contains(err.Error(), "start.task_runtime_rules[0].reasoning_effort") {
+	if !strings.Contains(err.Error(), "tasks.run.task_runtime_rules[0].reasoning_effort") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -598,7 +620,7 @@ func TestLoadConfigRejectsStartTUIWhenDefaultsOutputFormatIsJSON(t *testing.T) {
 [defaults]
 output_format = "json"
 
-[start]
+[tasks.run]
 tui = true
 `)
 
@@ -606,7 +628,7 @@ tui = true
 	if err == nil {
 		t.Fatal("expected invalid start tui/output format combination")
 	}
-	if !strings.Contains(err.Error(), "start.tui cannot be true") {
+	if !strings.Contains(err.Error(), "tasks.run.tui cannot be true") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -903,14 +925,14 @@ ide = "claude"
 model = "sonnet"
 access_mode = "default"
 
-[start]
+[tasks.run]
 include_completed = false
 `)
 	writeWorkspaceConfig(t, root, `
 [defaults]
 model = "gpt-5.5"
 
-[start]
+[tasks.run]
 include_completed = true
 `)
 
@@ -927,8 +949,8 @@ include_completed = true
 	if cfg.Defaults.Model == nil || *cfg.Defaults.Model != "gpt-5.5" {
 		t.Fatalf("expected workspace defaults.model override, got %#v", cfg.Defaults.Model)
 	}
-	if cfg.Start.IncludeCompleted == nil || !*cfg.Start.IncludeCompleted {
-		t.Fatalf("expected workspace start.include_completed override, got %#v", cfg.Start.IncludeCompleted)
+	if cfg.Tasks.Run.IncludeCompleted == nil || !*cfg.Tasks.Run.IncludeCompleted {
+		t.Fatalf("expected workspace tasks.run.include_completed override, got %#v", cfg.Tasks.Run.IncludeCompleted)
 	}
 }
 
@@ -940,7 +962,7 @@ func TestLoadConfigKeepsWorkspaceDefaultsAheadOfGlobalCommandOverrides(t *testin
 model = "sonnet"
 output_format = "json"
 
-[start]
+[tasks.run]
 output_format = "raw-json"
 tui = false
 
@@ -965,11 +987,11 @@ output_format = "text"
 	if cfg.Defaults.OutputFormat == nil || *cfg.Defaults.OutputFormat != "text" {
 		t.Fatalf("expected workspace defaults.output_format to win, got %#v", cfg.Defaults.OutputFormat)
 	}
-	if cfg.Start.OutputFormat != nil {
-		t.Fatalf("expected global start.output_format to stay shadowed, got %#v", cfg.Start.OutputFormat)
+	if cfg.Tasks.Run.OutputFormat != nil {
+		t.Fatalf("expected global tasks.run.output_format to stay shadowed, got %#v", cfg.Tasks.Run.OutputFormat)
 	}
-	if cfg.Start.TUI == nil || *cfg.Start.TUI {
-		t.Fatalf("expected global start.tui to remain available, got %#v", cfg.Start.TUI)
+	if cfg.Tasks.Run.TUI == nil || *cfg.Tasks.Run.TUI {
+		t.Fatalf("expected global tasks.run.tui to remain available, got %#v", cfg.Tasks.Run.TUI)
 	}
 	if cfg.Exec.Model != nil {
 		t.Fatalf("expected global exec.model to stay shadowed, got %#v", cfg.Exec.Model)
@@ -990,7 +1012,7 @@ func TestLoadConfigRejectsInvalidMergedCrossScopeCombination(t *testing.T) {
 output_format = "json"
 `)
 	writeWorkspaceConfig(t, root, `
-[start]
+[tasks.run]
 tui = true
 `)
 
@@ -998,7 +1020,7 @@ tui = true
 	if err == nil {
 		t.Fatal("expected merged config validation error")
 	}
-	if !strings.Contains(err.Error(), "effective config start.tui cannot be true") {
+	if !strings.Contains(err.Error(), "effective config tasks.run.tui cannot be true") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

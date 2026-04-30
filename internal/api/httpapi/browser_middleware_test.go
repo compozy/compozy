@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -38,6 +40,50 @@ func TestBrowserMiddlewareWorkspaceRoutingHelpers(t *testing.T) {
 			t.Parallel()
 			if got := requiresActiveWorkspace(tc.path); got != tc.want {
 				t.Fatalf("requiresActiveWorkspace(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBrowserMiddlewareValidatesWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+
+	validRoot := t.TempDir()
+	fileRoot := filepath.Join(t.TempDir(), "workspace-file")
+	if err := os.WriteFile(fileRoot, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("WriteFile(fileRoot): %v", err)
+	}
+
+	testCases := []struct {
+		name        string
+		rootDir     string
+		errContains string
+	}{
+		{name: "Should accept valid directory", rootDir: validRoot},
+		{name: "Should reject empty root", rootDir: " ", errContains: "workspace root is empty"},
+		{
+			name:        "Should reject missing root",
+			rootDir:     filepath.Join(t.TempDir(), "missing"),
+			errContains: "stat workspace root",
+		},
+		{name: "Should reject file root", rootDir: fileRoot, errContains: "is not a directory"},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateWorkspaceRoot(tc.rootDir)
+			if tc.errContains == "" && err != nil {
+				t.Fatalf("validateWorkspaceRoot() error = %v, want nil", err)
+			}
+			if tc.errContains != "" {
+				if err == nil {
+					t.Fatalf("validateWorkspaceRoot() error = nil, want substring %q", tc.errContains)
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("validateWorkspaceRoot() error = %q, want substring %q", err.Error(), tc.errContains)
+				}
 			}
 		})
 	}

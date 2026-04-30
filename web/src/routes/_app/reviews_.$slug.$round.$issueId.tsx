@@ -97,6 +97,7 @@ function ReviewIssueDetailRoute(): ReactElement {
           }
           dispatchedRun={dispatchedRun}
           isDispatching={startReviewRun.isPending}
+          isReadOnly={activeWorkspace.read_only}
           isRefreshing={issueQuery.isRefetching}
           onDispatchFix={() => {
             startReviewRun.mutate(

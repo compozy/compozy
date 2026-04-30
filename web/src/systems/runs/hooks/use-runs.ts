@@ -6,13 +6,14 @@ import {
   cancelRun,
   getRun,
   getRunSnapshot,
+  getRunTranscript,
   listRuns,
   startWorkflowRun,
   type CancelRunParams,
   type StartWorkflowRunParams,
 } from "../adapters/runs-api";
 import { runKeys } from "../lib/query-keys";
-import type { Run, RunListParams, RunSnapshot } from "../types";
+import type { Run, RunListParams, RunSnapshot, RunTranscript } from "../types";
 
 export function useRuns(params: RunListParams) {
   return useQuery<Run[]>({
@@ -50,6 +51,19 @@ export function useRunSnapshot(runId: string | null) {
   });
 }
 
+export function useRunTranscript(runId: string | null) {
+  return useQuery<RunTranscript>({
+    queryKey: runKeys.transcript(runId ?? "none") as QueryKey,
+    queryFn: () => {
+      if (!runId) {
+        throw new Error("run id is required to fetch run transcript");
+      }
+      return getRunTranscript(runId);
+    },
+    enabled: Boolean(runId),
+  });
+}
+
 export function useCancelRun() {
   const queryClient = useQueryClient();
   return useMutation<void, Error, CancelRunParams>({
@@ -58,6 +72,9 @@ export function useCancelRun() {
       void queryClient.invalidateQueries({ queryKey: runKeys.run(variables.runId) as QueryKey });
       void queryClient.invalidateQueries({
         queryKey: runKeys.snapshot(variables.runId) as QueryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: runKeys.transcript(variables.runId) as QueryKey,
       });
       void queryClient.invalidateQueries({ queryKey: runKeys.lists() as QueryKey });
     },

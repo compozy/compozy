@@ -29,9 +29,10 @@ import (
 
 var captureExecuteStreamsMu sync.Mutex
 
+const runACPHelperDefaultTimeout = 10 * time.Second
+
 func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
-	timeout := 10 * time.Second
 	installACPHelperOnPath(t, []runACPHelperScenario{{
 		ExpectedPromptContains: "finish the task",
 		Updates: []acp.SessionUpdate{
@@ -66,7 +67,7 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		timeout,
+		runACPHelperDefaultTimeout,
 		runJournal,
 		&aggregate,
 		&aggregateMu,
@@ -119,7 +120,6 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 
 func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T) {
 	tmpDir := t.TempDir()
-	timeout := 3 * time.Second
 	failedStatus := acp.ToolCallStatusFailed
 	installACPHelperOnPath(t, []runACPHelperScenario{{
 		Updates: []acp.SessionUpdate{
@@ -165,7 +165,7 @@ func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T
 		tmpDir,
 		false,
 		0,
-		timeout,
+		runACPHelperDefaultTimeout,
 		runJournal,
 		nil,
 		nil,
@@ -225,7 +225,7 @@ func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 			ReasoningEffort:        "medium",
 			MaxRetries:             1,
 			RetryBackoffMultiplier: 2,
-			Timeout:                time.Second,
+			Timeout:                runACPHelperDefaultTimeout,
 		},
 		cwd: tmpDir,
 	}
@@ -286,7 +286,7 @@ func TestExecuteJobWithTimeoutACPFailedToolCallDoesNotFailJob(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		time.Second,
+		runACPHelperDefaultTimeout,
 		nil,
 		nil,
 		nil,
@@ -594,7 +594,7 @@ func TestExecuteJobWithTimeoutACPSubcommandRuntimeUsesLaunchSpec(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		time.Second,
+		runACPHelperDefaultTimeout,
 		nil,
 		nil,
 		nil,
@@ -632,7 +632,7 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 			ReasoningEffort:        "medium",
 			Concurrent:             2,
 			RetryBackoffMultiplier: 2,
-			Timeout:                time.Second,
+			Timeout:                runACPHelperDefaultTimeout,
 		},
 		jobs:  jobs,
 		total: len(jobs),

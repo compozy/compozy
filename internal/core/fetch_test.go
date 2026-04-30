@@ -74,11 +74,32 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	if !strings.HasSuffix(result.ReviewsDir, filepath.Join(".compozy", "tasks", "demo", "reviews-001")) {
 		t.Fatalf("unexpected reviews dir: %q", result.ReviewsDir)
 	}
-	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "_meta.md")); err != nil {
-		t.Fatalf("expected meta file: %v", err)
+	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "_meta.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected fetch to avoid legacy _meta.md, got err=%v", err)
 	}
-	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "issue_001.md")); err != nil {
+	issuePath := filepath.Join(result.ReviewsDir, "issue_001.md")
+	if _, err := os.Stat(issuePath); err != nil {
 		t.Fatalf("expected issue file: %v", err)
+	}
+	issueContent, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read issue file: %v", err)
+	}
+	reviewContext, err := reviews.ParseReviewContext(string(issueContent))
+	if err != nil {
+		t.Fatalf("parse issue frontmatter: %v", err)
+	}
+	if reviewContext.Provider != "stub" {
+		t.Fatalf("issue provider = %q, want stub", reviewContext.Provider)
+	}
+	if reviewContext.PR != "259" {
+		t.Fatalf("issue pr = %q, want 259", reviewContext.PR)
+	}
+	if reviewContext.Round != 1 {
+		t.Fatalf("issue round = %d, want 1", reviewContext.Round)
+	}
+	if reviewContext.RoundCreatedAt.IsZero() {
+		t.Fatal("issue round_created_at is zero")
 	}
 }
 

@@ -35,10 +35,11 @@ const (
 )
 
 type migrationScanState struct {
-	result   *Result
-	registry *tasks.TypeRegistry
-	pending  []pendingFileMigration
-	invalid  []error
+	result         *Result
+	registry       *tasks.TypeRegistry
+	pending        []pendingFileMigration
+	pendingDeletes []string
+	invalid        []error
 }
 
 var reviewRoundDirPattern = regexp.MustCompile(`^reviews-\d+$`)
@@ -62,7 +63,7 @@ func migrateArtifacts(ctx context.Context, cfg Config) (*Result, error) {
 		return result, err
 	}
 
-	pending, invalidErrs, err := scanMigrationTarget(ctx, target, result, registry)
+	pending, pendingDeletes, invalidErrs, err := scanMigrationTarget(ctx, target, result, registry)
 	if err != nil {
 		return result, err
 	}
@@ -89,6 +90,9 @@ func migrateArtifacts(ctx context.Context, cfg Config) (*Result, error) {
 	if err := writePendingFiles(ctx, pending, os.WriteFile); err != nil {
 		return result, err
 	}
+	if err := removePendingFiles(ctx, pendingDeletes, os.Remove); err != nil {
+		return result, err
+	}
 
 	return result, nil
 }
@@ -104,6 +108,23 @@ func writePendingFiles(
 		}
 		if err := writeFile(file.path, []byte(file.content), 0o600); err != nil {
 			return fmt.Errorf("write migrated artifact %s: %w", file.path, err)
+		}
+	}
+	return nil
+}
+
+func removePendingFiles(
+	ctx context.Context,
+	pending []string,
+	removeFile func(string) error,
+) error {
+	sort.Strings(pending)
+	for _, path := range pending {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("migration canceled during remove: %w", err)
+		}
+		if err := removeFile(path); err != nil {
+			return fmt.Errorf("remove migrated legacy artifact %s: %w", path, err)
 		}
 	}
 	return nil
@@ -130,7 +151,7 @@ func scanMigrationTarget(
 	target string,
 	result *Result,
 	registry *tasks.TypeRegistry,
-) ([]pendingFileMigration, []error, error) {
+) ([]pendingFileMigration, []string, []error, error) {
 	state := migrationScanState{
 		result:   result,
 		registry: registry,
@@ -148,9 +169,9 @@ func scanMigrationTarget(
 		return state.handlePath(path, entry)
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return state.pending, state.invalid, nil
+	return state.pending, state.pendingDeletes, state.invalid, nil
 }
 
 func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
@@ -208,9 +229,12 @@ func (s *migrationScanState) appendReviewMigration(path string) error {
 }
 
 func (s *migrationScanState) recordRoundMeta(path string) error {
-	if err := inspectRoundMeta(path, s.result); err != nil {
+	if err := inspectRoundMeta(path); err != nil {
 		s.recordInvalid(path, fmt.Errorf("inspect review round metadata %s: %w", path, err))
+		return nil
 	}
+	s.pendingDeletes = append(s.pendingDeletes, path)
+	s.result.LegacyReviewMetaRemoved++
 	return nil
 }
 
@@ -283,18 +307,77 @@ func inspectReviewArtifact(path string, result *Result) (*pendingFileMigration, 
 		return nil, fmt.Errorf("read review artifact: %w", err)
 	}
 
-	if _, err := reviews.ParseReviewContext(string(content)); err == nil {
-		result.FilesAlreadyFrontmatter++
-		return nil, nil
-	} else if !errors.Is(err, reviews.ErrLegacyReviewMetadata) {
-		return nil, err
-	}
-
-	legacyReview, err := reviews.ParseLegacyReviewContext(string(content))
+	roundMeta, hasLegacyRoundMeta, err := readLegacyRoundMetaForReviewIssue(path)
 	if err != nil {
 		return nil, err
 	}
-	body, err := reviews.ExtractLegacyReviewBody(string(content))
+
+	var existingMeta model.ReviewFileMeta
+	body, parseErr := frontmatter.Parse(string(content), &existingMeta)
+	if parseErr == nil {
+		return inspectReviewFrontMatterArtifact(
+			path,
+			string(content),
+			body,
+			existingMeta,
+			roundMeta,
+			hasLegacyRoundMeta,
+			result,
+		)
+	}
+	return inspectLegacyReviewArtifact(path, string(content), parseErr, roundMeta, hasLegacyRoundMeta, result)
+}
+
+func inspectReviewFrontMatterArtifact(
+	path string,
+	content string,
+	body string,
+	existingMeta model.ReviewFileMeta,
+	roundMeta model.RoundMeta,
+	hasLegacyRoundMeta bool,
+	result *Result,
+) (*pendingFileMigration, error) {
+	if _, err := reviews.ParseReviewContext(content); err != nil {
+		return nil, err
+	}
+	if !reviewFileNeedsRoundMetadata(existingMeta) {
+		result.FilesAlreadyFrontmatter++
+		return nil, nil
+	}
+	if !hasLegacyRoundMeta {
+		return nil, errors.New("review issue front matter missing round metadata and legacy _meta.md was not found")
+	}
+	migrated, err := formatReviewWithRoundMeta(existingMeta, roundMeta, body)
+	if err != nil {
+		return nil, err
+	}
+	result.MigratedPaths = append(result.MigratedPaths, path)
+	return &pendingFileMigration{path: path, content: migrated}, nil
+}
+
+func inspectLegacyReviewArtifact(
+	path string,
+	content string,
+	parseErr error,
+	roundMeta model.RoundMeta,
+	hasLegacyRoundMeta bool,
+	result *Result,
+) (*pendingFileMigration, error) {
+	looksLegacy := reviews.LooksLikeLegacyReviewFile(content)
+	if reviewParseErrorBlocksMigration(parseErr, looksLegacy) {
+		return nil, parseErr
+	}
+	if !looksLegacy {
+		return nil, parseErr
+	}
+	if !hasLegacyRoundMeta {
+		return nil, errors.New("legacy review issue requires legacy round metadata")
+	}
+	legacyReview, err := reviews.ParseLegacyReviewContext(content)
+	if err != nil {
+		return nil, err
+	}
+	body, err := reviews.ExtractLegacyReviewBody(content)
 	if err != nil {
 		return nil, err
 	}
@@ -302,14 +385,14 @@ func inspectReviewArtifact(path string, result *Result) (*pendingFileMigration, 
 	if strings.TrimSpace(fileName) == "" {
 		fileName = model.UnknownFileName
 	}
-	migrated, err := frontmatter.Format(model.ReviewFileMeta{
+	migrated, err := formatReviewWithRoundMeta(model.ReviewFileMeta{
 		Status:      legacyReview.Status,
 		File:        fileName,
 		Line:        legacyReview.Line,
 		Severity:    legacyReview.Severity,
 		Author:      legacyReview.Author,
 		ProviderRef: legacyReview.ProviderRef,
-	}, body)
+	}, roundMeta, body)
 	if err != nil {
 		return nil, err
 	}
@@ -318,12 +401,43 @@ func inspectReviewArtifact(path string, result *Result) (*pendingFileMigration, 
 	return &pendingFileMigration{path: path, content: migrated}, nil
 }
 
-func inspectRoundMeta(path string, result *Result) error {
-	if _, err := reviews.ReadRoundMeta(filepath.Dir(path)); err != nil {
-		return err
+func reviewParseErrorBlocksMigration(parseErr error, looksLegacy bool) bool {
+	if looksLegacy {
+		return false
 	}
-	result.FilesAlreadyFrontmatter++
-	return nil
+	return !errors.Is(parseErr, frontmatter.ErrHeaderNotFound) &&
+		!errors.Is(parseErr, frontmatter.ErrFooterNotFound)
+}
+
+func inspectRoundMeta(path string) error {
+	_, err := reviews.ReadLegacyRoundMeta(filepath.Dir(path))
+	return err
+}
+
+func readLegacyRoundMetaForReviewIssue(path string) (model.RoundMeta, bool, error) {
+	meta, err := reviews.ReadLegacyRoundMeta(filepath.Dir(path))
+	if err == nil {
+		return meta, true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return model.RoundMeta{}, false, nil
+	}
+	return model.RoundMeta{}, false, err
+}
+
+func reviewFileNeedsRoundMetadata(meta model.ReviewFileMeta) bool {
+	return strings.TrimSpace(meta.Provider) == "" ||
+		strings.TrimSpace(meta.PR) == "" ||
+		meta.Round <= 0 ||
+		meta.RoundCreatedAt.IsZero()
+}
+
+func formatReviewWithRoundMeta(meta model.ReviewFileMeta, roundMeta model.RoundMeta, body string) (string, error) {
+	meta.Provider = strings.TrimSpace(roundMeta.Provider)
+	meta.PR = strings.TrimSpace(roundMeta.PR)
+	meta.Round = roundMeta.Round
+	meta.RoundCreatedAt = roundMeta.CreatedAt.UTC()
+	return frontmatter.Format(meta, body)
 }
 
 func migrationTaskTypeRegistry(ctx context.Context, workspaceRoot string) (*tasks.TypeRegistry, error) {

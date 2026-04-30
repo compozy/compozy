@@ -48,8 +48,8 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 	}
 
 	reviewDir := filepath.Join(env.workflowDir(env.workflowSlug), "reviews-001")
-	if _, err := os.Stat(filepath.Join(reviewDir, "_meta.md")); err != nil {
-		t.Fatalf("expected review meta after fetch: %v", err)
+	if _, err := os.Stat(filepath.Join(reviewDir, "_meta.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected fetch to avoid legacy review _meta.md, got err=%v", err)
 	}
 	if _, err := os.Stat(filepath.Join(reviewDir, "issue_001.md")); err != nil {
 		t.Fatalf("expected review issue after fetch: %v", err)
@@ -93,11 +93,12 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 		t.Fatalf("unexpected review issues by workspace id: %#v", issuesByID)
 	}
 
+	issuePath := filepath.Join(reviewDir, "issue_001.md")
 	env.writeWorkflowFile(
 		t,
 		env.workflowSlug,
 		filepath.Join("reviews-001", "issue_001.md"),
-		daemonReviewIssueBody("resolved", "high"),
+		strings.Replace(readFile(t, issuePath), "status: pending", "status: resolved", 1),
 	)
 
 	run, err := service.StartRun(context.Background(), env.workspaceRoot, env.workflowSlug, 1, apicore.ReviewRunRequest{

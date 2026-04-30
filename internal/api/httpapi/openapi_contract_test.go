@@ -56,6 +56,7 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"GET /api/runs",
 		"GET /api/runs/{run_id}",
 		"GET /api/runs/{run_id}/snapshot",
+		"GET /api/runs/{run_id}/transcript",
 		"GET /api/runs/{run_id}/stream",
 		"GET /api/tasks",
 		"GET /api/tasks/{slug}",
@@ -66,12 +67,14 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"GET /api/tasks/{slug}/spec",
 		"GET /api/ui/dashboard",
 		"GET /api/workspaces",
+		"GET /api/workspaces/{id}/ws",
 		"POST /api/reviews/{slug}/rounds/{round}/runs",
 		"POST /api/runs/{run_id}/cancel",
 		"POST /api/sync",
 		"POST /api/tasks/{slug}/archive",
 		"POST /api/tasks/{slug}/runs",
 		"POST /api/workspaces/resolve",
+		"POST /api/workspaces/sync",
 	}
 	sort.Strings(expected)
 
@@ -204,6 +207,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/sync",
 		"POST /api/runs/{run_id}/cancel",
 		"POST /api/workspaces/resolve",
+		"POST /api/workspaces/sync",
 	} {
 		routeKey := routeKey
 		t.Run("Should advertise browser security for "+routeKey, func(t *testing.T) {

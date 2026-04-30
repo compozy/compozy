@@ -253,7 +253,7 @@ func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefault
 }
 
 func newTasksRunCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
-	state := newCommandStateWithDefaults(commandKindStart, core.ModePRDTasks, defaults)
+	state := newCommandStateWithDefaults(commandKindTasksRun, core.ModePRDTasks, defaults)
 	cmd := &cobra.Command{
 		Use:          "run [slug]",
 		Short:        "Start a daemon-backed task workflow run",

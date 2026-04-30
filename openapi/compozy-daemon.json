@@ -99,6 +99,15 @@
                     "type": "string"
                 }
             },
+            "WorkspaceID": {
+                "description": "Workspace identifier.",
+                "in": "path",
+                "name": "id",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
             "ActiveWorkspaceHeader": {
                 "description": "Active workspace identifier for browser-scoped daemon requests.",
                 "in": "header",
@@ -1019,6 +1028,105 @@
                 "required": ["content", "role", "sequence", "stream", "timestamp"],
                 "type": "object"
             },
+            "RunUIMessage": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "parts": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunUIMessagePart"
+                        },
+                        "type": "array"
+                    },
+                    "role": {
+                        "enum": ["system", "user", "assistant"],
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "parts", "role"],
+                "type": "object"
+            },
+            "RunUIMessagePart": {
+                "properties": {
+                    "data": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "errorText": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "input": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "output": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "preliminary": {
+                        "type": "boolean"
+                    },
+                    "rawInput": {},
+                    "state": {
+                        "type": "string"
+                    },
+                    "text": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "toolCallId": {
+                        "type": "string"
+                    },
+                    "toolName": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "required": ["type"],
+                "type": "object"
+            },
+            "RunTranscriptPayload": {
+                "properties": {
+                    "incomplete": {
+                        "type": "boolean"
+                    },
+                    "incomplete_reasons": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "messages": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunUIMessage"
+                        },
+                        "type": "array"
+                    },
+                    "next_cursor": {
+                        "type": "string"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "session": {
+                        "$ref": "#/components/schemas/SessionViewSnapshot"
+                    }
+                },
+                "required": ["messages", "run_id"],
+                "type": "object"
+            },
             "RunsResponse": {
                 "properties": {
                     "runs": {
@@ -1649,21 +1757,59 @@
                         "format": "date-time",
                         "type": "string"
                     },
+                    "filesystem_state": {
+                        "enum": ["present", "missing"],
+                        "type": "string"
+                    },
+                    "has_catalog_data": {
+                        "type": "boolean"
+                    },
                     "id": {
+                        "type": "string"
+                    },
+                    "last_checked_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "last_sync_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "last_sync_error": {
                         "type": "string"
                     },
                     "name": {
                         "type": "string"
                     },
+                    "read_only": {
+                        "type": "boolean"
+                    },
                     "root_dir": {
                         "type": "string"
+                    },
+                    "run_count": {
+                        "type": "integer"
                     },
                     "updated_at": {
                         "format": "date-time",
                         "type": "string"
+                    },
+                    "workflow_count": {
+                        "type": "integer"
                     }
                 },
-                "required": ["created_at", "id", "name", "root_dir", "updated_at"],
+                "required": [
+                    "created_at",
+                    "filesystem_state",
+                    "has_catalog_data",
+                    "id",
+                    "name",
+                    "read_only",
+                    "root_dir",
+                    "run_count",
+                    "updated_at",
+                    "workflow_count"
+                ],
                 "type": "object"
             },
             "WorkspaceResolveRequest": {
@@ -1673,6 +1819,51 @@
                     }
                 },
                 "required": ["path"],
+                "type": "object"
+            },
+            "WorkspaceSyncResult": {
+                "properties": {
+                    "checked": {
+                        "type": "integer"
+                    },
+                    "missing": {
+                        "type": "integer"
+                    },
+                    "removed": {
+                        "type": "integer"
+                    },
+                    "review_issues_upserted": {
+                        "type": "integer"
+                    },
+                    "review_rounds_upserted": {
+                        "type": "integer"
+                    },
+                    "snapshots_upserted": {
+                        "type": "integer"
+                    },
+                    "synced": {
+                        "type": "integer"
+                    },
+                    "task_items_upserted": {
+                        "type": "integer"
+                    },
+                    "warnings": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "checked",
+                    "missing",
+                    "removed",
+                    "review_issues_upserted",
+                    "review_rounds_upserted",
+                    "snapshots_upserted",
+                    "synced",
+                    "task_items_upserted"
+                ],
                 "type": "object"
             },
             "WorkspaceResponse": {
@@ -2093,6 +2284,36 @@
                     }
                 },
                 "summary": "Read one run snapshot payload for detail views.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}/transcript": {
+            "get": {
+                "operationId": "getRunTranscript",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunTranscriptPayload"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read the structured assistant transcript for one run.",
                 "tags": ["runs"]
             }
         },
@@ -2598,6 +2819,54 @@
                     }
                 },
                 "summary": "List registered workspaces for browser workspace selection.",
+                "tags": ["workspaces"]
+            }
+        },
+        "/api/workspaces/{id}/ws": {
+            "get": {
+                "operationId": "openWorkspaceSocket",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceID"
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols."
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Open a workspace-scoped WebSocket for browser cache invalidation.",
+                "tags": ["workspaces"]
+            }
+        },
+        "/api/workspaces/sync": {
+            "post": {
+                "operationId": "syncWorkspaces",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkspaceSyncResult"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Refresh workspace filesystem state and sync present workspace artifacts.",
                 "tags": ["workspaces"]
             }
         },

@@ -1,15 +1,16 @@
 import type { ReactElement } from "react";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 
 import {
   Alert,
   AppShell,
-  AppShellBrand,
   AppShellContent,
   AppShellHeader,
   AppShellMain,
   AppShellSidebar,
+  Button,
+  Logo,
   SectionHeading,
   StatusBadge,
 } from "@compozy/ui";
@@ -19,22 +20,26 @@ import type { Workspace } from "../types";
 export interface WorkspacePickerProps {
   workspaces: Workspace[];
   staleWorkspaceId?: string | null;
+  syncError?: string | null;
+  syncMessage?: string | null;
+  isSyncing?: boolean;
   onSelect: (workspaceId: string) => void;
+  onSync?: () => void;
 }
 
 export function WorkspacePicker({
   workspaces,
   staleWorkspaceId,
+  syncError,
+  syncMessage,
+  isSyncing = false,
   onSelect,
+  onSync,
 }: WorkspacePickerProps): ReactElement {
   return (
     <AppShell>
       <AppShellSidebar>
-        <AppShellBrand
-          badge={<StatusBadge tone="accent">daemon</StatusBadge>}
-          detail="localhost · operator runtime"
-          title="Compozy"
-        />
+        <Logo size="sm" variant="full" symbolSrc="/symbol.png" />
         <p className="text-sm leading-6 text-muted-foreground">
           The shell is single-workspace-per-tab. Pick one to attach and the rest of the navigation
           will unlock for this browser tab.
@@ -43,11 +48,24 @@ export function WorkspacePicker({
 
       <AppShellMain>
         <AppShellHeader>
-          <SectionHeading
-            description="Select the workspace the daemon should act on for this browser tab."
-            eyebrow="Select"
-            title="Choose a workspace"
-          />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <SectionHeading
+              description="Select the workspace the daemon should act on for this browser tab."
+              eyebrow="Select"
+              title="Choose a workspace"
+            />
+            {onSync ? (
+              <Button
+                data-testid="workspace-picker-sync"
+                icon={<RefreshCw className="size-4" />}
+                loading={isSyncing}
+                onClick={onSync}
+                variant="secondary"
+              >
+                Refresh workspaces
+              </Button>
+            ) : null}
+          </div>
         </AppShellHeader>
 
         <AppShellContent>
@@ -55,6 +73,18 @@ export function WorkspacePicker({
             <Alert data-testid="workspace-picker-stale" variant="warning">
               Your previously selected workspace is no longer registered with the daemon. Pick a new
               one to continue.
+            </Alert>
+          ) : null}
+
+          {syncMessage ? (
+            <Alert data-testid="workspace-picker-sync-success" variant="success">
+              {syncMessage}
+            </Alert>
+          ) : null}
+
+          {syncError ? (
+            <Alert data-testid="workspace-picker-sync-error" variant="error">
+              {syncError}
             </Alert>
           ) : null}
 
@@ -75,6 +105,26 @@ export function WorkspacePicker({
                     <span className="mt-1 block truncate text-sm font-semibold text-foreground">
                       {workspace.name}
                     </span>
+                    {workspace.filesystem_state === "missing" || workspace.read_only ? (
+                      <span className="mt-2 flex flex-wrap gap-2">
+                        {workspace.filesystem_state === "missing" ? (
+                          <StatusBadge
+                            data-testid={`workspace-picker-missing-${workspace.id}`}
+                            tone="warning"
+                          >
+                            path missing
+                          </StatusBadge>
+                        ) : null}
+                        {workspace.read_only ? (
+                          <StatusBadge
+                            data-testid={`workspace-picker-readonly-${workspace.id}`}
+                            tone="neutral"
+                          >
+                            read-only
+                          </StatusBadge>
+                        ) : null}
+                      </span>
+                    ) : null}
                     <span
                       className="mt-1 block truncate font-mono text-xs text-muted-foreground"
                       title={workspace.root_dir}

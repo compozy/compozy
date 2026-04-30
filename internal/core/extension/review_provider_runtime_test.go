@@ -27,7 +27,7 @@ func TestManagerResolveReviewProviderBridgeCachesNormalizedNames(t *testing.T) {
 
 	manager := &Manager{
 		workspaceRoot:   t.TempDir(),
-		invokingCommand: "start",
+		invokingCommand: invokingCommandFixReviews,
 		reviewProviders: map[string]DeclaredProvider{reviewProviderKey("Demo"): entry},
 		reviewBridges:   make(map[string]*ReviewProviderBridge),
 	}

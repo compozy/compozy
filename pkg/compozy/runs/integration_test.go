@@ -416,6 +416,25 @@ func (s *integrationRunService) Snapshot(_ context.Context, runID string) (apico
 	return snapshot, nil
 }
 
+func (s *integrationRunService) Transcript(_ context.Context, runID string) (apicore.RunTranscript, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snapshot, ok := s.snapshots[runID]
+	if !ok {
+		return apicore.RunTranscript{}, apicore.NewProblem(404, "run_not_found", "run not found", nil, nil)
+	}
+	var nextCursor *apicore.StreamCursor
+	if snapshot.NextCursor != nil {
+		cursor := *snapshot.NextCursor
+		nextCursor = &cursor
+	}
+	return apicore.RunTranscript{
+		RunID:      snapshot.Run.RunID,
+		Messages:   []apicore.RunUIMessage{},
+		NextCursor: nextCursor,
+	}, nil
+}
+
 func (s *integrationRunService) RunDetail(_ context.Context, runID string) (apicore.RunDetailPayload, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -17,9 +17,14 @@ const workspace = {
   id: "ws-1",
   name: "one",
   root_dir: "/tmp/one",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
-};
+} as const;
 
 const workflow = { id: "wf-1", slug: "alpha", workspace_id: "ws-1" };
 
@@ -66,6 +71,7 @@ const payload: ReviewDetailPayload = {
 interface RenderProps {
   onDispatch?: () => void;
   isDispatching?: boolean;
+  isReadOnly?: boolean;
   dispatchError?: string | null;
   dispatchedRun?: ReviewRelatedRun | null;
 }
@@ -81,6 +87,7 @@ async function renderDetail(props: RenderProps = {}) {
           dispatchError={props.dispatchError ?? null}
           dispatchedRun={props.dispatchedRun ?? null}
           isDispatching={props.isDispatching ?? false}
+          isReadOnly={props.isReadOnly ?? false}
           isRefreshing={false}
           onDispatchFix={props.onDispatch ?? (() => {})}
           payload={payload}
@@ -158,6 +165,12 @@ describe("ReviewDetailView", () => {
     const button = screen.getByTestId("review-detail-dispatch-fix") as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(button.textContent ?? "").toContain("Dispatching");
+  });
+
+  it("Should disable dispatch-fix when the workspace is read-only", async () => {
+    await renderDetail({ isReadOnly: true });
+    expect(screen.getByTestId("review-detail-readonly")).toBeInTheDocument();
+    expect(screen.getByTestId("review-detail-dispatch-fix")).toBeDisabled();
   });
 
   it("Should render related runs with run-detail links", async () => {

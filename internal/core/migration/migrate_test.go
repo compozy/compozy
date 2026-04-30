@@ -233,8 +233,11 @@ func TestMigrateConvertsLegacyArtifactsAndIgnoresLegacyGroupedDirectory(t *testi
 	if result.V1ToV2Migrated != 1 {
 		t.Fatalf("expected 1 task to pass through v1->v2, got %d", result.V1ToV2Migrated)
 	}
-	if result.FilesAlreadyFrontmatter != 1 {
-		t.Fatalf("expected 1 already-frontmatter file, got %d", result.FilesAlreadyFrontmatter)
+	if result.FilesAlreadyFrontmatter != 0 {
+		t.Fatalf("expected no already-frontmatter files, got %d", result.FilesAlreadyFrontmatter)
+	}
+	if result.LegacyReviewMetaRemoved != 1 {
+		t.Fatalf("expected 1 legacy review metadata removal, got %d", result.LegacyReviewMetaRemoved)
 	}
 	if !slices.Equal(result.UnmappedTypeFiles, []string{taskPath}) {
 		t.Fatalf("unexpected unmapped type files\nwant: %#v\ngot:  %#v", []string{taskPath}, result.UnmappedTypeFiles)
@@ -260,6 +263,19 @@ func TestMigrateConvertsLegacyArtifactsAndIgnoresLegacyGroupedDirectory(t *testi
 	issueContent := readMigrationFile(t, legacyIssuePath)
 	if strings.Contains(issueContent, "<review_context>") {
 		t.Fatalf("expected migrated issue to remove XML metadata, got:\n%s", issueContent)
+	}
+	for _, want := range []string{
+		"provider: coderabbit",
+		"pr: \"259\"",
+		"round: 1",
+		"round_created_at: 2026-04-01T12:00:00Z",
+	} {
+		if !strings.Contains(issueContent, want) {
+			t.Fatalf("expected migrated issue to include %q, got:\n%s", want, issueContent)
+		}
+	}
+	if _, err := os.Stat(reviews.MetaPath(reviewDir)); !os.IsNotExist(err) {
+		t.Fatalf("expected migrate to remove legacy review _meta.md, got err=%v", err)
 	}
 
 	groupedContent := readMigrationFile(t, groupedPath)
@@ -295,6 +311,57 @@ func TestMigrateDryRunLeavesLegacyArtifactsUnchanged(t *testing.T) {
 	content := readMigrationFile(t, taskPath)
 	if content != legacyTask {
 		t.Fatalf("expected dry-run to leave file unchanged\nwant:\n%s\ngot:\n%s", legacyTask, content)
+	}
+}
+
+func TestMigrateDryRunPlansReviewRoundMetadataBackfillWithoutDeletingMeta(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, workflowDir := makeMigrationWorkspace(t, "demo")
+	reviewDir := filepath.Join(workflowDir, "reviews-001")
+	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
+		t.Fatalf("mkdir review dir: %v", err)
+	}
+	if err := reviews.WriteRoundMeta(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("write round meta: %v", err)
+	}
+	issuePath := filepath.Join(reviewDir, "issue_001.md")
+	writeMigrationFile(t, issuePath, strings.Join([]string{
+		"---",
+		"status: pending",
+		"file: internal/app/service.go",
+		"line: 42",
+		"severity: high",
+		"author: review-bot",
+		"provider_ref: thread:1",
+		"---",
+		"",
+		"# Issue 001: Demo issue",
+		"",
+	}, "\n"))
+	beforeIssue := readMigrationFile(t, issuePath)
+	beforeMeta := readMigrationFile(t, reviews.MetaPath(reviewDir))
+
+	result, err := Migrate(context.Background(), Config{WorkspaceRoot: workspaceRoot, DryRun: true})
+	if err != nil {
+		t.Fatalf("dry-run migrate: %v", err)
+	}
+	if result.FilesMigrated != 1 {
+		t.Fatalf("expected 1 planned review issue migration, got %d", result.FilesMigrated)
+	}
+	if result.LegacyReviewMetaRemoved != 1 {
+		t.Fatalf("expected 1 planned legacy review metadata removal, got %d", result.LegacyReviewMetaRemoved)
+	}
+	if got := readMigrationFile(t, issuePath); got != beforeIssue {
+		t.Fatalf("expected dry-run to leave review issue unchanged\nwant:\n%s\ngot:\n%s", beforeIssue, got)
+	}
+	if got := readMigrationFile(t, reviews.MetaPath(reviewDir)); got != beforeMeta {
+		t.Fatalf("expected dry-run to leave review _meta.md unchanged\nwant:\n%s\ngot:\n%s", beforeMeta, got)
 	}
 }
 

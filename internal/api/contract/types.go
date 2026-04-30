@@ -112,11 +112,19 @@ type DaemonReconcileDiagnostics struct {
 }
 
 type Workspace struct {
-	ID        string    `json:"id"`
-	RootDir   string    `json:"root_dir"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID              string     `json:"id"`
+	RootDir         string     `json:"root_dir"`
+	Name            string     `json:"name"`
+	FilesystemState string     `json:"filesystem_state"`
+	ReadOnly        bool       `json:"read_only"`
+	HasCatalogData  bool       `json:"has_catalog_data"`
+	WorkflowCount   int        `json:"workflow_count"`
+	RunCount        int        `json:"run_count"`
+	LastCheckedAt   *time.Time `json:"last_checked_at,omitempty"`
+	LastSyncedAt    *time.Time `json:"last_sync_at,omitempty"`
+	LastSyncError   string     `json:"last_sync_error,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type WorkspaceRegisterResult struct {
@@ -126,6 +134,18 @@ type WorkspaceRegisterResult struct {
 
 type WorkspaceUpdateInput struct {
 	Name string `json:"name,omitempty"`
+}
+
+type WorkspaceSyncResult struct {
+	Checked              int      `json:"checked"`
+	Removed              int      `json:"removed"`
+	Missing              int      `json:"missing"`
+	Synced               int      `json:"synced"`
+	SnapshotsUpserted    int      `json:"snapshots_upserted"`
+	TaskItemsUpserted    int      `json:"task_items_upserted"`
+	ReviewRoundsUpserted int      `json:"review_rounds_upserted"`
+	ReviewIssuesUpserted int      `json:"review_issues_upserted"`
+	Warnings             []string `json:"warnings,omitempty"`
 }
 
 type WorkflowSummary struct {
@@ -328,6 +348,73 @@ type RunTranscriptMessage struct {
 	Timestamp   time.Time       `json:"timestamp"`
 }
 
+type RunUIMessageRole string
+
+const (
+	RunUIMessageRoleSystem    RunUIMessageRole = "system"
+	RunUIMessageRoleUser      RunUIMessageRole = "user"
+	RunUIMessageRoleAssistant RunUIMessageRole = "assistant"
+)
+
+type RunUIMessagePartType string
+
+const (
+	RunUIMessagePartText         RunUIMessagePartType = "text"
+	RunUIMessagePartReasoning    RunUIMessagePartType = "reasoning"
+	RunUIMessagePartDynamicTool  RunUIMessagePartType = "dynamic-tool"
+	RunUIMessagePartCompozyEvent RunUIMessagePartType = "data-compozy-event"
+	RunUIMessagePartCompozyBlock RunUIMessagePartType = "data-compozy-block"
+)
+
+type RunUIMessagePartState string
+
+const (
+	RunUIMessagePartStateStreaming RunUIMessagePartState = "streaming"
+	RunUIMessagePartStateDone      RunUIMessagePartState = "done"
+)
+
+type RunUIToolPartState string
+
+const (
+	RunUIToolPartStateInputStreaming    RunUIToolPartState = "input-streaming"
+	RunUIToolPartStateInputAvailable    RunUIToolPartState = "input-available"
+	RunUIToolPartStateApprovalRequested RunUIToolPartState = "approval-requested"
+	RunUIToolPartStateOutputAvailable   RunUIToolPartState = "output-available"
+	RunUIToolPartStateOutputError       RunUIToolPartState = "output-error"
+)
+
+type RunUIMessage struct {
+	ID          string             `json:"id"`
+	Role        RunUIMessageRole   `json:"role"`
+	MetadataRaw json.RawMessage    `json:"metadata,omitempty"`
+	Parts       []RunUIMessagePart `json:"parts"`
+}
+
+type RunUIMessagePart struct {
+	Type        RunUIMessagePartType `json:"type"`
+	ID          string               `json:"id,omitempty"`
+	Text        string               `json:"text,omitempty"`
+	State       string               `json:"state,omitempty"`
+	ToolName    string               `json:"toolName,omitempty"`
+	ToolCallID  string               `json:"toolCallId,omitempty"`
+	Title       string               `json:"title,omitempty"`
+	Input       json.RawMessage      `json:"input,omitempty"`
+	RawInput    json.RawMessage      `json:"rawInput,omitempty"`
+	Output      json.RawMessage      `json:"output,omitempty"`
+	ErrorText   string               `json:"errorText,omitempty"`
+	Data        json.RawMessage      `json:"data,omitempty"`
+	Preliminary bool                 `json:"preliminary,omitempty"`
+}
+
+type RunTranscript struct {
+	RunID             string              `json:"run_id"`
+	Messages          []RunUIMessage      `json:"messages"`
+	Session           SessionViewSnapshot `json:"session,omitempty"`
+	Incomplete        bool                `json:"incomplete,omitempty"`
+	IncompleteReasons []string            `json:"incomplete_reasons,omitempty"`
+	NextCursor        *StreamCursor       `json:"-"`
+}
+
 type RunShutdownState struct {
 	Phase       string    `json:"phase,omitempty"`
 	Source      string    `json:"source,omitempty"`
@@ -447,6 +534,15 @@ type RunSnapshotResponse struct {
 	NextCursor        string                 `json:"next_cursor,omitempty"`
 }
 
+type RunTranscriptResponse struct {
+	RunID             string              `json:"run_id"`
+	Messages          []RunUIMessage      `json:"messages"`
+	Session           SessionViewSnapshot `json:"session,omitempty"`
+	Incomplete        bool                `json:"incomplete,omitempty"`
+	IncompleteReasons []string            `json:"incomplete_reasons,omitempty"`
+	NextCursor        string              `json:"next_cursor,omitempty"`
+}
+
 type RunEventPageResponse struct {
 	Events     []events.Event `json:"events"`
 	NextCursor string         `json:"next_cursor,omitempty"`
@@ -487,6 +583,39 @@ func (r RunSnapshotResponse) Decode() (RunSnapshot, error) {
 		snapshot.NextCursor = &nextCursor
 	}
 	return snapshot, nil
+}
+
+func RunTranscriptResponseFromTranscript(transcript RunTranscript) RunTranscriptResponse {
+	messages := transcript.Messages
+	if messages == nil {
+		messages = []RunUIMessage{}
+	}
+	return RunTranscriptResponse{
+		RunID:             transcript.RunID,
+		Messages:          messages,
+		Session:           transcript.Session,
+		Incomplete:        transcript.Incomplete,
+		IncompleteReasons: append([]string(nil), transcript.IncompleteReasons...),
+		NextCursor:        FormatCursorPointer(transcript.NextCursor),
+	}
+}
+
+func (r RunTranscriptResponse) Decode() (RunTranscript, error) {
+	nextCursor, err := ParseCursor(r.NextCursor)
+	if err != nil {
+		return RunTranscript{}, fmt.Errorf("decode transcript cursor: %w", err)
+	}
+	transcript := RunTranscript{
+		RunID:             r.RunID,
+		Messages:          append([]RunUIMessage(nil), r.Messages...),
+		Session:           r.Session,
+		Incomplete:        r.Incomplete,
+		IncompleteReasons: append([]string(nil), r.IncompleteReasons...),
+	}
+	if nextCursor.Sequence > 0 {
+		transcript.NextCursor = &nextCursor
+	}
+	return transcript, nil
 }
 
 func RunEventPageResponseFromPage(page RunEventPage) RunEventPageResponse {

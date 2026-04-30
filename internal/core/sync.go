@@ -39,8 +39,58 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		_ = db.Close()
 	}()
 
+	return syncResolvedTarget(ctx, db, workspace.ID, target, singleWorkflow, result)
+}
+
+// SyncWithDB reconciles workflow artifacts into an already-open global.db.
+func SyncWithDB(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	cfg SyncConfig,
+) (*SyncResult, error) {
+	target, singleWorkflow, err := resolveSyncTarget(cfg)
+	result := &SyncResult{Target: target}
+	if err != nil {
+		return result, err
+	}
+	if db == nil {
+		return result, errors.New("sync database is required")
+	}
+	workspaceID := strings.TrimSpace(workspace.ID)
+	if workspaceID == "" {
+		return result, errors.New("sync workspace id is required")
+	}
+	if !syncTargetBelongsToWorkspace(target, workspace.RootDir) {
+		return result, fmt.Errorf("mismatched workspace and sync target: %s is outside %s", target, workspace.RootDir)
+	}
+	return syncResolvedTarget(ctx, db, workspaceID, target, singleWorkflow, result)
+}
+
+func syncTargetBelongsToWorkspace(target string, workspaceRoot string) bool {
+	root := strings.TrimSpace(workspaceRoot)
+	if root == "" {
+		return false
+	}
+	tasksRoot := filepath.Clean(model.TasksBaseDirForWorkspace(root))
+	cleanTarget := filepath.Clean(strings.TrimSpace(target))
+	rel, err := filepath.Rel(tasksRoot, cleanTarget)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+func syncResolvedTarget(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	target string,
+	singleWorkflow bool,
+	result *SyncResult,
+) (*SyncResult, error) {
 	if singleWorkflow {
-		if err := syncWorkflow(ctx, db, workspace.ID, target, result); err != nil {
+		if err := syncWorkflow(ctx, db, workspaceID, target, result); err != nil {
 			return result, err
 		}
 		sortSyncResult(result)
@@ -58,7 +108,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		if !entry.IsDir() || !model.IsActiveWorkflowDirName(entry.Name()) {
 			continue
 		}
-		if err := syncWorkflow(ctx, db, workspace.ID, filepath.Join(target, entry.Name()), result); err != nil {
+		if err := syncWorkflow(ctx, db, workspaceID, filepath.Join(target, entry.Name()), result); err != nil {
 			return result, err
 		}
 	}
@@ -205,7 +255,7 @@ func collectArtifactSnapshots(tasksDir string) ([]globaldb.ArtifactSnapshotInput
 			return fmt.Errorf("resolve relative artifact path for %s: %w", path, err)
 		}
 		relativePath = filepath.ToSlash(relativePath)
-		if relativePath == "_meta.md" {
+		if relativePath == "_meta.md" || isReviewRoundMetaPath(relativePath) {
 			return nil
 		}
 
@@ -282,8 +332,6 @@ func classifyArtifactKind(relativePath string) string {
 		return "adr"
 	case strings.HasPrefix(clean, "memory/"):
 		return "memory"
-	case isReviewRoundMetaPath(clean):
-		return "review_round_meta"
 	case isReviewIssuePath(clean):
 		return "review_issue"
 	case strings.HasPrefix(clean, "qa/"):
@@ -332,14 +380,16 @@ func collectTaskItems(tasksDir string) ([]globaldb.TaskItemInput, error) {
 		if taskNumber == 0 {
 			return nil, fmt.Errorf("invalid task file name %q", entry.Name)
 		}
+		sourcePath := filepath.ToSlash(entry.Name)
+		taskID := strings.TrimSuffix(filepath.Base(sourcePath), filepath.Ext(sourcePath))
 		taskItems = append(taskItems, globaldb.TaskItemInput{
 			TaskNumber: taskNumber,
-			TaskID:     fmt.Sprintf("task_%d", taskNumber),
+			TaskID:     taskID,
 			Title:      task.Title,
 			Status:     strings.ToLower(strings.TrimSpace(task.Status)),
 			Kind:       task.TaskType,
 			DependsOn:  append([]string(nil), task.Dependencies...),
-			SourcePath: filepath.ToSlash(entry.Name),
+			SourcePath: sourcePath,
 		})
 	}
 	return taskItems, nil
@@ -354,9 +404,9 @@ func collectReviewRounds(tasksDir string) ([]globaldb.ReviewRoundInput, error) {
 	rounds := make([]globaldb.ReviewRoundInput, 0, len(roundNumbers))
 	for _, roundNumber := range roundNumbers {
 		reviewDir := reviews.ReviewDirectory(tasksDir, roundNumber)
-		roundMeta, err := reviews.ReadRoundMeta(reviewDir)
+		roundMeta, err := reviews.SnapshotRoundMeta(reviewDir)
 		if err != nil {
-			return nil, fmt.Errorf("read review round metadata %s: %w", reviewDir, err)
+			return nil, fmt.Errorf("snapshot review round metadata %s: %w", reviewDir, err)
 		}
 		if roundMeta.Round != 0 && roundMeta.Round != roundNumber {
 			return nil, fmt.Errorf(

@@ -6,18 +6,22 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 )
 
-func TestBuildConfigStartAlwaysEnablesExecutableExtensions(t *testing.T) {
+func TestBuildConfigTasksRunAlwaysEnablesExecutableExtensions(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	t.Run("Should enable executable extensions for tasks run", func(t *testing.T) {
+		t.Parallel()
 
-	cfg, err := state.buildConfig()
-	if err != nil {
-		t.Fatalf("buildConfig: %v", err)
-	}
-	if !cfg.EnableExecutableExtensions {
-		t.Fatal("expected start config to enable executable extensions")
-	}
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+
+		cfg, err := state.buildConfig()
+		if err != nil {
+			t.Fatalf("buildConfig: %v", err)
+		}
+		if !cfg.EnableExecutableExtensions {
+			t.Fatal("expected tasks run config to enable executable extensions")
+		}
+	})
 }
 
 func TestBuildConfigFixReviewsAlwaysEnablesExecutableExtensions(t *testing.T) {

@@ -1,11 +1,20 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { useQuery } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createTestQueryClient, installFetchStub, matchPath, withQuery } from "@/test/utils";
+import {
+  createTestQueryClient,
+  flushAsync,
+  installFetchStub,
+  matchPath,
+  withQuery,
+} from "@/test/utils";
+import { WORKSPACE_STORAGE_KEY } from "@/lib/session-storage";
 
 import { resetActiveWorkspaceStoreForTests } from "../stores/active-workspace-store";
+import { useActiveWorkspaceStore } from "../stores/active-workspace-store";
 import type { Workspace } from "../types";
 import { AppShellContainer } from "./app-shell-container";
 import { useActiveWorkspaceContext } from "../lib/active-workspace-context";
@@ -14,6 +23,11 @@ const workspaceOne: Workspace = {
   id: "ws-1",
   name: "one",
   root_dir: "/tmp/one",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -22,6 +36,11 @@ const workspaceTwo: Workspace = {
   id: "ws-2",
   name: "two",
   root_dir: "/tmp/two",
+  filesystem_state: "present",
+  read_only: false,
+  has_catalog_data: true,
+  workflow_count: 1,
+  run_count: 0,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -29,6 +48,38 @@ const workspaceTwo: Workspace = {
 function ContextProbe(): ReactElement {
   const context = useActiveWorkspaceContext();
   return <p data-testid="probe-active">{context.activeWorkspace.id}</p>;
+}
+
+function StaleWorkspaceQueryProbe({
+  workspaceId = "ws-1",
+}: {
+  workspaceId?: string;
+}): ReactElement {
+  useQuery({
+    queryKey: ["stale-workspace-probe", workspaceId],
+    queryFn: async (): Promise<string> => {
+      throw { code: "workspace_context_stale", message: "stale" };
+    },
+  });
+  return <ContextProbe />;
+}
+
+function DeepStaleWorkspaceQueryProbe(): ReactElement {
+  useQuery({
+    queryKey: ["stale-workspace-probe", nestedValue("ws-1", 24)],
+    queryFn: async (): Promise<string> => {
+      throw { code: "workspace_context_stale", message: "stale" };
+    },
+  });
+  return <ContextProbe />;
+}
+
+function nestedValue(value: unknown, depth: number): unknown {
+  let current = value;
+  for (let index = 0; index < depth; index += 1) {
+    current = { nested: current };
+  }
+  return current;
 }
 
 describe("AppShellContainer", () => {
@@ -113,5 +164,78 @@ describe("AppShellContainer", () => {
       { wrapper: withQuery(createTestQueryClient()) }
     );
     expect(await screen.findByTestId("app-shell-error")).toBeInTheDocument();
+  });
+
+  it("Should clear the active workspace when a child query reports stale workspace context", async () => {
+    window.sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-1");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws-1" });
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    render(
+      <AppShellContainer>
+        <StaleWorkspaceQueryProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+
+    expect(await screen.findByTestId("workspace-picker-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("probe-active")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBeNull();
+  });
+
+  it("Should ignore stale workspace errors from an inactive workspace query", async () => {
+    window.sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-2");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws-2" });
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    render(
+      <AppShellContainer>
+        <StaleWorkspaceQueryProbe workspaceId="ws-1" />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+
+    expect(await screen.findByTestId("probe-active")).toHaveTextContent("ws-2");
+    expect(screen.queryByTestId("workspace-picker-stale")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe("ws-2");
+  });
+
+  it("Should ignore workspace ids beyond the stale-query search depth limit", async () => {
+    window.sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-1");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws-1" });
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    render(
+      <AppShellContainer>
+        <DeepStaleWorkspaceQueryProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+
+    expect(await screen.findByTestId("probe-active")).toHaveTextContent("ws-1");
+    await flushAsync();
+    expect(screen.queryByTestId("workspace-picker-stale")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBe("ws-1");
   });
 });

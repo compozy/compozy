@@ -182,6 +182,14 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		if len(workflowsAfterArchive) != 1 || workflowsAfterArchive[0].ArchivedAt == nil {
 			t.Fatalf("unexpected workflows after archive: %#v", workflowsAfterArchive)
 		}
+
+		detail, err := service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_01")
+		if err != nil {
+			t.Fatalf("TaskDetail(archived workflow) error = %v", err)
+		}
+		if detail.Task.Title != "Transport task" || detail.Document.Title != "Transport task" {
+			t.Fatalf("unexpected archived task detail: %#v", detail)
+		}
 	})
 
 	t.Run("Should report unavailable workflow listing and archiving without a database", func(t *testing.T) {

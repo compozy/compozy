@@ -164,7 +164,7 @@ func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
 		t.Fatalf("Register() error = %v", err)
 	}
 
-	now := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	for _, item := range []struct {
 		runID   string
 		status  string

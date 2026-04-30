@@ -239,6 +239,9 @@ func loadConfigFile(
 		}
 		return ProjectConfig{}, false, fmt.Errorf("read %s: %w", scope, err)
 	}
+	if err := rejectLegacyConfigSections(content, scope); err != nil {
+		return ProjectConfig{}, true, err
+	}
 
 	var cfg ProjectConfig
 	decoder := toml.NewDecoder(bytes.NewReader(content)).DisallowUnknownFields()
@@ -254,6 +257,17 @@ func loadConfigFile(
 		return ProjectConfig{}, true, err
 	}
 	return cfg, true, nil
+}
+
+func rejectLegacyConfigSections(content []byte, scope string) error {
+	var raw map[string]any
+	if err := toml.Unmarshal(content, &raw); err != nil {
+		return nil
+	}
+	if _, ok := raw["start"]; ok {
+		return fmt.Errorf("%s section [start] was removed; use [tasks.run] instead", scope)
+	}
+	return nil
 }
 
 func (p configPaths) effectivePath() string {

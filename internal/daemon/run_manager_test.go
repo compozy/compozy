@@ -116,89 +116,288 @@ func TestRunManagerCancelTaskRunMirrorsTerminalStateAndIsIdempotent(t *testing.T
 }
 
 func TestRunManagerSnapshotIncludesJobsTranscriptAndNextCursor(t *testing.T) {
-	executed := make(chan string, 1)
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
-			return &model.SolvePreparation{}, nil
-		},
-		execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
-			if err != nil {
-				return err
-			}
+	t.Run("Should include jobs transcript and next cursor", func(t *testing.T) {
+		executed := make(chan string, 1)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+				if err != nil {
+					return err
+				}
 
-			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobQueued, kinds.JobQueuedPayload{
-				Index:     1,
-				SafeName:  "job-001",
-				TaskTitle: "daemon-run-manager",
-			})
-			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
-				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
-			})
-			textBlock, err := kinds.NewContentBlock(kinds.TextBlock{Text: "hello from daemon attach"})
-			if err != nil {
-				return err
-			}
-			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindSessionUpdate, kinds.SessionUpdatePayload{
-				Index: 1,
-				Update: kinds.SessionUpdate{
-					Kind:   kinds.UpdateKindAgentMessageChunk,
-					Status: kinds.StatusRunning,
-					Blocks: []kinds.ContentBlock{textBlock},
-				},
-			})
-			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobCompleted, kinds.JobCompletedPayload{
-				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
-			})
-			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindRunCompleted, kinds.RunCompletedPayload{
-				ArtifactsDir:   runArtifacts.RunDir,
-				ResultPath:     runArtifacts.ResultPath,
-				SummaryMessage: "completed for snapshot",
-			})
-			executed <- cfg.RunID
-			return nil
-		},
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobQueued, kinds.JobQueuedPayload{
+					Index:     1,
+					SafeName:  "job-001",
+					TaskTitle: "daemon-run-manager",
+				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
+				})
+				textBlock, err := kinds.NewContentBlock(kinds.TextBlock{Text: "hello from daemon attach"})
+				if err != nil {
+					return err
+				}
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:   kinds.UpdateKindAgentMessageChunk,
+							Status: kinds.StatusRunning,
+							Blocks: []kinds.ContentBlock{textBlock},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindJobCompleted,
+					kinds.JobCompletedPayload{
+						JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindRunCompleted,
+					kinds.RunCompletedPayload{
+						ArtifactsDir:   runArtifacts.RunDir,
+						ResultPath:     runArtifacts.ResultPath,
+						SummaryMessage: "completed for snapshot",
+					},
+				)
+				executed <- cfg.RunID
+				return nil
+			},
+		})
+
+		run := env.startTaskRun(t, "task-run-snapshot", nil)
+		waitForString(t, executed, run.RunID)
+		waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+
+		snapshot, err := env.manager.Snapshot(context.Background(), run.RunID)
+		if err != nil {
+			t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
+		}
+		if snapshot.Run.Mode != runModeTask {
+			t.Fatalf("snapshot mode = %q, want %q", snapshot.Run.Mode, runModeTask)
+		}
+		if len(snapshot.Jobs) != 1 {
+			t.Fatalf("len(snapshot.Jobs) = %d, want 1", len(snapshot.Jobs))
+		}
+		if snapshot.Jobs[0].Status != "completed" {
+			t.Fatalf("snapshot job status = %q, want completed", snapshot.Jobs[0].Status)
+		}
+		if len(snapshot.Transcript) != 1 {
+			t.Fatalf("len(snapshot.Transcript) = %d, want 1", len(snapshot.Transcript))
+		}
+		if snapshot.Transcript[0].Content != "hello from daemon attach" {
+			t.Fatalf("transcript content = %q, want agent text", snapshot.Transcript[0].Content)
+		}
+		if snapshot.NextCursor == nil || snapshot.NextCursor.Sequence == 0 {
+			t.Fatalf("NextCursor = %#v, want persisted cursor", snapshot.NextCursor)
+		}
+
+		page, err := env.manager.Events(context.Background(), run.RunID, apicore.RunEventPageQuery{})
+		if err != nil {
+			t.Fatalf("Events(%q) error = %v", run.RunID, err)
+		}
+		if len(page.Events) < 5 {
+			t.Fatalf("len(page.Events) = %d, want at least 5", len(page.Events))
+		}
+		if page.NextCursor == nil || page.NextCursor.Sequence == 0 {
+			t.Fatalf("Events.NextCursor = %#v, want non-zero cursor", page.NextCursor)
+		}
 	})
+}
 
-	run := env.startTaskRun(t, "task-run-snapshot", nil)
-	waitForString(t, executed, run.RunID)
-	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return row.Status == runStatusCompleted
+func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testing.T) {
+	t.Run("Should use compact projection for historical snapshot and transcript", func(t *testing.T) {
+		executed := make(chan string, 1)
+		const obsoleteOutput = "obsolete streamed output"
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+				if err != nil {
+					return err
+				}
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobQueued, kinds.JobQueuedPayload{
+					Index:    0,
+					SafeName: "batch_001",
+					IDE:      "codex",
+				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+					IDE:            "codex",
+				})
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 0,
+						Update: kinds.SessionUpdate{
+							Kind:       kinds.UpdateKindToolCallStarted,
+							Status:     kinds.StatusRunning,
+							ToolCallID: "tool-1",
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerToolUseBlock(t, "tool-1", "Bash", `{"command":"make verify"}`),
+							},
+						},
+					},
+				)
+				for range 3 {
+					submitEvent(
+						ctx,
+						t,
+						prep.Journal(),
+						cfg.RunID,
+						eventspkg.EventKindSessionUpdate,
+						kinds.SessionUpdatePayload{
+							Index: 0,
+							Update: kinds.SessionUpdate{
+								Kind:       kinds.UpdateKindToolCallUpdated,
+								Status:     kinds.StatusRunning,
+								ToolCallID: "tool-1",
+								Blocks: []kinds.ContentBlock{
+									mustRunManagerToolResultBlock(
+										t,
+										"tool-1",
+										obsoleteOutput+strings.Repeat("x", maxSnapshotTranscriptBytes),
+									),
+								},
+							},
+						},
+					)
+				}
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 0,
+						Update: kinds.SessionUpdate{
+							Kind:       kinds.UpdateKindToolCallUpdated,
+							Status:     kinds.StatusCompleted,
+							ToolCallID: "tool-1",
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerToolResultBlock(t, "tool-1", "final output"),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 0,
+						Update: kinds.SessionUpdate{
+							Kind:   kinds.UpdateKindAgentMessageChunk,
+							Status: kinds.StatusCompleted,
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerTextBlock(t, "done"),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindJobCompleted,
+					kinds.JobCompletedPayload{
+						JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindRunCompleted,
+					kinds.RunCompletedPayload{
+						ArtifactsDir:   runArtifacts.RunDir,
+						ResultPath:     runArtifacts.ResultPath,
+						SummaryMessage: "completed for compact projection",
+					},
+				)
+				executed <- cfg.RunID
+				return nil
+			},
+		})
+
+		run := env.startTaskRun(t, "task-run-compact-history", nil)
+		waitForString(t, executed, run.RunID)
+		waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+
+		snapshot, err := env.manager.Snapshot(context.Background(), run.RunID)
+		if err != nil {
+			t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
+		}
+		if len(snapshot.Jobs) != 1 || snapshot.Jobs[0].Status != runStatusCompleted {
+			t.Fatalf("snapshot jobs = %#v, want one completed job", snapshot.Jobs)
+		}
+		if snapshot.Jobs[0].Summary == nil {
+			t.Fatal("snapshot job summary = nil, want compact lifecycle metadata")
+		}
+		if entries := snapshot.Jobs[0].Summary.Session.Entries; len(entries) != 0 {
+			t.Fatalf(
+				"historical snapshot session entries = %d, want compact summary without dense entries",
+				len(entries),
+			)
+		}
+		snapshotJSON, err := json.Marshal(snapshot)
+		if err != nil {
+			t.Fatalf("json.Marshal(snapshot) error = %v", err)
+		}
+		if strings.Contains(string(snapshotJSON), obsoleteOutput) {
+			t.Fatal("snapshot payload retained superseded large tool output")
+		}
+
+		transcript, err := env.manager.Transcript(context.Background(), run.RunID)
+		if err != nil {
+			t.Fatalf("Transcript(%q) error = %v", run.RunID, err)
+		}
+		transcriptJSON, err := json.Marshal(transcript)
+		if err != nil {
+			t.Fatalf("json.Marshal(transcript) error = %v", err)
+		}
+		transcriptPayload := string(transcriptJSON)
+		for _, want := range []string{"make verify", "final output", "done"} {
+			if !strings.Contains(transcriptPayload, want) {
+				t.Fatalf("transcript payload missing %q: %s", want, transcriptPayload)
+			}
+		}
+		if strings.Contains(transcriptPayload, obsoleteOutput) {
+			t.Fatal("transcript payload retained superseded large tool output")
+		}
 	})
-
-	snapshot, err := env.manager.Snapshot(context.Background(), run.RunID)
-	if err != nil {
-		t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
-	}
-	if snapshot.Run.Mode != runModeTask {
-		t.Fatalf("snapshot mode = %q, want %q", snapshot.Run.Mode, runModeTask)
-	}
-	if len(snapshot.Jobs) != 1 {
-		t.Fatalf("len(snapshot.Jobs) = %d, want 1", len(snapshot.Jobs))
-	}
-	if snapshot.Jobs[0].Status != "completed" {
-		t.Fatalf("snapshot job status = %q, want completed", snapshot.Jobs[0].Status)
-	}
-	if len(snapshot.Transcript) != 1 {
-		t.Fatalf("len(snapshot.Transcript) = %d, want 1", len(snapshot.Transcript))
-	}
-	if snapshot.Transcript[0].Content != "hello from daemon attach" {
-		t.Fatalf("transcript content = %q, want agent text", snapshot.Transcript[0].Content)
-	}
-	if snapshot.NextCursor == nil || snapshot.NextCursor.Sequence == 0 {
-		t.Fatalf("NextCursor = %#v, want persisted cursor", snapshot.NextCursor)
-	}
-
-	page, err := env.manager.Events(context.Background(), run.RunID, apicore.RunEventPageQuery{})
-	if err != nil {
-		t.Fatalf("Events(%q) error = %v", run.RunID, err)
-	}
-	if len(page.Events) < 5 {
-		t.Fatalf("len(page.Events) = %d, want at least 5", len(page.Events))
-	}
-	if page.NextCursor == nil || page.NextCursor.Sequence == 0 {
-		t.Fatalf("Events.NextCursor = %#v, want non-zero cursor", page.NextCursor)
-	}
 }
 
 func TestRunManagerModeSpecificStartsProduceSharedLifecycleContract(t *testing.T) {
@@ -495,6 +694,50 @@ func TestRunManagerAllowsConcurrentDistinctRunIDsAndStreamsLiveEvents(t *testing
 	if second.Event == nil || second.Event.Kind != eventspkg.EventKindRunCompleted {
 		t.Fatalf("second stream item = %#v, want run.completed", second)
 	}
+}
+
+func TestRunManagerWorkspaceStreamFiltersAndDeliversEvents(t *testing.T) {
+	t.Run("Should filter and deliver workspace events", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
+		}
+
+		stream, err := env.manager.OpenWorkspaceStream(context.Background(), workspace.ID)
+		if err != nil {
+			t.Fatalf("OpenWorkspaceStream() error = %v", err)
+		}
+		defer func() {
+			_ = stream.Close()
+		}()
+
+		env.manager.publishWorkspaceEvent(context.Background(), apicore.WorkspaceEvent{
+			WorkspaceID:  "other-workspace",
+			Kind:         apicore.WorkspaceEventKindRunStatusChanged,
+			RunID:        "ignored",
+			WorkflowSlug: env.workflowSlug,
+		})
+		env.manager.publishWorkspaceEvent(context.Background(), apicore.WorkspaceEvent{
+			WorkspaceID:  workspace.ID,
+			Kind:         apicore.WorkspaceEventKindRunStatusChanged,
+			RunID:        "run-1",
+			WorkflowSlug: env.workflowSlug,
+			Status:       runStatusRunning,
+		})
+
+		item := waitForWorkspaceStreamItem(t, stream.Events())
+		if item.Event == nil {
+			t.Fatalf("workspace stream item = %#v, want event", item)
+		}
+		if item.Event.WorkspaceID != workspace.ID ||
+			item.Event.RunID != "run-1" ||
+			item.Event.Kind != apicore.WorkspaceEventKindRunStatusChanged ||
+			item.Event.Seq == 0 ||
+			item.Event.TS.IsZero() {
+			t.Fatalf("unexpected workspace event: %#v", item.Event)
+		}
+	})
 }
 
 func TestRunManagerRunDBCacheReusesSingleHandleAndEvictsIdleEntries(t *testing.T) {
@@ -1159,7 +1402,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}, "defaults"); err != nil {
 			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
 		}
-		applyTaskProjectConfig(cfg, workspacecfg.StartConfig{
+		applyTaskProjectConfig(cfg, workspacecfg.TaskRunConfig{
 			IncludeCompleted: boolPtr(true),
 			OutputFormat:     stringPtr(string(model.OutputFormatRawJSON)),
 			TaskRuntimeRules: &rules,
@@ -2159,6 +2402,43 @@ func rawJSON(t *testing.T, value string) json.RawMessage {
 	return json.RawMessage(value)
 }
 
+func mustRunManagerTextBlock(t *testing.T, text string) kinds.ContentBlock {
+	t.Helper()
+
+	block, err := kinds.NewContentBlock(kinds.TextBlock{Text: text})
+	if err != nil {
+		t.Fatalf("NewContentBlock(text): %v", err)
+	}
+	return block
+}
+
+func mustRunManagerToolUseBlock(t *testing.T, id string, name string, input string) kinds.ContentBlock {
+	t.Helper()
+
+	block, err := kinds.NewContentBlock(kinds.ToolUseBlock{
+		ID:    id,
+		Name:  name,
+		Input: json.RawMessage(input),
+	})
+	if err != nil {
+		t.Fatalf("NewContentBlock(tool use): %v", err)
+	}
+	return block
+}
+
+func mustRunManagerToolResultBlock(t *testing.T, id string, content string) kinds.ContentBlock {
+	t.Helper()
+
+	block, err := kinds.NewContentBlock(kinds.ToolResultBlock{
+		ToolUseID: id,
+		Content:   content,
+	})
+	if err != nil {
+		t.Fatalf("NewContentBlock(tool result): %v", err)
+	}
+	return block
+}
+
 func submitEvent(
 	ctx context.Context,
 	t *testing.T,
@@ -2295,6 +2575,21 @@ func waitForStreamItem(t *testing.T, ch <-chan apicore.RunStreamItem) apicore.Ru
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for stream item")
 		return apicore.RunStreamItem{}
+	}
+}
+
+func waitForWorkspaceStreamItem(
+	t *testing.T,
+	ch <-chan apicore.WorkspaceStreamItem,
+) apicore.WorkspaceStreamItem {
+	t.Helper()
+
+	select {
+	case item := <-ch:
+		return item
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for workspace stream item")
+		return apicore.WorkspaceStreamItem{}
 	}
 }
 
@@ -2552,6 +2847,10 @@ func daemonReviewRoundMetaBody(provider string, pr string, round int) string {
 func daemonReviewIssueBody(status string, severity string) string {
 	return strings.Join([]string{
 		"---",
+		"provider: coderabbit",
+		"pr: \"123\"",
+		"round: 1",
+		"round_created_at: 2026-04-17T20:00:00Z",
 		"status: " + status,
 		"file: internal/app/service.go",
 		"line: 42",

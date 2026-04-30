@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 type documentReader struct {
@@ -140,6 +142,34 @@ func normalizeMarkdownDocument(
 	return doc, nil
 }
 
+func markdownDocumentFromSnapshot(
+	snapshot globaldb.ArtifactSnapshotRow,
+	kind string,
+	id string,
+) (MarkdownDocument, error) {
+	metadata := make(map[string]any)
+	frontmatterJSON := strings.TrimSpace(snapshot.FrontmatterJSON)
+	if frontmatterJSON != "" && frontmatterJSON != "{}" {
+		if err := json.Unmarshal([]byte(frontmatterJSON), &metadata); err != nil {
+			return MarkdownDocument{}, fmt.Errorf(
+				"daemon: parse snapshot front matter %q: %w",
+				snapshot.RelativePath,
+				err,
+			)
+		}
+	}
+	markdown := snapshot.BodyText
+	doc := MarkdownDocument{
+		ID:        strings.TrimSpace(id),
+		Kind:      strings.TrimSpace(kind),
+		Title:     documentTitle(snapshot.RelativePath, kind, metadata, markdown),
+		UpdatedAt: snapshot.SourceMTime.UTC(),
+		Markdown:  markdown,
+		Metadata:  cloneMetadataMap(metadata),
+	}
+	return doc, nil
+}
+
 func readMarkdownDir(root string) ([]markdownDirEntry, error) {
 	cleanRoot := filepath.Clean(strings.TrimSpace(root))
 	if cleanRoot == "." || cleanRoot == "" {
@@ -241,7 +271,7 @@ func documentTitle(path string, kind string, metadata map[string]any, markdown s
 	if title := metadataString(metadata, "title"); title != "" {
 		return title
 	}
-	if strings.EqualFold(strings.TrimSpace(kind), runModeTask) {
+	if strings.EqualFold(strings.TrimSpace(kind), markdownDocumentKindTask) {
 		if title := taskscore.ExtractTaskBodyTitle(markdown); title != "" {
 			return title
 		}

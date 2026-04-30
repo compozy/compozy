@@ -235,7 +235,8 @@ func writeWorkspaceListOutput(cmd *cobra.Command, format string, workspaces []ap
 	if _, err := fmt.Fprintln(cmd.OutOrStdout(), "id\tname\troot_dir"); err != nil {
 		return withExitCode(2, fmt.Errorf("write workspace list header row: %w", err))
 	}
-	for _, workspace := range workspaces {
+	for idx := range workspaces {
+		workspace := &workspaces[idx]
 		if _, err := fmt.Fprintf(
 			cmd.OutOrStdout(),
 			"%s\t%s\t%s\n",
@@ -320,7 +321,8 @@ func resolveWorkspaceRouteRef(ctx context.Context, client daemonCommandClient, r
 	}
 
 	cleanRoot := filepath.Clean(rootDir)
-	for _, workspace := range workspaces {
+	for idx := range workspaces {
+		workspace := &workspaces[idx]
 		if filepath.Clean(workspace.RootDir) == cleanRoot {
 			return workspace.ID, nil
 		}

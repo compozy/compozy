@@ -24,6 +24,7 @@ type MigrationResult struct {
 	FilesScanned            int
 	FilesMigrated           int
 	V1ToV2Migrated          int
+	LegacyReviewMetaRemoved int
 	FilesAlreadyFrontmatter int
 	FilesSkipped            int
 	FilesInvalid            int

@@ -441,7 +441,7 @@ func isRelevantWorkflowArtifact(relativePath string) bool {
 			topLevel = clean[:idx]
 		}
 		if strings.HasPrefix(topLevel, "reviews-") {
-			return filepath.Base(clean) == "_meta.md" || reviews.ExtractIssueNumber(filepath.Base(clean)) > 0
+			return reviews.ExtractIssueNumber(filepath.Base(clean)) > 0
 		}
 		return false
 	}

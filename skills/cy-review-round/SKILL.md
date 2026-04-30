@@ -53,6 +53,10 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
      ```
      ---
+     provider: manual
+     pr:
+     round: <N>
+     round_created_at: <UTC timestamp in RFC3339 format>
      status: pending
      file: path/to/file.go
      line: 42
@@ -75,32 +79,13 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
    - The `<author>` field must be `claude-code`.
    - The `provider_ref` field must be empty.
-   - The `severity` field must be exactly one of: `critical`, `high`, `medium`, `low`.
-
-5. Generate the round metadata file.
-   - Write `_meta.md` in the review round directory with this format:
-
-     ```
-     ---
-     provider: manual
-     pr:
-     round: <N>
-     created_at: <UTC timestamp in RFC3339 format>
-     ---
-
-     ## Summary
-     - Total: <number of issue files>
-     - Resolved: 0
-     - Unresolved: <same as Total>
-     ```
-
    - The `provider` field must be `manual`.
    - The `pr` field is empty for manual reviews. If the user provides a PR number, include it.
    - The `round` field must match the directory number as an integer (not zero-padded).
-   - The `created_at` field must use the current UTC time in RFC3339 format.
-   - The counts must accurately reflect the number of issue files written.
+   - The `round_created_at` field must use the same current UTC RFC3339 timestamp in every issue in this round.
+   - The `severity` field must be exactly one of: `critical`, `high`, `medium`, `low`.
 
-6. Summarize and present the review.
+5. Summarize and present the review.
    - Print a summary listing:
      - **Merge recommendation**: If any critical or high issues exist, state "Needs fixes before merge" with the blocking issues. If only medium/low issues exist, state "Safe to merge with follow-ups." If no issues, state "Clean — ready to merge."
      - Total issues found, broken down by severity (critical, high, medium, low).
@@ -109,10 +94,10 @@ Perform a structured code review of a PRD implementation and produce a review ro
      - Well-implemented aspects observed during the review.
    - Suggest running `compozy reviews fix <name>` to process the review round.
 
-7. Verify before completion.
+6. Verify before completion.
    - Use installed `cy-final-verify` before claiming the review round is complete.
    - Read back each generated issue file and verify the frontmatter parses correctly.
-   - Verify `_meta.md` has correct counts matching the actual number of issue files.
+   - Verify every issue file in the round has matching `provider`, `pr`, `round`, and `round_created_at` values.
    - Confirm the review round directory follows the `reviews-NNN` naming convention.
 
 ## Critical Rules
@@ -120,7 +105,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
 - Do not fix the issues found. This skill only identifies and documents issues. The `cy-fix-reviews` workflow handles remediation.
 - Do not create issue files for problems that linters or formatters already catch.
 - Every issue file must have valid YAML frontmatter parseable by `prompt.ParseReviewContext()`.
-- The `_meta.md` must be parseable by `reviews.ReadRoundMeta()`.
+- Do not create or maintain review `_meta.md`; round metadata lives in each issue file frontmatter.
 - Do not create empty review rounds. If no issues are found, report a clean review and do not create the round directory.
 - Do not modify any source code files. This is a review-only skill.
 - Do not call provider-specific scripts or `gh` mutations.
