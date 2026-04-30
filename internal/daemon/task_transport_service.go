@@ -66,7 +66,11 @@ func (s *transportTaskService) ListWorkflows(
 
 	workflows := make([]apicore.WorkflowSummary, 0, len(rows))
 	for _, row := range rows {
-		workflows = append(workflows, transportWorkflowSummary(row))
+		taskRows, err := s.globalDB.ListTaskItems(ctx, row.ID)
+		if err != nil {
+			return nil, err
+		}
+		workflows = append(workflows, transportWorkflowSummaryWithTaskCounts(row, summarizeTaskRows(taskRows)))
 	}
 	return workflows, nil
 }

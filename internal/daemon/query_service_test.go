@@ -418,10 +418,7 @@ func TestQueryServiceReadsArchivedFilesystemWhenActiveProjectionIsStale(t *testi
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
 	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Archived stale task"))
-	run := env.startTaskRun(t, "query-service-stale-archive-001", nil)
-	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return row.Status == runStatusCompleted
-	})
+	syncWorkflowForDaemonTest(t, env)
 
 	workflow, err := env.globalDB.GetActiveWorkflowBySlug(
 		context.Background(),

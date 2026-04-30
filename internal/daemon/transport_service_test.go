@@ -112,7 +112,7 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		t.Helper()
 
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})
-		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Transport task"))
 		initialRun := env.startTaskRun(t, "task-transport-seed-001", nil)
 		waitForRun(t, env.globalDB, initialRun.RunID, func(row globaldb.Run) bool {
 			return row.Status == runStatusCompleted
@@ -129,6 +129,14 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		if len(workflows) != 1 || workflows[0].Slug != env.workflowSlug {
 			t.Fatalf("unexpected workflows: %#v", workflows)
 		}
+		if workflows[0].TaskCounts == nil || workflows[0].TaskCounts.Total != 1 ||
+			workflows[0].TaskCounts.Pending != 1 {
+			t.Fatalf("unexpected workflow task counts: %#v", workflows[0].TaskCounts)
+		}
+		if workflows[0].CanStartRun == nil || !*workflows[0].CanStartRun ||
+			workflows[0].StartBlockReason != "" {
+			t.Fatalf("unexpected workflow start action: %#v", workflows[0])
+		}
 
 		workflow, err := service.GetWorkflow(context.Background(), env.workspaceRoot, env.workflowSlug)
 		if err != nil {
@@ -136,6 +144,31 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		}
 		if workflow.Slug != env.workflowSlug {
 			t.Fatalf("GetWorkflow().Slug = %q, want %q", workflow.Slug, env.workflowSlug)
+		}
+	})
+
+	t.Run("Should mark completed workflows as not startable", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
+		syncWorkflowForDaemonTest(t, env)
+
+		service := newTransportTaskService(env.globalDB, env.manager)
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		if len(workflows) != 1 || workflows[0].TaskCounts == nil {
+			t.Fatalf("unexpected workflows: %#v", workflows)
+		}
+		if workflows[0].TaskCounts.Total != 1 || workflows[0].TaskCounts.Completed != 1 ||
+			workflows[0].TaskCounts.Pending != 0 {
+			t.Fatalf("unexpected completed counts: %#v", workflows[0].TaskCounts)
+		}
+		if workflows[0].CanStartRun == nil || *workflows[0].CanStartRun {
+			t.Fatalf("CanStartRun = %#v, want false", workflows[0].CanStartRun)
+		}
+		if workflows[0].StartBlockReason != "no pending tasks" {
+			t.Fatalf("StartBlockReason = %q, want no pending tasks", workflows[0].StartBlockReason)
 		}
 	})
 
@@ -168,6 +201,8 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 
 	t.Run("Should archive workflows and surface archived reads", func(t *testing.T) {
 		env, service := newService(t)
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
+		syncWorkflowForDaemonTest(t, env)
 		archiveResult, err := service.Archive(context.Background(), env.workspaceRoot, env.workflowSlug)
 		if err != nil {
 			t.Fatalf("Archive() error = %v", err)
@@ -217,6 +252,21 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 			t.Fatalf("nil StartRun() error = %v, want unavailable", err)
 		}
 	})
+}
+
+func syncWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv) {
+	t.Helper()
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		WorkspaceRoot: workspace.RootDir,
+		Name:          env.workflowSlug,
+	}); err != nil {
+		t.Fatalf("SyncWithDB() error = %v", err)
+	}
 }
 
 func TestTransportSyncResult_ShouldMapStructuredFields(t *testing.T) {

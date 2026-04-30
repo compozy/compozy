@@ -1,4 +1,4 @@
-import type { ReviewDetailPayload, ReviewIssue, ReviewSummary, Run } from "../types";
+import type { ReviewDetailPayload, ReviewIssue, ReviewRound, ReviewSummary, Run } from "../types";
 import { workspaceFixture } from "@/systems/app-shell/mocks";
 import { workflowAlphaFixture } from "@/systems/workflows/mocks";
 
@@ -10,6 +10,17 @@ export const latestReviewFixture: ReviewSummary = {
   resolved_count: 1,
   unresolved_count: 3,
   updated_at: "2026-04-20T02:00:00Z",
+};
+
+export const reviewRoundFixture: ReviewRound = {
+  id: "round-2",
+  pr_ref: "PR-42",
+  provider: "coderabbit",
+  resolved_count: 1,
+  round_number: 2,
+  unresolved_count: 3,
+  updated_at: "2026-04-20T02:00:00Z",
+  workflow_slug: workflowAlphaFixture.slug,
 };
 
 export const reviewIssuesFixture: ReviewIssue[] = [
@@ -30,16 +41,7 @@ export const reviewDetailFixture: ReviewDetailPayload = {
     slug: workflowAlphaFixture.slug,
     workspace_id: workflowAlphaFixture.workspace_id,
   },
-  round: {
-    id: "round-2",
-    pr_ref: "PR-42",
-    provider: "coderabbit",
-    resolved_count: 1,
-    round_number: 2,
-    unresolved_count: 3,
-    updated_at: "2026-04-20T02:00:00Z",
-    workflow_slug: workflowAlphaFixture.slug,
-  },
+  round: reviewRoundFixture,
   issue: {
     id: "issue_004",
     issue_number: 4,

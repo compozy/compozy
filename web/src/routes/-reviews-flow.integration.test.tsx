@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createTestQueryClient, installFetchStub } from "@/test/utils";
+import { createTestQueryClient, installFetchStub, matchPath } from "@/test/utils";
 
 import { routeTree } from "../routeTree.gen";
 import { resetActiveWorkspaceStoreForTests } from "../systems/app-shell";
@@ -69,6 +69,19 @@ const issuesPayload = {
       updated_at: "2026-01-02T00:00:00Z",
     },
   ],
+};
+
+const reviewRoundPayload = {
+  round: {
+    id: "round-2",
+    pr_ref: "PR-42",
+    provider: "coderabbit",
+    resolved_count: 1,
+    round_number: 2,
+    unresolved_count: 3,
+    updated_at: "2026-01-02T00:00:00Z",
+    workflow_slug: "alpha",
+  },
 };
 
 const reviewDetailPayload = {
@@ -159,7 +172,7 @@ describe("reviews flow integration", () => {
     vi.clearAllMocks();
   });
 
-  it("Should render review rounds and inline issues from the typed daemon contract", async () => {
+  it("Should render compact review round cards without fetching inline issues", async () => {
     const stub = installFetchStub([
       {
         matcher: matchUrl("/api/workspaces"),
@@ -171,20 +184,45 @@ describe("reviews flow integration", () => {
         status: 200,
         body: dashboardPayload,
       },
-      {
-        matcher: matchUrl("/api/reviews/alpha/rounds/2/issues"),
-        status: 200,
-        body: issuesPayload,
-      },
     ]);
     restore = stub.restore;
     await renderApp("/reviews");
     await screen.findByTestId("reviews-index-view");
     await screen.findByTestId("reviews-index-card-alpha");
-    const link = await screen.findByTestId("reviews-index-issue-link-alpha-issue_004");
+    const link = await screen.findByTestId("reviews-index-round-link-alpha");
+    expect((link as HTMLAnchorElement).getAttribute("href")).toBe("/reviews/alpha/2");
+    expect(stub.calls.some(call => call.url.includes("/api/reviews/alpha/rounds/2/issues"))).toBe(
+      false
+    );
+  });
+
+  it("Should render a review round detail with issue links", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2"),
+        status: 200,
+        body: reviewRoundPayload,
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues"),
+        status: 200,
+        body: issuesPayload,
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/reviews/alpha/2");
+    await screen.findByTestId("review-round-detail-view");
+    const link = await screen.findByTestId("review-round-issue-link-alpha-issue_004");
     expect((link as HTMLAnchorElement).getAttribute("href")).toBe("/reviews/alpha/2/issue_004");
+    const roundCall = stub.calls.find(call => call.url.endsWith("/api/reviews/alpha/rounds/2"));
+    expect(roundCall?.headers["x-compozy-workspace-id"]).toBe("ws-1");
     const issuesCall = stub.calls.find(call =>
-      call.url.includes("/api/reviews/alpha/rounds/2/issues")
+      call.url.endsWith("/api/reviews/alpha/rounds/2/issues")
     );
     expect(issuesCall?.headers["x-compozy-workspace-id"]).toBe("ws-1");
   });

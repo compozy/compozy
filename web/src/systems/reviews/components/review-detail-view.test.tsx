@@ -102,6 +102,13 @@ async function renderDetail(props: RenderProps = {}) {
       return <div data-testid="reviews-stub" />;
     },
   });
+  const roundRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/reviews/$slug/$round",
+    component: function RoundStub(): ReactElement {
+      return <div data-testid="round-stub" />;
+    },
+  });
   const runRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/runs/$runId",
@@ -110,7 +117,7 @@ async function renderDetail(props: RenderProps = {}) {
     },
   });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([detailRoute, reviewsRoute, runRoute]),
+    routeTree: rootRoute.addChildren([detailRoute, reviewsRoute, roundRoute, runRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
     defaultPreload: false,
   });
@@ -130,6 +137,8 @@ describe("ReviewDetailView", () => {
     expect(screen.getByTestId("review-detail-round-number")).toHaveTextContent("2");
     expect(screen.getByTestId("review-detail-provider")).toHaveTextContent("coderabbit");
     expect(screen.getByTestId("review-detail-document-body")).toHaveTextContent("add a test");
+    const backLink = screen.getByTestId("review-detail-back") as HTMLAnchorElement;
+    expect(backLink.getAttribute("href")).toBe("/reviews/alpha/2");
   });
 
   it("Should invoke the dispatch-fix handler", async () => {

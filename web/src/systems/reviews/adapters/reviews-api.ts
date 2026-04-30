@@ -4,6 +4,7 @@ import { ACTIVE_WORKSPACE_HEADER } from "@/systems/app-shell";
 import type {
   ReviewDetailPayload,
   ReviewIssue,
+  ReviewRound,
   ReviewRunRequest,
   ReviewSummary,
   Run,
@@ -32,6 +33,31 @@ export async function getLatestReview(params: ReviewSummaryParams): Promise<Revi
     error
   );
   return payload.review;
+}
+
+export interface ReviewRoundParams {
+  workspaceId: string;
+  slug: string;
+  round: number;
+}
+
+export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewRound> {
+  const { data, error, response } = await daemonApiClient.GET(
+    "/api/reviews/{slug}/rounds/{round}",
+    {
+      params: {
+        path: { slug: params.slug, round: params.round },
+        ...workspaceHeader(params.workspaceId),
+      },
+    }
+  );
+  const payload = requireData(
+    data,
+    response,
+    `Failed to load review round ${params.round} for ${params.slug}`,
+    error
+  );
+  return payload.round;
 }
 
 export interface ReviewIssuesParams {

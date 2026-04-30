@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/reviews"
 	runpkg "github.com/compozy/compozy/internal/core/run"
+	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
@@ -727,6 +728,9 @@ func (m *RunManager) prepareTaskStart(
 	if err := requireDirectory(tasksDir); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
+	if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
+		return globaldb.Workspace{}, nil, nil, "", err
+	}
 
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:              workspaceRow.RootDir,
@@ -755,6 +759,57 @@ func (m *RunManager) prepareTaskStart(
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
 	return workspaceRow, workflowID, runtimeCfg, presentationMode, nil
+}
+
+func (m *RunManager) rejectCompletedTaskWorkflow(
+	ctx context.Context,
+	workflowID *string,
+	tasksDir string,
+	workflowSlug string,
+) error {
+	meta, err := taskscore.SnapshotTaskMeta(tasksDir)
+	if err == nil {
+		counts := WorkflowTaskCounts{
+			Total:     meta.Total,
+			Completed: meta.Completed,
+			Pending:   meta.Pending,
+		}
+		if counts.Total > 0 && counts.Pending == 0 {
+			return workflowNoPendingTasksProblem(workflowSlug, counts)
+		}
+		return nil
+	}
+	if workflowID == nil {
+		return fmt.Errorf("inspect task metadata for %s: %w", strings.TrimSpace(workflowSlug), err)
+	}
+
+	taskRows, rowErr := m.globalDB.ListTaskItems(ctx, *workflowID)
+	if rowErr != nil {
+		return fmt.Errorf("inspect task items for %s: %w", strings.TrimSpace(workflowSlug), rowErr)
+	}
+	counts := summarizeTaskRows(taskRows)
+	if counts.Total > 0 && counts.Pending == 0 {
+		return workflowNoPendingTasksProblem(workflowSlug, counts)
+	}
+	if len(taskRows) == 0 {
+		return nil
+	}
+	return fmt.Errorf("inspect task metadata for %s: %w", strings.TrimSpace(workflowSlug), err)
+}
+
+func workflowNoPendingTasksProblem(workflowSlug string, counts WorkflowTaskCounts) error {
+	return apicore.NewProblem(
+		http.StatusConflict,
+		"workflow_no_pending_tasks",
+		"workflow has no pending tasks",
+		map[string]any{
+			"workflow":       strings.TrimSpace(workflowSlug),
+			"task_total":     counts.Total,
+			"task_completed": counts.Completed,
+			"task_pending":   counts.Pending,
+		},
+		nil,
+	)
 }
 
 func (m *RunManager) prepareReviewStart(
@@ -1220,17 +1275,19 @@ func newActiveRun(
 	scope model.RunScope,
 ) *activeRun {
 	return &activeRun{
-		runID:        row.RunID,
-		workspaceID:  row.WorkspaceID,
-		workflowSlug: strings.TrimSpace(spec.workflowSlug),
-		workflowID:   cloneStringPtr(spec.workflowID),
-		mode:         spec.mode,
-		scope:        scope,
-		ctx:          runCtx,
-		cancel:       cancel,
-		done:         make(chan struct{}),
-		closeTimeout: defaultRunCloseTimeout,
-		workflowRoot: strings.TrimSpace(spec.workflowRoot),
+		runID:          row.RunID,
+		workspaceID:    row.WorkspaceID,
+		workflowSlug:   strings.TrimSpace(spec.workflowSlug),
+		workflowID:     cloneStringPtr(spec.workflowID),
+		mode:           spec.mode,
+		scope:          scope,
+		ctx:            runCtx,
+		cancel:         cancel,
+		done:           make(chan struct{}),
+		closeTimeout:   defaultRunCloseTimeout,
+		workflowRoot:   strings.TrimSpace(spec.workflowRoot),
+		reviewWatch:    spec.reviewWatch,
+		reviewWatchKey: cloneReviewWatchKey(spec.reviewWatchKey),
 	}
 }
 

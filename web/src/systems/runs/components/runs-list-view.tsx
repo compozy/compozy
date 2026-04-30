@@ -216,7 +216,7 @@ function RunRow({ run }: { run: Run }): ReactElement {
             {run.ended_at ? ` · ended ${formatTimestamp(run.ended_at)}` : " · in flight"}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           <Activity className="size-3.5" aria-hidden />
           {duration ? (
             <span
@@ -230,6 +230,7 @@ function RunRow({ run }: { run: Run }): ReactElement {
           )}
         </div>
         <StatusBadge
+          className="shrink-0"
           data-testid={`runs-list-status-${run.run_id}`}
           pulse={tone === "accent"}
           tone={tone}

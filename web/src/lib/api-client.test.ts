@@ -43,6 +43,12 @@ describe("apiErrorMessage", () => {
   it("Should fall back when the error has no message", () => {
     expect(apiErrorMessage(undefined, "fallback")).toBe("fallback");
   });
+
+  it("Should preserve adapter-wrapped error messages", () => {
+    expect(apiErrorMessage(new Error("daemon problem detail"), "fallback")).toBe(
+      "daemon problem detail"
+    );
+  });
 });
 
 describe("requireData", () => {

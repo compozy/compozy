@@ -25,10 +25,10 @@ export function SectionHeading({
       )}
       {...props}
     >
-      <div className="min-w-0 space-y-2">
+      <div className="min-w-0 max-w-full space-y-2">
         {eyebrow ? <p className="eyebrow text-muted-foreground">{eyebrow}</p> : null}
         <div className="space-y-2">
-          <h1 className="text-[clamp(1.75rem,3vw,2.5rem)] font-semibold leading-tight text-foreground">
+          <h1 className="min-w-0 max-w-full break-words text-3xl font-semibold leading-tight text-foreground md:text-4xl">
             {title}
           </h1>
           {description ? (

@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 import {
   loadDaemonUIEnvironment,
   PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG,
+  PLAYWRIGHT_START_WORKFLOW_SLUG,
 } from "./support/daemon-fixture";
 
 test.describe.serial("daemon-served web UI smoke flows", () => {
@@ -52,7 +53,10 @@ test.describe.serial("daemon-served web UI smoke flows", () => {
     await page.goto(`${env.baseUrl}/reviews`);
     await expect(page.getByTestId("reviews-index-view")).toBeVisible();
 
-    await page.locator("[data-testid^='reviews-index-issue-link-daemon-']").first().click();
+    await page.getByTestId("reviews-index-round-link-daemon").click();
+    await expect(page.getByTestId("review-round-detail-view")).toBeVisible();
+
+    await page.locator("[data-testid^='review-round-issue-link-daemon-']").first().click();
     await expect(page.getByTestId("review-detail-view")).toBeVisible();
 
     await page.getByTestId(`review-detail-run-link-${env.seededReviewRunId}`).click();
@@ -94,10 +98,10 @@ test.describe.serial("daemon-served web UI smoke flows", () => {
     const startResponse = page.waitForResponse(
       response =>
         response.request().method() === "POST" &&
-        response.url().endsWith("/api/tasks/daemon-web-ui/runs")
+        response.url().endsWith(`/api/tasks/${PLAYWRIGHT_START_WORKFLOW_SLUG}/runs`)
     );
 
-    await page.getByTestId("workflow-start-daemon-web-ui").click();
+    await page.getByTestId(`workflow-start-${PLAYWRIGHT_START_WORKFLOW_SLUG}`).click();
     await expect((await startResponse).status()).toBe(201);
     await expect(page.getByTestId("workflow-inventory-start-success")).toContainText("Started run");
     await expect(page.getByTestId("workflow-inventory-start-success-link")).toBeVisible();

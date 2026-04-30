@@ -43,6 +43,29 @@ func transportWorkflowSummary(row globaldb.Workflow) apicore.WorkflowSummary {
 	}
 }
 
+func transportWorkflowSummaryWithTaskCounts(
+	row globaldb.Workflow,
+	counts WorkflowTaskCounts,
+) apicore.WorkflowSummary {
+	summary := transportWorkflowSummary(row)
+	apiCounts := transportWorkflowTaskCounts(counts)
+	canStart, reason := workflowStartAction(row, counts)
+	summary.TaskCounts = &apiCounts
+	summary.CanStartRun = &canStart
+	summary.StartBlockReason = reason
+	return summary
+}
+
+func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool, string) {
+	if row.ArchivedAt != nil {
+		return false, "workflow archived"
+	}
+	if counts.Total > 0 && counts.Pending == 0 {
+		return false, "no pending tasks"
+	}
+	return true, ""
+}
+
 func transportSyncResult(
 	workspaceID string,
 	workflowSlug string,

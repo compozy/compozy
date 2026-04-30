@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reviews/{slug}/rounds/{round}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one review round summary. */
+        get: operations["getReviewRound"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/{slug}/rounds/{round}/issues": {
         parameters: {
             query?: never;
@@ -633,6 +650,9 @@ export interface components {
             updated_at: string;
             workflow_slug: string;
         };
+        ReviewRoundResponse: {
+            round: components["schemas"]["ReviewRound"];
+        };
         ReviewRunRequest: {
             batching?: {
                 [key: string]: unknown;
@@ -991,10 +1011,13 @@ export interface components {
         WorkflowSummary: {
             /** Format: date-time */
             archived_at?: string;
+            can_start_run?: boolean;
             id: string;
             /** Format: date-time */
             last_synced_at?: string;
             slug: string;
+            start_block_reason?: string;
+            task_counts?: components["schemas"]["WorkflowTaskCounts"];
             workspace_id: string;
         };
         WorkflowTaskCounts: {
@@ -1309,6 +1332,38 @@ export interface operations {
                     "application/json": components["schemas"]["TransportError"];
                 };
             };
+        };
+    };
+    getReviewRound: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active workspace identifier for browser-scoped daemon requests. */
+                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
+            };
+            path: {
+                /** @description Workflow slug. */
+                slug: components["parameters"]["Slug"];
+                /** @description Review round number. */
+                round: components["parameters"]["Round"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewRoundResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            412: components["responses"]["StaleWorkspace"];
+            422: components["responses"]["ValidationError"];
+            500: components["responses"]["InternalError"];
         };
     };
     listReviewIssues: {

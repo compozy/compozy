@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
 
-import { reviewsDashboardFixture } from "@/systems/dashboard/mocks";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -12,8 +11,8 @@ import {
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
-    "routes/reviews",
-    "Review index stories covering compact round cards, loading, empty, and full error states."
+    "routes/reviews/round",
+    "Review round detail stories covering issue inventory, loading, and issue loading errors."
   ),
 };
 
@@ -22,28 +21,19 @@ type Story = StoryObj<typeof meta>;
 
 export const Success: Story = {
   args: {},
-  parameters: {
-    ...appRouteParameters("/reviews"),
-    ...storybookMswParameters({
-      dashboard: [
-        http.get("/api/ui/dashboard", () =>
-          HttpResponse.json({ dashboard: reviewsDashboardFixture })
-        ),
-      ],
-    }),
-  },
+  parameters: appRouteParameters("/reviews/alpha/2"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 export const Loading: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/reviews"),
+    ...appRouteParameters("/reviews/alpha/2"),
     ...storybookMswParameters({
-      dashboard: [
-        http.get("/api/ui/dashboard", async () => {
+      reviews: [
+        http.get("/api/reviews/:slug/rounds/:round", async () => {
           await delay("infinite");
-          return HttpResponse.json({ dashboard: reviewsDashboardFixture });
+          return HttpResponse.json({});
         }),
       ],
     }),
@@ -51,23 +41,17 @@ export const Loading: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-export const Empty: Story = {
-  args: {},
-  parameters: appRouteParameters("/reviews"),
-  render: () => <StorybookWorkspaceSetup />,
-};
-
-export const Error: Story = {
+export const IssueLoadError: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters("/reviews"),
+    ...appRouteParameters("/reviews/alpha/2"),
     ...storybookMswParameters({
-      dashboard: [
-        http.get("/api/ui/dashboard", () =>
+      reviews: [
+        http.get("/api/reviews/:slug/rounds/:round/issues", () =>
           HttpResponse.json(
             {
-              code: "reviews_failed",
-              message: "Reviews unavailable",
+              code: "review_issues_failed",
+              message: "Failed to load issues for alpha",
             },
             { status: 500 }
           )

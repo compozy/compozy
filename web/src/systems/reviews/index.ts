@@ -1,4 +1,5 @@
 export { ReviewsIndexView, type ReviewRoundCard } from "./components/reviews-index-view";
+export { ReviewRoundDetailView } from "./components/review-round-detail-view";
 export {
   resolveSeverityTone,
   resolveStatusTone as resolveReviewStatusTone,
@@ -6,17 +7,20 @@ export {
 export { ReviewDetailView } from "./components/review-detail-view";
 export {
   useLatestReview,
+  useReviewRound,
   useReviewIssue,
   useReviewIssues,
   useStartReviewRun,
 } from "./hooks/use-reviews";
 export {
   getLatestReview,
+  getReviewRound,
   getReviewIssue,
   listReviewIssues,
   startReviewRun,
   type ReviewIssueParams,
   type ReviewIssuesParams,
+  type ReviewRoundParams,
   type ReviewSummaryParams,
   type StartReviewRunParams,
 } from "./adapters/reviews-api";

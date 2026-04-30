@@ -215,18 +215,22 @@ function WorkflowRow({
   pendingArchive: boolean;
   readOnly: boolean;
 }): ReactElement {
+  const canStartRun = workflow.can_start_run !== false;
+  const startBlockReason = workflow.start_block_reason?.trim() ?? "";
+  const startBlockLabel = startBlockReason === "no pending tasks" ? "completed" : startBlockReason;
   return (
     <li>
       <SurfaceCard data-interactive="true" data-testid={`workflow-row-${workflow.slug}`}>
         <SurfaceCardHeader>
-          <div>
+          <div className="min-w-0">
             <SurfaceCardEyebrow>Workflow</SurfaceCardEyebrow>
             <SurfaceCardTitle>
               <Link
-                className="text-foreground hover:underline"
+                className="block truncate text-foreground hover:underline"
                 data-testid={`workflow-open-${workflow.slug}`}
                 params={{ slug: workflow.slug }}
                 to="/workflows/$slug/tasks"
+                title={workflow.slug}
               >
                 {workflow.slug}
               </Link>
@@ -267,16 +271,22 @@ function WorkflowRow({
             <BookOpen className="size-3.5" aria-hidden />
             Memory
           </Link>
-          <Button
-            data-testid={`workflow-start-${workflow.slug}`}
-            disabled={pendingStart || readOnly}
-            icon={<Play className="size-4" />}
-            loading={pendingStart}
-            onClick={onStartRun}
-            size="sm"
-          >
-            Start run
-          </Button>
+          {canStartRun ? (
+            <Button
+              data-testid={`workflow-start-${workflow.slug}`}
+              disabled={pendingStart || readOnly}
+              icon={<Play className="size-4" />}
+              loading={pendingStart}
+              onClick={onStartRun}
+              size="sm"
+            >
+              Start run
+            </Button>
+          ) : (
+            <StatusBadge data-testid={`workflow-start-blocked-${workflow.slug}`} tone="success">
+              {startBlockLabel || "not startable"}
+            </StatusBadge>
+          )}
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
             disabled={pendingSync || readOnly}

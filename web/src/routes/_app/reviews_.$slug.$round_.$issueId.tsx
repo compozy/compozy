@@ -12,7 +12,7 @@ import {
   type ReviewRelatedRun,
 } from "@/systems/reviews";
 
-export const Route = createFileRoute("/_app/reviews_/$slug/$round/$issueId")({
+export const Route = createFileRoute("/_app/reviews_/$slug/$round_/$issueId")({
   component: ReviewIssueDetailRoute,
   parseParams: params => ({
     slug: params.slug,
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_app/reviews_/$slug/$round/$issueId")({
 
 function ReviewIssueDetailRoute(): ReactElement {
   const { slug, round, issueId } = useParams({
-    from: "/_app/reviews_/$slug/$round/$issueId",
+    from: "/_app/reviews_/$slug/$round_/$issueId",
   });
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
@@ -42,10 +42,15 @@ function ReviewIssueDetailRoute(): ReactElement {
       <button
         className="text-xs font-medium text-primary transition-colors hover:text-foreground"
         data-testid="review-detail-header-back"
-        onClick={() => void navigate({ to: "/reviews" })}
+        onClick={() =>
+          void navigate({
+            to: "/reviews/$slug/$round",
+            params: { slug, round },
+          })
+        }
         type="button"
       >
-        ← Back to reviews
+        Back to round
       </button>
       <span className="eyebrow text-muted-foreground">review issue</span>
     </div>

@@ -217,22 +217,27 @@ function HealthDiagnostics({
 
 function DashboardWorkflowRow({ card }: { card: WorkflowCard }): ReactElement {
   return (
-    <li
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
-      data-testid={`dashboard-workflow-row-${card.workflow.slug}`}
-    >
-      <div className="min-w-0 space-y-1">
-        <p className="truncate text-sm font-medium text-foreground">{card.workflow.slug}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {card.task_completed}/{card.task_total} tasks · {card.active_runs} active run
-          {card.active_runs === 1 ? "" : "s"}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <StatusBadge pulse={card.active_runs > 0} tone={card.active_runs > 0 ? "accent" : "info"}>
-          {card.active_runs > 0 ? "running" : "idle"}
-        </StatusBadge>
-      </div>
+    <li data-testid={`dashboard-workflow-row-${card.workflow.slug}`}>
+      <Link
+        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        data-testid={`dashboard-workflow-link-${card.workflow.slug}`}
+        params={{ slug: card.workflow.slug }}
+        title={card.workflow.slug}
+        to="/workflows/$slug/tasks"
+      >
+        <div className="min-w-0 space-y-1">
+          <p className="truncate text-sm font-medium text-foreground">{card.workflow.slug}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {card.task_completed}/{card.task_total} tasks · {card.active_runs} active run
+            {card.active_runs === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <StatusBadge pulse={card.active_runs > 0} tone={card.active_runs > 0 ? "accent" : "info"}>
+            {card.active_runs > 0 ? "running" : "idle"}
+          </StatusBadge>
+        </div>
+      </Link>
     </li>
   );
 }

@@ -165,11 +165,20 @@ type WorkspaceSyncResult struct {
 }
 
 type WorkflowSummary struct {
-	ID           string     `json:"id"`
-	WorkspaceID  string     `json:"workspace_id"`
-	Slug         string     `json:"slug"`
-	ArchivedAt   *time.Time `json:"archived_at,omitempty"`
-	LastSyncedAt *time.Time `json:"last_synced_at,omitempty"`
+	ID               string              `json:"id"`
+	WorkspaceID      string              `json:"workspace_id"`
+	Slug             string              `json:"slug"`
+	ArchivedAt       *time.Time          `json:"archived_at,omitempty"`
+	LastSyncedAt     *time.Time          `json:"last_synced_at,omitempty"`
+	TaskCounts       *WorkflowTaskCounts `json:"task_counts,omitempty"`
+	CanStartRun      *bool               `json:"can_start_run,omitempty"`
+	StartBlockReason string              `json:"start_block_reason,omitempty"`
+}
+
+type WorkflowTaskCounts struct {
+	Total     int `json:"total"`
+	Completed int `json:"completed"`
+	Pending   int `json:"pending"`
 }
 
 type TaskItem struct {

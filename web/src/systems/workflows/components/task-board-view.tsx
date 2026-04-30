@@ -150,20 +150,21 @@ function TaskRow({ slug, task }: { slug: string; task: TaskCard }): ReactElement
       className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`task-board-row-${task.task_id}`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="min-w-0 space-y-1">
           <p className="eyebrow text-muted-foreground">
             #{task.task_number} · {task.type}
           </p>
           <Link
-            className="truncate text-sm font-medium text-foreground hover:underline"
+            className="block truncate text-sm font-medium text-foreground hover:underline"
             data-testid={`task-board-link-${task.task_id}`}
             params={{ slug, taskId: task.task_id }}
             to="/workflows/$slug/tasks/$taskId"
+            title={task.title}
           >
             {task.title}
           </Link>
-          <p className="text-xs text-muted-foreground">
+          <p className="line-clamp-2 text-xs text-muted-foreground">
             updated {formatTimestamp(task.updated_at)}
             {deps.length > 0 ? ` · depends on ${deps.join(", ")}` : null}
           </p>

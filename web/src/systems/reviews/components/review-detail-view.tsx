@@ -72,9 +72,10 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
             <Link
               className="underline-offset-4 hover:underline"
               data-testid="review-detail-back"
-              to="/reviews"
+              params={{ slug: workflow.slug, round: String(round.round_number) }}
+              to="/reviews/$slug/$round"
             >
-              Back to reviews
+              Back to round
             </Link>
             {" · "}
             {workflow.slug} · round {String(round.round_number).padStart(3, "0")} · updated{" "}
@@ -83,12 +84,18 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
         }
         eyebrow={`Review issue · ${issue.id}`}
         title={
-          <span className="flex flex-wrap items-center gap-3">
-            <span>{document.title}</span>
-            <StatusBadge data-testid="review-detail-severity" tone={severityTone}>
+          <span className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
+            <span className="min-w-0 truncate" title={document.title}>
+              {displayReviewTitle(document.title)}
+            </span>
+            <StatusBadge
+              className="shrink-0"
+              data-testid="review-detail-severity"
+              tone={severityTone}
+            >
               {issue.severity}
             </StatusBadge>
-            <StatusBadge data-testid="review-detail-status" tone={statusTone}>
+            <StatusBadge className="shrink-0" data-testid="review-detail-status" tone={statusTone}>
               {issue.status}
             </StatusBadge>
           </span>
@@ -261,6 +268,7 @@ function RelatedRunsCard({ runs }: { runs: Run[] }): ReactElement {
                   </p>
                 </div>
                 <StatusBadge
+                  className="shrink-0"
                   data-testid={`review-detail-run-status-${run.run_id}`}
                   tone={resolveRunStatusTone(run.status)}
                 >
@@ -273,6 +281,16 @@ function RelatedRunsCard({ runs }: { runs: Run[] }): ReactElement {
       </SurfaceCardBody>
     </SurfaceCard>
   );
+}
+
+function displayReviewTitle(raw: string): string {
+  const cleaned = raw
+    .replace(/(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]|\uFE0F)/gu, "")
+    .replace(/\s*\|\s*/g, " - ")
+    .replace(/_/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > 0 ? cleaned : raw;
 }
 
 function formatTimestamp(raw: string | undefined): string {

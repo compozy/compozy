@@ -229,11 +229,7 @@ type WorkflowOverviewPayload struct {
 }
 
 // WorkflowTaskCounts summarizes task progress for one workflow.
-type WorkflowTaskCounts struct {
-	Total     int `json:"total"`
-	Completed int `json:"completed"`
-	Pending   int `json:"pending"`
-}
+type WorkflowTaskCounts = contract.WorkflowTaskCounts
 
 type ReviewFetchRequest = contract.ReviewFetchRequest
 type ReviewFetchResult = contract.ReviewFetchResult

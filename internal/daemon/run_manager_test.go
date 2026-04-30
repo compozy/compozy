@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,6 +67,36 @@ func TestRunManagerStartTaskRunAllocatesRunDBAndRejectsDuplicateRunID(t *testing
 	})
 	if !errors.Is(err, globaldb.ErrRunAlreadyExists) {
 		t.Fatalf("StartTaskRun(duplicate) error = %v, want ErrRunAlreadyExists", err)
+	}
+}
+
+func TestRunManagerRejectsCompletedTaskWorkflowBeforeCreatingRun(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))
+
+	const runID = "task-run-no-pending"
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		env.workflowSlug,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) {
+		t.Fatalf("StartTaskRun(completed workflow) error = %v, want problem", err)
+	}
+	if problem.Status != http.StatusConflict || problem.Code != "workflow_no_pending_tasks" {
+		t.Fatalf("problem = status:%d code:%q, want 409 workflow_no_pending_tasks", problem.Status, problem.Code)
+	}
+	if got := problem.Details["task_pending"]; got != 0 {
+		t.Fatalf("problem task_pending = %#v, want 0", got)
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
 	}
 }
 

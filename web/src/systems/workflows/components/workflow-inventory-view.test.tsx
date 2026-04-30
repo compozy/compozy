@@ -16,6 +16,15 @@ import { WorkflowInventoryView } from "./workflow-inventory-view";
 const workflows: WorkflowSummary[] = [
   { id: "wf-1", slug: "alpha", workspace_id: "ws-1", last_synced_at: "2026-01-01T00:00:00Z" },
   {
+    id: "wf-done",
+    slug: "completed-workflow-with-a-title-that-should-not-push-into-badges",
+    workspace_id: "ws-1",
+    last_synced_at: "2026-01-02T00:00:00Z",
+    task_counts: { total: 2, completed: 2, pending: 0 },
+    can_start_run: false,
+    start_block_reason: "no pending tasks",
+  },
+  {
     id: "wf-2",
     slug: "beta",
     workspace_id: "ws-1",
@@ -120,6 +129,24 @@ describe("WorkflowInventoryView", () => {
     expect(onStartRun).toHaveBeenCalledWith("alpha");
     expect(onSyncOne).toHaveBeenCalledWith("alpha");
     expect(onArchive).toHaveBeenCalledWith("alpha");
+  });
+
+  it("Should replace start-run with a completed state when no tasks are pending", async () => {
+    const completedWorkflow = workflows[1]!;
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun: () => {},
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [completedWorkflow],
+    });
+    expect(
+      screen.queryByTestId(`workflow-start-${completedWorkflow.slug}`)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId(`workflow-start-blocked-${completedWorkflow.slug}`)
+    ).toHaveTextContent("completed");
   });
 
   it("Should disable filesystem actions when the workspace is read-only", async () => {

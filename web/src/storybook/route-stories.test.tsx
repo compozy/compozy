@@ -7,6 +7,7 @@ import * as dashboardStories from "@/routes/_app/stories/-dashboard.stories";
 import * as memoryIndexStories from "@/routes/_app/stories/-memory.stories";
 import * as memoryStories from "@/routes/_app/stories/-memory.$slug.stories";
 import * as reviewDetailStories from "@/routes/_app/stories/-reviews.$slug.$round.$issueId.stories";
+import * as reviewRoundStories from "@/routes/_app/stories/-reviews.$slug.$round.stories";
 import * as reviewStories from "@/routes/_app/stories/-reviews.stories";
 import * as runDetailStories from "@/routes/_app/stories/-runs.$runId.stories";
 import * as runStories from "@/routes/_app/stories/-runs.stories";
@@ -26,7 +27,8 @@ const { Empty: TaskBoardEmpty } = composeStories(taskBoardStories);
 const { Error: TaskDetailError } = composeStories(taskDetailStories);
 const { Empty: RunsEmpty } = composeStories(runStories);
 const { Overflowed: RunOverflowed } = composeStories(runDetailStories);
-const { PartialIssuesError: ReviewsPartialIssuesError } = composeStories(reviewStories);
+const { Success: ReviewsSuccess } = composeStories(reviewStories);
+const { IssueLoadError: ReviewRoundIssueLoadError } = composeStories(reviewRoundStories);
 const { Success: ReviewDetailSuccess } = composeStories(reviewDetailStories);
 const { PartialDocuments: SpecPartialDocuments } = composeStories(specStories);
 const { DocumentError: MemoryDocumentError } = composeStories(memoryStories);
@@ -86,10 +88,16 @@ describe("portable route stories", () => {
     expect(await screen.findByTestId("run-detail-stream-overflow")).toBeInTheDocument();
   });
 
-  it("renders the partial review index state when issue loading fails", async () => {
-    await ReviewsPartialIssuesError.run();
+  it("renders the compact review index state", async () => {
+    await ReviewsSuccess.run();
 
-    expect(await screen.findByTestId("reviews-index-card-issues-error-alpha")).toBeInTheDocument();
+    expect(await screen.findByTestId("reviews-index-card-alpha")).toBeInTheDocument();
+  });
+
+  it("renders the review round issue loading error state", async () => {
+    await ReviewRoundIssueLoadError.run();
+
+    expect(await screen.findByTestId("review-round-issues-error")).toBeInTheDocument();
   });
 
   it("renders the review issue detail success state", async () => {

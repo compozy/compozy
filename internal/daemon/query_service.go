@@ -649,7 +649,7 @@ func (s *queryService) buildWorkflowCard(
 	}
 
 	return WorkflowCard{
-		Workflow:         transportWorkflowSummary(workflow),
+		Workflow:         transportWorkflowSummaryWithTaskCounts(workflow, taskCounts),
 		TaskTotal:        taskCounts.Total,
 		TaskCompleted:    taskCounts.Completed,
 		TaskPending:      taskCounts.Pending,

@@ -29,17 +29,16 @@ var openAPIOperationMethods = map[string]struct{}{
 }
 
 var browserRouteExclusions = map[string]struct{}{
-	"DELETE /api/workspaces/{id}":            {},
-	"GET /api/reviews/{slug}/rounds/{round}": {},
-	"GET /api/runs/{run_id}/events":          {},
-	"GET /api/tasks/{slug}/items":            {},
-	"GET /api/workspaces/{id}":               {},
-	"PATCH /api/workspaces/{id}":             {},
-	"POST /api/daemon/stop":                  {},
-	"POST /api/exec":                         {},
-	"POST /api/reviews/{slug}/fetch":         {},
-	"POST /api/tasks/{slug}/validate":        {},
-	"POST /api/workspaces":                   {},
+	"DELETE /api/workspaces/{id}":     {},
+	"GET /api/runs/{run_id}/events":   {},
+	"GET /api/tasks/{slug}/items":     {},
+	"GET /api/workspaces/{id}":        {},
+	"PATCH /api/workspaces/{id}":      {},
+	"POST /api/daemon/stop":           {},
+	"POST /api/exec":                  {},
+	"POST /api/reviews/{slug}/fetch":  {},
+	"POST /api/tasks/{slug}/validate": {},
+	"POST /api/workspaces":            {},
 }
 
 func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
@@ -52,6 +51,7 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"GET /api/daemon/status",
 		"GET /api/reviews/{slug}",
 		"POST /api/reviews/{slug}/watch",
+		"GET /api/reviews/{slug}/rounds/{round}",
 		"GET /api/reviews/{slug}/rounds/{round}/issues",
 		"GET /api/reviews/{slug}/rounds/{round}/issues/{issue_id}",
 		"GET /api/runs",
@@ -120,6 +120,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"GET /api/tasks/{slug}/items/{task_id}",
 		"GET /api/reviews/{slug}",
 		"POST /api/reviews/{slug}/watch",
+		"GET /api/reviews/{slug}/rounds/{round}",
 		"GET /api/reviews/{slug}/rounds/{round}/issues",
 		"GET /api/reviews/{slug}/rounds/{round}/issues/{issue_id}",
 		"POST /api/tasks/{slug}/runs",
