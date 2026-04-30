@@ -255,6 +255,7 @@ func (d *defaultDaemonRunReader) summaryFromRun(
 ) RunSummary {
 	summary := RunSummary{
 		RunID:         strings.TrimSpace(run.RunID),
+		ParentRunID:   strings.TrimSpace(run.ParentRunID),
 		Status:        normalizeStatus(run.Status),
 		Mode:          strings.TrimSpace(run.Mode),
 		WorkspaceRoot: cleanWorkspaceRoot(workspaceRoot),

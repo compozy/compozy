@@ -11,6 +11,7 @@ import (
 // RunSummary is the public metadata view for one persisted run.
 type RunSummary struct {
 	RunID         string
+	ParentRunID   string
 	Status        string
 	Mode          string
 	IDE           string

@@ -292,6 +292,8 @@ func (fb *formBuilder) nameFieldOptions() (string, string, []string) {
 		return workflowNameTitle, "Select the workflow directory to fetch reviews into", listTaskSubdirs(
 			fb.tasksBaseDir,
 		)
+	case commandKindWatchReviews:
+		return workflowNameTitle, "Select the workflow directory for review watch", listTaskSubdirs(fb.tasksBaseDir)
 	default:
 		return "", "", nil
 	}

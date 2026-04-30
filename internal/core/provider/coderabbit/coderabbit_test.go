@@ -125,7 +125,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantCommit: "old-head",
 		},
 		{
-			name:    "current reviewed when latest submitted provider review matches head",
+			name:    "current reviewed when latest submitted provider review matches head and status completed",
 			headSHA: "head-current",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
@@ -164,6 +164,107 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 				t.Fatalf("ReviewCommitSHA = %q, want %q", status.ReviewCommitSHA, tt.wantCommit)
 			}
 		})
+	}
+}
+
+func TestWatchStatusUsesCodeRabbitCommitStatusAsProcessingGate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		statuses        []commitStatus
+		wantState       provider.WatchStatusState
+		wantProvider    string
+		wantDescription string
+		wantError       string
+	}{
+		{
+			name: "Should remain pending while CodeRabbit reports review in progress",
+			statuses: []commitStatus{
+				testCommitStatus("pending", "Review in progress", "2026-04-30T21:10:09Z"),
+				testCommitStatus("success", "Review approved", "2026-04-30T21:10:01Z"),
+			},
+			wantState:       provider.WatchStatusPending,
+			wantProvider:    "pending",
+			wantDescription: "Review in progress",
+		},
+		{
+			name: "Should become current when latest CodeRabbit status is completed",
+			statuses: []commitStatus{
+				testCommitStatus("success", "Review completed", "2026-04-30T21:19:32Z"),
+				testCommitStatus("pending", "Review in progress", "2026-04-30T21:10:09Z"),
+				testCommitStatus("success", "Review approved", "2026-04-30T21:10:01Z"),
+			},
+			wantState:       provider.WatchStatusCurrentReviewed,
+			wantProvider:    "success",
+			wantDescription: "Review completed",
+		},
+		{
+			name: "Should remain pending when CodeRabbit status is missing",
+			statuses: []commitStatus{
+				{Context: "verify", State: "success", Description: "CI passed", UpdatedAt: "2026-04-30T21:19:32Z"},
+			},
+			wantState: provider.WatchStatusPending,
+		},
+		{
+			name: "Should fail when CodeRabbit status fails",
+			statuses: []commitStatus{
+				testCommitStatus("failure", "Review failed", "2026-04-30T21:19:32Z"),
+			},
+			wantError: "coderabbit status",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reviews := []pullRequestReview{
+				testPullRequestReview(4102, "head-current", "COMMENTED", "2026-04-30T21:19:28Z", defaultBotLogin, ""),
+			}
+			status, err := New(WithCommandRunner(
+				testWatchStatusRunnerWithStatuses(t, "head-current", reviews, tt.statuses),
+			)).WatchStatus(context.Background(), provider.WatchStatusRequest{PR: "259"})
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("WatchStatus() error = %v, want substring %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("WatchStatus() error = %v", err)
+			}
+			if status.State != tt.wantState {
+				t.Fatalf("State = %q, want %q", status.State, tt.wantState)
+			}
+			if status.ProviderStatusState != tt.wantProvider {
+				t.Fatalf("ProviderStatusState = %q, want %q", status.ProviderStatusState, tt.wantProvider)
+			}
+			if status.ProviderStatusDescription != tt.wantDescription {
+				t.Fatalf(
+					"ProviderStatusDescription = %q, want %q",
+					status.ProviderStatusDescription,
+					tt.wantDescription,
+				)
+			}
+		})
+	}
+}
+
+func TestLatestCodeRabbitCommitStatusPrefersNewestValidTimestamp(t *testing.T) {
+	t.Parallel()
+
+	latest, ok := latestCodeRabbitCommitStatus([]commitStatus{
+		{Context: "CodeRabbit", State: "pending", Description: "malformed timestamp", UpdatedAt: "not-a-time"},
+		testCommitStatus("success", "Review completed", "2026-04-30T21:19:32Z"),
+		testCommitStatus("pending", "Review in progress", "2026-04-30T21:10:09Z"),
+	})
+	if !ok {
+		t.Fatal("latestCodeRabbitCommitStatus() ok = false, want true")
+	}
+	if latest.State != "success" || latest.Description != "Review completed" {
+		t.Fatalf("latest status = %#v, want Review completed success", latest)
 	}
 }
 
@@ -233,7 +334,13 @@ func TestWatchStatusAndFetchReviewsUseRepresentativeGHPayloads(t *testing.T) {
 		42,
 		defaultBotLogin,
 	)}
-	run := testFullReviewRunner(t, "head-current", reviews, comments)
+	run := testFullReviewRunner(
+		t,
+		"head-current",
+		reviews,
+		comments,
+		[]commitStatus{testCommitStatus("success", "Review completed", "2026-04-10T14:34:25Z")},
+	)
 	providerUnderTest := New(WithCommandRunner(run))
 
 	status, err := providerUnderTest.WatchStatus(context.Background(), provider.WatchStatusRequest{PR: "259"})
@@ -264,7 +371,22 @@ func TestWatchStatusAndFetchReviewsUseRepresentativeGHPayloads(t *testing.T) {
 
 func testWatchStatusRunner(t *testing.T, headSHA string, reviews []pullRequestReview) CommandRunner {
 	t.Helper()
-	return testFullReviewRunner(t, headSHA, reviews, nil)
+	return testWatchStatusRunnerWithStatuses(
+		t,
+		headSHA,
+		reviews,
+		[]commitStatus{testCommitStatus("success", "Review completed", "2026-04-10T14:34:25Z")},
+	)
+}
+
+func testWatchStatusRunnerWithStatuses(
+	t *testing.T,
+	headSHA string,
+	reviews []pullRequestReview,
+	statuses []commitStatus,
+) CommandRunner {
+	t.Helper()
+	return testFullReviewRunner(t, headSHA, reviews, nil, statuses)
 }
 
 func testFullReviewRunner(
@@ -272,9 +394,14 @@ func testFullReviewRunner(
 	headSHA string,
 	reviews []pullRequestReview,
 	comments []pullRequestComment,
+	statusSets ...[]commitStatus,
 ) CommandRunner {
 	t.Helper()
 	return func(_ context.Context, args ...string) ([]byte, error) {
+		statuses := []commitStatus(nil)
+		if len(statusSets) > 0 {
+			statuses = statusSets[0]
+		}
 		switch {
 		case len(args) >= 4 && args[0] == "repo" && args[1] == "view":
 			return []byte(`{"owner":{"login":"acme"},"name":"compozy"}`), nil
@@ -282,6 +409,9 @@ func testFullReviewRunner(
 			pr := pullRequest{}
 			pr.Head.SHA = headSHA
 			return mustMarshalJSON(t, pr), nil
+		case len(args) >= 2 && args[0] == "api" &&
+			strings.HasPrefix(args[1], "repos/acme/compozy/commits/"):
+			return mustMarshalJSON(t, statuses), nil
 		case len(args) >= 2 && args[0] == "api" && strings.HasPrefix(args[1], "repos/acme/compozy/pulls/259/reviews"):
 			return mustMarshalJSON(t, reviews), nil
 		case len(args) >= 2 && args[0] == "api" && strings.HasPrefix(args[1], "repos/acme/compozy/pulls/259/comments"):
@@ -304,6 +434,16 @@ func testFullReviewRunner(
 		default:
 			return nil, errors.New("unexpected gh invocation: " + strings.Join(args, " "))
 		}
+	}
+}
+
+func testCommitStatus(state string, description string, updatedAt string) commitStatus {
+	return commitStatus{
+		State:       state,
+		Description: description,
+		Context:     "CodeRabbit",
+		UpdatedAt:   updatedAt,
+		CreatedAt:   updatedAt,
 	}
 }
 

@@ -186,7 +186,6 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 func (s *commandState) applyWatchReviewsConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
 	applyConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
 	applyConfig(cmd, "format", cfg.FixReviews.OutputFormat, func(val string) { s.outputFormat = val })
-	applyConfig(cmd, "tui", cfg.FixReviews.TUI, func(val bool) { s.tui = val })
 	applyConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
 	applyConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
 	applyConfig(

@@ -679,6 +679,9 @@
                     "mode": {
                         "type": "string"
                     },
+                    "parent_run_id": {
+                        "type": "string"
+                    },
                     "presentation_mode": {
                         "type": "string"
                     },

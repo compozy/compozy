@@ -240,6 +240,85 @@ func TestPutRunNormalizesStatusAndListRunsUsesWorkspaceStatusIndex(t *testing.T)
 	}
 }
 
+func TestRunParentRunIDRoundTripsThroughDurableQueries(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	startedAt := time.Date(2026, 4, 17, 21, 0, 0, 0, time.UTC)
+	parent := Run{
+		RunID:            "run-parent",
+		WorkspaceID:      workspace.ID,
+		Mode:             "review_watch",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        startedAt,
+	}
+	if _, err := db.PutRun(context.Background(), parent); err != nil {
+		t.Fatalf("PutRun(parent) error = %v", err)
+	}
+
+	child, err := db.PutRun(context.Background(), Run{
+		RunID:            "run-child",
+		WorkspaceID:      workspace.ID,
+		ParentRunID:      " " + parent.RunID + " ",
+		Mode:             "review",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        startedAt.Add(time.Second),
+	})
+	if err != nil {
+		t.Fatalf("PutRun(child) error = %v", err)
+	}
+	if child.ParentRunID != parent.RunID {
+		t.Fatalf("inserted child ParentRunID = %q, want %q", child.ParentRunID, parent.RunID)
+	}
+
+	got, err := db.GetRun(context.Background(), child.RunID)
+	if err != nil {
+		t.Fatalf("GetRun(child) error = %v", err)
+	}
+	if got.ParentRunID != parent.RunID {
+		t.Fatalf("GetRun(child).ParentRunID = %q, want %q", got.ParentRunID, parent.RunID)
+	}
+
+	listed, err := db.ListRuns(context.Background(), ListRunsOptions{
+		WorkspaceID: workspace.ID,
+		Status:      "running",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if row := findRunByID(listed, child.RunID); row == nil || row.ParentRunID != parent.RunID {
+		t.Fatalf("ListRuns child = %#v, want parent_run_id %q", row, parent.RunID)
+	}
+
+	interrupted, err := db.ListInterruptedRuns(context.Background())
+	if err != nil {
+		t.Fatalf("ListInterruptedRuns() error = %v", err)
+	}
+	if row := findRunByID(interrupted, child.RunID); row == nil || row.ParentRunID != parent.RunID {
+		t.Fatalf("ListInterruptedRuns child = %#v, want parent_run_id %q", row, parent.RunID)
+	}
+
+	completedAt := startedAt.Add(2 * time.Minute)
+	got.ParentRunID = ""
+	got.Status = "completed"
+	got.EndedAt = &completedAt
+	updated, err := db.UpdateRun(context.Background(), got)
+	if err != nil {
+		t.Fatalf("UpdateRun(child) error = %v", err)
+	}
+	if updated.ParentRunID != "" {
+		t.Fatalf("updated child ParentRunID = %q, want empty", updated.ParentRunID)
+	}
+}
+
 func TestMarkRunsCrashedAndDeleteRunsBatch(t *testing.T) {
 	t.Parallel()
 
@@ -323,6 +402,15 @@ func runIDs(runs []Run) []string {
 		ids = append(ids, runs[i].RunID)
 	}
 	return ids
+}
+
+func findRunByID(runs []Run, runID string) *Run {
+	for i := range runs {
+		if runs[i].RunID == runID {
+			return &runs[i]
+		}
+	}
+	return nil
 }
 
 func timePtr(value time.Time) *time.Time {

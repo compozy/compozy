@@ -115,6 +115,7 @@ type Run struct {
 	RunID            string
 	WorkspaceID      string
 	WorkflowID       *string
+	ParentRunID      string
 	Mode             string
 	Status           string
 	PresentationMode string
@@ -538,6 +539,7 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
+	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
 	run.Mode = strings.TrimSpace(run.Mode)
 	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
@@ -564,8 +566,8 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		ctx,
 		`INSERT INTO runs (
 			run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-			started_at, ended_at, error_text, request_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			started_at, ended_at, error_text, parent_run_id, request_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.RunID,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -575,6 +577,7 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		store.FormatTimestamp(run.StartedAt),
 		nullableTimestamp(run.EndedAt),
 		strings.TrimSpace(run.ErrorText),
+		run.ParentRunID,
 		strings.TrimSpace(run.RequestID),
 	)
 	if err != nil {
@@ -595,6 +598,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
+	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
 	run.Mode = strings.TrimSpace(run.Mode)
 	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
@@ -628,6 +632,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		     started_at = ?,
 		     ended_at = ?,
 		     error_text = ?,
+		     parent_run_id = ?,
 		     request_id = ?
 		 WHERE run_id = ?`,
 		run.WorkspaceID,
@@ -638,6 +643,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		store.FormatTimestamp(run.StartedAt),
 		nullableTimestamp(run.EndedAt),
 		strings.TrimSpace(run.ErrorText),
+		run.ParentRunID,
 		strings.TrimSpace(run.RequestID),
 		run.RunID,
 	)
@@ -665,7 +671,7 @@ func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		        started_at, ended_at, error_text, request_id
+		        started_at, ended_at, error_text, parent_run_id, request_id
 		 FROM runs
 		 WHERE run_id = ?`,
 		strings.TrimSpace(runID),
@@ -693,7 +699,7 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 
 	query := `
 		SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		       started_at, ended_at, error_text, request_id
+		       started_at, ended_at, error_text, parent_run_id, request_id
 		FROM runs
 		WHERE 1 = 1`
 	args := make([]any, 0, 4)
@@ -1073,6 +1079,7 @@ func scanRun(scanner rowScanner) (Run, error) {
 		&startedAtRaw,
 		&endedAtRaw,
 		&run.ErrorText,
+		&run.ParentRunID,
 		&run.RequestID,
 	); err != nil {
 		return Run{}, err
@@ -1091,6 +1098,12 @@ func scanRun(scanner rowScanner) (Run, error) {
 		}
 		run.EndedAt = &endedAt
 	}
+	run.Mode = strings.TrimSpace(run.Mode)
+	run.Status = strings.TrimSpace(run.Status)
+	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
+	run.ErrorText = strings.TrimSpace(run.ErrorText)
+	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
+	run.RequestID = strings.TrimSpace(run.RequestID)
 
 	return run, nil
 }

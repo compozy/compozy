@@ -78,6 +78,38 @@ func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	assertFieldKeysAbsent(t, keys, "dry-run", "include-resolved", "tail-lines", "access-mode", "timeout")
 }
 
+func TestWatchReviewsFormCollectsReviewWatchInputs(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	baseDir := filepath.Join(tmp, ".compozy", "tasks")
+	if err := os.MkdirAll(filepath.Join(baseDir, "demo"), 0o755); err != nil {
+		t.Fatalf("create workflow dir: %v", err)
+	}
+
+	cmd := newReviewsWatchCommandWithDefaults(defaultCommandStateDefaults())
+	state := newCommandState(commandKindWatchReviews, core.ModePRReview)
+	builder := newFormBuilder(cmd, state)
+	builder.tasksBaseDir = baseDir
+
+	inputs := newFormInputs()
+	inputs.register(builder)
+
+	if !builder.nameFromDirList {
+		t.Fatal("reviews watch should use directory select when workflows exist")
+	}
+
+	keys := make(map[string]struct{}, len(builder.fields))
+	for _, field := range builder.fields {
+		key := field.GetKey()
+		if key != "" {
+			keys[key] = struct{}{}
+		}
+	}
+
+	assertFieldKeysPresent(t, keys, "name", "provider", "pr")
+}
+
 func TestTasksRunFormUsesSelectWhenTaskDirsExist(t *testing.T) {
 	t.Parallel()
 

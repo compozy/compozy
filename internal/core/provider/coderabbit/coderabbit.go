@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/provider"
 )
@@ -156,6 +157,11 @@ func (p *Provider) WatchStatus(
 	if strings.TrimSpace(pr.Head.SHA) == "" {
 		return provider.WatchStatus{}, errors.New("pull request metadata response is incomplete")
 	}
+	statuses, err := p.fetchCommitStatuses(ctx, owner, repo, pr.Head.SHA)
+	if err != nil {
+		return provider.WatchStatus{}, err
+	}
+	latestStatus, hasStatus := latestCodeRabbitCommitStatus(statuses)
 
 	reviews, err := p.fetchPullRequestReviews(ctx, owner, repo, req.PR)
 	if err != nil {
@@ -163,13 +169,17 @@ func (p *Provider) WatchStatus(
 	}
 	latest, ok := latestProviderReview(reviews, p.botLogin)
 	if !ok {
-		return provider.WatchStatus{
+		status := provider.WatchStatus{
 			PRHeadSHA: strings.TrimSpace(pr.Head.SHA),
 			State:     provider.WatchStatusPending,
-		}, nil
+		}
+		if hasStatus {
+			applyCommitStatus(&status, latestStatus)
+		}
+		return status, nil
 	}
 
-	return classifyWatchStatus(pr.Head.SHA, latest)
+	return classifyWatchStatus(pr.Head.SHA, latest, latestStatus, hasStatus)
 }
 
 func (p *Provider) fetchPullRequest(
@@ -189,6 +199,75 @@ func (p *Provider) fetchPullRequest(
 		return pullRequest{}, fmt.Errorf("decode pull request metadata: %w", err)
 	}
 	return payload, nil
+}
+
+type commitStatus struct {
+	State       string `json:"state"`
+	Description string `json:"description"`
+	Context     string `json:"context"`
+	UpdatedAt   string `json:"updated_at"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func (p *Provider) fetchCommitStatuses(
+	ctx context.Context,
+	owner string,
+	repo string,
+	sha string,
+) ([]commitStatus, error) {
+	statuses := make([]commitStatus, 0, 8)
+	for page := 1; ; page++ {
+		endpoint := fmt.Sprintf("repos/%s/%s/commits/%s/statuses?per_page=100&page=%d", owner, repo, sha, page)
+		output, err := p.run(ctx, "api", endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("fetch commit statuses page %d: %w", page, err)
+		}
+
+		var pageStatuses []commitStatus
+		if err := json.Unmarshal(output, &pageStatuses); err != nil {
+			return nil, fmt.Errorf("decode commit statuses page %d: %w", page, err)
+		}
+
+		statuses = append(statuses, pageStatuses...)
+		if len(pageStatuses) < 100 {
+			break
+		}
+	}
+	return statuses, nil
+}
+
+func latestCodeRabbitCommitStatus(statuses []commitStatus) (commitStatus, bool) {
+	var latest commitStatus
+	found := false
+	for _, status := range statuses {
+		if !strings.EqualFold(strings.TrimSpace(status.Context), "CodeRabbit") {
+			continue
+		}
+		if !found || commitStatusIsNewer(status, latest) {
+			latest = status
+			found = true
+		}
+	}
+	return latest, found
+}
+
+func commitStatusIsNewer(candidate commitStatus, current commitStatus) bool {
+	candidateTime := commitStatusTimestamp(candidate)
+	currentTime := commitStatusTimestamp(current)
+	if candidateTime.IsZero() {
+		return false
+	}
+	if currentTime.IsZero() {
+		return true
+	}
+	return candidateTime.After(currentTime)
+}
+
+func commitStatusTimestamp(status commitStatus) time.Time {
+	if updatedAt := parseReviewSubmittedAt(status.UpdatedAt); !updatedAt.IsZero() {
+		return updatedAt
+	}
+	return parseReviewSubmittedAt(status.CreatedAt)
 }
 
 func latestProviderReview(reviews []pullRequestReview, botLogin string) (pullRequestReview, bool) {
@@ -221,13 +300,21 @@ func reviewIsNewer(candidate pullRequestReview, current pullRequestReview) bool 
 	return compareReviewIDs(strconv.Itoa(candidate.ID), strconv.Itoa(current.ID)) > 0
 }
 
-func classifyWatchStatus(headSHA string, review pullRequestReview) (provider.WatchStatus, error) {
+func classifyWatchStatus(
+	headSHA string,
+	review pullRequestReview,
+	latestStatus commitStatus,
+	hasStatus bool,
+) (provider.WatchStatus, error) {
 	status := provider.WatchStatus{
 		PRHeadSHA:       strings.TrimSpace(headSHA),
 		ReviewCommitSHA: strings.TrimSpace(review.CommitID),
 		ReviewID:        strconv.Itoa(review.ID),
 		ReviewState:     strings.TrimSpace(review.State),
 		State:           provider.WatchStatusPending,
+	}
+	if hasStatus {
+		applyCommitStatus(&status, latestStatus)
 	}
 	if status.ReviewCommitSHA == "" || reviewStateIsPending(status.ReviewState) {
 		return status, nil
@@ -246,12 +333,52 @@ func classifyWatchStatus(headSHA string, review pullRequestReview) (provider.Wat
 		status.State = provider.WatchStatusStale
 		return status, nil
 	}
+	if !hasStatus || commitStatusIsPending(latestStatus) {
+		return status, nil
+	}
+	if commitStatusFailed(latestStatus) {
+		return provider.WatchStatus{}, fmt.Errorf(
+			"coderabbit status %q for head %s: %s",
+			strings.TrimSpace(latestStatus.State),
+			status.PRHeadSHA,
+			strings.TrimSpace(latestStatus.Description),
+		)
+	}
+	if !commitStatusSucceeded(latestStatus) {
+		return provider.WatchStatus{}, fmt.Errorf(
+			"coderabbit status %q for head %s is unsupported",
+			strings.TrimSpace(latestStatus.State),
+			status.PRHeadSHA,
+		)
+	}
 	status.State = provider.WatchStatusCurrentReviewed
 	return status, nil
 }
 
 func reviewStateIsPending(state string) bool {
 	return strings.EqualFold(strings.TrimSpace(state), "PENDING")
+}
+
+func applyCommitStatus(status *provider.WatchStatus, commitStatus commitStatus) {
+	if status == nil {
+		return
+	}
+	status.ProviderStatusState = strings.TrimSpace(commitStatus.State)
+	status.ProviderStatusDescription = strings.TrimSpace(commitStatus.Description)
+	status.ProviderStatusUpdatedAt = commitStatusTimestamp(commitStatus)
+}
+
+func commitStatusIsPending(status commitStatus) bool {
+	return strings.EqualFold(strings.TrimSpace(status.State), "pending")
+}
+
+func commitStatusSucceeded(status commitStatus) bool {
+	return strings.EqualFold(strings.TrimSpace(status.State), "success")
+}
+
+func commitStatusFailed(status commitStatus) bool {
+	state := strings.ToLower(strings.TrimSpace(status.State))
+	return state == "failure" || state == "error"
 }
 
 func sortReviewItems(items []provider.ReviewItem) {

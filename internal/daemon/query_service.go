@@ -83,11 +83,12 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 	if err != nil {
 		return WorkspaceDashboard{}, err
 	}
+	visibleRuns := dashboardVisibleRuns(runs)
 
 	cards := make([]WorkflowCard, 0, len(workflows))
 	pendingReviews := 0
 	for _, workflow := range workflows {
-		card, err := s.buildWorkflowCard(ctx, workflow, runs)
+		card, err := s.buildWorkflowCard(ctx, workflow, visibleRuns)
 		if err != nil {
 			return WorkspaceDashboard{}, err
 		}
@@ -102,14 +103,14 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 		return WorkspaceDashboard{}, err
 	}
 
-	activeRuns := filterRuns(runs, func(run apicore.Run) bool {
+	activeRuns := filterRuns(visibleRuns, func(run apicore.Run) bool {
 		return !isTerminalRunStatus(run.Status)
 	})
 	return WorkspaceDashboard{
 		Workspace:      transportWorkspace(workspace),
 		Daemon:         status,
 		Health:         health,
-		Queue:          summarizeRunQueue(runs),
+		Queue:          summarizeRunQueue(visibleRuns),
 		Workflows:      cards,
 		ActiveRuns:     activeRuns,
 		PendingReviews: pendingReviews,
@@ -1159,6 +1160,46 @@ func summarizeRunQueue(runs []apicore.Run) DashboardQueueSummary {
 		}
 	}
 	return summary
+}
+
+func dashboardVisibleRuns(runs []apicore.Run) []apicore.Run {
+	if len(runs) == 0 {
+		return nil
+	}
+	byID := make(map[string]apicore.Run, len(runs))
+	for i := range runs {
+		run := runs[i]
+		runID := strings.TrimSpace(run.RunID)
+		if runID == "" {
+			continue
+		}
+		byID[runID] = run
+	}
+
+	visible := make([]apicore.Run, 0, len(runs))
+	for i := range runs {
+		run := runs[i]
+		if dashboardShouldHideChildRun(run, byID) {
+			continue
+		}
+		visible = append(visible, run)
+	}
+	return visible
+}
+
+func dashboardShouldHideChildRun(run apicore.Run, byID map[string]apicore.Run) bool {
+	parentRunID := strings.TrimSpace(run.ParentRunID)
+	if parentRunID == "" {
+		return false
+	}
+	parent, ok := byID[parentRunID]
+	if !ok {
+		return false
+	}
+	if !isTerminalRunStatus(parent.Status) {
+		return true
+	}
+	return isTerminalRunStatus(run.Status)
 }
 
 func filterRuns(runs []apicore.Run, keep func(apicore.Run) bool) []apicore.Run {

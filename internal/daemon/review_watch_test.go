@@ -99,6 +99,9 @@ func TestRunManagerReviewWatchPersistsRoundAndStartsOneChildRun(t *testing.T) {
 		if len(runs) != 1 {
 			t.Fatalf("review child runs = %d, want 1: %#v", len(runs), runs)
 		}
+		if runs[0].ParentRunID != run.RunID {
+			t.Fatalf("review child parent_run_id = %q, want %q", runs[0].ParentRunID, run.RunID)
+		}
 		fixStarted := decodeReviewWatchPayload(
 			t,
 			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchFixStarted),
@@ -308,6 +311,8 @@ func TestRunManagerReviewWatchPushesAndRepeatsUntilClean(t *testing.T) {
 		reviewProvider := &fakeReviewWatchProvider{
 			statuses: []provider.WatchStatus{
 				currentWatchStatus("head-1"),
+				currentWatchStatus("head-1"),
+				currentWatchStatus("head-2"),
 				currentWatchStatus("head-2"),
 			},
 			fetches: [][]provider.ReviewItem{
@@ -335,12 +340,16 @@ func TestRunManagerReviewWatchPushesAndRepeatsUntilClean(t *testing.T) {
 				req.PushRemote = "origin"
 				req.PushBranch = "feature"
 				req.QuietPeriod = "1ms"
+				req.ReviewTimeout = "2s"
 				req.MaxRounds = 2
 			},
 		)
 		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-			return row.Status == runStatusCompleted
+			return isTerminalRunStatus(row.Status)
 		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("row.Status = %q error = %q, want completed", row.Status, row.ErrorText)
+		}
 		if row.ErrorText != "" {
 			t.Fatalf("row.ErrorText = %q, want empty", row.ErrorText)
 		}
@@ -349,6 +358,258 @@ func TestRunManagerReviewWatchPushesAndRepeatsUntilClean(t *testing.T) {
 		}
 		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
 		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+	})
+}
+
+func TestRunManagerReviewWatchPushesUnpushedHeadAtStartup(t *testing.T) {
+	t.Run("Should push an already committed local head before waiting for provider review", func(t *testing.T) {
+		git := &fakeReviewWatchGit{
+			states: []ReviewWatchGitState{
+				{
+					HeadSHA:         "local-fix-head",
+					UpstreamRemote:  "origin",
+					UpstreamBranch:  "feature",
+					UnpushedCommits: 1,
+				},
+				{
+					HeadSHA:         "local-fix-head",
+					UpstreamRemote:  "origin",
+					UpstreamBranch:  "feature",
+					UnpushedCommits: 0,
+				},
+			},
+		}
+		reviewProvider := &fakeReviewWatchProvider{
+			statusFunc: func(context.Context) (provider.WatchStatus, error) {
+				git.mu.Lock()
+				pushed := len(git.pushes) > 0
+				git.mu.Unlock()
+				if !pushed {
+					return currentWatchStatus("remote-reviewed-head"), nil
+				}
+				return currentWatchStatus("local-fix-head"), nil
+			},
+			fetches: [][]provider.ReviewItem{{}},
+		}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
+
+		run := startReviewWatch(
+			t,
+			env,
+			reviewWatchRequest(`{"run_id":"review-watch-startup-push"}`),
+			func(req *apicore.ReviewWatchRequest) {
+				req.AutoPush = true
+				req.ReviewTimeout = "1s"
+			},
+		)
+		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("row.Status = %q error = %q, want completed", row.Status, row.ErrorText)
+		}
+		if len(git.pushes) != 1 || git.pushes[0] != (reviewWatchPush{remote: "origin", branch: "feature"}) {
+			t.Fatalf("pushes = %#v, want one startup push to origin/feature", git.pushes)
+		}
+		started := decodeReviewWatchPayload(
+			t,
+			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted),
+		)
+		if started.Round != 0 ||
+			started.Status != "startup_unpushed_head" ||
+			started.UnpushedCommits != 1 ||
+			started.HeadSHA != "local-fix-head" {
+			t.Fatalf("push_started payload = %#v, want startup metadata", started)
+		}
+		completed := decodeReviewWatchPayload(
+			t,
+			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted),
+		)
+		if completed.Round != 0 ||
+			completed.Status != "startup_unpushed_head" ||
+			completed.UnpushedCommits != 1 ||
+			completed.HeadSHA != "local-fix-head" {
+			t.Fatalf("push_completed payload = %#v, want startup metadata", completed)
+		}
+		clean := decodeReviewWatchPayload(t, requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean))
+		if clean.HeadSHA != "local-fix-head" {
+			t.Fatalf("clean payload = %#v, want provider-current local fix head", clean)
+		}
+	})
+}
+
+func TestRunManagerReviewWatchStartupPrePushHookVetoStopsWatch(t *testing.T) {
+	t.Run("Should stop explicitly when the pre-push hook vetoes startup reconciliation", func(t *testing.T) {
+		reviewProvider := &fakeReviewWatchProvider{}
+		git := &fakeReviewWatchGit{
+			states: []ReviewWatchGitState{{
+				HeadSHA:         "local-fix-head",
+				UpstreamRemote:  "origin",
+				UpstreamBranch:  "feature",
+				UnpushedCommits: 1,
+			}},
+		}
+		hooks := &reviewWatchTestHookManager{
+			mutable: func(_ context.Context, hook string, payload any) (any, error) {
+				if hook != reviewWatchHookPrePush {
+					return payload, nil
+				}
+				updated, ok := payload.(reviewWatchPrePushHookPayload)
+				if !ok {
+					return payload, nil
+				}
+				updated.Push = false
+				updated.StopReason = "release freeze"
+				return updated, nil
+			},
+		}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{
+			openRunScope: newTestOpenRunScope(hooks),
+		})
+
+		run := startReviewWatch(
+			t,
+			env,
+			reviewWatchRequest(`{"run_id":"review-watch-startup-veto"}`),
+			func(req *apicore.ReviewWatchRequest) {
+				req.AutoPush = true
+			},
+		)
+		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("row.Status = %q error = %q, want completed stopped run", row.Status, row.ErrorText)
+		}
+		if len(git.pushes) != 0 {
+			t.Fatalf("pushes = %#v, want none after startup pre-push veto", git.pushes)
+		}
+		if event, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted); ok {
+			t.Fatalf("unexpected push_started event after startup veto: %#v", event)
+		}
+		finished, ok := hooks.lastObserver(reviewWatchHookFinished).(reviewWatchFinishedHookPayload)
+		if !ok {
+			t.Fatalf("finished hook payload missing or wrong type: %#v", hooks.observed(reviewWatchHookFinished))
+		}
+		if !finished.Stopped ||
+			finished.TerminalReason != "review watch stopped: release freeze" ||
+			finished.HeadSHA != "local-fix-head" {
+			t.Fatalf("finished payload = %#v, want explicit startup stop reason", finished)
+		}
+	})
+}
+
+func TestRunManagerReviewWatchWaitsForProviderToSettleBeforeClean(t *testing.T) {
+	t.Run("Should not declare clean while CodeRabbit is still processing the pushed head", func(t *testing.T) {
+		reviewProvider := &fakeReviewWatchProvider{
+			statuses: []provider.WatchStatus{
+				currentWatchStatus("head-1"),
+				currentWatchStatus("head-1"),
+				currentWatchStatus("head-2"),
+				{
+					PRHeadSHA:       "head-2",
+					ReviewCommitSHA: "head-2",
+					ReviewID:        "review-head-2-in-progress",
+					ReviewState:     "COMMENTED",
+					State:           provider.WatchStatusPending,
+					SubmittedAt:     time.Now().UTC(),
+				},
+				currentWatchStatus("head-2"),
+				currentWatchStatus("head-2"),
+			},
+			fetches: [][]provider.ReviewItem{
+				{watchReviewItem()},
+				{watchReviewItem()},
+			},
+		}
+		git := &fakeReviewWatchGit{
+			states: []ReviewWatchGitState{
+				{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				{HeadSHA: "head-2", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				{HeadSHA: "head-2", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				{HeadSHA: "head-3", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+			},
+		}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{
+			execute: resolveReviewIssuesDuringRun(t),
+		})
+
+		run := startReviewWatch(
+			t,
+			env,
+			reviewWatchRequest(`{"run_id":"review-watch-provider-settle"}`),
+			func(req *apicore.ReviewWatchRequest) {
+				req.AutoPush = true
+				req.PushRemote = "origin"
+				req.PushBranch = "feature"
+				req.QuietPeriod = "1ms"
+				req.MaxRounds = 2
+			},
+		)
+		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("row.Status = %q error = %q, want completed", row.Status, row.ErrorText)
+		}
+		if row.ErrorText != "" {
+			t.Fatalf("row.ErrorText = %q, want empty", row.ErrorText)
+		}
+		if _, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean); ok {
+			t.Fatal("watch declared clean before the provider-settled actionable round was processed")
+		}
+		roundsFetched := 0
+		for _, event := range allRunEvents(t, run.RunID) {
+			if event.Kind == eventspkg.EventKindReviewWatchRoundFetched {
+				roundsFetched++
+			}
+		}
+		if roundsFetched != 2 {
+			t.Fatalf("rounds fetched = %d, want 2", roundsFetched)
+		}
+		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchMaxRounds)
+	})
+}
+
+func TestRunManagerReviewWatchWaitsForManualPushHeadBeforeClean(t *testing.T) {
+	t.Run("Should not declare clean against the old PR head after a local non-auto-push fix", func(t *testing.T) {
+		reviewProvider := &fakeReviewWatchProvider{
+			statuses: []provider.WatchStatus{
+				currentWatchStatus("head-1"),
+				currentWatchStatus("head-1"),
+			},
+			fetches: [][]provider.ReviewItem{{watchReviewItem()}},
+		}
+		git := &fakeReviewWatchGit{
+			states: []ReviewWatchGitState{
+				{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				{HeadSHA: "head-2", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+			},
+		}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{
+			execute: resolveReviewIssuesDuringRun(t),
+		})
+
+		run := startReviewWatch(
+			t,
+			env,
+			reviewWatchRequest(`{"run_id":"review-watch-manual-push-head"}`),
+			func(req *apicore.ReviewWatchRequest) {
+				req.MaxRounds = 2
+				req.ReviewTimeout = "20ms"
+			},
+		)
+		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusFailed
+		})
+		if !strings.Contains(row.ErrorText, "timed out") {
+			t.Fatalf("row.ErrorText = %q, want provider wait timeout", row.ErrorText)
+		}
+		if _, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean); ok {
+			t.Fatal("watch declared clean against a PR head that did not include the local fix")
+		}
 	})
 }
 
@@ -455,12 +716,16 @@ func TestRunManagerReviewWatchTwoRoundFlowWithTempGitRepository(t *testing.T) {
 				req.PushRemote = "origin"
 				req.PushBranch = "feature"
 				req.QuietPeriod = "1ms"
+				req.ReviewTimeout = "2s"
 				req.MaxRounds = 2
 			},
 		)
 		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-			return row.Status == runStatusCompleted
+			return isTerminalRunStatus(row.Status)
 		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("row.Status = %q error = %q, want completed", row.Status, row.ErrorText)
+		}
 		if row.ErrorText != "" {
 			t.Fatalf("row.ErrorText = %q, want empty", row.ErrorText)
 		}
@@ -626,6 +891,27 @@ func TestRunManagerReviewWatchFailureStates(t *testing.T) {
 					},
 				},
 				wantError: "canceled",
+			},
+			{
+				name: "startup push failure",
+				provider: &fakeReviewWatchProvider{
+					statuses: []provider.WatchStatus{currentWatchStatus("local-fix-head")},
+					fetches:  [][]provider.ReviewItem{{}},
+				},
+				git: &fakeReviewWatchGit{
+					states: []ReviewWatchGitState{{
+						HeadSHA:         "local-fix-head",
+						UpstreamRemote:  "origin",
+						UpstreamBranch:  "feature",
+						UnpushedCommits: 1,
+					}},
+					pushErr: errors.New("startup push rejected"),
+				},
+				mutateReq: func(req *apicore.ReviewWatchRequest) {
+					req.AutoPush = true
+				},
+				wantError: "startup push rejected",
+				wantEvent: eventspkg.EventKindReviewWatchPushFailed,
 			},
 			{
 				name: "push failure",

@@ -325,6 +325,7 @@ type Run struct {
 	WorkspaceID      string     `json:"workspace_id"`
 	WorkflowID       *string    `json:"workflow_id,omitempty"`
 	WorkflowSlug     string     `json:"workflow_slug,omitempty"`
+	ParentRunID      string     `json:"parent_run_id,omitempty"`
 	Mode             string     `json:"mode"`
 	Status           string     `json:"status"`
 	PresentationMode string     `json:"presentation_mode"`

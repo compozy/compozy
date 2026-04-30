@@ -174,6 +174,7 @@ type startRunSpec struct {
 	workflowRoot     string
 	mode             string
 	presentationMode string
+	parentRunID      string
 	runtimeCfg       *model.RuntimeConfig
 	reviewWatch      *preparedReviewWatch
 	reviewWatchKey   *reviewWatchKey
@@ -416,6 +417,17 @@ func (m *RunManager) StartReviewRun(
 	round int,
 	req apicore.ReviewRunRequest,
 ) (apicore.Run, error) {
+	return m.startReviewRun(ctx, workspaceRef, workflowSlug, round, req, "")
+}
+
+func (m *RunManager) startReviewRun(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+	round int,
+	req apicore.ReviewRunRequest,
+	parentRunID string,
+) (apicore.Run, error) {
 	workspaceRow, workflowID, runtimeCfg, presentationMode, err := m.prepareReviewStart(
 		detachContext(ctx),
 		workspaceRef,
@@ -434,6 +446,7 @@ func (m *RunManager) StartReviewRun(
 		workflowRoot:     filepath.Dir(strings.TrimSpace(runtimeCfg.ReviewsDir)),
 		mode:             runModeReview,
 		presentationMode: presentationMode,
+		parentRunID:      strings.TrimSpace(parentRunID),
 		runtimeCfg:       runtimeCfg,
 	})
 }
@@ -1152,6 +1165,7 @@ func (m *RunManager) prepareRunRow(
 		RunID:            runID,
 		WorkspaceID:      spec.workspace.ID,
 		WorkflowID:       spec.workflowID,
+		ParentRunID:      parentRunIDForSpec(spec),
 		Mode:             spec.mode,
 		Status:           runStatusStarting,
 		PresentationMode: spec.presentationMode,
@@ -1206,6 +1220,7 @@ func (m *RunManager) resumeExistingExecRun(
 		row, err = m.globalDB.PutRun(ctx, globaldb.Run{
 			RunID:            runID,
 			WorkspaceID:      spec.workspace.ID,
+			ParentRunID:      parentRunIDForSpec(spec),
 			Mode:             runModeExec,
 			Status:           runStatusStarting,
 			PresentationMode: spec.presentationMode,
@@ -1224,6 +1239,7 @@ func (m *RunManager) resumeExistingExecRun(
 
 	row.WorkspaceID = spec.workspace.ID
 	row.WorkflowID = nil
+	setRunParentIDForSpec(&row, spec)
 	row.Status = runStatusStarting
 	row.PresentationMode = spec.presentationMode
 	if row.StartedAt.IsZero() {
@@ -1242,6 +1258,22 @@ func (m *RunManager) resumeExistingExecRun(
 		return globaldb.Run{}, false, err
 	}
 	return updatedRow, true, nil
+}
+
+func setRunParentIDForSpec(row *globaldb.Run, spec startRunSpec) {
+	if parentRunID := parentRunIDForSpec(spec); parentRunID != "" {
+		row.ParentRunID = parentRunID
+	}
+}
+
+func parentRunIDForSpec(spec startRunSpec) string {
+	if parentRunID := strings.TrimSpace(spec.parentRunID); parentRunID != "" {
+		return parentRunID
+	}
+	if spec.runtimeCfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(spec.runtimeCfg.ParentRunID)
 }
 
 func (m *RunManager) openRunScopeForStart(
@@ -1518,6 +1550,7 @@ func (m *RunManager) toCoreRun(
 	run := apicore.Run{
 		RunID:            row.RunID,
 		WorkspaceID:      row.WorkspaceID,
+		ParentRunID:      row.ParentRunID,
 		Mode:             row.Mode,
 		Status:           row.Status,
 		PresentationMode: row.PresentationMode,

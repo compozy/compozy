@@ -170,6 +170,16 @@ var migrations = []migration{
 			);`,
 		},
 	},
+	{
+		version: 5,
+		name:    "runs_parent_run_id",
+		statements: []string{
+			`ALTER TABLE runs ADD COLUMN parent_run_id TEXT NOT NULL DEFAULT '';`,
+			`CREATE INDEX IF NOT EXISTS idx_runs_parent_run_id
+				ON runs(parent_run_id)
+				WHERE parent_run_id <> '';`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

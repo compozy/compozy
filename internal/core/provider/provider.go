@@ -30,12 +30,15 @@ type WatchStatusRequest struct {
 
 // WatchStatus reports whether a provider review covers the current PR head.
 type WatchStatus struct {
-	PRHeadSHA       string           `json:"pr_head_sha"`
-	ReviewCommitSHA string           `json:"review_commit_sha,omitempty"`
-	ReviewID        string           `json:"review_id,omitempty"`
-	ReviewState     string           `json:"review_state,omitempty"`
-	State           WatchStatusState `json:"state"`
-	SubmittedAt     time.Time        `json:"submitted_at,omitempty"`
+	PRHeadSHA                 string           `json:"pr_head_sha"`
+	ReviewCommitSHA           string           `json:"review_commit_sha,omitempty"`
+	ReviewID                  string           `json:"review_id,omitempty"`
+	ReviewState               string           `json:"review_state,omitempty"`
+	ProviderStatusState       string           `json:"provider_status_state,omitempty"`
+	ProviderStatusDescription string           `json:"provider_status_description,omitempty"`
+	ProviderStatusUpdatedAt   time.Time        `json:"provider_status_updated_at,omitempty"`
+	State                     WatchStatusState `json:"state"`
+	SubmittedAt               time.Time        `json:"submitted_at,omitempty"`
 }
 
 // ReviewItem is the normalized output of a provider fetch operation.

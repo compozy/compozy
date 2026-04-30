@@ -547,7 +547,12 @@ func TestReviewsWatchCommandBuildsDaemonRequest(t *testing.T) {
 		if err != nil {
 			t.Fatalf("execute reviews watch: %v\noutput:\n%s", err, output)
 		}
-		if !containsAll(output, "task run started: review-watch-001", "(mode=detach)") {
+		if !containsAll(
+			output,
+			"review watch started: review-watch-001",
+			"running in background",
+			"compozy runs watch review-watch-001",
+		) {
 			t.Fatalf("unexpected reviews watch output:\n%s", output)
 		}
 		if mustEvalSymlinksCLITest(t, client.startWatchWorkspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
@@ -583,6 +588,120 @@ func TestReviewsWatchCommandBuildsDaemonRequest(t *testing.T) {
 			t.Fatalf("unexpected batching overrides: %#v", batching)
 		}
 	})
+}
+
+func TestReviewsWatchCommandNoFlagsUsesInteractiveFormAndRunsInBackground(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{
+		stubDaemonCommandClient: &stubDaemonCommandClient{
+			health: apicore.DaemonHealth{Ready: true},
+			reviewWatchRun: apicore.Run{
+				RunID: "review-watch-form",
+				Mode:  "review_watch",
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+	installTestCLIRunObservers(
+		t,
+		func(context.Context, daemonCommandClient, string) error {
+			return errors.New("reviews watch must not attach the UI after form collection")
+		},
+		nil,
+	)
+
+	defaults := testReviewExecCommandDefaults()
+	defaults.isInteractive = func() bool { return true }
+	var collectFormCalls int
+	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+		collectFormCalls++
+		state.name = "demo"
+		state.provider = "coderabbit"
+		state.pr = "85"
+		return nil
+	}
+
+	output, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(defaults),
+		nil,
+		"watch",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews watch form flow: %v\noutput:\n%s", err, output)
+	}
+	if collectFormCalls != 1 {
+		t.Fatalf("expected one interactive form call, got %d", collectFormCalls)
+	}
+	if client.startWatchSlug != "demo" {
+		t.Fatalf("watch slug = %q, want demo", client.startWatchSlug)
+	}
+	if client.startWatchReq.Provider != "coderabbit" || client.startWatchReq.PRRef != "85" {
+		t.Fatalf("unexpected watch request from form: %#v", client.startWatchReq)
+	}
+	if !containsAll(
+		output,
+		"review watch started: review-watch-form",
+		"running in background",
+		"compozy runs watch review-watch-form",
+	) {
+		t.Fatalf("unexpected reviews watch background output:\n%s", output)
+	}
+}
+
+func TestReviewsWatchCommandInteractiveTextDefaultsToBackground(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{
+		stubDaemonCommandClient: &stubDaemonCommandClient{
+			health: apicore.DaemonHealth{Ready: true},
+			reviewWatchRun: apicore.Run{
+				RunID: "review-watch-background",
+				Mode:  "review_watch",
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+	installTestCLIRunObservers(
+		t,
+		func(context.Context, daemonCommandClient, string) error {
+			return errors.New("reviews watch must not attach the UI by default")
+		},
+		nil,
+	)
+
+	defaults := testReviewExecCommandDefaults()
+	defaults.isInteractive = func() bool { return true }
+
+	output, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(defaults),
+		nil,
+		"watch",
+		"demo",
+		"--provider",
+		"coderabbit",
+		"--pr",
+		"85",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews watch default background: %v\noutput:\n%s", err, output)
+	}
+	if !containsAll(
+		output,
+		"review watch started: review-watch-background",
+		"running in background",
+		"compozy runs watch review-watch-background",
+	) {
+		t.Fatalf("unexpected reviews watch background output:\n%s", output)
+	}
 }
 
 func TestReviewsWatchCommandAppliesWatchConfigAndRejectsAutoCommitContradiction(t *testing.T) {
@@ -742,7 +861,11 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 		if watchedRunID != "review-watch-stream" {
 			t.Fatalf("watched run id = %q, want review-watch-stream", watchedRunID)
 		}
-		if !containsAll(output, "task run started: review-watch-stream (mode=stream)", "watching review-watch-stream") {
+		if !containsAll(
+			output,
+			"review watch started: review-watch-stream (mode=stream)",
+			"watching review-watch-stream",
+		) {
 			t.Fatalf("unexpected stream output:\n%s", output)
 		}
 	})
@@ -831,42 +954,66 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject ui mode for json output before daemon bootstrap", func(t *testing.T) {
-		workspaceRoot := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
-			t.Fatalf("mkdir workflow dir: %v", err)
-		}
-		withWorkingDir(t, workspaceRoot)
-
-		bootstrapCalled := false
-		installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
-			resolveHomePaths: func() (compozyconfig.HomePaths, error) {
-				bootstrapCalled = true
-				return compozyconfig.HomePaths{}, errors.New("daemon bootstrap should not run")
+	t.Run("Should reject UI attach modes before daemon bootstrap", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			args []string
+		}{
+			{
+				name: "ui shorthand",
+				args: []string{
+					"watch", "demo", "--provider", "coderabbit", "--pr", "85", "--ui",
+				},
 			},
-		})
+			{
+				name: "attach ui",
+				args: []string{
+					"watch", "demo", "--provider", "coderabbit", "--pr", "85", "--attach", "ui",
+				},
+			},
+			{
+				name: "explicit tui true",
+				args: []string{
+					"watch", "demo", "--provider", "coderabbit", "--pr", "85", "--tui=true",
+				},
+			},
+			{
+				name: "json ui",
+				args: []string{
+					"watch", "demo", "--provider", "coderabbit", "--pr", "85", "--format", "json", "--ui",
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				workspaceRoot := t.TempDir()
+				if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+					t.Fatalf("mkdir workflow dir: %v", err)
+				}
+				withWorkingDir(t, workspaceRoot)
 
-		output, err := executeCommandCombinedOutput(
-			newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
-			nil,
-			"watch",
-			"demo",
-			"--provider",
-			"coderabbit",
-			"--pr",
-			"85",
-			"--format",
-			"json",
-			"--ui",
-		)
-		if err == nil {
-			t.Fatalf("execute reviews watch error = nil, want ui/json conflict\noutput:\n%s", output)
-		}
-		if bootstrapCalled {
-			t.Fatal("daemon bootstrap was called before rejecting incompatible output mode")
-		}
-		if !strings.Contains(err.Error(), "ui mode is not supported with json or raw-json output") {
-			t.Fatalf("error = %v, want json/ui conflict", err)
+				bootstrapCalled := false
+				installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+					resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+						bootstrapCalled = true
+						return compozyconfig.HomePaths{}, errors.New("daemon bootstrap should not run")
+					},
+				})
+
+				output, err := executeCommandCombinedOutput(
+					newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+					nil,
+					tc.args...,
+				)
+				if err == nil {
+					t.Fatalf("execute reviews watch error = nil, want UI unsupported error\noutput:\n%s", output)
+				}
+				if bootstrapCalled {
+					t.Fatal("daemon bootstrap was called before rejecting incompatible output mode")
+				}
+				if !containsAll(err.Error(), "does not support UI attach", "--stream", "--detach") {
+					t.Fatalf("error = %v, want UI unsupported guidance", err)
+				}
+			})
 		}
 	})
 

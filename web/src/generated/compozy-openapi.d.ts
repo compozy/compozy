@@ -681,6 +681,7 @@ export interface components {
             ended_at?: string;
             error_text?: string;
             mode: string;
+            parent_run_id?: string;
             presentation_mode: string;
             request_id?: string;
             run_id: string;

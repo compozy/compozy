@@ -109,7 +109,7 @@ fetch/fix defaults continue to come from `[fetch_reviews]`, `[fix_reviews]`, and
 | `max_rounds` | int | Maximum watch rounds. Must be greater than zero when `until_clean = true`. |
 | `poll_interval` | string | Positive Go duration between provider status checks (e.g., `30s`). |
 | `review_timeout` | string | Positive Go duration to wait for the provider to review a PR head (e.g., `30m`). |
-| `quiet_period` | string | Positive Go duration to wait after provider-current status before fetching issues. |
+| `quiet_period` | string | Positive Go duration to wait after the latest provider review/status signal before fetching issues. |
 | `auto_push` | bool | Push committed fixes after each successful round. Requires `defaults.auto_commit = true` when enabled from config. |
 | `until_clean` | bool | Continue until the provider has reviewed the current PR head and no actionable issues are fetched. |
 | `push_remote` | string | Optional push remote. Must be set together with `push_branch`; omit both to resolve upstream later. |
@@ -123,17 +123,19 @@ compozy reviews watch my-workflow --provider coderabbit --pr 123 --max-rounds 4
 compozy reviews watch my-workflow --provider coderabbit --pr 123 --auto-push --push-remote origin --push-branch feature/reviews
 ```
 
-Watch runs are daemon-owned parent runs. They wait until the provider reports a review for the current PR head,
-fetch actionable issues, launch child `reviews fix` runs, optionally push the child commit, then repeat until the
-provider-current fetch is clean or `max_rounds` is reached.
+Watch runs are daemon-owned parent runs. They wait until the provider reports a completed, settled review for the
+current PR head, fetch actionable issues, launch child `reviews fix` runs, optionally push the child commit, then
+repeat until the provider-current fetch is clean or `max_rounds` is reached. For CodeRabbit, settled means the latest
+CodeRabbit commit status for the PR head is complete; transient "review in progress" statuses keep the watch waiting.
 
 Auto-push safety:
 
 - `auto_push = true` requires committed fixes. The watch parent forces child `auto_commit = true`; an explicit
   `runtime_overrides.auto_commit = false` is rejected.
 - The daemon never restores, resets, cleans, or manually stages unrelated work. It inspects git state and runs only
-  `git push <remote> HEAD:<branch>` after a child fix run completed, all fetched issues are resolved, and `HEAD`
-  advanced.
+  `git push <remote> HEAD:<branch>` for committed branch state. It pushes after a child fix run completed, all fetched
+  issues are resolved, and `HEAD` advanced; when `auto_push` starts with existing unpushed commits, it first pushes
+  that committed `HEAD` so the provider can review the same head the watch is waiting on.
 - `push_remote` and `push_branch` can be supplied by config/CLI or resolved from the current upstream. Missing push
   target information fails before pushing.
 
@@ -146,7 +148,7 @@ Lifecycle events emitted by the parent run:
 | `review.watch_round_fetched` | A provider-current round produced actionable issues; includes `round`, `total`, `resolved`, and `unresolved`. |
 | `review.watch_fix_started` | Child `reviews fix` run started; includes `child_run_id`. |
 | `review.watch_fix_completed` | Child run reached a terminal state; includes `status` and `error` when failed. |
-| `review.watch_push_started` / `review.watch_push_completed` / `review.watch_push_failed` | Auto-push lifecycle with `head_sha`, `remote`, `branch`, and `error` on failure. |
+| `review.watch_push_started` / `review.watch_push_completed` / `review.watch_push_failed` | Auto-push lifecycle with `head_sha`, `remote`, `branch`, and `error` on failure. Startup reconciliation uses `round = 0`. |
 | `review.watch_clean` | Provider-current fetch returned no actionable issues. |
 | `review.watch_max_rounds` | The parent stopped because `max_rounds` was reached before a clean result. |
 
@@ -156,7 +158,7 @@ Extension hooks exposed to Go and TypeScript SDKs:
 | --- | --- | --- | --- |
 | `review.watch_pre_round` | yes | `run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `review_id`, `review_state`, `status`, `nitpicks`, `runtime_overrides`, `batching`, `continue` | `nitpicks`, `runtime_overrides`, `batching`, `continue`, `stop_reason` |
 | `review.watch_post_round` | no | `run_id`, `provider`, `pr`, `workflow`, `round`, `child_run_id`, `status`, `total`, `resolved`, `unresolved`, `pushed`, `stop_reason`, `error` | none |
-| `review.watch_pre_push` | yes | `run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `remote`, `branch`, `push` | `remote`, `branch`, `push`, `stop_reason` |
+| `review.watch_pre_push` | yes | `run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `remote`, `branch`, `push` (`round = 0` for startup reconciliation) | `remote`, `branch`, `push`, `stop_reason` |
 | `review.watch_finished` | no | `run_id`, `child_run_id`, `provider`, `pr`, `workflow`, `round`, `head_sha`, `status`, `terminal_reason`, `stopped`, `clean`, `max_rounds`, `error` | none |
 
 Hooks may veto a round or push only by returning `continue = false` or `push = false` with a non-empty

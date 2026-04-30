@@ -1274,6 +1274,9 @@ func TestExtensionBridgeStartRunCreatesDetachedExecRun(t *testing.T) {
 	if row.PresentationMode != daemonExtensionPresentationMode {
 		t.Fatalf("row.PresentationMode = %q, want %q", row.PresentationMode, daemonExtensionPresentationMode)
 	}
+	if row.ParentRunID != "parent-run-001" {
+		t.Fatalf("row.ParentRunID = %q, want %q", row.ParentRunID, "parent-run-001")
+	}
 }
 
 func TestExtensionBridgeStartRunRejectsNilContext(t *testing.T) {
@@ -1350,6 +1353,9 @@ func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
 	if row.PresentationMode != daemonExtensionPresentationMode {
 		t.Fatalf("row.PresentationMode = %q, want %q", row.PresentationMode, daemonExtensionPresentationMode)
 	}
+	if row.ParentRunID != "parent-task-run-001" {
+		t.Fatalf("row.ParentRunID = %q, want %q", row.ParentRunID, "parent-task-run-001")
+	}
 }
 
 func TestExtensionBridgeStartRunCreatesDetachedReviewRun(t *testing.T) {
@@ -1380,6 +1386,9 @@ func TestExtensionBridgeStartRunCreatesDetachedReviewRun(t *testing.T) {
 	}
 	if row.PresentationMode != daemonExtensionPresentationMode {
 		t.Fatalf("row.PresentationMode = %q, want %q", row.PresentationMode, daemonExtensionPresentationMode)
+	}
+	if row.ParentRunID != "parent-review-run-001" {
+		t.Fatalf("row.ParentRunID = %q, want %q", row.ParentRunID, "parent-review-run-001")
 	}
 }
 

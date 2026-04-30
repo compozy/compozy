@@ -440,7 +440,7 @@ func (s *commandState) hasConfiguredWorkflowTUI() bool {
 	switch s.kind {
 	case commandKindTasksRun:
 		return s.projectConfig.Tasks.Run.TUI != nil
-	case commandKindFixReviews, commandKindWatchReviews:
+	case commandKindFixReviews:
 		return s.projectConfig.FixReviews.TUI != nil
 	default:
 		return false

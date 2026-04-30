@@ -156,7 +156,9 @@ func newReviewsWatchCommandWithDefaults(defaults commandStateDefaults) *cobra.Co
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
 		Long: `Start a daemon-owned review watch run that waits for provider feedback,
-imports actionable review rounds, starts child review-fix runs, and optionally pushes committed fixes.`,
+imports actionable review rounds, starts child review-fix runs, and optionally pushes committed fixes.
+Text mode starts the watch in the background by default. Use --stream to follow events
+without opening the interactive cockpit UI.`,
 		Example: `  compozy reviews watch tools-registry --provider coderabbit --pr 85 --auto-push \
     --until-clean --max-rounds 6
   compozy reviews watch --name tools-registry --provider coderabbit --pr 85 --stream
@@ -399,6 +401,11 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
 	defer cleanup()
+	if len(args) == 0 && strings.TrimSpace(s.name) == "" {
+		if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+			return err
+		}
+	}
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
@@ -458,13 +465,22 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 	}
 	run.PresentationMode = presentationMode
 
+	return s.observeStartedReviewWatchRun(ctx, cmd, client, run)
+}
+
+func (s *commandState) observeStartedReviewWatchRun(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+	run apicore.Run,
+) error {
 	switch strings.TrimSpace(s.outputFormat) {
 	case string(core.OutputFormatJSON):
 		return s.streamDaemonWorkflowEvents(ctx, cmd.OutOrStdout(), client, run.RunID, false)
 	case string(core.OutputFormatRawJSON):
 		return s.streamDaemonWorkflowEvents(ctx, cmd.OutOrStdout(), client, run.RunID, true)
 	default:
-		return handleStartedTaskRun(ctx, cmd, client, run)
+		return handleStartedReviewWatchRun(ctx, cmd, client, run)
 	}
 }
 
@@ -557,14 +573,95 @@ func (s *commandState) resolveExecPresentationMode(cmd *cobra.Command) (string, 
 }
 
 func (s *commandState) resolveReviewWatchPresentationMode(cmd *cobra.Command) (string, error) {
-	if isJSONOutputFormat(s.outputFormat) {
-		if commandFlagChanged(cmd, "ui") ||
-			(commandFlagChanged(cmd, "attach") && strings.TrimSpace(s.attachMode) == attachModeUI) {
-			return "", errors.New("ui mode is not supported with json or raw-json output")
+	mode := strings.TrimSpace(s.attachMode)
+	if mode == "" {
+		mode = attachModeAuto
+	}
+
+	explicitModes := 0
+	if commandFlagChanged(cmd, "attach") {
+		explicitModes++
+	}
+	for _, item := range []struct {
+		name  string
+		value string
+	}{
+		{name: "ui", value: attachModeUI},
+		{name: "stream", value: attachModeStream},
+		{name: "detach", value: attachModeDetach},
+	} {
+		if !commandFlagChanged(cmd, item.name) {
+			continue
 		}
+		mode = item.value
+		explicitModes++
+	}
+	if explicitModes > 1 {
+		return "", errors.New("choose only one of --attach, --ui, --stream, or --detach")
+	}
+	switch mode {
+	case attachModeAuto, attachModeUI, attachModeStream, attachModeDetach:
+	default:
+		return "", fmt.Errorf("attach mode must be one of auto, ui, stream, or detach (got %q)", mode)
+	}
+	if mode == attachModeUI || (commandFlagChanged(cmd, "tui") && s.tui) {
+		return "", reviewWatchUIUnsupportedError(cmd)
+	}
+	if isJSONOutputFormat(s.outputFormat) {
 		return attachModeStream, nil
 	}
-	return s.resolveTaskPresentationMode(cmd)
+	switch mode {
+	case attachModeAuto, attachModeDetach:
+		return attachModeDetach, nil
+	case attachModeStream:
+		return attachModeStream, nil
+	default:
+		return "", fmt.Errorf("attach mode must be one of auto, ui, stream, or detach (got %q)", mode)
+	}
+}
+
+func reviewWatchUIUnsupportedError(cmd *cobra.Command) error {
+	commandLabel := "reviews watch"
+	if cmd != nil {
+		commandLabel = strings.TrimSpace(cmd.CommandPath())
+	}
+	return fmt.Errorf(
+		"%s does not support UI attach; use --stream to follow events or --detach to run in background",
+		commandLabel,
+	)
+}
+
+func handleStartedReviewWatchRun(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+	run apicore.Run,
+) error {
+	if err := writeStartedReviewWatchRun(cmd, run); err != nil {
+		return err
+	}
+	if run.PresentationMode != attachModeStream {
+		return nil
+	}
+	if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
+		return mapDaemonCommandError(err)
+	}
+	return nil
+}
+
+func writeStartedReviewWatchRun(cmd *cobra.Command, run apicore.Run) error {
+	message := fmt.Sprintf("review watch started: %s (mode=%s)\n", run.RunID, run.PresentationMode)
+	if run.PresentationMode == attachModeDetach {
+		message = fmt.Sprintf(
+			"review watch started: %s (running in background; follow with: compozy runs watch %s)\n",
+			run.RunID,
+			run.RunID,
+		)
+	}
+	if _, err := fmt.Fprint(cmd.OutOrStdout(), message); err != nil {
+		return withExitCode(2, fmt.Errorf("write review watch summary: %w", err))
+	}
+	return nil
 }
 
 func (s *commandState) validateReviewWatchAutoPush(cmd *cobra.Command) error {
