@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -352,6 +353,17 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			`{"workspace":"ws-1","workflow_slug":"daemon"}`,
 			http.StatusInternalServerError,
 			"internal_error",
+		},
+		{
+			"Should return validation_error for wrapped task parse failures",
+			&core.HandlerConfig{Sync: &errorSyncService{
+				err: tasks.WrapParseError("/tmp/task_01.md", tasks.ErrV1TaskMetadata),
+			}},
+			http.MethodPost,
+			"/api/sync",
+			`{"workspace":"ws-1","workflow_slug":"daemon"}`,
+			http.StatusUnprocessableEntity,
+			"validation_error",
 		},
 		{
 			"exec service error",

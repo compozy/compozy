@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -40,14 +42,34 @@ func statusForError(err error) int {
 		errors.Is(err, globaldb.ErrWorkflowNotFound),
 		errors.Is(err, globaldb.ErrRunNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, tasks.ErrLegacyTaskMetadata),
+		errors.Is(err, tasks.ErrV1TaskMetadata),
+		errors.Is(err, reviews.ErrLegacyReviewMetadata):
+		return http.StatusUnprocessableEntity
+	}
+
+	var taskParseErr *tasks.ArtifactParseError
+	if errors.As(err, &taskParseErr) {
+		return http.StatusUnprocessableEntity
+	}
+	var reviewParseErr *reviews.ArtifactParseError
+	if errors.As(err, &reviewParseErr) {
+		return http.StatusUnprocessableEntity
+	}
+
+	switch {
 	case errors.Is(err, globaldb.ErrWorkspaceHasActiveRuns),
 		errors.Is(err, globaldb.ErrWorkflowArchived),
 		errors.Is(err, globaldb.ErrWorkflowHasActiveRuns),
 		errors.Is(err, globaldb.ErrWorkflowNotArchivable),
 		errors.Is(err, globaldb.ErrWorkflowSlugConflict),
+		errors.Is(err, globaldb.ErrWorkflowSyncInvalid),
 		errors.Is(err, globaldb.ErrRunAlreadyExists),
 		errors.Is(err, globaldb.ErrSchemaTooNew),
 		errors.Is(err, rundb.ErrSchemaTooNew):
+		if errors.Is(err, globaldb.ErrWorkflowSyncInvalid) {
+			return http.StatusUnprocessableEntity
+		}
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

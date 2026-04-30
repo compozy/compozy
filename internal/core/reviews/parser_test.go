@@ -196,6 +196,13 @@ func TestWrapParseErrorProvidesMigrationGuidance(t *testing.T) {
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("expected wrapped error to include %q, got %v", tc.wantErr, err)
 			}
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("errors.Is(%v, %v) = false, want true", err, tc.err)
+			}
 		})
+	}
+
+	if err := WrapParseError("/tmp/issue_001.md", nil); err != nil {
+		t.Fatalf("WrapParseError(nil) = %v, want nil", err)
 	}
 }

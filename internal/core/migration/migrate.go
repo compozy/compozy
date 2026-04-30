@@ -42,6 +42,14 @@ type migrationScanState struct {
 	invalid        []error
 }
 
+type legacyTaskFrontMatter struct {
+	Status       string   `yaml:"status"`
+	Domain       string   `yaml:"domain"`
+	TaskType     string   `yaml:"type"`
+	Complexity   string   `yaml:"complexity,omitempty"`
+	Dependencies []string `yaml:"dependencies"`
+}
+
 var reviewRoundDirPattern = regexp.MustCompile(`^reviews-\d+$`)
 
 func Migrate(ctx context.Context, cfg Config) (*Result, error) {
@@ -462,8 +470,18 @@ func migrateLegacyTaskToV1(content string) (string, error) {
 		return "", err
 	}
 
-	migrated, err := frontmatter.Format(model.TaskFileMeta{
+	type legacyTaskMigrationMeta struct {
+		Status       string   `yaml:"status"`
+		Domain       string   `yaml:"domain,omitempty"`
+		TaskType     string   `yaml:"type"`
+		Complexity   string   `yaml:"complexity,omitempty"`
+		Dependencies []string `yaml:"dependencies"`
+	}
+
+	domain := strings.TrimSpace(extractLegacyXMLTag(content, "domain"))
+	migrated, err := frontmatter.Format(legacyTaskMigrationMeta{
 		Status:       legacyTask.Status,
+		Domain:       domain,
 		TaskType:     legacyTask.TaskType,
 		Complexity:   legacyTask.Complexity,
 		Dependencies: legacyTask.Dependencies,
@@ -479,7 +497,7 @@ func migrateV1ToV2(
 	content string,
 	registry *tasks.TypeRegistry,
 ) (*pendingFileMigration, migrationOutcome, error) {
-	var meta model.TaskFileMeta
+	var meta legacyTaskFrontMatter
 	body, err := frontmatter.Parse(content, &meta)
 	if err != nil {
 		return nil, migrationOutcomeSkipped, fmt.Errorf("parse v1 task front matter: %w", err)
@@ -491,7 +509,7 @@ func migrateV1ToV2(
 	migrated, err := frontmatter.Format(model.TaskFileMeta{
 		Status:       strings.TrimSpace(meta.Status),
 		Title:        tasks.ExtractTaskBodyTitle(body),
-		TaskType:     tasks.RemapLegacyTaskType(meta.TaskType, registry),
+		TaskType:     migrateTaskType(meta, registry),
 		Complexity:   strings.TrimSpace(meta.Complexity),
 		Dependencies: meta.Dependencies,
 	}, body)
@@ -537,4 +555,115 @@ func migratedTypeIsUnmapped(content string) bool {
 		return false
 	}
 	return strings.TrimSpace(meta.TaskType) == ""
+}
+
+func migrateTaskType(meta legacyTaskFrontMatter, registry *tasks.TypeRegistry) string {
+	if mapped := tasks.RemapLegacyTaskType(meta.TaskType, registry); mapped != "" {
+		return mapped
+	}
+	if !manualTaskTypeNeedsDomainInference(meta.TaskType) {
+		return ""
+	}
+	return inferTaskTypeFromLegacyDomain(meta.Domain, registry)
+}
+
+func manualTaskTypeNeedsDomainInference(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "feature", "feature implementation":
+		return true
+	default:
+		return false
+	}
+}
+
+func inferTaskTypeFromLegacyDomain(domain string, registry *tasks.TypeRegistry) string {
+	tokens := tokenizeLegacyDomain(domain)
+	if len(tokens) == 0 || registry == nil {
+		return ""
+	}
+
+	switch {
+	case registry.IsAllowed("frontend") && hasAnyToken(tokens, "frontend", "ui", "ux", "web", "tui"):
+		return "frontend"
+	case registry.IsAllowed("docs") &&
+		hasAnyToken(tokens, "doc", "docs", "documentation"):
+		return "docs"
+	case registry.IsAllowed("test") && hasAnyToken(tokens, "test", "qa", "validation"):
+		return "test"
+	case registry.IsAllowed("infra") &&
+		hasAnyToken(tokens, "infra", "infrastructure", "config", "configuration", "devops", "ops", "platform"):
+		return "infra"
+	case registry.IsAllowed("backend") &&
+		hasAnyToken(
+			tokens,
+			"backend",
+			"api",
+			"application",
+			"database",
+			"runtime",
+			"network",
+			"agent",
+			"prompt",
+			"server",
+			"core",
+			"execution",
+			"input",
+			"data",
+			"integration",
+			"kernel",
+			"cli",
+		):
+		return "backend"
+	default:
+		return ""
+	}
+}
+
+func tokenizeLegacyDomain(domain string) []string {
+	normalized := strings.ToLower(strings.TrimSpace(domain))
+	if normalized == "" {
+		return nil
+	}
+	return strings.FieldsFunc(normalized, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
+	})
+}
+
+func hasAnyToken(tokens []string, needles ...string) bool {
+	for _, token := range tokens {
+		for _, needle := range needles {
+			if token == needle {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func extractLegacyXMLTag(content, tag string) string {
+	target := content
+	const (
+		openContextTag  = "<task_context>"
+		closeContextTag = "</task_context>"
+	)
+	startContext := strings.Index(target, openContextTag)
+	if startContext >= 0 {
+		startContext += len(openContextTag)
+		endContext := strings.Index(target[startContext:], closeContextTag)
+		if endContext >= 0 {
+			target = target[startContext : startContext+endContext]
+		}
+	}
+
+	openTag := "<" + tag + ">"
+	start := strings.Index(target, openTag)
+	if start < 0 {
+		return ""
+	}
+	start += len(openTag)
+	end := strings.Index(target[start:], "</"+tag+">")
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(target[start : start+end])
 }

@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -525,6 +526,8 @@ func TestWorkflowSyncHelperValidationAndNormalization(t *testing.T) {
 		for _, tc := range cases {
 			if _, err := prepareTaskItem(tc); err == nil {
 				t.Fatalf("expected invalid task item %#v to fail validation", tc)
+			} else if !errors.Is(err, ErrWorkflowSyncInvalid) {
+				t.Fatalf("expected sync validation error for %#v, got %v", tc, err)
 			}
 		}
 	})

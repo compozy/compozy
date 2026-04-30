@@ -20,6 +20,30 @@ var (
 	issueFileNumberRe           = regexp.MustCompile(`^issue_(\d+)\.md$`)
 )
 
+// ArtifactParseError preserves the review artifact path and underlying parse
+// failure so callers can classify invalid review content without losing context.
+type ArtifactParseError struct {
+	Path string
+	Err  error
+}
+
+func (e *ArtifactParseError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if errors.Is(e.Err, ErrLegacyReviewMetadata) {
+		return fmt.Sprintf("legacy review artifact detected at %s; run `compozy migrate`", e.Path)
+	}
+	return fmt.Sprintf("parse review artifact %s: %v", e.Path, e.Err)
+}
+
+func (e *ArtifactParseError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 const (
 	reviewStatusPending  = "pending"
 	reviewStatusResolved = "resolved"
@@ -132,10 +156,10 @@ func ExtractLegacyReviewBody(content string) (string, error) {
 }
 
 func WrapParseError(path string, err error) error {
-	if errors.Is(err, ErrLegacyReviewMetadata) {
-		return fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", path)
+	if err == nil {
+		return nil
 	}
-	return fmt.Errorf("parse review artifact %s: %w", path, err)
+	return &ArtifactParseError{Path: path, Err: err}
 }
 
 func extractFileNumber(filename string, pattern *regexp.Regexp) int {
