@@ -32,9 +32,10 @@ import (
 )
 
 const (
-	runModeTask   = "task"
-	runModeReview = "review"
-	runModeExec   = "exec"
+	runModeTask        = "task"
+	runModeReview      = "review"
+	runModeReviewWatch = "review_watch"
+	runModeExec        = "exec"
 
 	runStatusStarting  = "starting"
 	runStatusRunning   = "running"
@@ -56,41 +57,46 @@ const (
 
 // RunManagerConfig wires the daemon-owned run manager dependencies.
 type RunManagerConfig struct {
-	GlobalDB             *globaldb.GlobalDB
-	LifecycleContext     context.Context
-	ShutdownDrainTimeout time.Duration
-	Now                  func() time.Time
-	OpenRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	Prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	Execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	ExecuteExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
-	OpenRunDB            func(context.Context, string) (*rundb.RunDB, error)
-	LoadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
-	WatcherDebounce      time.Duration
-	RunDBCacheTTL        time.Duration
-	LookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
-	GetWorkflow          func(context.Context, string) (globaldb.Workflow, error)
+	GlobalDB               *globaldb.GlobalDB
+	LifecycleContext       context.Context
+	ShutdownDrainTimeout   time.Duration
+	Now                    func() time.Time
+	OpenRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	Prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	Execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	ExecuteExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	OpenRunDB              func(context.Context, string) (*rundb.RunDB, error)
+	LoadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	ReviewProviderRegistry reviewProviderRegistryFactory
+	ReviewWatchGit         ReviewWatchGit
+	WatcherDebounce        time.Duration
+	RunDBCacheTTL          time.Duration
+	LookupWorkflowSlugs    func(context.Context, []string) (map[string]string, error)
+	GetWorkflow            func(context.Context, string) (globaldb.Workflow, error)
 }
 
 // RunManager owns daemon-backed task, review, and exec runs.
 type RunManager struct {
-	globalDB             *globaldb.GlobalDB
-	lifecycleCtx         context.Context
-	now                  func() time.Time
-	openRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
-	openRunDB            func(context.Context, string) (*rundb.RunDB, error)
-	loadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
-	lookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
-	getWorkflow          func(context.Context, string) (globaldb.Workflow, error)
-	shutdownDrainTimeout time.Duration
-	watcherDebounce      time.Duration
-	runDBIdleTTL         time.Duration
+	globalDB               *globaldb.GlobalDB
+	lifecycleCtx           context.Context
+	now                    func() time.Time
+	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	executeExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	openRunDB              func(context.Context, string) (*rundb.RunDB, error)
+	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	reviewProviderRegistry reviewProviderRegistryFactory
+	reviewWatchGit         ReviewWatchGit
+	lookupWorkflowSlugs    func(context.Context, []string) (map[string]string, error)
+	getWorkflow            func(context.Context, string) (globaldb.Workflow, error)
+	shutdownDrainTimeout   time.Duration
+	watcherDebounce        time.Duration
+	runDBIdleTTL           time.Duration
 
-	mu     sync.RWMutex
-	active map[string]*activeRun
+	mu                  sync.RWMutex
+	active              map[string]*activeRun
+	activeReviewWatches map[reviewWatchKey]string
 
 	runWG   sync.WaitGroup
 	runDBMu sync.Mutex
@@ -108,17 +114,19 @@ type RunManager struct {
 }
 
 type activeRun struct {
-	runID        string
-	workspaceID  string
-	workflowSlug string
-	workflowID   *string
-	mode         string
-	scope        model.RunScope
-	ctx          context.Context
-	cancel       context.CancelFunc
-	done         chan struct{}
-	workflowRoot string
-	watcher      *workflowWatcher
+	runID          string
+	workspaceID    string
+	workflowSlug   string
+	workflowID     *string
+	mode           string
+	scope          model.RunScope
+	ctx            context.Context
+	cancel         context.CancelFunc
+	done           chan struct{}
+	workflowRoot   string
+	watcher        *workflowWatcher
+	reviewWatch    *preparedReviewWatch
+	reviewWatchKey *reviewWatchKey
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
@@ -166,6 +174,8 @@ type startRunSpec struct {
 	mode             string
 	presentationMode string
 	runtimeCfg       *model.RuntimeConfig
+	reviewWatch      *preparedReviewWatch
+	reviewWatchKey   *reviewWatchKey
 }
 
 type terminalState struct {
@@ -211,27 +221,30 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 	}
 
 	return &RunManager{
-		globalDB:             cfg.GlobalDB,
-		lifecycleCtx:         resolveRunManagerLifecycleContext(cfg.LifecycleContext),
-		now:                  resolveRunManagerNow(cfg.Now),
-		openRunScope:         resolveRunManagerOpenRunScope(cfg.OpenRunScope),
-		prepare:              resolveRunManagerPrepare(cfg.Prepare),
-		execute:              resolveRunManagerExecute(cfg.Execute),
-		executeExec:          resolveRunManagerExecuteExec(cfg.ExecuteExec),
-		openRunDB:            resolveRunManagerOpenRunDB(cfg.OpenRunDB),
-		loadProjectConfig:    resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
-		lookupWorkflowSlugs:  resolveRunManagerWorkflowSlugLookup(cfg.GlobalDB, cfg.LookupWorkflowSlugs),
-		getWorkflow:          resolveRunManagerGetWorkflow(cfg.GlobalDB, cfg.GetWorkflow),
-		shutdownDrainTimeout: resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout),
-		watcherDebounce:      resolveWatcherDebounce(cfg.WatcherDebounce),
-		runDBIdleTTL:         resolveRunManagerRunDBCacheTTL(cfg.RunDBCacheTTL),
-		active:               make(map[string]*activeRun),
-		runDBs:               make(map[string]*cachedRunDB),
-		terminalTotals:       make(map[string]uint64),
-		acpStallTotals:       make(map[string]uint64),
-		journalDropsByRun:    make(map[string]journalDropTotals),
-		incompleteRunIDs:     make(map[string]struct{}),
-		workspaceEvents:      eventspkg.New[apicore.WorkspaceEvent](workspaceStreamBufferSize),
+		globalDB:               cfg.GlobalDB,
+		lifecycleCtx:           resolveRunManagerLifecycleContext(cfg.LifecycleContext),
+		now:                    resolveRunManagerNow(cfg.Now),
+		openRunScope:           resolveRunManagerOpenRunScope(cfg.OpenRunScope),
+		prepare:                resolveRunManagerPrepare(cfg.Prepare),
+		execute:                resolveRunManagerExecute(cfg.Execute),
+		executeExec:            resolveRunManagerExecuteExec(cfg.ExecuteExec),
+		openRunDB:              resolveRunManagerOpenRunDB(cfg.OpenRunDB),
+		loadProjectConfig:      resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
+		reviewProviderRegistry: resolveReviewProviderRegistryFactory(cfg.ReviewProviderRegistry),
+		reviewWatchGit:         resolveReviewWatchGit(cfg.ReviewWatchGit),
+		lookupWorkflowSlugs:    resolveRunManagerWorkflowSlugLookup(cfg.GlobalDB, cfg.LookupWorkflowSlugs),
+		getWorkflow:            resolveRunManagerGetWorkflow(cfg.GlobalDB, cfg.GetWorkflow),
+		shutdownDrainTimeout:   resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout),
+		watcherDebounce:        resolveWatcherDebounce(cfg.WatcherDebounce),
+		runDBIdleTTL:           resolveRunManagerRunDBCacheTTL(cfg.RunDBCacheTTL),
+		active:                 make(map[string]*activeRun),
+		activeReviewWatches:    make(map[reviewWatchKey]string),
+		runDBs:                 make(map[string]*cachedRunDB),
+		terminalTotals:         make(map[string]uint64),
+		acpStallTotals:         make(map[string]uint64),
+		journalDropsByRun:      make(map[string]journalDropTotals),
+		incompleteRunIDs:       make(map[string]struct{}),
+		workspaceEvents:        eventspkg.New[apicore.WorkspaceEvent](workspaceStreamBufferSize),
 	}, nil
 }
 
@@ -1280,6 +1293,10 @@ func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *m
 	defer active.cancel()
 	defer m.removeActive(active.runID)
 
+	if active.mode == runModeReviewWatch {
+		m.executeReviewWatchRun(active, row)
+		return
+	}
 	if runtimeCfg.Mode == model.ExecutionModeExec {
 		m.executeExecRun(active, row, runtimeCfg)
 		return
@@ -1483,12 +1500,19 @@ func (m *RunManager) setActive(run *activeRun) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.active[run.runID] = run
+	if run.reviewWatchKey != nil {
+		m.activeReviewWatches[*run.reviewWatchKey] = run.runID
+	}
 }
 
 func (m *RunManager) removeActive(runID string) {
 	trimmed := strings.TrimSpace(runID)
 	m.mu.Lock()
+	active := m.active[trimmed]
 	delete(m.active, trimmed)
+	if active != nil && active.reviewWatchKey != nil {
+		delete(m.activeReviewWatches, *active.reviewWatchKey)
+	}
 	m.mu.Unlock()
 	if err := m.evictRunDB(trimmed); err != nil {
 		slog.Default().Warn("daemon: evict cached run db", "run_id", trimmed, "error", err)

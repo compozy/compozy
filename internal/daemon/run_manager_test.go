@@ -2037,17 +2037,20 @@ type runManagerTestEnv struct {
 }
 
 type runManagerTestDeps struct {
-	now                  func() time.Time
-	openRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
-	openRunDB            func(context.Context, string) (*rundb.RunDB, error)
-	lookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
-	getWorkflow          func(context.Context, string) (globaldb.Workflow, error)
-	shutdownDrainTimeout time.Duration
-	watcherDebounce      time.Duration
-	runDBCacheTTL        time.Duration
+	now                    func() time.Time
+	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	executeExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	openRunDB              func(context.Context, string) (*rundb.RunDB, error)
+	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	reviewProviderRegistry reviewProviderRegistryFactory
+	reviewWatchGit         ReviewWatchGit
+	lookupWorkflowSlugs    func(context.Context, []string) (map[string]string, error)
+	getWorkflow            func(context.Context, string) (globaldb.Workflow, error)
+	shutdownDrainTimeout   time.Duration
+	watcherDebounce        time.Duration
+	runDBCacheTTL          time.Duration
 }
 
 var runManagerTestHomeMu sync.Mutex
@@ -2103,22 +2106,22 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 	}
 
 	manager, err := NewRunManager(RunManagerConfig{
-		GlobalDB:             globalDB,
-		LifecycleContext:     context.Background(),
-		ShutdownDrainTimeout: deps.shutdownDrainTimeout,
-		Now:                  deps.now,
-		OpenRunScope:         firstOpenRunScope(deps.openRunScope),
-		Prepare:              firstPrepare(deps.prepare),
-		Execute:              firstExecute(deps.execute),
-		ExecuteExec:          firstExecuteExec(deps.executeExec),
-		OpenRunDB:            deps.openRunDB,
-		WatcherDebounce:      deps.watcherDebounce,
-		RunDBCacheTTL:        deps.runDBCacheTTL,
-		LookupWorkflowSlugs:  deps.lookupWorkflowSlugs,
-		GetWorkflow:          deps.getWorkflow,
-		LoadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
-			return workspacecfg.ProjectConfig{}, nil
-		},
+		GlobalDB:               globalDB,
+		LifecycleContext:       context.Background(),
+		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
+		Now:                    deps.now,
+		OpenRunScope:           firstOpenRunScope(deps.openRunScope),
+		Prepare:                firstPrepare(deps.prepare),
+		Execute:                firstExecute(deps.execute),
+		ExecuteExec:            firstExecuteExec(deps.executeExec),
+		OpenRunDB:              deps.openRunDB,
+		ReviewProviderRegistry: deps.reviewProviderRegistry,
+		ReviewWatchGit:         deps.reviewWatchGit,
+		WatcherDebounce:        deps.watcherDebounce,
+		RunDBCacheTTL:          deps.runDBCacheTTL,
+		LookupWorkflowSlugs:    deps.lookupWorkflowSlugs,
+		GetWorkflow:            deps.getWorkflow,
+		LoadProjectConfig:      firstProjectConfig(deps.loadProjectConfig),
 	})
 	if err != nil {
 		tb.Fatalf("NewRunManager() error = %v", err)
@@ -2394,6 +2397,17 @@ func firstExecuteExec(
 	}
 	return func(context.Context, *model.RuntimeConfig, model.RunScope) error {
 		return nil
+	}
+}
+
+func firstProjectConfig(
+	fn func(context.Context, string) (workspacecfg.ProjectConfig, error),
+) func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+	if fn != nil {
+		return fn
+	}
+	return func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+		return workspacecfg.ProjectConfig{}, nil
 	}
 }
 

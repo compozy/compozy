@@ -71,9 +71,19 @@ const (
 	EventKindExtensionEvent  EventKind = "extension.event"
 
 	// Review mutation events.
-	EventKindReviewStatusFinalized EventKind = "review.status_finalized"
-	EventKindReviewRoundRefreshed  EventKind = "review.round_refreshed"
-	EventKindReviewIssueResolved   EventKind = "review.issue_resolved"
+	EventKindReviewStatusFinalized    EventKind = "review.status_finalized"
+	EventKindReviewRoundRefreshed     EventKind = "review.round_refreshed"
+	EventKindReviewIssueResolved      EventKind = "review.issue_resolved"
+	EventKindReviewWatchStarted       EventKind = "review.watch_started"
+	EventKindReviewWatchWaiting       EventKind = "review.watch_waiting"
+	EventKindReviewWatchRoundFetched  EventKind = "review.watch_round_fetched"
+	EventKindReviewWatchFixStarted    EventKind = "review.watch_fix_started"
+	EventKindReviewWatchFixCompleted  EventKind = "review.watch_fix_completed"
+	EventKindReviewWatchPushStarted   EventKind = "review.watch_push_started"
+	EventKindReviewWatchPushCompleted EventKind = "review.watch_push_completed"
+	EventKindReviewWatchPushFailed    EventKind = "review.watch_push_failed"
+	EventKindReviewWatchClean         EventKind = "review.watch_clean"
+	EventKindReviewWatchMaxRounds     EventKind = "review.watch_max_rounds"
 
 	// Provider I/O events.
 	EventKindProviderCallStarted   EventKind = "provider.call_started"

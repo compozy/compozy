@@ -88,6 +88,56 @@ func TestExtensionReadyPayloadJSONCompatibility(t *testing.T) {
 	}
 }
 
+func TestReviewWatchPayloadJSONCompatibility(t *testing.T) {
+	t.Parallel()
+
+	payload := ReviewWatchPayload{
+		Provider:        "coderabbit",
+		PR:              "123",
+		Workflow:        "engine-kernel",
+		Round:           2,
+		RunID:           "watch-run",
+		ChildRunID:      "fix-run",
+		HeadSHA:         "abc123",
+		ReviewID:        "review-1",
+		ReviewState:     "current_reviewed",
+		Status:          "completed",
+		Remote:          "origin",
+		Branch:          "feature",
+		Total:           3,
+		Resolved:        2,
+		Unresolved:      1,
+		Dirty:           true,
+		UnpushedCommits: 4,
+		Error:           "push failed",
+	}
+
+	got := mustMarshalMap(t, payload)
+	want := map[string]any{
+		"provider":         "coderabbit",
+		"pr":               "123",
+		"workflow":         "engine-kernel",
+		"round":            float64(2),
+		"run_id":           "watch-run",
+		"child_run_id":     "fix-run",
+		"head_sha":         "abc123",
+		"review_id":        "review-1",
+		"review_state":     "current_reviewed",
+		"status":           "completed",
+		"remote":           "origin",
+		"branch":           "feature",
+		"total":            float64(3),
+		"resolved":         float64(2),
+		"unresolved":       float64(1),
+		"dirty":            true,
+		"unpushed_commits": float64(4),
+		"error":            "push failed",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("review watch payload JSON mismatch: got %#v want %#v", got, want)
+	}
+}
+
 func mustMarshalMap(t *testing.T, payload any) map[string]any {
 	t.Helper()
 
