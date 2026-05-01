@@ -38,23 +38,37 @@ func TestSessionPublishBehavior(t *testing.T) {
 	})
 
 	t.Run("backpressure success increments slow publish counter", func(t *testing.T) {
-		setSessionPublishBackpressureTimeout(t, 200*time.Millisecond)
+		setSessionPublishBackpressureTimeout(t, 5*time.Second)
 
 		session := newTestSessionWithBuffer("sess-slow", 1)
 		session.updates <- model.SessionUpdate{Kind: model.UpdateKindPlanUpdated}
 
-		timer := time.NewTimer(25 * time.Millisecond)
-		defer timer.Stop()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		update := model.SessionUpdate{Kind: model.UpdateKindAgentMessageChunk}
 		go func() {
-			<-timer.C
-			<-session.updates
+			session.publish(ctx, update)
+			close(done)
 		}()
 
-		start := time.Now()
-		update := model.SessionUpdate{Kind: model.UpdateKindAgentMessageChunk}
-		session.publish(context.Background(), update)
-		if elapsed := time.Since(start); elapsed < 25*time.Millisecond {
-			t.Fatalf("expected publish to wait for backpressure, returned after %v", elapsed)
+		waitForActivePublish(t, session)
+		select {
+		case <-done:
+			t.Fatal("expected publish to wait while updates buffer is full")
+		default:
+		}
+
+		buffered := mustReceiveSessionUpdate(t, session.updates)
+		if buffered.Kind != model.UpdateKindPlanUpdated {
+			t.Fatalf("unexpected buffered update kind before backpressure release: got %q", buffered.Kind)
+		}
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("publish did not complete after backpressure was released")
 		}
 
 		got := mustReceiveSessionUpdate(t, session.updates)
@@ -314,6 +328,30 @@ func setSessionPublishBackpressureTimeout(t *testing.T, timeout time.Duration) {
 	t.Cleanup(func() {
 		sessionPublishBackpressureTimeout = previous
 	})
+}
+
+func waitForActivePublish(t *testing.T, session *sessionImpl) {
+	t.Helper()
+
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		session.mu.RLock()
+		activePublishes := session.activePublishes
+		session.mu.RUnlock()
+		if activePublishes > 0 {
+			return
+		}
+
+		select {
+		case <-timer.C:
+			t.Fatal("timed out waiting for active session publish")
+		case <-ticker.C:
+		}
+	}
 }
 
 func mustReceiveSessionUpdate(t *testing.T, ch <-chan model.SessionUpdate) model.SessionUpdate {

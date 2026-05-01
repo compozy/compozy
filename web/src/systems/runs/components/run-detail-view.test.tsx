@@ -133,8 +133,9 @@ async function renderRunDetail(props: RenderProps = {}) {
     defaultPreload: false,
   });
   await router.load();
+  render(<RouterProvider router={router} />);
   await act(async () => {
-    render(<RouterProvider router={router} />);
+    await vi.dynamicImportSettled();
     await Promise.resolve();
   });
 }

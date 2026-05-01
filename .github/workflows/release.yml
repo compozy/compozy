@@ -34,7 +34,7 @@ env:
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.17
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.19
 
 permissions:
   contents: write
@@ -112,6 +112,8 @@ jobs:
 
       - uses: ./.github/actions/setup-node
 
+      - uses: ./.github/actions/setup-bun
+
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
         with:
@@ -160,6 +162,8 @@ jobs:
           install-tools: "true"
 
       - uses: ./.github/actions/setup-node
+
+      - uses: ./.github/actions/setup-bun
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release

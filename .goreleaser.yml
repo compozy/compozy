@@ -20,6 +20,10 @@ env:
 git:
   tag_sort: -version:refname
 
+before:
+  hooks:
+    - make frontend-build
+
 builds:
   - id: compozy
     main: ./cmd/compozy

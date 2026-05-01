@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.17
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.19
 
 jobs:
   auto-docs:

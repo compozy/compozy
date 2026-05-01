@@ -10,8 +10,13 @@ import (
 )
 
 type goReleaserConfig struct {
+	Before        goReleaserBefore         `yaml:"before"`
 	Archives      []goReleaserArchive      `yaml:"archives"`
 	HomebrewCasks []goReleaserHomebrewCask `yaml:"homebrew_casks"`
+}
+
+type goReleaserBefore struct {
+	Hooks []string `yaml:"hooks"`
 }
 
 type goReleaserArchive struct {
@@ -22,6 +27,40 @@ type goReleaserArchive struct {
 type goReleaserHomebrewCask struct {
 	Name string   `yaml:"name"`
 	IDs  []string `yaml:"ids"`
+}
+
+func TestReleaseWorkflowsUseScopedReleaseNotesGenerator(t *testing.T) {
+	t.Parallel()
+
+	const fixedModule = "github.com/compozy/releasepr@v0.0.19"
+	brokenModules := []string{
+		"github.com/compozy/releasepr@v0.0.17",
+		"github.com/compozy/releasepr@v0.0.18",
+	}
+	workflowPaths := []string{
+		filepath.Join(repoRoot(t), ".github", "workflows", "auto-docs.yml"),
+		filepath.Join(repoRoot(t), ".github", "workflows", "release.yml"),
+	}
+
+	for _, workflowPath := range workflowPaths {
+		workflowPath := workflowPath
+		t.Run(filepath.Base(workflowPath), func(t *testing.T) {
+			t.Parallel()
+			content, err := os.ReadFile(workflowPath)
+			if err != nil {
+				t.Fatalf("read release workflow: %v", err)
+			}
+			text := string(content)
+			if !strings.Contains(text, "PR_RELEASE_MODULE: "+fixedModule) {
+				t.Fatalf("expected workflow to use fixed releasepr module %q", fixedModule)
+			}
+			for _, brokenModule := range brokenModules {
+				if strings.Contains(text, brokenModule) {
+					t.Fatalf("expected workflow to avoid broken releasepr module %q", brokenModule)
+				}
+			}
+		})
+	}
 }
 
 func TestGoReleaserConfigSupportsFirstRelease(t *testing.T) {
@@ -171,6 +210,55 @@ func TestSetupReleaseActionUsesSupportedCosignVersionCommand(t *testing.T) {
 	}
 }
 
+func TestGoReleaserBuildsFrontendBundleBeforeBinaries(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile(filepath.Join(repoRoot(t), ".goreleaser.yml"))
+	if err != nil {
+		t.Fatalf("read goreleaser config: %v", err)
+	}
+
+	var cfg goReleaserConfig
+	if err := yaml.Unmarshal(content, &cfg); err != nil {
+		t.Fatalf("unmarshal goreleaser config: %v", err)
+	}
+
+	foundFrontendBuild := false
+	for _, hook := range cfg.Before.Hooks {
+		if hook == "make frontend-build" {
+			foundFrontendBuild = true
+			break
+		}
+	}
+	if !foundFrontendBuild {
+		t.Fatal("expected GoReleaser to build the frontend bundle before compiling binaries")
+	}
+
+	workflowContent, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	workflow := string(workflowContent)
+
+	dryRunBlock := workflowJobBlock(t, workflow, "dry-run", "release")
+	assertWorkflowStepBefore(
+		t,
+		dryRunBlock,
+		"uses: ./.github/actions/setup-bun",
+		"uses: ./.github/actions/setup-release",
+		"expected release dry-run to install Bun before invoking GoReleaser",
+	)
+
+	releaseBlock := workflowJobBlock(t, workflow, "release", "")
+	assertWorkflowStepBefore(
+		t,
+		releaseBlock,
+		"uses: ./.github/actions/setup-bun",
+		"uses: goreleaser/goreleaser-action@v6",
+		"expected production release to install Bun before invoking GoReleaser",
+	)
+}
+
 func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
 	t.Parallel()
 
@@ -225,5 +313,41 @@ func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func workflowJobBlock(t *testing.T, workflow string, jobName string, nextJobName string) string {
+	t.Helper()
+
+	startNeedle := "\n  " + jobName + ":\n"
+	start := strings.Index(workflow, startNeedle)
+	if start == -1 {
+		t.Fatalf("expected workflow to contain job %q", jobName)
+	}
+	start += len("\n")
+	if nextJobName == "" {
+		return workflow[start:]
+	}
+	endNeedle := "\n  " + nextJobName + ":\n"
+	end := strings.Index(workflow[start:], endNeedle)
+	if end == -1 {
+		t.Fatalf("expected workflow job %q to be followed by %q", jobName, nextJobName)
+	}
+	return workflow[start : start+end]
+}
+
+func assertWorkflowStepBefore(t *testing.T, block string, first string, second string, message string) {
+	t.Helper()
+
+	firstIndex := strings.Index(block, first)
+	if firstIndex == -1 {
+		t.Fatalf("%s: missing %q", message, first)
+	}
+	secondIndex := strings.Index(block, second)
+	if secondIndex == -1 {
+		t.Fatalf("%s: missing %q", message, second)
+	}
+	if firstIndex > secondIndex {
+		t.Fatalf("%s: %q appears after %q", message, first, second)
 	}
 }
