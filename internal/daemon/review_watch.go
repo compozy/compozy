@@ -28,6 +28,7 @@ const (
 	defaultReviewWatchQuietPeriod   = 20 * time.Second
 	reviewWatchChildPollInterval    = 100 * time.Millisecond
 	reviewWatchInvokingCommand      = "compozy reviews watch"
+	reviewWatchPushStatusStartup    = "startup_unpushed_head"
 	reviewWatchTerminalClean        = "review watch clean"
 	reviewWatchTerminalMaxRounds    = "review watch reached max rounds"
 	reviewWatchTerminalRoundHandled = "review watch round completed"
@@ -1062,7 +1063,7 @@ func (m *RunManager) pushReviewWatchRound(
 
 func reviewWatchPushEventStatus(round int) string {
 	if round == 0 {
-		return "startup_unpushed_head"
+		return reviewWatchPushStatusStartup
 	}
 	return ""
 }

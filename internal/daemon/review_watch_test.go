@@ -416,7 +416,7 @@ func TestRunManagerReviewWatchPushesUnpushedHeadAtStartup(t *testing.T) {
 			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted),
 		)
 		if started.Round != 0 ||
-			started.Status != "startup_unpushed_head" ||
+			started.Status != reviewWatchPushStatusStartup ||
 			started.UnpushedCommits != 1 ||
 			started.HeadSHA != "local-fix-head" {
 			t.Fatalf("push_started payload = %#v, want startup metadata", started)
@@ -426,7 +426,7 @@ func TestRunManagerReviewWatchPushesUnpushedHeadAtStartup(t *testing.T) {
 			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted),
 		)
 		if completed.Round != 0 ||
-			completed.Status != "startup_unpushed_head" ||
+			completed.Status != reviewWatchPushStatusStartup ||
 			completed.UnpushedCommits != 1 ||
 			completed.HeadSHA != "local-fix-head" {
 			t.Fatalf("push_completed payload = %#v, want startup metadata", completed)
