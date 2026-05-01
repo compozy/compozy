@@ -1,55 +1,55 @@
 {
-    "name": "compozy",
-    "version": "0.1.12",
-    "private": true,
-    "workspaces": [
-        "packages/ui",
-        "web",
-        "sdk/*"
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.60.0",
+    "turbo": "^2.8.20",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.0"
+  },
+  "lint-staged": {
+    "*.go": "make fmt",
+    "*.{css,html,json,jsonc,yaml,yml,md}": [
+      "oxfmt --no-error-on-unmatched-pattern"
     ],
-    "scripts": {
-        "build": "turbo run build",
-        "codegen": "node scripts/codegen.mjs",
-        "codegen-check": "node scripts/codegen.mjs --check",
-        "dev:web": "bun run --cwd web dev",
-        "frontend:bootstrap": "bun ci",
-        "frontend:build": "bun run build",
-        "frontend:e2e": "bun run --cwd web test:e2e",
-        "frontend:lint": "bun run lint",
-        "frontend:test": "bun run test:config && bun run --cwd packages/ui test && bun run --cwd web test",
-        "frontend:typecheck": "bun run typecheck",
-        "format": "bunx oxfmt",
-        "format:check": "bunx oxfmt --check",
-        "lint": "bun run format && bunx oxlint",
-        "postinstall": "bash scripts/link-skills.sh",
-        "prepare": "husky",
-        "test": "bun run test:config",
-        "test:config": "bunx vitest run --config vitest.config.ts test/*.test.ts",
-        "typecheck": "turbo run typecheck"
-    },
-    "devDependencies": {
-        "@commitlint/cli": "^20.5.0",
-        "@commitlint/config-conventional": "^20.5.0",
-        "@types/node": "^25.6.0",
-        "@vitest/coverage-v8": "^4.1.0",
-        "husky": "^9.1.7",
-        "lint-staged": "^16.4.0",
-        "oxfmt": "^0.46.0",
-        "oxlint": "^1.60.0",
-        "turbo": "^2.8.20",
-        "typescript": "^6.0.2",
-        "vite": "^8.0.3",
-        "vitest": "^4.1.0"
-    },
-    "lint-staged": {
-        "*.go": "make fmt",
-        "*.{css,html,json,jsonc,yaml,yml,md}": [
-            "oxfmt --no-error-on-unmatched-pattern"
-        ],
-        "*.{js,jsx,ts,tsx}": [
-            "oxfmt --no-error-on-unmatched-pattern",
-            "oxlint --no-error-on-unmatched-pattern"
-        ]
-    },
-    "packageManager": "bun@1.3.11"
+    "*.{js,jsx,ts,tsx}": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint --no-error-on-unmatched-pattern"
+    ]
+  },
+  "name": "compozy",
+  "packageManager": "bun@1.3.11",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "codegen": "node scripts/codegen.mjs",
+    "codegen-check": "node scripts/codegen.mjs --check",
+    "dev:web": "bun run --cwd web dev",
+    "format": "bunx oxfmt",
+    "format:check": "bunx oxfmt --check",
+    "frontend:bootstrap": "bun ci",
+    "frontend:build": "bun run build",
+    "frontend:e2e": "bun run --cwd web test:e2e",
+    "frontend:lint": "bun run lint",
+    "frontend:test": "bun run test:config \u0026\u0026 bun run --cwd packages/ui test \u0026\u0026 bun run --cwd web test",
+    "frontend:typecheck": "bun run typecheck",
+    "lint": "bun run format \u0026\u0026 bunx oxlint",
+    "postinstall": "bash scripts/link-skills.sh",
+    "prepare": "husky",
+    "test": "bun run test:config",
+    "test:config": "bunx vitest run --config vitest.config.ts test/*.test.ts",
+    "typecheck": "turbo run typecheck"
+  },
+  "version": "0.2.0",
+  "workspaces": [
+    "packages/ui",
+    "web",
+    "sdk/*"
+  ]
 }
