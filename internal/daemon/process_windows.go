@@ -10,15 +10,15 @@ func ProcessAlive(pid int) bool {
 		return false
 	}
 
-	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(pid))
 	if err != nil {
 		return false
 	}
 	defer windows.CloseHandle(handle)
 
-	var code uint32
-	if err := windows.GetExitCodeProcess(handle, &code); err != nil {
+	event, err := windows.WaitForSingleObject(handle, 0)
+	if err != nil {
 		return false
 	}
-	return code == windows.STILL_ACTIVE
+	return event == uint32(windows.WAIT_TIMEOUT)
 }
