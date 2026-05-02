@@ -15,8 +15,9 @@ Key characteristics:
 
 - **Agent-agnostic.** Supports claude, codex, copilot, cursor-agent, droid, gemini, opencode, and pi as ACP runtimes.
 - **Skills-based.** Bundled skills (installed via `compozy setup`) teach agents how to execute each workflow phase.
-- **Artifact-driven.** All workflow state lives in markdown files under `.compozy/tasks/<slug>/`, versioned alongside the codebase.
-- **Single binary, local-first.** No sidecars, no external control planes.
+- **Artifact-driven.** Planning and review artifacts live as markdown under `.compozy/tasks/<slug>/`, versioned alongside the codebase.
+- **Daemon-backed runtime.** A home-scoped daemon owns run state, workspace registration, snapshots, streams, and the synced `global.db` catalog under `~/.compozy/`.
+- **Single binary, local-first.** The daemon is launched from the same binary; there are no external control planes.
 
 ## Workflow Pipeline Overview
 
@@ -70,15 +71,18 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | `compozy setup` | Install core skills and enabled extension assets | `--agent`, `--skill`, `--global`, `--copy`, `--list`, `--all`, `--yes` |
 | `compozy upgrade` | Update CLI to latest release | |
 | **Workflow Execution** | | |
-| `compozy tasks run` | Execute PRD task files sequentially | `--name`, `--ide`, `--model`, `--auto-commit`, `--dry-run` |
+| `compozy daemon` | Manage the home-scoped daemon lifecycle | `start`, `status`, `stop` |
+| `compozy workspaces` | Inspect and manage daemon workspace registrations | `list`, `show`, `register`, `unregister`, `resolve` |
+| `compozy tasks run` | Execute PRD task files through the daemon | `--name`, `--attach`, `--ui`, `--stream`, `--detach`, `--task-runtime` |
 | `compozy exec` | Execute an ad hoc prompt | `--agent`, `--format`, `--prompt-file`, `--tui`, `--persist`, `--run-id` |
+| `compozy runs` | Attach, watch, and purge daemon-managed runs | `attach`, `watch`, `purge` |
 | **Review** | | |
 | `compozy reviews fetch` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round` |
 | `compozy reviews fix` | Process review issue files | `--name`, `--round`, `--concurrent`, `--batch-size`, `--ide` |
 | **Utilities** | | |
 | `compozy tasks validate` | Validate task file metadata | `--name`, `--tasks-dir`, `--format` |
-| `compozy sync` | Refresh task workflow metadata | `--name`, `--root-dir`, `--tasks-dir` |
-| `compozy archive` | Move completed workflows to archive | `--name`, `--root-dir`, `--tasks-dir` |
+| `compozy sync` | Reconcile workflow artifacts into daemon `global.db` | `--name`, `--root-dir`, `--tasks-dir` |
+| `compozy archive` | Move daemon-eligible completed workflows to archive | `--name`, `--root-dir`, `--tasks-dir` |
 | `compozy migrate` | Convert legacy artifacts to frontmatter | `--name`, `--dry-run`, `--reviews-dir` |
 | **Agent Management** | | |
 | `compozy agents list` | List resolved reusable agents | |
@@ -128,20 +132,16 @@ For detailed skill descriptions and inputs/outputs, read `references/skills-refe
       _prd.md                          # Product Requirements Document
       _techspec.md                     # Technical Specification
       _tasks.md                        # Master task list
-      _meta.md                         # Workflow metadata
       task_01.md ... task_N.md         # Individual task files
       adrs/
         adr-001.md ... adr-NNN.md      # Architecture Decision Records
       reviews-NNN/
-        _meta.md                       # Review round metadata
-        issue_001.md ... issue_N.md    # Review issue files
+        issue_001.md ... issue_N.md    # Review issues with round metadata in frontmatter
       memory/
         MEMORY.md                      # Shared workflow memory
         task_01.md ... task_N.md       # Per-task memory
     _archived/
       <timestamp>-<slug>/             # Archived completed workflows
-  runs/
-    <run-id>/                          # Persisted exec session artifacts
   agents/
     <name>/                            # Workspace-scoped reusable agents
       AGENT.md                         # Agent definition
@@ -152,6 +152,8 @@ For detailed skill descriptions and inputs/outputs, read `references/skills-refe
 Global paths:
 - `~/.compozy/agents/<name>/` -- global reusable agents (workspace overrides global)
 - `~/.compozy/extensions/` -- user-scoped extensions
+- `~/.compozy/runs/<run-id>/` -- daemon-managed run artifacts and persisted exec sessions
+- `~/.compozy/global.db` -- daemon workspace, workflow, task, and review catalog
 
 ## Configuration
 
@@ -165,11 +167,11 @@ auto_commit = true
 reasoning_effort = "high"
 add_dirs = ["../shared-lib"]
 
-[start]
-include_completed = false
-
 [tasks]
 types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
+
+[tasks.run]
+include_completed = false
 
 [fix_reviews]
 concurrent = 2
@@ -227,7 +229,7 @@ Management: `compozy ext list`, `compozy ext inspect <name>`, `compozy ext insta
 ## Common Patterns
 
 - Run `compozy setup` before starting any workflow to ensure core skills and enabled extension assets are installed.
-- Follow the pipeline in order: idea (optional) -> PRD -> TechSpec -> Tasks -> Start -> Review -> Fix.
+- Follow the pipeline in order: idea (optional) -> PRD -> TechSpec -> Tasks -> Execution -> Review -> Fix.
 - Configure workspace defaults in `.compozy/config.toml` to reduce repetitive CLI flags.
 - Run `compozy tasks validate --name <slug>` before `compozy tasks run` to catch metadata issues early.
 - Use `compozy archive` to clean up fully completed workflows and keep the tasks directory focused.

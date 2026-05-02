@@ -20,12 +20,14 @@ Key decisions:
 
 State:
 
-- Implementation complete; full verification passed.
-- QA execution complete for the implemented QA workflow extension.
-- Activating the extension in `../agh` and cleaning manual `agent-soul` QA tasks.
+- Debugging live `cy tasks run` failure from `../agh`: required `agent.pre_session_create` hook in `cy-qa-workflow` fails with `illegal base64 data at input byte 0`.
+- Root-cause investigation points to SDK/public `SessionRequest` JSON handling: runtime sends readable prompt strings, while SDK `[]byte` fields default to base64 unmarshalling unless custom JSON methods are present.
 
 Done:
 
+- Reproduced the live failure in focused SDK tests: typed `agent.pre_session_create` handler rejected host-shaped plain prompt JSON with `illegal base64 data`.
+- Added regression coverage for readable `SessionRequest` and `ResumeSessionRequest` prompt JSON in the public Go SDK.
+- Fixed `sdk/extension.SessionRequest` and `ResumeSessionRequest` JSON marshal/unmarshal to match the runtime-side readable prompt contract instead of default `[]byte` base64.
 - Scanned existing ledgers for extension/hook context.
 - Read the `compozy` skill overview.
 - Confirmed extension capabilities include `prompt.mutate`, `job.mutate`, and `agent.mutate`.
@@ -56,11 +58,11 @@ Done:
 
 Now:
 
-- Inspecting `../agh` instructions, existing extension state, and `agent-soul` task files before modifying artifacts.
+- Running focused validation around SDK hooks, agent session JSON, extension dispatch, and `cy-qa-workflow`; then rebuilding the extension binary used by `../agh`.
 
 Next:
 
-- Remove only the requested final manual QA tasks and enable `cy-qa-workflow` for `../agh`.
+- Run full `make verify` for looper and a targeted `../agh` validation after rebuild.
 
 Open questions (UNCONFIRMED if needed):
 
@@ -98,3 +100,9 @@ Working set (files/ids/commands):
 - `HOME=/tmp/cqawf-home-20260502012333 ... bin/compozy tasks run qa-ext-smoke --dry-run --stream`
 - `/Users/pedronauck/Dev/compozy/agh`
 - `/Users/pedronauck/Dev/compozy/agh/.compozy/tasks/agent-soul`
+- Built `/Users/pedronauck/Dev/compozy/looper/bin/cy-qa-workflow`.
+- Added `/Users/pedronauck/Dev/compozy/agh/.compozy/extensions/cy-qa-workflow/extension.toml` pointing at the local extension binary.
+- Enabled `cy-qa-workflow` in `/Users/pedronauck/Dev/compozy/agh`: `ext list` reports `ENABLED true`, `ACTIVE true`.
+- Replaced manual `agent-soul` tasks 16/17 via extension-generated tasks with markers `compozy-qa-workflow:qa-report` and `compozy-qa-workflow:qa-execution`.
+- Reran `tasks run agent-soul --dry-run --stream`: no duplicates; 17 task files remain.
+- AGH `make verify` passed: Bun lint/typecheck/test/build, Go lint 0 issues, Go race tests `DONE 7343 tests`, boundaries OK. Non-fatal existing tool warnings appeared from Vite chunk-size and macOS linker deprecation.

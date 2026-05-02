@@ -73,10 +73,11 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 **Command:** `compozy tasks run <slug> --ide <runtime>`
 
 1. Compozy reads task files from `.compozy/tasks/<slug>/` in order, respecting dependencies.
-2. For each pending task, Compozy constructs a prompt including the task spec, PRD, TechSpec, ADRs, and workflow memory.
-3. The configured ACP runtime executes the task using the `cy-execute-task` skill.
-4. Each task: read spec -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
-5. Workflow memory is maintained across tasks via `cy-workflow-memory`.
+2. The CLI auto-starts the home-scoped daemon when needed and starts the run through daemon transport.
+3. For each pending task, Compozy constructs a prompt including the task spec, PRD, TechSpec, ADRs, and workflow memory.
+4. The configured ACP runtime executes the task using the `cy-execute-task` skill.
+5. Each task: read spec -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
+6. Workflow memory is maintained across tasks via `cy-workflow-memory`.
 
 **Key flags:**
 - `--auto-commit` -- create a local commit after each task completes cleanly.
@@ -101,7 +102,7 @@ Invoke inside an agent session. The skill performs a comprehensive code review o
 
 Fetches review comments from an external provider (currently CodeRabbit) and writes them as issue markdown files under `reviews-NNN/`.
 
-**Both paths produce:** `_meta.md` (round metadata) and `issue_*.md` files with YAML frontmatter (`status`, `severity`, `file`, `line`, `title`).
+**Both paths produce:** `issue_*.md` files with YAML frontmatter containing round metadata (`provider`, `pr`, `round`, `round_created_at`) plus issue metadata (`status`, `severity`, `file`, `line`).
 
 ## Phase 7: Remediation
 
@@ -125,7 +126,7 @@ Fetches review comments from an external provider (currently CodeRabbit) and wri
 
 Moves fully completed workflows from `.compozy/tasks/<slug>/` to `.compozy/tasks/_archived/<timestamp>-<slug>/`.
 
-**Eligibility:** All task files must be completed, and all review round `_meta.md` files must be fully resolved.
+**Eligibility:** Run `compozy sync` first. Archive eligibility is computed from synced daemon state: all task items must be completed and all synced review issues must be resolved.
 
 ## Ad Hoc Execution
 
