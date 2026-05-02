@@ -576,8 +576,8 @@ func (j *jobExecutionContext) launchOrderedWorkers(jobCtx context.Context) {
 
 func (j *jobExecutionContext) executeSequentialJob(jobCtx context.Context, index int, jb *job) {
 	defer func() {
-		j.wg.Done()
 		atomic.AddInt32(&j.completed, 1)
+		j.wg.Done()
 	}()
 
 	newJobRunner(index, jb, j).run(jobCtx)
@@ -585,8 +585,8 @@ func (j *jobExecutionContext) executeSequentialJob(jobCtx context.Context, index
 
 func (j *jobExecutionContext) executeJob(jobCtx context.Context, index int, jb *job) {
 	defer func() {
-		j.wg.Done()
 		atomic.AddInt32(&j.completed, 1)
+		j.wg.Done()
 	}()
 
 	if !j.acquireWorkerSlot(jobCtx) {

@@ -32,10 +32,12 @@ type goReleaserHomebrewCask struct {
 func TestReleaseWorkflowsUseScopedReleaseNotesGenerator(t *testing.T) {
 	t.Parallel()
 
-	const fixedModule = "github.com/compozy/releasepr@v0.0.19"
+	const fixedModule = "github.com/compozy/releasepr@v0.0.21"
 	brokenModules := []string{
 		"github.com/compozy/releasepr@v0.0.17",
 		"github.com/compozy/releasepr@v0.0.18",
+		"github.com/compozy/releasepr@v0.0.19",
+		"github.com/compozy/releasepr@v0.0.20",
 	}
 	workflowPaths := []string{
 		filepath.Join(repoRoot(t), ".github", "workflows", "auto-docs.yml"),
@@ -60,6 +62,40 @@ func TestReleaseWorkflowsUseScopedReleaseNotesGenerator(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReleasePublicationUsesCurrentBodyAndHistoricalNotes(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	releaseBody := readRepoFile(t, root, "RELEASE_BODY.md")
+	releaseNotes := readRepoFile(t, root, "RELEASE_NOTES.md")
+	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "release.yml")
+
+	if !strings.Contains(releaseWorkflow, "--release-notes=RELEASE_BODY.md") {
+		t.Fatal("expected GoReleaser to publish the current-version release body")
+	}
+	if strings.Contains(releaseWorkflow, "--release-notes=RELEASE_NOTES.md") {
+		t.Fatal("expected GoReleaser to avoid publishing historical release notes")
+	}
+	if !strings.Contains(releaseBody, "## 0.2.1 - 2026-05-01") {
+		t.Fatal("expected release body to contain the current release heading")
+	}
+	if !strings.Contains(releaseBody, "- Binary release") {
+		t.Fatal("expected release body to fall back to the scoped changelog when manual notes are absent")
+	}
+	if strings.Contains(releaseBody, "## 0.2.0 - 2026-05-01") {
+		t.Fatal("expected release body to contain only the current release")
+	}
+	if !strings.Contains(releaseNotes, "## 0.2.1 - 2026-05-01") {
+		t.Fatal("expected historical release notes to contain the current release")
+	}
+	if !strings.Contains(releaseNotes, "## 0.2.0 - 2026-05-01") {
+		t.Fatal("expected historical release notes to preserve the previous release")
+	}
+	if !strings.Contains(releaseNotes, "Daemon-based architecture") {
+		t.Fatal("expected historical release notes to preserve v0.2.0 manual notes")
 	}
 }
 
@@ -110,6 +146,15 @@ func TestGoReleaserConfigSupportsFirstRelease(t *testing.T) {
 	if !strings.Contains(string(workflowContent), "--release-footer-tmpl=.goreleaser.release-footer.md.tmpl") {
 		t.Fatal("expected the release workflow to pass the first-release footer template to goreleaser")
 	}
+}
+
+func readRepoFile(t *testing.T, root string, path ...string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(append([]string{root}, path...)...))
+	if err != nil {
+		t.Fatalf("read repo file %s: %v", filepath.Join(path...), err)
+	}
+	return string(content)
 }
 
 func TestGoReleaserConfigUsesReadableChangelogTitlesAndFiltersReleaseCommits(t *testing.T) {

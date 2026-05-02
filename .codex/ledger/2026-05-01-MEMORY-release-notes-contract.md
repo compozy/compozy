@@ -1,25 +1,27 @@
 Goal (incl. success criteria):
 
-- Implement the accepted release-notes contract fix across `pr-release` and `looper`, then restore the `pr-release` automatic release workflow so releases are produced by release PR + production workflow instead of manual tags/releases.
-- Success means `pr-release` generates `RELEASE_NOTES.md` with only the release version heading plus manual release notes, `CHANGELOG.md` remains full, `looper` pins the fixed releasepr module, the public `go install github.com/compozy/releasepr@v0.0.19` works, `pr-release` CI workflow is valid, release PR dry-runs trigger automatically on newly opened release PRs, and required verification passes.
+- Implement the accepted release-notes contract fix across `pr-release` and `looper`.
+- Success means `pr-release` generates a historical `RELEASE_NOTES.md`, a current-version-only `RELEASE_BODY.md`, `looper` pins the fixed releasepr module, `v0.2.1` release notes/body are repaired, the GitHub release `v0.2.1` is updated if credentials allow, and required verification passes.
 
 Constraints/Assumptions:
 
 - No destructive git commands: no `git restore`, `git checkout`, `git reset`, `git clean`, or `git rm`.
 - Preserve unrelated local `looper` edits in `internal/core/agent/session_test.go` and `web/src/systems/runs/components/run-detail-view.test.tsx`.
 - Use root-cause fix in `pr-release`; no local workflow post-processing workaround.
-- Target next releasepr module version is `github.com/compozy/releasepr@v0.0.19` unless existing release metadata says otherwise.
-- Accepted plan persisted at `.codex/plans/2026-05-01-release-notes-contract.md`.
+- Target next releasepr module version is `github.com/compozy/releasepr@v0.0.20` unless existing release metadata says otherwise.
+- Accepted plan must be persisted at `.codex/plans/2026-05-01-release-notes-contract.md`.
 
 Key decisions:
 
-- `RELEASE_NOTES.md` should not include the scoped conventional changelog body.
+- `RELEASE_NOTES.md` is historical and prepends/replaces the current version section while preserving prior version sections.
+- `RELEASE_BODY.md` is the current-version-only publication artifact for GoReleaser/GitHub Releases.
 - Keep PR body behavior using scoped changelog plus manual release notes.
+- If no manual notes exist, release publication falls back to the scoped conventional changelog.
 - Keep `CHANGELOG.md` generated from full changelog.
 
 State:
 
-- In progress on `pr-release` automatic release workflow restoration.
+- Implementing the accepted follow-up plan after real `v0.2.1` produced an effectively empty release body.
 
 Done:
 
@@ -68,18 +70,87 @@ Done:
 - `../pr-release` lint passed: `make lint` reported `0 issues`.
 - `../pr-release` tests passed: `make test` reported `DONE 159 tests`.
 - `../pr-release` diff whitespace check passed: `git diff --check`.
+- Pushed `pr-release` commit `9a747dd fix: restore automatic release workflows`; GitHub Release workflow run `25235803107` succeeded and created release PR `#9` for `release/v0.0.20`.
+- GitHub CI run `25235803104` now starts a real `test` job instead of failing workflow parsing, but the job failed at `Setup Bun`: `bun ci` reported `lockfile had changes, but lockfile is frozen`.
+- Root cause: tracked `bun.lock` still contains stale dev dependencies while current `package.json` has no dependencies.
+- Removed the stale empty Bun lockfile via `bun install --lockfile-only`; `bun ci` now passes locally.
+- Added package manifest regression coverage so `bun.lock` cannot be committed when `package.json` declares no dependency sections.
+- Focused workflow/package config tests pass: `go test . -run 'Test(CIWorkflowConfig|ReleaseWorkflowConfig|PackageManifestConfig)' -count=1`.
+- `../pr-release` lint passed after lockfile fix: `make lint` reported `0 issues`.
+- `../pr-release` tests passed after lockfile fix: `make test` reported `DONE 161 tests`.
+- `../pr-release` diff whitespace check passed after lockfile fix: `git diff --check`.
+- Pushed `pr-release` commit `9698860 fix: align bun lockfile with manifest`.
+- Verified GitHub CI run `25235885446` succeeded on `main` after the lockfile fix.
+- Verified GitHub Release workflow run `25235885442` now fails in `Run PR Release Orchestrator` because it treats existing remote branch `release/v0.0.20` as new and attempts a non-fast-forward normal push.
+- Root cause identified in `internal/orchestrator/pr_release.go`: `createdInSession` uses only local branch existence and ignores `remoteExists`, so clean CI runners misclassify pre-existing remote release branches.
+- Patched `../pr-release` saga branch bookkeeping to track local branch creation, remote branch pre-existence, and remote branch rollback ownership separately.
+- Added regression coverage for the clean-runner case where the release branch exists remotely but not locally; it now expects `PushBranchForce`.
+- Updated rollback tests so new-branch cases explicitly report `RemoteBranchExists=false` during branch creation.
+- Focused regression passed: `go test ./internal/orchestrator -run 'TestPRReleaseOrchestrator_Execute/Should_force_push_when_release_branch_already_exists_remotely' -count=1`.
+- Orchestrator package tests passed: `go test ./internal/orchestrator -count=1`.
+- `../pr-release` lint passed: `make lint` reported `0 issues`.
+- `../pr-release` tests passed: `make test` reported `DONE 162 tests`.
+- `../pr-release` diff whitespace check passed: `git diff --check`.
+- Pushed `pr-release` commit `766ec79 fix: update existing release branch`.
+- Verified GitHub Release workflow run `25236159969` succeeded and updated PR #9 from old head `91620a6` to `ea4ec8c`.
+- Verified GitHub CI run `25236159971` succeeded on `main` after `766ec79`.
+- Observed PR #9 did not get new `pull_request` CI/dry-run runs after the force-push; GitHub issue events show `head_ref_force_pushed` by `github-actions[bot]`, matching GitHub's documented `GITHUB_TOKEN` event suppression behavior.
+- Patched `.github/workflows/release.yml` so the release-pr job explicitly dispatches CI and release dry-run workflows for the release branch via `workflow_dispatch`.
+- Added workflow config regression coverage for dispatch mode, dry-run inputs, `actions: write`, branch checkout ref, and dispatched dry-run env.
+- Focused release workflow config test passed: `go test . -run 'TestReleaseWorkflowConfig' -count=1`.
+- `../pr-release` lint passed after dispatch workflow fix: `make lint` reported `0 issues`.
+- `../pr-release` tests passed after dispatch workflow fix: `make test` reported `DONE 163 tests`.
+- `../pr-release` diff whitespace check passed after dispatch workflow fix: `git diff --check`.
+- Pushed `pr-release` commit `c6ec9a4 fix: dispatch release pr checks`.
+- Verified GitHub Release workflow run `25236362937` succeeded on `main`; `Dispatch Release PR Checks` succeeded.
+- Verified GitHub CI run `25236362924` succeeded on `main`.
+- Verified dispatched PR-branch CI run `25236378047` succeeded on `release/v0.0.20` at head `a13e3b9`.
+- Verified dispatched PR-branch Release dry-run run `25236378838` succeeded on `release/v0.0.20` at head `a13e3b9`.
+- Verified commit check-runs for PR #9 head `a13e3b9379d78c94ae353280e4e494d14bc45dc3`: `test=success`, `Dry-Run Release Check=success`; PR #9 merge state is `CLEAN`.
+- Verified PR #9 diff only includes `CHANGELOG.md`, `RELEASE_NOTES.md`, and `package.json`; remote `RELEASE_NOTES.md` content is just `## 0.0.20 - 2026-05-01`.
+- New issue: public Compozy `v0.2.1` release body and `main:RELEASE_NOTES.md` contain only `## 0.2.1 - 2026-05-01`.
+- Root cause confirmed: `releasepr@v0.0.19` intentionally writes `RELEASE_NOTES.md` as heading + manual notes; with no `.release-notes/*.md` for `0.2.1`, it discarded scoped changelog details and overwrote historical `0.2.0` release notes.
+- User selected the corrected contract:
+  - `RELEASE_NOTES.md`: historical, preserving old release sections.
+  - GitHub Release body: current version only.
+  - Empty manual notes fallback: scoped changelog, not heading-only.
+- Persisted the accepted follow-up plan to `.codex/plans/2026-05-01-release-notes-contract.md`.
+- Patched `pr-release` to generate `RELEASE_BODY.md` for publication and historical `RELEASE_NOTES.md` with same-version replacement.
+- Updated `pr-release` dry-run GoReleaser args to use `RELEASE_BODY.md`.
+- Updated `pr-release` tests/docs for the new contract.
+- Focused upstream tests passed:
+  - `go test ./internal/orchestrator -run 'TestPRReleaseOrchestrator_generateChangelog|TestDryRunOrchestrator_Execute/Should_successfully_execute_dry-run_validation|TestPRReleaseOrchestrator_commitChanges' -count=1`
+- Broader upstream checks passed:
+  - `go test ./internal/orchestrator -count=1`
+  - `go test . -run 'TestReleaseWorkflowConfig' -count=1`
+  - `go test ./...`
+  - `make lint`
+  - `make test` (`DONE 165 tests`)
+- Published upstream `releasepr` commit `073ed3a fix: split release notes history and body`.
+- Published upstream tag `v0.0.20`.
+- Verified module resolution:
+  - `go run github.com/compozy/releasepr@v0.0.20 version`
+  - `GOPROXY=direct go run github.com/compozy/releasepr@v0.0.20 version`
+- Updated `looper` workflows to `github.com/compozy/releasepr@v0.0.20`.
+- Updated `looper` release workflow to ensure/publish `RELEASE_BODY.md` instead of historical `RELEASE_NOTES.md`.
+- Added `RELEASE_BODY.md` for `0.2.1` and regenerated `RELEASE_NOTES.md` as historical `0.2.1` + restored GitHub `v0.2.0` body.
+- Added release config regression for current body vs historical notes.
+- Focused `looper` release tests passed:
+  - `go test ./test -run 'TestReleaseWorkflowsUseScopedReleaseNotesGenerator|TestReleasePublicationUsesCurrentBodyAndHistoricalNotes|TestGoReleaserConfigSupportsFirstRelease' -count=1`
+- Updated public GitHub Release `v0.2.1` with `RELEASE_BODY.md`; verified body now includes `Bug Fixes` and `Binary release`.
+- Final `looper` verification passed: `make verify` completed with frontend lint/typecheck/tests/build, Go fmt/lint `0 issues`, Go tests `DONE 3010 tests, 3 skipped`, build, Playwright e2e `5 passed`, and `All verification checks passed`.
 
 Now:
 
-- Commit and push the verified `pr-release` workflow fix, then observe GitHub Actions.
+- Prepare final summary.
 
 Next:
 
-- If verification passes, push the `pr-release` workflow fix and verify GitHub Actions creates/validates the next automatic release PR.
+- None.
 
 Open questions (UNCONFIRMED if needed):
 
-- Whether the subsequent automatically created release PR should be merged immediately is UNCONFIRMED; do not merge without explicit instruction.
+- None.
 
 Working set (files/ids/commands):
 
@@ -90,8 +161,11 @@ Working set (files/ids/commands):
 - `/Users/pedronauck/Dev/compozy/looper/.github/workflows/release.yml`
 - `/Users/pedronauck/Dev/compozy/looper/.github/workflows/auto-docs.yml`
 - `/Users/pedronauck/Dev/compozy/looper/test/release_config_test.go`
+- `/Users/pedronauck/Dev/compozy/looper/RELEASE_NOTES.md`
+- `/Users/pedronauck/Dev/compozy/looper/RELEASE_BODY.md`
 - GitHub Release: `https://github.com/compozy/releasepr/releases/tag/v0.0.19`
 - Release workflow run: `https://github.com/compozy/releasepr/actions/runs/25235050968`
 - Failing CI run with no jobs: `https://github.com/compozy/releasepr/actions/runs/25235051401`
+- Release PR created by automation: `https://github.com/compozy/releasepr/pull/9`
 - `/Users/pedronauck/Dev/compozy/pr-release/.github/workflows/ci.yml`
 - `/Users/pedronauck/Dev/compozy/pr-release/.github/workflows/release.yml`

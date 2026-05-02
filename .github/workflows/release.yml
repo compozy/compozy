@@ -34,7 +34,7 @@ env:
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.19
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.21
 
 permissions:
   contents: write
@@ -207,9 +207,9 @@ jobs:
 
       - name: Ensure release notes file exists
         run: |
-          if [ ! -f RELEASE_NOTES.md ]; then
-            echo "No release notes found, creating empty file"
-            touch RELEASE_NOTES.md
+          if [ ! -f RELEASE_BODY.md ]; then
+            echo "No release body found, creating empty file"
+            touch RELEASE_BODY.md
           fi
 
       - uses: goreleaser/goreleaser-action@v6
@@ -218,7 +218,7 @@ jobs:
           version: ~> v2
           args: >-
             release --clean
-            --release-notes=RELEASE_NOTES.md
+            --release-notes=RELEASE_BODY.md
             --release-header-tmpl=.goreleaser.release-header.md.tmpl
             --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
         env:
