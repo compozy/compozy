@@ -29,6 +29,9 @@ func TestHostAPITasksCreateRoundTripsMethodAndParams(t *testing.T) {
 		if req.Workflow != "demo" || req.Title != "Hello" {
 			t.Fatalf("unexpected create request: %#v", req)
 		}
+		if !req.UpdateIndex {
+			t.Fatalf("req.UpdateIndex = false, want true")
+		}
 		return extension.Task{
 			Workflow: "demo",
 			Number:   7,
@@ -53,6 +56,7 @@ func TestHostAPITasksCreateRoundTripsMethodAndParams(t *testing.T) {
 			Status: "pending",
 			Type:   "backend",
 		},
+		UpdateIndex: true,
 	})
 	if err != nil {
 		t.Fatalf("Tasks.Create() error = %v", err)
