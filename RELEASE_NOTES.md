@@ -1,3 +1,12 @@
+## 0.2.2 - 2026-05-02
+
+### 📚 Documentation
+
+- Update
+### 📦 Build System
+
+- Release tool
+
 ## 0.2.1 - 2026-05-01
 
 ### 🐛 Bug Fixes
