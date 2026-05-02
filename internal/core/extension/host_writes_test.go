@@ -138,6 +138,98 @@ func TestHostTasksCreateNormalizesFrontmatterAndTaskBody(t *testing.T) {
 	}
 }
 
+func TestHostTasksCreateUpdateIndexAppendsTaskListRow(t *testing.T) {
+	t.Parallel()
+
+	rt := newHostRuntime(t, []Capability{CapabilityTasksCreate}, nil, "")
+	writeTaskFixture(
+		t,
+		rt.root,
+		"extensibility",
+		1,
+		"completed",
+		"Existing task",
+		"backend",
+		"# Task 01: Existing task\n\nExisting body.\n",
+	)
+	tasksDir := filepath.Join(rt.root, ".compozy", "tasks", "extensibility")
+	indexPath := filepath.Join(tasksDir, "_tasks.md")
+	indexContent := strings.Join([]string{
+		"# Extensibility - Task List",
+		"",
+		"## Tasks",
+		"",
+		"| # | Title | Status | Complexity | Dependencies |",
+		"|---|-------|--------|------------|--------------|",
+		"| 01 | Existing task | completed | high | - |",
+		"",
+	}, "\n")
+	if err := os.WriteFile(indexPath, []byte(indexContent), 0o600); err != nil {
+		t.Fatalf("WriteFile(_tasks.md) error = %v", err)
+	}
+
+	result, err := rt.router.Handle(context.Background(), "ext", "host.tasks.create", mustJSON(t, TaskCreateRequest{
+		Workflow:    "extensibility",
+		Title:       "QA execution | validation",
+		Body:        "Run QA execution.",
+		UpdateIndex: true,
+		Frontmatter: TaskFrontmatter{
+			Status:       "pending",
+			Type:         "test",
+			Complexity:   "critical",
+			Dependencies: []string{"task_01"},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	task, ok := result.(*Task)
+	if !ok {
+		t.Fatalf("result type = %T, want *Task", result)
+	}
+	if task.Number != 2 {
+		t.Fatalf("task.Number = %d, want 2", task.Number)
+	}
+
+	updated, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("ReadFile(_tasks.md) error = %v", err)
+	}
+	want := "| 02 | QA execution \\| validation | pending | critical | task_01 |"
+	if !strings.Contains(string(updated), want) {
+		t.Fatalf("_tasks.md = %q, want row %q", string(updated), want)
+	}
+}
+
+func TestHostTasksCreateUpdateIndexRejectsMalformedIndexBeforeWritingTask(t *testing.T) {
+	t.Parallel()
+
+	rt := newHostRuntime(t, []Capability{CapabilityTasksCreate}, nil, "")
+	tasksDir := filepath.Join(rt.root, ".compozy", "tasks", "extensibility")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(tasks dir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "_tasks.md"), []byte("not a task table\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(_tasks.md) error = %v", err)
+	}
+
+	_, err := rt.router.Handle(context.Background(), "ext", "host.tasks.create", mustJSON(t, TaskCreateRequest{
+		Workflow:    "extensibility",
+		Title:       "Should not be written",
+		Body:        "Body",
+		UpdateIndex: true,
+		Frontmatter: TaskFrontmatter{
+			Type: "test",
+		},
+	}))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want malformed index error")
+	}
+	if _, statErr := os.Stat(filepath.Join(tasksDir, "task_01.md")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("task_01.md stat error = %v, want not exists", statErr)
+	}
+}
+
 func TestHostTasksCreateRejectsInvalidFrontmatter(t *testing.T) {
 	t.Parallel()
 

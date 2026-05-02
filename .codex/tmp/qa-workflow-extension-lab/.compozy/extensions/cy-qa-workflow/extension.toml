@@ -1,0 +1,24 @@
+[extension]
+name = "cy-qa-workflow"
+version = "0.1.0"
+description = "Adds Compozy QA report and QA execution tasks to workflow runs"
+min_compozy_version = "0.1.10"
+
+[subprocess]
+command = "go"
+args = ["run", "."]
+
+[security]
+capabilities = ["plan.mutate", "agent.mutate", "tasks.read", "tasks.create"]
+
+[[hooks]]
+event = "plan.pre_discover"
+required = true
+
+[[hooks]]
+event = "plan.pre_resolve_task_runtime"
+required = true
+
+[[hooks]]
+event = "agent.pre_session_create"
+required = true

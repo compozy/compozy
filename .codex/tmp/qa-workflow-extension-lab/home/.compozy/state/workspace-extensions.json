@@ -1,0 +1,7 @@
+{
+    "workspaces": {
+        "/Users/pedronauck/Dev/compozy/looper/.codex/tmp/qa-workflow-extension-lab": {
+            "cy-qa-workflow": true
+        }
+    }
+}
