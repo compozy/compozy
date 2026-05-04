@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { toTransportError } from "@/lib/api-client";
 import { installFetchStub, matchPath } from "@/test/utils";
 
 import { archiveWorkflow, listWorkflows, syncWorkflow } from "./workflows-api";
@@ -66,6 +67,20 @@ describe("workflows api adapter", () => {
     expect(stub.calls[0]?.body).toBe(JSON.stringify({ workspace: "ws-1" }));
   });
 
+  it("Should include force when retrying archive confirmation", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/tasks/alpha/archive", "POST"),
+        status: 200,
+        body: { archived: true, forced: true, completed_tasks: 2, resolved_review_issues: 1 },
+      },
+    ]);
+    restore = stub.restore;
+    const result = await archiveWorkflow({ workspaceId: "ws-1", slug: "alpha", force: true });
+    expect(result.forced).toBe(true);
+    expect(stub.calls[0]?.body).toBe(JSON.stringify({ workspace: "ws-1", force: true }));
+  });
+
   it("Should surface transport errors from sync", async () => {
     const stub = installFetchStub([
       {
@@ -76,5 +91,41 @@ describe("workflows api adapter", () => {
     ]);
     restore = stub.restore;
     await expect(syncWorkflow({ workspaceId: "missing" })).rejects.toThrow(/stale/);
+  });
+
+  it("Should preserve transport error details for archive confirmation retries", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/tasks/alpha/archive", "POST"),
+        status: 409,
+        body: {
+          code: "workflow_force_required",
+          message: "needs confirmation",
+          request_id: "req-1",
+          details: {
+            workflow_slug: "alpha",
+            task_non_terminal: 2,
+            review_unresolved: 1,
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+
+    try {
+      await archiveWorkflow({ workspaceId: "ws-1", slug: "alpha" });
+      throw new Error("expected archiveWorkflow to throw");
+    } catch (error) {
+      expect(toTransportError(error)).toEqual({
+        code: "workflow_force_required",
+        message: "needs confirmation",
+        request_id: "req-1",
+        details: {
+          workflow_slug: "alpha",
+          task_non_terminal: 2,
+          review_unresolved: 1,
+        },
+      });
+    }
   });
 });

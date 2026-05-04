@@ -67,31 +67,7 @@ func (s *HostServices) handleArtifactWrite(ctx context.Context, params json.RawM
 }
 
 func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest) (*Task, error) {
-	tasksDir, err := o.tasksDirForWorkflow(req.Workflow)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create tasks directory: %w", err)
-	}
-
-	title := strings.TrimSpace(req.Title)
-	if title == "" {
-		return nil, subprocess.NewInvalidParams(map[string]any{
-			"method": "host.tasks.create",
-			"field":  "title",
-			"error":  "title is required",
-		})
-	}
-	if strings.TrimSpace(req.Body) == "" {
-		return nil, subprocess.NewInvalidParams(map[string]any{
-			"method": "host.tasks.create",
-			"field":  "body",
-			"error":  "body is required",
-		})
-	}
-
-	meta, err := o.normalizeTaskFrontmatter(ctx, req.Frontmatter)
+	tasksDir, title, meta, err := o.prepareTaskCreate(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +75,13 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 	number, err := nextTaskNumber(tasksDir)
 	if err != nil {
 		return nil, err
+	}
+	var indexUpdate *taskIndexUpdate
+	if req.UpdateIndex {
+		indexUpdate, err = o.prepareTaskIndexUpdate(req.Workflow, tasksDir, number, title, meta)
+		if err != nil {
+			return nil, err
+		}
 	}
 	taskName := fmt.Sprintf("task_%02d.md", number)
 	taskPath := filepath.Join(tasksDir, taskName)
@@ -118,6 +101,11 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 		return nil, err
 	}
 	taskName = filepath.Base(taskPath)
+	if indexUpdate != nil {
+		if err := o.writeTaskIndexUpdate(*indexUpdate); err != nil {
+			return nil, err
+		}
+	}
 
 	if _, err := o.submitRuntimeEvent(ctx, events.EventKindTaskFileUpdated, kinds.TaskFileUpdatedPayload{
 		TasksDir:  tasksDir,
@@ -144,6 +132,41 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 	}
 
 	return o.parseTaskDocument(req.Workflow, tasks.ExtractTaskNumber(taskName), taskPath, string(taskContent))
+}
+
+func (o *defaultKernelOps) prepareTaskCreate(
+	ctx context.Context,
+	req TaskCreateRequest,
+) (string, string, TaskFrontmatter, error) {
+	tasksDir, err := o.tasksDirForWorkflow(req.Workflow)
+	if err != nil {
+		return "", "", TaskFrontmatter{}, err
+	}
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		return "", "", TaskFrontmatter{}, fmt.Errorf("create tasks directory: %w", err)
+	}
+
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		return "", "", TaskFrontmatter{}, subprocess.NewInvalidParams(map[string]any{
+			"method": "host.tasks.create",
+			"field":  "title",
+			"error":  "title is required",
+		})
+	}
+	if strings.TrimSpace(req.Body) == "" {
+		return "", "", TaskFrontmatter{}, subprocess.NewInvalidParams(map[string]any{
+			"method": "host.tasks.create",
+			"field":  "body",
+			"error":  "body is required",
+		})
+	}
+
+	meta, err := o.normalizeTaskFrontmatter(ctx, req.Frontmatter)
+	if err != nil {
+		return "", "", TaskFrontmatter{}, err
+	}
+	return tasksDir, title, meta, nil
 }
 
 func (o *defaultKernelOps) StartRun(ctx context.Context, req RunStartRequest) (*RunHandle, error) {
@@ -311,6 +334,162 @@ func buildTaskBody(number int, title string, body string) string {
 		strings.TrimSpace(title),
 		strings.TrimSpace(body),
 	)
+}
+
+type taskIndexUpdate struct {
+	absolutePath string
+	relativePath string
+	content      []byte
+}
+
+func (o *defaultKernelOps) prepareTaskIndexUpdate(
+	workflow string,
+	tasksDir string,
+	number int,
+	title string,
+	meta TaskFrontmatter,
+) (*taskIndexUpdate, error) {
+	indexPath := filepath.Join(tasksDir, "_tasks.md")
+	scoped, err := o.resolveScopedPath("host.tasks.create", indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	row := formatTaskIndexRow(number, title, meta)
+	content, err := os.ReadFile(scoped.absolute)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return &taskIndexUpdate{
+				absolutePath: scoped.absolute,
+				relativePath: scoped.relative,
+				content:      []byte(newTaskIndexContent(workflow, row)),
+			}, nil
+		}
+		return nil, fmt.Errorf("read task index %s: %w", scoped.absolute, err)
+	}
+
+	updated, err := appendTaskIndexRow(string(content), row)
+	if err != nil {
+		return nil, fmt.Errorf("update task index %s: %w", scoped.absolute, err)
+	}
+	return &taskIndexUpdate{
+		absolutePath: scoped.absolute,
+		relativePath: scoped.relative,
+		content:      []byte(updated),
+	}, nil
+}
+
+func (o *defaultKernelOps) writeTaskIndexUpdate(update taskIndexUpdate) error {
+	root, err := o.openWorkspaceRoot("host.tasks.create")
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	if err := writeHostFileAtomically(
+		root,
+		update.relativePath,
+		update.absolutePath,
+		update.content,
+		0o600,
+	); err != nil {
+		if isRootEscapeError(err) {
+			return o.pathOutOfScopeError("host.tasks.create", update.absolutePath)
+		}
+		return err
+	}
+	return nil
+}
+
+func newTaskIndexContent(workflow string, row string) string {
+	return strings.Join([]string{
+		fmt.Sprintf("# %s - Task List", taskIndexWorkflowTitle(workflow)),
+		"",
+		"## Tasks",
+		"",
+		"| # | Title | Status | Complexity | Dependencies |",
+		"|---|-------|--------|------------|--------------|",
+		row,
+		"",
+	}, "\n")
+}
+
+func appendTaskIndexRow(content string, row string) (string, error) {
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	headerIdx := -1
+	for idx, line := range lines {
+		if strings.TrimSpace(line) == "| # | Title | Status | Complexity | Dependencies |" {
+			headerIdx = idx
+			break
+		}
+	}
+	if headerIdx == -1 {
+		return "", errors.New("tasks table header not found")
+	}
+	separatorIdx := headerIdx + 1
+	if separatorIdx >= len(lines) || !isTaskIndexSeparator(lines[separatorIdx]) {
+		return "", errors.New("tasks table separator not found")
+	}
+
+	insertIdx := separatorIdx + 1
+	for insertIdx < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[insertIdx]), "|") {
+		insertIdx++
+	}
+
+	updated := make([]string, 0, len(lines)+1)
+	updated = append(updated, lines[:insertIdx]...)
+	updated = append(updated, row)
+	updated = append(updated, lines[insertIdx:]...)
+	return strings.Join(updated, "\n") + "\n", nil
+}
+
+func isTaskIndexSeparator(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "|---") && strings.HasSuffix(trimmed, "|")
+}
+
+func formatTaskIndexRow(number int, title string, meta TaskFrontmatter) string {
+	status := strings.TrimSpace(meta.Status)
+	if status == "" {
+		status = taskStatusPending
+	}
+	complexity := strings.TrimSpace(meta.Complexity)
+	if complexity == "" {
+		complexity = "-"
+	}
+	dependencies := "-"
+	if len(meta.Dependencies) > 0 {
+		dependencies = strings.Join(meta.Dependencies, ", ")
+	}
+	return fmt.Sprintf(
+		"| %02d | %s | %s | %s | %s |",
+		number,
+		sanitizeTaskIndexCell(title),
+		sanitizeTaskIndexCell(status),
+		sanitizeTaskIndexCell(complexity),
+		sanitizeTaskIndexCell(dependencies),
+	)
+}
+
+func sanitizeTaskIndexCell(value string) string {
+	compact := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	return strings.ReplaceAll(compact, "|", `\|`)
+}
+
+func taskIndexWorkflowTitle(workflow string) string {
+	parts := strings.FieldsFunc(strings.TrimSpace(workflow), func(r rune) bool {
+		return r == '-' || r == '_'
+	})
+	for idx, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[idx] = strings.ToUpper(part[:1]) + part[1:]
+	}
+	if len(parts) == 0 {
+		return "Workflow"
+	}
+	return strings.Join(parts, " ")
 }
 
 func hostGeneratedRunID(mode model.ExecutionMode) string {

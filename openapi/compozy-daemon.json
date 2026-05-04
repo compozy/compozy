@@ -208,6 +208,15 @@
                     "archived_at": {
                         "format": "date-time",
                         "type": "string"
+                    },
+                    "completed_tasks": {
+                        "type": "integer"
+                    },
+                    "forced": {
+                        "type": "boolean"
+                    },
+                    "resolved_review_issues": {
+                        "type": "integer"
                     }
                 },
                 "required": ["archived"],
@@ -1689,6 +1698,17 @@
                 },
                 "type": "object"
             },
+            "WorkflowArchiveRequest": {
+                "properties": {
+                    "force": {
+                        "type": "boolean"
+                    },
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "WorkflowSpecDocument": {
                 "properties": {
                     "adrs": {
@@ -2685,7 +2705,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/WorkflowRefRequest"
+                                "$ref": "#/components/schemas/WorkflowArchiveRequest"
                             }
                         }
                     },

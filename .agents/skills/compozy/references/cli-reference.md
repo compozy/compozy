@@ -168,7 +168,7 @@ compozy tasks validate --name my-feature
 
 ### `compozy sync`
 
-Refresh task workflow `_meta.md` files under `.compozy/tasks/`.
+Reconcile authored workflow artifacts under `.compozy/tasks/` into the daemon `global.db` catalog.
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -183,7 +183,7 @@ compozy sync --name my-feature
 
 ### `compozy archive`
 
-Move fully completed workflows to `.compozy/tasks/_archived/<timestamp>-<name>`.
+Move workflows that synced daemon state marks as complete to `.compozy/tasks/_archived/<timestamp>-<name>`.
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |

@@ -39,6 +39,7 @@ export async function syncWorkflow(params: SyncWorkflowParams): Promise<SyncResu
 export interface ArchiveWorkflowParams {
   workspaceId: string;
   slug: string;
+  force?: boolean;
 }
 
 export async function archiveWorkflow(params: ArchiveWorkflowParams): Promise<ArchiveResult> {
@@ -47,10 +48,10 @@ export async function archiveWorkflow(params: ArchiveWorkflowParams): Promise<Ar
       path: { slug: params.slug },
       header: { [ACTIVE_WORKSPACE_HEADER]: params.workspaceId },
     },
-    body: { workspace: params.workspaceId },
+    body: {
+      workspace: params.workspaceId,
+      ...(params.force ? { force: true } : {}),
+    },
   });
-  if (!data) {
-    throw new Error(apiErrorMessage(error, "Failed to archive workflow"));
-  }
   return requireData(data, response, "Failed to archive workflow", error);
 }

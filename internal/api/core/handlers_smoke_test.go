@@ -540,7 +540,7 @@ func (s *smokeTaskService) StartRun(context.Context, string, string, core.TaskRu
 	return s.run, nil
 }
 
-func (*smokeTaskService) Archive(context.Context, string, string) (core.ArchiveResult, error) {
+func (*smokeTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {
 	return core.ArchiveResult{Archived: true}, nil
 }
 

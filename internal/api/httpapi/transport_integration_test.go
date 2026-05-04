@@ -1985,7 +1985,7 @@ func (f *fakeTaskService) StartRun(context.Context, string, string, core.TaskRun
 	return f.run, nil
 }
 
-func (*fakeTaskService) Archive(context.Context, string, string) (core.ArchiveResult, error) {
+func (*fakeTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {
 	return core.ArchiveResult{Archived: true}, nil
 }
 
@@ -2124,7 +2124,7 @@ func (*capturingTaskService) StartRun(context.Context, string, string, core.Task
 	return core.Run{}, nil
 }
 
-func (*capturingTaskService) Archive(context.Context, string, string) (core.ArchiveResult, error) {
+func (*capturingTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {
 	return core.ArchiveResult{}, nil
 }
 

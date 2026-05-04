@@ -155,11 +155,10 @@ async function assertBinaryExists(binaryPath: string): Promise<void> {
 async function createWorkspaceFixture(repoRoot: string, fixtureRoot: string): Promise<void> {
   await mkdir(path.join(fixtureRoot, ".compozy", "tasks"), { recursive: true });
   for (const slug of PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS) {
-    await cp(
-      path.join(repoRoot, ".compozy", "tasks", slug),
-      path.join(fixtureRoot, ".compozy", "tasks", slug),
-      { recursive: true }
-    );
+    if (await copySourceWorkflow(repoRoot, fixtureRoot, slug)) {
+      continue;
+    }
+    await createSyntheticSourceWorkflow(fixtureRoot, slug);
   }
   await createRunnableWorkflow(
     fixtureRoot,
@@ -168,6 +167,86 @@ async function createWorkspaceFixture(repoRoot: string, fixtureRoot: string): Pr
   );
   await createRunnableWorkflow(fixtureRoot, PLAYWRIGHT_START_WORKFLOW_SLUG, "Start Runnable Task");
   await createArchiveReadyWorkflow(fixtureRoot);
+}
+
+async function copySourceWorkflow(
+  repoRoot: string,
+  fixtureRoot: string,
+  slug: string
+): Promise<boolean> {
+  const sourceDir = path.join(repoRoot, ".compozy", "tasks", slug);
+  if (!(await pathExists(sourceDir))) {
+    return false;
+  }
+  await cp(sourceDir, path.join(fixtureRoot, ".compozy", "tasks", slug), { recursive: true });
+  return true;
+}
+
+async function createSyntheticSourceWorkflow(fixtureRoot: string, slug: string): Promise<void> {
+  switch (slug) {
+    case "daemon":
+      await createDaemonWorkflow(fixtureRoot);
+      return;
+    case "daemon-web-ui":
+      await createDaemonWebUIWorkflow(fixtureRoot);
+      return;
+    default:
+      throw new Error(`missing required Playwright source workflow fixture: ${slug}`);
+  }
+}
+
+async function createDaemonWorkflow(fixtureRoot: string): Promise<void> {
+  const workflowDir = path.join(fixtureRoot, ".compozy", "tasks", "daemon");
+  const reviewDir = path.join(workflowDir, "reviews-001");
+  await mkdir(reviewDir, { recursive: true });
+
+  await writeFile(
+    path.join(workflowDir, "task_001.md"),
+    [
+      "---",
+      "status: completed",
+      "title: Daemon Fixture Task",
+      "type: infra",
+      "complexity: low",
+      "---",
+      "",
+      "# Daemon Fixture Task",
+      "",
+      "Fixture workflow reserved for daemon-served review and run smoke coverage.",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(reviewDir, "issue_001.md"),
+    [
+      "---",
+      "provider: manual",
+      "pr: fixture",
+      "round: 1",
+      "round_created_at: 2026-05-04T00:00:00Z",
+      "status: pending",
+      "file: cmd/compozy/main.go",
+      "line: 1",
+      "severity: warning",
+      "author: playwright-fixture",
+      "provider_ref: synthetic:daemon-review",
+      "---",
+      "",
+      "# Issue 001: Synthetic daemon review",
+      "## Review Comment",
+      "",
+      "Synthetic review issue reserved for daemon-served review smoke coverage.",
+      "",
+      "## Triage",
+      "",
+      "- Decision: `UNREVIEWED`",
+      "- Notes:",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
 }
 
 async function createRunnableWorkflow(
@@ -218,6 +297,54 @@ async function createArchiveReadyWorkflow(fixtureRoot: string): Promise<void> {
   );
 }
 
+async function createDaemonWebUIWorkflow(fixtureRoot: string): Promise<void> {
+  const workflowDir = path.join(fixtureRoot, ".compozy", "tasks", "daemon-web-ui");
+  await mkdir(path.join(workflowDir, "memory"), { recursive: true });
+
+  await writeFile(
+    path.join(workflowDir, "task_001.md"),
+    [
+      "---",
+      "status: pending",
+      "title: Daemon UI Fixture Task",
+      "type: frontend",
+      "complexity: low",
+      "---",
+      "",
+      "# Daemon UI Fixture Task",
+      "",
+      "Fixture workflow reserved for daemon-served workflow board smoke coverage.",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(workflowDir, "_techspec.md"),
+    [
+      "# Daemon Web UI TechSpec",
+      "",
+      "## Testing Approach",
+      "",
+      "This synthetic fixture exists so Playwright smoke coverage remains stable even",
+      "when the source workflow is absent from the working tree.",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(workflowDir, "memory", "MEMORY.md"),
+    [
+      "# Workflow Memory",
+      "",
+      "Synthetic shared memory notebook for daemon-served UI smoke coverage.",
+      "",
+    ].join("\n"),
+    "utf8"
+  );
+}
+
 async function seedDryRun(
   commandLogFile: string,
   binaryPath: string,
@@ -258,6 +385,15 @@ function daemonEnvironment(homeDir: string): NodeJS.ProcessEnv {
     ...process.env,
     HOME: homeDir,
   };
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await stat(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function runCLI(

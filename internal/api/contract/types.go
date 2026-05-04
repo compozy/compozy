@@ -31,6 +31,11 @@ type WorkflowRefRequest struct {
 	Workspace string `json:"workspace"`
 }
 
+type WorkflowArchiveRequest struct {
+	Workspace string `json:"workspace"`
+	Force     bool   `json:"force,omitempty"`
+}
+
 type TaskRunRequest struct {
 	Workspace        string          `json:"workspace"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
@@ -202,8 +207,11 @@ type ValidationSuccess struct {
 }
 
 type ArchiveResult struct {
-	Archived   bool       `json:"archived"`
-	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	Archived             bool       `json:"archived"`
+	ArchivedAt           *time.Time `json:"archived_at,omitempty"`
+	Forced               bool       `json:"forced,omitempty"`
+	CompletedTasks       int        `json:"completed_tasks,omitempty"`
+	ResolvedReviewIssues int        `json:"resolved_review_issues,omitempty"`
 }
 
 type ReviewFetchResult struct {

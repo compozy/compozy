@@ -1,0 +1,38 @@
+{
+    "schema_version": "1.0",
+    "qa_slug": "qa-workflow-extension",
+    "created_at": "2026-05-02T04:28:43Z",
+    "workspace_root": "/Users/pedronauck/Dev/compozy/looper",
+    "lab_root": "/Users/pedronauck/Dev/compozy/looper/.codex/tmp/qa-workflow-extension-lab",
+    "runtime_home": "/tmp/cqawf-home-20260502012333",
+    "workflow_slug": "qa-ext-smoke",
+    "extension_name": "cy-qa-workflow",
+    "extension_scope": "workspace",
+    "daemon": {
+        "http_port_mode": "ephemeral",
+        "last_base_url": "http://127.0.0.1:62544",
+        "final_state": "stopped"
+    },
+    "run_ids": [
+        "tasks-qa-ext-smoke-7cdb7b-20260502-042553-000000000",
+        "tasks-qa-ext-smoke-7cdb7b-20260502-042608-000000000",
+        "tasks-qa-ext-smoke-7cdb7b-20260502-042825-000000000"
+    ],
+    "verification": {
+        "report": "/Users/pedronauck/Dev/compozy/looper/.codex/qa/qa-workflow-extension/qa/verification-report.md",
+        "screenshots": [
+            "/Users/pedronauck/Dev/compozy/looper/.codex/qa/qa-workflow-extension/qa/screenshots/workflow-board.png",
+            "/Users/pedronauck/Dev/compozy/looper/.codex/qa/qa-workflow-extension/qa/screenshots/daemon-run-detail.png"
+        ],
+        "final_gate": {
+            "command": "make verify",
+            "exit_code": 0,
+            "summary": "0 lint issues; 3021 Go tests, 3 skipped; Go build succeeded; 5 Playwright E2E tests passed; All verification checks passed"
+        },
+        "post_gate_smoke": {
+            "command": "HOME=/tmp/cqawf-home-20260502012333 XDG_CONFIG_HOME=/tmp/cqawf-home-20260502012333/.config COMPOZY_DAEMON_HTTP_PORT=0 /Users/pedronauck/Dev/compozy/looper/bin/compozy tasks run qa-ext-smoke --dry-run --stream",
+            "exit_code": 0,
+            "summary": "3 dry-run jobs completed; task file count remained 3"
+        }
+    }
+}

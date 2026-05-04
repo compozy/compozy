@@ -123,6 +123,7 @@ type TaskCreateRequest struct {
 	Title       string          `json:"title"`
 	Body        string          `json:"body"`
 	Frontmatter TaskFrontmatter `json:"frontmatter"`
+	UpdateIndex bool            `json:"update_index,omitempty"`
 }
 
 type RunStartRequest struct {

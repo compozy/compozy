@@ -2,6 +2,7 @@ package reviews
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -551,6 +552,42 @@ func TestFinalizeIssueStatusesRejectsPendingIssues(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "remained pending") {
 		t.Fatalf("expected pending issue error, got %v", err)
+	}
+}
+
+func TestResolveUnresolvedIssuesResolvesAllLocalStatuses(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo")
+	reviewDir := ReviewDirectory(tasksDir, 1)
+	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
+		t.Fatalf("mkdir review dir: %v", err)
+	}
+
+	statuses := []string{"pending", "valid", "invalid", "resolved"}
+	for idx, status := range statuses {
+		name := filepath.Join(reviewDir, fmt.Sprintf("issue_%03d.md", idx+1))
+		if err := os.WriteFile(name, []byte(reviewIssueContent(status)), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	resolvedCount, err := ResolveUnresolvedIssues(tasksDir)
+	if err != nil {
+		t.Fatalf("resolve unresolved issues: %v", err)
+	}
+	if resolvedCount != 3 {
+		t.Fatalf("resolvedCount = %d, want 3", resolvedCount)
+	}
+
+	for idx := range statuses {
+		body, err := os.ReadFile(filepath.Join(reviewDir, fmt.Sprintf("issue_%03d.md", idx+1)))
+		if err != nil {
+			t.Fatalf("read rewritten issue: %v", err)
+		}
+		if !strings.Contains(string(body), "status: resolved") {
+			t.Fatalf("expected resolved status, got:\n%s", string(body))
+		}
 	}
 }
 

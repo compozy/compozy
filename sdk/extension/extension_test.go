@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -204,6 +205,93 @@ func TestOnPromptPostBuildReceivesPayloadAndReturnsPatch(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for prompt hook payload")
+	}
+
+	shutdownHarness(ctx, t, harness, errCh)
+}
+
+func TestOnAgentPreSessionCreateReceivesReadablePromptAndReturnsReadablePatch(t *testing.T) {
+	t.Parallel()
+
+	const name = "sdk-ext"
+	const version = "1.0.0"
+	seen := make(chan extension.AgentPreSessionCreatePayload, 1)
+	ext := extension.New(name, version).
+		WithCapabilities(extension.CapabilityAgentMutate).
+		OnAgentPreSessionCreate(func(
+			_ context.Context,
+			_ extension.HookContext,
+			payload extension.AgentPreSessionCreatePayload,
+		) (extension.SessionRequestPatch, error) {
+			seen <- payload
+			request := payload.SessionRequest
+			request.Prompt = []byte("/goal " + string(request.Prompt))
+			return extension.SessionRequestPatch{SessionRequest: &request}, nil
+		})
+
+	harness, ctx, cancel, errCh := runHarnessedExtension(t, ext, exttesting.HarnessOptions{
+		GrantedCapabilities: []extension.Capability{extension.CapabilityAgentMutate},
+	})
+	defer cancel()
+
+	if _, err := harness.Initialize(ctx, extension.InitializeRequestIdentity{
+		Name:    name,
+		Version: version,
+		Source:  "workspace",
+	}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	response, err := harness.DispatchHook(
+		ctx,
+		"hook-001",
+		extension.HookInfo{
+			Name:      "agent.pre_session_create",
+			Event:     extension.HookAgentPreSessionCreate,
+			Mutable:   true,
+			Required:  true,
+			Priority:  500,
+			TimeoutMS: 5000,
+		},
+		map[string]any{
+			"run_id": "run-001",
+			"job_id": "job-001",
+			"session_request": map[string]any{
+				"prompt":      "plain prompt",
+				"working_dir": "/tmp/work",
+				"model":       "gpt-5.5",
+				"extra_env":   map[string]string{"KEEP": "value"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("DispatchHook() error = %v", err)
+	}
+
+	if rawPatch := string(response.Patch); !strings.Contains(rawPatch, `"prompt":"/goal plain prompt"`) {
+		t.Fatalf("patch should keep prompt as readable text, got %s", rawPatch)
+	}
+	var patch extension.SessionRequestPatch
+	if err := json.Unmarshal(response.Patch, &patch); err != nil {
+		t.Fatalf("unmarshal patch: %v", err)
+	}
+	if patch.SessionRequest == nil {
+		t.Fatal("patch.SessionRequest = nil, want request patch")
+	}
+	if got := string(patch.SessionRequest.Prompt); got != "/goal plain prompt" {
+		t.Fatalf("patch prompt = %q, want /goal plain prompt", got)
+	}
+	if got := patch.SessionRequest.ExtraEnv["KEEP"]; got != "value" {
+		t.Fatalf("patch extra env KEEP = %q, want value", got)
+	}
+
+	select {
+	case payload := <-seen:
+		if got := string(payload.SessionRequest.Prompt); got != "plain prompt" {
+			t.Fatalf("handler payload prompt = %q, want plain prompt", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for agent hook payload")
 	}
 
 	shutdownHarness(ctx, t, harness, errCh)

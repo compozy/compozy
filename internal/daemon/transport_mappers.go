@@ -131,6 +131,20 @@ func transportSyncResult(
 	return out
 }
 
+func transportArchiveResult(result *corepkg.ArchiveResult) apicore.ArchiveResult {
+	out := apicore.ArchiveResult{}
+	if result == nil {
+		return out
+	}
+
+	out.Archived = result.Archived > 0
+	out.ArchivedAt = result.ArchivedAt
+	out.Forced = result.Forced
+	out.CompletedTasks = result.CompletedTasks
+	out.ResolvedReviewIssues = result.ResolvedReviewIssues
+	return out
+}
+
 func transportDashboard(payload WorkspaceDashboard) apicore.DashboardPayload {
 	return apicore.DashboardPayload{
 		Workspace:      payload.Workspace,

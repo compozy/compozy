@@ -210,6 +210,61 @@ func TestMarkTaskCompletedCanonicalizesTerminalStatuses(t *testing.T) {
 	}
 }
 
+func TestCompleteNonTerminalTasksRewritesWorkflowAndRefreshesMeta(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeTaskFile(t, tasksDir, "task_01.md", "pending")
+	writeTaskFile(t, tasksDir, "task_02.md", "in_progress")
+	writeTaskFile(t, tasksDir, "task_03.md", "blocked")
+	writeTaskFile(t, tasksDir, "task_04.md", "completed")
+	writeTaskFile(t, tasksDir, "task_05.md", "done")
+	writeTaskFile(t, tasksDir, "task_06.md", "finished")
+
+	completed, err := CompleteNonTerminalTasks(tasksDir)
+	if err != nil {
+		t.Fatalf("complete non-terminal tasks: %v", err)
+	}
+	if completed != 3 {
+		t.Fatalf("completed = %d, want 3", completed)
+	}
+
+	for _, name := range []string{
+		"task_01.md",
+		"task_02.md",
+		"task_03.md",
+		"task_04.md",
+	} {
+		body, err := os.ReadFile(filepath.Join(tasksDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if !strings.Contains(string(body), "status: completed") {
+			t.Fatalf("expected %s to be completed, got:\n%s", name, string(body))
+		}
+	}
+	for name, status := range map[string]string{
+		"task_05.md": "status: done",
+		"task_06.md": "status: finished",
+	} {
+		body, err := os.ReadFile(filepath.Join(tasksDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if !strings.Contains(string(body), status) {
+			t.Fatalf("expected %s to remain terminal with %q, got:\n%s", name, status, string(body))
+		}
+	}
+
+	meta, err := ReadTaskMeta(tasksDir)
+	if err != nil {
+		t.Fatalf("read task meta: %v", err)
+	}
+	if meta.Total != 6 || meta.Completed != 6 || meta.Pending != 0 {
+		t.Fatalf("unexpected task meta after workflow completion: %#v", meta)
+	}
+}
+
 func writeTaskFile(t *testing.T, tasksDir, name, status string) {
 	t.Helper()
 

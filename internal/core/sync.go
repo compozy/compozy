@@ -72,13 +72,22 @@ func syncTargetBelongsToWorkspace(target string, workspaceRoot string) bool {
 	if root == "" {
 		return false
 	}
-	tasksRoot := filepath.Clean(model.TasksBaseDirForWorkspace(root))
-	cleanTarget := filepath.Clean(strings.TrimSpace(target))
+	tasksRoot := canonicalWorkflowScopePath(model.TasksBaseDirForWorkspace(root))
+	cleanTarget := canonicalWorkflowScopePath(strings.TrimSpace(target))
 	rel, err := filepath.Rel(tasksRoot, cleanTarget)
 	if err != nil {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+func canonicalWorkflowScopePath(path string) string {
+	cleaned := filepath.Clean(strings.TrimSpace(path))
+	resolved, err := filepath.EvalSymlinks(cleaned)
+	if err != nil {
+		return cleaned
+	}
+	return filepath.Clean(resolved)
 }
 
 func syncResolvedTarget(

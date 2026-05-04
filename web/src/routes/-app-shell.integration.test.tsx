@@ -249,6 +249,7 @@ describe("app shell integration", () => {
         );
         expect(archiveCalls).toHaveLength(1);
         expect(archiveCalls[0]?.method).toBe("POST");
+        expect(JSON.parse(archiveCalls[0]?.body ?? "{}")).toMatchObject({ workspace: "ws-1" });
       },
       { timeout: 3000 }
     );

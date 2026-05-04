@@ -2,6 +2,7 @@ package extension
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
@@ -330,6 +331,95 @@ type ResumeSessionRequest struct {
 	Model      string            `json:"model,omitempty"`
 	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
+}
+
+type sessionRequestJSON struct {
+	Prompt     string            `json:"prompt,omitempty"`
+	WorkingDir string            `json:"working_dir,omitempty"`
+	Model      string            `json:"model,omitempty"`
+	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
+	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
+}
+
+type resumeSessionRequestJSON struct {
+	SessionID  string            `json:"session_id,omitempty"`
+	Prompt     string            `json:"prompt,omitempty"`
+	WorkingDir string            `json:"working_dir,omitempty"`
+	Model      string            `json:"model,omitempty"`
+	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
+	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
+}
+
+// MarshalJSON keeps session prompts readable in hook payloads and patches,
+// matching the runtime-side ACP session request contract.
+func (r SessionRequest) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sessionRequestJSON{
+		Prompt:     string(r.Prompt),
+		WorkingDir: r.WorkingDir,
+		Model:      r.Model,
+		MCPServers: r.MCPServers,
+		ExtraEnv:   r.ExtraEnv,
+	})
+}
+
+// UnmarshalJSON accepts the runtime-side readable prompt string instead of the
+// base64 representation that encoding/json would otherwise require for []byte.
+func (r *SessionRequest) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return errors.New("unmarshal session request: nil receiver")
+	}
+
+	var payload sessionRequestJSON
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+
+	r.Prompt = nil
+	if payload.Prompt != "" {
+		r.Prompt = []byte(payload.Prompt)
+	}
+	r.WorkingDir = payload.WorkingDir
+	r.Model = payload.Model
+	r.MCPServers = payload.MCPServers
+	r.ExtraEnv = payload.ExtraEnv
+	return nil
+}
+
+// MarshalJSON keeps resume prompts readable in hook payloads and patches,
+// matching the runtime-side ACP resume request contract.
+func (r ResumeSessionRequest) MarshalJSON() ([]byte, error) {
+	return json.Marshal(resumeSessionRequestJSON{
+		SessionID:  r.SessionID,
+		Prompt:     string(r.Prompt),
+		WorkingDir: r.WorkingDir,
+		Model:      r.Model,
+		MCPServers: r.MCPServers,
+		ExtraEnv:   r.ExtraEnv,
+	})
+}
+
+// UnmarshalJSON accepts the runtime-side readable prompt string instead of the
+// base64 representation that encoding/json would otherwise require for []byte.
+func (r *ResumeSessionRequest) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return errors.New("unmarshal resume session request: nil receiver")
+	}
+
+	var payload resumeSessionRequestJSON
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+
+	r.SessionID = payload.SessionID
+	r.Prompt = nil
+	if payload.Prompt != "" {
+		r.Prompt = []byte(payload.Prompt)
+	}
+	r.WorkingDir = payload.WorkingDir
+	r.Model = payload.Model
+	r.MCPServers = payload.MCPServers
+	r.ExtraEnv = payload.ExtraEnv
+	return nil
 }
 
 // SessionIdentity captures the stable agent session identifiers.

@@ -978,6 +978,7 @@ export interface TaskCreateRequest {
   title: string;
   body?: string;
   frontmatter?: TaskFrontmatter;
+  update_index?: boolean;
 }
 
 /** Request payload for {@link RunsClient.start | host.runs.start}. */

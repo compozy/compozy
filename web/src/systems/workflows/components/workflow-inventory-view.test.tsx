@@ -34,10 +34,13 @@ const workflows: WorkflowSummary[] = [
 ];
 
 const defaults = {
+  archiveConfirmation: null,
   isLoading: false,
   isRefetching: false,
   workspaceName: "one",
   isSyncingAll: false,
+  onCancelArchiveConfirmation: () => {},
+  onConfirmArchiveConfirmation: () => {},
   pendingSyncSlug: null,
   pendingStartSlug: null,
   pendingArchiveSlug: null,
@@ -255,6 +258,41 @@ describe("WorkflowInventoryView", () => {
     expect(onStartRun).not.toHaveBeenCalled();
     expect(onSyncOne).not.toHaveBeenCalled();
     expect(onArchive).not.toHaveBeenCalled();
+  });
+
+  it("Should render archive confirmation details and fire cancel/confirm handlers", async () => {
+    const onCancelArchiveConfirmation = vi.fn();
+    const onConfirmArchiveConfirmation = vi.fn();
+    await renderInventory({
+      ...defaults,
+      archiveConfirmation: {
+        slug: "alpha",
+        archiveReason: "review rounds not fully resolved",
+        taskNonTerminal: 2,
+        reviewUnresolved: 3,
+        reviewTotal: 4,
+      },
+      onArchive: () => {},
+      onCancelArchiveConfirmation,
+      onConfirmArchiveConfirmation,
+      onStartRun: () => {},
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [workflows[0]!],
+    });
+    expect(screen.getByTestId("workflow-archive-confirmation")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-archive-confirmation-tasks")).toHaveTextContent(
+      "2 tasks will be marked as completed"
+    );
+    expect(screen.getByTestId("workflow-archive-confirmation-reviews")).toHaveTextContent(
+      "3 review issues will be resolved locally out of 4 issues"
+    );
+
+    await userEvent.click(screen.getByTestId("workflow-archive-confirmation-cancel"));
+    expect(onCancelArchiveConfirmation).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByTestId("workflow-archive-confirmation-confirm"));
+    expect(onConfirmArchiveConfirmation).toHaveBeenCalledWith("alpha");
   });
 
   it("Should surface load and action errors", async () => {

@@ -9,26 +9,27 @@ import (
 type ErrorCode string
 
 const (
-	CodeInvalidRequest      ErrorCode = "invalid_request"
-	CodeValidationError     ErrorCode = "validation_error"
-	CodeNotFound            ErrorCode = "not_found"
-	CodeConflict            ErrorCode = "conflict"
-	CodeServiceUnavailable  ErrorCode = "service_unavailable"
-	CodeInternalError       ErrorCode = "internal_error"
-	CodeSchemaTooNew        ErrorCode = "schema_too_new"
-	CodeDaemonNotReady      ErrorCode = "daemon_not_ready"
-	CodeDaemonActiveRuns    ErrorCode = "daemon_active_runs"
-	CodeWorkspaceRequired   ErrorCode = "workspace_required"
-	CodePathRequired        ErrorCode = "path_required"
-	CodeNameRequired        ErrorCode = "name_required"
-	CodeRoundInvalid        ErrorCode = "round_invalid"
-	CodeLimitInvalid        ErrorCode = "limit_invalid"
-	CodeInvalidCursor       ErrorCode = "invalid_cursor"
-	CodeSyncTargetRequired  ErrorCode = "sync_target_required"
-	CodeForceInvalid        ErrorCode = "force_invalid"
-	CodeWorkspacePathNeeded ErrorCode = "workspace_path_required"
-	CodePromptRequired      ErrorCode = "prompt_required"
-	CodeStreamUnavailable   ErrorCode = "stream_unavailable"
+	CodeInvalidRequest        ErrorCode = "invalid_request"
+	CodeValidationError       ErrorCode = "validation_error"
+	CodeNotFound              ErrorCode = "not_found"
+	CodeConflict              ErrorCode = "conflict"
+	CodeServiceUnavailable    ErrorCode = "service_unavailable"
+	CodeInternalError         ErrorCode = "internal_error"
+	CodeSchemaTooNew          ErrorCode = "schema_too_new"
+	CodeDaemonNotReady        ErrorCode = "daemon_not_ready"
+	CodeDaemonActiveRuns      ErrorCode = "daemon_active_runs"
+	CodeWorkspaceRequired     ErrorCode = "workspace_required"
+	CodePathRequired          ErrorCode = "path_required"
+	CodeNameRequired          ErrorCode = "name_required"
+	CodeRoundInvalid          ErrorCode = "round_invalid"
+	CodeLimitInvalid          ErrorCode = "limit_invalid"
+	CodeInvalidCursor         ErrorCode = "invalid_cursor"
+	CodeSyncTargetRequired    ErrorCode = "sync_target_required"
+	CodeForceInvalid          ErrorCode = "force_invalid"
+	CodeWorkflowForceRequired ErrorCode = "workflow_force_required"
+	CodeWorkspacePathNeeded   ErrorCode = "workspace_path_required"
+	CodePromptRequired        ErrorCode = "prompt_required"
+	CodeStreamUnavailable     ErrorCode = "stream_unavailable"
 )
 
 var CanonicalErrorCodes = []ErrorCode{
@@ -49,6 +50,7 @@ var CanonicalErrorCodes = []ErrorCode{
 	CodeInvalidCursor,
 	CodeSyncTargetRequired,
 	CodeForceInvalid,
+	CodeWorkflowForceRequired,
 	CodeWorkspacePathNeeded,
 	CodePromptRequired,
 	CodeStreamUnavailable,

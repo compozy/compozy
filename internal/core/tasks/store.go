@@ -115,6 +115,31 @@ func MarkTaskCompleted(tasksDir, taskFileName string) error {
 	return nil
 }
 
+func CompleteNonTerminalTasks(tasksDir string) (int, error) {
+	taskNames := make([]string, 0)
+	if err := walkTaskFiles(tasksDir, func(entry model.IssueEntry, task model.TaskEntry) error {
+		if IsTaskCompleted(task) {
+			return nil
+		}
+		taskNames = append(taskNames, entry.Name)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+
+	for _, taskName := range taskNames {
+		if err := MarkTaskCompleted(tasksDir, taskName); err != nil {
+			return 0, err
+		}
+	}
+	if len(taskNames) > 0 {
+		if _, err := RefreshTaskMeta(tasksDir); err != nil {
+			return 0, err
+		}
+	}
+	return len(taskNames), nil
+}
+
 func resolveTaskName(taskFileName string) (string, error) {
 	name := filepath.Base(strings.TrimSpace(taskFileName))
 	if ExtractTaskNumber(name) == 0 {

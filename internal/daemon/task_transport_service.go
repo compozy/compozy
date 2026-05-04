@@ -2,9 +2,11 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -244,6 +246,7 @@ func (s *transportTaskService) Archive(
 	ctx context.Context,
 	workspaceRef string,
 	workflowSlug string,
+	req apicore.ArchiveRequest,
 ) (apicore.ArchiveResult, error) {
 	if s == nil || s.globalDB == nil {
 		return apicore.ArchiveResult{}, taskTransportUnavailable("task archiving")
@@ -259,11 +262,30 @@ func (s *transportTaskService) Archive(
 	result, err := corepkg.ArchiveDirect(ctx, corepkg.ArchiveConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
 		Name:          strings.TrimSpace(workflowSlug),
+		Force:         req.Force,
 	})
 	if err != nil {
+		var forceRequired corepkg.WorkflowArchiveForceRequiredError
+		if errors.As(err, &forceRequired) {
+			return apicore.ArchiveResult{}, apicore.NewProblem(
+				http.StatusConflict,
+				string(contract.CodeWorkflowForceRequired),
+				"workflow has pending local work and requires archive confirmation",
+				map[string]any{
+					"workflow_slug":     strings.TrimSpace(forceRequired.Slug),
+					"archive_reason":    strings.TrimSpace(forceRequired.Reason),
+					"task_pending":      forceRequired.TaskNonTerminal,
+					"task_non_terminal": forceRequired.TaskNonTerminal,
+					"review_unresolved": forceRequired.ReviewUnresolved,
+					"review_total":      forceRequired.ReviewTotal,
+					"force_scope":       "local_only",
+				},
+				err,
+			)
+		}
 		return apicore.ArchiveResult{}, err
 	}
-	return apicore.ArchiveResult{Archived: result != nil && result.Archived > 0}, nil
+	return transportArchiveResult(result), nil
 }
 
 func taskTransportUnavailable(action string) error {
