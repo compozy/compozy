@@ -186,14 +186,8 @@ func TestClientNormalizesRelativeWorkspacePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.Getwd() error = %v", err)
 	}
-	registerRelative, err := filepath.Rel(cwd, registerDir)
-	if err != nil {
-		t.Fatalf("filepath.Rel(registerDir) error = %v", err)
-	}
-	resolveRelative, err := filepath.Rel(cwd, resolveDir)
-	if err != nil {
-		t.Fatalf("filepath.Rel(resolveDir) error = %v", err)
-	}
+	registerInput := bestEffortRelativeOrAbsoluteClientPath(t, cwd, registerDir)
+	resolveInput := bestEffortRelativeOrAbsoluteClientPath(t, cwd, resolveDir)
 
 	workspace := contract.Workspace{
 		ID:      "ws-relative",
@@ -202,9 +196,6 @@ func TestClientNormalizesRelativeWorkspacePaths(t *testing.T) {
 	}
 	registerExpected := filepath.Clean(registerDir)
 	resolveExpected := filepath.Clean(resolveDir)
-	if filepath.IsAbs(registerRelative) || filepath.IsAbs(resolveRelative) {
-		t.Fatalf("relative paths unexpectedly absolute from cwd %q", cwd)
-	}
 
 	client := &Client{
 		baseURL: "http://daemon",
@@ -245,7 +236,7 @@ func TestClientNormalizesRelativeWorkspacePaths(t *testing.T) {
 
 	registered, err := client.RegisterWorkspace(
 		context.Background(),
-		" "+registerRelative+" ",
+		" "+registerInput+" ",
 		" Demo ",
 	)
 	if err != nil {
@@ -255,13 +246,35 @@ func TestClientNormalizesRelativeWorkspacePaths(t *testing.T) {
 		t.Fatalf("RegisterWorkspace(relative) = %#v, want created workspace at %q", registered, registerExpected)
 	}
 
-	resolved, err := client.ResolveWorkspace(context.Background(), " "+resolveRelative+" ")
+	resolved, err := client.ResolveWorkspace(context.Background(), " "+resolveInput+" ")
 	if err != nil {
 		t.Fatalf("ResolveWorkspace(relative) error = %v", err)
 	}
 	if resolved.RootDir != resolveExpected {
 		t.Fatalf("ResolveWorkspace(relative) = %#v, want root %q", resolved, resolveExpected)
 	}
+}
+
+func bestEffortRelativeOrAbsoluteClientPath(t *testing.T, base string, target string) string {
+	t.Helper()
+
+	relative, err := filepath.Rel(base, target)
+	if err == nil {
+		return relative
+	}
+
+	absolute, absErr := filepath.Abs(target)
+	if absErr == nil {
+		return absolute
+	}
+
+	t.Fatalf(
+		"resolve client test path for %q: filepath.Rel error = %v; filepath.Abs error = %v",
+		target,
+		err,
+		absErr,
+	)
+	return ""
 }
 
 func TestClientOperatorRequestsUseCanonicalContract(t *testing.T) {

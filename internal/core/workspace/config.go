@@ -159,12 +159,25 @@ func discoverGlobalWorkspaceMarkerDir() (string, bool) {
 }
 
 func sameWorkspaceMarkerDir(left string, right string) bool {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
+	left = canonicalWorkspaceMarkerDir(left)
+	right = canonicalWorkspaceMarkerDir(right)
 	if left == "" || right == "" {
 		return false
 	}
-	return filepath.Clean(left) == filepath.Clean(right)
+	return left == right
+}
+
+func canonicalWorkspaceMarkerDir(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err == nil {
+		return filepath.Clean(resolved)
+	}
+	return filepath.Clean(path)
 }
 
 func LoadConfig(ctx context.Context, workspaceRoot string) (ProjectConfig, string, error) {

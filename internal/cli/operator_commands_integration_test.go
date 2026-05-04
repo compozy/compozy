@@ -284,6 +284,11 @@ func TestWorkspaceCommandsIgnoreGlobalHomeMarkerForProjectsWithoutLocalWorkspace
 		waitForCLITestDaemonState(t, paths, daemon.ReadyStateStopped)
 	})
 
+	markerPath := filepath.Join(homeDir, ".compozy")
+	if err := os.MkdirAll(markerPath, 0o755); err != nil {
+		t.Fatalf("mkdir global marker: %v", err)
+	}
+
 	projectRoot := filepath.Join(homeDir, "www", "my-project")
 	if err := os.MkdirAll(projectRoot, 0o755); err != nil {
 		t.Fatalf("mkdir project root: %v", err)

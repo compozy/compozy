@@ -85,6 +85,22 @@ func TestDiscoverIgnoresGlobalHomeCompozyMarker(t *testing.T) {
 	}
 }
 
+func TestSameWorkspaceMarkerDirTreatsSymlinkAndTargetAsEqual(t *testing.T) {
+	realHome := filepath.Join(t.TempDir(), "real-home")
+	if err := os.MkdirAll(filepath.Join(realHome, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir real .compozy: %v", err)
+	}
+
+	linkedHome := filepath.Join(t.TempDir(), "linked-home")
+	if err := os.Symlink(realHome, linkedHome); err != nil {
+		t.Fatalf("symlink home dir: %v", err)
+	}
+
+	if !sameWorkspaceMarkerDir(filepath.Join(realHome, ".compozy"), filepath.Join(linkedHome, ".compozy")) {
+		t.Fatal("sameWorkspaceMarkerDir() = false, want true for symlinked marker dir")
+	}
+}
+
 func TestDiscoverMemoizesSuccessfulResultPerStartDir(t *testing.T) {
 	root := t.TempDir()
 	nested := filepath.Join(root, "pkg", "feature", "subdir")
