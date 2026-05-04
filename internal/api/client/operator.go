@@ -3,8 +3,10 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -47,10 +49,14 @@ func (c *Client) RegisterWorkspace(
 	if c == nil {
 		return apicore.WorkspaceRegisterResult{}, ErrDaemonClientRequired
 	}
+	normalizedPath, err := normalizeWorkspacePathArg(path)
+	if err != nil {
+		return apicore.WorkspaceRegisterResult{}, err
+	}
 
 	var response contract.WorkspaceResponse
 	statusCode, err := c.doJSON(ctx, http.MethodPost, "/api/workspaces", contract.WorkspaceRegisterRequest{
-		Path: strings.TrimSpace(path),
+		Path: normalizedPath,
 		Name: strings.TrimSpace(name),
 	}, &response)
 	if err != nil {
@@ -115,14 +121,34 @@ func (c *Client) ResolveWorkspace(ctx context.Context, path string) (apicore.Wor
 	if c == nil {
 		return apicore.Workspace{}, ErrDaemonClientRequired
 	}
+	normalizedPath, err := normalizeWorkspacePathArg(path)
+	if err != nil {
+		return apicore.Workspace{}, err
+	}
 
 	var response contract.WorkspaceResponse
 	if _, err := c.doJSON(ctx, http.MethodPost, "/api/workspaces/resolve", contract.WorkspaceResolveRequest{
-		Path: strings.TrimSpace(path),
+		Path: normalizedPath,
 	}, &response); err != nil {
 		return apicore.Workspace{}, err
 	}
 	return response.Workspace, nil
+}
+
+func normalizeWorkspacePathArg(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(trimmed) {
+		return filepath.Clean(trimmed), nil
+	}
+
+	absolutePath, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("resolve workspace path %q: %w", path, err)
+	}
+	return filepath.Clean(absolutePath), nil
 }
 
 // ListTaskWorkflows loads synced workflow summaries for one workspace.

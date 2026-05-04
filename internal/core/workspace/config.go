@@ -112,6 +112,7 @@ func discoverWorkspaceRootFromStart(ctx context.Context, startDir string) (strin
 		return "", fmt.Errorf("resolve workspace start dir symlinks: %w", err)
 	}
 
+	globalMarkerDir, hasGlobalMarker := discoverGlobalWorkspaceMarkerDir()
 	current := realStart
 	for {
 		if err := context.Cause(ctx); err != nil {
@@ -121,7 +122,11 @@ func discoverWorkspaceRootFromStart(ctx context.Context, startDir string) (strin
 		candidate := filepath.Join(current, model.WorkflowRootDirName)
 		info, err := os.Stat(candidate)
 		if err == nil && info.IsDir() {
-			return current, nil
+			// The home-scoped Compozy directory stores global runtime/config state.
+			// It must not redefine arbitrary paths under HOME as local workspaces.
+			if !hasGlobalMarker || !sameWorkspaceMarkerDir(candidate, globalMarkerDir) {
+				return current, nil
+			}
 		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("stat workspace marker %s: %w", candidate, err)
@@ -133,6 +138,33 @@ func discoverWorkspaceRootFromStart(ctx context.Context, startDir string) (strin
 		}
 		current = parent
 	}
+}
+
+func discoverGlobalWorkspaceMarkerDir() (string, bool) {
+	homeDir, err := osUserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	resolvedHomeDir, err := resolveConfigBaseDir(homeDir)
+	if err != nil {
+		return "", false
+	}
+
+	markerDir := filepath.Join(resolvedHomeDir, model.WorkflowRootDirName)
+	resolvedMarkerDir, err := filepath.EvalSymlinks(markerDir)
+	if err == nil {
+		return filepath.Clean(resolvedMarkerDir), true
+	}
+	return filepath.Clean(markerDir), true
+}
+
+func sameWorkspaceMarkerDir(left string, right string) bool {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if left == "" || right == "" {
+		return false
+	}
+	return filepath.Clean(left) == filepath.Clean(right)
 }
 
 func LoadConfig(ctx context.Context, workspaceRoot string) (ProjectConfig, string, error) {

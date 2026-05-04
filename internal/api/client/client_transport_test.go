@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -173,6 +175,93 @@ func TestTargetAndClientTransportHelpers(t *testing.T) {
 			t.Fatalf("nil RemoteError.Error() = %q, want empty string", got)
 		}
 	})
+}
+
+func TestClientNormalizesRelativeWorkspacePaths(t *testing.T) {
+	t.Parallel()
+
+	registerDir := t.TempDir()
+	resolveDir := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+	registerRelative, err := filepath.Rel(cwd, registerDir)
+	if err != nil {
+		t.Fatalf("filepath.Rel(registerDir) error = %v", err)
+	}
+	resolveRelative, err := filepath.Rel(cwd, resolveDir)
+	if err != nil {
+		t.Fatalf("filepath.Rel(resolveDir) error = %v", err)
+	}
+
+	workspace := contract.Workspace{
+		ID:      "ws-relative",
+		RootDir: registerDir,
+		Name:    "relative",
+	}
+	registerExpected := filepath.Clean(registerDir)
+	resolveExpected := filepath.Clean(resolveDir)
+	if filepath.IsAbs(registerRelative) || filepath.IsAbs(resolveRelative) {
+		t.Fatalf("relative paths unexpectedly absolute from cwd %q", cwd)
+	}
+
+	client := &Client{
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.Method + " " + req.URL.EscapedPath() {
+				case http.MethodPost + " /api/workspaces":
+					var payload contract.WorkspaceRegisterRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("decode register request: %v", err)
+					}
+					if payload.Path != registerExpected || payload.Name != "Demo" {
+						t.Fatalf("register payload = %#v, want absolute %q and trimmed name", payload, registerExpected)
+					}
+					workspace.RootDir = registerExpected
+					return jsonStructResponse(
+						t,
+						http.StatusCreated,
+						contract.WorkspaceResponse{Workspace: workspace},
+					), nil
+				case http.MethodPost + " /api/workspaces/resolve":
+					var payload contract.WorkspaceResolveRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("decode resolve request: %v", err)
+					}
+					if payload.Path != resolveExpected {
+						t.Fatalf("resolve payload = %#v, want absolute %q", payload, resolveExpected)
+					}
+					workspace.RootDir = resolveExpected
+					return jsonStructResponse(t, http.StatusOK, contract.WorkspaceResponse{Workspace: workspace}), nil
+				default:
+					t.Fatalf("unexpected request %s %s", req.Method, req.URL.EscapedPath())
+					return nil, nil
+				}
+			}),
+		},
+	}
+
+	registered, err := client.RegisterWorkspace(
+		context.Background(),
+		" "+registerRelative+" ",
+		" Demo ",
+	)
+	if err != nil {
+		t.Fatalf("RegisterWorkspace(relative) error = %v", err)
+	}
+	if !registered.Created || registered.Workspace.RootDir != registerExpected {
+		t.Fatalf("RegisterWorkspace(relative) = %#v, want created workspace at %q", registered, registerExpected)
+	}
+
+	resolved, err := client.ResolveWorkspace(context.Background(), " "+resolveRelative+" ")
+	if err != nil {
+		t.Fatalf("ResolveWorkspace(relative) error = %v", err)
+	}
+	if resolved.RootDir != resolveExpected {
+		t.Fatalf("ResolveWorkspace(relative) = %#v, want root %q", resolved, resolveExpected)
+	}
 }
 
 func TestClientOperatorRequestsUseCanonicalContract(t *testing.T) {
