@@ -48,6 +48,59 @@ func TestDiscoverFallsBackToStartDirectoryWhenWorkspaceIsMissing(t *testing.T) {
 	}
 }
 
+func TestDiscoverIgnoresGlobalHomeCompozyMarker(t *testing.T) {
+	homeDir := t.TempDir()
+	stubWorkspaceUserHomeDir(t, func() (string, error) {
+		return homeDir, nil
+	})
+	if err := os.MkdirAll(filepath.Join(homeDir, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir global .compozy: %v", err)
+	}
+
+	projectRoot := filepath.Join(homeDir, "www", "my-project")
+	nested := filepath.Join(projectRoot, "pkg", "feature")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested project path: %v", err)
+	}
+
+	cases := []struct {
+		name  string
+		start string
+		want  string
+	}{
+		{name: "project root", start: projectRoot, want: projectRoot},
+		{name: "nested path", start: nested, want: nested},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Discover(context.Background(), tc.start)
+			if err != nil {
+				t.Fatalf("discover workspace: %v", err)
+			}
+			if mustEvalSymlinksWorkspaceTest(t, got) != mustEvalSymlinksWorkspaceTest(t, tc.want) {
+				t.Fatalf("unexpected workspace root\nwant: %q\ngot:  %q", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestSameWorkspaceMarkerDirTreatsSymlinkAndTargetAsEqual(t *testing.T) {
+	realHome := filepath.Join(t.TempDir(), "real-home")
+	if err := os.MkdirAll(filepath.Join(realHome, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir real .compozy: %v", err)
+	}
+
+	linkedHome := filepath.Join(t.TempDir(), "linked-home")
+	if err := os.Symlink(realHome, linkedHome); err != nil {
+		t.Fatalf("symlink home dir: %v", err)
+	}
+
+	if !sameWorkspaceMarkerDir(filepath.Join(realHome, ".compozy"), filepath.Join(linkedHome, ".compozy")) {
+		t.Fatal("sameWorkspaceMarkerDir() = false, want true for symlinked marker dir")
+	}
+}
+
 func TestDiscoverMemoizesSuccessfulResultPerStartDir(t *testing.T) {
 	root := t.TempDir()
 	nested := filepath.Join(root, "pkg", "feature", "subdir")

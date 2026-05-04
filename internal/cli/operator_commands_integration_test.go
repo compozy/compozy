@@ -272,6 +272,230 @@ func TestWorkspaceCommandsReflectDaemonRegistryAgainstRealDaemon(t *testing.T) {
 	}
 }
 
+func TestWorkspaceCommandsIgnoreGlobalHomeMarkerForProjectsWithoutLocalWorkspace(t *testing.T) {
+	homeDir := newShortCLITestHomeDir(t)
+	t.Setenv("HOME", homeDir)
+	configureCLITestDaemonHTTPPort(t)
+
+	paths := mustCLITestHomePaths(t)
+	commandDir := t.TempDir()
+	t.Cleanup(func() {
+		_, _, _ = runCLICommand(t, commandDir, "daemon", "stop", "--force", "--format", "json")
+		waitForCLITestDaemonState(t, paths, daemon.ReadyStateStopped)
+	})
+
+	markerPath := filepath.Join(homeDir, ".compozy")
+	if err := os.MkdirAll(markerPath, 0o755); err != nil {
+		t.Fatalf("mkdir global marker: %v", err)
+	}
+
+	projectRoot := filepath.Join(homeDir, "www", "my-project")
+	if err := os.MkdirAll(projectRoot, 0o755); err != nil {
+		t.Fatalf("mkdir project root: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLICommand(
+		t,
+		commandDir,
+		"workspaces",
+		"register",
+		projectRoot,
+		"--format",
+		"json",
+	)
+	if exitCode != 0 {
+		t.Fatalf("execute workspaces register: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	var registerPayload struct {
+		Created   bool `json:"created"`
+		Workspace struct {
+			ID      string `json:"id"`
+			RootDir string `json:"root_dir"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &registerPayload); err != nil {
+		t.Fatalf("decode register payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if !registerPayload.Created ||
+		mustEvalSymlinksCLITest(t, registerPayload.Workspace.RootDir) != mustEvalSymlinksCLITest(t, projectRoot) {
+		t.Fatalf("unexpected register payload: %#v", registerPayload)
+	}
+
+	stdout, stderr, exitCode = runCLICommand(
+		t,
+		commandDir,
+		"workspaces",
+		"show",
+		projectRoot,
+		"--format",
+		"json",
+	)
+	if exitCode != 0 {
+		t.Fatalf("execute workspaces show: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	var showPayload struct {
+		Workspace struct {
+			ID      string `json:"id"`
+			RootDir string `json:"root_dir"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &showPayload); err != nil {
+		t.Fatalf("decode show payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if showPayload.Workspace.ID != registerPayload.Workspace.ID ||
+		mustEvalSymlinksCLITest(t, showPayload.Workspace.RootDir) != mustEvalSymlinksCLITest(t, projectRoot) {
+		t.Fatalf("unexpected show payload: %#v", showPayload)
+	}
+
+	stdout, stderr, exitCode = runCLICommand(
+		t,
+		commandDir,
+		"workspaces",
+		"resolve",
+		projectRoot,
+		"--format",
+		"json",
+	)
+	if exitCode != 0 {
+		t.Fatalf("execute workspaces resolve: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	var resolvePayload struct {
+		Action    string `json:"action"`
+		Workspace struct {
+			ID      string `json:"id"`
+			RootDir string `json:"root_dir"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resolvePayload); err != nil {
+		t.Fatalf("decode resolve payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if resolvePayload.Action != "resolved" ||
+		resolvePayload.Workspace.ID != registerPayload.Workspace.ID ||
+		mustEvalSymlinksCLITest(t, resolvePayload.Workspace.RootDir) != mustEvalSymlinksCLITest(t, projectRoot) {
+		t.Fatalf("unexpected resolve payload: %#v", resolvePayload)
+	}
+
+	stdout, stderr, exitCode = runCLICommand(t, commandDir, "workspaces", "list", "--format", "json")
+	if exitCode != 0 {
+		t.Fatalf("execute workspaces list: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	var listPayload struct {
+		Workspaces []struct {
+			RootDir string `json:"root_dir"`
+		} `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &listPayload); err != nil {
+		t.Fatalf("decode workspace list payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if len(listPayload.Workspaces) != 1 ||
+		mustEvalSymlinksCLITest(t, listPayload.Workspaces[0].RootDir) != mustEvalSymlinksCLITest(t, projectRoot) {
+		t.Fatalf("unexpected workspace list payload: %#v", listPayload)
+	}
+}
+
+func TestWorkspaceCommandsResolveRelativePathsAgainstRealDaemon(t *testing.T) {
+	homeDir := newShortCLITestHomeDir(t)
+	t.Setenv("HOME", homeDir)
+	configureCLITestDaemonHTTPPort(t)
+
+	paths := mustCLITestHomePaths(t)
+	daemonDir := t.TempDir()
+	t.Cleanup(func() {
+		_, _, _ = runCLICommand(t, daemonDir, "daemon", "stop", "--force", "--format", "json")
+		waitForCLITestDaemonState(t, paths, daemon.ReadyStateStopped)
+	})
+
+	stdout, stderr, exitCode := runCLICommand(t, daemonDir, "daemon", "start", "--format", "json")
+	if exitCode != 0 {
+		t.Fatalf("execute daemon start: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	projectRoot := filepath.Join(homeDir, "www", "relative-project")
+	projectNested := filepath.Join(homeDir, "www", "relative-nested", "pkg", "feature")
+	workspaceRoot := filepath.Join(homeDir, "www", "workspace-real")
+	workspaceNested := filepath.Join(workspaceRoot, "pkg", "feature")
+	for _, dir := range []string{projectRoot, projectNested, workspaceNested} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %q: %v", dir, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks"), 0o755); err != nil {
+		t.Fatalf("mkdir workspace marker: %v", err)
+	}
+
+	stdout, stderr, exitCode = runCLICommand(
+		t,
+		projectRoot,
+		"workspaces",
+		"register",
+		".",
+		"--format",
+		"json",
+	)
+	if exitCode != 0 {
+		t.Fatalf("execute relative workspaces register: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	var registerPayload struct {
+		Workspace struct {
+			RootDir string `json:"root_dir"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &registerPayload); err != nil {
+		t.Fatalf("decode relative register payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if mustEvalSymlinksCLITest(t, registerPayload.Workspace.RootDir) != mustEvalSymlinksCLITest(t, projectRoot) {
+		t.Fatalf("unexpected relative register payload: %#v", registerPayload)
+	}
+
+	stdout, stderr, exitCode = runCLICommand(
+		t,
+		projectNested,
+		"workspaces",
+		"resolve",
+		".",
+		"--format",
+		"json",
+	)
+	if exitCode != 0 {
+		t.Fatalf("execute relative workspaces resolve: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	var resolvePayload struct {
+		Workspace struct {
+			RootDir string `json:"root_dir"`
+		} `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resolvePayload); err != nil {
+		t.Fatalf("decode relative resolve payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if mustEvalSymlinksCLITest(t, resolvePayload.Workspace.RootDir) != mustEvalSymlinksCLITest(t, projectNested) {
+		t.Fatalf("unexpected relative resolve payload: %#v", resolvePayload)
+	}
+
+	stdout, stderr, exitCode = runCLICommand(
+		t,
+		workspaceNested,
+		"workspaces",
+		"resolve",
+		".",
+		"--format",
+		"json",
+	)
+	if exitCode != 0 {
+		t.Fatalf(
+			"execute nested workspace resolve: exit=%d\nstdout:\n%s\nstderr:\n%s",
+			exitCode,
+			stdout,
+			stderr,
+		)
+	}
+	if err := json.Unmarshal([]byte(stdout), &resolvePayload); err != nil {
+		t.Fatalf("decode nested workspace resolve payload: %v\nstdout:\n%s", err, stdout)
+	}
+	if mustEvalSymlinksCLITest(t, resolvePayload.Workspace.RootDir) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf("unexpected nested workspace resolve payload: %#v", resolvePayload)
+	}
+}
+
 func TestWorkspacesUnregisterRejectsActiveRunsAgainstRealDaemon(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)

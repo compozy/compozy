@@ -85,6 +85,58 @@ func TestResolveOrRegisterUsesDefaultNameAndReturnsExistingRow(t *testing.T) {
 	}
 }
 
+func TestRegisterIgnoresGlobalHomeCompozyMarker(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	projectRoot := filepath.Join(homeDir, "www", "my-project")
+	if err := os.MkdirAll(filepath.Join(homeDir, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir global .compozy: %v", err)
+	}
+	if err := os.MkdirAll(projectRoot, 0o755); err != nil {
+		t.Fatalf("mkdir project root: %v", err)
+	}
+
+	workspace, err := db.Register(context.Background(), projectRoot, "demo")
+	if err != nil {
+		t.Fatalf("Register(project root): %v", err)
+	}
+	if mustEvalSymlinksRegistryTest(t, workspace.RootDir) != mustEvalSymlinksRegistryTest(t, projectRoot) {
+		t.Fatalf("workspace root = %q, want %q", workspace.RootDir, projectRoot)
+	}
+}
+
+func TestResolveOrRegisterIgnoresGlobalHomeCompozyMarker(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	projectRoot := filepath.Join(homeDir, "www", "my-project")
+	if err := os.MkdirAll(filepath.Join(homeDir, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir global .compozy: %v", err)
+	}
+	if err := os.MkdirAll(projectRoot, 0o755); err != nil {
+		t.Fatalf("mkdir project root: %v", err)
+	}
+
+	workspace, err := db.ResolveOrRegister(context.Background(), projectRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(project root): %v", err)
+	}
+	if mustEvalSymlinksRegistryTest(t, workspace.RootDir) != mustEvalSymlinksRegistryTest(t, projectRoot) {
+		t.Fatalf("workspace root = %q, want %q", workspace.RootDir, projectRoot)
+	}
+}
+
 func TestGetByPathPrefersResolvedCanonicalWorkspaceRow(t *testing.T) {
 	t.Parallel()
 
@@ -581,3 +633,13 @@ func (i fakeFileInfo) Mode() fs.FileMode  { return fs.ModeDir }
 func (i fakeFileInfo) ModTime() time.Time { return time.Time{} }
 func (i fakeFileInfo) IsDir() bool        { return true }
 func (i fakeFileInfo) Sys() any           { return nil }
+
+func mustEvalSymlinksRegistryTest(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("eval symlinks for %s: %v", path, err)
+	}
+	return resolved
+}
