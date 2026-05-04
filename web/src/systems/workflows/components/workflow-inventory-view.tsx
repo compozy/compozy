@@ -1,9 +1,15 @@
 import type { ReactElement } from "react";
 
-import { Archive, BookOpen, FileText, Play, RefreshCw } from "lucide-react";
+import { AlertTriangle, Archive, BookOpen, FileText, Play, RefreshCw } from "lucide-react";
 
 import {
   Alert,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Button,
   EmptyState,
   SectionHeading,
@@ -27,6 +33,18 @@ function isWorkflowCompleted(workflow: WorkflowSummary): boolean {
   return workflow.archive_eligible === true;
 }
 
+export interface ArchiveConfirmationState {
+  slug: string;
+  archiveReason: string;
+  taskNonTerminal: number;
+  reviewUnresolved: number;
+  reviewTotal: number;
+}
+
+function pluralize(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
 export interface WorkflowInventoryViewProps {
   workflows: WorkflowSummary[];
   isLoading: boolean;
@@ -38,10 +56,13 @@ export interface WorkflowInventoryViewProps {
   onSyncOne: (slug: string) => void;
   onStartRun: (slug: string) => void;
   onArchive: (slug: string) => void;
+  onConfirmArchiveConfirmation: (slug: string) => void;
+  onCancelArchiveConfirmation: () => void;
   isSyncingAll: boolean;
   pendingSyncSlug: string | null;
   pendingStartSlug: string | null;
   pendingArchiveSlug: string | null;
+  archiveConfirmation?: ArchiveConfirmationState | null;
   startedRun?: Run | null;
   lastActionMessage?: string | null;
   lastActionError?: string | null;
@@ -59,15 +80,20 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
     onSyncOne,
     onStartRun,
     onArchive,
+    onConfirmArchiveConfirmation,
+    onCancelArchiveConfirmation,
     isSyncingAll,
     pendingSyncSlug,
     pendingStartSlug,
     pendingArchiveSlug,
+    archiveConfirmation = null,
     startedRun,
     lastActionMessage,
     lastActionError,
   } = props;
 
+  const archiveConfirmationPending =
+    archiveConfirmation !== null && pendingArchiveSlug === archiveConfirmation.slug;
   const archived = workflows.filter(workflow => Boolean(workflow.archived_at));
   const completed = workflows.filter(isWorkflowCompleted);
   const active = workflows.filter(
@@ -123,6 +149,66 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
           for {startedRun.workflow_slug ?? "the workflow"}.
         </Alert>
       ) : null}
+
+      <AlertDialog open={Boolean(archiveConfirmation)}>
+        {archiveConfirmation ? (
+          <AlertDialogContent data-testid="workflow-archive-confirmation">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive {archiveConfirmation.slug}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This workflow still has pending local work. If you continue, Compozy will complete
+                pending tasks, resolve local review issues, sync the workflow, and then archive it.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3 px-6 pb-6">
+              <Alert
+                data-testid="workflow-archive-confirmation-warning"
+                icon={<AlertTriangle className="size-4" />}
+                title="Pending local work"
+                variant="warning"
+              >
+                {archiveConfirmation.archiveReason}.
+              </Alert>
+              <div className="rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-4 py-3 text-sm text-muted-foreground">
+                {archiveConfirmation.taskNonTerminal > 0 ? (
+                  <p data-testid="workflow-archive-confirmation-tasks">
+                    {pluralize(archiveConfirmation.taskNonTerminal, "task")} will be marked as
+                    completed.
+                  </p>
+                ) : null}
+                {archiveConfirmation.reviewUnresolved > 0 ? (
+                  <p data-testid="workflow-archive-confirmation-reviews">
+                    {pluralize(archiveConfirmation.reviewUnresolved, "review issue")} will be
+                    resolved locally
+                    {archiveConfirmation.reviewTotal > 0
+                      ? ` out of ${pluralize(archiveConfirmation.reviewTotal, "issue")}`
+                      : ""}
+                    .
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <Button
+                data-testid="workflow-archive-confirmation-cancel"
+                disabled={archiveConfirmationPending}
+                onClick={onCancelArchiveConfirmation}
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="border-[color:var(--tone-danger-border)] bg-[color:var(--tone-danger-bg)] text-[color:var(--tone-danger-text)] hover:brightness-105"
+                data-testid="workflow-archive-confirmation-confirm"
+                loading={archiveConfirmationPending}
+                onClick={() => onConfirmArchiveConfirmation(archiveConfirmation.slug)}
+              >
+                Archive anyway
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : null}
+      </AlertDialog>
 
       {error ? (
         <Alert data-testid="workflow-inventory-load-error" variant="error">

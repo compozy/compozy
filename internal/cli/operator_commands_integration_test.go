@@ -449,7 +449,7 @@ func TestSyncAndArchiveCommandsUseDaemonStateFromWorkspaceSubdirectory(t *testin
 			stderr,
 		)
 	}
-	if !strings.Contains(stderr, "not archivable") {
+	if !strings.Contains(stderr, "requires archive confirmation") {
 		t.Fatalf("expected archive conflict stderr, got:\n%s", stderr)
 	}
 }

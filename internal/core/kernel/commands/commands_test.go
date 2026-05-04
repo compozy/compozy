@@ -251,10 +251,14 @@ func TestWorkflowArchiveCommandCoreConfigMapsFields(t *testing.T) {
 		RootDir:       "/workspace/.compozy/tasks",
 		Name:          "demo",
 		TasksDir:      "/workspace/.compozy/tasks/demo",
+		Force:         true,
 	}
 	cfg := cmd.CoreConfig()
 
-	if cfg.WorkspaceRoot != cmd.WorkspaceRoot || cfg.RootDir != cmd.RootDir || cfg.TasksDir != cmd.TasksDir {
+	if cfg.WorkspaceRoot != cmd.WorkspaceRoot ||
+		cfg.RootDir != cmd.RootDir ||
+		cfg.TasksDir != cmd.TasksDir ||
+		cfg.Force != cmd.Force {
 		t.Fatalf("unexpected archive config: %#v", cfg)
 	}
 }
@@ -267,10 +271,14 @@ func TestWorkflowArchiveFromArchiveConfigMapsAllFields(t *testing.T) {
 		RootDir:       "/workspace/.compozy/tasks",
 		Name:          "demo",
 		TasksDir:      "/workspace/.compozy/tasks/demo",
+		Force:         true,
 	}
 	cmd := WorkflowArchiveFromArchiveConfig(cfg)
 
-	if cmd.WorkspaceRoot != cfg.WorkspaceRoot || cmd.RootDir != cfg.RootDir || cmd.TasksDir != cfg.TasksDir {
+	if cmd.WorkspaceRoot != cfg.WorkspaceRoot ||
+		cmd.RootDir != cfg.RootDir ||
+		cmd.TasksDir != cfg.TasksDir ||
+		cmd.Force != cfg.Force {
 		t.Fatalf("unexpected archive command: %#v", cmd)
 	}
 }

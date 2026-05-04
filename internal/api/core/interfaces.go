@@ -69,7 +69,7 @@ type TaskService interface {
 	TaskDetail(context.Context, string, string, string) (TaskDetailPayload, error)
 	Validate(context.Context, string, string) (ValidationSuccess, error)
 	StartRun(context.Context, string, string, TaskRunRequest) (Run, error)
-	Archive(context.Context, string, string) (ArchiveResult, error)
+	Archive(context.Context, string, string, ArchiveRequest) (ArchiveResult, error)
 }
 
 // ReviewService exposes review round state, review detail reads, and review-fix run starts.
@@ -184,6 +184,7 @@ type WorkspaceSyncResult = contract.WorkspaceSyncResult
 type WorkflowSummary = contract.WorkflowSummary
 type TaskItem = contract.TaskItem
 type ValidationSuccess = contract.ValidationSuccess
+type ArchiveRequest = contract.WorkflowArchiveRequest
 type ArchiveResult = contract.ArchiveResult
 
 // DashboardPayload is the workspace-scoped dashboard aggregate for the daemon web UI.

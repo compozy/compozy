@@ -1,5 +1,5 @@
 ---
-status: pending
+status: resolved
 file: internal/daemon/boot_test.go
 line: 163
 author: coderabbitai[bot]

@@ -326,6 +326,28 @@ func FinalizeIssueStatuses(reviewDir string, entries []model.IssueEntry) error {
 	return nil
 }
 
+func ResolveUnresolvedIssues(tasksDir string) (int, error) {
+	rounds, err := DiscoverRounds(tasksDir)
+	if err != nil {
+		return 0, err
+	}
+
+	resolvedCount := 0
+	for _, round := range rounds {
+		reviewDir := ReviewDirectory(tasksDir, round)
+		entries, err := ReadReviewEntries(reviewDir)
+		if err != nil {
+			return 0, err
+		}
+		nextResolved, err := resolveUnresolvedRoundIssues(reviewDir, entries)
+		if err != nil {
+			return 0, err
+		}
+		resolvedCount += nextResolved
+	}
+	return resolvedCount, nil
+}
+
 func formatRoundMeta(meta model.RoundMeta) (string, error) {
 	type roundMetaFrontMatter struct {
 		Provider  string    `yaml:"provider"`
@@ -464,6 +486,61 @@ func finalizeIssueStatus(root *os.Root, reviewDir, issueName string) error {
 		return fmt.Errorf("review issue %s remained pending after successful batch", issueName)
 	default:
 		return fmt.Errorf("review issue %s has unsupported status %q after successful batch", issueName, ctx.Status)
+	}
+}
+
+func resolveUnresolvedRoundIssues(reviewDir string, entries []model.IssueEntry) (int, error) {
+	if len(entries) == 0 {
+		return 0, nil
+	}
+
+	root, err := os.OpenRoot(strings.TrimSpace(reviewDir))
+	if err != nil {
+		return 0, fmt.Errorf("open review root: %w", err)
+	}
+	defer root.Close()
+
+	resolvedCount := 0
+	for _, entry := range entries {
+		resolved, err := resolveUnresolvedIssue(root, reviewDir, entry.Name)
+		if err != nil {
+			return 0, err
+		}
+		resolvedCount += resolved
+	}
+	return resolvedCount, nil
+}
+
+func resolveUnresolvedIssue(root *os.Root, reviewDir, issueName string) (int, error) {
+	issueName, err := resolveIssueName(issueName)
+	if err != nil {
+		return 0, err
+	}
+
+	content, err := root.ReadFile(issueName)
+	if err != nil {
+		return 0, fmt.Errorf("read review issue %s: %w", issueName, err)
+	}
+
+	ctx, err := ParseReviewContext(string(content))
+	if err != nil {
+		return 0, WrapParseError(filepath.Join(strings.TrimSpace(reviewDir), issueName), err)
+	}
+
+	switch ctx.Status {
+	case reviewStatusResolved:
+		return 0, nil
+	case reviewStatusPending, reviewStatusValid, reviewStatusInvalid:
+		rewritten, err := frontmatter.RewriteStringField(string(content), "status", reviewStatusResolved)
+		if err != nil {
+			return 0, fmt.Errorf("rewrite review issue %s: %w", issueName, err)
+		}
+		if err := root.WriteFile(issueName, []byte(rewritten), 0o600); err != nil {
+			return 0, fmt.Errorf("write review issue %s: %w", issueName, err)
+		}
+		return 1, nil
+	default:
+		return 0, fmt.Errorf("review issue %s has unsupported status %q", issueName, ctx.Status)
 	}
 }
 

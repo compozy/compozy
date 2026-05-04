@@ -148,7 +148,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 
 	postBodies := map[string]string{
 		"POST /api/tasks/{slug}/runs":                  "#/components/schemas/TaskRunRequest",
-		"POST /api/tasks/{slug}/archive":               "#/components/schemas/WorkflowRefRequest",
+		"POST /api/tasks/{slug}/archive":               "#/components/schemas/WorkflowArchiveRequest",
 		"POST /api/reviews/{slug}/watch":               "#/components/schemas/ReviewWatchRequest",
 		"POST /api/reviews/{slug}/rounds/{round}/runs": "#/components/schemas/ReviewRunRequest",
 		"POST /api/sync":                               "#/components/schemas/SyncRequest",
@@ -179,9 +179,13 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	if schemaRequires(reviewWatchSchema, "workspace") {
 		t.Fatal("ReviewWatchRequest must not require workspace")
 	}
-	workflowRefSchema := getSchema(t, spec, "WorkflowRefRequest")
-	if schemaRequires(workflowRefSchema, "workspace") {
-		t.Fatal("WorkflowRefRequest must not require workspace")
+	workflowArchiveSchema := getSchema(t, spec, "WorkflowArchiveRequest")
+	if schemaRequires(workflowArchiveSchema, "workspace") {
+		t.Fatal("WorkflowArchiveRequest must not require workspace")
+	}
+	archiveProperties := getMap(t, workflowArchiveSchema, "properties")
+	if _, ok := archiveProperties["force"]; !ok {
+		t.Fatal("WorkflowArchiveRequest must expose force")
 	}
 
 	runSnapshot := getSchema(t, spec, "RunSnapshotPayload")

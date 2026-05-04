@@ -340,6 +340,7 @@ type workspaceRegisterBody = contract.WorkspaceRegisterRequest
 type workspaceUpdateBody = contract.WorkspaceUpdateRequest
 type workspaceResolveBody = contract.WorkspaceResolveRequest
 type workflowRefBody = contract.WorkflowRefRequest
+type workflowArchiveBody = contract.WorkflowArchiveRequest
 type taskRunBody = contract.TaskRunRequest
 type reviewFetchBody = contract.ReviewFetchRequest
 type reviewRunBody = contract.ReviewRunRequest
@@ -818,7 +819,7 @@ func (h *Handlers) ArchiveTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	var body workflowRefBody
+	var body workflowArchiveBody
 	if !h.bindJSON(c, "decode archive workflow request", &body) {
 		return
 	}
@@ -827,7 +828,10 @@ func (h *Handlers) ArchiveTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	result, err := h.Tasks.Archive(c.Request.Context(), workspace, c.Param("slug"))
+	result, err := h.Tasks.Archive(c.Request.Context(), workspace, c.Param("slug"), ArchiveRequest{
+		Workspace: workspace,
+		Force:     body.Force,
+	})
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return

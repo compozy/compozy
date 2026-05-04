@@ -18,7 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
-func TestArchiveTaskWorkflowRejectsPendingStateFromSyncedDBEvenWithStaleMeta(t *testing.T) {
+func TestArchiveTaskWorkflowRequiresForceForPendingStateFromSyncedDBEvenWithStaleMeta(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "beta")
 	writeArchiveTaskFile(t, workflowDir, "task_001.md", "pending")
@@ -39,14 +39,21 @@ func TestArchiveTaskWorkflowRejectsPendingStateFromSyncedDBEvenWithStaleMeta(t *
 	}, "\n"))
 
 	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
-	if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
-		t.Fatalf("Archive() error = %v, want ErrWorkflowNotArchivable", err)
+	if !errors.Is(err, ErrWorkflowForceRequired) {
+		t.Fatalf("Archive() error = %v, want ErrWorkflowForceRequired", err)
 	}
 	if result == nil {
 		t.Fatal("expected archive result")
 	}
 	if result.WorkflowsScanned != 1 || result.Archived != 0 || result.Skipped != 0 {
 		t.Fatalf("unexpected archive result: %#v", result)
+	}
+	var forceRequired WorkflowArchiveForceRequiredError
+	if !errors.As(err, &forceRequired) {
+		t.Fatalf("expected typed force-required error, got %T", err)
+	}
+	if forceRequired.TaskNonTerminal != 1 || forceRequired.ReviewUnresolved != 0 {
+		t.Fatalf("unexpected force-required details: %#v", forceRequired)
 	}
 	if _, statErr := os.Stat(workflowDir); statErr != nil {
 		t.Fatalf("expected workflow dir to remain in place: %v", statErr)
@@ -190,7 +197,26 @@ func TestArchiveTaskWorkflowRejectsActiveRunConflict(t *testing.T) {
 	}
 }
 
-func TestArchiveTaskWorkflowRequiresResyncAfterReviewResolution(t *testing.T) {
+func TestArchiveTaskWorkflowForceDoesNotBypassActiveRunConflict(t *testing.T) {
+	rootDir := archiveTestRoot(t)
+	workflowDir := filepath.Join(rootDir, "delta")
+	writeArchiveTaskFile(t, workflowDir, "task_001.md", "completed")
+	mustSyncArchiveWorkflow(t, workflowDir)
+	insertActiveArchiveRun(t, workflowDir, "delta", "run-delta-active")
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir, Force: true})
+	if !errors.Is(err, globaldb.ErrWorkflowHasActiveRuns) {
+		t.Fatalf("Archive(force) error = %v, want ErrWorkflowHasActiveRuns", err)
+	}
+	if result == nil {
+		t.Fatal("expected archive result")
+	}
+	if result.Archived != 0 || result.Forced {
+		t.Fatalf("unexpected forced active-run result: %#v", result)
+	}
+}
+
+func TestArchiveTaskWorkflowForceArchivesAfterLocalReviewResolutionWithoutManualResync(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "gamma")
 	writeArchiveTaskFile(t, workflowDir, "task_001.md", "completed")
@@ -206,33 +232,36 @@ func TestArchiveTaskWorkflowRequiresResyncAfterReviewResolution(t *testing.T) {
 	}
 
 	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
-	if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
-		t.Fatalf("Archive(without resync) error = %v, want ErrWorkflowNotArchivable", err)
+	if !errors.Is(err, ErrWorkflowForceRequired) {
+		t.Fatalf("Archive(without resync) error = %v, want ErrWorkflowForceRequired", err)
 	}
 	if result == nil || result.Archived != 0 {
 		t.Fatalf("unexpected archive result before resync: %#v", result)
 	}
 
-	writeArchiveReviewRound(t, workflowDir, 1, []string{"resolved"}, true)
-	mustSyncArchiveWorkflow(t, workflowDir)
-
-	result, err = Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+	result, err = Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir, Force: true})
 	if err != nil {
-		t.Fatalf("Archive(after resync): %v", err)
+		t.Fatalf("Archive(force after local resolve): %v", err)
 	}
 	if result == nil || result.Archived != 1 || len(result.ArchivedPaths) != 1 {
-		t.Fatalf("unexpected archive result after resync: %#v", result)
+		t.Fatalf("unexpected archive result after forced resync: %#v", result)
+	}
+	if result.Forced {
+		t.Fatalf("expected forced flag to remain false when no local rewrite was needed: %#v", result)
 	}
 }
 
 func TestArchiveTaskWorkflowHandlesReviewOnlyWorkflows(t *testing.T) {
 	testCases := []struct {
-		name         string
-		reviewStatus []string
-		wantErr      error
-		wantArchived int
-		wantSkipped  int
-		wantRemoved  bool
+		name                     string
+		reviewStatus             []string
+		force                    bool
+		wantErr                  error
+		wantArchived             int
+		wantSkipped              int
+		wantRemoved              bool
+		wantForced               bool
+		wantResolvedReviewIssues int
 	}{
 		{
 			name:         "Should archive resolved review-only workflow",
@@ -242,12 +271,22 @@ func TestArchiveTaskWorkflowHandlesReviewOnlyWorkflows(t *testing.T) {
 			wantRemoved:  true,
 		},
 		{
-			name:         "Should reject unresolved review-only workflow",
+			name:         "Should require force for unresolved review-only workflow",
 			reviewStatus: []string{"resolved", "pending"},
-			wantErr:      globaldb.ErrWorkflowNotArchivable,
+			wantErr:      ErrWorkflowForceRequired,
 			wantArchived: 0,
 			wantSkipped:  0,
 			wantRemoved:  false,
+		},
+		{
+			name:                     "Should force archive unresolved review-only workflow",
+			reviewStatus:             []string{"resolved", "pending"},
+			force:                    true,
+			wantArchived:             1,
+			wantSkipped:              0,
+			wantRemoved:              true,
+			wantForced:               true,
+			wantResolvedReviewIssues: 1,
 		},
 	}
 
@@ -259,13 +298,16 @@ func TestArchiveTaskWorkflowHandlesReviewOnlyWorkflows(t *testing.T) {
 			writeArchiveReviewRound(t, workflowDir, 1, tc.reviewStatus, false)
 			mustSyncArchiveWorkflow(t, workflowDir)
 
-			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir, Force: tc.force})
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("Archive(review-only) error = %v, want %v", err, tc.wantErr)
 			}
 			if result == nil || result.WorkflowsScanned != 1 || result.Archived != tc.wantArchived ||
 				result.Skipped != tc.wantSkipped {
 				t.Fatalf("unexpected archive result: %#v", result)
+			}
+			if result.Forced != tc.wantForced || result.ResolvedReviewIssues != tc.wantResolvedReviewIssues {
+				t.Fatalf("unexpected force result details: %#v", result)
 			}
 			if tc.wantRemoved {
 				if len(result.ArchivedPaths) != 1 {
@@ -274,12 +316,80 @@ func TestArchiveTaskWorkflowHandlesReviewOnlyWorkflows(t *testing.T) {
 				if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
 					t.Fatalf("expected review-only workflow to leave active root, got err=%v", statErr)
 				}
+				body, readErr := os.ReadFile(filepath.Join(result.ArchivedPaths[0], "reviews-001", "issue_002.md"))
+				if readErr != nil {
+					t.Fatalf("read archived issue: %v", readErr)
+				}
+				if tc.wantResolvedReviewIssues > 0 && !strings.Contains(string(body), "status: resolved") {
+					t.Fatalf("expected archived issue to be resolved, got:\n%s", string(body))
+				}
 				return
 			}
 			if _, statErr := os.Stat(workflowDir); statErr != nil {
 				t.Fatalf("expected unresolved review-only workflow dir to remain: %v", statErr)
 			}
 		})
+	}
+}
+
+func TestArchiveTaskWorkflowForceCompletesTasksAndResolvesReviewsBeforeArchiving(t *testing.T) {
+	rootDir := archiveTestRoot(t)
+	workflowDir := filepath.Join(rootDir, "daemon")
+	writeArchiveTaskFile(t, workflowDir, "task_001.md", "pending")
+	writeArchiveTaskFile(t, workflowDir, "task_002.md", "in_progress")
+	writeArchiveTaskFile(t, workflowDir, "task_003.md", "completed")
+	writeArchiveReviewRound(t, workflowDir, 1, []string{"pending", "valid", "resolved"}, true)
+	mustSyncArchiveWorkflow(t, workflowDir)
+
+	if _, err := Archive(
+		context.Background(),
+		ArchiveConfig{TasksDir: workflowDir},
+	); !errors.Is(
+		err,
+		ErrWorkflowForceRequired,
+	) {
+		t.Fatalf("Archive() error = %v, want ErrWorkflowForceRequired", err)
+	}
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir, Force: true})
+	if err != nil {
+		t.Fatalf("Archive(force): %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected archive result")
+	}
+	if result.Archived != 1 || !result.Forced {
+		t.Fatalf("unexpected forced archive result: %#v", result)
+	}
+	if result.CompletedTasks != 2 {
+		t.Fatalf("CompletedTasks = %d, want 2", result.CompletedTasks)
+	}
+	if result.ResolvedReviewIssues != 2 {
+		t.Fatalf("ResolvedReviewIssues = %d, want 2", result.ResolvedReviewIssues)
+	}
+	if result.ArchivedAt == nil || len(result.ArchivedPaths) != 1 {
+		t.Fatalf("expected archived path and timestamp, got %#v", result)
+	}
+
+	archivedDir := result.ArchivedPaths[0]
+	for _, name := range []string{"task_001.md", "task_002.md", "task_003.md"} {
+		body, err := os.ReadFile(filepath.Join(archivedDir, name))
+		if err != nil {
+			t.Fatalf("read archived task %s: %v", name, err)
+		}
+		if !strings.Contains(string(body), "status: completed") {
+			t.Fatalf("expected archived task %s to be completed, got:\n%s", name, string(body))
+		}
+	}
+
+	for _, name := range []string{"issue_001.md", "issue_002.md", "issue_003.md"} {
+		body, err := os.ReadFile(filepath.Join(archivedDir, "reviews-001", name))
+		if err != nil {
+			t.Fatalf("read archived issue %s: %v", name, err)
+		}
+		if !strings.Contains(string(body), "status: resolved") {
+			t.Fatalf("expected archived issue %s to be resolved, got:\n%s", name, string(body))
+		}
 	}
 }
 

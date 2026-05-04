@@ -725,7 +725,7 @@ func (s *errorTaskService) StartRun(context.Context, string, string, core.TaskRu
 	return core.Run{}, s.err
 }
 
-func (s *errorTaskService) Archive(context.Context, string, string) (core.ArchiveResult, error) {
+func (s *errorTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {
 	return core.ArchiveResult{}, s.err
 }
 

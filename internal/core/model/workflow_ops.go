@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type FetchResult struct {
 	Name       string
 	Provider   string
@@ -45,6 +47,7 @@ type ArchiveConfig struct {
 	RootDir       string
 	Name          string
 	TasksDir      string
+	Force         bool
 }
 
 type SyncResult struct {
@@ -65,12 +68,16 @@ type SyncResult struct {
 }
 
 type ArchiveResult struct {
-	Target           string            `json:"target"`
-	ArchiveRoot      string            `json:"archive_root"`
-	WorkflowsScanned int               `json:"workflows_scanned"`
-	Archived         int               `json:"archived"`
-	Skipped          int               `json:"skipped"`
-	ArchivedPaths    []string          `json:"archived_paths,omitempty"`
-	SkippedPaths     []string          `json:"skipped_paths,omitempty"`
-	SkippedReasons   map[string]string `json:"skipped_reasons,omitempty"`
+	Target               string            `json:"target"`
+	ArchiveRoot          string            `json:"archive_root"`
+	WorkflowsScanned     int               `json:"workflows_scanned"`
+	Archived             int               `json:"archived"`
+	Skipped              int               `json:"skipped"`
+	Forced               bool              `json:"forced,omitempty"`
+	CompletedTasks       int               `json:"completed_tasks,omitempty"`
+	ResolvedReviewIssues int               `json:"resolved_review_issues,omitempty"`
+	ArchivedAt           *time.Time        `json:"archived_at,omitempty"`
+	ArchivedPaths        []string          `json:"archived_paths,omitempty"`
+	SkippedPaths         []string          `json:"skipped_paths,omitempty"`
+	SkippedReasons       map[string]string `json:"skipped_reasons,omitempty"`
 }

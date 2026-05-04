@@ -164,7 +164,7 @@ func (c *Client) ArchiveTaskWorkflow(
 
 	var response contract.ArchiveResponse
 	path := "/api/tasks/" + url.PathEscape(trimmedSlug) + "/archive"
-	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.WorkflowRefRequest{
+	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.WorkflowArchiveRequest{
 		Workspace: strings.TrimSpace(workspace),
 	}, &response); err != nil {
 		return apicore.ArchiveResult{}, err

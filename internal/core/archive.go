@@ -11,10 +11,45 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 const workflowStateNotSyncedReason = "workflow state not synced"
+
+var ErrWorkflowForceRequired = errors.New("core: workflow force required")
+
+// WorkflowArchiveForceRequiredError reports a workflow archive conflict that
+// can be resolved locally by completing tasks and resolving review issues.
+type WorkflowArchiveForceRequiredError struct {
+	WorkspaceID      string
+	WorkflowID       string
+	Slug             string
+	Reason           string
+	TaskTotal        int
+	TaskNonTerminal  int
+	ReviewTotal      int
+	ReviewUnresolved int
+}
+
+func (e WorkflowArchiveForceRequiredError) Error() string {
+	name := strings.TrimSpace(e.Slug)
+	if name == "" {
+		name = strings.TrimSpace(e.WorkflowID)
+	}
+	if name == "" {
+		name = "workflow"
+	}
+	if strings.TrimSpace(e.Reason) == "" {
+		return fmt.Sprintf("core: workflow %q requires force archive confirmation", name)
+	}
+	return fmt.Sprintf("core: workflow %q requires force archive confirmation: %s", name, e.Reason)
+}
+
+func (e WorkflowArchiveForceRequiredError) Is(target error) bool {
+	return target == ErrWorkflowForceRequired
+}
 
 func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
 	target, rootDir, singleWorkflow, err := resolveArchiveTarget(ctx, cfg)
@@ -36,7 +71,7 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 	}()
 
 	if singleWorkflow {
-		if err := archiveWorkflow(ctx, db, workspace.ID, target, result, true); err != nil {
+		if err := archiveWorkflow(ctx, db, workspace, target, cfg.Force, result, true); err != nil {
 			return result, err
 		}
 		sortArchiveResult(result)
@@ -57,8 +92,9 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 		if err := archiveWorkflow(
 			ctx,
 			db,
-			workspace.ID,
+			workspace,
 			filepath.Join(target, entry.Name()),
+			false,
 			result,
 			false,
 		); err != nil {
@@ -207,8 +243,9 @@ func archivedWorkflowExists(archiveRoot string, slug string) bool {
 func archiveWorkflow(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
-	workspaceID string,
+	workspace globaldb.Workspace,
 	tasksDir string,
+	force bool,
 	result *ArchiveResult,
 	conflictOnSkip bool,
 ) error {
@@ -219,31 +256,162 @@ func archiveWorkflow(
 	result.WorkflowsScanned++
 
 	slug := filepath.Base(tasksDir)
-	eligibility, err := db.GetWorkflowArchiveEligibility(ctx, workspaceID, slug)
+	eligibility, skipArchive, err := loadArchiveEligibility(
+		ctx,
+		db,
+		workspace.ID,
+		slug,
+		tasksDir,
+		result,
+		conflictOnSkip,
+	)
 	if err != nil {
-		if errors.Is(err, globaldb.ErrWorkflowNotFound) {
-			reason := workflowStateNotSyncedReason
-			if conflictOnSkip {
-				return globaldb.WorkflowNotArchivableError{
-					WorkspaceID: workspaceID,
-					Slug:        slug,
-					Reason:      reason,
-				}
-			}
-			recordArchiveSkip(result, tasksDir, reason)
-			return nil
-		}
 		return err
 	}
-
-	if reason := eligibility.SkipReason(); reason != "" {
-		if conflictOnSkip {
-			return eligibility.ConflictError()
-		}
-		recordArchiveSkip(result, tasksDir, reason)
+	if skipArchive {
 		return nil
 	}
 
+	eligibility, skipArchive, err = prepareArchiveWorkflow(
+		ctx,
+		db,
+		workspace,
+		tasksDir,
+		force,
+		result,
+		conflictOnSkip,
+		eligibility,
+	)
+	if err != nil {
+		return err
+	}
+	if skipArchive {
+		return nil
+	}
+
+	return persistArchivedWorkflow(ctx, db, tasksDir, result, slug, eligibility.Workflow.ID)
+}
+
+func loadArchiveEligibility(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	slug string,
+	tasksDir string,
+	result *ArchiveResult,
+	conflictOnSkip bool,
+) (globaldb.WorkflowArchiveEligibility, bool, error) {
+	eligibility, err := db.GetWorkflowArchiveEligibility(ctx, strings.TrimSpace(workspaceID), slug)
+	if err == nil {
+		return eligibility, false, nil
+	}
+	if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+		return globaldb.WorkflowArchiveEligibility{}, false, err
+	}
+
+	reason := workflowStateNotSyncedReason
+	if conflictOnSkip {
+		return globaldb.WorkflowArchiveEligibility{}, false, globaldb.WorkflowNotArchivableError{
+			WorkspaceID: strings.TrimSpace(workspaceID),
+			Slug:        slug,
+			Reason:      reason,
+		}
+	}
+
+	recordArchiveSkip(result, tasksDir, reason)
+	return globaldb.WorkflowArchiveEligibility{}, true, nil
+}
+
+func prepareArchiveWorkflow(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	tasksDir string,
+	force bool,
+	result *ArchiveResult,
+	conflictOnSkip bool,
+	eligibility globaldb.WorkflowArchiveEligibility,
+) (globaldb.WorkflowArchiveEligibility, bool, error) {
+	if eligibility.SkipReason() == "" {
+		return eligibility, false, nil
+	}
+
+	if !archiveForceableConflict(eligibility) {
+		return resolveArchiveConflict(result, tasksDir, conflictOnSkip, eligibility)
+	}
+
+	if !force {
+		return handleForceRequiredConflict(result, tasksDir, conflictOnSkip, eligibility)
+	}
+
+	updatedEligibility, completedTasks, resolvedReviewIssues, err := forceArchiveWorkflow(
+		ctx,
+		db,
+		workspace,
+		tasksDir,
+		eligibility,
+	)
+	if err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, false, err
+	}
+	if completedTasks > 0 || resolvedReviewIssues > 0 {
+		result.Forced = true
+		result.CompletedTasks += completedTasks
+		result.ResolvedReviewIssues += resolvedReviewIssues
+	}
+	return resolveArchiveConflict(result, tasksDir, conflictOnSkip, updatedEligibility)
+}
+
+func handleForceRequiredConflict(
+	result *ArchiveResult,
+	tasksDir string,
+	conflictOnSkip bool,
+	eligibility globaldb.WorkflowArchiveEligibility,
+) (globaldb.WorkflowArchiveEligibility, bool, error) {
+	if conflictOnSkip {
+		return globaldb.WorkflowArchiveEligibility{}, false, WorkflowArchiveForceRequiredError{
+			WorkspaceID:      eligibility.Workflow.WorkspaceID,
+			WorkflowID:       eligibility.Workflow.ID,
+			Slug:             eligibility.Workflow.Slug,
+			Reason:           eligibility.SkipReason(),
+			TaskTotal:        eligibility.TaskTotal,
+			TaskNonTerminal:  eligibility.PendingTasks,
+			ReviewTotal:      eligibility.ReviewIssueTotal,
+			ReviewUnresolved: eligibility.UnresolvedReviewIssues,
+		}
+	}
+
+	recordArchiveSkip(result, tasksDir, eligibility.SkipReason())
+	return eligibility, true, nil
+}
+
+func resolveArchiveConflict(
+	result *ArchiveResult,
+	tasksDir string,
+	conflictOnSkip bool,
+	eligibility globaldb.WorkflowArchiveEligibility,
+) (globaldb.WorkflowArchiveEligibility, bool, error) {
+	reason := eligibility.SkipReason()
+	if reason == "" {
+		return eligibility, false, nil
+	}
+
+	if conflictOnSkip {
+		return globaldb.WorkflowArchiveEligibility{}, false, eligibility.ConflictError()
+	}
+
+	recordArchiveSkip(result, tasksDir, reason)
+	return eligibility, true, nil
+}
+
+func persistArchivedWorkflow(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	tasksDir string,
+	result *ArchiveResult,
+	slug string,
+	workflowID string,
+) error {
 	if err := os.MkdirAll(result.ArchiveRoot, 0o755); err != nil {
 		return fmt.Errorf("mkdir archive root: %w", err)
 	}
@@ -251,25 +419,65 @@ func archiveWorkflow(
 	archivedAt := time.Now().UTC()
 	archivedDir := filepath.Join(
 		result.ArchiveRoot,
-		model.ArchivedWorkflowName(slug, eligibility.Workflow.ID, archivedAt),
+		model.ArchivedWorkflowName(slug, workflowID, archivedAt),
 	)
 	if err := os.Rename(tasksDir, archivedDir); err != nil {
 		return fmt.Errorf("archive workflow %s: %w", tasksDir, err)
 	}
 
-	if _, err := db.MarkWorkflowArchived(ctx, eligibility.Workflow.ID, archivedAt); err != nil {
+	if _, err := db.MarkWorkflowArchived(ctx, workflowID, archivedAt); err != nil {
 		if rollbackErr := os.Rename(archivedDir, tasksDir); rollbackErr != nil {
 			return errors.Join(
-				fmt.Errorf("persist archived workflow state %s: %w", eligibility.Workflow.ID, err),
+				fmt.Errorf("persist archived workflow state %s: %w", workflowID, err),
 				fmt.Errorf("rollback archived workflow rename %s: %w", archivedDir, rollbackErr),
 			)
 		}
-		return fmt.Errorf("persist archived workflow state %s: %w", eligibility.Workflow.ID, err)
+		return fmt.Errorf("persist archived workflow state %s: %w", workflowID, err)
 	}
 
 	result.Archived++
+	result.ArchivedAt = &archivedAt
 	result.ArchivedPaths = append(result.ArchivedPaths, archivedDir)
 	return nil
+}
+
+func archiveForceableConflict(eligibility globaldb.WorkflowArchiveEligibility) bool {
+	return eligibility.ActiveRuns == 0 &&
+		(eligibility.PendingTasks > 0 || eligibility.UnresolvedReviewIssues > 0)
+}
+
+func forceArchiveWorkflow(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	tasksDir string,
+	eligibility globaldb.WorkflowArchiveEligibility,
+) (globaldb.WorkflowArchiveEligibility, int, int, error) {
+	completedTasks, err := tasks.CompleteNonTerminalTasks(tasksDir)
+	if err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, 0, 0, err
+	}
+
+	resolvedReviewIssues, err := reviews.ResolveUnresolvedIssues(tasksDir)
+	if err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, completedTasks, 0, err
+	}
+
+	if _, err := SyncWithDB(ctx, db, workspace, SyncConfig{
+		WorkspaceRoot: workspace.RootDir,
+		TasksDir:      tasksDir,
+	}); err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, completedTasks, resolvedReviewIssues, err
+	}
+
+	updatedEligibility, err := db.GetWorkflowArchiveEligibility(ctx, workspace.ID, eligibility.Workflow.Slug)
+	if err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, completedTasks, resolvedReviewIssues, err
+	}
+	if reason := updatedEligibility.SkipReason(); reason != "" {
+		return updatedEligibility, completedTasks, resolvedReviewIssues, updatedEligibility.ConflictError()
+	}
+	return updatedEligibility, completedTasks, resolvedReviewIssues, nil
 }
 
 func recordArchiveSkip(result *ArchiveResult, tasksDir string, reason string) {

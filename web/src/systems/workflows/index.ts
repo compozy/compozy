@@ -1,4 +1,7 @@
-export { WorkflowInventoryView } from "./components/workflow-inventory-view";
+export {
+  WorkflowInventoryView,
+  type ArchiveConfirmationState,
+} from "./components/workflow-inventory-view";
 export {
   TaskBoardView,
   resolveStatusTone as resolveTaskStatusTone,

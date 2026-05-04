@@ -269,11 +269,11 @@ func TestClientOperatorRequestsUseCanonicalContract(t *testing.T) {
 						Workflows: []contract.WorkflowSummary{workflow},
 					}), nil
 				case http.MethodPost + " /api/tasks/demo/archive":
-					var payload contract.WorkflowRefRequest
+					var payload contract.WorkflowArchiveRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("decode archive request: %v", err)
 					}
-					if payload.Workspace != "/tmp/workspace" {
+					if payload.Workspace != "/tmp/workspace" || payload.Force {
 						t.Fatalf("archive payload = %#v, want workspace ref", payload)
 					}
 					return jsonStructResponse(t, http.StatusOK, contract.ArchiveResponse{

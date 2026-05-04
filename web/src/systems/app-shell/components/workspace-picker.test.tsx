@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,20 +32,30 @@ const missingWorkspace: Workspace = {
 };
 
 describe("WorkspacePicker", () => {
-  it("Should show read-only and path-missing badges without disabling selection", async () => {
+  it("Should group path-missing workspaces at the bottom without disabling selection", async () => {
     const onSelect = vi.fn();
     render(
-      <WorkspacePicker onSelect={onSelect} workspaces={[presentWorkspace, missingWorkspace]} />
+      <WorkspacePicker onSelect={onSelect} workspaces={[missingWorkspace, presentWorkspace]} />
     );
 
-    expect(screen.getByTestId("workspace-picker-missing-ws-missing")).toHaveTextContent(
-      "path missing"
+    const availableSection = screen.getByTestId("workspace-picker-available");
+    const missingSection = screen.getByTestId("workspace-picker-missing-section");
+    expect(availableSection).toHaveTextContent("Available · 1");
+    expect(availableSection).toHaveTextContent("present");
+    expect(availableSection).not.toHaveTextContent("missing");
+    expect(missingSection).toHaveTextContent("Path missing · 1");
+    expect(missingSection).toHaveTextContent("missing");
+    expect(missingSection.compareDocumentPosition(availableSection)).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING
     );
-    expect(screen.getByTestId("workspace-picker-readonly-ws-missing")).toHaveTextContent(
-      "read-only"
-    );
+    expect(
+      within(missingSection).getByTestId("workspace-picker-missing-ws-missing")
+    ).toHaveTextContent("path missing");
+    expect(
+      within(missingSection).getByTestId("workspace-picker-readonly-ws-missing")
+    ).toHaveTextContent("read-only");
 
-    await userEvent.click(screen.getByTestId("workspace-picker-select-ws-missing"));
+    await userEvent.click(within(missingSection).getByTestId("workspace-picker-select-ws-missing"));
     expect(onSelect).toHaveBeenCalledWith("ws-missing");
   });
 

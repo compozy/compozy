@@ -525,6 +525,9 @@ export interface components {
             archived: boolean;
             /** Format: date-time */
             archived_at?: string;
+            completed_tasks?: number;
+            forced?: boolean;
+            resolved_review_issues?: number;
         };
         ContentBlock: {
             type: string;
@@ -999,6 +1002,10 @@ export interface components {
             workflow: components["schemas"]["WorkflowOverviewPayload"];
         };
         WorkflowRefRequest: {
+            workspace?: string;
+        };
+        WorkflowArchiveRequest: {
+            force?: boolean;
             workspace?: string;
         };
         WorkflowSpecDocument: {
@@ -1741,7 +1748,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WorkflowRefRequest"];
+                "application/json": components["schemas"]["WorkflowArchiveRequest"];
             };
         };
         responses: {

@@ -3,6 +3,20 @@ export { cn } from "./lib/utils";
 export { UIProvider, type UIProviderProps } from "./components/ui-provider";
 
 export { Alert, alertVariants, type AlertProps } from "./components/alert";
+export {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogPortal,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  AlertDialogViewport,
+} from "./components/alert-dialog";
 
 export { Skeleton, SkeletonRow, SkeletonText, type SkeletonProps } from "./components/skeleton";
 

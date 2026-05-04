@@ -3,7 +3,7 @@ provider: coderabbit
 pr: "133"
 round: 2
 round_created_at: 2026-04-30T21:47:34.803875Z
-status: pending
+status: resolved
 file: internal/store/globaldb/sync.go
 line: 254
 author: coderabbitai[bot]

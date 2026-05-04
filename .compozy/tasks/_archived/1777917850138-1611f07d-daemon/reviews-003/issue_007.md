@@ -1,5 +1,5 @@
 ---
-status: valid
+status: resolved
 file: internal/daemon/boot_test.go
 line: 150
 author: coderabbitai[bot]

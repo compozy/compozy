@@ -11,6 +11,7 @@ type WorkflowArchiveCommand struct {
 	RootDir       string
 	Name          string
 	TasksDir      string
+	Force         bool
 }
 
 // WorkflowArchiveResult wraps the existing archive result contract.
@@ -35,6 +36,7 @@ func WorkflowArchiveFromArchiveConfig(cfg model.ArchiveConfig) WorkflowArchiveCo
 		RootDir:       cfg.RootDir,
 		Name:          cfg.Name,
 		TasksDir:      cfg.TasksDir,
+		Force:         cfg.Force,
 	}
 }
 
@@ -45,5 +47,6 @@ func (c WorkflowArchiveCommand) CoreConfig() model.ArchiveConfig {
 		RootDir:       c.RootDir,
 		Name:          c.Name,
 		TasksDir:      c.TasksDir,
+		Force:         c.Force,
 	}
 }

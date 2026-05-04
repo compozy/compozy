@@ -2,11 +2,13 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -262,7 +264,12 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		env, service := newService(t)
 		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Transport task"))
 		syncWorkflowForDaemonTest(t, env)
-		archiveResult, err := service.Archive(context.Background(), env.workspaceRoot, env.workflowSlug)
+		archiveResult, err := service.Archive(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.ArchiveRequest{},
+		)
 		if err != nil {
 			t.Fatalf("Archive() error = %v", err)
 		}
@@ -286,6 +293,49 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		}
 	})
 
+	t.Run("Should surface force-required archive conflicts and map forced success counts", func(t *testing.T) {
+		env, service := newService(t)
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Transport task"))
+		env.writeWorkflowFile(
+			t,
+			env.workflowSlug,
+			filepath.Join("reviews-001", "issue_001.md"),
+			daemonReviewIssueBody("pending", "high"),
+		)
+		syncWorkflowForDaemonTest(t, env)
+
+		_, err := service.Archive(context.Background(), env.workspaceRoot, env.workflowSlug, apicore.ArchiveRequest{})
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("Archive() error = %v, want transport problem", err)
+		}
+		if problem.Status != 409 || problem.Code != string(contract.CodeWorkflowForceRequired) {
+			t.Fatalf("unexpected archive problem: %#v", problem)
+		}
+		if got := problem.Details["task_non_terminal"]; got != 1 {
+			t.Fatalf("task_non_terminal = %#v, want 1", got)
+		}
+		if got := problem.Details["review_unresolved"]; got != 1 {
+			t.Fatalf("review_unresolved = %#v, want 1", got)
+		}
+
+		result, err := service.Archive(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.ArchiveRequest{Force: true},
+		)
+		if err != nil {
+			t.Fatalf("Archive(force) error = %v", err)
+		}
+		if !result.Archived || !result.Forced {
+			t.Fatalf("unexpected forced archive result: %#v", result)
+		}
+		if result.CompletedTasks != 1 || result.ResolvedReviewIssues != 1 {
+			t.Fatalf("unexpected forced archive counts: %#v", result)
+		}
+	})
+
 	t.Run("Should report unavailable workflow listing and archiving without a database", func(t *testing.T) {
 		env, _ := newService(t)
 		nilDBService := newTransportTaskService(nil, env.manager)
@@ -293,7 +343,12 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 			!strings.Contains(err.Error(), "workflow listing is not available") {
 			t.Fatalf("nil ListWorkflows() error = %v, want unavailable", err)
 		}
-		if _, err := nilDBService.Archive(context.Background(), env.workspaceRoot, env.workflowSlug); err == nil ||
+		if _, err := nilDBService.Archive(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.ArchiveRequest{},
+		); err == nil ||
 			!strings.Contains(err.Error(), "task archiving is not available") {
 			t.Fatalf("nil Archive() error = %v, want unavailable", err)
 		}
