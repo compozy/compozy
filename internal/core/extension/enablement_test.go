@@ -2,9 +2,12 @@ package extensions
 
 import (
 	"context"
+	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestEnablementStoreDefaults(t *testing.T) {
@@ -138,6 +141,79 @@ func TestEnablementStorePersistsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEnablementStoreLoadsWorkspaceStateAcrossCanonicalRootAliases(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	legacyRoot := filepath.Clean("/Users/pedronauck/dev/compozy/agh2")
+	canonicalRoot := filepath.Clean("/Users/pedronauck/Dev/compozy/agh2")
+	store := &EnablementStore{
+		homeDir: homeDir,
+		normalizeWorkspaceRoot: func(root string) (string, error) {
+			switch filepath.Clean(root) {
+			case legacyRoot, canonicalRoot:
+				return canonicalRoot, nil
+			default:
+				return filepath.Clean(root), nil
+			}
+		},
+	}
+
+	writeWorkspaceEnablementState(t, homeDir, workspaceEnablementRecord{
+		Workspaces: map[string]map[string]bool{
+			legacyRoot: {
+				"cy-qa-workflow": true,
+			},
+		},
+	})
+
+	enabled, err := store.Enabled(context.Background(), Ref{
+		Name:          "cy-qa-workflow",
+		Source:        SourceWorkspace,
+		WorkspaceRoot: canonicalRoot,
+	})
+	if err != nil {
+		t.Fatalf("Enabled() error = %v", err)
+	}
+	if !enabled {
+		t.Fatal("Enabled() = false, want true for canonical alias of persisted workspace root")
+	}
+}
+
+func TestCanonicalizeExistingPathCaseWithUsesOnDiskNames(t *testing.T) {
+	t.Parallel()
+
+	root := extensionTestAbsoluteRoot(t)
+	usersDir := filepath.Join(root, "Users")
+	homeDir := filepath.Join(usersDir, "pedronauck")
+	devDir := filepath.Join(homeDir, "Dev")
+	compozyDir := filepath.Join(devDir, "compozy")
+	want := filepath.Join(compozyDir, "agh2")
+	input := filepath.Join(homeDir, "dev", "compozy", "agh2")
+
+	dirs := map[string][]os.DirEntry{
+		root:       {extensionFakeDirEntry{name: "Users"}},
+		usersDir:   {extensionFakeDirEntry{name: "pedronauck"}},
+		homeDir:    {extensionFakeDirEntry{name: "Dev"}},
+		devDir:     {extensionFakeDirEntry{name: "compozy"}},
+		compozyDir: {extensionFakeDirEntry{name: "agh2"}},
+	}
+
+	got, err := canonicalizeExistingPathCaseWith(input, func(path string) ([]os.DirEntry, error) {
+		entries, ok := dirs[path]
+		if !ok {
+			return nil, fs.ErrNotExist
+		}
+		return entries, nil
+	})
+	if err != nil {
+		t.Fatalf("canonicalizeExistingPathCaseWith() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("canonicalizeExistingPathCaseWith() = %q, want %q", got, want)
+	}
+}
+
 func TestEnablementStoreRejectsBundledMutations(t *testing.T) {
 	t.Parallel()
 
@@ -254,3 +330,49 @@ func writeCorruptStateFile(t *testing.T, path string) {
 		t.Fatalf("WriteFile(%q): %v", path, err)
 	}
 }
+
+func writeWorkspaceEnablementState(t *testing.T, homeDir string, record workspaceEnablementRecord) {
+	t.Helper()
+
+	path := filepath.Join(homeDir, ".compozy", "state", workspaceEnablementStateFileName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", filepath.Dir(path), err)
+	}
+	payload, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		t.Fatalf("MarshalIndent(workspace enablement): %v", err)
+	}
+	if err := os.WriteFile(path, append(payload, '\n'), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q): %v", path, err)
+	}
+}
+
+func extensionTestAbsoluteRoot(t *testing.T) string {
+	t.Helper()
+
+	root := string(filepath.Separator)
+	if volume := filepath.VolumeName(t.TempDir()); volume != "" {
+		root = volume + string(filepath.Separator)
+	}
+	return root
+}
+
+type extensionFakeDirEntry struct {
+	name string
+}
+
+func (e extensionFakeDirEntry) Name() string               { return e.name }
+func (e extensionFakeDirEntry) IsDir() bool                { return true }
+func (e extensionFakeDirEntry) Type() fs.FileMode          { return fs.ModeDir }
+func (e extensionFakeDirEntry) Info() (fs.FileInfo, error) { return extensionFakeFileInfo(e), nil }
+
+type extensionFakeFileInfo struct {
+	name string
+}
+
+func (i extensionFakeFileInfo) Name() string       { return i.name }
+func (i extensionFakeFileInfo) Size() int64        { return 0 }
+func (i extensionFakeFileInfo) Mode() fs.FileMode  { return fs.ModeDir }
+func (i extensionFakeFileInfo) ModTime() time.Time { return time.Time{} }
+func (i extensionFakeFileInfo) IsDir() bool        { return true }
+func (i extensionFakeFileInfo) Sys() any           { return nil }

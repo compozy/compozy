@@ -125,6 +125,52 @@ func TestDiscoveryWorkspaceOverridesAllLevels(t *testing.T) {
 	}
 }
 
+func TestDiscoveryIncludesWorkspaceExtensionEnabledThroughCanonicalRootAlias(t *testing.T) {
+	withVersion(t, "1.5.0")
+
+	discovery, store, homeDir, workspaceRoot, _ := newTestDiscovery(t, false)
+	canonicalRoot, err := normalizeWorkspaceRoot(workspaceRoot)
+	if err != nil {
+		t.Fatalf("normalizeWorkspaceRoot(%q): %v", workspaceRoot, err)
+	}
+	legacyRoot := filepath.Join(filepath.Dir(canonicalRoot), "legacy-"+filepath.Base(canonicalRoot))
+	store.normalizeWorkspaceRoot = func(root string) (string, error) {
+		switch filepath.Clean(root) {
+		case filepath.Clean(workspaceRoot), canonicalRoot, legacyRoot:
+			return canonicalRoot, nil
+		default:
+			return filepath.Clean(root), nil
+		}
+	}
+	discovery.WorkspaceRoot = canonicalRoot
+	writeManifestJSON(
+		t,
+		workspaceExtensionDir(canonicalRoot, "cy-qa-workflow"),
+		manifestFixture("cy-qa-workflow"),
+	)
+	writeWorkspaceEnablementState(t, homeDir, workspaceEnablementRecord{
+		Workspaces: map[string]map[string]bool{
+			legacyRoot: {
+				"cy-qa-workflow": true,
+			},
+		},
+	})
+
+	result, err := discovery.Discover(context.Background())
+	if err != nil {
+		t.Fatalf("Discover() error = %v", err)
+	}
+	if len(result.Extensions) != 1 {
+		t.Fatalf("len(Extensions) = %d, want 1", len(result.Extensions))
+	}
+	if got := result.Extensions[0].Ref.Name; got != "cy-qa-workflow" {
+		t.Fatalf("Extensions[0].Ref.Name = %q, want cy-qa-workflow", got)
+	}
+	if !result.Extensions[0].Enabled {
+		t.Fatal("Extensions[0].Enabled = false, want true")
+	}
+}
+
 func TestDiscoveryMalformedManifestDoesNotAbortScan(t *testing.T) {
 	withVersion(t, "1.5.0")
 

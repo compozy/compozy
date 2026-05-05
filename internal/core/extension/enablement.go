@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -32,7 +33,8 @@ type EnablementState struct {
 
 // EnablementStore persists operator-local enablement choices outside the repository.
 type EnablementStore struct {
-	homeDir string
+	homeDir                string
+	normalizeWorkspaceRoot func(string) (string, error)
 }
 
 // NewEnablementStore constructs a store rooted at homeDir or the current user's home.
@@ -53,7 +55,10 @@ func NewEnablementStore(ctx context.Context, homeDir string) (*EnablementStore, 
 		return nil, fmt.Errorf("create enablement store: home directory is empty")
 	}
 
-	return &EnablementStore{homeDir: filepath.Clean(resolvedHome)}, nil
+	return &EnablementStore{
+		homeDir:                filepath.Clean(resolvedHome),
+		normalizeWorkspaceRoot: normalizeWorkspaceRoot,
+	}, nil
 }
 
 // Enabled resolves whether an extension is enabled for this machine.
@@ -106,7 +111,11 @@ func (s *EnablementStore) Load(ctx context.Context, ref Ref) (EnablementState, e
 			return state, nil
 		}
 
-		workspaceRoot, err := normalizeWorkspaceRoot(ref.WorkspaceRoot)
+		record, err = s.normalizeWorkspaceEnablementRecord(record)
+		if err != nil {
+			return EnablementState{}, err
+		}
+		workspaceRoot, err := s.resolveWorkspaceRoot(ref.WorkspaceRoot)
 		if err != nil {
 			return EnablementState{}, err
 		}
@@ -208,7 +217,7 @@ func (s *EnablementStore) saveUserState(state EnablementState) error {
 }
 
 func (s *EnablementStore) saveWorkspaceState(state EnablementState) error {
-	workspaceRoot, err := normalizeWorkspaceRoot(state.Extension.WorkspaceRoot)
+	workspaceRoot, err := s.resolveWorkspaceRoot(state.Extension.WorkspaceRoot)
 	if err != nil {
 		return err
 	}
@@ -220,6 +229,10 @@ func (s *EnablementStore) saveWorkspaceState(state EnablementState) error {
 	}
 	if record == nil {
 		record = &workspaceEnablementRecord{Workspaces: make(map[string]map[string]bool)}
+	}
+	record, err = s.normalizeWorkspaceEnablementRecord(record)
+	if err != nil {
+		return err
 	}
 	if record.Workspaces == nil {
 		record.Workspaces = make(map[string]map[string]bool)
@@ -242,6 +255,68 @@ func (s *EnablementStore) saveWorkspaceState(state EnablementState) error {
 	return nil
 }
 
+func (s *EnablementStore) resolveWorkspaceRoot(root string) (string, error) {
+	normalize := normalizeWorkspaceRoot
+	if s != nil && s.normalizeWorkspaceRoot != nil {
+		normalize = s.normalizeWorkspaceRoot
+	}
+	return normalize(root)
+}
+
+func (s *EnablementStore) normalizeWorkspaceEnablementRecord(
+	record *workspaceEnablementRecord,
+) (*workspaceEnablementRecord, error) {
+	if record == nil || len(record.Workspaces) == 0 {
+		return record, nil
+	}
+
+	entries := make([]workspaceEnablementEntry, 0, len(record.Workspaces))
+	for storedRoot, names := range record.Workspaces {
+		normalizedRoot, err := s.resolveWorkspaceRoot(storedRoot)
+		if err != nil {
+			return nil, fmt.Errorf("normalize workspace enablement root %q: %w", storedRoot, err)
+		}
+		entries = append(entries, workspaceEnablementEntry{
+			storedRoot:     storedRoot,
+			normalizedRoot: normalizedRoot,
+			exact:          filepath.Clean(strings.TrimSpace(storedRoot)) == normalizedRoot,
+			names:          names,
+		})
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].normalizedRoot != entries[j].normalizedRoot {
+			return entries[i].normalizedRoot < entries[j].normalizedRoot
+		}
+		if entries[i].exact != entries[j].exact {
+			return !entries[i].exact && entries[j].exact
+		}
+		return entries[i].storedRoot < entries[j].storedRoot
+	})
+
+	normalized := &workspaceEnablementRecord{Workspaces: make(map[string]map[string]bool, len(entries))}
+	for _, entry := range entries {
+		if normalized.Workspaces[entry.normalizedRoot] == nil {
+			normalized.Workspaces[entry.normalizedRoot] = make(map[string]bool, len(entry.names))
+		}
+		names := make([]string, 0, len(entry.names))
+		for name := range entry.names {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			normalized.Workspaces[entry.normalizedRoot][name] = entry.names[name]
+		}
+	}
+	return normalized, nil
+}
+
+type workspaceEnablementEntry struct {
+	storedRoot     string
+	normalizedRoot string
+	exact          bool
+	names          map[string]bool
+}
+
 func normalizeWorkspaceRoot(root string) (string, error) {
 	trimmed := strings.TrimSpace(root)
 	if trimmed == "" {
@@ -259,7 +334,73 @@ func normalizeWorkspaceRoot(root string) (string, error) {
 		}
 		return "", fmt.Errorf("resolve workspace root symlinks %q: %w", absPath, err)
 	}
-	return filepath.Clean(resolvedPath), nil
+	canonicalPath, err := canonicalizeExistingPathCase(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize workspace root %q: %w", resolvedPath, err)
+	}
+	return filepath.Clean(canonicalPath), nil
+}
+
+func canonicalizeExistingPathCase(path string) (string, error) {
+	return canonicalizeExistingPathCaseWith(path, os.ReadDir)
+}
+
+func canonicalizeExistingPathCaseWith(
+	path string,
+	readDir func(string) ([]os.DirEntry, error),
+) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", fmt.Errorf("workspace root is empty")
+	}
+	cleanPath := filepath.Clean(trimmed)
+	if !filepath.IsAbs(cleanPath) {
+		return cleanPath, nil
+	}
+
+	volume := filepath.VolumeName(cleanPath)
+	current := string(filepath.Separator)
+	remainder := strings.TrimPrefix(cleanPath, current)
+	if volume != "" {
+		current = volume + string(filepath.Separator)
+		remainder = strings.TrimPrefix(cleanPath, current)
+	}
+	if remainder == "" {
+		return filepath.Clean(current), nil
+	}
+
+	for _, component := range strings.Split(remainder, string(filepath.Separator)) {
+		if component == "" || component == "." {
+			continue
+		}
+
+		entries, err := readDir(current)
+		if err != nil {
+			return cleanPath, nil
+		}
+
+		matchedName, ok := matchPathComponentCase(component, entries)
+		if !ok {
+			return cleanPath, nil
+		}
+		current = filepath.Join(current, matchedName)
+	}
+
+	return filepath.Clean(current), nil
+}
+
+func matchPathComponentCase(component string, entries []os.DirEntry) (string, bool) {
+	for _, entry := range entries {
+		if entry.Name() == component {
+			return entry.Name(), true
+		}
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(entry.Name(), component) {
+			return entry.Name(), true
+		}
+	}
+	return "", false
 }
 
 type userEnablementRecord struct {
