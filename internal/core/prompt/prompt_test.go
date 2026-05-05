@@ -162,6 +162,11 @@ complexity: low
 		"Task file: `/tmp/.compozy/tasks/demo/task_1.md`",
 		"Master tasks file: `/tmp/.compozy/tasks/demo/_tasks.md`",
 		"Automatic commits are disabled for this run (`--auto-commit=false`).",
+		"<action_required>",
+		"Begin work on **task_1.md** immediately",
+		"do NOT ask the user",
+		"<begin_now>",
+		"Start the cy-execute-task workflow on **task_1.md**",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(promptText, snippet) {
@@ -218,6 +223,72 @@ complexity: medium
 	}
 	if !strings.Contains(withoutAutoCommit, "Do not create an automatic commit for this run.") {
 		t.Fatalf("expected no-auto-commit prompt to mention disabled automatic commits")
+	}
+}
+
+// TestBuildPRDTaskPromptIncludesActionDirectives guards the dispatch-bug fix
+// from #144: PRD task prompts must open and close with explicit imperatives so
+// the agent does not default to a "ready when you are" standby greeting and
+// silently produce a no-op session that the runner then misclassifies as a
+// successful task completion. Removing either directive without a replacement
+// regresses the bug.
+func TestBuildPRDTaskPromptIncludesActionDirectives(t *testing.T) {
+	t.Parallel()
+
+	task := model.IssueEntry{
+		Name:    "task_42.md",
+		AbsPath: "/tmp/.compozy/tasks/auth/task_42.md",
+		Content: `---
+status: pending
+title: Wire login flow
+type: backend
+complexity: medium
+---
+
+# Task 42: Wire login flow
+`,
+	}
+
+	promptText := buildPRDTaskPrompt(task, false, nil)
+
+	openerIdx := strings.Index(promptText, "<action_required>")
+	if openerIdx == -1 {
+		t.Fatalf("expected PRD prompt to open with <action_required> directive")
+	}
+	closerIdx := strings.Index(promptText, "<begin_now>")
+	if closerIdx == -1 {
+		t.Fatalf("expected PRD prompt to close with <begin_now> directive")
+	}
+	if closerIdx <= openerIdx {
+		t.Fatalf("expected <begin_now> after <action_required>, got opener=%d closer=%d", openerIdx, closerIdx)
+	}
+
+	// The opener must reference the specific task name and forbid asking for
+	// confirmation — those two properties together are what stops the agent
+	// from emitting "Ready when you are — let me know if you want me to start".
+	requiredOpenerSnippets := []string{
+		"Begin work on **task_42.md** immediately",
+		"`cy-execute-task`",
+		"do NOT ask the user",
+	}
+	for _, snippet := range requiredOpenerSnippets {
+		if !strings.Contains(promptText, snippet) {
+			t.Fatalf("expected opener directive to include %q", snippet)
+		}
+	}
+
+	// The opener must come BEFORE the descriptive context so the agent reads
+	// "act now" first and treats subsequent sections as supporting brief.
+	titleIdx := strings.Index(promptText, "# Implementation Task:")
+	contextIdx := strings.Index(promptText, "## Task Context")
+	if titleIdx == -1 || contextIdx == -1 {
+		t.Fatalf("expected title and context sections in prompt")
+	}
+	if titleIdx >= openerIdx || openerIdx >= contextIdx {
+		t.Fatalf(
+			"expected order: title(%d) -> action_required(%d) -> task context(%d)",
+			titleIdx, openerIdx, contextIdx,
+		)
 	}
 }
 
