@@ -64,11 +64,17 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 		}
 		return Snapshot{}, fmt.Errorf("worktree: stat .git in %s: %w", root, err)
 	}
-	head, headErr := runGit(ctx, root, "rev-parse", "HEAD")
-	if headErr != nil {
-		// `git rev-parse HEAD` fails on a fresh repository with no commits;
-		// substitute a stable sentinel so the digest is still deterministic.
-		head = []byte("no-head")
+	head, err := runGit(ctx, root, "rev-parse", "HEAD")
+	if err != nil {
+		// Any rev-parse failure (missing git binary, empty repo with no commits,
+		// corrupted refs) yields an unsupported Snapshot rather than an error so
+		// the runner falls back to legacy completion behavior. Surfacing the
+		// failure here would force every non-git or fresh-repo workspace through
+		// the error path even though the no-op check is purely advisory.
+		if isExecLookupError(err) {
+			return Snapshot{}, nil
+		}
+		return Snapshot{}, nil
 	}
 	porcelain, err := runGit(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {

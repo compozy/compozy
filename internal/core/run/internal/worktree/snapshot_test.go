@@ -30,6 +30,24 @@ func TestCaptureReturnsUnsupportedSnapshotForNonGitWorkspace(t *testing.T) {
 	}
 }
 
+func TestCaptureReturnsUnsupportedSnapshotForEmptyGitRepo(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	dir := t.TempDir()
+	mustGit(t, dir, "init", "-q", "-b", "main")
+	mustGit(t, dir, "config", "user.email", "snapshot@example.com")
+	mustGit(t, dir, "config", "user.name", "Snapshot Tester")
+
+	snap, err := Capture(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Capture(empty-repo): %v", err)
+	}
+	if snap.IsSupported() {
+		t.Fatalf("expected unsupported snapshot for empty repo (no HEAD), got supported")
+	}
+}
+
 func TestCaptureProducesEqualSnapshotsWhenWorkingTreeIsUnchanged(t *testing.T) {
 	dir := initGitRepoWithCommit(t)
 
