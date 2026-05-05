@@ -806,6 +806,9 @@ func TestAfterTaskJobSuccessMarksCompletedWhenWorkspaceChanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("capture pre snapshot: %v", err)
 	}
+	if !preSnapshot.IsSupported() {
+		t.Fatalf("expected supported pre snapshot for git workspace")
+	}
 
 	// Simulate the agent producing actual code changes during the session.
 	if err := os.WriteFile(filepath.Join(workspace, "produced.txt"), []byte("agent output"), 0o600); err != nil {

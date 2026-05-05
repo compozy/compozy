@@ -111,6 +111,29 @@ func TestCaptureDetectsModifiedTrackedFile(t *testing.T) {
 	}
 }
 
+func TestCaptureIgnoresInheritedGitRepoSelectionEnv(t *testing.T) {
+	dir := initGitRepoWithCommit(t)
+
+	// Without env sanitization, GIT_DIR pointing at a non-existent path would
+	// take precedence over cmd.Dir and cause git to fail with
+	// "fatal: not a git repository", returning an unsupported Snapshot for a
+	// genuine git workspace. Same risk for GIT_WORK_TREE / GIT_INDEX_FILE etc.
+	bogus := filepath.Join(t.TempDir(), "does-not-exist")
+	t.Setenv("GIT_DIR", bogus)
+	t.Setenv("GIT_WORK_TREE", bogus)
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(bogus, "index"))
+	t.Setenv("GIT_COMMON_DIR", bogus)
+	t.Setenv("GIT_NAMESPACE", "intruder")
+
+	snap, err := Capture(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Capture with inherited GIT_DIR: %v", err)
+	}
+	if !snap.IsSupported() {
+		t.Fatalf("expected supported snapshot — env sanitization should isolate cmd.Dir")
+	}
+}
+
 func TestUnsupportedSnapshotsNeverCompareEqual(t *testing.T) {
 	var a, b Snapshot
 	if a.Equal(b) {

@@ -95,7 +95,7 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	cmd.Env = append(sanitizedGitEnv(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -103,6 +103,29 @@ func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("git %s: %w (%s)", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
+}
+
+// sanitizedGitEnv returns os.Environ() with repository-selection variables
+// stripped so cmd.Dir is the only signal git uses to locate the working tree.
+// If the parent process inherited GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR,
+// GIT_INDEX_FILE, or GIT_NAMESPACE (e.g. invoked from a hook or a wrapper
+// script that is mid-operation on another repo), those variables would take
+// precedence over cmd.Dir and silently produce a snapshot of the wrong tree.
+func sanitizedGitEnv() []string {
+	env := os.Environ()
+	filtered := make([]string, 0, len(env))
+	for _, kv := range env {
+		switch {
+		case strings.HasPrefix(kv, "GIT_DIR="),
+			strings.HasPrefix(kv, "GIT_WORK_TREE="),
+			strings.HasPrefix(kv, "GIT_COMMON_DIR="),
+			strings.HasPrefix(kv, "GIT_INDEX_FILE="),
+			strings.HasPrefix(kv, "GIT_NAMESPACE="):
+			continue
+		}
+		filtered = append(filtered, kv)
+	}
+	return filtered
 }
 
 func isExecLookupError(err error) bool {
