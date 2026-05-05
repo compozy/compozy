@@ -60,6 +60,7 @@ const (
 
 	// Task mutation events.
 	EventKindTaskFileUpdated       EventKind = "task.file_updated"
+	EventKindTaskFileSkipped       EventKind = "task.file_skipped"
 	EventKindTaskMetadataRefreshed EventKind = "task.metadata_refreshed"
 	EventKindTaskMemoryUpdated     EventKind = "task.memory_updated"
 

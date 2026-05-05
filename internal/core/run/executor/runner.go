@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/internal/worktree"
 )
 
 type jobRunner struct {
-	index     int
-	job       *job
-	execCtx   *jobExecutionContext
-	lifecycle *jobLifecycle
+	index       int
+	job         *job
+	execCtx     *jobExecutionContext
+	lifecycle   *jobLifecycle
+	preSnapshot worktree.Snapshot
 }
 
 func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
@@ -43,6 +45,8 @@ func (r *jobRunner) run(ctx context.Context) {
 		r.lifecycle.markSuccess()
 		return
 	}
+
+	r.preSnapshot = r.captureWorkspaceSnapshot(ctx)
 
 	maxAttempts := atLeastOne(r.execCtx.cfg.MaxRetries + 1)
 	timeout := r.execCtx.cfg.Timeout
@@ -81,7 +85,31 @@ func (r *jobRunner) run(ctx context.Context) {
 }
 
 func (r *jobRunner) runPostSuccessHook(ctx context.Context) error {
-	return r.execCtx.afterJobSuccess(ctx, r.job)
+	return r.execCtx.afterJobSuccess(ctx, r.job, r.preSnapshot)
+}
+
+// captureWorkspaceSnapshot fingerprints the workspace before the agent is
+// dispatched so afterTaskJobSuccess can compare against a post-run capture and
+// detect agent sessions that ended cleanly without producing any code. Only
+// PRD-tasks mode currently consumes the snapshot; in other modes Capture's
+// cost is paid once but the result is unused.
+func (r *jobRunner) captureWorkspaceSnapshot(ctx context.Context) worktree.Snapshot {
+	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+		return worktree.Snapshot{}
+	}
+	if r.execCtx.cfg.Mode != model.ExecutionModePRDTasks {
+		return worktree.Snapshot{}
+	}
+	snap, err := worktree.Capture(ctx, r.execCtx.cfg.WorkspaceRoot)
+	if err != nil {
+		r.execCtx.logger.Warn(
+			"failed to capture pre-run workspace snapshot; falling back to legacy completion behavior",
+			"workspace_root", r.execCtx.cfg.WorkspaceRoot,
+			"error", err,
+		)
+		return worktree.Snapshot{}
+	}
+	return snap
 }
 
 func (r *jobRunner) handleResult(

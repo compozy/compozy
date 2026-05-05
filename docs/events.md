@@ -315,6 +315,20 @@ Payload type: `kinds.TaskFileUpdatedPayload`
 - `old_status`
 - `new_status`
 
+### `task.file_skipped`
+
+Payload type: `kinds.TaskFileSkippedPayload`
+
+Emitted when an agent session ends cleanly but does not produce any
+workspace changes. The task frontmatter is left at its prior status so the
+runner will redispatch the same task on the next invocation. See issue #144.
+
+- `tasks_dir`
+- `task_name`
+- `file_path`
+- `preserved_status`
+- `reason` (currently always `no_workspace_changes`)
+
 ### `task.metadata_refreshed`
 
 Payload type: `kinds.TaskMetadataRefreshedPayload`

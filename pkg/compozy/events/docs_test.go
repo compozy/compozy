@@ -38,6 +38,7 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindUsageUpdated,
 		EventKindUsageAggregated,
 		EventKindTaskFileUpdated,
+		EventKindTaskFileSkipped,
 		EventKindTaskMetadataRefreshed,
 		EventKindTaskMemoryUpdated,
 		EventKindArtifactUpdated,

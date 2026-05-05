@@ -350,6 +350,16 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			},
 		},
 		{
+			name: "task file skipped",
+			payload: kinds.TaskFileSkippedPayload{
+				TasksDir:        "/repo/.compozy/tasks/engine-kernel",
+				TaskName:        "task_01.md",
+				FilePath:        "/repo/.compozy/tasks/engine-kernel/task_01.md",
+				PreservedStatus: "pending",
+				Reason:          kinds.TaskFileSkippedReasonNoWorkspaceChanges,
+			},
+		},
+		{
 			name: "task metadata refreshed",
 			payload: kinds.TaskMetadataRefreshedPayload{
 				TasksDir:  "/repo/.compozy/tasks/engine-kernel",

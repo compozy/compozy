@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/run/internal/worktree"
 	"github.com/compozy/compozy/internal/core/tasks"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -142,7 +144,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 		Groups: map[string][]model.IssueEntry{
 			entries[0].CodeFile: {entries[0]},
 		},
-	}); err != nil {
+	}, worktree.Snapshot{}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
 	}
 
@@ -263,7 +265,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 		Groups: map[string][]model.IssueEntry{
 			entries[0].CodeFile: {entries[0]},
 		},
-	}); err != nil {
+	}, worktree.Snapshot{}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
 	}
 
@@ -348,7 +350,7 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 		Groups: map[string][]model.IssueEntry{
 			entries[0].CodeFile: {entries[0]},
 		},
-	}); err != nil {
+	}, worktree.Snapshot{}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
 	}
 
@@ -439,7 +441,7 @@ func TestAfterJobSuccessReviewPreResolveCanSkipProviderResolution(t *testing.T) 
 		Groups: map[string][]model.IssueEntry{
 			entries[0].CodeFile: {entries[0]},
 		},
-	}); err != nil {
+	}, worktree.Snapshot{}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
 	}
 
@@ -493,7 +495,7 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 				CodeFile: "task_01",
 			}},
 		},
-	}); err != nil {
+	}, worktree.Snapshot{}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
 	}
 
@@ -602,7 +604,7 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 		Groups: map[string][]model.IssueEntry{
 			entries[0].CodeFile: {entries[0]},
 		},
-	}); err != nil {
+	}, worktree.Snapshot{}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
 	}
 
@@ -675,7 +677,7 @@ func TestAfterTaskJobSuccessDoesNotEmitTaskFileUpdatedWhenMarkTaskCompletedFails
 		journal: runJournal,
 	}
 
-	err := execCtx.afterTaskJobSuccess(&job{
+	err := execCtx.afterTaskJobSuccess(context.Background(), &job{
 		Groups: map[string][]model.IssueEntry{
 			"task_missing": {{
 				Name:     "task_missing.md",
@@ -684,12 +686,211 @@ func TestAfterTaskJobSuccessDoesNotEmitTaskFileUpdatedWhenMarkTaskCompletedFails
 				CodeFile: "task_missing",
 			}},
 		},
-	})
+	}, worktree.Snapshot{})
 	if err == nil {
 		t.Fatal("expected missing task file to fail completion")
 	}
 
 	assertNoRuntimeEvents(t, eventsCh, 200*time.Millisecond)
+}
+
+func TestAfterTaskJobSuccessSkipsMarkCompletedWhenWorkspaceUnchanged(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+
+	workspace := initTaskWorkspaceRepo(t)
+	tasksDir := filepath.Join(workspace, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	if _, err := tasks.RefreshTaskMeta(tasksDir); err != nil {
+		t.Fatalf("refresh initial task meta: %v", err)
+	}
+	commitTaskWorkspace(t, workspace, "seed task")
+
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	originalContent, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file: %v", err)
+	}
+
+	preSnapshot, err := worktree.Capture(context.Background(), workspace)
+	if err != nil {
+		t.Fatalf("capture pre snapshot: %v", err)
+	}
+	if !preSnapshot.IsSupported() {
+		t.Fatalf("expected supported pre snapshot for git workspace")
+	}
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			Mode:          model.ExecutionModePRDTasks,
+			TasksDir:      tasksDir,
+			WorkspaceRoot: workspace,
+			RunArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+
+	if err := execCtx.afterJobSuccess(context.Background(), &job{
+		Groups: map[string][]model.IssueEntry{
+			"task_01": {{
+				Name:     "task_01.md",
+				AbsPath:  taskPath,
+				Content:  string(originalContent),
+				CodeFile: "task_01",
+			}},
+		},
+	}, preSnapshot); err != nil {
+		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	preserved, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file after afterJobSuccess: %v", err)
+	}
+	if !strings.Contains(string(preserved), "status: pending") {
+		t.Fatalf("expected pending status to be preserved when workspace was unchanged, got:\n%s", string(preserved))
+	}
+
+	emitted := collectRuntimeEvents(t, eventsCh, 1)
+	if got := emitted[0].Kind; got != eventspkg.EventKindTaskFileSkipped {
+		t.Fatalf("expected task.file_skipped event, got %s", got)
+	}
+	var skipped kinds.TaskFileSkippedPayload
+	decodeRuntimeEventPayload(t, emitted[0], &skipped)
+	if skipped.TaskName != "task_01.md" {
+		t.Fatalf("unexpected skipped task name: %q", skipped.TaskName)
+	}
+	if skipped.PreservedStatus != "pending" {
+		t.Fatalf("expected preserved_status=pending, got %q", skipped.PreservedStatus)
+	}
+	if skipped.Reason != kinds.TaskFileSkippedReasonNoWorkspaceChanges {
+		t.Fatalf("expected reason no_workspace_changes, got %q", skipped.Reason)
+	}
+
+	assertNoRuntimeEvents(t, eventsCh, 200*time.Millisecond)
+}
+
+func TestAfterTaskJobSuccessMarksCompletedWhenWorkspaceChanged(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+
+	workspace := initTaskWorkspaceRepo(t)
+	tasksDir := filepath.Join(workspace, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	if _, err := tasks.RefreshTaskMeta(tasksDir); err != nil {
+		t.Fatalf("refresh initial task meta: %v", err)
+	}
+	commitTaskWorkspace(t, workspace, "seed task")
+
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	originalContent, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file: %v", err)
+	}
+
+	preSnapshot, err := worktree.Capture(context.Background(), workspace)
+	if err != nil {
+		t.Fatalf("capture pre snapshot: %v", err)
+	}
+
+	// Simulate the agent producing actual code changes during the session.
+	if err := os.WriteFile(filepath.Join(workspace, "produced.txt"), []byte("agent output"), 0o600); err != nil {
+		t.Fatalf("simulate agent output: %v", err)
+	}
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			Mode:          model.ExecutionModePRDTasks,
+			TasksDir:      tasksDir,
+			WorkspaceRoot: workspace,
+			RunArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+
+	if err := execCtx.afterJobSuccess(context.Background(), &job{
+		Groups: map[string][]model.IssueEntry{
+			"task_01": {{
+				Name:     "task_01.md",
+				AbsPath:  taskPath,
+				Content:  string(originalContent),
+				CodeFile: "task_01",
+			}},
+		},
+	}, preSnapshot); err != nil {
+		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	updated, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read updated task file: %v", err)
+	}
+	if !strings.Contains(string(updated), "status: completed") {
+		t.Fatalf("expected task to be marked completed after workspace change, got:\n%s", string(updated))
+	}
+
+	emitted := collectRuntimeEvents(t, eventsCh, 2)
+	if got := emitted[0].Kind; got != eventspkg.EventKindTaskFileUpdated {
+		t.Fatalf("expected task.file_updated event, got %s", got)
+	}
+	if got := emitted[1].Kind; got != eventspkg.EventKindTaskMetadataRefreshed {
+		t.Fatalf("expected task.metadata_refreshed event, got %s", got)
+	}
+}
+
+func initTaskWorkspaceRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	runWorkspaceGit(t, dir, "init", "-q", "-b", "main")
+	runWorkspaceGit(t, dir, "config", "user.email", "tasks@example.com")
+	runWorkspaceGit(t, dir, "config", "user.name", "Tasks Tester")
+	runWorkspaceGit(t, dir, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# initial\n"), 0o600); err != nil {
+		t.Fatalf("seed README: %v", err)
+	}
+	runWorkspaceGit(t, dir, "add", "README.md")
+	runWorkspaceGit(t, dir, "commit", "-q", "-m", "initial")
+	return dir
+}
+
+func commitTaskWorkspace(t *testing.T, dir, message string) {
+	t.Helper()
+	runWorkspaceGit(t, dir, "add", "-A")
+	runWorkspaceGit(t, dir, "commit", "-q", "-m", message)
+}
+
+func runWorkspaceGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_DATE=2026-01-01T00:00:00Z",
+		"GIT_COMMITTER_DATE=2026-01-01T00:00:00Z",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, string(out))
+	}
 }
 
 func TestResolveProviderBackedIssuesWarnsAndContinuesOnProviderFailure(t *testing.T) {
@@ -873,7 +1074,7 @@ func TestAfterJobSuccessFailsWhenReviewIssueRemainsPending(t *testing.T) {
 		Groups: map[string][]model.IssueEntry{
 			entries[0].CodeFile: {entries[0]},
 		},
-	})
+	}, worktree.Snapshot{})
 	if err == nil {
 		t.Fatal("expected pending review issue to fail post-success hook")
 	}
