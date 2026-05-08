@@ -27,14 +27,50 @@ func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool, memory *Workflow
 
 	sections := []string{
 		fmt.Sprintf("# Implementation Task: %s", task.Name),
+		buildPRDKickoffDirective(task.Name),
 		buildTaskContextSection(taskData),
 		buildPRDRequiredSkillsSection(),
 		buildPRDExecutionRulesSection(prdDir, autoCommit),
 		buildWorkflowMemorySection(memory),
 		fmt.Sprintf("## Task Specification\n\n%s", task.Content),
 		buildTaskFilesSection(task.AbsPath, tasksFile, prdDir, autoCommit),
+		buildPRDClosingDirective(task.Name),
 	}
 	return strings.Join(sections, "\n\n")
+}
+
+// buildPRDKickoffDirective produces the imperative opener that prevents the
+// agent from defaulting to a "ready when you are" standby greeting. The user
+// already authorized execution by invoking `compozy tasks run`; the agent must
+// not pause to ask for confirmation. Phrasing is deliberately direct because
+// Claude Code (and other ACP clients) treat ambiguous descriptive prompts as
+// conversational context, leading to silent no-op sessions.
+func buildPRDKickoffDirective(taskName string) string {
+	return fmt.Sprintf(
+		"<action_required>\n"+
+			"Begin work on **%s** immediately using the installed `cy-execute-task` skill.\n"+
+			"This message is the user's authorization to proceed — do NOT ask the user "+
+			"for confirmation, do NOT wait for further instructions, and do NOT reply "+
+			"with a greeting before starting. Treat the sections below as the complete "+
+			"brief and start executing the cy-execute-task workflow now.\n"+
+			"</action_required>",
+		taskName,
+	)
+}
+
+// buildPRDClosingDirective restates the action requirement at the end of the
+// prompt so it is the most recent context when the agent generates its first
+// response. This pairs with the kickoff directive to harden against standby
+// behavior across long prompts.
+func buildPRDClosingDirective(taskName string) string {
+	return fmt.Sprintf(
+		"<begin_now>\n"+
+			"You have the full brief above. Start the cy-execute-task workflow on **%s** "+
+			"in your next turn. Do not summarize the plan back to the user before acting; "+
+			"the user has already approved execution.\n"+
+			"</begin_now>",
+		taskName,
+	)
 }
 
 func buildTaskContextSection(taskData model.TaskEntry) string {

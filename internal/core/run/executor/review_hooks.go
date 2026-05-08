@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/run/internal/worktree"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -25,9 +26,13 @@ type runtimeReviewProviderResolver interface {
 	ResolveReviewProviderBridge(name string) (provider.ExtensionBridge, bool)
 }
 
-func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
+func (j *jobExecutionContext) afterJobSuccess(
+	ctx context.Context,
+	jb *job,
+	preSnapshot worktree.Snapshot,
+) error {
 	if j.cfg.Mode == model.ExecutionModePRDTasks {
-		return j.afterTaskJobSuccess(jb)
+		return j.afterTaskJobSuccess(ctx, jb, preSnapshot)
 	}
 
 	if j.cfg.Mode != model.ExecutionModePRReview {
@@ -36,7 +41,11 @@ func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) erro
 	return j.afterReviewJobSuccess(ctx, jb)
 }
 
-func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
+func (j *jobExecutionContext) afterTaskJobSuccess(
+	ctx context.Context,
+	jb *job,
+	preSnapshot worktree.Snapshot,
+) error {
 	if strings.TrimSpace(j.cfg.TasksDir) == "" {
 		return fmt.Errorf("missing tasks directory for task post-processing")
 	}
@@ -48,6 +57,10 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 	oldTask, err := tasks.ParseTaskFile(entry.Content)
 	if err != nil {
 		return fmt.Errorf("parse task file %s before completion: %w", entry.AbsPath, err)
+	}
+	if j.workspaceUnchanged(ctx, preSnapshot) {
+		j.recordTaskNoOp(entry, oldTask.Status)
+		return nil
 	}
 	if err := tasks.MarkTaskCompleted(j.cfg.TasksDir, entry.Name); err != nil {
 		return err
@@ -90,6 +103,51 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 		meta.Total,
 	)
 	return nil
+}
+
+// workspaceUnchanged compares the pre-dispatch snapshot to a fresh capture and
+// reports whether the agent left the workspace untouched. Both snapshots must
+// be supported (`worktree.Snapshot.IsSupported`) for the no-op detection to
+// apply; in any other case we preserve historical behavior and accept the
+// session as proof of work. See issue #144.
+func (j *jobExecutionContext) workspaceUnchanged(ctx context.Context, preSnapshot worktree.Snapshot) bool {
+	if !preSnapshot.IsSupported() {
+		return false
+	}
+	postSnapshot, err := worktree.Capture(ctx, j.cfg.WorkspaceRoot)
+	if err != nil {
+		j.runtimeLogger().Warn(
+			"failed to capture post-run workspace snapshot; accepting completion to preserve legacy behavior",
+			"workspace_root", j.cfg.WorkspaceRoot,
+			"error", err,
+		)
+		return false
+	}
+	return preSnapshot.Equal(postSnapshot)
+}
+
+// recordTaskNoOp emits a task.file_skipped event and a runtime warning log
+// when MarkTaskCompleted is suppressed because the workspace did not change.
+// The frontmatter is left at its prior status so the next run will redispatch
+// the same task.
+func (j *jobExecutionContext) recordTaskNoOp(entry model.IssueEntry, preservedStatus string) {
+	j.submitEventOrWarn(
+		events.EventKindTaskFileSkipped,
+		kinds.TaskFileSkippedPayload{
+			TasksDir:        j.cfg.TasksDir,
+			TaskName:        entry.Name,
+			FilePath:        entry.AbsPath,
+			PreservedStatus: preservedStatus,
+			Reason:          kinds.TaskFileSkippedReasonNoWorkspaceChanges,
+		},
+	)
+	j.runtimeLogger().Warn(
+		"agent session ended without modifying any workspace files; leaving task pending",
+		"tasks_dir", j.cfg.TasksDir,
+		"task_name", entry.Name,
+		"preserved_status", preservedStatus,
+		"reason", string(kinds.TaskFileSkippedReasonNoWorkspaceChanges),
+	)
 }
 
 func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job) error {
