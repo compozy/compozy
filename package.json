@@ -46,7 +46,7 @@
     "test:config": "bunx vitest run --config vitest.config.ts test/*.test.ts",
     "typecheck": "turbo run typecheck"
   },
-  "version": "0.2.2",
+  "version": "0.2.3",
   "workspaces": [
     "packages/ui",
     "web",
