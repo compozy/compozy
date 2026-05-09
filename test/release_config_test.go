@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,8 @@ func TestReleasePublicationUsesCurrentBodyAndHistoricalNotes(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)
+	packageVersion := readPackageVersion(t, root)
+	currentHeadingPrefix := "## " + packageVersion + " - "
 	releaseBody := readRepoFile(t, root, "RELEASE_BODY.md")
 	releaseNotes := readRepoFile(t, root, "RELEASE_NOTES.md")
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "release.yml")
@@ -79,16 +82,16 @@ func TestReleasePublicationUsesCurrentBodyAndHistoricalNotes(t *testing.T) {
 	if strings.Contains(releaseWorkflow, "--release-notes=RELEASE_NOTES.md") {
 		t.Fatal("expected GoReleaser to avoid publishing historical release notes")
 	}
-	if !strings.Contains(releaseBody, "## 0.2.1 - 2026-05-01") {
+	if !strings.Contains(releaseBody, currentHeadingPrefix) {
 		t.Fatal("expected release body to contain the current release heading")
 	}
-	if !strings.Contains(releaseBody, "- Binary release") {
-		t.Fatal("expected release body to fall back to the scoped changelog when manual notes are absent")
+	if !releaseBodyHasContent(releaseBody, currentHeadingPrefix) {
+		t.Fatal("expected release body to contain scoped notes for the current release")
 	}
-	if strings.Contains(releaseBody, "## 0.2.0 - 2026-05-01") {
+	if releaseHeadingCount(releaseBody) != 1 {
 		t.Fatal("expected release body to contain only the current release")
 	}
-	if !strings.Contains(releaseNotes, "## 0.2.1 - 2026-05-01") {
+	if !strings.Contains(releaseNotes, currentHeadingPrefix) {
 		t.Fatal("expected historical release notes to contain the current release")
 	}
 	if !strings.Contains(releaseNotes, "## 0.2.0 - 2026-05-01") {
@@ -97,6 +100,44 @@ func TestReleasePublicationUsesCurrentBodyAndHistoricalNotes(t *testing.T) {
 	if !strings.Contains(releaseNotes, "Daemon-based architecture") {
 		t.Fatal("expected historical release notes to preserve v0.2.0 manual notes")
 	}
+}
+
+func readPackageVersion(t *testing.T, root string) string {
+	t.Helper()
+	var pkg struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal([]byte(readRepoFile(t, root, "package.json")), &pkg); err != nil {
+		t.Fatalf("decode package.json: %v", err)
+	}
+	if strings.TrimSpace(pkg.Version) == "" {
+		t.Fatal("expected package.json version to be set")
+	}
+	return strings.TrimSpace(pkg.Version)
+}
+
+func releaseHeadingCount(markdown string) int {
+	count := 0
+	for _, line := range strings.Split(markdown, "\n") {
+		if strings.HasPrefix(line, "## ") {
+			count++
+		}
+	}
+	return count
+}
+
+func releaseBodyHasContent(markdown string, headingPrefix string) bool {
+	trimmed := strings.TrimSpace(markdown)
+	headingIndex := strings.Index(trimmed, headingPrefix)
+	if headingIndex < 0 {
+		return false
+	}
+	content := strings.TrimSpace(trimmed[headingIndex+len(headingPrefix):])
+	lines := strings.SplitN(content, "\n", 2)
+	if len(lines) < 2 {
+		return false
+	}
+	return strings.TrimSpace(lines[1]) != ""
 }
 
 func TestGoReleaserConfigSupportsFirstRelease(t *testing.T) {

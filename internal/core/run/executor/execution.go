@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -435,9 +436,9 @@ func newJobExecutionContext(
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
 ) (*jobExecutionContext, error) {
-	cwd, err := os.Getwd()
+	cwd, err := resolveWorkflowSessionCWD(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+		return nil, err
 	}
 	execCtx := &jobExecutionContext{
 		ctx:           ctx,
@@ -457,6 +458,23 @@ func newJobExecutionContext(
 	}
 	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, bus, cfg.UIEnabled())
 	return execCtx, nil
+}
+
+func resolveWorkflowSessionCWD(cfg *config) (string, error) {
+	if cfg != nil {
+		if workspaceRoot := strings.TrimSpace(cfg.WorkspaceRoot); workspaceRoot != "" {
+			abs, err := filepath.Abs(filepath.Clean(workspaceRoot))
+			if err != nil {
+				return "", fmt.Errorf("resolve workflow session workspace root: %w", err)
+			}
+			return abs, nil
+		}
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
+	}
+	return filepath.Clean(cwd), nil
 }
 
 // notifySoundForKind plays the configured sound for a terminal lifecycle

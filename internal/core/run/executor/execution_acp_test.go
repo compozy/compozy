@@ -56,6 +56,102 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 	}
 }
 
+func TestExecuteUsesWorkspaceRootForWorkflowSessionCWD(t *testing.T) {
+	tmpDir := t.TempDir()
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	taskContent, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file: %v", err)
+	}
+	processCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get process cwd: %v", err)
+	}
+	if filepath.Clean(workspaceRoot) == filepath.Clean(processCWD) {
+		t.Fatalf("test requires workspace root %q to differ from process cwd %q", workspaceRoot, processCWD)
+	}
+
+	workingDirCh := make(chan string, 1)
+	client := newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+		workingDirCh <- req.WorkingDir
+		session := newFakeACPSession("sess-workspace-cwd")
+		go session.finish(nil)
+		return session, nil
+	})
+	installFakeACPClients(t, client)
+
+	job := model.Job{
+		CodeFiles: []string{"task_01"},
+		Groups: map[string][]model.IssueEntry{
+			"task_01": {{
+				Name:     "task_01.md",
+				AbsPath:  taskPath,
+				Content:  string(taskContent),
+				CodeFile: "task_01",
+			}},
+		},
+		SafeName:      "task_01",
+		Prompt:        []byte("finish the task"),
+		OutLog:        filepath.Join(tmpDir, "task_01.out.log"),
+		ErrLog:        filepath.Join(tmpDir, "task_01.err.log"),
+		OutPromptPath: filepath.Join(tmpDir, "task_01.prompt.md"),
+	}
+	err = Execute(
+		context.Background(),
+		[]model.Job{job},
+		model.NewRunArtifacts(tmpDir, "workspace-cwd"),
+		nil,
+		nil,
+		&model.RuntimeConfig{
+			WorkspaceRoot:          workspaceRoot,
+			Name:                   "demo",
+			TasksDir:               tasksDir,
+			Mode:                   model.ExecutionModePRDTasks,
+			IDE:                    model.IDECodex,
+			Concurrent:             1,
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+			DaemonOwned:            true,
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("execute workflow: %v", err)
+	}
+
+	select {
+	case got := <-workingDirCh:
+		if filepath.Clean(got) != filepath.Clean(workspaceRoot) {
+			t.Fatalf("session working dir = %q, want workspace root %q", got, workspaceRoot)
+		}
+		if filepath.Clean(got) == filepath.Clean(processCWD) {
+			t.Fatalf("session working dir used daemon process cwd %q", got)
+		}
+	default:
+		t.Fatal("expected fake ACP client to receive a session request")
+	}
+}
+
+func TestResolveWorkflowSessionCWDFallsBackToProcessCWDWithoutWorkspaceRoot(t *testing.T) {
+	got, err := resolveWorkflowSessionCWD(&config{})
+	if err != nil {
+		t.Fatalf("resolve workflow session cwd: %v", err)
+	}
+	want, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get process cwd: %v", err)
+	}
+	if filepath.Clean(got) != filepath.Clean(want) {
+		t.Fatalf("workflow session cwd = %q, want process cwd %q", got, want)
+	}
+}
+
 func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	tmpDir := t.TempDir()
 	firstClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
