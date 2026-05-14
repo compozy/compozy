@@ -1,5 +1,5 @@
-## 0.2.3 - 2026-05-09
+## 0.2.4 - 2026-05-14
 
 ### 🐛 Bug Fixes
 
-- Cwd path
+- Codex acp integration (#151)

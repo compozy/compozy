@@ -1,3 +1,9 @@
+## 0.2.4 - 2026-05-14
+
+### 🐛 Bug Fixes
+
+- Codex acp integration (#151)
+
 ## 0.2.3 - 2026-05-09
 
 ### 🐛 Bug Fixes
