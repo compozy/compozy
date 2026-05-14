@@ -21,6 +21,7 @@ const (
 	WatchStatusPending         WatchStatusState = "pending"
 	WatchStatusStale           WatchStatusState = "stale"
 	WatchStatusCurrentReviewed WatchStatusState = "current_reviewed"
+	WatchStatusCurrentSettled  WatchStatusState = "current_settled"
 	WatchStatusUnsupported     WatchStatusState = "unsupported"
 )
 

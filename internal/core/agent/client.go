@@ -243,6 +243,9 @@ type clientImpl struct {
 	pendingCreates int
 	pendingUpdates map[string][]model.SessionUpdate
 	loadSupported  bool
+	terminalMu     sync.Mutex
+	terminalNext   int
+	terminals      map[string]*terminalProcess
 
 	wg sync.WaitGroup
 }
@@ -455,27 +458,29 @@ func (c *clientImpl) SupportsLoadSession() bool {
 // Close terminates the agent subprocess and waits for background goroutines to exit.
 func (c *clientImpl) Close() error {
 	c.markClosed()
+	terminalErr := c.closeTerminals()
 
 	process := c.processRef()
 	if process == nil {
-		return nil
+		return terminalErr
 	}
 
 	processErr := process.Shutdown(c.shutdownTimeout)
-	return c.awaitBackgroundShutdown(processErr)
+	return errors.Join(terminalErr, c.awaitBackgroundShutdown(processErr))
 }
 
 // Kill force-terminates the agent subprocess and waits for background goroutines to exit.
 func (c *clientImpl) Kill() error {
 	c.markClosed()
+	terminalErr := c.closeTerminals()
 
 	process := c.processRef()
 	if process == nil {
-		return nil
+		return terminalErr
 	}
 
 	processErr := process.Kill()
-	return c.awaitBackgroundShutdown(processErr)
+	return errors.Join(terminalErr, c.awaitBackgroundShutdown(processErr))
 }
 
 // ReadTextFile handles ACP file read requests from the agent.
@@ -550,44 +555,39 @@ func (c *clientImpl) SessionUpdate(ctx context.Context, params acp.SessionNotifi
 	return nil
 }
 
-// CreateTerminal rejects terminal integration because the current ACP wrapper does not expose terminal handles.
 func (c *clientImpl) CreateTerminal(
-	context.Context,
-	acp.CreateTerminalRequest,
+	ctx context.Context,
+	params acp.CreateTerminalRequest,
 ) (acp.CreateTerminalResponse, error) {
-	return acp.CreateTerminalResponse{}, errors.New("terminal integration is not supported")
+	return c.createTerminal(ctx, params)
 }
 
-// KillTerminalCommand rejects terminal integration because the current ACP wrapper does not expose terminal handles.
 func (c *clientImpl) KillTerminalCommand(
-	context.Context,
-	acp.KillTerminalCommandRequest,
+	ctx context.Context,
+	params acp.KillTerminalCommandRequest,
 ) (acp.KillTerminalCommandResponse, error) {
-	return acp.KillTerminalCommandResponse{}, errors.New("terminal integration is not supported")
+	return c.killTerminalCommand(ctx, params)
 }
 
-// TerminalOutput rejects terminal integration because the current ACP wrapper does not expose terminal handles.
 func (c *clientImpl) TerminalOutput(
-	context.Context,
-	acp.TerminalOutputRequest,
+	ctx context.Context,
+	params acp.TerminalOutputRequest,
 ) (acp.TerminalOutputResponse, error) {
-	return acp.TerminalOutputResponse{}, errors.New("terminal integration is not supported")
+	return c.terminalOutput(ctx, params)
 }
 
-// ReleaseTerminal rejects terminal integration because the current ACP wrapper does not expose terminal handles.
 func (c *clientImpl) ReleaseTerminal(
-	context.Context,
-	acp.ReleaseTerminalRequest,
+	ctx context.Context,
+	params acp.ReleaseTerminalRequest,
 ) (acp.ReleaseTerminalResponse, error) {
-	return acp.ReleaseTerminalResponse{}, errors.New("terminal integration is not supported")
+	return c.releaseTerminal(ctx, params)
 }
 
-// WaitForTerminalExit rejects terminal integration because the current ACP wrapper does not expose terminal handles.
 func (c *clientImpl) WaitForTerminalExit(
-	context.Context,
-	acp.WaitForTerminalExitRequest,
+	ctx context.Context,
+	params acp.WaitForTerminalExitRequest,
 ) (acp.WaitForTerminalExitResponse, error) {
-	return acp.WaitForTerminalExitResponse{}, errors.New("terminal integration is not supported")
+	return c.waitForTerminalExit(ctx, params)
 }
 
 func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) error {
@@ -642,7 +642,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 				ReadTextFile:  true,
 				WriteTextFile: true,
 			},
-			Terminal: false,
+			Terminal: true,
 		},
 		ClientInfo: &acp.Implementation{
 			Name:    "compozy",
@@ -709,16 +709,56 @@ func (c *clientImpl) waitForProcess() {
 		return
 	}
 	err := process.Wait()
+	if terminalErr := c.closeTerminals(); terminalErr != nil && c.logger != nil {
+		c.logger.Warn("failed to close ACP terminals after agent process exit", "error", terminalErr)
+	}
 
 	if process.Forced() {
 		c.failOpenSessions(context.Canceled)
 		return
 	}
 	if err == nil {
-		c.failOpenSessions(errors.New("ACP agent process exited before all sessions completed"))
+		c.failOpenSessions(c.agentProcessExitError("ACP agent process exited before all sessions completed", nil))
 		return
 	}
-	c.failOpenSessions(err)
+	c.failOpenSessions(c.agentProcessExitError("ACP agent process failed before all sessions completed", err))
+}
+
+func (c *clientImpl) agentProcessExitError(message string, err error) error {
+	openSessions := c.openSessionCount()
+	stderr := ""
+	if process := c.processRef(); process != nil && process.StderrBuffer() != nil {
+		stderr = strings.TrimSpace(process.StderrBuffer().String())
+	}
+	if err == nil {
+		err = errors.New(message)
+	} else {
+		err = fmt.Errorf("%s: %w", message, err)
+	}
+	if diagnostic := acpProcessStderrDiagnostic(stderr); diagnostic != "" {
+		err = fmt.Errorf("%w. %s", err, diagnostic)
+	}
+	if stderr == "" {
+		return fmt.Errorf("%w (open_sessions=%d)", err, openSessions)
+	}
+	return fmt.Errorf("%w (open_sessions=%d, stderr=%q)", err, openSessions, stderr)
+}
+
+func acpProcessStderrDiagnostic(stderr string) string {
+	switch {
+	case strings.Contains(stderr, "Failed to reserve virtual memory for CodeRange"):
+		return "adapter stderr indicates the Codex Code Mode runtime crashed while reserving V8 CodeRange memory"
+	case strings.Contains(stderr, "failed to initialize code mode runtime"):
+		return "adapter stderr indicates the Codex Code Mode runtime failed to initialize"
+	default:
+		return ""
+	}
+}
+
+func (c *clientImpl) openSessionCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.sessions)
 }
 
 func (c *clientImpl) markClosed() {

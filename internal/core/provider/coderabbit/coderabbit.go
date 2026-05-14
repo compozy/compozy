@@ -169,14 +169,7 @@ func (p *Provider) WatchStatus(
 	}
 	latest, ok := latestProviderReview(reviews, p.botLogin)
 	if !ok {
-		status := provider.WatchStatus{
-			PRHeadSHA: strings.TrimSpace(pr.Head.SHA),
-			State:     provider.WatchStatusPending,
-		}
-		if hasStatus {
-			applyCommitStatus(&status, latestStatus)
-		}
-		return status, nil
+		return classifyWatchStatusWithoutReview(pr.Head.SHA, latestStatus, hasStatus)
 	}
 
 	return classifyWatchStatus(pr.Head.SHA, latest, latestStatus, hasStatus)
@@ -315,7 +308,66 @@ func classifyWatchStatus(
 	}
 	if hasStatus {
 		applyCommitStatus(&status, latestStatus)
+		ready, err := applyCodeRabbitStatusGate(&status, latestStatus)
+		if err != nil || !ready {
+			return status, err
+		}
+		return classifySuccessfulWatchStatus(status, review)
 	}
+	return classifyWatchStatusFromReviewOnly(status, review)
+}
+
+func classifyWatchStatusWithoutReview(
+	headSHA string,
+	latestStatus commitStatus,
+	hasStatus bool,
+) (provider.WatchStatus, error) {
+	status := provider.WatchStatus{
+		PRHeadSHA: strings.TrimSpace(headSHA),
+		State:     provider.WatchStatusPending,
+	}
+	if !hasStatus {
+		return status, nil
+	}
+	applyCommitStatus(&status, latestStatus)
+	ready, err := applyCodeRabbitStatusGate(&status, latestStatus)
+	if err != nil || !ready {
+		return status, err
+	}
+	status.State = provider.WatchStatusCurrentSettled
+	return status, nil
+}
+
+func classifySuccessfulWatchStatus(
+	status provider.WatchStatus,
+	review pullRequestReview,
+) (provider.WatchStatus, error) {
+	if status.ReviewCommitSHA == "" || reviewStateIsPending(status.ReviewState) {
+		status.State = provider.WatchStatusCurrentSettled
+		return status, nil
+	}
+
+	submittedAt := parseReviewSubmittedAt(review.SubmittedAt)
+	if submittedAt.IsZero() {
+		return provider.WatchStatus{}, fmt.Errorf(
+			"decode pull request review %d submitted_at: %q",
+			review.ID,
+			review.SubmittedAt,
+		)
+	}
+	status.SubmittedAt = submittedAt
+	if status.ReviewCommitSHA != status.PRHeadSHA {
+		status.State = provider.WatchStatusCurrentSettled
+		return status, nil
+	}
+	status.State = provider.WatchStatusCurrentReviewed
+	return status, nil
+}
+
+func classifyWatchStatusFromReviewOnly(
+	status provider.WatchStatus,
+	review pullRequestReview,
+) (provider.WatchStatus, error) {
 	if status.ReviewCommitSHA == "" || reviewStateIsPending(status.ReviewState) {
 		return status, nil
 	}
@@ -331,27 +383,7 @@ func classifyWatchStatus(
 	status.SubmittedAt = submittedAt
 	if status.ReviewCommitSHA != status.PRHeadSHA {
 		status.State = provider.WatchStatusStale
-		return status, nil
 	}
-	if !hasStatus || commitStatusIsPending(latestStatus) {
-		return status, nil
-	}
-	if commitStatusFailed(latestStatus) {
-		return provider.WatchStatus{}, fmt.Errorf(
-			"coderabbit status %q for head %s: %s",
-			strings.TrimSpace(latestStatus.State),
-			status.PRHeadSHA,
-			strings.TrimSpace(latestStatus.Description),
-		)
-	}
-	if !commitStatusSucceeded(latestStatus) {
-		return provider.WatchStatus{}, fmt.Errorf(
-			"coderabbit status %q for head %s is unsupported",
-			strings.TrimSpace(latestStatus.State),
-			status.PRHeadSHA,
-		)
-	}
-	status.State = provider.WatchStatusCurrentReviewed
 	return status, nil
 }
 
@@ -366,6 +398,29 @@ func applyCommitStatus(status *provider.WatchStatus, commitStatus commitStatus) 
 	status.ProviderStatusState = strings.TrimSpace(commitStatus.State)
 	status.ProviderStatusDescription = strings.TrimSpace(commitStatus.Description)
 	status.ProviderStatusUpdatedAt = commitStatusTimestamp(commitStatus)
+}
+
+func applyCodeRabbitStatusGate(status *provider.WatchStatus, latestStatus commitStatus) (bool, error) {
+	if commitStatusIsPending(latestStatus) {
+		status.State = provider.WatchStatusPending
+		return false, nil
+	}
+	if commitStatusFailed(latestStatus) {
+		return false, fmt.Errorf(
+			"coderabbit status %q for head %s: %s",
+			strings.TrimSpace(latestStatus.State),
+			status.PRHeadSHA,
+			strings.TrimSpace(latestStatus.Description),
+		)
+	}
+	if !commitStatusSucceeded(latestStatus) {
+		return false, fmt.Errorf(
+			"coderabbit status %q for head %s is unsupported",
+			strings.TrimSpace(latestStatus.State),
+			status.PRHeadSHA,
+		)
+	}
+	return true, nil
 }
 
 func commitStatusIsPending(status commitStatus) bool {

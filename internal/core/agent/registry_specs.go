@@ -243,21 +243,38 @@ var (
 	}
 )
 
+// Managed ACP runs execute headlessly; keep them off the interactive Code Mode runtime.
+var codexManagedRuntimeConfigOverrides = []string{
+	"features.code_mode=false",
+	"features.code_mode_only=false",
+}
+
 func codexBootstrapArgs(modelName, reasoningEffort string, _ []string, accessMode string) []string {
-	args := make([]string, 0, 10)
+	args := make([]string, 0, 14)
 	if selected := strings.TrimSpace(modelName); selected != "" {
-		args = append(args, "-c", "model="+strconv.Quote(selected))
+		args = appendCodexConfigOverrides(args, "model="+strconv.Quote(selected))
 	}
 	if effort := strings.TrimSpace(reasoningEffort); effort != "" {
-		args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(effort))
+		args = appendCodexConfigOverrides(args, "model_reasoning_effort="+strconv.Quote(effort))
 	}
+	args = appendCodexConfigOverrides(args, codexManagedRuntimeConfigOverrides...)
 	if accessMode == model.AccessModeFull {
-		args = append(
+		args = appendCodexConfigOverrides(
 			args,
-			"-c", `approval_policy="never"`,
-			"-c", `sandbox_mode="danger-full-access"`,
-			"-c", `web_search="live"`,
+			`approval_policy="never"`,
+			`sandbox_mode="danger-full-access"`,
+			`web_search="live"`,
 		)
+	}
+	return args
+}
+
+func appendCodexConfigOverrides(args []string, overrides ...string) []string {
+	for _, override := range overrides {
+		if strings.TrimSpace(override) == "" {
+			continue
+		}
+		args = append(args, "-c", override)
 	}
 	return args
 }

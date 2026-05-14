@@ -873,7 +873,7 @@ func (m *RunManager) waitForCurrentReview(
 		if err != nil {
 			return provider.WatchStatus{}, err
 		}
-		if status.State == provider.WatchStatusCurrentReviewed &&
+		if reviewWatchStatusReady(status) &&
 			reviewWatchHeadMatches(status.PRHeadSHA, expectedHeadSHA) {
 			if err := m.waitForReviewWatchSettled(ctx, options, status); err != nil {
 				return provider.WatchStatus{}, reviewWatchContextError(err, "provider review wait timed out")
@@ -886,12 +886,12 @@ func (m *RunManager) waitForCurrentReview(
 			if err != nil {
 				return provider.WatchStatus{}, err
 			}
-			if confirmed.State == provider.WatchStatusCurrentReviewed &&
+			if reviewWatchStatusReady(confirmed) &&
 				reviewWatchHeadMatches(confirmed.PRHeadSHA, expectedHeadSHA) {
 				return confirmed, nil
 			}
 			status = confirmed
-		} else if status.State == provider.WatchStatusCurrentReviewed {
+		} else if reviewWatchStatusReady(status) {
 			status.State = provider.WatchStatusStale
 		}
 		if err := m.emitReviewWatchEvent(active, eventspkg.EventKindReviewWatchWaiting, kinds.ReviewWatchPayload{
@@ -909,6 +909,11 @@ func (m *RunManager) waitForCurrentReview(
 			return provider.WatchStatus{}, reviewWatchContextError(err, "provider review wait timed out")
 		}
 	}
+}
+
+func reviewWatchStatusReady(status provider.WatchStatus) bool {
+	return status.State == provider.WatchStatusCurrentReviewed ||
+		status.State == provider.WatchStatusCurrentSettled
 }
 
 func reviewWatchHeadMatches(providerHeadSHA string, expectedHeadSHA string) bool {

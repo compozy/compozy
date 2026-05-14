@@ -113,6 +113,83 @@ func TestRunManagerReviewWatchPersistsRoundAndStartsOneChildRun(t *testing.T) {
 	})
 }
 
+func TestRunManagerReviewWatchCurrentSettledFetchesPendingItems(t *testing.T) {
+	t.Run(
+		"Should fetch and fix unresolved reviews when provider settled without a current review object",
+		func(t *testing.T) {
+			reviewProvider := &fakeReviewWatchProvider{
+				statuses: []provider.WatchStatus{settledWatchStatus("head-1", "old-head")},
+				fetches:  [][]provider.ReviewItem{{watchReviewItem()}},
+			}
+			git := &fakeReviewWatchGit{
+				states: []ReviewWatchGitState{
+					{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+					{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+					{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+				},
+			}
+			env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{
+				execute: resolveReviewIssuesDuringRun(t),
+			})
+
+			run := startReviewWatch(t, env, reviewWatchRequest("{\"run_id\":\"review-watch-settled-round\"}"))
+			row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+				return row.Status == runStatusCompleted
+			})
+			if row.ErrorText != "" {
+				t.Fatalf("watch row error = %q, want empty", row.ErrorText)
+			}
+
+			runs, err := env.manager.List(context.Background(), apicore.RunListQuery{
+				Workspace: env.workspaceRoot,
+				Mode:      runModeReview,
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("List(review runs) error = %v", err)
+			}
+			if len(runs) != 1 {
+				t.Fatalf("review child runs = %d, want 1: %#v", len(runs), runs)
+			}
+			roundFetched := decodeReviewWatchPayload(
+				t,
+				requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchRoundFetched),
+			)
+			if roundFetched.HeadSHA != "head-1" || roundFetched.Round != 1 {
+				t.Fatalf("round_fetched payload = %#v, want head-1 round 1", roundFetched)
+			}
+		},
+	)
+}
+
+func TestRunManagerReviewWatchCurrentSettledCanCompleteClean(t *testing.T) {
+	t.Run(
+		"Should declare clean after provider settled current head and no unresolved reviews remain",
+		func(t *testing.T) {
+			reviewProvider := &fakeReviewWatchProvider{
+				statuses: []provider.WatchStatus{settledWatchStatus("head-1", "old-head")},
+				fetches:  [][]provider.ReviewItem{{}},
+			}
+			git := &fakeReviewWatchGit{
+				states: []ReviewWatchGitState{{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"}},
+			}
+			env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
+
+			run := startReviewWatch(t, env, reviewWatchRequest("{\"run_id\":\"review-watch-settled-clean\"}"))
+			row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+				return row.Status == runStatusCompleted
+			})
+			if row.ErrorText != "" {
+				t.Fatalf("watch row error = %q, want empty", row.ErrorText)
+			}
+			clean := decodeReviewWatchPayload(t, requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean))
+			if clean.Status != string(provider.WatchStatusCurrentSettled) || clean.HeadSHA != "head-1" {
+				t.Fatalf("clean payload = %#v, want current_settled head-1", clean)
+			}
+		},
+	)
+}
+
 func TestRunManagerReviewWatchRejectsDuplicateActiveWatch(t *testing.T) {
 	t.Run("Should reject duplicate active review watch requests", func(t *testing.T) {
 		reviewProvider := &fakeReviewWatchProvider{
@@ -1246,6 +1323,20 @@ func currentWatchStatus(head string) provider.WatchStatus {
 		ReviewState:     "COMMENTED",
 		State:           provider.WatchStatusCurrentReviewed,
 		SubmittedAt:     time.Now().UTC(),
+	}
+}
+
+func settledWatchStatus(head string, reviewHead string) provider.WatchStatus {
+	return provider.WatchStatus{
+		PRHeadSHA:                 head,
+		ReviewCommitSHA:           reviewHead,
+		ReviewID:                  "review-" + reviewHead,
+		ReviewState:               "COMMENTED",
+		ProviderStatusState:       "success",
+		ProviderStatusDescription: "Review completed",
+		ProviderStatusUpdatedAt:   time.Now().UTC(),
+		State:                     provider.WatchStatusCurrentSettled,
+		SubmittedAt:               time.Now().UTC().Add(-time.Minute),
 	}
 }
 

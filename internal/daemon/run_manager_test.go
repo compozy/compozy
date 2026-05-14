@@ -1123,6 +1123,164 @@ func TestRunManagerStartExecRunCancelsAndGetReturnsUpdatedRow(t *testing.T) {
 	}
 }
 
+func TestRunManagerStartExecRunRetriesImplicitRunIDCollision(t *testing.T) {
+	const collidingRunID = "exec-implicit-collision"
+	release := make(chan struct{})
+	started := make(chan string, 1)
+	var buildCalls atomic.Int64
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: func(*model.RuntimeConfig) (string, error) {
+			call := buildCalls.Add(1)
+			if call == 1 {
+				return collidingRunID, nil
+			}
+			return fmt.Sprintf("%s-%d", collidingRunID, call), nil
+		},
+		executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, _ model.RunScope) error {
+			started <- cfg.RunID
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	})
+	collidingArtifacts, err := model.ResolveHomeRunArtifacts(collidingRunID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", collidingRunID, err)
+	}
+	if err := os.MkdirAll(collidingArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir colliding run dir: %v", err)
+	}
+
+	run, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+		WorkspacePath:    env.workspaceRoot,
+		Prompt:           "daemon exec prompt",
+		PresentationMode: defaultPresentationMode,
+	})
+	if err != nil {
+		t.Fatalf("StartExecRun(implicit collision) error = %v", err)
+	}
+	if run.RunID != "exec-implicit-collision-2" {
+		t.Fatalf("run.RunID = %q, want retry candidate", run.RunID)
+	}
+	waitForString(t, started, run.RunID)
+	close(release)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+}
+
+func TestRunManagerStartExecRunExplicitDuplicateRunIDStillFails(t *testing.T) {
+	const runID = "exec-explicit-duplicate"
+	release := make(chan struct{})
+	started := make(chan string, 1)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, _ model.RunScope) error {
+			started <- cfg.RunID
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	})
+
+	run := env.startExecRun(t, runID, nil)
+	waitForString(t, started, run.RunID)
+	_, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+		WorkspacePath:    env.workspaceRoot,
+		Prompt:           "daemon exec prompt",
+		PresentationMode: defaultPresentationMode,
+		RuntimeOverrides: rawJSON(t, "{\"run_id\":\""+runID+"\"}"),
+	})
+	if !errors.Is(err, globaldb.ErrRunAlreadyExists) {
+		t.Fatalf("StartExecRun(explicit duplicate) error = %v, want ErrRunAlreadyExists", err)
+	}
+	close(release)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+}
+
+func TestRunManagerStartExecRunAllocatesDistinctImplicitRunIDsInParallel(t *testing.T) {
+	const totalRuns = 3
+	release := make(chan struct{})
+	started := make(chan string, totalRuns)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, _ model.RunScope) error {
+			started <- cfg.RunID
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	})
+
+	start := make(chan struct{})
+	type result struct {
+		run apicore.Run
+		err error
+	}
+	results := make(chan result, totalRuns)
+	for range totalRuns {
+		go func() {
+			<-start
+			run, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+				WorkspacePath:    env.workspaceRoot,
+				Prompt:           "daemon exec prompt",
+				PresentationMode: defaultPresentationMode,
+			})
+			results <- result{run: run, err: err}
+		}()
+	}
+	close(start)
+
+	runs := make([]apicore.Run, 0, totalRuns)
+	seen := make(map[string]struct{}, totalRuns)
+	for range totalRuns {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("StartExecRun(parallel implicit) error = %v", result.err)
+		}
+		if strings.TrimSpace(result.run.RunID) == "" {
+			t.Fatal("parallel implicit run id is empty")
+		}
+		if _, ok := seen[result.run.RunID]; ok {
+			t.Fatalf("duplicate implicit run id allocated: %q", result.run.RunID)
+		}
+		seen[result.run.RunID] = struct{}{}
+		runs = append(runs, result.run)
+	}
+
+	startedIDs := make(map[string]struct{}, totalRuns)
+	deadline := time.After(5 * time.Second)
+	for len(startedIDs) < totalRuns {
+		select {
+		case runID := <-started:
+			startedIDs[runID] = struct{}{}
+		case <-deadline:
+			t.Fatalf("timed out waiting for %d exec starts; got %d", totalRuns, len(startedIDs))
+		}
+	}
+	for _, run := range runs {
+		if _, ok := startedIDs[run.RunID]; !ok {
+			t.Fatalf("run %q returned but executeExec did not start", run.RunID)
+		}
+	}
+
+	close(release)
+	for _, run := range runs {
+		waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+	}
+}
+
 func TestRunManagerOpenRunScopeFailureCleansReservedDirectory(t *testing.T) {
 	scopeErr := errors.New("scope unavailable")
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
@@ -2125,6 +2283,7 @@ type runManagerTestEnv struct {
 
 type runManagerTestDeps struct {
 	now                    func() time.Time
+	buildRunID             func(*model.RuntimeConfig) (string, error)
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -2197,6 +2356,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 		LifecycleContext:       context.Background(),
 		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
 		Now:                    deps.now,
+		BuildRunID:             deps.buildRunID,
 		OpenRunScope:           firstOpenRunScope(deps.openRunScope),
 		Prepare:                firstPrepare(deps.prepare),
 		Execute:                firstExecute(deps.execute),

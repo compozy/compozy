@@ -564,7 +564,11 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 func resolvePersistedExecRecord(cfg *model.RuntimeConfig) (PersistedExecRun, string, error) {
 	runID := strings.TrimSpace(cfg.RunID)
 	if runID == "" {
-		return PersistedExecRun{}, buildExecRunID(), nil
+		generatedRunID, err := model.BuildRunID(cfg)
+		if err != nil {
+			return PersistedExecRun{}, "", err
+		}
+		return PersistedExecRun{}, generatedRunID, nil
 	}
 	record, err := LoadPersistedExecRun(cfg.WorkspaceRoot, runID)
 	if err != nil {
@@ -1415,14 +1419,6 @@ func renderAssistantOutput(snapshot SessionViewSnapshot) string {
 		sections = append(sections, section)
 	}
 	return strings.Join(sections, "\n\n")
-}
-
-func buildExecRunID() string {
-	return formatExecRunID(time.Now().UTC())
-}
-
-func formatExecRunID(now time.Time) string {
-	return fmt.Sprintf("exec-%s-%09d", now.Format("20060102-150405"), now.Nanosecond())
 }
 
 func isExecRetryableError(err error) bool {
