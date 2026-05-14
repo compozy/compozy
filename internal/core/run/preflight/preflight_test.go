@@ -181,6 +181,69 @@ func TestPreflightCheckWrapperUsesActualValidator(t *testing.T) {
 	}
 }
 
+func TestPreflightCheckScopesValidationToRecursiveMode(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writePreflightTask(t, tasksDir, "task_01.md", strings.Join([]string{
+		"---",
+		"status: pending",
+		"title: Root",
+		"type: backend",
+		"complexity: low",
+		"---",
+		"",
+		"# Root",
+		"",
+		"Body.",
+		"",
+	}, "\n"))
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writePreflightTask(t, nestedDir, "task_01.md", strings.Join([]string{
+		"---",
+		"status: pending",
+		"type: backend",
+		"complexity: low",
+		"---",
+		"",
+		"# Nested Draft",
+		"",
+		"Body.",
+		"",
+	}, "\n"))
+
+	flatDecision, err := CheckConfig(context.Background(), Config{
+		TasksDir: tasksDir,
+		Registry: testValidationRegistry(t),
+	})
+	if err != nil {
+		t.Fatalf("flat preflight: %v", err)
+	}
+	if flatDecision != OK {
+		t.Fatalf("expected flat preflight to ignore nested draft, got %q", flatDecision)
+	}
+
+	var stderr bytes.Buffer
+	recursiveDecision, err := CheckConfig(context.Background(), Config{
+		TasksDir:  tasksDir,
+		Registry:  testValidationRegistry(t),
+		Recursive: true,
+		Stderr:    &stderr,
+	})
+	if err != nil {
+		t.Fatalf("recursive preflight: %v", err)
+	}
+	if recursiveDecision != Aborted {
+		t.Fatalf("expected recursive preflight to abort, got %q", recursiveDecision)
+	}
+	if got := stderr.String(); !strings.Contains(got, "title is required") {
+		t.Fatalf("expected recursive validation failure in stderr, got %q", got)
+	}
+}
+
 func TestRunValidationFormUsesInjectedInputAndOutput(t *testing.T) {
 	t.Parallel()
 

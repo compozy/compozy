@@ -215,14 +215,18 @@ func readIssueEntries(
 	resolvedInputDir string,
 	mode model.ExecutionMode,
 	includeCompleted bool,
+	recursive bool,
 ) ([]model.IssueEntry, error) {
 	if mode == model.ExecutionModePRDTasks {
-		return readTaskEntries(resolvedInputDir, includeCompleted)
+		return readTaskEntries(resolvedInputDir, includeCompleted, recursive)
 	}
 	return reviews.ReadReviewEntries(resolvedInputDir)
 }
 
-func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry, error) {
+func readTaskEntries(tasksDir string, includeCompleted, recursive bool) ([]model.IssueEntry, error) {
+	if recursive {
+		return tasks.ReadTaskEntriesRecursive(tasksDir, includeCompleted)
+	}
 	return tasks.ReadTaskEntries(tasksDir, includeCompleted)
 }
 

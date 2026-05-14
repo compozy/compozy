@@ -55,12 +55,19 @@ func collectTaskRunRuntimeForm(cmd *cobra.Command, state *commandState) error {
 	return nil
 }
 
+func readTaskRuntimeFormEntries(tasksDir string, includeCompleted, recursive bool) ([]model.IssueEntry, error) {
+	if recursive {
+		return tasks.ReadTaskEntriesRecursive(tasksDir, includeCompleted)
+	}
+	return tasks.ReadTaskEntries(tasksDir, includeCompleted)
+}
+
 func newTaskRunRuntimeForm(state *commandState) (*taskRunRuntimeForm, error) {
 	tasksDir, err := resolveTaskWorkflowDir(state.workspaceRoot, state.name, state.tasksDir)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := tasks.ReadTaskEntries(tasksDir, state.includeCompleted)
+	entries, err := readTaskRuntimeFormEntries(tasksDir, state.includeCompleted, state.recursive)
 	if err != nil {
 		return nil, fmt.Errorf("read task entries for runtime overrides: %w", err)
 	}

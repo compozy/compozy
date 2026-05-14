@@ -27,6 +27,7 @@ Flags:
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --name string                      Task workflow slug (defaults to the positional slug)
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
+  -r, --recursive                        Recursively discover task_NNN.md files in subdirectories. Skips dot-, underscore-prefixed, reviews-*, adrs, and memory directories. Note: DB sync and extension Host API still operate on the slug root only.
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately
       --stream                           Force textual stream attach mode

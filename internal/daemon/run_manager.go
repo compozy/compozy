@@ -155,6 +155,7 @@ type runtimeOverrideInput struct {
 	Verbose                    *bool                       `json:"verbose"`
 	Persist                    *bool                       `json:"persist"`
 	IncludeCompleted           *bool                       `json:"include_completed"`
+	Recursive                  *bool                       `json:"recursive"`
 	IncludeResolved            *bool                       `json:"include_resolved"`
 	TaskRuntimeRules           *[]model.TaskRuntimeRule    `json:"task_runtime_rules"`
 	TUI                        *bool                       `json:"tui"`
@@ -2424,6 +2425,9 @@ func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.Ta
 	if projectCfg.IncludeCompleted != nil {
 		cfg.IncludeCompleted = *projectCfg.IncludeCompleted
 	}
+	if projectCfg.Recursive != nil {
+		cfg.Recursive = *projectCfg.Recursive
+	}
 	cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(derefTaskRuntimeRules(projectCfg.TaskRuntimeRules))
 }
 
@@ -2565,6 +2569,9 @@ func applyRuntimeOverrideWorkflowScalars(cfg *model.RuntimeConfig, overrides run
 	}
 	if overrides.IncludeCompleted != nil {
 		cfg.IncludeCompleted = *overrides.IncludeCompleted
+	}
+	if overrides.Recursive != nil {
+		cfg.Recursive = *overrides.Recursive
 	}
 	if overrides.IncludeResolved != nil {
 		cfg.IncludeResolved = *overrides.IncludeResolved

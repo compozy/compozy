@@ -217,6 +217,7 @@ func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Com
 	preflightCfg := coreRun.PreflightConfig{
 		Force:          s.force,
 		SkipValidation: s.skipValidation,
+		Recursive:      cfg.Recursive,
 		IsInteractive:  s.isInteractive,
 		Stderr:         cmd.ErrOrStderr(),
 		Logger:         slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),

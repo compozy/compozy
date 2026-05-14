@@ -114,3 +114,114 @@ func TestPrepareFlagsCompactionForOversizedFiles(t *testing.T) {
 		t.Fatalf("expected task memory to require compaction")
 	}
 }
+
+func TestPrepareCreatesDistinctMemoryFilesForNestedRelpath(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+
+	authCtx, err := Prepare(tasksDir, "features/auth/task_01.md")
+	if err != nil {
+		t.Fatalf("prepare auth memory: %v", err)
+	}
+	payCtx, err := Prepare(tasksDir, "features/payment/task_01.md")
+	if err != nil {
+		t.Fatalf("prepare payment memory: %v", err)
+	}
+	rootCtx, err := Prepare(tasksDir, "task_01.md")
+	if err != nil {
+		t.Fatalf("prepare root memory: %v", err)
+	}
+
+	wantAuth := filepath.Join(tasksDir, DirName, "features", "auth", "task_01.md")
+	wantPay := filepath.Join(tasksDir, DirName, "features", "payment", "task_01.md")
+	wantRoot := filepath.Join(tasksDir, DirName, "task_01.md")
+	if authCtx.Task.Path != wantAuth {
+		t.Fatalf("auth memory path = %q, want %q", authCtx.Task.Path, wantAuth)
+	}
+	if payCtx.Task.Path != wantPay {
+		t.Fatalf("payment memory path = %q, want %q", payCtx.Task.Path, wantPay)
+	}
+	if rootCtx.Task.Path != wantRoot {
+		t.Fatalf("root memory path = %q, want %q", rootCtx.Task.Path, wantRoot)
+	}
+
+	if authCtx.Task.Path == payCtx.Task.Path {
+		t.Fatal("expected nested tasks with the same basename to use distinct memory files")
+	}
+	if authCtx.Task.Path == rootCtx.Task.Path {
+		t.Fatal("expected nested and root tasks to use distinct memory files")
+	}
+
+	authBody, err := os.ReadFile(authCtx.Task.Path)
+	if err != nil {
+		t.Fatalf("read auth memory: %v", err)
+	}
+	if !strings.Contains(string(authBody), taskHeaderPrefix+"task_01.md") {
+		t.Fatalf("expected auth memory header to use basename, got %q", string(authBody))
+	}
+}
+
+func TestPrepareNormalizesBackslashRelpath(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	ctx, err := Prepare(tasksDir, `features\auth\task_01.md`)
+	if err != nil {
+		t.Fatalf("prepare memory: %v", err)
+	}
+	want := filepath.Join(tasksDir, DirName, "features", "auth", "task_01.md")
+	if ctx.Task.Path != want {
+		t.Fatalf("task memory path = %q, want %q", ctx.Task.Path, want)
+	}
+}
+
+func TestPrepareRejectsUnsafeRelpaths(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		input  string
+		needle string
+	}{
+		{"", "task file name is required"},
+		{"   ", "task file name is required"},
+		{"/task_01.md", "leading slash not allowed"},
+		{"../task_01.md", `".." segment not allowed`},
+		{"features/../task_01.md", `".." segment not allowed`},
+		{"features//task_01.md", "empty path segment"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			_, err := Prepare(t.TempDir(), tc.input)
+			if err == nil {
+				t.Fatalf("expected error for input %q", tc.input)
+			}
+			if !strings.Contains(err.Error(), tc.needle) {
+				t.Fatalf("error %v should contain %q", err, tc.needle)
+			}
+		})
+	}
+}
+
+func TestWriteDocumentCreatesNestedDirectories(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	doc, _, err := WriteDocument(tasksDir, "features/auth/task_01.md", "hello\n", WriteModeReplace)
+	if err != nil {
+		t.Fatalf("write document: %v", err)
+	}
+	want := filepath.Join(tasksDir, DirName, "features", "auth", "task_01.md")
+	if doc.Path != want {
+		t.Fatalf("document path = %q, want %q", doc.Path, want)
+	}
+	body, err := os.ReadFile(want)
+	if err != nil {
+		t.Fatalf("read nested memory: %v", err)
+	}
+	if string(body) != "hello\n" {
+		t.Fatalf("unexpected body: %q", string(body))
+	}
+}

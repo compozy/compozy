@@ -33,6 +33,7 @@ Options specific to `compozy tasks run`.
 | Field | Type | Description |
 | --- | --- | --- |
 | `include_completed` | bool | Include tasks already marked as completed |
+| `recursive` | bool | Discover `task_NNN.md` files in nested subdirectories. Equivalent to `--recursive` on the CLI |
 | `task_runtime_rules` | `array<table>` | Type-scoped runtime overrides applied after `[defaults]` for `compozy tasks run` |
 
 #### `[[tasks.run.task_runtime_rules]]`
@@ -226,6 +227,7 @@ types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "b
 
 [tasks.run]
 include_completed = false
+recursive = false
 
 [fix_reviews]
 concurrent = 2

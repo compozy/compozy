@@ -150,6 +150,43 @@ func TestNewRunWorkflowDispatchesStartCommand(t *testing.T) {
 	}
 }
 
+func TestNewRunWorkflowPassesRecursiveFlagThroughKernel(t *testing.T) {
+	t.Parallel()
+
+	dispatcher := kernel.NewDispatcher()
+	handler := &runStartCaptureHandler{}
+	kernel.Register(dispatcher, handler)
+
+	runWorkflow := newRunWorkflow(dispatcher)
+	if err := runWorkflow(context.Background(), core.Config{
+		WorkspaceRoot:          "/workspace",
+		Name:                   "demo",
+		TasksDir:               "/workspace/.compozy/tasks/demo",
+		Recursive:              true,
+		Mode:                   core.ModePRDTasks,
+		IDE:                    core.IDECodex,
+		Concurrent:             1,
+		BatchSize:              1,
+		ReasoningEffort:        "medium",
+		AccessMode:             core.AccessModeFull,
+		Timeout:                time.Minute,
+		MaxRetries:             0,
+		RetryBackoffMultiplier: 1.5,
+	}); err != nil {
+		t.Fatalf("runWorkflow: %v", err)
+	}
+	if !handler.called {
+		t.Fatal("expected dispatcher handler to be called")
+	}
+	runtime := handler.got.RuntimeConfig()
+	if runtime == nil {
+		t.Fatal("expected runtime config")
+	}
+	if !runtime.Recursive {
+		t.Fatalf("expected runtime.Recursive=true, got %#v", runtime)
+	}
+}
+
 func TestNewRunWorkflowUsesPRReviewModeForFixReviews(t *testing.T) {
 	t.Parallel()
 

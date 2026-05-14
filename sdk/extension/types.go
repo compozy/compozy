@@ -543,6 +543,7 @@ type RuntimeConfig struct {
 	ReadPromptStdin            bool
 	ResolvedPromptText         string
 	IncludeCompleted           bool
+	Recursive                  bool
 	IncludeResolved            bool
 	Timeout                    time.Duration
 	MaxRetries                 int
