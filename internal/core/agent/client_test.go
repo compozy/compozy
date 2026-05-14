@@ -1342,6 +1342,83 @@ func TestClientTerminalKillTerminatesCommandAndKeepsOutput(t *testing.T) {
 	}
 }
 
+func TestClientReleaseTerminalRetainsTrackingWhenWaitContextExpires(t *testing.T) {
+	t.Parallel()
+
+	client, sessionID := newTerminalTestClient(t)
+	done := make(chan struct{})
+	terminal := &terminalProcess{
+		id:        "term-timeout",
+		sessionID: sessionID,
+		cancel:    func() {},
+		done:      done,
+		output:    newTerminalOutputBuffer(nil),
+	}
+	client.storeTerminal(terminal)
+
+	releaseCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := client.ReleaseTerminal(releaseCtx, acp.ReleaseTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: terminal.id,
+	}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ReleaseTerminal(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.lookupTerminal(acp.SessionId(sessionID), terminal.id); err != nil {
+		t.Fatalf("lookup terminal after canceled release: %v", err)
+	}
+
+	close(done)
+	if _, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: terminal.id,
+	}); err != nil {
+		t.Fatalf("release terminal after wait: %v", err)
+	}
+	if _, err := client.lookupTerminal(acp.SessionId(sessionID), terminal.id); err == nil {
+		t.Fatal("lookup terminal after successful release = nil error, want unknown terminal")
+	}
+}
+
+func TestNewTerminalOutputBufferAppliesServerDefaultWhenLimitUnset(t *testing.T) {
+	t.Parallel()
+
+	zero := 0
+	negative := -1
+	tests := []struct {
+		name      string
+		limit     *int
+		wantLimit int
+	}{
+		{
+			name:      "Should use the server default when the limit is nil",
+			wantLimit: defaultOutputByteLimit,
+		},
+		{
+			name:      "Should use the server default when the limit is zero",
+			limit:     &zero,
+			wantLimit: defaultOutputByteLimit,
+		},
+		{
+			name:      "Should use the server default when the limit is negative",
+			limit:     &negative,
+			wantLimit: defaultOutputByteLimit,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buffer := newTerminalOutputBuffer(tt.limit)
+			if buffer.limit != tt.wantLimit {
+				t.Fatalf("buffer.limit = %d, want %d", buffer.limit, tt.wantLimit)
+			}
+		})
+	}
+}
+
 func TestClientCloseCleansUpActiveTerminals(t *testing.T) {
 	t.Parallel()
 

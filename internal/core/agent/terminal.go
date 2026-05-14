@@ -15,7 +15,10 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 )
 
-const terminalIDPrefix = "term-"
+const (
+	terminalIDPrefix       = "term-"
+	defaultOutputByteLimit = 10 * 1024 * 1024
+)
 
 type terminalProcess struct {
 	id        string
@@ -120,12 +123,15 @@ func (c *clientImpl) releaseTerminal(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	terminal, err := c.removeTerminal(params.SessionId, params.TerminalId)
+	terminal, err := c.lookupTerminal(params.SessionId, params.TerminalId)
 	if err != nil {
 		return acp.ReleaseTerminalResponse{}, err
 	}
 	terminal.kill()
 	if err := terminal.waitFor(ctx); err != nil {
+		return acp.ReleaseTerminalResponse{}, err
+	}
+	if _, err := c.removeTerminal(params.SessionId, params.TerminalId); err != nil {
 		return acp.ReleaseTerminalResponse{}, err
 	}
 	return acp.ReleaseTerminalResponse{}, nil
@@ -330,7 +336,7 @@ func cloneStringPtr(src *string) *string {
 }
 
 func newTerminalOutputBuffer(limit *int) *terminalOutputBuffer {
-	resolvedLimit := 0
+	resolvedLimit := defaultOutputByteLimit
 	if limit != nil && *limit > 0 {
 		resolvedLimit = *limit
 	}

@@ -117,6 +117,8 @@ func TestRunManagerReviewWatchCurrentSettledFetchesPendingItems(t *testing.T) {
 	t.Run(
 		"Should fetch and fix unresolved reviews when provider settled without a current review object",
 		func(t *testing.T) {
+			t.Parallel()
+
 			reviewProvider := &fakeReviewWatchProvider{
 				statuses: []provider.WatchStatus{settledWatchStatus("head-1", "old-head")},
 				fetches:  [][]provider.ReviewItem{{watchReviewItem()}},
@@ -166,6 +168,8 @@ func TestRunManagerReviewWatchCurrentSettledCanCompleteClean(t *testing.T) {
 	t.Run(
 		"Should declare clean after provider settled current head and no unresolved reviews remain",
 		func(t *testing.T) {
+			t.Parallel()
+
 			reviewProvider := &fakeReviewWatchProvider{
 				statuses: []provider.WatchStatus{settledWatchStatus("head-1", "old-head")},
 				fetches:  [][]provider.ReviewItem{{}},

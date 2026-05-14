@@ -145,7 +145,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantState: provider.WatchStatusPending,
 		},
 		{
-			name:    "current settled when CodeRabbit completed current head without a provider review",
+			name:    "Should mark current settled when CodeRabbit completed current head without a provider review",
 			headSHA: "head-without-review",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4103, "old-head", "COMMENTED", "2026-04-10T14:33:25Z", "pedro", ""),
@@ -154,7 +154,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantState: provider.WatchStatusCurrentSettled,
 		},
 		{
-			name:    "current settled when CodeRabbit completed current head but latest provider review is stale",
+			name:    "Should mark current settled when CodeRabbit completed current head but latest provider review is stale",
 			headSHA: "head-new",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
@@ -164,7 +164,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantCommit: "old-head",
 		},
 		{
-			name:    "pending when CodeRabbit is still processing current head with stale latest review",
+			name:    "Should stay pending when CodeRabbit is still processing current head with a stale latest review",
 			headSHA: "head-new",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
@@ -203,18 +203,22 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 func TestWatchStatusFailsWhenCodeRabbitStatusFailsWithoutProviderReview(t *testing.T) {
 	t.Parallel()
 
-	reviews := []pullRequestReview{
-		testPullRequestReview(4103, "head-current", "COMMENTED", "2026-04-10T14:33:25Z", "pedro", ""),
-	}
-	_, err := New(WithCommandRunner(testWatchStatusRunnerWithStatuses(
-		t,
-		"head-current",
-		reviews,
-		[]commitStatus{testCommitStatus("failure", "Review failed", "2026-04-10T14:34:25Z")},
-	))).WatchStatus(context.Background(), provider.WatchStatusRequest{PR: "259"})
-	if err == nil || !strings.Contains(err.Error(), "coderabbit status") {
-		t.Fatalf("WatchStatus() error = %v, want coderabbit status failure", err)
-	}
+	t.Run("Should fail when CodeRabbit status fails without a provider review", func(t *testing.T) {
+		t.Parallel()
+
+		reviews := []pullRequestReview{
+			testPullRequestReview(4103, "head-current", "COMMENTED", "2026-04-10T14:33:25Z", "pedro", ""),
+		}
+		_, err := New(WithCommandRunner(testWatchStatusRunnerWithStatuses(
+			t,
+			"head-current",
+			reviews,
+			[]commitStatus{testCommitStatus("failure", "Review failed", "2026-04-10T14:34:25Z")},
+		))).WatchStatus(context.Background(), provider.WatchStatusRequest{PR: "259"})
+		if err == nil || !strings.Contains(err.Error(), "coderabbit status") {
+			t.Fatalf("WatchStatus() error = %v, want coderabbit status failure", err)
+		}
+	})
 }
 
 func TestWatchStatusUsesCodeRabbitCommitStatusAsProcessingGate(t *testing.T) {

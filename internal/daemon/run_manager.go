@@ -1100,7 +1100,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	spec.runtimeCfg = runtimeCfg
 
 	startedAt := m.now().UTC()
-	row, createdRun, err := m.prepareRunRow(
+	row, createdRun, resumedRun, err := m.prepareRunRow(
 		detachContext(ctx),
 		spec,
 		explicitRunID,
@@ -1115,6 +1115,9 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	runID := row.RunID
 	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
 	if err != nil {
+		if resumedRun {
+			return apicore.Run{}, m.failStartRun(ctx, row, 0, nil, createdRun, err)
+		}
 		if createdRun {
 			if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(runID); artifactsErr == nil {
 				cleanupRunDirectory(runArtifacts.RunDir)
@@ -1157,23 +1160,24 @@ func (m *RunManager) prepareRunRow(
 	explicitRunID bool,
 	startedAt time.Time,
 	requestID string,
-) (globaldb.Run, bool, error) {
+) (globaldb.Run, bool, bool, error) {
 	if spec.runtimeCfg == nil {
-		return globaldb.Run{}, false, errors.New("daemon: runtime config is required")
+		return globaldb.Run{}, false, false, errors.New("daemon: runtime config is required")
 	}
 	if explicitRunID {
 		runID := strings.TrimSpace(spec.runtimeCfg.RunID)
 		spec.runtimeCfg.RunID = runID
 		if spec.mode == runModeExec {
-			row, ok, err := m.resumeExistingExecRun(ctx, spec, runID, startedAt, requestID)
+			row, resumedRun, createdRun, err := m.resumeExistingExecRun(ctx, spec, runID, startedAt, requestID)
 			if err != nil {
-				return globaldb.Run{}, false, err
+				return globaldb.Run{}, false, false, err
 			}
-			if ok {
-				return row, false, nil
+			if resumedRun {
+				return row, createdRun, true, nil
 			}
 		}
-		return m.insertRunRow(ctx, spec, runID, startedAt, requestID)
+		row, createdRun, err := m.insertRunRow(ctx, spec, runID, startedAt, requestID)
+		return row, createdRun, false, err
 	}
 
 	var lastErr error
@@ -1181,19 +1185,19 @@ func (m *RunManager) prepareRunRow(
 		spec.runtimeCfg.RunID = ""
 		runID, err := m.buildRunID(spec.runtimeCfg)
 		if err != nil {
-			return globaldb.Run{}, false, err
+			return globaldb.Run{}, false, false, err
 		}
 		spec.runtimeCfg.RunID = runID
 		row, createdRun, err := m.insertRunRow(ctx, spec, runID, startedAt, requestID)
 		if err == nil {
-			return row, createdRun, nil
+			return row, createdRun, false, nil
 		}
 		if !errors.Is(err, globaldb.ErrRunAlreadyExists) {
-			return globaldb.Run{}, false, err
+			return globaldb.Run{}, false, false, err
 		}
 		lastErr = err
 	}
-	return globaldb.Run{}, false, fmt.Errorf(
+	return globaldb.Run{}, false, false, fmt.Errorf(
 		"daemon: allocate implicit run id after %d attempts: %w",
 		maxImplicitRunIDAllocationAttempts,
 		lastErr,
@@ -1242,34 +1246,34 @@ func (m *RunManager) resumeExistingExecRun(
 	runID string,
 	startedAt time.Time,
 	requestID string,
-) (globaldb.Run, bool, error) {
+) (globaldb.Run, bool, bool, error) {
 	if active := m.getActive(runID); active != nil {
-		return globaldb.Run{}, false, globaldb.ErrRunAlreadyExists
+		return globaldb.Run{}, false, false, globaldb.ErrRunAlreadyExists
 	}
 
 	runArtifacts, err := model.ResolvePersistedRunArtifacts(spec.workspace.RootDir, runID)
 	if err != nil {
-		return globaldb.Run{}, false, err
+		return globaldb.Run{}, false, false, err
 	}
 	if _, err := os.Stat(runArtifacts.RunMetaPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return globaldb.Run{}, false, nil
+			return globaldb.Run{}, false, false, nil
 		}
-		return globaldb.Run{}, false, fmt.Errorf("stat persisted exec run %q: %w", runID, err)
+		return globaldb.Run{}, false, false, fmt.Errorf("stat persisted exec run %q: %w", runID, err)
 	}
 
 	record, err := runpkg.LoadPersistedExecRun(spec.workspace.RootDir, runID)
 	if err != nil {
-		return globaldb.Run{}, false, err
+		return globaldb.Run{}, false, false, err
 	}
 	if record.Mode != model.ModeExec {
-		return globaldb.Run{}, false, fmt.Errorf("run %q is not an exec run", runID)
+		return globaldb.Run{}, false, false, fmt.Errorf("run %q is not an exec run", runID)
 	}
 
 	row, err := m.globalDB.GetRun(ctx, runID)
 	if err != nil {
 		if !errors.Is(err, globaldb.ErrRunNotFound) {
-			return globaldb.Run{}, false, err
+			return globaldb.Run{}, false, false, err
 		}
 		if record.CreatedAt.IsZero() {
 			record.CreatedAt = startedAt
@@ -1285,13 +1289,13 @@ func (m *RunManager) resumeExistingExecRun(
 			RequestID:        requestID,
 		})
 		if err != nil {
-			return globaldb.Run{}, false, err
+			return globaldb.Run{}, false, false, err
 		}
-		return row, true, nil
+		return row, true, true, nil
 	}
 
 	if row.Mode != runModeExec {
-		return globaldb.Run{}, false, fmt.Errorf("run %q is not an exec run", runID)
+		return globaldb.Run{}, false, false, fmt.Errorf("run %q is not an exec run", runID)
 	}
 
 	row.WorkspaceID = spec.workspace.ID
@@ -1312,9 +1316,9 @@ func (m *RunManager) resumeExistingExecRun(
 
 	updatedRow, err := m.globalDB.UpdateRun(ctx, row)
 	if err != nil {
-		return globaldb.Run{}, false, err
+		return globaldb.Run{}, false, false, err
 	}
-	return updatedRow, true, nil
+	return updatedRow, true, false, nil
 }
 
 func setRunParentIDForSpec(row *globaldb.Run, spec startRunSpec) {
