@@ -2,10 +2,12 @@ package model
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -177,7 +179,11 @@ func openBaseRunScope(
 }
 
 func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
-	runArtifacts, err := ResolveHomeRunArtifacts(BuildRunID(cfg))
+	runID, err := BuildRunID(cfg)
+	if err != nil {
+		return RunArtifacts{}, err
+	}
+	runArtifacts, err := ResolveHomeRunArtifacts(runID)
 	if err != nil {
 		return RunArtifacts{}, err
 	}
@@ -187,29 +193,58 @@ func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
 	return runArtifacts, nil
 }
 
+const generatedRunIDEntropyBytes = 8
+
 // BuildRunID returns the effective run identifier for one runtime config.
-func BuildRunID(cfg *RuntimeConfig) string {
+func BuildRunID(cfg *RuntimeConfig) (string, error) {
+	return buildRunID(cfg, time.Now().UTC(), rand.Reader)
+}
+
+func buildRunID(cfg *RuntimeConfig, now time.Time, entropy io.Reader) (string, error) {
 	if cfg != nil && strings.TrimSpace(cfg.RunID) != "" {
-		return cfg.RunID
+		return cfg.RunID, nil
 	}
-	label := runLabel(cfg)
-	timestamp := time.Now().UTC().Format("20060102-150405-000000000")
-	return fmt.Sprintf("%s-%s", label, timestamp)
+	return buildGeneratedRunID(runLabel(cfg), now, entropy)
+}
+
+func buildGeneratedRunID(label string, now time.Time, entropy io.Reader) (string, error) {
+	if entropy == nil {
+		return "", errors.New("build run id: missing entropy reader")
+	}
+	var random [generatedRunIDEntropyBytes]byte
+	if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		return "", fmt.Errorf("build run id: read entropy: %w", err)
+	}
+	utc := now.UTC()
+	return fmt.Sprintf(
+		"%s-%s-%09d-%s",
+		label,
+		utc.Format("20060102-150405"),
+		utc.Nanosecond(),
+		hex.EncodeToString(random[:]),
+	), nil
 }
 
 func runLabel(cfg *RuntimeConfig) string {
-	if cfg.Mode == ExecutionModeExec {
+	if cfg != nil && cfg.Mode == ExecutionModeExec {
 		return "exec"
 	}
-	if cfg.Mode == ExecutionModePRDTasks {
+	if cfg != nil && cfg.Mode == ExecutionModePRDTasks {
 		return "tasks-" + safeScopeLabel(cfg.Name)
 	}
 
-	scope := cfg.Name
-	if strings.TrimSpace(scope) == "" {
-		scope = "pr-" + cfg.PR
+	scope := ""
+	pr := ""
+	round := 0
+	if cfg != nil {
+		scope = cfg.Name
+		pr = cfg.PR
+		round = cfg.Round
 	}
-	return fmt.Sprintf("reviews-%s-round-%03d", safeScopeLabel(scope), cfg.Round)
+	if strings.TrimSpace(scope) == "" {
+		scope = "pr-" + pr
+	}
+	return fmt.Sprintf("reviews-%s-round-%03d", safeScopeLabel(scope), round)
 }
 
 func safeScopeLabel(value string) string {

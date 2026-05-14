@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -127,6 +128,45 @@ func TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns(t *tes
 	}
 	if session.Err() != nil {
 		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientCreateSessionServesTerminalRequestsFromAgent(t *testing.T) {
+	t.Parallel()
+
+	wantExitCode := 0
+	scenario := helperScenario{
+		ExpectedCWD:          t.TempDir(),
+		ExpectedPrompt:       "run a terminal command",
+		StopReason:           string(acp.StopReasonEndTurn),
+		TerminalCommand:      os.Args[0],
+		TerminalArgs:         []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+		TerminalEnv:          terminalHelperEnv("print-exit", "acp-terminal-ok", "0"),
+		TerminalWantOutput:   "acp-terminal-ok",
+		TerminalWantExitCode: &wantExitCode,
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 {
+		t.Fatalf("updates length = %d, want 1", len(updates))
+	}
+	if updates[0].Status != model.StatusCompleted {
+		t.Fatalf("final status = %q, want completed", updates[0].Status)
+	}
+	if err := session.Err(); err != nil {
+		t.Fatalf("session error = %v, want nil", err)
 	}
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
@@ -1190,59 +1230,221 @@ func TestClientHelperMethods(t *testing.T) {
 	}
 }
 
-func TestClientTerminalMethodsReturnUnsupported(t *testing.T) {
+func TestClientTerminalMethodsExecuteCommandAndRetainOutput(t *testing.T) {
 	t.Parallel()
 
-	client := &clientImpl{}
-	cases := []struct {
-		name string
-		call func() error
+	client, sessionID := newTerminalTestClient(t)
+	limit := 4
+	resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+		SessionId:       acp.SessionId(sessionID),
+		Command:         os.Args[0],
+		Args:            []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+		Env:             terminalHelperEnv("print-exit", "alpha-beta", "7"),
+		OutputByteLimit: &limit,
+	})
+	if err != nil {
+		t.Fatalf("create terminal: %v", err)
+	}
+
+	waitResp, err := client.WaitForTerminalExit(context.Background(), acp.WaitForTerminalExitRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	})
+	if err != nil {
+		t.Fatalf("wait for terminal: %v", err)
+	}
+	if waitResp.ExitCode == nil || *waitResp.ExitCode != 7 {
+		t.Fatalf("terminal exit code = %#v, want 7", waitResp.ExitCode)
+	}
+
+	output, err := client.TerminalOutput(context.Background(), acp.TerminalOutputRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	})
+	if err != nil {
+		t.Fatalf("terminal output: %v", err)
+	}
+	if output.Output != "beta" || !output.Truncated {
+		t.Fatalf("terminal output = %#v truncated=%v, want beta truncated", output.Output, output.Truncated)
+	}
+	if output.ExitStatus == nil || output.ExitStatus.ExitCode == nil || *output.ExitStatus.ExitCode != 7 {
+		t.Fatalf("terminal output exit status = %#v, want exit code 7", output.ExitStatus)
+	}
+	if _, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	}); err != nil {
+		t.Fatalf("release terminal: %v", err)
+	}
+}
+
+func TestClientTerminalRejectsCWDOutsideSessionRoots(t *testing.T) {
+	t.Parallel()
+
+	client, sessionID := newTerminalTestClient(t)
+	outside := t.TempDir()
+	_, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+		SessionId: acp.SessionId(sessionID),
+		Command:   os.Args[0],
+		Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+		Cwd:       &outside,
+		Env:       terminalHelperEnv("print-exit", "outside", "0"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "outside allowed session roots") {
+		t.Fatalf("CreateTerminal() error = %v, want outside allowed roots", err)
+	}
+}
+
+func TestClientTerminalKillTerminatesCommandAndKeepsOutput(t *testing.T) {
+	t.Parallel()
+
+	client, sessionID := newTerminalTestClient(t)
+	resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+		SessionId: acp.SessionId(sessionID),
+		Command:   os.Args[0],
+		Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+		Env:       terminalHelperEnv("block", "ready", "0"),
+	})
+	if err != nil {
+		t.Fatalf("create terminal: %v", err)
+	}
+	waitForTerminalOutput(t, client, sessionID, resp.TerminalId, "ready")
+
+	if _, err := client.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	}); err != nil {
+		t.Fatalf("kill terminal: %v", err)
+	}
+	waitCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := client.WaitForTerminalExit(waitCtx, acp.WaitForTerminalExitRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	}); err != nil {
+		t.Fatalf("wait for killed terminal: %v", err)
+	}
+	output, err := client.TerminalOutput(context.Background(), acp.TerminalOutputRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	})
+	if err != nil {
+		t.Fatalf("terminal output after kill: %v", err)
+	}
+	if !strings.Contains(output.Output, "ready") {
+		t.Fatalf("terminal output after kill = %q, want ready", output.Output)
+	}
+	if _, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	}); err != nil {
+		t.Fatalf("release killed terminal: %v", err)
+	}
+}
+
+func TestClientReleaseTerminalRetainsTrackingWhenWaitContextExpires(t *testing.T) {
+	t.Parallel()
+
+	client, sessionID := newTerminalTestClient(t)
+	done := make(chan struct{})
+	terminal := &terminalProcess{
+		id:        "term-timeout",
+		sessionID: sessionID,
+		cancel:    func() {},
+		done:      done,
+		output:    newTerminalOutputBuffer(nil),
+	}
+	client.storeTerminal(terminal)
+
+	releaseCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := client.ReleaseTerminal(releaseCtx, acp.ReleaseTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: terminal.id,
+	}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ReleaseTerminal(canceled) error = %v, want context.Canceled", err)
+	}
+	if _, err := client.lookupTerminal(acp.SessionId(sessionID), terminal.id); err != nil {
+		t.Fatalf("lookup terminal after canceled release: %v", err)
+	}
+
+	close(done)
+	if _, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: terminal.id,
+	}); err != nil {
+		t.Fatalf("release terminal after wait: %v", err)
+	}
+	if _, err := client.lookupTerminal(acp.SessionId(sessionID), terminal.id); err == nil {
+		t.Fatal("lookup terminal after successful release = nil error, want unknown terminal")
+	}
+}
+
+func TestNewTerminalOutputBufferAppliesServerDefaultWhenLimitUnset(t *testing.T) {
+	t.Parallel()
+
+	zero := 0
+	negative := -1
+	tests := []struct {
+		name      string
+		limit     *int
+		wantLimit int
 	}{
 		{
-			name: "create",
-			call: func() error {
-				_, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{})
-				return err
-			},
+			name:      "Should use the server default when the limit is nil",
+			wantLimit: defaultOutputByteLimit,
 		},
 		{
-			name: "kill",
-			call: func() error {
-				_, err := client.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{})
-				return err
-			},
+			name:      "Should use the server default when the limit is zero",
+			limit:     &zero,
+			wantLimit: defaultOutputByteLimit,
 		},
 		{
-			name: "output",
-			call: func() error {
-				_, err := client.TerminalOutput(context.Background(), acp.TerminalOutputRequest{})
-				return err
-			},
-		},
-		{
-			name: "release",
-			call: func() error {
-				_, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{})
-				return err
-			},
-		},
-		{
-			name: "wait_for_exit",
-			call: func() error {
-				_, err := client.WaitForTerminalExit(context.Background(), acp.WaitForTerminalExitRequest{})
-				return err
-			},
+			name:      "Should use the server default when the limit is negative",
+			limit:     &negative,
+			wantLimit: defaultOutputByteLimit,
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if err := tc.call(); err == nil {
-				t.Fatal("expected unsupported terminal error")
+
+			buffer := newTerminalOutputBuffer(tt.limit)
+			if buffer.limit != tt.wantLimit {
+				t.Fatalf("buffer.limit = %d, want %d", buffer.limit, tt.wantLimit)
 			}
 		})
+	}
+}
+
+func TestClientCloseCleansUpActiveTerminals(t *testing.T) {
+	t.Parallel()
+
+	client, sessionID := newTerminalTestClient(t)
+	resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+		SessionId: acp.SessionId(sessionID),
+		Command:   os.Args[0],
+		Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+		Env:       terminalHelperEnv("block", "ready", "0"),
+	})
+	if err != nil {
+		t.Fatalf("create terminal: %v", err)
+	}
+	waitForTerminalOutput(t, client, sessionID, resp.TerminalId, "ready")
+	terminal, err := client.lookupTerminal(acp.SessionId(sessionID), resp.TerminalId)
+	if err != nil {
+		t.Fatalf("lookup terminal: %v", err)
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+	select {
+	case <-terminal.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal still running after client close")
 	}
 }
 
@@ -1338,6 +1540,44 @@ func TestClientCreateSessionSurfacesStartupCommandAndStderr(t *testing.T) {
 	}
 }
 
+func TestClientAgentProcessExitErrorDiagnosesCodexCodeModeOOM(t *testing.T) {
+	t.Parallel()
+
+	process, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		Command: []string{os.Args[0], "-test.run=TestProcessStderrHelperProcess", "--"},
+		Env: subprocess.MergeEnvironment(nil, map[string]string{
+			"GO_WANT_PROCESS_STDERR_HELPER": "1",
+			"GO_PROCESS_STDERR_OUTPUT":      "Fatal process out of memory: Failed to reserve virtual memory for CodeRange",
+			"GO_PROCESS_STDERR_EXIT_CODE":   "0",
+		}),
+		WorkingDir:      t.TempDir(),
+		WaitErrorPrefix: "wait for test ACP process",
+	})
+	if err != nil {
+		t.Fatalf("launch helper process: %v", err)
+	}
+	if err := process.Wait(); err != nil {
+		t.Fatalf("wait helper process: %v", err)
+	}
+
+	client := &clientImpl{
+		process: process,
+		sessions: map[string]*sessionImpl{
+			"sess-oom": newSession("sess-oom"),
+		},
+	}
+	got := client.agentProcessExitError("ACP agent process exited before all sessions completed", nil).Error()
+	for _, want := range []string{
+		"open_sessions=1",
+		"Failed to reserve virtual memory for CodeRange",
+		"Codex Code Mode runtime crashed",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("agentProcessExitError() = %q, want %q", got, want)
+		}
+	}
+}
+
 func TestClientCreateSessionChecksCodexModelCompatibilityBeforeLaunch(t *testing.T) {
 	installCodexACPNPMPackage(t, "0.11.1")
 
@@ -1409,6 +1649,35 @@ func TestACPHelperProcess(_ *testing.T) {
 	os.Exit(0)
 }
 
+func TestTerminalCommandHelperProcess(_ *testing.T) {
+	if os.Getenv("GO_WANT_TERMINAL_HELPER_PROCESS") != "1" {
+		return
+	}
+	fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
+	if os.Getenv("GO_TERMINAL_HELPER_MODE") == "block" {
+		select {}
+	}
+	code, err := strconv.Atoi(os.Getenv("GO_TERMINAL_HELPER_EXIT_CODE"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse terminal helper exit code: %v\n", err)
+		os.Exit(2)
+	}
+	os.Exit(code)
+}
+
+func TestProcessStderrHelperProcess(_ *testing.T) {
+	if os.Getenv("GO_WANT_PROCESS_STDERR_HELPER") != "1" {
+		return
+	}
+	fmt.Fprint(os.Stderr, os.Getenv("GO_PROCESS_STDERR_OUTPUT"))
+	code, err := strconv.Atoi(firstNonEmpty(os.Getenv("GO_PROCESS_STDERR_EXIT_CODE"), "0"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse process stderr helper exit code: %v\n", err)
+		os.Exit(2)
+	}
+	os.Exit(code)
+}
+
 type helperScenario struct {
 	SessionID                     string              `json:"session_id,omitempty"`
 	ExpectedCWD                   string              `json:"expected_cwd,omitempty"`
@@ -1429,6 +1698,11 @@ type helperScenario struct {
 	NewSessionError               *helperRequestError `json:"new_session_error,omitempty"`
 	PromptError                   *helperRequestError `json:"prompt_error,omitempty"`
 	PromptErrorAfterUpdates       bool                `json:"prompt_error_after_updates,omitempty"`
+	TerminalCommand               string              `json:"terminal_command,omitempty"`
+	TerminalArgs                  []string            `json:"terminal_args,omitempty"`
+	TerminalEnv                   []acp.EnvVariable   `json:"terminal_env,omitempty"`
+	TerminalWantOutput            string              `json:"terminal_want_output,omitempty"`
+	TerminalWantExitCode          *int                `json:"terminal_want_exit_code,omitempty"`
 }
 
 type helperRequestError struct {
@@ -1538,6 +1812,12 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 		return acp.PromptResponse{}, err
 	}
 
+	if a.scenario.TerminalCommand != "" {
+		if err := a.runTerminalRequest(ctx, req.SessionId); err != nil {
+			return acp.PromptResponse{}, err
+		}
+	}
+
 	if a.scenario.PromptError != nil && a.scenario.PromptErrorAfterUpdates {
 		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
 	}
@@ -1552,6 +1832,51 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 		stopReason = acp.StopReason(a.scenario.StopReason)
 	}
 	return acp.PromptResponse{StopReason: stopReason}, nil
+}
+
+func (a *helperAgent) runTerminalRequest(ctx context.Context, sessionID acp.SessionId) error {
+	terminalResp, err := a.connection().CreateTerminal(ctx, acp.CreateTerminalRequest{
+		SessionId: sessionID,
+		Command:   a.scenario.TerminalCommand,
+		Args:      append([]string(nil), a.scenario.TerminalArgs...),
+		Env:       append([]acp.EnvVariable(nil), a.scenario.TerminalEnv...),
+	})
+	if err != nil {
+		return fmt.Errorf("create helper terminal: %w", err)
+	}
+	defer func() {
+		_, _ = a.connection().ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+			SessionId:  sessionID,
+			TerminalId: terminalResp.TerminalId,
+		})
+	}()
+
+	waitResp, err := a.connection().WaitForTerminalExit(ctx, acp.WaitForTerminalExitRequest{
+		SessionId:  sessionID,
+		TerminalId: terminalResp.TerminalId,
+	})
+	if err != nil {
+		return fmt.Errorf("wait for helper terminal: %w", err)
+	}
+	if a.scenario.TerminalWantExitCode != nil &&
+		(waitResp.ExitCode == nil || *waitResp.ExitCode != *a.scenario.TerminalWantExitCode) {
+		return fmt.Errorf(
+			"helper terminal exit code = %#v, want %d",
+			waitResp.ExitCode,
+			*a.scenario.TerminalWantExitCode,
+		)
+	}
+	outputResp, err := a.connection().TerminalOutput(ctx, acp.TerminalOutputRequest{
+		SessionId:  sessionID,
+		TerminalId: terminalResp.TerminalId,
+	})
+	if err != nil {
+		return fmt.Errorf("read helper terminal output: %w", err)
+	}
+	if a.scenario.TerminalWantOutput != "" && !strings.Contains(outputResp.Output, a.scenario.TerminalWantOutput) {
+		return fmt.Errorf("helper terminal output = %q, want %q", outputResp.Output, a.scenario.TerminalWantOutput)
+	}
+	return nil
 }
 
 func (a *helperAgent) emitUpdates(ctx context.Context, updates []acp.SessionUpdate) error {
@@ -1672,6 +1997,58 @@ func collectSessionUpdates(t *testing.T, session Session) []model.SessionUpdate 
 	}
 
 	return updates
+}
+
+func newTerminalTestClient(t *testing.T) (*clientImpl, string) {
+	t.Helper()
+	workingDir := t.TempDir()
+	sessionID := "sess-terminal"
+	return &clientImpl{
+		shutdownTimeout: time.Second,
+		sessions: map[string]*sessionImpl{
+			sessionID: newSessionWithAccess(sessionID, workingDir, []string{workingDir}),
+		},
+	}, sessionID
+}
+
+func terminalHelperEnv(mode string, output string, exitCode string) []acp.EnvVariable {
+	return []acp.EnvVariable{
+		{Name: "GO_WANT_TERMINAL_HELPER_PROCESS", Value: "1"},
+		{Name: "GO_TERMINAL_HELPER_MODE", Value: mode},
+		{Name: "GO_TERMINAL_HELPER_OUTPUT", Value: output},
+		{Name: "GO_TERMINAL_HELPER_EXIT_CODE", Value: exitCode},
+	}
+}
+
+func waitForTerminalOutput(
+	t *testing.T,
+	client *clientImpl,
+	sessionID string,
+	terminalID string,
+	want string,
+) {
+	t.Helper()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for {
+		output, err := client.TerminalOutput(context.Background(), acp.TerminalOutputRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: terminalID,
+		})
+		if err != nil {
+			t.Fatalf("terminal output: %v", err)
+		}
+		if strings.Contains(output.Output, want) {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for terminal output %q, last output %q", want, output.Output)
+		}
+	}
 }
 
 func canonicalTestPath(path string) string {

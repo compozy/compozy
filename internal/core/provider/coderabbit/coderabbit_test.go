@@ -102,6 +102,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 		name       string
 		headSHA    string
 		reviews    []pullRequestReview
+		statuses   []commitStatus
 		wantState  provider.WatchStatusState
 		wantCommit string
 	}{
@@ -131,6 +132,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
 				testPullRequestReview(4102, "head-current", "COMMENTED", "2026-04-10T14:33:25Z", defaultBotLogin, ""),
 			},
+			statuses:   []commitStatus{testCommitStatus("success", "Review completed", "2026-04-10T14:34:25Z")},
 			wantState:  provider.WatchStatusCurrentReviewed,
 			wantCommit: "head-current",
 		},
@@ -142,6 +144,35 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			},
 			wantState: provider.WatchStatusPending,
 		},
+		{
+			name:    "Should mark current settled when CodeRabbit completed current head without a provider review",
+			headSHA: "head-without-review",
+			reviews: []pullRequestReview{
+				testPullRequestReview(4103, "old-head", "COMMENTED", "2026-04-10T14:33:25Z", "pedro", ""),
+			},
+			statuses:  []commitStatus{testCommitStatus("success", "Review completed", "2026-04-10T14:34:25Z")},
+			wantState: provider.WatchStatusCurrentSettled,
+		},
+		{
+			name:    "Should mark current settled when CodeRabbit completed current head but latest provider review is stale",
+			headSHA: "head-new",
+			reviews: []pullRequestReview{
+				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
+			},
+			statuses:   []commitStatus{testCommitStatus("success", "Review completed", "2026-04-10T14:34:25Z")},
+			wantState:  provider.WatchStatusCurrentSettled,
+			wantCommit: "old-head",
+		},
+		{
+			name:    "Should stay pending when CodeRabbit is still processing current head with a stale latest review",
+			headSHA: "head-new",
+			reviews: []pullRequestReview{
+				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
+			},
+			statuses:   []commitStatus{testCommitStatus("pending", "Review in progress", "2026-04-10T14:34:25Z")},
+			wantState:  provider.WatchStatusPending,
+			wantCommit: "old-head",
+		},
 	}
 
 	for _, tt := range tests {
@@ -149,7 +180,9 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			status, err := New(WithCommandRunner(testWatchStatusRunner(t, tt.headSHA, tt.reviews))).
+			status, err := New(
+				WithCommandRunner(testWatchStatusRunnerWithStatuses(t, tt.headSHA, tt.reviews, tt.statuses)),
+			).
 				WatchStatus(context.Background(), provider.WatchStatusRequest{PR: "259"})
 			if err != nil {
 				t.Fatalf("watch status: %v", err)
@@ -165,6 +198,27 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWatchStatusFailsWhenCodeRabbitStatusFailsWithoutProviderReview(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail when CodeRabbit status fails without a provider review", func(t *testing.T) {
+		t.Parallel()
+
+		reviews := []pullRequestReview{
+			testPullRequestReview(4103, "head-current", "COMMENTED", "2026-04-10T14:33:25Z", "pedro", ""),
+		}
+		_, err := New(WithCommandRunner(testWatchStatusRunnerWithStatuses(
+			t,
+			"head-current",
+			reviews,
+			[]commitStatus{testCommitStatus("failure", "Review failed", "2026-04-10T14:34:25Z")},
+		))).WatchStatus(context.Background(), provider.WatchStatusRequest{PR: "259"})
+		if err == nil || !strings.Contains(err.Error(), "coderabbit status") {
+			t.Fatalf("WatchStatus() error = %v, want coderabbit status failure", err)
+		}
+	})
 }
 
 func TestWatchStatusUsesCodeRabbitCommitStatusAsProcessingGate(t *testing.T) {
@@ -386,6 +440,9 @@ func testWatchStatusRunnerWithStatuses(
 	statuses []commitStatus,
 ) CommandRunner {
 	t.Helper()
+	if statuses == nil {
+		statuses = []commitStatus{}
+	}
 	return testFullReviewRunner(t, headSHA, reviews, nil, statuses)
 }
 

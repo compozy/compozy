@@ -1,2 +1,5 @@
 web/src/generated/**
 web/src/routeTree.gen.ts
+CHANGELOG.md
+RELEASE_BODY.md
+package.json

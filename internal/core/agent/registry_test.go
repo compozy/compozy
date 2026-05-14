@@ -50,6 +50,10 @@ func TestAgentRegistryEntries(t *testing.T) {
 				"-c",
 				`model_reasoning_effort="medium"`,
 				"-c",
+				"features.code_mode=false",
+				"-c",
+				"features.code_mode_only=false",
+				"-c",
 				`approval_policy="never"`,
 				"-c",
 				`sandbox_mode="danger-full-access"`,
@@ -198,33 +202,63 @@ func TestResolveRuntimeModelNormalizesCodexProviderPrefix(t *testing.T) {
 	})
 }
 
-func TestCodexBootstrapArgsSetModelAndReasoningEffort(t *testing.T) {
+func TestCodexBootstrapArgsSetManagedRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should pass model and reasoning through codex config overrides", func(t *testing.T) {
-		t.Parallel()
+	spec, err := lookupAgentSpec(model.IDECodex)
+	if err != nil {
+		t.Fatalf("lookup codex spec: %v", err)
+	}
+	if !spec.UsesBootstrapModel {
+		t.Fatal("expected codex to use bootstrap model configuration")
+	}
 
-		spec, err := lookupAgentSpec(model.IDECodex)
-		if err != nil {
-			t.Fatalf("lookup codex spec: %v", err)
-		}
-		if !spec.UsesBootstrapModel {
-			t.Fatal("expected codex to use bootstrap model configuration")
-		}
+	cases := []struct {
+		name            string
+		reasoningEffort string
+		accessMode      string
+		want            []string
+	}{
+		{
+			name:            "Should pass model, reasoning, stable features, and full access overrides",
+			reasoningEffort: "high",
+			accessMode:      model.AccessModeFull,
+			want: []string{
+				"codex-acp",
+				"-c", `model="gpt-5.5"`,
+				"-c", `model_reasoning_effort="high"`,
+				"-c", "features.code_mode=false",
+				"-c", "features.code_mode_only=false",
+				"-c", `approval_policy="never"`,
+				"-c", `sandbox_mode="danger-full-access"`,
+				"-c", `web_search="live"`,
+			},
+		},
+		{
+			name:            "Should disable Code Mode without full access overrides in default access mode",
+			reasoningEffort: "low",
+			accessMode:      model.AccessModeDefault,
+			want: []string{
+				"codex-acp",
+				"-c", `model="gpt-5.5"`,
+				"-c", `model_reasoning_effort="low"`,
+				"-c", "features.code_mode=false",
+				"-c", "features.code_mode_only=false",
+			},
+		},
+	}
 
-		command := spec.launchCommand("gpt-5.5", "high", nil, model.AccessModeFull)
-		want := []string{
-			"codex-acp",
-			"-c", `model="gpt-5.5"`,
-			"-c", `model_reasoning_effort="high"`,
-			"-c", `approval_policy="never"`,
-			"-c", `sandbox_mode="danger-full-access"`,
-			"-c", `web_search="live"`,
-		}
-		if !slices.Equal(command, want) {
-			t.Fatalf("codex launch command = %#v, want %#v", command, want)
-		}
-	})
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			command := spec.launchCommand("gpt-5.5", tc.reasoningEffort, nil, tc.accessMode)
+			if !slices.Equal(command, tc.want) {
+				t.Fatalf("codex launch command = %#v, want %#v", command, tc.want)
+			}
+		})
+	}
 }
 
 func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
@@ -454,6 +488,8 @@ func TestCodexFallbackLaunchBootstrapsDefaultModel(t *testing.T) {
 		"npx --yes @zed-industries/codex-acp",
 		"-c",
 		`'model="` + model.DefaultCodexModel + `"'`,
+		"features.code_mode=false",
+		"features.code_mode_only=false",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("BuildShellCommandString() = %q, want to contain %q", got, want)

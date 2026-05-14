@@ -22,6 +22,7 @@ import (
 	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	runpkg "github.com/compozy/compozy/internal/core/run"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1123,6 +1124,169 @@ func TestRunManagerStartExecRunCancelsAndGetReturnsUpdatedRow(t *testing.T) {
 	}
 }
 
+func TestRunManagerStartExecRunRetriesImplicitRunIDCollision(t *testing.T) {
+	t.Run("Should retry an implicit exec run ID collision", func(t *testing.T) {
+		const collidingRunID = "exec-implicit-collision"
+		release := make(chan struct{})
+		started := make(chan string, 1)
+		var buildCalls atomic.Int64
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: func(*model.RuntimeConfig) (string, error) {
+				call := buildCalls.Add(1)
+				if call == 1 {
+					return collidingRunID, nil
+				}
+				return fmt.Sprintf("%s-%d", collidingRunID, call), nil
+			},
+			executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, _ model.RunScope) error {
+				started <- cfg.RunID
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		})
+		collidingArtifacts, err := model.ResolveHomeRunArtifacts(collidingRunID)
+		if err != nil {
+			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", collidingRunID, err)
+		}
+		if err := os.MkdirAll(collidingArtifacts.RunDir, 0o755); err != nil {
+			t.Fatalf("mkdir colliding run dir: %v", err)
+		}
+
+		run, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+			WorkspacePath:    env.workspaceRoot,
+			Prompt:           "daemon exec prompt",
+			PresentationMode: defaultPresentationMode,
+		})
+		if err != nil {
+			t.Fatalf("StartExecRun(implicit collision) error = %v", err)
+		}
+		if run.RunID != "exec-implicit-collision-2" {
+			t.Fatalf("run.RunID = %q, want retry candidate", run.RunID)
+		}
+		waitForString(t, started, run.RunID)
+		close(release)
+		waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+	})
+}
+
+func TestRunManagerStartExecRunExplicitDuplicateRunIDStillFails(t *testing.T) {
+	t.Run("Should reject an explicit duplicate exec run ID", func(t *testing.T) {
+		const runID = "exec-explicit-duplicate"
+		release := make(chan struct{})
+		started := make(chan string, 1)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, _ model.RunScope) error {
+				started <- cfg.RunID
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		})
+
+		run := env.startExecRun(t, runID, nil)
+		waitForString(t, started, run.RunID)
+		_, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+			WorkspacePath:    env.workspaceRoot,
+			Prompt:           "daemon exec prompt",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, "{\"run_id\":\""+runID+"\"}"),
+		})
+		if !errors.Is(err, globaldb.ErrRunAlreadyExists) {
+			t.Fatalf("StartExecRun(explicit duplicate) error = %v, want ErrRunAlreadyExists", err)
+		}
+		close(release)
+		waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+	})
+}
+
+func TestRunManagerStartExecRunAllocatesDistinctImplicitRunIDsInParallel(t *testing.T) {
+	t.Run("Should allocate distinct implicit exec run IDs in parallel", func(t *testing.T) {
+		const totalRuns = 3
+		release := make(chan struct{})
+		started := make(chan string, totalRuns)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, _ model.RunScope) error {
+				started <- cfg.RunID
+				select {
+				case <-release:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		})
+		start := make(chan struct{})
+		type result struct {
+			run apicore.Run
+			err error
+		}
+		results := make(chan result, totalRuns)
+		for range totalRuns {
+			go func() {
+				<-start
+				run, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+					WorkspacePath:    env.workspaceRoot,
+					Prompt:           "daemon exec prompt",
+					PresentationMode: defaultPresentationMode,
+				})
+				results <- result{run: run, err: err}
+			}()
+		}
+		close(start)
+
+		runs := make([]apicore.Run, 0, totalRuns)
+		seen := make(map[string]struct{}, totalRuns)
+		for range totalRuns {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("StartExecRun(parallel implicit) error = %v", result.err)
+			}
+			if strings.TrimSpace(result.run.RunID) == "" {
+				t.Fatal("parallel implicit run id is empty")
+			}
+			if _, ok := seen[result.run.RunID]; ok {
+				t.Fatalf("duplicate implicit run id allocated: %q", result.run.RunID)
+			}
+			seen[result.run.RunID] = struct{}{}
+			runs = append(runs, result.run)
+		}
+
+		startedIDs := make(map[string]struct{}, totalRuns)
+		deadline := time.After(5 * time.Second)
+		for len(startedIDs) < totalRuns {
+			select {
+			case runID := <-started:
+				startedIDs[runID] = struct{}{}
+			case <-deadline:
+				t.Fatalf("timed out waiting for %d exec starts; got %d", totalRuns, len(startedIDs))
+			}
+		}
+		for _, run := range runs {
+			if _, ok := startedIDs[run.RunID]; !ok {
+				t.Fatalf("run %q returned but executeExec did not start", run.RunID)
+			}
+		}
+
+		close(release)
+		for _, run := range runs {
+			waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+				return row.Status == runStatusCompleted
+			})
+		}
+	})
+}
+
 func TestRunManagerOpenRunScopeFailureCleansReservedDirectory(t *testing.T) {
 	scopeErr := errors.New("scope unavailable")
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
@@ -1161,6 +1325,88 @@ func TestRunManagerOpenRunScopeFailureCleansReservedDirectory(t *testing.T) {
 	) {
 		t.Fatalf("GetRun(open scope failure) error = %v, want ErrRunNotFound", err)
 	}
+}
+
+func TestRunManagerStartExecRunOpenRunScopeFailureMarksResumedRowFailed(t *testing.T) {
+	t.Run("Should fail a resumed exec row inserted from persisted metadata", func(t *testing.T) {
+		scopeErr := errors.New("scope unavailable")
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			openRunScope: func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error) {
+				return nil, scopeErr
+			},
+		})
+		const runID = "exec-resume-inserted"
+		writePersistedExecRun(t, env.workspaceRoot, runID, time.Date(2026, 5, 13, 15, 0, 0, 0, time.UTC))
+
+		_, err := env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+			WorkspacePath:    env.workspaceRoot,
+			Prompt:           "daemon exec prompt",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"exec-resume-inserted"}`),
+		})
+		if !errors.Is(err, scopeErr) {
+			t.Fatalf("StartExecRun(resumed inserted open scope failure) error = %v, want %v", err, scopeErr)
+		}
+
+		row := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+			return row.Status == runStatusFailed
+		})
+		if row.EndedAt == nil {
+			t.Fatal("EndedAt = nil, want terminal timestamp")
+		}
+		if !strings.Contains(row.ErrorText, scopeErr.Error()) {
+			t.Fatalf("row.ErrorText = %q, want %q", row.ErrorText, scopeErr.Error())
+		}
+	})
+
+	t.Run("Should fail a resumed exec row reset from an existing global row", func(t *testing.T) {
+		scopeErr := errors.New("scope unavailable")
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			openRunScope: func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error) {
+				return nil, scopeErr
+			},
+		})
+		const runID = "exec-resume-existing"
+		createdAt := time.Date(2026, 5, 13, 15, 5, 0, 0, time.UTC)
+		writePersistedExecRun(t, env.workspaceRoot, runID, createdAt)
+		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
+		}
+		if _, err := env.globalDB.PutRun(context.Background(), globaldb.Run{
+			RunID:            runID,
+			WorkspaceID:      workspace.ID,
+			Mode:             runModeExec,
+			Status:           runStatusCompleted,
+			PresentationMode: defaultPresentationMode,
+			StartedAt:        createdAt,
+		}); err != nil {
+			t.Fatalf("PutRun(existing exec) error = %v", err)
+		}
+
+		_, err = env.manager.StartExecRun(context.Background(), apicore.ExecRequest{
+			WorkspacePath:    env.workspaceRoot,
+			Prompt:           "daemon exec prompt",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"exec-resume-existing"}`),
+		})
+		if !errors.Is(err, scopeErr) {
+			t.Fatalf("StartExecRun(resumed existing open scope failure) error = %v, want %v", err, scopeErr)
+		}
+
+		row := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+			return row.Status == runStatusFailed
+		})
+		if row.EndedAt == nil {
+			t.Fatal("EndedAt = nil, want terminal timestamp")
+		}
+		if row.StartedAt != createdAt {
+			t.Fatalf("row.StartedAt = %v, want %v", row.StartedAt, createdAt)
+		}
+		if !strings.Contains(row.ErrorText, scopeErr.Error()) {
+			t.Fatalf("row.ErrorText = %q, want %q", row.ErrorText, scopeErr.Error())
+		}
+	})
 }
 
 func TestRunManagerStartRunSyncFailureMarksRunFailed(t *testing.T) {
@@ -2125,6 +2371,7 @@ type runManagerTestEnv struct {
 
 type runManagerTestDeps struct {
 	now                    func() time.Time
+	buildRunID             func(*model.RuntimeConfig) (string, error)
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -2197,6 +2444,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 		LifecycleContext:       context.Background(),
 		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
 		Now:                    deps.now,
+		BuildRunID:             deps.buildRunID,
 		OpenRunScope:           firstOpenRunScope(deps.openRunScope),
 		Prepare:                firstPrepare(deps.prepare),
 		Execute:                firstExecute(deps.execute),
@@ -2501,6 +2749,36 @@ func firstProjectConfig(
 func rawJSON(t *testing.T, value string) json.RawMessage {
 	t.Helper()
 	return json.RawMessage(value)
+}
+
+func writePersistedExecRun(t *testing.T, workspaceRoot string, runID string, createdAt time.Time) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("ResolvePersistedRunArtifacts(%q) error = %v", runID, err)
+	}
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir persisted exec run dir: %v", err)
+	}
+	record := runpkg.PersistedExecRun{
+		Version:       1,
+		Mode:          model.ModeExec,
+		RunID:         runID,
+		Status:        "completed",
+		WorkspaceRoot: workspaceRoot,
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt.Add(time.Minute),
+		EventsPath:    runArtifacts.EventsPath,
+		TurnsDir:      runArtifacts.TurnsDir,
+	}
+	payload, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("json.Marshal(PersistedExecRun) error = %v", err)
+	}
+	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o644); err != nil {
+		t.Fatalf("write persisted exec run metadata: %v", err)
+	}
 }
 
 func mustRunManagerTextBlock(t *testing.T, text string) kinds.ContentBlock {
