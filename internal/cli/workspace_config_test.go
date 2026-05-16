@@ -713,6 +713,62 @@ output_format = "text"
 	}
 }
 
+func TestApplyConfigRecursivePopulatesState(t *testing.T) {
+	isolateCLIConfigHome(t)
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[tasks.run]
+recursive = true
+`)
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	cmd.Flags().BoolVarP(&state.recursive, "recursive", "r", false, "recursive discovery")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if !state.recursive {
+		t.Fatal("expected tasks.run.recursive=true to populate state.recursive")
+	}
+}
+
+func TestApplyConfigRecursiveRespectsExplicitFlag(t *testing.T) {
+	isolateCLIConfigHome(t)
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[tasks.run]
+recursive = true
+`)
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	cmd.Flags().BoolVarP(&state.recursive, "recursive", "r", false, "recursive discovery")
+
+	chdirCLITest(t, startDir)
+
+	if err := cmd.Flags().Set("recursive", "false"); err != nil {
+		t.Fatalf("set recursive: %v", err)
+	}
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.recursive {
+		t.Fatal("expected explicit --recursive=false flag to win over TOML")
+	}
+}
+
 func TestApplyWorkspaceDefaultsKeepsWorkspaceDefaultsAheadOfGlobalExecOverrides(t *testing.T) {
 	root := t.TempDir()
 	homeDir := isolateCLIConfigHome(t)

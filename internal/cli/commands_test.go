@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
@@ -107,6 +108,25 @@ func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 	}
 	if cmd.Flags().Lookup("tui") != nil {
 		t.Fatal("expected tasks run to omit legacy --tui flag")
+	}
+}
+
+func TestNewTasksRunCommandRegistersRecursiveFlag(t *testing.T) {
+	t.Parallel()
+
+	cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+	flag := cmd.Flags().Lookup("recursive")
+	if flag == nil {
+		t.Fatal("expected --recursive flag on tasks run")
+	}
+	if flag.Shorthand != "r" {
+		t.Fatalf("expected --recursive shorthand %q, got %q", "r", flag.Shorthand)
+	}
+	if flag.DefValue != "false" {
+		t.Fatalf("expected --recursive default false, got %q", flag.DefValue)
+	}
+	if !strings.Contains(flag.Usage, "Recursively discover task_NNN.md") {
+		t.Fatalf("expected --recursive help text to describe nested task discovery, got %q", flag.Usage)
 	}
 }
 

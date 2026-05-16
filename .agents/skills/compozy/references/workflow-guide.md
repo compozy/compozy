@@ -83,6 +83,7 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 - `--auto-commit` -- create a local commit after each task completes cleanly.
 - `--dry-run` -- generate prompts without running the IDE tool.
 - `--include-completed` -- re-process tasks already marked as completed.
+- `--recursive` / `-r` -- discover `task_NNN.md` files in nested subdirectories (e.g., `features/auth/task_01.md`). Root tasks run first, then each subdirectory alphabetically, numerically within. Dot- and underscore-prefixed directories, `reviews-*`, `adrs/`, and `memory/` are skipped.
 
 **Interactive mode:** In interactive terminals, `tasks run` attaches to the TUI by default; use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
 

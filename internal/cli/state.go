@@ -54,6 +54,7 @@ type runtimeConfig struct {
 	executionTaskRuntimeRules     []model.TaskRuntimeRule
 	replaceConfiguredTaskRunRules bool
 	includeCompleted              bool
+	recursive                     bool
 	includeResolved               bool
 	soundEnabled                  bool
 	soundOnCompleted              string
@@ -324,6 +325,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		ExplicitRuntime:  s.explicitRuntime,
 		TaskRuntimeRules: s.taskRuntimeRules(),
 		IncludeCompleted: s.includeCompleted,
+		Recursive:        s.recursive,
 		IncludeResolved:  s.includeResolved,
 
 		Mode:                       s.mode,

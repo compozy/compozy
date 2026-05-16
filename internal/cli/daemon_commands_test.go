@@ -2134,6 +2134,59 @@ func TestBuildTaskRunRuntimeOverridesIncludesOnlyExplicitFlags(t *testing.T) {
 	}
 }
 
+func TestBuildTaskRunRuntimeOverridesIncludesRecursiveWhenExplicit(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, "")
+	cmd := newTaskRunPresentationCommand(state)
+	addCommonFlags(cmd, state, commonFlagOptions{})
+	cmd.Flags().BoolVarP(&state.recursive, "recursive", "r", false, "recursive discovery")
+
+	if err := cmd.Flags().Set("recursive", "true"); err != nil {
+		t.Fatalf("set recursive: %v", err)
+	}
+	state.recursive = true
+
+	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
+	if err != nil {
+		t.Fatalf("buildTaskRunRuntimeOverrides: %v", err)
+	}
+	overrides := decodeTaskRunOverrides(t, raw)
+	if overrides.Recursive == nil || !*overrides.Recursive {
+		t.Fatalf("expected explicit recursive override, got %#v", overrides)
+	}
+	if overrides.IncludeCompleted != nil {
+		t.Fatalf("expected unset include-completed to remain absent, got %#v", overrides)
+	}
+}
+
+func TestBuildTaskRunRuntimeOverridesOmitsRecursiveWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, "")
+	cmd := newTaskRunPresentationCommand(state)
+	addCommonFlags(cmd, state, commonFlagOptions{})
+	cmd.Flags().BoolVarP(&state.recursive, "recursive", "r", false, "recursive discovery")
+
+	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+		t.Fatalf("set dry-run: %v", err)
+	}
+	state.dryRun = true
+
+	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
+	if err != nil {
+		t.Fatalf("buildTaskRunRuntimeOverrides: %v", err)
+	}
+	overrides := decodeTaskRunOverrides(t, raw)
+	if overrides.Recursive != nil {
+		t.Fatalf("expected recursive override to remain absent, got %#v", overrides)
+	}
+	rawJSON := string(raw)
+	if containsAll(rawJSON, "\"recursive\"") {
+		t.Fatalf("expected JSON to omit recursive key, got %s", rawJSON)
+	}
+}
+
 func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.T) {
 	t.Parallel()
 

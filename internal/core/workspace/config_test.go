@@ -375,6 +375,72 @@ output_format = "json"
 	}
 }
 
+func TestWorkspaceConfigRoundTripsTasksRunRecursive(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{
+			name: "true",
+			content: `
+[tasks.run]
+recursive = true
+`,
+			want: true,
+		},
+		{
+			name: "false",
+			content: `
+[tasks.run]
+recursive = false
+`,
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tc.content)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			if cfg.Tasks.Run.Recursive == nil {
+				t.Fatalf("expected tasks.run.recursive to be parsed, got nil")
+			}
+			if *cfg.Tasks.Run.Recursive != tc.want {
+				t.Fatalf("tasks.run.recursive = %v, want %v", *cfg.Tasks.Run.Recursive, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorkspaceConfigOmitsRecursiveWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run]
+include_completed = true
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Tasks.Run.Recursive != nil {
+		t.Fatalf("expected tasks.run.recursive to remain nil when unset, got %#v", cfg.Tasks.Run.Recursive)
+	}
+}
+
 func TestLoadConfigAcceptsRawJSONExecOutputFormat(t *testing.T) {
 	t.Parallel()
 

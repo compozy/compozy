@@ -281,6 +281,108 @@ func TestValidateRequiresRegistry(t *testing.T) {
 	}
 }
 
+func TestValidateRecursesIntoNestedDirectories(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeRawTaskFile(t, tasksDir, "task_01.md", taskMarkdown(
+		[]string{"status: pending", "title: Root", "type: backend", "complexity: low"},
+		"# Root",
+	))
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writeRawTaskFile(t, nestedDir, "task_01.md", taskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Nested",
+	))
+
+	report, err := Validate(context.Background(), tasksDir, mustTaskRegistry(t))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if report.Scanned != 2 {
+		t.Fatalf("expected recursive scan to find 2 files, got %d", report.Scanned)
+	}
+	if report.OK() {
+		t.Fatalf("expected nested file to surface a title issue, got clean report")
+	}
+	nestedPath := filepath.Join(nestedDir, "task_01.md")
+	found := false
+	for _, issue := range report.Issues {
+		if issue.Path == nestedPath && issue.Field == "title" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected nested title issue at %q, got %#v", nestedPath, report.Issues)
+	}
+}
+
+func TestValidateWithOptionsFlatIgnoresNestedTasks(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeRawTaskFile(t, tasksDir, "task_01.md", taskMarkdown(
+		[]string{"status: pending", "title: Root", "type: backend", "complexity: low"},
+		"# Root",
+	))
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writeRawTaskFile(t, nestedDir, "task_01.md", taskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Nested",
+	))
+
+	report, err := ValidateWithOptions(
+		context.Background(),
+		tasksDir,
+		mustTaskRegistry(t),
+		ValidateOptions{Recursive: false},
+	)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if report.Scanned != 1 {
+		t.Fatalf("expected flat scan to find 1 file, got %d", report.Scanned)
+	}
+	if !report.OK() {
+		t.Fatalf("expected flat scan to ignore nested draft, got %#v", report.Issues)
+	}
+}
+
+func TestValidateSkipsHiddenAndReviewDirectories(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeRawTaskFile(t, tasksDir, "task_01.md", taskMarkdown(
+		[]string{"status: pending", "title: Root", "type: backend", "complexity: low"},
+		"# Root",
+	))
+	for _, sub := range []string{".cache", "_drafts", "reviews-001", "adrs", "memory"} {
+		dir := filepath.Join(tasksDir, sub)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", sub, err)
+		}
+		writeRawTaskFile(t, dir, "task_01.md", "garbage")
+	}
+
+	report, err := Validate(context.Background(), tasksDir, mustTaskRegistry(t))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if report.Scanned != 1 {
+		t.Fatalf("expected validator to skip hidden dirs; got scanned=%d", report.Scanned)
+	}
+	if !report.OK() {
+		t.Fatalf("expected clean report, got %#v", report.Issues)
+	}
+}
+
 func TestValidateRejectsLegacyTaskMetadata(t *testing.T) {
 	t.Parallel()
 

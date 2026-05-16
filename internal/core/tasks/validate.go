@@ -18,27 +18,36 @@ var validTaskStatuses = []string{"pending", "in_progress", "completed", "blocked
 
 var validTaskComplexities = []string{"low", "medium", "high", "critical"}
 
-// Issue describes one validation problem found in a task file.
 type Issue struct {
 	Path    string `json:"path"`
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
 
-// Report captures the outcome of validating a tasks directory.
 type Report struct {
 	TasksDir string  `json:"tasks_dir"`
 	Scanned  int     `json:"scanned"`
 	Issues   []Issue `json:"issues"`
 }
 
-// OK reports whether the validation pass found no issues.
+type ValidateOptions struct {
+	Recursive bool
+}
+
 func (r Report) OK() bool {
 	return len(r.Issues) == 0
 }
 
-// Validate scans task markdown files and reports schema violations without mutating the filesystem.
 func Validate(ctx context.Context, tasksDir string, registry *TypeRegistry) (Report, error) {
+	return ValidateWithOptions(ctx, tasksDir, registry, ValidateOptions{Recursive: true})
+}
+
+func ValidateWithOptions(
+	ctx context.Context,
+	tasksDir string,
+	registry *TypeRegistry,
+	options ValidateOptions,
+) (Report, error) {
 	if registry == nil {
 		return Report{}, errors.New("task type registry is required")
 	}
@@ -52,28 +61,30 @@ func Validate(ctx context.Context, tasksDir string, registry *TypeRegistry) (Rep
 	}
 
 	report := Report{TasksDir: resolvedDir}
-	entries, err := os.ReadDir(resolvedDir)
-	if err != nil {
-		return report, fmt.Errorf("read tasks directory: %w", err)
+	if _, statErr := os.Stat(resolvedDir); statErr != nil {
+		return report, fmt.Errorf("read tasks directory %s: %w", resolvedDir, statErr)
 	}
-
-	taskNames := collectTaskFileNames(entries)
-	report.Scanned = len(taskNames)
-	if len(taskNames) == 0 {
+	names, err := taskFileNames(resolvedDir, options.Recursive)
+	if err != nil {
+		return report, err
+	}
+	report.Scanned = len(names)
+	if len(names) == 0 {
 		return report, nil
 	}
 
-	existingTasks := make(map[string]struct{}, len(taskNames))
-	for _, name := range taskNames {
+	existingTasks := make(map[string]struct{}, len(names))
+	for _, name := range names {
 		existingTasks[strings.TrimSuffix(name, filepath.Ext(name))] = struct{}{}
+		existingTasks[strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))] = struct{}{}
 	}
 
-	for _, name := range taskNames {
+	for _, name := range names {
 		if err := context.Cause(ctx); err != nil {
 			return report, fmt.Errorf("validate tasks: %w", err)
 		}
 
-		path := filepath.Join(resolvedDir, name)
+		path := filepath.Join(resolvedDir, filepath.FromSlash(name))
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return report, fmt.Errorf("read %s: %w", name, err)
@@ -88,25 +99,14 @@ func Validate(ctx context.Context, tasksDir string, registry *TypeRegistry) (Rep
 			report.Issues,
 			validateTaskFile(path, task, body, legacyKeys, registry, existingTasks)...)
 	}
+	slices.SortStableFunc(report.Issues, func(a, b Issue) int {
+		if cmp := strings.Compare(a.Path, b.Path); cmp != 0 {
+			return cmp
+		}
+		return strings.Compare(a.Field, b.Field)
+	})
 
 	return report, nil
-}
-
-func collectTaskFileNames(entries []os.DirEntry) []string {
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.Type().IsRegular() || ExtractTaskNumber(entry.Name()) == 0 {
-			continue
-		}
-		names = append(names, entry.Name())
-	}
-	slices.SortStableFunc(names, func(a, b string) int {
-		if numA, numB := ExtractTaskNumber(a), ExtractTaskNumber(b); numA != numB {
-			return numA - numB
-		}
-		return strings.Compare(a, b)
-	})
-	return names
 }
 
 func parseTaskForValidation(content string) (model.TaskEntry, string, []string, error) {
