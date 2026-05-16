@@ -1,5 +1,8 @@
-## 0.2.4 - 2026-05-14
+## 0.2.5 - 2026-05-16
 
-### 🐛 Bug Fixes
+### 🎉 Features
 
-- Codex acp integration (#151)
+- Add zsh task completion plugin docs and script (#149)
+### 📚 Documentation
+
+- Add star history on readme
