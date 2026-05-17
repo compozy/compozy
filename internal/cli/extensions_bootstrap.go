@@ -69,7 +69,11 @@ func (s *commandState) requiresDeclarativeAssetBootstrap() bool {
 	}
 
 	switch s.kind {
-	case commandKindFetchReviews, commandKindFixReviews, commandKindExec, commandKindTasksRun:
+	case commandKindFetchReviews,
+		commandKindFixReviews,
+		commandKindExec,
+		commandKindTasksRun,
+		commandKindTasksRunMultiple:
 		return true
 	default:
 		return false

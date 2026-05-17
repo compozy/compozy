@@ -20,6 +20,8 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
 	"github.com/compozy/compozy/internal/daemon"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
@@ -36,65 +38,71 @@ var (
 type daemonCommandContextKey string
 
 type stubDaemonCommandClient struct {
-	target          apiclient.Target
-	health          apicore.DaemonHealth
-	healthErr       error
-	healthCtx       context.Context
-	healthCalls     int
-	status          apicore.DaemonStatus
-	statusErr       error
-	statusCtx       context.Context
-	startCalls      int
-	startSlug       string
-	startRequest    apicore.TaskRunRequest
-	startRun        apicore.Run
-	startErr        error
-	cancelCtx       context.Context
-	cancelRunID     string
-	cancelCalls     int
-	cancelErr       error
-	stopCtx         context.Context
-	stopForce       bool
-	stopErr         error
-	workspaces      []apicore.Workspace
-	workspace       apicore.Workspace
-	workspaceErr    error
-	register        apicore.WorkspaceRegisterResult
-	registerErr     error
-	listErr         error
-	deleteRef       string
-	deleteErr       error
-	workflows       []apicore.WorkflowSummary
-	workflowsErr    error
-	archiveCalls    []string
-	archive         apicore.ArchiveResult
-	archiveBySlug   map[string]apicore.ArchiveResult
-	archiveErr      error
-	archiveErrors   map[string]error
-	syncRequest     apicore.SyncRequest
-	syncResult      apicore.SyncResult
-	syncErr         error
-	reviewFetch     apicore.ReviewFetchResult
-	reviewFetchErr  error
-	reviewLatest    apicore.ReviewSummary
-	reviewLatestErr error
-	reviewRound     apicore.ReviewRound
-	reviewRoundErr  error
-	reviewIssues    []apicore.ReviewIssue
-	reviewIssuesErr error
-	reviewRun       apicore.Run
-	reviewRunErr    error
-	reviewWatchRun  apicore.Run
-	reviewWatchErr  error
-	execRun         apicore.Run
-	execRunErr      error
-	runEventPage    apicore.RunEventPage
-	runEventPageErr error
-	snapshot        apicore.RunSnapshot
-	snapshotErr     error
-	snapshotFunc    func(context.Context, string) (apicore.RunSnapshot, error)
-	stream          apiclient.RunStream
-	streamErr       error
+	target               apiclient.Target
+	health               apicore.DaemonHealth
+	healthErr            error
+	healthCtx            context.Context
+	healthCalls          int
+	status               apicore.DaemonStatus
+	statusErr            error
+	statusCtx            context.Context
+	startCalls           int
+	startSlug            string
+	startRequest         apicore.TaskRunRequest
+	startRun             apicore.Run
+	startErr             error
+	startMultipleCalls   int
+	startMultipleRequest apicore.TaskRunMultipleRequest
+	startMultipleRun     apicore.Run
+	startMultipleErr     error
+	multiSnapshot        apicore.TaskRunMultipleSnapshot
+	multiSnapshotErr     error
+	cancelCtx            context.Context
+	cancelRunID          string
+	cancelCalls          int
+	cancelErr            error
+	stopCtx              context.Context
+	stopForce            bool
+	stopErr              error
+	workspaces           []apicore.Workspace
+	workspace            apicore.Workspace
+	workspaceErr         error
+	register             apicore.WorkspaceRegisterResult
+	registerErr          error
+	listErr              error
+	deleteRef            string
+	deleteErr            error
+	workflows            []apicore.WorkflowSummary
+	workflowsErr         error
+	archiveCalls         []string
+	archive              apicore.ArchiveResult
+	archiveBySlug        map[string]apicore.ArchiveResult
+	archiveErr           error
+	archiveErrors        map[string]error
+	syncRequest          apicore.SyncRequest
+	syncResult           apicore.SyncResult
+	syncErr              error
+	reviewFetch          apicore.ReviewFetchResult
+	reviewFetchErr       error
+	reviewLatest         apicore.ReviewSummary
+	reviewLatestErr      error
+	reviewRound          apicore.ReviewRound
+	reviewRoundErr       error
+	reviewIssues         []apicore.ReviewIssue
+	reviewIssuesErr      error
+	reviewRun            apicore.Run
+	reviewRunErr         error
+	reviewWatchRun       apicore.Run
+	reviewWatchErr       error
+	execRun              apicore.Run
+	execRunErr           error
+	runEventPage         apicore.RunEventPage
+	runEventPageErr      error
+	snapshot             apicore.RunSnapshot
+	snapshotErr          error
+	snapshotFunc         func(context.Context, string) (apicore.RunSnapshot, error)
+	stream               apiclient.RunStream
+	streamErr            error
 }
 
 func (c *stubDaemonCommandClient) Target() apiclient.Target {
@@ -311,6 +319,34 @@ func (c *stubDaemonCommandClient) StartTaskRun(
 		return apicore.Run{}, c.startErr
 	}
 	return c.startRun, nil
+}
+
+func (c *stubDaemonCommandClient) StartTaskRunMultiple(
+	_ context.Context,
+	req apicore.TaskRunMultipleRequest,
+) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, errors.New("stub daemon client is required")
+	}
+	c.startMultipleCalls++
+	c.startMultipleRequest = req
+	if c.startMultipleErr != nil {
+		return apicore.Run{}, c.startMultipleErr
+	}
+	return c.startMultipleRun, nil
+}
+
+func (c *stubDaemonCommandClient) GetTaskRunMultipleSnapshot(
+	context.Context,
+	string,
+) (apicore.TaskRunMultipleSnapshot, error) {
+	if c == nil {
+		return apicore.TaskRunMultipleSnapshot{}, errors.New("stub daemon client is required")
+	}
+	if c.multiSnapshotErr != nil {
+		return apicore.TaskRunMultipleSnapshot{}, c.multiSnapshotErr
+	}
+	return c.multiSnapshot, nil
 }
 
 func (c *stubDaemonCommandClient) StartReviewRun(
@@ -989,6 +1025,224 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 		t.Fatalf("decode task run overrides: %v", err)
 	}
 	return payload
+}
+
+type failingCLIWriter struct{}
+
+func (failingCLIWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+func TestResolveTaskRunMultipleMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default enqueued", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		cmd := &cobra.Command{}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != "enqueued" {
+			t.Fatalf("mode = %q, want enqueued", mode)
+		}
+	})
+
+	t.Run("parallel fallback", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
+		cmd := &cobra.Command{}
+		var stderr bytes.Buffer
+		cmd.SetErr(&stderr)
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != "enqueued" {
+			t.Fatalf("mode = %q, want enqueued", mode)
+		}
+		if !containsAll(stderr.String(), "V2", "worktree isolation", "enqueued") {
+			t.Fatalf("fallback stderr = %q", stderr.String())
+		}
+	})
+
+	t.Run("invalid internal value", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("bogus")
+		_, err := state.resolveTaskRunMultipleMode(&cobra.Command{})
+		if err == nil || !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
+			t.Fatalf("expected invalid mode error, got %v", err)
+		}
+	})
+
+	t.Run("fallback write failure", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
+		cmd := &cobra.Command{}
+		cmd.SetErr(failingCLIWriter{})
+		_, err := state.resolveTaskRunMultipleMode(cmd)
+		if err == nil || !strings.Contains(err.Error(), "write run-multiple fallback message") {
+			t.Fatalf("expected fallback write error, got %v", err)
+		}
+	})
+}
+
+func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		kind    eventspkg.EventKind
+		payload kinds.TaskRunMultiplePayload
+		want    string
+	}{
+		{
+			name:    "queue started",
+			kind:    eventspkg.EventKindTaskRunMultipleStarted,
+			payload: kinds.TaskRunMultiplePayload{Mode: "enqueued", Slugs: []string{"alpha", "beta"}, Total: 2},
+			want:    "task queue started | mode=enqueued total=2\n",
+		},
+		{
+			name:    "item queued",
+			kind:    eventspkg.EventKindTaskRunMultipleItemQueued,
+			payload: kinds.TaskRunMultiplePayload{Slug: "alpha", Index: 0, Total: 2, Status: "queued"},
+			want:    "task[1/2] alpha queued\n",
+		},
+		{
+			name: "child started",
+			kind: eventspkg.EventKindTaskRunMultipleChildStarted,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug:       "alpha",
+				Index:      0,
+				Total:      2,
+				Status:     "running",
+				ChildRunID: "child-alpha",
+			},
+			want: "task[1/2] alpha running | run=child-alpha\n",
+		},
+		{
+			name: "child completed",
+			kind: eventspkg.EventKindTaskRunMultipleChildCompleted,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug:       "alpha",
+				Index:      0,
+				Total:      2,
+				Status:     "completed",
+				ChildRunID: "child-alpha",
+			},
+			want: "task[1/2] alpha completed | run=child-alpha\n",
+		},
+		{
+			name: "child failed",
+			kind: eventspkg.EventKindTaskRunMultipleChildFailed,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug:       "alpha",
+				Index:      0,
+				Total:      2,
+				Status:     "failed",
+				ChildRunID: "child-alpha",
+				Error:      "forced failure",
+			},
+			want: "task[1/2] alpha failed | run=child-alpha | forced failure\n",
+		},
+		{
+			name: "item canceled",
+			kind: eventspkg.EventKindTaskRunMultipleItemCanceled,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug:   "beta",
+				Index:  1,
+				Total:  2,
+				Status: "canceled",
+				Error:  "parent failed",
+			},
+			want: "task[2/2] beta canceled | parent failed\n",
+		},
+		{
+			name:    "queue completed",
+			kind:    eventspkg.EventKindTaskRunMultipleQueueCompleted,
+			payload: kinds.TaskRunMultiplePayload{Total: 2},
+			want:    "task queue completed | total=2\n",
+		},
+		{
+			name:    "queue canceled",
+			kind:    eventspkg.EventKindTaskRunMultipleQueueCanceled,
+			payload: kinds.TaskRunMultiplePayload{Error: "stop requested"},
+			want:    "task queue canceled | stop requested\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+			got := renderObservedRunEvent(eventspkg.Event{
+				Kind:    tc.kind,
+				Payload: raw,
+			})
+			if got != tc.want {
+				t.Fatalf("renderObservedRunEvent() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRenderObservedTaskMultiLifecycleFallbacks(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		kind eventspkg.EventKind
+		want string
+	}{
+		{
+			name: "queue started",
+			kind: eventspkg.EventKindTaskRunMultipleStarted,
+			want: "task queue started\n",
+		},
+		{
+			name: "item failed",
+			kind: eventspkg.EventKindTaskRunMultipleChildFailed,
+			want: "task failed\n",
+		},
+		{
+			name: "queue completed",
+			kind: eventspkg.EventKindTaskRunMultipleQueueCompleted,
+			want: "task queue completed\n",
+		},
+		{
+			name: "queue canceled",
+			kind: eventspkg.EventKindTaskRunMultipleQueueCanceled,
+			want: "task queue canceled\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := renderObservedRunEvent(eventspkg.Event{
+				Kind:    tc.kind,
+				Payload: []byte("{"),
+			})
+			if got != tc.want {
+				t.Fatalf("renderObservedRunEvent() = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {

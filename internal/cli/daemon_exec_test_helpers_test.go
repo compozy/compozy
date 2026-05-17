@@ -35,6 +35,11 @@ var _ daemonCommandClient = (*inProcessDaemonCommandClient)(nil)
 
 func installInProcessCLIDaemonBootstrap(t *testing.T) {
 	t.Helper()
+	installInProcessCLIDaemonBootstrapWithConfig(t, daemon.RunManagerConfig{})
+}
+
+func installInProcessCLIDaemonBootstrapWithConfig(t *testing.T, cfg daemon.RunManagerConfig) {
+	t.Helper()
 
 	prepareInProcessCLIDaemonHome(t)
 
@@ -57,11 +62,14 @@ func installInProcessCLIDaemonBootstrap(t *testing.T) {
 		_ = db.Close()
 	})
 
-	manager, err := daemon.NewRunManager(daemon.RunManagerConfig{
-		GlobalDB:             db,
-		LifecycleContext:     ctx,
-		ShutdownDrainTimeout: time.Second,
-	})
+	cfg.GlobalDB = db
+	if cfg.LifecycleContext == nil {
+		cfg.LifecycleContext = ctx
+	}
+	if cfg.ShutdownDrainTimeout == 0 {
+		cfg.ShutdownDrainTimeout = time.Second
+	}
+	manager, err := daemon.NewRunManager(cfg)
 	if err != nil {
 		t.Fatalf("daemon.NewRunManager() error = %v", err)
 	}
@@ -324,6 +332,20 @@ func (c *inProcessDaemonCommandClient) StartTaskRun(
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
 	return c.manager.StartTaskRun(ctx, req.Workspace, slug, req)
+}
+
+func (c *inProcessDaemonCommandClient) StartTaskRunMultiple(
+	ctx context.Context,
+	req apicore.TaskRunMultipleRequest,
+) (apicore.Run, error) {
+	return c.manager.StartTaskRunMultiple(ctx, req.Workspace, req)
+}
+
+func (c *inProcessDaemonCommandClient) GetTaskRunMultipleSnapshot(
+	ctx context.Context,
+	runID string,
+) (apicore.TaskRunMultipleSnapshot, error) {
+	return c.manager.RunMultipleSnapshot(ctx, runID)
 }
 
 func (c *inProcessDaemonCommandClient) StartReviewRun(

@@ -337,6 +337,25 @@ func makeValidateTasksWorkspace(t *testing.T, name string) (string, string) {
 	return root, tasksDir
 }
 
+func writeTaskWorkflowForCLI(t *testing.T, workspaceRoot string, slug string) string {
+	t.Helper()
+
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir task workflow %s: %v", slug, err)
+	}
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: " + slug + " Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: "+slug+" Task",
+	))
+	return tasksDir
+}
+
 func cliTaskMarkdown(frontMatter []string, h1 string) string {
 	lines := []string{"---"}
 	lines = append(lines, frontMatter...)

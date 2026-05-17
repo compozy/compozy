@@ -18,6 +18,8 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
+	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	daemonlogger "github.com/compozy/compozy/internal/logger"
 	"github.com/spf13/cobra"
@@ -61,6 +63,8 @@ type daemonCommandClient interface {
 	GetReviewRound(context.Context, string, string, int) (apicore.ReviewRound, error)
 	ListReviewIssues(context.Context, string, string, int) ([]apicore.ReviewIssue, error)
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
+	StartTaskRunMultiple(context.Context, apicore.TaskRunMultipleRequest) (apicore.Run, error)
+	GetTaskRunMultipleSnapshot(context.Context, string) (apicore.TaskRunMultipleSnapshot, error)
 	StartReviewRun(context.Context, string, string, int, apicore.ReviewRunRequest) (apicore.Run, error)
 	StartReviewWatch(context.Context, string, string, apicore.ReviewWatchRequest) (apicore.Run, error)
 	StartExecRun(context.Context, apicore.ExecRequest) (apicore.Run, error)
@@ -249,6 +253,7 @@ func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefault
 	cmd.AddCommand(
 		newTasksValidateCommand(),
 		newTasksRunCommandWithDefaults(dispatcher, defaults),
+		newTasksRunMultipleCommandWithDefaults(dispatcher, defaults),
 	)
 	return cmd
 }
@@ -273,8 +278,43 @@ is running, and then sends the workflow request over the daemon transport.`,
 		},
 	}
 
+	addTaskRunFlags(cmd, state, taskRunFlagOptions{includeName: true})
+	return cmd
+}
+
+func newTasksRunMultipleCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+	state := newCommandStateWithDefaults(commandKindTasksRunMultiple, core.ModePRDTasks, defaults)
+	cmd := &cobra.Command{
+		Use:          "run-multiple [slugs]",
+		Short:        "Start a daemon-backed queue of task workflow runs",
+		SilenceUsage: true,
+		Args:         cobra.MaximumNArgs(1),
+		Long: `Start multiple task workflows through one daemon-owned parent run.
+
+The command accepts one comma-separated positional slug list. V1 runs the queue
+in enqueued order; configured parallel mode prints a V2 worktree-isolation
+fallback message before sending enqueued execution to the daemon.`,
+		Example: `  compozy tasks run-multiple alpha,beta --stream
+  compozy tasks run-multiple alpha,beta --detach
+  compozy tasks run-multiple alpha,beta --ide codex --model gpt-5.5`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return state.runTaskWorkflowsMultiple(cmd, args)
+		},
+	}
+
+	addTaskRunFlags(cmd, state, taskRunFlagOptions{})
+	return cmd
+}
+
+type taskRunFlagOptions struct {
+	includeName bool
+}
+
+func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOptions) {
 	addCommonFlags(cmd, state, commonFlagOptions{})
-	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow slug (defaults to the positional slug)")
+	if opts.includeName {
+		cmd.Flags().StringVar(&state.name, "name", "", "Task workflow slug (defaults to the positional slug)")
+	}
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVar(
 		&state.skipValidation,
@@ -302,7 +342,6 @@ is running, and then sends the workflow request over the daemon transport.`,
 		"task-runtime",
 		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.5 or id=task_01,reasoning-effort=xhigh`,
 	)
-	return cmd
 }
 
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
@@ -361,6 +400,116 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	return handleStartedTaskRun(ctx, cmd, client, run)
 }
 
+func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	slugs, err := resolveTaskWorkflowSlugList(args)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
+	}
+
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+	if err := s.preflightTaskWorkflowSlugs(ctx, cmd, slugs); err != nil {
+		return err
+	}
+
+	presentationMode, err := s.resolveTaskPresentationMode(cmd)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	mode, err := s.resolveTaskRunMultipleMode(cmd)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+
+	client, err := newCLIDaemonBootstrap().ensure(ctx)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+
+	run, err := client.StartTaskRunMultiple(ctx, apicore.TaskRunMultipleRequest{
+		Workspace:        s.workspaceRoot,
+		Slugs:            slugs,
+		Mode:             mode,
+		PresentationMode: presentationMode,
+		RuntimeOverrides: runtimeOverrides,
+	})
+	if err != nil {
+		return mapDaemonCommandError(err)
+	}
+	return handleStartedTaskRunMultiple(ctx, cmd, client, run)
+}
+
+func resolveTaskWorkflowSlugList(args []string) ([]string, error) {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		return nil, errors.New("workflow slug list is required; pass comma-separated slugs as the positional argument")
+	}
+	slugs, err := taskscore.ParseCommaSeparatedSlugs(args[0])
+	if err != nil {
+		return nil, fmt.Errorf("workflow slug list: %w", err)
+	}
+	return slugs, nil
+}
+
+func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobra.Command, slugs []string) error {
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return withExitCode(2, err)
+	}
+
+	originalName := s.name
+	originalTasksDir := s.tasksDir
+	defer func() {
+		s.name = originalName
+		s.tasksDir = originalTasksDir
+	}()
+
+	for _, slug := range slugs {
+		resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, slug, "")
+		if err != nil {
+			return withExitCode(2, err)
+		}
+		s.name = slug
+		s.tasksDir = resolvedTasksDir
+		cfg.Name = slug
+		cfg.TasksDir = resolvedTasksDir
+		if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, error) {
+	mode := s.projectConfig.Tasks.Run.EffectiveRunMultipleMode()
+	switch mode {
+	case workspacecfg.TaskRunMultipleModeEnqueued:
+		return mode, nil
+	case workspacecfg.TaskRunMultipleModeParallel:
+		if _, err := fmt.Fprintln(
+			cmd.ErrOrStderr(),
+			"parallel multi-task execution is planned for V2 with git worktree isolation; running this queue in enqueued mode.",
+		); err != nil {
+			return "", fmt.Errorf("write run-multiple fallback message: %w", err)
+		}
+		return workspacecfg.TaskRunMultipleModeEnqueued, nil
+	default:
+		return "", fmt.Errorf("tasks.run.run_multiple_mode must be %q or %q (got %q)",
+			workspacecfg.TaskRunMultipleModeEnqueued,
+			workspacecfg.TaskRunMultipleModeParallel,
+			mode,
+		)
+	}
+}
+
 func handleStartedTaskRun(
 	ctx context.Context,
 	cmd *cobra.Command,
@@ -391,6 +540,30 @@ func handleStartedTaskRun(
 	return nil
 }
 
+func handleStartedTaskRunMultiple(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+	run apicore.Run,
+) error {
+	if run.PresentationMode == attachModeUI {
+		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
+			if errors.Is(err, errRunSettledBeforeUIAttach) {
+				return watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID)
+			}
+			return mapDaemonCommandError(err)
+		}
+		return nil
+	}
+	if err := writeStartedTaskRunMultiple(cmd, run); err != nil {
+		return err
+	}
+	if run.PresentationMode != attachModeStream {
+		return nil
+	}
+	return watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID)
+}
+
 func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {
 	if _, err := fmt.Fprintf(
 		cmd.OutOrStdout(),
@@ -399,6 +572,18 @@ func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {
 		run.PresentationMode,
 	); err != nil {
 		return withExitCode(2, fmt.Errorf("write task run summary: %w", err))
+	}
+	return nil
+}
+
+func writeStartedTaskRunMultiple(cmd *cobra.Command, run apicore.Run) error {
+	if _, err := fmt.Fprintf(
+		cmd.OutOrStdout(),
+		"task multi-run started: %s (mode=%s)\n",
+		run.RunID,
+		run.PresentationMode,
+	); err != nil {
+		return withExitCode(2, fmt.Errorf("write task multi-run summary: %w", err))
 	}
 	return nil
 }

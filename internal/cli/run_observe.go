@@ -310,7 +310,96 @@ func defaultWatchCLIRun(ctx context.Context, dst io.Writer, client daemonCommand
 	return nil
 }
 
+func watchCLIRunUntilTerminalSuccess(
+	ctx context.Context,
+	dst io.Writer,
+	client daemonCommandClient,
+	runID string,
+) error {
+	if dst == nil {
+		dst = io.Discard
+	}
+
+	eventsCh, errsCh := runspkg.WatchRemote(ctx, cliRemoteWatchClient{daemon: client}, runID)
+	for eventsCh != nil || errsCh != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err, ok := <-errsCh:
+			if !ok {
+				errsCh = nil
+				continue
+			}
+			if err != nil {
+				return mapDaemonCommandError(err)
+			}
+		case event, ok := <-eventsCh:
+			if !ok {
+				eventsCh = nil
+				continue
+			}
+			done, err := writeObservedEventAndCheckTerminal(ctx, dst, client, runID, event)
+			if err != nil || done {
+				return err
+			}
+		}
+	}
+
+	return currentTerminalRunSuccess(ctx, client, runID)
+}
+
+func writeObservedEventAndCheckTerminal(
+	ctx context.Context,
+	dst io.Writer,
+	client daemonCommandClient,
+	runID string,
+	event eventspkg.Event,
+) (bool, error) {
+	line := renderObservedRunEvent(event)
+	if strings.TrimSpace(line) != "" {
+		if _, err := io.WriteString(dst, line); err != nil {
+			return false, withExitCode(2, fmt.Errorf("write run watch output: %w", err))
+		}
+	}
+	if !isTerminalDaemonEvent(event.Kind) {
+		return false, nil
+	}
+	terminal, err := waitForTerminalDaemonRunSnapshot(ctx, client, runID)
+	if err != nil {
+		return false, mapDaemonCommandError(err)
+	}
+	return true, terminalRunSuccessError(terminal)
+}
+
+func currentTerminalRunSuccess(ctx context.Context, client daemonCommandClient, runID string) error {
+	snapshot, err := client.GetRunSnapshot(ctx, runID)
+	if err != nil {
+		return mapDaemonCommandError(err)
+	}
+	if isTerminalDaemonRun(snapshot.Run.Status) {
+		return terminalRunSuccessError(snapshot.Run)
+	}
+	return nil
+}
+
+func terminalRunSuccessError(run apicore.Run) error {
+	if !isTerminalFailureStatus(run) {
+		return nil
+	}
+	status := strings.TrimSpace(run.Status)
+	message := strings.TrimSpace(run.ErrorText)
+	if message == "" {
+		message = fmt.Sprintf("run ended with status %s", status)
+	} else {
+		message = fmt.Sprintf("run ended with status %s: %s", status, message)
+	}
+	return withExitCode(1, errors.New(message))
+}
+
 func renderObservedRunEvent(event eventspkg.Event) string {
+	if line, handled := renderObservedTaskMultiLifecycle(event); handled {
+		return line
+	}
 	if line, handled := renderObservedRunLifecycle(event); handled {
 		return line
 	}
@@ -321,6 +410,91 @@ func renderObservedRunEvent(event eventspkg.Event) string {
 		return line
 	}
 	return ""
+}
+
+func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
+	switch event.Kind {
+	case eventspkg.EventKindTaskRunMultipleStarted:
+		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+		if !ok {
+			return "task queue started\n", true
+		}
+		total := payload.Total
+		if total <= 0 {
+			total = len(payload.Slugs)
+		}
+		return fmt.Sprintf(
+			"task queue started | mode=%s total=%d\n",
+			firstNonEmpty(payload.Mode, "enqueued"),
+			total,
+		), true
+	case eventspkg.EventKindTaskRunMultipleItemQueued:
+		return renderObservedTaskMultiItem(event, "queued")
+	case eventspkg.EventKindTaskRunMultipleChildStarted:
+		return renderObservedTaskMultiItem(event, "started")
+	case eventspkg.EventKindTaskRunMultipleChildCompleted:
+		return renderObservedTaskMultiItem(event, "completed")
+	case eventspkg.EventKindTaskRunMultipleChildFailed:
+		return renderObservedTaskMultiItem(event, "failed")
+	case eventspkg.EventKindTaskRunMultipleItemCanceled:
+		return renderObservedTaskMultiItem(event, "canceled")
+	case eventspkg.EventKindTaskRunMultipleQueueCompleted:
+		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+		if !ok {
+			return "task queue completed\n", true
+		}
+		return fmt.Sprintf("task queue completed | total=%d\n", payload.Total), true
+	case eventspkg.EventKindTaskRunMultipleQueueCanceled:
+		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+		if !ok {
+			return "task queue canceled\n", true
+		}
+		if message := strings.TrimSpace(payload.Error); message != "" {
+			return fmt.Sprintf("task queue canceled | %s\n", message), true
+		}
+		return "task queue canceled\n", true
+	default:
+		return "", false
+	}
+}
+
+func renderObservedTaskMultiItem(event eventspkg.Event, fallbackStatus string) (string, bool) {
+	payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+	if !ok {
+		return fmt.Sprintf("task %s\n", fallbackStatus), true
+	}
+	status := firstNonEmpty(payload.Status, fallbackStatus)
+	label := observedTaskMultiLabel(payload)
+	childRunID := strings.TrimSpace(payload.ChildRunID)
+	message := strings.TrimSpace(payload.Error)
+	switch {
+	case childRunID != "" && message != "":
+		return fmt.Sprintf("%s %s | run=%s | %s\n", label, status, childRunID, message), true
+	case childRunID != "":
+		return fmt.Sprintf("%s %s | run=%s\n", label, status, childRunID), true
+	case message != "":
+		return fmt.Sprintf("%s %s | %s\n", label, status, message), true
+	default:
+		return fmt.Sprintf("%s %s\n", label, status), true
+	}
+}
+
+func observedTaskMultiLabel(payload kinds.TaskRunMultiplePayload) string {
+	slug := strings.TrimSpace(payload.Slug)
+	index := payload.Index + 1
+	if index <= 0 {
+		index = 1
+	}
+	if payload.Total > 0 {
+		if slug != "" {
+			return fmt.Sprintf("task[%d/%d] %s", index, payload.Total, slug)
+		}
+		return fmt.Sprintf("task[%d/%d]", index, payload.Total)
+	}
+	if slug != "" {
+		return fmt.Sprintf("task[%d] %s", index, slug)
+	}
+	return fmt.Sprintf("task[%d]", index)
 }
 
 func isTerminalObservedRunStatus(status string) bool {
