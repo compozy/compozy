@@ -120,7 +120,7 @@ func TestUpgradeHelpShowsNoUnexpectedFlags(t *testing.T) {
 
 	required := []string{
 		"Upgrade compozy using the appropriate installation flow for this machine.",
-		"Package-manager installs print the correct command",
+		"Package-manager installs run the correct package manager command",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
