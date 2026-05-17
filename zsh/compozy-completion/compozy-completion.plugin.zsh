@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
-# Finds the nearest .compozy/tasks directory by walking up from the current
-# working directory.
+# Finds the nearest workspace `.compozy/tasks` directory by walking up from the
+# current working directory and returns the first match.
 _compozy_tasks_workspace() {
   local dir="$PWD"
 
@@ -18,6 +18,8 @@ _compozy_tasks_workspace() {
   return 1
 }
 
+# Returns a newline-separated list of task slugs found in the discovered
+# `.compozy/tasks` directory, one slug per line.
 _compozy_task_slugs() {
   local tasks_path
   local -a task_slugs
@@ -40,10 +42,8 @@ _compozy_task_slugs() {
   print -l -- "${task_slugs[@]}"
 }
 
-# Provides zsh completion for:
-# - `compozy tasks`
-# - `compozy tasks run`
-# - task slugs found under the discovered .compozy/tasks directory
+# Provides zsh completion for `compozy` command flows and returns task slugs for
+# completion of `compozy tasks run`.
 _compozy() {
   local -a comps
   local tasks_path
