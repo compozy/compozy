@@ -19,10 +19,11 @@ import (
 )
 
 var (
-	attachCLIRunUI         = newAttachCLIRunUI()
-	attachStartedCLIRunUI  = newAttachStartedCLIRunUI()
-	watchCLIRun            = defaultWatchCLIRun
-	openCLIRemoteUISession = uipkg.AttachRemote
+	attachCLIRunUI                 = newAttachCLIRunUI()
+	attachStartedCLIRunUI          = newAttachStartedCLIRunUI()
+	watchCLIRun                    = defaultWatchCLIRun
+	openCLIRemoteUISession         = uipkg.AttachRemote
+	openCLIRemoteMultiRunUISession = uipkg.AttachRemoteMultiple
 )
 
 var errRunSettledBeforeUIAttach = errors.New("run settled before ui attach")
@@ -31,6 +32,7 @@ const (
 	defaultUIAttachSnapshotTimeout      = 300 * time.Millisecond
 	defaultUIAttachSnapshotPollInterval = 10 * time.Millisecond
 	defaultOwnedRunCancelTimeout        = 5 * time.Second
+	daemonRunModeTaskMulti              = "task_multi"
 )
 
 type cliRunObserveConfig struct {
@@ -114,12 +116,9 @@ func attachRemoteCLIRunUI(
 	cancelOwnedRunOnExit bool,
 	cfg cliRunObserveConfig,
 ) error {
-	trimmedRunID := strings.TrimSpace(runID)
-	if client == nil {
-		return errors.New("daemon client is required")
-	}
-	if trimmedRunID == "" {
-		return errors.New("run id is required")
+	trimmedRunID, err := normalizeRemoteRunRequest(client, runID)
+	if err != nil {
+		return err
 	}
 
 	snapshot, err := loadUIAttachSnapshot(
@@ -131,6 +130,9 @@ func attachRemoteCLIRunUI(
 	)
 	if err != nil {
 		return err
+	}
+	if isTaskMultiRunSnapshot(snapshot) {
+		return attachRemoteCLIMultiRunUI(ctx, client, trimmedRunID, cancelOwnedRunOnExit, cfg)
 	}
 	if runSnapshotSettledBeforeUIAttach(snapshot) {
 		return errRunSettledBeforeUIAttach
@@ -149,14 +151,77 @@ func attachRemoteCLIRunUI(
 	if err != nil {
 		return err
 	}
-	var cancelRequested atomic.Bool
-	if cancelOwnedRunOnExit {
-		session.SetQuitHandler(func(uipkg.QuitRequest) {
-			cancelRequested.Store(true)
-			session.Shutdown()
-		})
-	}
+	return waitRemoteCLIRunUI(ctx, client, trimmedRunID, session, cancelOwnedRunOnExit, cfg.ownedRunCancelTimeout)
+}
 
+func normalizeRemoteRunRequest(client daemonCommandClient, runID string) (string, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	if client == nil {
+		return "", errors.New("daemon client is required")
+	}
+	if trimmedRunID == "" {
+		return "", errors.New("run id is required")
+	}
+	return trimmedRunID, nil
+}
+
+func isTaskMultiRunSnapshot(snapshot apicore.RunSnapshot) bool {
+	return snapshot.Run.Mode == daemonRunModeTaskMulti
+}
+
+func attachRemoteCLIMultiRunUI(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	cancelOwnedRunOnExit bool,
+	cfg cliRunObserveConfig,
+) error {
+	parentSnapshot, err := loadUIAttachTaskRunMultipleSnapshot(
+		ctx,
+		client,
+		runID,
+		cfg.attachSnapshotTimeout,
+		cfg.attachSnapshotPollInterval,
+	)
+	if err != nil {
+		return err
+	}
+	session, err := openCLIRemoteMultiRunUISession(ctx, uipkg.RemoteMultiRunAttachOptions{
+		Snapshot:     parentSnapshot,
+		OwnerSession: cancelOwnedRunOnExit,
+		LoadSnapshot: func(loadCtx context.Context) (apicore.TaskRunMultipleSnapshot, error) {
+			return client.GetTaskRunMultipleSnapshot(loadCtx, runID)
+		},
+		LoadChildSnapshot: func(loadCtx context.Context, childRunID string) (apicore.RunSnapshot, error) {
+			return client.GetRunSnapshot(loadCtx, childRunID)
+		},
+		OpenParentStream: func(streamCtx context.Context, after apicore.StreamCursor) (apiclient.RunStream, error) {
+			return client.OpenRunStream(streamCtx, runID, after)
+		},
+		OpenChildStream: func(
+			streamCtx context.Context,
+			childRunID string,
+			after apicore.StreamCursor,
+		) (apiclient.RunStream, error) {
+			return client.OpenRunStream(streamCtx, childRunID, after)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return waitRemoteCLIRunUI(ctx, client, runID, session, cancelOwnedRunOnExit, cfg.ownedRunCancelTimeout)
+}
+
+func waitRemoteCLIRunUI(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	session uipkg.Session,
+	cancelOwnedRunOnExit bool,
+	cancelTimeout time.Duration,
+) error {
+	var cancelRequested atomic.Bool
+	installRemoteUIQuitHandler(session, cancelOwnedRunOnExit, &cancelRequested)
 	done := make(chan struct{})
 	go func() {
 		select {
@@ -175,7 +240,7 @@ func attachRemoteCLIRunUI(
 		return waitErr
 	}
 	if cancelOwnedRunOnExit && cancelRequested.Load() {
-		if err := cancelOwnedDaemonRun(ctx, client, trimmedRunID, cfg.ownedRunCancelTimeout); err != nil {
+		if err := cancelOwnedDaemonRun(ctx, client, runID, cancelTimeout); err != nil {
 			return err
 		}
 	}
@@ -183,6 +248,16 @@ func attachRemoteCLIRunUI(
 		return nil
 	}
 	return nil
+}
+
+func installRemoteUIQuitHandler(session uipkg.Session, cancelOwnedRunOnExit bool, cancelRequested *atomic.Bool) {
+	if !cancelOwnedRunOnExit {
+		return
+	}
+	session.SetQuitHandler(func(uipkg.QuitRequest) {
+		cancelRequested.Store(true)
+		session.Shutdown()
+	})
 }
 
 func cancelOwnedDaemonRun(
@@ -204,6 +279,46 @@ func cancelOwnedDaemonRun(
 		return fmt.Errorf("cancel daemon run after ui exit: %w", err)
 	}
 	return nil
+}
+
+func loadUIAttachTaskRunMultipleSnapshot(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	timeout time.Duration,
+	pollInterval time.Duration,
+) (apicore.TaskRunMultipleSnapshot, error) {
+	snapshot, err := client.GetTaskRunMultipleSnapshot(ctx, runID)
+	if err != nil {
+		return apicore.TaskRunMultipleSnapshot{}, err
+	}
+	if len(snapshot.Items) > 0 || isTerminalObservedRunStatus(snapshot.Run.Status) ||
+		timeout <= 0 || pollInterval <= 0 {
+		return snapshot, nil
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return snapshot, ctx.Err()
+		case <-timer.C:
+			return snapshot, nil
+		case <-ticker.C:
+			snapshot, err = client.GetTaskRunMultipleSnapshot(ctx, runID)
+			if err != nil {
+				return apicore.TaskRunMultipleSnapshot{}, err
+			}
+			if len(snapshot.Items) > 0 || isTerminalObservedRunStatus(snapshot.Run.Status) {
+				return snapshot, nil
+			}
+		}
+	}
 }
 
 func loadUIAttachSnapshot(

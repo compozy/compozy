@@ -313,7 +313,7 @@ func TestPaneNavigationCyclesVisiblePanes(t *testing.T) {
 		t.Fatalf("expected second tab to wrap focus back to jobs, got %s", got)
 	}
 
-	m.handleKey(keyText("shift+tab"))
+	m.handleKey(keyText(keyShiftTab))
 	if got := m.focusedPane; got != uiPaneTimeline {
 		t.Fatalf("expected shift+tab to move focus back to timeline, got %s", got)
 	}
