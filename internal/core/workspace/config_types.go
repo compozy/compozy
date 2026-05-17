@@ -1,6 +1,15 @@
 package workspace
 
-import "github.com/compozy/compozy/internal/core/model"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/core/model"
+)
+
+const (
+	TaskRunMultipleModeEnqueued = "enqueued"
+	TaskRunMultipleModeParallel = "parallel"
+)
 
 type Context struct {
 	Root                string
@@ -41,8 +50,16 @@ type DefaultsConfig RuntimeOverrides
 type TaskRunConfig struct {
 	IncludeCompleted *bool                    `toml:"include_completed"`
 	OutputFormat     *string                  `toml:"output_format"`
+	RunMultipleMode  *string                  `toml:"run_multiple_mode"`
 	TUI              *bool                    `toml:"tui"`
 	TaskRuntimeRules *[]model.TaskRuntimeRule `toml:"task_runtime_rules"`
+}
+
+func (cfg TaskRunConfig) EffectiveRunMultipleMode() string {
+	if cfg.RunMultipleMode == nil {
+		return TaskRunMultipleModeEnqueued
+	}
+	return strings.TrimSpace(*cfg.RunMultipleMode)
 }
 
 type TasksConfig struct {

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Multi-Run Config and Slug Parsing Foundations
 type: backend
 complexity: medium
@@ -31,11 +31,11 @@ This task adds the configuration and input parsing foundations required by `task
 
 ## Subtasks
 
-- [ ] 1.1 Add the `run_multiple_mode` field to the task-run config model.
-- [ ] 1.2 Add merge and validation behavior for the new config field.
-- [ ] 1.3 Add a small parser for comma-separated multi-run slug input.
-- [ ] 1.4 Add unit tests for config loading, merge precedence, invalid modes, parser errors, and duplicate slugs.
-- [ ] 1.5 Confirm existing single-run config tests still pass unchanged.
+- [x] 1.1 Add the `run_multiple_mode` field to the task-run config model.
+- [x] 1.2 Add merge and validation behavior for the new config field.
+- [x] 1.3 Add a small parser for comma-separated multi-run slug input.
+- [x] 1.4 Add unit tests for config loading, merge precedence, invalid modes, parser errors, and duplicate slugs.
+- [x] 1.5 Confirm existing single-run config tests still pass unchanged.
 
 ## Implementation Details
 
@@ -71,15 +71,15 @@ Update the config layer first, then place the slug parser near the future CLI co
 ## Tests
 
 - Unit tests:
-  - [ ] Loading `[tasks.run] run_multiple_mode = "enqueued"` stores the configured value.
-  - [ ] Loading `[tasks.run] run_multiple_mode = "parallel"` stores the configured value without error.
-  - [ ] Loading `[tasks.run] run_multiple_mode = "invalid"` returns a validation error naming `tasks.run.run_multiple_mode`.
-  - [ ] Workspace config overrides global config for `run_multiple_mode`.
-  - [ ] Parsing `alpha,beta,gamma` returns slugs in that order.
-  - [ ] Parsing `alpha,,beta` rejects the empty slug.
-  - [ ] Parsing `alpha, beta ,alpha` rejects the duplicate `alpha`.
+  - [x] Loading `[tasks.run] run_multiple_mode = "enqueued"` stores the configured value.
+  - [x] Loading `[tasks.run] run_multiple_mode = "parallel"` stores the configured value without error.
+  - [x] Loading `[tasks.run] run_multiple_mode = "invalid"` returns a validation error naming `tasks.run.run_multiple_mode`.
+  - [x] Workspace config overrides global config for `run_multiple_mode`.
+  - [x] Parsing `alpha,beta,gamma` returns slugs in that order.
+  - [x] Parsing `alpha,,beta` rejects the empty slug.
+  - [x] Parsing `alpha, beta ,alpha` rejects the duplicate `alpha`.
 - Integration tests:
-  - [ ] `workspace.LoadConfig` accepts the new key while still rejecting unknown task-run keys.
+  - [x] `workspace.LoadConfig` accepts the new key while still rejecting unknown task-run keys.
 - Test coverage target: >=80%
 - All tests must pass
 

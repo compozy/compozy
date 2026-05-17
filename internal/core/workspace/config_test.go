@@ -375,6 +375,111 @@ output_format = "json"
 	}
 }
 
+func TestLoadConfigParsesTaskRunMultipleMode(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+	}{
+		{name: "enqueued", mode: TaskRunMultipleModeEnqueued},
+		{name: "parallel", mode: TaskRunMultipleModeParallel},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			isolateWorkspaceConfigHome(t)
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "`+tc.mode+`"
+`)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			assertOptionalString(t, "tasks.run.run_multiple_mode", cfg.Tasks.Run.RunMultipleMode, ptrString(tc.mode))
+			if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != tc.mode {
+				t.Fatalf("expected effective run_multiple_mode %q, got %q", tc.mode, got)
+			}
+		})
+	}
+}
+
+func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
+	isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir .compozy: %v", err)
+	}
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Tasks.Run.RunMultipleMode != nil {
+		t.Fatalf("expected unset run_multiple_mode pointer, got %#v", cfg.Tasks.Run.RunMultipleMode)
+	}
+	if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != TaskRunMultipleModeEnqueued {
+		t.Fatalf("expected default run_multiple_mode %q, got %q", TaskRunMultipleModeEnqueued, got)
+	}
+}
+
+func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
+	isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "invalid"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid tasks.run.run_multiple_mode error")
+	}
+	if !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigAcceptsTaskRunMultipleModeAndRejectsUnknownTaskRunKeys(t *testing.T) {
+	t.Run("accepts run_multiple_mode", func(t *testing.T) {
+		isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "enqueued"
+`)
+
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		assertOptionalString(
+			t,
+			"tasks.run.run_multiple_mode",
+			cfg.Tasks.Run.RunMultipleMode,
+			ptrString(TaskRunMultipleModeEnqueued),
+		)
+	})
+
+	t.Run("rejects unknown task-run key", func(t *testing.T) {
+		isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+unknown_task_run_key = true
+`)
+
+		_, _, err := LoadConfig(context.Background(), root)
+		if err == nil {
+			t.Fatal("expected unknown tasks.run key error")
+		}
+		if !strings.Contains(err.Error(), "decode workspace config") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
 func TestLoadConfigAcceptsRawJSONExecOutputFormat(t *testing.T) {
 	t.Parallel()
 
@@ -1197,6 +1302,7 @@ access_mode = "default"
 
 [tasks.run]
 include_completed = false
+run_multiple_mode = "enqueued"
 `)
 	writeWorkspaceConfig(t, root, `
 [defaults]
@@ -1204,6 +1310,7 @@ model = "gpt-5.5"
 
 [tasks.run]
 include_completed = true
+run_multiple_mode = "parallel"
 `)
 
 	cfg, path, err := LoadConfig(context.Background(), root)
@@ -1222,6 +1329,12 @@ include_completed = true
 	if cfg.Tasks.Run.IncludeCompleted == nil || !*cfg.Tasks.Run.IncludeCompleted {
 		t.Fatalf("expected workspace tasks.run.include_completed override, got %#v", cfg.Tasks.Run.IncludeCompleted)
 	}
+	assertOptionalString(
+		t,
+		"tasks.run.run_multiple_mode",
+		cfg.Tasks.Run.RunMultipleMode,
+		ptrString(TaskRunMultipleModeParallel),
+	)
 }
 
 func TestLoadConfigKeepsWorkspaceDefaultsAheadOfGlobalCommandOverrides(t *testing.T) {
