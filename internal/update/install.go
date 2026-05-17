@@ -6,11 +6,15 @@ import (
 	"go/build"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-var osExecutable = os.Executable
+var (
+	osExecutable             = os.Executable
+	runManagedUpgradeCommand = defaultManagedUpgradeCommand
+)
 
 // InstallMethod identifies how the compozy binary was installed.
 type InstallMethod int
@@ -37,7 +41,7 @@ func DetectInstallMethod() InstallMethod {
 
 // Upgrade performs the appropriate upgrade flow for the detected install method.
 //
-// Managed installs print the correct package manager command. Direct binary installs
+// Managed installs run the correct package manager command. Direct binary installs
 // perform an in-place self-update.
 func Upgrade(ctx context.Context, currentVersion string, stdout io.Writer) error {
 	if stdout == nil {
@@ -46,11 +50,11 @@ func Upgrade(ctx context.Context, currentVersion string, stdout io.Writer) error
 
 	switch DetectInstallMethod() {
 	case InstallHomebrew:
-		return printManagedUpgradeCommand(stdout, "brew upgrade --cask compozy")
+		return runManagedUpgradeCommand(ctx, stdout, InstallHomebrew)
 	case InstallNPM:
-		return printManagedUpgradeCommand(stdout, "npm install -g @compozy/cli@latest")
+		return runManagedUpgradeCommand(ctx, stdout, InstallNPM)
 	case InstallGo:
-		return printManagedUpgradeCommand(stdout, "go install github.com/compozy/compozy/cmd/compozy@latest")
+		return runManagedUpgradeCommand(ctx, stdout, InstallGo)
 	default:
 		client, err := newUpdaterClient()
 		if err != nil {
@@ -155,7 +159,54 @@ func normalizePath(path string) string {
 	return strings.ToLower(cleaned)
 }
 
-func printManagedUpgradeCommand(stdout io.Writer, command string) error {
-	_, err := fmt.Fprintln(stdout, command)
-	return err
+type managedUpgradeCommand struct {
+	name string
+	args []string
+}
+
+func (c managedUpgradeCommand) String() string {
+	parts := make([]string, 0, 1+len(c.args))
+	parts = append(parts, c.name)
+	parts = append(parts, c.args...)
+	return strings.Join(parts, " ")
+}
+
+func managedUpgradeCommandForMethod(method InstallMethod) (managedUpgradeCommand, bool) {
+	switch method {
+	case InstallHomebrew:
+		return managedUpgradeCommand{name: "brew", args: []string{"upgrade", "--cask", "compozy"}}, true
+	case InstallNPM:
+		return managedUpgradeCommand{name: "npm", args: []string{"install", "-g", "@compozy/cli@latest"}}, true
+	case InstallGo:
+		return managedUpgradeCommand{
+			name: "go",
+			args: []string{"install", "github.com/compozy/compozy/cmd/compozy@latest"},
+		}, true
+	default:
+		return managedUpgradeCommand{}, false
+	}
+}
+
+func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, method InstallMethod) error {
+	command, ok := managedUpgradeCommandForMethod(method)
+	if !ok {
+		return fmt.Errorf("unsupported managed install method: %d", method)
+	}
+
+	var cmd *exec.Cmd
+	switch method {
+	case InstallHomebrew:
+		cmd = exec.CommandContext(ctx, "brew", "upgrade", "--cask", "compozy")
+	case InstallNPM:
+		cmd = exec.CommandContext(ctx, "npm", "install", "-g", "@compozy/cli@latest")
+	case InstallGo:
+		cmd = exec.CommandContext(ctx, "go", "install", "github.com/compozy/compozy/cmd/compozy@latest")
+	}
+
+	cmd.Stdout = output
+	cmd.Stderr = output
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("run %s: %w", command.String(), err)
+	}
+	return nil
 }

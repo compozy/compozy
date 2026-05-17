@@ -16,7 +16,7 @@ func newUpgradeCommand() *cobra.Command {
 		Args:         cobra.NoArgs,
 		Long: `Upgrade compozy using the appropriate installation flow for this machine.
 
-Package-manager installs print the correct command to run. Direct binary installs
+Package-manager installs run the correct package manager command. Direct binary installs
 perform an in-place self-update.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, stop := signalCommandContext(cmd)
