@@ -34,6 +34,7 @@ import (
 
 const (
 	runModeTask        = "task"
+	runModeTaskMulti   = "task_multi"
 	runModeReview      = "review"
 	runModeReviewWatch = "review_watch"
 	runModeExec        = "exec"
@@ -54,6 +55,7 @@ const (
 	defaultStreamPageLimit    = 256
 	cancelRequestedByDaemon   = "daemon"
 	completedNoWorkSummary    = "no work"
+	taskMultiRunName          = "task-multi"
 
 	maxImplicitRunIDAllocationAttempts = 8
 )
@@ -132,6 +134,7 @@ type activeRun struct {
 	watcher        *workflowWatcher
 	reviewWatch    *preparedReviewWatch
 	reviewWatchKey *reviewWatchKey
+	taskMulti      *preparedTaskMulti
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
@@ -182,6 +185,7 @@ type startRunSpec struct {
 	runtimeCfg       *model.RuntimeConfig
 	reviewWatch      *preparedReviewWatch
 	reviewWatchKey   *reviewWatchKey
+	taskMulti        *preparedTaskMulti
 }
 
 type terminalState struct {
@@ -1381,6 +1385,7 @@ func newActiveRun(
 		workflowRoot:   strings.TrimSpace(spec.workflowRoot),
 		reviewWatch:    spec.reviewWatch,
 		reviewWatchKey: cloneReviewWatchKey(spec.reviewWatchKey),
+		taskMulti:      spec.taskMulti,
 	}
 }
 
@@ -1445,6 +1450,10 @@ func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *m
 
 	if active.mode == runModeReviewWatch {
 		m.executeReviewWatchRun(active, row)
+		return
+	}
+	if active.mode == runModeTaskMulti {
+		m.executeTaskMultiRun(active, row)
 		return
 	}
 	if runtimeCfg.Mode == model.ExecutionModeExec {

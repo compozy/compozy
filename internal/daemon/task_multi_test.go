@@ -1,0 +1,405 @@
+package daemon
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	apicore "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+)
+
+func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
+	started := make(chan string, 2)
+	releaseAlpha := make(chan struct{})
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiRunIDBuilder("task-multi-sequential"),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			started <- cfg.Name + ":" + cfg.RunID
+			if cfg.Name != "alpha" {
+				return nil
+			}
+			select {
+			case <-releaseAlpha:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+	writeTaskMultiWorkflow(t, env, "beta", "pending")
+
+	parent := startTaskMultiRun(t, env, "task-multi-sequential", []string{"alpha", "beta"})
+	if parent.Mode != runModeTaskMulti {
+		t.Fatalf("parent mode = %q, want %q", parent.Mode, runModeTaskMulti)
+	}
+	waitForString(t, started, "alpha:child-alpha")
+	waitForCondition(t, 5*time.Second, "task_multi active-run accounting", func() bool {
+		counts := env.manager.ActiveRunCountsByMode()
+		return env.manager.ActiveRunCount() == 2 && counts[runModeTaskMulti] == 1 && counts[runModeTask] == 1
+	})
+	assertNoTaskMultiStart(t, started, "beta before alpha completes")
+
+	close(releaseAlpha)
+	waitForString(t, started, "beta:child-beta")
+	parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	if parentRow.Mode != runModeTaskMulti {
+		t.Fatalf("parent row mode = %q, want %q", parentRow.Mode, runModeTaskMulti)
+	}
+
+	alpha := requireTaskMultiChildRow(t, env, "child-alpha", parent.RunID, runStatusCompleted)
+	beta := requireTaskMultiChildRow(t, env, "child-beta", parent.RunID, runStatusCompleted)
+	if alpha.Mode != runModeTask || beta.Mode != runModeTask {
+		t.Fatalf("child modes = %q/%q, want %q", alpha.Mode, beta.Mode, runModeTask)
+	}
+
+	runs, err := env.manager.List(context.Background(), apicore.RunListQuery{Workspace: env.workspaceRoot, Limit: 10})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(runs) != 3 {
+		t.Fatalf("run count = %d, want parent plus two children", len(runs))
+	}
+	if !hasRunMode(runs, runModeTaskMulti) {
+		t.Fatalf("runs missing %q mode: %#v", runModeTaskMulti, runs)
+	}
+
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	wantItems := []apicore.TaskRunMultipleItem{
+		{Slug: "alpha", Status: taskMultiItemStatusCompleted, RunID: "child-alpha"},
+		{Slug: "beta", Status: taskMultiItemStatusCompleted, RunID: "child-beta"},
+	}
+	assertTaskMultiItems(t, snapshot.Items, wantItems)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleStarted)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemQueued)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildStarted)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildCompleted)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCompleted)
+}
+
+func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
+	var betaStarted bool
+	var mu sync.Mutex
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiRunIDBuilder("task-multi-failure"),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.Name == "beta" {
+				mu.Lock()
+				betaStarted = true
+				mu.Unlock()
+				return nil
+			}
+			return errors.New("alpha failed")
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+	writeTaskMultiWorkflow(t, env, "beta", "pending")
+
+	parent := startTaskMultiRun(t, env, "task-multi-failure", []string{"alpha", "beta"})
+	parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusFailed
+	})
+	if !strings.Contains(parentRow.ErrorText, "alpha failed") {
+		t.Fatalf("parent error = %q, want child failure text", parentRow.ErrorText)
+	}
+	requireTaskMultiChildRow(t, env, "child-alpha", parent.RunID, runStatusFailed)
+	if _, err := env.globalDB.GetRun(context.Background(), "child-beta"); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(child-beta) error = %v, want ErrRunNotFound", err)
+	}
+	mu.Lock()
+	started := betaStarted
+	mu.Unlock()
+	if started {
+		t.Fatal("beta child started after first child failed")
+	}
+
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	wantItems := []apicore.TaskRunMultipleItem{
+		{Slug: "alpha", Status: taskMultiItemStatusFailed, RunID: "child-alpha", ErrorText: "alpha failed"},
+		{Slug: "beta", Status: taskMultiItemStatusQueued},
+	}
+	assertTaskMultiItems(t, snapshot.Items, wantItems)
+}
+
+func TestRunManagerTaskRunMultipleCancellationCancelsActiveAndQueuedChildren(t *testing.T) {
+	started := make(chan string, 1)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiRunIDBuilder("task-multi-cancel"),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			started <- cfg.Name + ":" + cfg.RunID
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+	writeTaskMultiWorkflow(t, env, "beta", "pending")
+
+	parent := startTaskMultiRun(t, env, "task-multi-cancel", []string{"alpha", "beta"})
+	waitForString(t, started, "alpha:child-alpha")
+	if err := env.manager.Cancel(context.Background(), parent.RunID); err != nil {
+		t.Fatalf("Cancel(parent) error = %v", err)
+	}
+
+	waitForRun(t, env.globalDB, "child-alpha", func(row globaldb.Run) bool {
+		return row.Status == runStatusCancelled
+	})
+	parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCancelled
+	})
+	if parentRow.EndedAt == nil {
+		t.Fatal("parent EndedAt = nil, want terminal timestamp")
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), "child-beta"); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(child-beta) error = %v, want ErrRunNotFound", err)
+	}
+
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	wantItems := []apicore.TaskRunMultipleItem{
+		{Slug: "alpha", Status: taskMultiItemStatusCanceled, RunID: "child-alpha"},
+		{Slug: "beta", Status: taskMultiItemStatusCanceled},
+	}
+	assertTaskMultiItems(t, snapshot.Items, wantItems)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
+}
+
+func TestRunManagerTaskRunMultiplePreflightRejectsInvalidInputBeforeParentRun(t *testing.T) {
+	t.Run("Should reject unsupported mode", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{buildRunID: taskMultiRunIDBuilder("task-multi-invalid-mode")})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Slugs:            []string{"alpha"},
+				Mode:             "unsupported",
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-invalid-mode"}`),
+			},
+		)
+		assertProblemStatus(t, err, http.StatusUnprocessableEntity)
+		if _, err := env.globalDB.GetRun(
+			context.Background(),
+			"task-multi-invalid-mode",
+		); !errors.Is(
+			err,
+			globaldb.ErrRunNotFound,
+		) {
+			t.Fatalf("GetRun(task-multi-invalid-mode) error = %v, want ErrRunNotFound", err)
+		}
+	})
+
+	t.Run("Should reject duplicate slugs", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{buildRunID: taskMultiRunIDBuilder("task-multi-duplicate")})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Slugs:            []string{"alpha", "alpha"},
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-duplicate"}`),
+			},
+		)
+		assertProblemStatus(t, err, http.StatusUnprocessableEntity)
+		if _, err := env.globalDB.GetRun(
+			context.Background(),
+			"task-multi-duplicate",
+		); !errors.Is(
+			err,
+			globaldb.ErrRunNotFound,
+		) {
+			t.Fatalf("GetRun(task-multi-duplicate) error = %v, want ErrRunNotFound", err)
+		}
+	})
+
+	t.Run("Should reject completed workflow before creating parent", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{buildRunID: taskMultiRunIDBuilder("task-multi-completed")})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "completed")
+
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Slugs:            []string{"alpha", "beta"},
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-completed"}`),
+			},
+		)
+		assertProblemStatus(t, err, http.StatusConflict)
+		if _, err := env.globalDB.GetRun(
+			context.Background(),
+			"task-multi-completed",
+		); !errors.Is(
+			err,
+			globaldb.ErrRunNotFound,
+		) {
+			t.Fatalf("GetRun(task-multi-completed) error = %v, want ErrRunNotFound", err)
+		}
+	})
+}
+
+func TestRunManagerTaskRunMultipleSnapshotRejectsNonParentRun(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	run := env.startTaskRun(t, "task-run-not-multi", nil)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+
+	_, err := env.manager.RunMultipleSnapshot(context.Background(), run.RunID)
+	assertProblemStatus(t, err, http.StatusUnprocessableEntity)
+}
+
+func TestRunManagerTaskRunMultipleParentRuntimeStartFailureDoesNotStartChildren(t *testing.T) {
+	var childStarted atomic.Bool
+	runtimeManager := &stubRuntimeManager{startErr: errors.New("runtime failed to start")}
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID:   taskMultiRunIDBuilder("task-multi-parent-start-failure"),
+		openRunScope: newTestOpenRunScope(runtimeManager),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			childStarted.Store(true)
+			return nil
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+
+	parent := startTaskMultiRun(t, env, "task-multi-parent-start-failure", []string{"alpha"})
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusFailed
+	})
+	if !strings.Contains(row.ErrorText, "runtime failed to start") {
+		t.Fatalf("parent error = %q, want runtime failure", row.ErrorText)
+	}
+	if childStarted.Load() {
+		t.Fatal("child started after parent runtime start failure")
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), "child-alpha"); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(child-alpha) error = %v, want ErrRunNotFound", err)
+	}
+}
+
+func writeTaskMultiWorkflow(t *testing.T, env *runManagerTestEnv, slug string, status string) {
+	t.Helper()
+	env.writeWorkflowFile(t, slug, "task_01.md", daemonTaskBody(status, "Task "+slug))
+}
+
+func startTaskMultiRun(t *testing.T, env *runManagerTestEnv, runID string, slugs []string) apicore.Run {
+	t.Helper()
+	run, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Slugs:            slugs,
+			Mode:             "parallel",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple(%v) error = %v", slugs, err)
+	}
+	return run
+}
+
+func taskMultiRunIDBuilder(parentRunID string) func(*model.RuntimeConfig) (string, error) {
+	return func(cfg *model.RuntimeConfig) (string, error) {
+		if cfg == nil {
+			return "", errors.New("runtime config is required")
+		}
+		if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+			return runID, nil
+		}
+		if strings.TrimSpace(cfg.ParentRunID) == parentRunID {
+			return "child-" + strings.TrimSpace(cfg.Name), nil
+		}
+		return "generated-" + strings.TrimSpace(cfg.Name), nil
+	}
+}
+
+func assertNoTaskMultiStart(t *testing.T, ch <-chan string, label string) {
+	t.Helper()
+	select {
+	case got := <-ch:
+		t.Fatalf("unexpected child start while checking %s: %s", label, got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func requireTaskMultiChildRow(
+	t *testing.T,
+	env *runManagerTestEnv,
+	runID string,
+	parentRunID string,
+	status string,
+) globaldb.Run {
+	t.Helper()
+	row := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+		return row.Status == status
+	})
+	if row.ParentRunID != parentRunID {
+		t.Fatalf("%s ParentRunID = %q, want %q", runID, row.ParentRunID, parentRunID)
+	}
+	return row
+}
+
+func hasRunMode(runs []apicore.Run, mode string) bool {
+	return slices.ContainsFunc(runs, func(run apicore.Run) bool {
+		return run.Mode == mode
+	})
+}
+
+func assertTaskMultiItems(t *testing.T, got []apicore.TaskRunMultipleItem, want []apicore.TaskRunMultipleItem) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("items = %#v, want %#v", got, want)
+	}
+	for idx := range want {
+		if got[idx].Slug != want[idx].Slug ||
+			got[idx].Status != want[idx].Status ||
+			got[idx].RunID != want[idx].RunID ||
+			!strings.Contains(got[idx].ErrorText, want[idx].ErrorText) {
+			t.Fatalf("item[%d] = %#v, want %#v", idx, got[idx], want[idx])
+		}
+	}
+}
