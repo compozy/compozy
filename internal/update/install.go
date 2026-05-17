@@ -18,6 +18,8 @@ var (
 	runManagedUpgradeCommand = defaultManagedUpgradeCommand
 )
 
+const goosWindows = "windows"
+
 // InstallMethod identifies how the compozy binary was installed.
 type InstallMethod int
 
@@ -33,6 +35,7 @@ func DetectInstallMethod() InstallMethod {
 	return detectCurrentInstall().method
 }
 
+// detectCurrentInstall captures the executable path and environment used to classify the current install.
 func detectCurrentInstall() installDetails {
 	executablePath, err := osExecutable()
 	if err != nil {
@@ -92,17 +95,20 @@ func Upgrade(ctx context.Context, currentVersion string, stdout io.Writer) error
 	}
 }
 
+// installDetails carries the detected install method plus inputs needed to rebuild its upgrade command.
 type installDetails struct {
 	method         InstallMethod
 	executablePath string
 	env            installEnvironment
 }
 
+// installEnvironment keeps environment-derived install roots separate from direct os lookups.
 type installEnvironment struct {
 	gobin  string
 	gopath string
 }
 
+// detectInstallMethod classifies an executable path against known managed install layouts.
 func detectInstallMethod(executablePath string, env installEnvironment) InstallMethod {
 	normalizedPath := normalizePath(executablePath)
 
@@ -118,15 +124,18 @@ func detectInstallMethod(executablePath string, env installEnvironment) InstallM
 	}
 }
 
+// isHomebrewPath reports whether the normalized path belongs to a Homebrew cellar or caskroom.
 func isHomebrewPath(path string) bool {
 	return strings.Contains(path, "/cellar/") || strings.Contains(path, "/caskroom/")
 }
 
+// isNPMPath reports whether the normalized path belongs to an npm global package layout.
 func isNPMPath(path string) bool {
 	_, ok := npmInstallLocation(path)
 	return ok
 }
 
+// isGoInstallPath reports whether the normalized path is under a configured Go bin directory.
 func isGoInstallPath(path string, env installEnvironment) bool {
 	for _, candidate := range goBinDirs(env) {
 		if strings.TrimSpace(candidate) == "" {
@@ -139,6 +148,7 @@ func isGoInstallPath(path string, env installEnvironment) bool {
 	return false
 }
 
+// goBinDirs returns all candidate Go bin directories from GOBIN and GOPATH.
 func goBinDirs(env installEnvironment) []string {
 	dirs := make([]string, 0, 4)
 
@@ -162,6 +172,7 @@ func goBinDirs(env installEnvironment) []string {
 	return dirs
 }
 
+// withinDir reports whether path is the directory itself or a descendant of it.
 func withinDir(path, dir string) bool {
 	if dir == "" {
 		return false
@@ -172,12 +183,14 @@ func withinDir(path, dir string) bool {
 	return strings.HasPrefix(path, dir+"/")
 }
 
+// normalizePath makes install layout checks stable across separators and case.
 func normalizePath(path string) string {
 	cleaned := filepath.Clean(path)
 	cleaned = strings.ReplaceAll(cleaned, "\\", "/")
 	return strings.ToLower(cleaned)
 }
 
+// managedUpgradeCommand describes the package-manager command for a managed install.
 type managedUpgradeCommand struct {
 	name       string
 	args       []string
@@ -185,11 +198,13 @@ type managedUpgradeCommand struct {
 	env        []string
 }
 
+// npmLocation records the global npm prefix and the bin directory that owns npm.
 type npmLocation struct {
 	prefix string
 	binDir string
 }
 
+// String renders the command in the same shape users expect to see in errors.
 func (c managedUpgradeCommand) String() string {
 	parts := make([]string, 0, 1+len(c.args))
 	parts = append(parts, c.name)
@@ -197,6 +212,7 @@ func (c managedUpgradeCommand) String() string {
 	return strings.Join(parts, " ")
 }
 
+// managedUpgradeCommandForInstall builds the upgrade command for a managed install method.
 func managedUpgradeCommandForInstall(install installDetails) (managedUpgradeCommand, error) {
 	switch install.method {
 	case InstallHomebrew:
@@ -235,6 +251,7 @@ func managedUpgradeCommandForInstall(install installDetails) (managedUpgradeComm
 	}
 }
 
+// defaultManagedUpgradeCommand runs the detected package manager with isolated path and env settings.
 func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, install installDetails) error {
 	command, err := managedUpgradeCommandForInstall(install)
 	if err != nil {
@@ -268,6 +285,7 @@ func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, install
 	return nil
 }
 
+// managedExecutablePath resolves the package manager executable from the detected install prefix.
 func managedExecutablePath(command managedUpgradeCommand) (string, error) {
 	if command.pathPrefix == "" {
 		return "", nil
@@ -284,7 +302,7 @@ func managedExecutablePath(command managedUpgradeCommand) (string, error) {
 		if info.IsDir() {
 			continue
 		}
-		if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		if runtime.GOOS != goosWindows && info.Mode().Perm()&0o111 == 0 {
 			continue
 		}
 		return path, nil
@@ -297,8 +315,9 @@ func managedExecutablePath(command managedUpgradeCommand) (string, error) {
 	)
 }
 
+// managedExecutableNames returns platform-specific executable names for managed tools.
 func managedExecutableNames(name string) []string {
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != goosWindows {
 		return []string{name}
 	}
 	switch name {
@@ -309,35 +328,44 @@ func managedExecutableNames(name string) []string {
 	}
 }
 
+// managedCommandEnv composes the child process environment for a managed upgrade command.
 func managedCommandEnv(base []string, command managedUpgradeCommand) []string {
+	return managedCommandEnvForOS(base, command, runtime.GOOS)
+}
+
+// managedCommandEnvForOS composes command env while honoring platform-specific env key semantics.
+func managedCommandEnvForOS(base []string, command managedUpgradeCommand, goos string) []string {
 	env := append([]string(nil), base...)
 	if command.pathPrefix != "" {
-		env = prependEnvPath(env, command.pathPrefix)
+		env = prependEnvPathForOS(env, command.pathPrefix, goos)
 	}
 	for _, item := range command.env {
-		env = upsertEnv(env, item)
+		env = upsertEnvForOS(env, item, goos)
 	}
 	return env
 }
 
-func prependEnvPath(env []string, dir string) []string {
+// prependEnvPathForOS prepends a directory to PATH using the requested platform's env rules.
+func prependEnvPathForOS(env []string, dir string, goos string) []string {
 	if strings.TrimSpace(dir) == "" {
 		return env
 	}
 	pathValue := dir
-	if existing, ok := lookupEnvEntry(env, "PATH"); ok && strings.TrimSpace(existing) != "" {
-		pathValue = dir + string(os.PathListSeparator) + existing
+	if existing, ok := lookupEnvEntryForOS(env, "PATH", goos); ok && strings.TrimSpace(existing) != "" {
+		pathValue = dir + pathListSeparator(goos) + existing
 	}
-	return upsertEnv(env, "PATH="+pathValue)
+	return upsertEnvForOS(env, "PATH="+pathValue, goos)
 }
 
-func upsertEnv(env []string, item string) []string {
+// upsertEnvForOS replaces an environment entry using platform-specific key matching.
+func upsertEnvForOS(env []string, item string, goos string) []string {
 	key, _, ok := strings.Cut(item, "=")
 	if !ok {
 		return env
 	}
 	for i, existing := range env {
-		if existingKey, _, existingOK := strings.Cut(existing, "="); existingOK && existingKey == key {
+		existingKey, _, existingOK := strings.Cut(existing, "=")
+		if existingOK && envKeyMatches(existingKey, key, goos) {
 			env[i] = item
 			return env
 		}
@@ -345,20 +373,39 @@ func upsertEnv(env []string, item string) []string {
 	return append(env, item)
 }
 
-func lookupEnvEntry(env []string, key string) (string, bool) {
+// lookupEnvEntryForOS returns an environment value using platform-specific key matching.
+func lookupEnvEntryForOS(env []string, key string, goos string) (string, bool) {
 	for _, item := range env {
 		existingKey, value, ok := strings.Cut(item, "=")
-		if ok && existingKey == key {
+		if ok && envKeyMatches(existingKey, key, goos) {
 			return value, true
 		}
 	}
 	return "", false
 }
 
+// envKeyMatches compares environment keys using Windows' case-insensitive semantics when needed.
+func envKeyMatches(existingKey string, key string, goos string) bool {
+	if goos == goosWindows {
+		return strings.EqualFold(existingKey, key)
+	}
+	return existingKey == key
+}
+
+// pathListSeparator returns the platform-specific separator used in PATH-like variables.
+func pathListSeparator(goos string) string {
+	if goos == goosWindows {
+		return ";"
+	}
+	return string(os.PathListSeparator)
+}
+
+// homebrewPrefix extracts the Homebrew root from a Homebrew executable path.
 func homebrewPrefix(path string) (string, bool) {
 	return prefixBeforeAnyPathSegment(path, "/Cellar/", "/Caskroom/")
 }
 
+// npmInstallLocation extracts npm global prefix details from a package executable path.
 func npmInstallLocation(path string) (npmLocation, bool) {
 	if prefix, ok := prefixBeforeAnyPathSegment(path, "/lib/node_modules/"); ok {
 		return npmLocation{prefix: prefix, binDir: filepath.Join(prefix, "bin")}, true
@@ -369,6 +416,7 @@ func npmInstallLocation(path string) (npmLocation, bool) {
 	return npmLocation{}, false
 }
 
+// prefixBeforeAnyPathSegment returns the path prefix before the first matching marker.
 func prefixBeforeAnyPathSegment(path string, markers ...string) (string, bool) {
 	cleaned := filepath.Clean(path)
 	normalized := strings.ReplaceAll(cleaned, "\\", "/")
@@ -382,6 +430,7 @@ func prefixBeforeAnyPathSegment(path string, markers ...string) (string, bool) {
 	return "", false
 }
 
+// goInstallBinDir returns the Go bin directory that owns the current executable.
 func goInstallBinDir(path string, env installEnvironment) (string, bool) {
 	normalizedPath := normalizePath(path)
 	for _, candidate := range goBinDirs(env) {

@@ -13,6 +13,7 @@ import (
 	"testing"
 )
 
+// TestDetectInstallMethodHomebrew verifies Homebrew cellar paths are detected as Homebrew installs.
 func TestDetectInstallMethodHomebrew(t *testing.T) {
 	restore := stubExecutablePath(t, "/opt/homebrew/Cellar/compozy/1.0.0/bin/compozy")
 	defer restore()
@@ -22,6 +23,7 @@ func TestDetectInstallMethodHomebrew(t *testing.T) {
 	}
 }
 
+// TestDetectInstallMethodNPM verifies standard npm global package paths are detected as npm installs.
 func TestDetectInstallMethodNPM(t *testing.T) {
 	restore := stubExecutablePath(t, "/usr/local/lib/node_modules/@compozy/cli/bin/compozy")
 	defer restore()
@@ -31,15 +33,22 @@ func TestDetectInstallMethodNPM(t *testing.T) {
 	}
 }
 
+// TestDetectInstallMethodNPMWindowsGlobalLayout verifies Windows npm global paths are npm installs.
 func TestDetectInstallMethodNPMWindowsGlobalLayout(t *testing.T) {
-	restore := stubExecutablePath(t, `C:\Users\matheus\AppData\Roaming\npm\node_modules\@compozy\cli\bin\compozy.exe`)
-	defer restore()
+	t.Run("Should detect NPM on Windows global layout", func(t *testing.T) {
+		restore := stubExecutablePath(
+			t,
+			`C:\Users\matheus\AppData\Roaming\npm\node_modules\@compozy\cli\bin\compozy.exe`,
+		)
+		defer restore()
 
-	if got := DetectInstallMethod(); got != InstallNPM {
-		t.Fatalf("expected InstallNPM, got %v", got)
-	}
+		if got := DetectInstallMethod(); got != InstallNPM {
+			t.Fatalf("expected InstallNPM, got %v", got)
+		}
+	})
 }
 
+// TestDetectInstallMethodGo verifies binaries under GOBIN or GOPATH bin are detected as Go installs.
 func TestDetectInstallMethodGo(t *testing.T) {
 	t.Setenv("GOBIN", "")
 	goPath := filepath.Join(os.TempDir(), "gopath")
@@ -53,6 +62,7 @@ func TestDetectInstallMethodGo(t *testing.T) {
 	}
 }
 
+// TestDetectInstallMethodBinaryFallback verifies unknown executable paths use the self-updater path.
 func TestDetectInstallMethodBinaryFallback(t *testing.T) {
 	restore := stubExecutablePath(t, "/usr/local/bin/compozy")
 	defer restore()
@@ -62,6 +72,7 @@ func TestDetectInstallMethodBinaryFallback(t *testing.T) {
 	}
 }
 
+// TestDetectInstallMethodFallsBackToBinaryWhenExecutableLookupFails covers executable lookup errors.
 func TestDetectInstallMethodFallsBackToBinaryWhenExecutableLookupFails(t *testing.T) {
 	previous := osExecutable
 	osExecutable = func() (string, error) {
@@ -76,6 +87,7 @@ func TestDetectInstallMethodFallsBackToBinaryWhenExecutableLookupFails(t *testin
 	}
 }
 
+// TestUpgradeRunsHomebrewCommand verifies Homebrew installs dispatch to the managed brew command.
 func TestUpgradeRunsHomebrewCommand(t *testing.T) {
 	restore := stubExecutablePath(t, "/opt/homebrew/Cellar/compozy/1.0.0/bin/compozy")
 	defer restore()
@@ -107,6 +119,7 @@ func TestUpgradeRunsHomebrewCommand(t *testing.T) {
 	}
 }
 
+// TestUpgradeRunsNPMCommand verifies npm installs dispatch to npm with the detected prefix.
 func TestUpgradeRunsNPMCommand(t *testing.T) {
 	restore := stubExecutablePath(t, "/usr/local/lib/node_modules/@compozy/cli/bin/compozy")
 	defer restore()
@@ -142,6 +155,7 @@ func TestUpgradeRunsNPMCommand(t *testing.T) {
 	}
 }
 
+// TestNPMCommandUsesWindowsGlobalPrefixLayout verifies Windows npm prefixes are derived correctly.
 func TestNPMCommandUsesWindowsGlobalPrefixLayout(t *testing.T) {
 	command, err := managedUpgradeCommandForInstall(installDetails{
 		method:         InstallNPM,
@@ -165,6 +179,52 @@ func TestNPMCommandUsesWindowsGlobalPrefixLayout(t *testing.T) {
 	}
 }
 
+// TestManagedCommandEnvMatchesWindowsPathCaseInsensitively covers Windows env key matching.
+func TestManagedCommandEnvMatchesWindowsPathCaseInsensitively(t *testing.T) {
+	base := []string{
+		`Path=C:\Windows\System32`,
+		`npm_config_prefix=C:\old-prefix`,
+	}
+	command := managedUpgradeCommand{
+		pathPrefix: `C:\Users\matheus\AppData\Roaming\npm`,
+		env:        []string{`NPM_CONFIG_PREFIX=C:\Users\matheus\AppData\Roaming\npm`},
+	}
+
+	got := managedCommandEnvForOS(base, command, goosWindows)
+	wantPath := `PATH=C:\Users\matheus\AppData\Roaming\npm;C:\Windows\System32`
+	wantPrefix := `NPM_CONFIG_PREFIX=C:\Users\matheus\AppData\Roaming\npm`
+
+	if !slices.Contains(got, wantPath) {
+		t.Fatalf("command env = %#v, want %q", got, wantPath)
+	}
+	if !slices.Contains(got, wantPrefix) {
+		t.Fatalf("command env = %#v, want %q", got, wantPrefix)
+	}
+	if slices.Contains(got, `Path=C:\Windows\System32`) {
+		t.Fatalf("command env kept duplicate Windows Path entry: %#v", got)
+	}
+	if slices.Contains(got, `npm_config_prefix=C:\old-prefix`) {
+		t.Fatalf("command env kept duplicate Windows npm prefix entry: %#v", got)
+	}
+}
+
+// TestManagedCommandEnvKeepsNonWindowsPathCaseSensitive covers POSIX env key matching.
+func TestManagedCommandEnvKeepsNonWindowsPathCaseSensitive(t *testing.T) {
+	base := []string{"Path=/ambient/bin"}
+	command := managedUpgradeCommand{pathPrefix: "/managed/bin"}
+
+	got := managedCommandEnvForOS(base, command, "linux")
+	wantPath := "PATH=/managed/bin"
+
+	if !slices.Contains(got, wantPath) {
+		t.Fatalf("command env = %#v, want %q", got, wantPath)
+	}
+	if !slices.Contains(got, "Path=/ambient/bin") {
+		t.Fatalf("command env dropped case-distinct Path entry: %#v", got)
+	}
+}
+
+// TestUpgradeRunsGoInstallCommand verifies Go installs dispatch to go install with GOBIN pinned.
 func TestUpgradeRunsGoInstallCommand(t *testing.T) {
 	t.Setenv("GOBIN", "")
 	goPath := filepath.Join(os.TempDir(), "gopath")
@@ -201,6 +261,7 @@ func TestUpgradeRunsGoInstallCommand(t *testing.T) {
 	}
 }
 
+// TestUpgradeReturnsManagedCommandError verifies managed command failures are returned to callers.
 func TestUpgradeReturnsManagedCommandError(t *testing.T) {
 	restore := stubExecutablePath(t, "/usr/local/lib/node_modules/@compozy/cli/bin/compozy")
 	defer restore()
@@ -219,6 +280,7 @@ func TestUpgradeReturnsManagedCommandError(t *testing.T) {
 	}
 }
 
+// TestUpgradeRejectsNPMWhenDetectedPrefixDoesNotOwnNPM prevents ambient npm fallback.
 func TestUpgradeRejectsNPMWhenDetectedPrefixDoesNotOwnNPM(t *testing.T) {
 	prefix := filepath.Join(t.TempDir(), "detected-prefix")
 	restore := stubExecutablePath(t, filepath.Join(prefix, "lib", "node_modules", "@compozy", "cli", "bin", "compozy"))
@@ -247,6 +309,7 @@ func TestUpgradeRejectsNPMWhenDetectedPrefixDoesNotOwnNPM(t *testing.T) {
 	}
 }
 
+// TestUpgradeRunsDetectedNPMWhenAmbientNPMIsFirst verifies detected npm wins over PATH order.
 func TestUpgradeRunsDetectedNPMWhenAmbientNPMIsFirst(t *testing.T) {
 	prefix := filepath.Join(t.TempDir(), "detected-prefix")
 	restore := stubExecutablePath(t, filepath.Join(prefix, "lib", "node_modules", "@compozy", "cli", "bin", "compozy"))
@@ -284,6 +347,7 @@ func TestUpgradeRunsDetectedNPMWhenAmbientNPMIsFirst(t *testing.T) {
 	}
 }
 
+// TestUpgradeBinaryInstallUsesSelfUpdater verifies direct binary installs use the self-updater.
 func TestUpgradeBinaryInstallUsesSelfUpdater(t *testing.T) {
 	restoreExe := stubExecutablePath(t, "/usr/local/bin/compozy")
 	defer restoreExe()
@@ -307,6 +371,7 @@ func TestUpgradeBinaryInstallUsesSelfUpdater(t *testing.T) {
 	}
 }
 
+// TestUpgradeBinaryInstallReportsAlreadyUpToDate verifies already-current binary installs report cleanly.
 func TestUpgradeBinaryInstallReportsAlreadyUpToDate(t *testing.T) {
 	restoreExe := stubExecutablePath(t, "/usr/local/bin/compozy")
 	defer restoreExe()
@@ -327,6 +392,7 @@ func TestUpgradeBinaryInstallReportsAlreadyUpToDate(t *testing.T) {
 	}
 }
 
+// stubExecutablePath replaces os.Executable with a deterministic path for install detection tests.
 func stubExecutablePath(t *testing.T, executablePath string) func() {
 	t.Helper()
 
@@ -339,8 +405,10 @@ func stubExecutablePath(t *testing.T, executablePath string) func() {
 	}
 }
 
+// testContextKey provides an identity-only context key for context propagation assertions.
 type testContextKey struct{}
 
+// stubManagedUpgradeCommand replaces managed command execution with a test callback.
 func stubManagedUpgradeCommand(
 	t *testing.T,
 	fn func(context.Context, io.Writer, installDetails) error,
@@ -354,6 +422,7 @@ func stubManagedUpgradeCommand(
 	}
 }
 
+// mustManagedUpgradeCommand builds a managed command or fails the current test.
 func mustManagedUpgradeCommand(t *testing.T, install installDetails) managedUpgradeCommand {
 	t.Helper()
 
@@ -364,6 +433,7 @@ func mustManagedUpgradeCommand(t *testing.T, install installDetails) managedUpgr
 	return command
 }
 
+// assertManagedUpgradeCommand checks the command name and arguments.
 func assertManagedUpgradeCommand(
 	t *testing.T,
 	got managedUpgradeCommand,
