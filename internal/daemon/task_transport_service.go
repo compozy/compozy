@@ -242,6 +242,21 @@ func (s *transportTaskService) StartRun(
 	return s.runManager.StartTaskRun(ctx, workspaceRef, workflowSlug, req)
 }
 
+func (s *transportTaskService) StartRunMultiple(
+	context.Context,
+	string,
+	apicore.TaskRunMultipleRequest,
+) (apicore.Run, error) {
+	return apicore.Run{}, taskTransportUnavailable("multi-run task runs")
+}
+
+func (s *transportTaskService) RunMultipleSnapshot(
+	context.Context,
+	string,
+) (apicore.TaskRunMultipleSnapshot, error) {
+	return apicore.TaskRunMultipleSnapshot{}, taskTransportUnavailable("multi-run task snapshots")
+}
+
 func (s *transportTaskService) Archive(
 	ctx context.Context,
 	workspaceRef string,

@@ -268,6 +268,38 @@ func requireNonEmptyString(field string, value string) error {
 	return nil
 }
 
+func normalizeRequiredSlugs(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, validationProblem(
+			"slugs_required",
+			"slugs is required",
+			map[string]any{"field": "slugs"},
+		)
+	}
+	seen := make(map[string]struct{}, len(values))
+	slugs := make([]string, 0, len(values))
+	for idx, raw := range values {
+		slug := strings.TrimSpace(raw)
+		if slug == "" {
+			return nil, validationProblem(
+				"slug_required",
+				"slugs must not contain empty entries",
+				map[string]any{"field": "slugs", "index": idx},
+			)
+		}
+		if _, ok := seen[slug]; ok {
+			return nil, validationProblem(
+				"slug_duplicate",
+				fmt.Sprintf("duplicate slug %q", slug),
+				map[string]any{"field": "slugs", "slug": slug},
+			)
+		}
+		seen[slug] = struct{}{}
+		slugs = append(slugs, slug)
+	}
+	return slugs, nil
+}
+
 func parsePositiveInt(value string, field string) (int, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -342,6 +374,7 @@ type workspaceResolveBody = contract.WorkspaceResolveRequest
 type workflowRefBody = contract.WorkflowRefRequest
 type workflowArchiveBody = contract.WorkflowArchiveRequest
 type taskRunBody = contract.TaskRunRequest
+type taskRunMultipleBody = contract.TaskRunMultipleRequest
 type reviewFetchBody = contract.ReviewFetchRequest
 type reviewRunBody = contract.ReviewRunRequest
 type reviewWatchBody = contract.ReviewWatchRequest
@@ -810,6 +843,62 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
+}
+
+// StartTaskRunMultiple starts a daemon-owned parent for an ordered task workflow queue.
+func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	var body taskRunMultipleBody
+	if !h.bindJSON(c, "decode multi-run task request", &body) {
+		return
+	}
+	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
+	if !ok {
+		return
+	}
+	slugs, err := normalizeRequiredSlugs(body.Slugs)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	run, err := h.Tasks.StartRunMultiple(c.Request.Context(), workspace, TaskRunMultipleRequest{
+		Workspace:        workspace,
+		Slugs:            slugs,
+		Mode:             strings.TrimSpace(body.Mode),
+		PresentationMode: strings.TrimSpace(body.PresentationMode),
+		RuntimeOverrides: body.RuntimeOverrides,
+	})
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
+}
+
+// GetTaskRunMultipleSnapshot returns the parent multi-run state for attach or reattach flows.
+func (h *Handlers) GetTaskRunMultipleSnapshot(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	runID := strings.TrimSpace(c.Param("run_id"))
+	if err := requireNonEmptyString("run_id", runID); err != nil {
+		h.respondError(c, err)
+		return
+	}
+	snapshot, err := h.Tasks.RunMultipleSnapshot(c.Request.Context(), runID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskRunMultipleSnapshotResponseFromSnapshot(snapshot))
 }
 
 // ArchiveTaskWorkflow archives a completed workflow.

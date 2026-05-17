@@ -187,6 +187,29 @@ func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunS
 	return snapshot, nil
 }
 
+// GetTaskRunMultipleSnapshot loads the ordered child-state snapshot for a daemon-owned multi-run parent.
+func (c *Client) GetTaskRunMultipleSnapshot(
+	ctx context.Context,
+	runID string,
+) (apicore.TaskRunMultipleSnapshot, error) {
+	if c == nil {
+		return apicore.TaskRunMultipleSnapshot{}, ErrDaemonClientRequired
+	}
+
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return apicore.TaskRunMultipleSnapshot{}, ErrRunIDRequired
+	}
+
+	var payload contract.TaskRunMultipleSnapshotResponse
+	path := "/api/task-runs/multiple/" + url.PathEscape(trimmedRunID) + "/snapshot"
+	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &payload); err != nil {
+		return apicore.TaskRunMultipleSnapshot{}, err
+	}
+
+	return payload.Decode(), nil
+}
+
 // GetRunTranscript loads the canonical structured transcript for one run.
 func (c *Client) GetRunTranscript(ctx context.Context, runID string) (apicore.RunTranscript, error) {
 	if c == nil {

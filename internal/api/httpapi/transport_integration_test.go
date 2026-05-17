@@ -1985,6 +1985,18 @@ func (f *fakeTaskService) StartRun(context.Context, string, string, core.TaskRun
 	return f.run, nil
 }
 
+func (f *fakeTaskService) StartRunMultiple(
+	context.Context,
+	string,
+	core.TaskRunMultipleRequest,
+) (core.Run, error) {
+	return f.run, nil
+}
+
+func (f *fakeTaskService) RunMultipleSnapshot(context.Context, string) (core.TaskRunMultipleSnapshot, error) {
+	return core.TaskRunMultipleSnapshot{Run: f.run}, nil
+}
+
 func (*fakeTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {
 	return core.ArchiveResult{Archived: true}, nil
 }
@@ -2122,6 +2134,18 @@ func (*capturingTaskService) Validate(context.Context, string, string) (core.Val
 
 func (*capturingTaskService) StartRun(context.Context, string, string, core.TaskRunRequest) (core.Run, error) {
 	return core.Run{}, nil
+}
+
+func (*capturingTaskService) StartRunMultiple(
+	context.Context,
+	string,
+	core.TaskRunMultipleRequest,
+) (core.Run, error) {
+	return core.Run{}, nil
+}
+
+func (*capturingTaskService) RunMultipleSnapshot(context.Context, string) (core.TaskRunMultipleSnapshot, error) {
+	return core.TaskRunMultipleSnapshot{}, nil
 }
 
 func (*capturingTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {

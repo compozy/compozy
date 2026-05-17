@@ -129,11 +129,21 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 		StartedAt:        now,
 		RequestID:        "run-req-review-watch",
 	}
+	multiRun := core.Run{
+		RunID:            "multi-run-1",
+		WorkspaceID:      "ws-1",
+		Mode:             "task_multi",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        now,
+		RequestID:        "run-req-multi",
+	}
 
 	engine := newCanonicalHandlersEngine(core.NewHandlers(&core.HandlerConfig{
 		TransportName: "test",
 		Tasks: &smokeTaskService{
-			run: taskRun,
+			run:      taskRun,
+			multiRun: multiRun,
 		},
 		Reviews: &smokeReviewService{
 			run:      reviewRun,
@@ -156,6 +166,14 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 			requestID:  "req-task",
 			wantStatus: http.StatusCreated,
 			wantRun:    taskRun,
+		},
+		{
+			name:       "task run multiple",
+			target:     "/api/task-runs/multiple",
+			body:       `{"workspace":"ws-1","slugs":["daemon","followup"],"mode":"enqueued","presentation_mode":"stream"}`,
+			requestID:  "req-multi",
+			wantStatus: http.StatusCreated,
+			wantRun:    multiRun,
 		},
 		{
 			name:       "review run",

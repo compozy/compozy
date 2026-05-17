@@ -125,6 +125,18 @@ var RouteInventory = []RouteSpec{
 	},
 	{
 		Method:       http.MethodPost,
+		Path:         "/api/task-runs/multiple",
+		ResponseType: "RunResponse",
+		TimeoutClass: TimeoutLongMutate,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/task-runs/multiple/:run_id/snapshot",
+		ResponseType: "TaskRunMultipleSnapshotResponse",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodPost,
 		Path:         "/api/reviews/:slug/fetch",
 		ResponseType: "ReviewFetchResponse",
 		TimeoutClass: TimeoutLongMutate,

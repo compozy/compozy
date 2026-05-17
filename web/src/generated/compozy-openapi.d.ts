@@ -276,6 +276,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/task-runs/multiple": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a daemon-owned multi-run parent for ordered task workflows. */
+        post: operations["startTaskRunMultiple"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/task-runs/multiple/{run_id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one multi-run parent snapshot. */
+        get: operations["getTaskRunMultipleSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks": {
         parameters: {
             query?: never;
@@ -942,6 +976,27 @@ export interface components {
                 [key: string]: unknown;
             };
             workspace?: string;
+        };
+        TaskRunMultipleItem: {
+            error_text?: string;
+            run_id?: string;
+            slug: string;
+            /** @enum {string} */
+            status: "queued" | "active" | "completed" | "failed" | "canceled";
+        };
+        TaskRunMultipleRequest: {
+            /** @enum {string} */
+            mode?: "enqueued" | "parallel";
+            presentation_mode?: string;
+            runtime_overrides?: {
+                [key: string]: unknown;
+            };
+            slugs: string[];
+            workspace?: string;
+        };
+        TaskRunMultipleSnapshotResponse: {
+            items?: components["schemas"]["TaskRunMultipleItem"][];
+            run: components["schemas"]["Run"];
         };
         TransportError: {
             code: string;
@@ -1676,6 +1731,65 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["StaleWorkspace"];
             422: components["responses"]["ValidationError"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    startTaskRunMultiple: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Active workspace identifier for browser-scoped daemon requests. */
+                "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskRunMultipleRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["StaleWorkspace"];
+            422: components["responses"]["ValidationError"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getTaskRunMultipleSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run identifier. */
+                run_id: components["parameters"]["RunID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskRunMultipleSnapshotResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
         };
     };

@@ -1506,6 +1506,67 @@
                 },
                 "type": "object"
             },
+            "TaskRunMultipleItem": {
+                "properties": {
+                    "error_text": {
+                        "type": "string"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": ["queued", "active", "completed", "failed", "canceled"],
+                        "type": "string"
+                    }
+                },
+                "required": ["slug", "status"],
+                "type": "object"
+            },
+            "TaskRunMultipleRequest": {
+                "properties": {
+                    "mode": {
+                        "enum": ["enqueued", "parallel"],
+                        "type": "string"
+                    },
+                    "presentation_mode": {
+                        "type": "string"
+                    },
+                    "runtime_overrides": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "slugs": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                    },
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "required": ["slugs"],
+                "type": "object"
+            },
+            "TaskRunMultipleSnapshotResponse": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskRunMultipleItem"
+                        },
+                        "type": "array"
+                    },
+                    "run": {
+                        "$ref": "#/components/schemas/Run"
+                    }
+                },
+                "required": ["run"],
+                "type": "object"
+            },
             "TransportError": {
                 "properties": {
                     "code": {
@@ -2622,6 +2683,91 @@
                 },
                 "summary": "Run explicit daemon reconciliation for a workspace or workflow.",
                 "tags": ["workflows"]
+            }
+        },
+        "/api/task-runs/multiple": {
+            "post": {
+                "operationId": "startTaskRunMultiple",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/ActiveWorkspaceHeader"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TaskRunMultipleRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Start a daemon-owned multi-run parent for ordered task workflows.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/task-runs/multiple/{run_id}/snapshot": {
+            "get": {
+                "operationId": "getTaskRunMultipleSnapshot",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TaskRunMultipleSnapshotResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one multi-run parent snapshot.",
+                "tags": ["runs"]
             }
         },
         "/api/tasks": {

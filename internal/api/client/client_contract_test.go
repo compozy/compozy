@@ -62,6 +62,9 @@ func TestClientUsesCanonicalTimeoutClassesByRoute(t *testing.T) {
 				case "/api/tasks/demo/runs":
 					assertApproxDeadline(req.Context(), t, 120*time.Second)
 					return jsonResponse(http.StatusCreated, `{"run":{"run_id":"task-run-1","mode":"task"}}`), nil
+				case "/api/task-runs/multiple":
+					assertApproxDeadline(req.Context(), t, 120*time.Second)
+					return jsonResponse(http.StatusCreated, `{"run":{"run_id":"multi-run-1","mode":"task_multi"}}`), nil
 				case "/api/runs/run-1/cancel":
 					assertApproxDeadline(req.Context(), t, 30*time.Second)
 					return jsonResponse(http.StatusAccepted, `{"accepted":true}`), nil
@@ -81,8 +84,111 @@ func TestClientUsesCanonicalTimeoutClassesByRoute(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("StartTaskRun() error = %v", err)
 	}
+	if _, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
+		Workspace: "/tmp/workspace",
+		Slugs:     []string{"alpha", "beta"},
+	}); err != nil {
+		t.Fatalf("StartTaskRunMultiple() error = %v", err)
+	}
 	if err := client.CancelRun(context.Background(), "run-1"); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
+	}
+}
+
+func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodPost {
+					t.Fatalf("method = %s, want POST", req.Method)
+				}
+				if req.URL.Path != "/api/task-runs/multiple" {
+					t.Fatalf("path = %s, want /api/task-runs/multiple", req.URL.Path)
+				}
+				var body contract.TaskRunMultipleRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					t.Fatalf("decode request body: %v", err)
+				}
+				if body.Workspace != "/tmp/workspace" {
+					t.Fatalf("workspace = %q, want /tmp/workspace", body.Workspace)
+				}
+				if want := []string{"alpha", "beta", "gamma"}; !reflect.DeepEqual(body.Slugs, want) {
+					t.Fatalf("slugs = %#v, want %#v", body.Slugs, want)
+				}
+				if body.Mode != "enqueued" || body.PresentationMode != "stream" {
+					t.Fatalf("mode/presentation = %q/%q, want enqueued/stream", body.Mode, body.PresentationMode)
+				}
+				if string(body.RuntimeOverrides) != `{"persist":true}` {
+					t.Fatalf("runtime_overrides = %s, want persist override", body.RuntimeOverrides)
+				}
+				return jsonResponse(http.StatusCreated, `{"run":{"run_id":"multi-run-1","mode":"task_multi"}}`), nil
+			}),
+		},
+	}
+
+	run, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
+		Workspace:        " /tmp/workspace ",
+		Slugs:            []string{" alpha ", "beta", " gamma "},
+		Mode:             " enqueued ",
+		PresentationMode: " stream ",
+		RuntimeOverrides: json.RawMessage(`{"persist":true}`),
+	})
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple() error = %v", err)
+	}
+	if run.RunID != "multi-run-1" || run.Mode != "task_multi" {
+		t.Fatalf("run = %#v, want multi-run parent", run)
+	}
+}
+
+func TestClientGetTaskRunMultipleSnapshotUsesDedicatedRouteAndDecodes(t *testing.T) {
+	t.Parallel()
+
+	want := contract.TaskRunMultipleSnapshot{
+		Run: contract.Run{
+			RunID: "multi-run-1",
+			Mode:  "task_multi",
+		},
+		Items: []contract.TaskRunMultipleItem{
+			{Slug: "alpha", Status: "completed", RunID: "run-alpha"},
+			{Slug: "beta", Status: "failed", RunID: "run-beta", ErrorText: "boom"},
+			{Slug: "gamma", Status: "canceled"},
+		},
+	}
+	body, err := json.Marshal(contract.TaskRunMultipleSnapshotResponseFromSnapshot(want))
+	if err != nil {
+		t.Fatalf("marshal multi-run snapshot response: %v", err)
+	}
+
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet {
+					t.Fatalf("method = %s, want GET", req.Method)
+				}
+				if req.URL.Path != "/api/task-runs/multiple/multi-run-1/snapshot" {
+					t.Fatalf("path = %s, want /api/task-runs/multiple/multi-run-1/snapshot", req.URL.Path)
+				}
+				return jsonResponse(http.StatusOK, string(body)), nil
+			}),
+		},
+	}
+
+	got, err := client.GetTaskRunMultipleSnapshot(context.Background(), " multi-run-1 ")
+	if err != nil {
+		t.Fatalf("GetTaskRunMultipleSnapshot() error = %v", err)
+	}
+	if got.Run.RunID != want.Run.RunID || got.Run.Mode != want.Run.Mode {
+		t.Fatalf("snapshot run = %#v, want %#v", got.Run, want.Run)
+	}
+	if !reflect.DeepEqual(got.Items, want.Items) {
+		t.Fatalf("snapshot items = %#v, want %#v", got.Items, want.Items)
 	}
 }
 
@@ -240,6 +346,33 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 	}
 	if got.NextCursor == nil || got.NextCursor.Sequence != 9 || !got.NextCursor.Timestamp.Equal(now.Add(time.Second)) {
 		t.Fatalf("snapshot next cursor = %#v, want seq 9", got.NextCursor)
+	}
+}
+
+func TestClientTaskRunMultipleMethodsRejectNilContext(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Timeout: time.Second,
+			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("unexpected transport call for nil context")
+				return nil, nil
+			}),
+		},
+	}
+
+	var nilCtx context.Context
+	if _, err := client.StartTaskRunMultiple(nilCtx, apicore.TaskRunMultipleRequest{
+		Workspace: "/tmp/workspace",
+		Slugs:     []string{"alpha", "beta"},
+	}); !errors.Is(err, ErrDaemonContextRequired) {
+		t.Fatalf("StartTaskRunMultiple(nil) error = %v, want %v", err, ErrDaemonContextRequired)
+	}
+	if _, err := client.GetTaskRunMultipleSnapshot(nilCtx, "multi-run-1"); !errors.Is(err, ErrDaemonContextRequired) {
+		t.Fatalf("GetTaskRunMultipleSnapshot(nil) error = %v, want %v", err, ErrDaemonContextRequired)
 	}
 }
 

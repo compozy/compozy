@@ -69,6 +69,8 @@ type TaskService interface {
 	TaskDetail(context.Context, string, string, string) (TaskDetailPayload, error)
 	Validate(context.Context, string, string) (ValidationSuccess, error)
 	StartRun(context.Context, string, string, TaskRunRequest) (Run, error)
+	StartRunMultiple(context.Context, string, TaskRunMultipleRequest) (Run, error)
+	RunMultipleSnapshot(context.Context, string) (TaskRunMultipleSnapshot, error)
 	Archive(context.Context, string, string, ArchiveRequest) (ArchiveResult, error)
 }
 
@@ -395,6 +397,9 @@ type RunListQuery = contract.RunListQuery
 type RunEventPageQuery = contract.RunEventPageQuery
 type RunEventPage = contract.RunEventPage
 type TaskRunRequest = contract.TaskRunRequest
+type TaskRunMultipleRequest = contract.TaskRunMultipleRequest
+type TaskRunMultipleItem = contract.TaskRunMultipleItem
+type TaskRunMultipleSnapshot = contract.TaskRunMultipleSnapshot
 type ReviewRunRequest = contract.ReviewRunRequest
 type SyncRequest = contract.SyncRequest
 type SyncResult = contract.SyncResult
