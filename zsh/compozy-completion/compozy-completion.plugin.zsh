@@ -18,6 +18,28 @@ _compozy_tasks_workspace() {
   return 1
 }
 
+_compozy_task_slugs() {
+  local tasks_path
+  local -a task_slugs
+  local task_path
+
+  tasks_path="$(_compozy_tasks_workspace)"
+  if [[ -z "$tasks_path" || ! -d "$tasks_path" ]]; then
+    return 1
+  fi
+
+  task_slugs=()
+  for task_path in "$tasks_path"/*(N/); do
+    task_slugs+=("${task_path:t}")
+  done
+
+  if (( ${#task_slugs[@]} == 0 )); then
+    return 1
+  fi
+
+  print -l -- "${task_slugs[@]}"
+}
+
 # Provides zsh completion for:
 # - `compozy tasks`
 # - `compozy tasks run`
@@ -41,18 +63,10 @@ _compozy() {
   fi
 
   if (( CURRENT >= 4 )) && [[ $words[2] == "tasks" ]] && [[ $words[3] == "run" ]]; then
-    tasks_path="$(_compozy_tasks_workspace)"
-
-    if [[ -n "$tasks_path" && -d "$tasks_path" ]]; then
-      task_slugs=()
-      for task_path in "$tasks_path"/*(N/); do
-        task_slugs+=("${task_path:t}")
-      done
-
-      if (( ${#task_slugs} > 0 )); then
-        compadd -Q -a task_slugs
-        return 0
-      fi
+    task_slugs=("${(@f)$(_compozy_task_slugs)}")
+    if (( ${#task_slugs[@]} > 0 )); then
+      compadd -Q -a task_slugs
+      return 0
     fi
   fi
 
