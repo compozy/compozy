@@ -31,6 +31,15 @@ func TestDetectInstallMethodNPM(t *testing.T) {
 	}
 }
 
+func TestDetectInstallMethodNPMWindowsGlobalLayout(t *testing.T) {
+	restore := stubExecutablePath(t, `C:\Users\matheus\AppData\Roaming\npm\node_modules\@compozy\cli\bin\compozy.exe`)
+	defer restore()
+
+	if got := DetectInstallMethod(); got != InstallNPM {
+		t.Fatalf("expected InstallNPM, got %v", got)
+	}
+}
+
 func TestDetectInstallMethodGo(t *testing.T) {
 	t.Setenv("GOBIN", "")
 	goPath := filepath.Join(os.TempDir(), "gopath")
@@ -133,6 +142,29 @@ func TestUpgradeRunsNPMCommand(t *testing.T) {
 	}
 }
 
+func TestNPMCommandUsesWindowsGlobalPrefixLayout(t *testing.T) {
+	command, err := managedUpgradeCommandForInstall(installDetails{
+		method:         InstallNPM,
+		executablePath: `C:\Users\matheus\AppData\Roaming\npm\node_modules\@compozy\cli\bin\compozy.exe`,
+	})
+	if err != nil {
+		t.Fatalf("managedUpgradeCommandForInstall returned error: %v", err)
+	}
+
+	wantPrefix := "C:/Users/matheus/AppData/Roaming/npm"
+	assertManagedUpgradeCommand(t, command, "npm", []string{
+		"install",
+		"-g",
+		"@compozy/cli@latest",
+	})
+	if command.pathPrefix != wantPrefix {
+		t.Fatalf("path prefix = %q, want %q", command.pathPrefix, wantPrefix)
+	}
+	if !slices.Contains(command.env, "NPM_CONFIG_PREFIX="+wantPrefix) {
+		t.Fatalf("command env = %#v, want NPM_CONFIG_PREFIX=%s", command.env, wantPrefix)
+	}
+}
+
 func TestUpgradeRunsGoInstallCommand(t *testing.T) {
 	t.Setenv("GOBIN", "")
 	goPath := filepath.Join(os.TempDir(), "gopath")
@@ -198,7 +230,7 @@ func TestUpgradeRejectsNPMWhenDetectedPrefixDoesNotOwnNPM(t *testing.T) {
 	}
 	marker := filepath.Join(t.TempDir(), "ambient-npm-ran")
 	ambientNPM := filepath.Join(ambientBin, "npm")
-	if err := writeFile(ambientNPM, []byte("#!/bin/sh\ntouch '"+marker+"'\n"), 0o755); err != nil {
+	if err := writeFile(ambientNPM, []byte("#!/bin/sh\n: > '"+marker+"'\n"), 0o755); err != nil {
 		t.Fatalf("write ambient npm: %v", err)
 	}
 	t.Setenv("PATH", ambientBin)
@@ -207,11 +239,48 @@ func TestUpgradeRejectsNPMWhenDetectedPrefixDoesNotOwnNPM(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing detected-prefix npm error")
 	}
-	if !strings.Contains(err.Error(), filepath.Join(prefix, "bin", "npm")) {
+	if !strings.Contains(err.Error(), filepath.Join(prefix, "bin")) {
 		t.Fatalf("Upgrade error = %v, want detected prefix npm path", err)
 	}
 	if _, statErr := os.Stat(marker); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("ambient npm ran unexpectedly, stat error = %v", statErr)
+	}
+}
+
+func TestUpgradeRunsDetectedNPMWhenAmbientNPMIsFirst(t *testing.T) {
+	prefix := filepath.Join(t.TempDir(), "detected-prefix")
+	restore := stubExecutablePath(t, filepath.Join(prefix, "lib", "node_modules", "@compozy", "cli", "bin", "compozy"))
+	defer restore()
+
+	detectedBin := filepath.Join(prefix, "bin")
+	if err := os.MkdirAll(detectedBin, 0o755); err != nil {
+		t.Fatalf("create detected bin: %v", err)
+	}
+	detectedMarker := filepath.Join(t.TempDir(), "detected-npm-ran")
+	detectedNPM := filepath.Join(detectedBin, "npm")
+	if err := writeFile(detectedNPM, []byte("#!/bin/sh\n: > '"+detectedMarker+"'\n"), 0o755); err != nil {
+		t.Fatalf("write detected npm: %v", err)
+	}
+
+	ambientBin := filepath.Join(t.TempDir(), "ambient-bin")
+	if err := os.MkdirAll(ambientBin, 0o755); err != nil {
+		t.Fatalf("create ambient bin: %v", err)
+	}
+	ambientMarker := filepath.Join(t.TempDir(), "ambient-npm-ran")
+	ambientNPM := filepath.Join(ambientBin, "npm")
+	if err := writeFile(ambientNPM, []byte("#!/bin/sh\n: > '"+ambientMarker+"'\n"), 0o755); err != nil {
+		t.Fatalf("write ambient npm: %v", err)
+	}
+	t.Setenv("PATH", ambientBin)
+
+	if err := Upgrade(context.Background(), "1.0.0", io.Discard); err != nil {
+		t.Fatalf("Upgrade returned error: %v", err)
+	}
+	if _, err := os.Stat(detectedMarker); err != nil {
+		t.Fatalf("detected npm did not run: %v", err)
+	}
+	if _, err := os.Stat(ambientMarker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ambient npm ran unexpectedly, stat error = %v", err)
 	}
 }
 

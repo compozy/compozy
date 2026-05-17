@@ -2,12 +2,14 @@ package update
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/build"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -121,7 +123,7 @@ func isHomebrewPath(path string) bool {
 }
 
 func isNPMPath(path string) bool {
-	_, ok := npmGlobalPrefix(path)
+	_, ok := npmInstallLocation(path)
 	return ok
 }
 
@@ -183,6 +185,11 @@ type managedUpgradeCommand struct {
 	env        []string
 }
 
+type npmLocation struct {
+	prefix string
+	binDir string
+}
+
 func (c managedUpgradeCommand) String() string {
 	parts := make([]string, 0, 1+len(c.args))
 	parts = append(parts, c.name)
@@ -203,15 +210,15 @@ func managedUpgradeCommandForInstall(install installDetails) (managedUpgradeComm
 			pathPrefix: filepath.Join(prefix, "bin"),
 		}, nil
 	case InstallNPM:
-		prefix, ok := npmGlobalPrefix(install.executablePath)
+		location, ok := npmInstallLocation(install.executablePath)
 		if !ok {
 			return managedUpgradeCommand{}, fmt.Errorf("detect npm prefix from %q", install.executablePath)
 		}
 		return managedUpgradeCommand{
 			name:       "npm",
 			args:       []string{"install", "-g", "@compozy/cli@latest"},
-			pathPrefix: filepath.Join(prefix, "bin"),
-			env:        []string{"NPM_CONFIG_PREFIX=" + prefix},
+			pathPrefix: location.binDir,
+			env:        []string{"NPM_CONFIG_PREFIX=" + location.prefix},
 		}, nil
 	case InstallGo:
 		binDir, ok := goInstallBinDir(install.executablePath, install.env)
@@ -233,7 +240,8 @@ func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, install
 	if err != nil {
 		return err
 	}
-	if err := requireManagedExecutable(command); err != nil {
+	executablePath, err := managedExecutablePath(command)
+	if err != nil {
 		return err
 	}
 
@@ -247,6 +255,10 @@ func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, install
 		cmd = exec.CommandContext(ctx, "go", "install", "github.com/compozy/compozy/cmd/compozy@latest")
 	}
 
+	if executablePath != "" {
+		cmd.Path = executablePath
+		cmd.Err = nil
+	}
 	cmd.Env = managedCommandEnv(os.Environ(), command)
 	cmd.Stdout = output
 	cmd.Stderr = output
@@ -256,25 +268,45 @@ func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, install
 	return nil
 }
 
-func requireManagedExecutable(command managedUpgradeCommand) error {
+func managedExecutablePath(command managedUpgradeCommand) (string, error) {
 	if command.pathPrefix == "" {
-		return nil
+		return "", nil
 	}
-	path := filepath.Join(command.pathPrefix, command.name)
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf(
-			"detected install expects %s at %s; refusing to run ambient %s from PATH: %w",
-			command.name,
-			path,
-			command.name,
-			err,
-		)
+	for _, name := range managedExecutableNames(command.name) {
+		path := filepath.Join(command.pathPrefix, name)
+		info, err := os.Stat(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return "", fmt.Errorf("stat detected %s executable at %s: %w", command.name, path, err)
+		}
+		if info.IsDir() {
+			continue
+		}
+		if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+			continue
+		}
+		return path, nil
 	}
-	if info.IsDir() || info.Mode().Perm()&0o111 == 0 {
-		return fmt.Errorf("detected install expects executable %s at %s", command.name, path)
+	return "", fmt.Errorf(
+		"detected install expects executable %s under %s; refusing to run ambient %s from PATH",
+		command.name,
+		command.pathPrefix,
+		command.name,
+	)
+}
+
+func managedExecutableNames(name string) []string {
+	if runtime.GOOS != "windows" {
+		return []string{name}
 	}
-	return nil
+	switch name {
+	case "npm":
+		return []string{"npm.cmd", "npm.exe", "npm"}
+	default:
+		return []string{name + ".exe", name}
+	}
 }
 
 func managedCommandEnv(base []string, command managedUpgradeCommand) []string {
@@ -327,8 +359,14 @@ func homebrewPrefix(path string) (string, bool) {
 	return prefixBeforeAnyPathSegment(path, "/Cellar/", "/Caskroom/")
 }
 
-func npmGlobalPrefix(path string) (string, bool) {
-	return prefixBeforeAnyPathSegment(path, "/lib/node_modules/")
+func npmInstallLocation(path string) (npmLocation, bool) {
+	if prefix, ok := prefixBeforeAnyPathSegment(path, "/lib/node_modules/"); ok {
+		return npmLocation{prefix: prefix, binDir: filepath.Join(prefix, "bin")}, true
+	}
+	if prefix, ok := prefixBeforeAnyPathSegment(path, "/node_modules/"); ok {
+		return npmLocation{prefix: prefix, binDir: prefix}, true
+	}
+	return npmLocation{}, false
 }
 
 func prefixBeforeAnyPathSegment(path string, markers ...string) (string, bool) {
