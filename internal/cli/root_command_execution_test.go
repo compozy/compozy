@@ -1408,7 +1408,7 @@ func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
 	}
 }
 
-func TestTasksRunMultipleCommandInProcessDetachStartsParentRun(t *testing.T) {
+func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *testing.T) {
 	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
 	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -1422,27 +1422,111 @@ func TestTasksRunMultipleCommandInProcessDetachStartsParentRun(t *testing.T) {
 	writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
 	withWorkingDir(t, workspaceRoot)
 
+	client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{})
+
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
 	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
-	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
+	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
 		"tasks",
 		"run-multiple",
 		"alpha,beta",
-		"--detach",
+		"--stream",
 		"--dry-run",
 	)
 	if err != nil {
-		t.Fatalf("execute in-process tasks run-multiple detach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute in-process tasks run-multiple stream: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if !strings.Contains(stderr, "preflight=ok") {
 		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
 	}
-	if !containsAll(stdout, "task multi-run started:", "(mode=detach)") {
-		t.Fatalf("expected parent run id in detach stdout, got %q", stdout)
+	if !containsAll(
+		stdout,
+		"task multi-run started:",
+		"task queue started | mode=enqueued total=2",
+		"task[1/2] alpha queued",
+		"task[2/2] beta queued",
+		"task[1/2] alpha completed",
+		"task[2/2] beta completed",
+		"task queue completed | total=2",
+	) {
+		t.Fatalf("expected complete parent queue stream output, got %q\nstderr:\n%s", stdout, stderr)
+	}
+
+	runID := taskMultiRunIDFromCLIOutput(t, stdout)
+	snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+	}
+	assertTaskMultiSnapshotItemsForCLI(t, snapshot, []string{"alpha", "beta"})
+}
+
+func TestTasksRunMultipleCommandInProcessParallelConfigStreamsEnqueuedQueue(t *testing.T) {
+	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Alpha Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Alpha Task",
+	))
+	writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+	writeCLIWorkspaceConfig(t, workspaceRoot, `
+[tasks.run]
+run_multiple_mode = "parallel"
+`)
+	withWorkingDir(t, workspaceRoot)
+
+	client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{})
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run-multiple",
+		"alpha,beta",
+		"--stream",
+		"--dry-run",
+	)
+	if err != nil {
+		t.Fatalf(
+			"execute in-process tasks run-multiple parallel stream: %v\nstdout:\n%s\nstderr:\n%s",
+			err,
+			stdout,
+			stderr,
+		)
+	}
+	if !containsAll(stderr, "V2", "worktree isolation", "enqueued") {
+		t.Fatalf("expected fallback message mentioning V2 and worktree isolation, got %q", stderr)
+	}
+	if !containsAll(
+		stdout,
+		"task queue started | mode=enqueued total=2",
+		"task[1/2] alpha completed",
+		"task[2/2] beta completed",
+	) {
+		t.Fatalf("expected enqueued parent queue stream output, got %q\nstderr:\n%s", stdout, stderr)
+	}
+
+	runID := taskMultiRunIDFromCLIOutput(t, stdout)
+	snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+	}
+	assertTaskMultiSnapshotItemsForCLI(t, snapshot, []string{"alpha", "beta"})
+
+	started := taskMultiStartedPayloadForCLI(t, client, runID)
+	if started.Mode != "enqueued" {
+		t.Fatalf("task.multi.started mode = %q, want enqueued", started.Mode)
 	}
 }
 
@@ -2653,6 +2737,82 @@ func decodeExecJSONLEvents(t *testing.T, stdout string) []map[string]any {
 		events = append(events, payload)
 	}
 	return events
+}
+
+func taskMultiRunIDFromCLIOutput(t *testing.T, stdout string) string {
+	t.Helper()
+
+	const prefix = "task multi-run started: "
+	for _, line := range strings.Split(stdout, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, prefix) {
+			continue
+		}
+		runPart := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+		runID, _, ok := strings.Cut(runPart, " ")
+		if !ok || strings.TrimSpace(runID) == "" {
+			t.Fatalf("parse task multi-run id from line %q", line)
+		}
+		return runID
+	}
+	t.Fatalf("task multi-run start line not found in output:\n%s", stdout)
+	return ""
+}
+
+func assertTaskMultiSnapshotItemsForCLI(
+	t *testing.T,
+	snapshot apicore.TaskRunMultipleSnapshot,
+	wantSlugs []string,
+) {
+	t.Helper()
+
+	if snapshot.Run.Mode != "task_multi" {
+		t.Fatalf("snapshot parent mode = %q, want task_multi", snapshot.Run.Mode)
+	}
+	if snapshot.Run.Status != "completed" {
+		t.Fatalf("snapshot parent status = %q, want completed", snapshot.Run.Status)
+	}
+	if len(snapshot.Items) != len(wantSlugs) {
+		t.Fatalf("snapshot item count = %d, want %d: %#v", len(snapshot.Items), len(wantSlugs), snapshot.Items)
+	}
+	gotSlugs := make([]string, 0, len(snapshot.Items))
+	for _, item := range snapshot.Items {
+		gotSlugs = append(gotSlugs, item.Slug)
+		if item.Status != "completed" {
+			t.Fatalf("snapshot item %q status = %q, want completed", item.Slug, item.Status)
+		}
+		if strings.TrimSpace(item.RunID) == "" {
+			t.Fatalf("snapshot item %q is missing child run id", item.Slug)
+		}
+	}
+	if !slices.Equal(gotSlugs, wantSlugs) {
+		t.Fatalf("snapshot slugs = %#v, want %#v", gotSlugs, wantSlugs)
+	}
+}
+
+func taskMultiStartedPayloadForCLI(
+	t *testing.T,
+	client *inProcessDaemonCommandClient,
+	runID string,
+) kinds.TaskRunMultiplePayload {
+	t.Helper()
+
+	page, err := client.ListRunEvents(context.Background(), runID, apicore.StreamCursor{}, 100)
+	if err != nil {
+		t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
+	}
+	for _, event := range page.Events {
+		if event.Kind != eventspkg.EventKindTaskRunMultipleStarted {
+			continue
+		}
+		var payload kinds.TaskRunMultiplePayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode %s payload: %v", event.Kind, err)
+		}
+		return payload
+	}
+	t.Fatalf("%s event not found for run %q", eventspkg.EventKindTaskRunMultipleStarted, runID)
+	return kinds.TaskRunMultiplePayload{}
 }
 
 func withWorkingDir(t *testing.T, dir string) {

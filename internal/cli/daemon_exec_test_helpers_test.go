@@ -40,7 +40,14 @@ func installInProcessCLIDaemonBootstrap(t *testing.T) {
 
 func installInProcessCLIDaemonBootstrapWithConfig(t *testing.T, cfg daemon.RunManagerConfig) {
 	t.Helper()
+	_ = installInProcessCLIDaemonBootstrapWithConfigClient(t, cfg)
+}
 
+func installInProcessCLIDaemonBootstrapWithConfigClient(
+	t *testing.T,
+	cfg daemon.RunManagerConfig,
+) *inProcessDaemonCommandClient {
+	t.Helper()
 	prepareInProcessCLIDaemonHome(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,11 +88,13 @@ func installInProcessCLIDaemonBootstrapWithConfig(t *testing.T, cfg daemon.RunMa
 		}
 	})
 
-	installTestCLIReadyDaemonBootstrap(t, &inProcessDaemonCommandClient{
+	client := &inProcessDaemonCommandClient{
 		globalDB: db,
 		manager:  manager,
 		target:   apiclient.Target{SocketPath: "in-process://daemon"},
-	})
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+	return client
 }
 
 func prepareInProcessCLIDaemonHome(t *testing.T) {
