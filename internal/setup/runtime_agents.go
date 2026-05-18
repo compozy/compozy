@@ -13,6 +13,7 @@ var runtimeIDEAgentNames = map[string]string{
 	"gemini":       "gemini-cli",
 	"opencode":     "opencode",
 	"pi":           "pi",
+	"kiro":         "kiro-cli",
 }
 
 // AgentNameForIDE maps a compozy runtime IDE name to the setup agent name.

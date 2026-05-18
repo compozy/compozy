@@ -78,6 +78,7 @@ var supportedRegistryIDEOrder = []string{
 	model.IDEPi,
 	model.IDEGemini,
 	model.IDECopilot,
+	model.IDEKiro,
 }
 
 var (
@@ -238,6 +239,27 @@ var (
 			InstallHint: "Install GitHub Copilot CLI so `copilot --acp` succeeds.",
 			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
+			},
+		},
+		model.IDEKiro: {
+			ID:             model.IDEKiro,
+			DisplayName:    "Kiro CLI",
+			SetupAgentName: "kiro-cli",
+			DefaultModel:   model.DefaultKiroModel,
+			Command:        "kiro-cli",
+			FixedArgs:      []string{"acp"},
+			ProbeArgs:      []string{"acp", "--help"},
+			DocsURL:        "https://kiro.dev/docs/cli/acp",
+			InstallHint:    "Install Kiro CLI and expose `kiro-cli` on PATH so `kiro-cli acp` works.",
+			BootstrapArgs: func(modelName, _ string, _ []string, accessMode string) []string {
+				var args []string
+				if strings.TrimSpace(modelName) != "" {
+					args = append(args, "--model", modelName)
+				}
+				if accessMode == model.AccessModeFull {
+					args = append(args, "-a")
+				}
+				return args
 			},
 		},
 	}
