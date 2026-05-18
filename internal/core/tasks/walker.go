@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,7 +33,7 @@ func readTaskEntriesWithMode(tasksDir string, includeCompleted, recursive bool) 
 		return nil, err
 	}
 	slog.Debug(
-		"recursive task discovery resolved entries",
+		"task discovery resolved entries",
 		"count", len(entries),
 		"recursive", recursive,
 	)
@@ -91,27 +92,18 @@ func taskFileNamesFlat(tasksDir string) ([]string, error) {
 
 func taskFileNamesRecursive(tasksDir string) ([]string, error) {
 	names := make([]string, 0)
-	walkErr := filepath.WalkDir(tasksDir, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(tasksDir, func(entryPath string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if d != nil && d.IsDir() && path != tasksDir {
-				slog.Debug(
-					"recursive task discovery skipped directory",
-					"dir", relForLog(tasksDir, path),
-					"reason", "walk-error",
-					"error", err,
-				)
-				return filepath.SkipDir
-			}
-			return err
+			return fmt.Errorf("walk %s: %w", relForLog(tasksDir, entryPath), err)
 		}
 		if d.IsDir() {
-			if path == tasksDir {
+			if entryPath == tasksDir {
 				return nil
 			}
 			if shouldSkipDir(d.Name()) {
 				slog.Debug(
 					"recursive task discovery skipped directory",
-					"dir", relForLog(tasksDir, path),
+					"dir", relForLog(tasksDir, entryPath),
 					"reason", "skip-list",
 				)
 				return filepath.SkipDir
@@ -124,9 +116,9 @@ func taskFileNamesRecursive(tasksDir string) ([]string, error) {
 		if ExtractTaskNumber(d.Name()) == 0 {
 			return nil
 		}
-		rel, relErr := filepath.Rel(tasksDir, path)
+		rel, relErr := filepath.Rel(tasksDir, entryPath)
 		if relErr != nil {
-			return fmt.Errorf("relpath %s: %w", path, relErr)
+			return fmt.Errorf("relpath %s: %w", entryPath, relErr)
 		}
 		names = append(names, filepath.ToSlash(rel))
 		return nil
@@ -154,7 +146,7 @@ func sortTaskNames(names []string) {
 }
 
 func dirKey(rel string) string {
-	dir := filepath.ToSlash(filepath.Dir(filepath.FromSlash(rel)))
+	dir := path.Dir(rel)
 	if dir == "." {
 		return ""
 	}
@@ -181,10 +173,10 @@ func shouldSkipDir(name string) bool {
 	return false
 }
 
-func relForLog(tasksDir, path string) string {
-	rel, err := filepath.Rel(tasksDir, path)
+func relForLog(tasksDir, entryPath string) string {
+	rel, err := filepath.Rel(tasksDir, entryPath)
 	if err != nil {
-		return filepath.ToSlash(path)
+		return filepath.ToSlash(entryPath)
 	}
 	return filepath.ToSlash(rel)
 }

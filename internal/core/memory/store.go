@@ -71,6 +71,12 @@ func ResolveDocumentPath(tasksDir, taskFileName string) string {
 	return TaskPath(tasksDir, taskFileName)
 }
 
+// sanitizeTaskMemoryRelpath normalizes a task file name into a forward-slash
+// relative path for nested workflow memory layouts. It trims surrounding
+// whitespace, converts backslashes to forward slashes, and silently drops
+// empty, ".", and ".." segments. Callers needing strict validation (with
+// errors on traversal attempts or missing basenames) should use
+// validateTaskMemoryRelpath instead.
 func sanitizeTaskMemoryRelpath(taskFileName string) string {
 	trimmed := strings.TrimSpace(taskFileName)
 	if trimmed == "" {

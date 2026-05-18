@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -161,6 +162,38 @@ func TestReadTaskEntriesNonRecursiveUnchanged(t *testing.T) {
 		if entry.Name != entry.CodeFile+".md" {
 			t.Fatalf("expected basename CodeFile in flat mode, got entry %#v", entry)
 		}
+	}
+}
+
+func TestReadTaskEntriesRecursivePropagatesUnreadableDirectoryError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission semantics do not apply on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses POSIX permission checks; permission gate cannot trigger")
+	}
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeNestedFiles(t, dir, map[string]string{
+		"task_01.md":          pendingTaskBody("Root"),
+		"features/task_01.md": pendingTaskBody("Feature"),
+	})
+
+	blocked := filepath.Join(dir, "features")
+	if err := os.Chmod(blocked, 0o000); err != nil {
+		t.Fatalf("chmod %s: %v", blocked, err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(blocked, 0o755)
+	})
+
+	_, err := ReadTaskEntriesRecursive(dir, false)
+	if err == nil {
+		t.Fatal("expected ReadTaskEntriesRecursive to fail when subdirectory is unreadable")
+	}
+	if !strings.Contains(err.Error(), "features") {
+		t.Fatalf("expected error to reference unreadable subdirectory, got %v", err)
 	}
 }
 
