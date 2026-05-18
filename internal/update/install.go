@@ -18,7 +18,10 @@ var (
 	runManagedUpgradeCommand = defaultManagedUpgradeCommand
 )
 
-const goosWindows = "windows"
+const (
+	goosWindows         = "windows"
+	homebrewFormulaName = "compozy/compozy/compozy"
+)
 
 // InstallMethod identifies how the compozy binary was installed.
 type InstallMethod int
@@ -222,7 +225,7 @@ func managedUpgradeCommandForInstall(install installDetails) (managedUpgradeComm
 		}
 		return managedUpgradeCommand{
 			name:       "brew",
-			args:       []string{"upgrade", "--cask", "compozy"},
+			args:       []string{"upgrade", homebrewFormulaName},
 			pathPrefix: filepath.Join(prefix, "bin"),
 		}, nil
 	case InstallNPM:
@@ -265,7 +268,7 @@ func defaultManagedUpgradeCommand(ctx context.Context, output io.Writer, install
 	var cmd *exec.Cmd
 	switch install.method {
 	case InstallHomebrew:
-		cmd = exec.CommandContext(ctx, "brew", "upgrade", "--cask", "compozy")
+		cmd = exec.CommandContext(ctx, "brew", "upgrade", homebrewFormulaName)
 	case InstallNPM:
 		cmd = exec.CommandContext(ctx, "npm", "install", "-g", "@compozy/cli@latest")
 	case InstallGo:

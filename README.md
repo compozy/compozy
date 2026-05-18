@@ -46,8 +46,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 #### Homebrew
 
 ```bash
-brew tap compozy/compozy
-brew install --cask compozy
+brew install compozy/compozy/compozy
 ```
 
 #### NPM

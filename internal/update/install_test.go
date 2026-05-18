@@ -113,7 +113,7 @@ func TestUpgradeRunsHomebrewCommand(t *testing.T) {
 	if gotCtx != ctx {
 		t.Fatalf("managed command context = %#v, want caller context", gotCtx)
 	}
-	assertManagedUpgradeCommand(t, gotCommand, "brew", []string{"upgrade", "--cask", "compozy"})
+	assertManagedUpgradeCommand(t, gotCommand, "brew", []string{"upgrade", homebrewFormulaName})
 	if got := out.String(); got != "brew upgraded\n" {
 		t.Fatalf("unexpected output: %q", got)
 	}

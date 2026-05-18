@@ -11,9 +11,9 @@ import (
 )
 
 type goReleaserConfig struct {
-	Before        goReleaserBefore         `yaml:"before"`
-	Archives      []goReleaserArchive      `yaml:"archives"`
-	HomebrewCasks []goReleaserHomebrewCask `yaml:"homebrew_casks"`
+	Before        goReleaserBefore            `yaml:"before"`
+	Archives      []goReleaserArchive         `yaml:"archives"`
+	HomebrewBrews []goReleaserHomebrewFormula `yaml:"brews"`
 }
 
 type goReleaserBefore struct {
@@ -25,9 +25,16 @@ type goReleaserArchive struct {
 	WrapInDirectory bool   `yaml:"wrap_in_directory"`
 }
 
-type goReleaserHomebrewCask struct {
-	Name string   `yaml:"name"`
-	IDs  []string `yaml:"ids"`
+type goReleaserHomebrewFormula struct {
+	Name       string               `yaml:"name"`
+	IDs        []string             `yaml:"ids"`
+	Directory  string               `yaml:"directory"`
+	Repository goReleaserRepository `yaml:"repository"`
+}
+
+type goReleaserRepository struct {
+	Owner string `yaml:"owner"`
+	Name  string `yaml:"name"`
 }
 
 func TestReleaseWorkflowsUseScopedReleaseNotesGenerator(t *testing.T) {
@@ -345,7 +352,7 @@ func TestGoReleaserBuildsFrontendBundleBeforeBinaries(t *testing.T) {
 	)
 }
 
-func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
+func TestGoReleaserConfigPublishesHomebrewFormulaFromKnownArchives(t *testing.T) {
 	t.Parallel()
 
 	content, err := os.ReadFile(filepath.Join(repoRoot(t), ".goreleaser.yml"))
@@ -358,8 +365,11 @@ func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
 		t.Fatalf("unmarshal goreleaser config: %v", err)
 	}
 
-	if len(cfg.HomebrewCasks) == 0 {
-		t.Fatal("expected goreleaser config to define at least one Homebrew cask")
+	if strings.Contains(string(content), "homebrew_casks:") {
+		t.Fatal("expected goreleaser config to publish a Homebrew formula instead of a cask")
+	}
+	if len(cfg.HomebrewBrews) == 0 {
+		t.Fatal("expected goreleaser config to define at least one Homebrew formula")
 	}
 
 	archiveByID := make(map[string]goReleaserArchive, len(cfg.Archives))
@@ -376,12 +386,28 @@ func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
 		t.Fatal("expected goreleaser config to define archive IDs")
 	}
 
-	for _, cask := range cfg.HomebrewCasks {
-		cask := cask
-		t.Run(cask.Name, func(t *testing.T) {
+	for _, formula := range cfg.HomebrewBrews {
+		formula := formula
+		t.Run(formula.Name, func(t *testing.T) {
 			t.Parallel()
 
-			targetIDs := cask.IDs
+			if formula.Directory != "Formula" {
+				t.Fatalf(
+					"expected Homebrew formula %q to be written under Formula, got %q",
+					formula.Name,
+					formula.Directory,
+				)
+			}
+			if formula.Repository.Owner != "compozy" || formula.Repository.Name != "homebrew-compozy" {
+				t.Fatalf(
+					"expected Homebrew formula %q to publish to compozy/homebrew-compozy, got %s/%s",
+					formula.Name,
+					formula.Repository.Owner,
+					formula.Repository.Name,
+				)
+			}
+
+			targetIDs := formula.IDs
 			if len(targetIDs) == 0 {
 				targetIDs = archiveIDs
 			}
@@ -389,13 +415,45 @@ func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
 			for _, id := range targetIDs {
 				archive, ok := archiveByID[id]
 				if !ok {
-					t.Fatalf("expected Homebrew cask %q to reference a known archive id %q", cask.Name, id)
+					t.Fatalf("expected Homebrew formula %q to reference a known archive id %q", formula.Name, id)
 				}
 				if archive.WrapInDirectory {
 					t.Fatalf(
-						"expected Homebrew cask archive %q to keep the binary at the archive root so brew does not depend on rename",
+						"expected Homebrew formula archive %q to keep the binary at the archive root so brew can install it directly",
 						id,
 					)
+				}
+			}
+		})
+	}
+}
+
+func TestHomebrewInstallDocsUseFormulaTap(t *testing.T) {
+	t.Parallel()
+
+	const installCommand = "brew install compozy/compozy/compozy"
+	forbiddenCommands := []string{
+		"brew install --cask compozy",
+		"compozy/tap/compozy",
+		"homebrew-tap",
+	}
+	paths := []string{
+		"README.md",
+		".goreleaser.release-header.md.tmpl",
+	}
+
+	for _, path := range paths {
+		path := path
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			content := readRepoFile(t, repoRoot(t), path)
+			if !strings.Contains(content, installCommand) {
+				t.Fatalf("expected %s to document %q", path, installCommand)
+			}
+			for _, forbiddenCommand := range forbiddenCommands {
+				if strings.Contains(content, forbiddenCommand) {
+					t.Fatalf("expected %s to avoid retired Homebrew command %q", path, forbiddenCommand)
 				}
 			}
 		})
