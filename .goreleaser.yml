@@ -66,7 +66,7 @@ archives:
     files:
       - README.md
       - LICENSE*
-    # Keep the binary at the archive root so Homebrew casks can link it directly.
+    # Keep the binary at the archive root so Homebrew formulas can install it directly.
 
 checksum:
   name_template: "checksums.txt"
@@ -159,9 +159,11 @@ sboms:
   - id: source
     artifacts: source
 
-# Homebrew cask configuration
-homebrew_casks:
+# Homebrew formula configuration
+brews:
   - name: compozy
+    ids:
+      - compozy-archive
     repository:
       owner: compozy
       name: homebrew-compozy
@@ -172,12 +174,15 @@ homebrew_casks:
       name: goreleaserbot
       email: bot@goreleaser.com
 
-    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
-    directory: Casks
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    directory: Formula
     caveats: |
       To get started with Compozy, see https://github.com/compozy/compozy
     homepage: "https://github.com/compozy/compozy"
     description: "Compozy CLI"
+    license: "BSL-1.1"
+    test: |
+      system "#{bin}/compozy", "--version"
     skip_upload: auto
 
 # NPM package configuration
