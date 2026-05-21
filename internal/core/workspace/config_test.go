@@ -1572,10 +1572,12 @@ func loadConfigWithIsolatedHome(t *testing.T, workspaceRoot string) (ProjectConf
 func stubWorkspaceUserHomeDir(t *testing.T, fn func() (string, error)) {
 	t.Helper()
 
+	workspaceUserHomeDirMu.Lock()
 	original := osUserHomeDir
 	osUserHomeDir = fn
 	t.Cleanup(func() {
 		osUserHomeDir = original
+		workspaceUserHomeDirMu.Unlock()
 	})
 }
 
