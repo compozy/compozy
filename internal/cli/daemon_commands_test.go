@@ -1036,7 +1036,7 @@ func (failingCLIWriter) Write([]byte) (int, error) {
 func TestResolveTaskRunMultipleMode(t *testing.T) {
 	t.Parallel()
 
-	t.Run("default enqueued", func(t *testing.T) {
+	t.Run("Should default to enqueued", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
@@ -1050,7 +1050,7 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		}
 	})
 
-	t.Run("parallel fallback", func(t *testing.T) {
+	t.Run("Should fallback to enqueued with warning", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
@@ -1070,7 +1070,7 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid internal value", func(t *testing.T) {
+	t.Run("Should return error for invalid internal value", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
@@ -1081,7 +1081,7 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		}
 	})
 
-	t.Run("fallback write failure", func(t *testing.T) {
+	t.Run("Should surface write failure when fallback message cannot be written", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)

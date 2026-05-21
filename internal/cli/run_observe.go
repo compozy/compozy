@@ -558,7 +558,10 @@ func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 		if !ok {
 			return "task queue completed\n", true
 		}
-		return fmt.Sprintf("task queue completed | total=%d\n", payload.Total), true
+		if payload.Total > 0 {
+			return fmt.Sprintf("task queue completed | total=%d\n", payload.Total), true
+		}
+		return "task queue completed\n", true
 	case eventspkg.EventKindTaskRunMultipleQueueCanceled:
 		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
 		if !ok {

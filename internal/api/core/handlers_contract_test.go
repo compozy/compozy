@@ -168,7 +168,7 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 			wantRun:    taskRun,
 		},
 		{
-			name:       "task run multiple",
+			name:       "Should run multiple tasks",
 			target:     "/api/task-runs/multiple",
 			body:       `{"workspace":"ws-1","slugs":["daemon","followup"],"mode":"enqueued","presentation_mode":"stream"}`,
 			requestID:  "req-multi",

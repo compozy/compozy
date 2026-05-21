@@ -332,7 +332,7 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			`"run":{"run_id":"run-1"`,
 		},
 		{
-			"task run multiple",
+			"Should run multiple tasks",
 			http.MethodPost,
 			"/api/task-runs/multiple",
 			`{"workspace":"ws-1","slugs":["daemon","followup"],"mode":"enqueued","presentation_mode":"stream"}`,
@@ -340,7 +340,7 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			`"run":{"run_id":"multi-run-1"`,
 		},
 		{
-			"task run multiple snapshot",
+			"Should return snapshot for multiple run",
 			http.MethodGet,
 			"/api/task-runs/multiple/multi-run-1/snapshot",
 			"",

@@ -357,12 +357,12 @@ type multiRunParentSession struct {
 }
 
 func (s multiRunParentSession) Enqueue(msg any) {
+	s.Session.Enqueue(msg)
 	if ev, ok := msg.(events.Event); ok {
 		if childRunID := childRunIDFromTaskMultiEvent(ev); childRunID != "" && s.observeChild != nil {
 			s.observeChild(childRunID, apicore.StreamCursor{}, true)
 		}
 	}
-	s.Session.Enqueue(msg)
 }
 
 func followRemoteMultiRunChild(

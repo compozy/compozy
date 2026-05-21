@@ -102,33 +102,35 @@ func TestRunManagerRejectsCompletedTaskWorkflowBeforeCreatingRun(t *testing.T) {
 }
 
 func TestRunManagerIncludeCompletedStartsCompletedTaskWorkflow(t *testing.T) {
-	seenIncludeCompleted := make(chan bool, 1)
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
-			return &model.SolvePreparation{}, nil
-		},
-		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			seenIncludeCompleted <- cfg.IncludeCompleted
-			return nil
-		},
-	})
-	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))
+	t.Run("Should include completed tasks when include_completed is true", func(t *testing.T) {
+		seenIncludeCompleted := make(chan bool, 1)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				seenIncludeCompleted <- cfg.IncludeCompleted
+				return nil
+			},
+		})
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))
 
-	const runID = "task-run-include-completed"
-	run := env.startTaskRun(
-		t,
-		runID,
-		rawJSON(t, `{"run_id":"`+runID+`","include_completed":true}`),
-	)
-	if !waitForBool(t, seenIncludeCompleted) {
-		t.Fatal("execute saw IncludeCompleted=false, want true")
-	}
-	terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return row.Status == runStatusCompleted
+		const runID = "task-run-include-completed"
+		run := env.startTaskRun(
+			t,
+			runID,
+			rawJSON(t, `{"run_id":"`+runID+`","include_completed":true}`),
+		)
+		if !waitForBool(t, seenIncludeCompleted) {
+			t.Fatal("execute saw IncludeCompleted=false, want true")
+		}
+		terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		if terminal.EndedAt == nil {
+			t.Fatal("EndedAt = nil, want terminal timestamp")
+		}
 	})
-	if terminal.EndedAt == nil {
-		t.Fatal("EndedAt = nil, want terminal timestamp")
-	}
 }
 
 func TestRunManagerCancelTaskRunMirrorsTerminalStateAndIsIdempotent(t *testing.T) {

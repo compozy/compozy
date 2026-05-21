@@ -451,58 +451,60 @@ func TestTasksRunHelpShowsDaemonTaskFlagsOnly(t *testing.T) {
 }
 
 func TestTasksRunMultipleHelpShowsExamplesAndSharedTaskFlags(t *testing.T) {
-	t.Parallel()
+	t.Run("Should show examples and shared task flags in help output", func(t *testing.T) {
+		t.Parallel()
 
-	cmd := findNestedCommand(t, NewRootCommand(), "tasks", "run-multiple [slugs]")
-	if cmd.Flags().Lookup("name") != nil {
-		t.Fatal("expected tasks run-multiple to omit --name")
-	}
-
-	output, err := executeRootCommand("tasks", "run-multiple", "--help")
-	if err != nil {
-		t.Fatalf("execute tasks run-multiple help: %v", err)
-	}
-
-	required := []string{
-		"compozy tasks run-multiple alpha,beta --stream",
-		"compozy tasks run-multiple alpha,beta --detach",
-		"compozy tasks run-multiple alpha,beta --ide codex --model gpt-5.5",
-		"one comma-separated positional slug list",
-		"configured parallel mode prints a V2 worktree-isolation",
-		"--attach",
-		"--detach",
-		"--stream",
-		"--ui",
-		"--include-completed",
-		"--skip-validation",
-		"--force",
-		"--task-runtime",
-	}
-	for _, snippet := range required {
-		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected tasks run-multiple help to include %q\noutput:\n%s", snippet, output)
+		cmd := findNestedCommand(t, NewRootCommand(), "tasks", "run-multiple [slugs]")
+		if cmd.Flags().Lookup("name") != nil {
+			t.Fatal("expected tasks run-multiple to omit --name")
 		}
-	}
 
-	forbidden := []string{
-		"--name",
-		"--pr",
-		"--provider",
-		"--reviews-dir",
-		"--batch-size",
-		"--concurrent",
-		"--format",
-		"--grouped",
-		"--include-resolved",
-		"--tasks-dir",
-		"--form ",
-		"--tui",
-	}
-	for _, snippet := range forbidden {
-		if strings.Contains(output, snippet) {
-			t.Fatalf("expected tasks run-multiple help to omit %q\noutput:\n%s", snippet, output)
+		output, err := executeRootCommand("tasks", "run-multiple", "--help")
+		if err != nil {
+			t.Fatalf("execute tasks run-multiple help: %v", err)
 		}
-	}
+
+		required := []string{
+			"compozy tasks run-multiple alpha,beta --stream",
+			"compozy tasks run-multiple alpha,beta --detach",
+			"compozy tasks run-multiple alpha,beta --ide codex --model gpt-5.5",
+			"one comma-separated positional slug list",
+			"configured parallel mode prints a V2 worktree-isolation",
+			"--attach",
+			"--detach",
+			"--stream",
+			"--ui",
+			"--include-completed",
+			"--skip-validation",
+			"--force",
+			"--task-runtime",
+		}
+		for _, snippet := range required {
+			if !strings.Contains(output, snippet) {
+				t.Fatalf("expected tasks run-multiple help to include %q\noutput:\n%s", snippet, output)
+			}
+		}
+
+		forbidden := []string{
+			"--name",
+			"--pr",
+			"--provider",
+			"--reviews-dir",
+			"--batch-size",
+			"--concurrent",
+			"--format",
+			"--grouped",
+			"--include-resolved",
+			"--tasks-dir",
+			"--form ",
+			"--tui",
+		}
+		for _, snippet := range forbidden {
+			if strings.Contains(output, snippet) {
+				t.Fatalf("expected tasks run-multiple help to omit %q\noutput:\n%s", snippet, output)
+			}
+		}
+	})
 }
 
 func TestExecHelpShowsExecFlagsOnly(t *testing.T) {

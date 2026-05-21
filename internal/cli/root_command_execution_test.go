@@ -1258,17 +1258,17 @@ func TestTasksRunMultipleCommandRejectsInvalidSlugListsBeforeDaemon(t *testing.T
 		want string
 	}{
 		{
-			name: "missing",
+			name: "Should return error for missing slug",
 			args: []string{"tasks", "run-multiple"},
 			want: "workflow slug list is required",
 		},
 		{
-			name: "empty entry",
+			name: "Should return error for empty entry",
 			args: []string{"tasks", "run-multiple", "alpha,,beta"},
 			want: "task slug at position 2 cannot be empty",
 		},
 		{
-			name: "duplicate",
+			name: "Should return error for duplicate slug",
 			args: []string{"tasks", "run-multiple", "alpha,beta,alpha"},
 			want: "duplicate task slug \"alpha\"",
 		},

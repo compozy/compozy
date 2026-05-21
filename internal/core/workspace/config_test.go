@@ -385,7 +385,8 @@ func TestLoadConfigParsesTaskRunMultipleMode(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		tc := tc
+		t.Run("Should parse run_multiple_mode="+tc.name, func(t *testing.T) {
 			isolateWorkspaceConfigHome(t)
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, `
@@ -406,43 +407,47 @@ run_multiple_mode = "`+tc.mode+`"
 }
 
 func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
-	isolateWorkspaceConfigHome(t)
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
-		t.Fatalf("mkdir .compozy: %v", err)
-	}
+	t.Run("Should default run_multiple_mode to enqueued", func(t *testing.T) {
+		isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+			t.Fatalf("mkdir .compozy: %v", err)
+		}
 
-	cfg, _, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.Tasks.Run.RunMultipleMode != nil {
-		t.Fatalf("expected unset run_multiple_mode pointer, got %#v", cfg.Tasks.Run.RunMultipleMode)
-	}
-	if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != TaskRunMultipleModeEnqueued {
-		t.Fatalf("expected default run_multiple_mode %q, got %q", TaskRunMultipleModeEnqueued, got)
-	}
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if cfg.Tasks.Run.RunMultipleMode != nil {
+			t.Fatalf("expected unset run_multiple_mode pointer, got %#v", cfg.Tasks.Run.RunMultipleMode)
+		}
+		if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != TaskRunMultipleModeEnqueued {
+			t.Fatalf("expected default run_multiple_mode %q, got %q", TaskRunMultipleModeEnqueued, got)
+		}
+	})
 }
 
 func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
-	isolateWorkspaceConfigHome(t)
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, `
+	t.Run("Should reject invalid run_multiple_mode", func(t *testing.T) {
+		isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
 [tasks.run]
 run_multiple_mode = "invalid"
 `)
 
-	_, _, err := LoadConfig(context.Background(), root)
-	if err == nil {
-		t.Fatal("expected invalid tasks.run.run_multiple_mode error")
-	}
-	if !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
-		t.Fatalf("unexpected error: %v", err)
-	}
+		_, _, err := LoadConfig(context.Background(), root)
+		if err == nil {
+			t.Fatal("expected invalid tasks.run.run_multiple_mode error")
+		}
+		if !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestLoadConfigAcceptsTaskRunMultipleModeAndRejectsUnknownTaskRunKeys(t *testing.T) {
-	t.Run("accepts run_multiple_mode", func(t *testing.T) {
+	t.Run("Should accept run_multiple_mode", func(t *testing.T) {
 		isolateWorkspaceConfigHome(t)
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
@@ -462,7 +467,7 @@ run_multiple_mode = "enqueued"
 		)
 	})
 
-	t.Run("rejects unknown task-run key", func(t *testing.T) {
+	t.Run("Should reject unknown task-run key", func(t *testing.T) {
 		isolateWorkspaceConfigHome(t)
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `

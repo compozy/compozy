@@ -406,7 +406,7 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 		}
 	})
 
-	t.Run("task run multiple snapshot", func(t *testing.T) {
+	t.Run("Should round trip task run multiple snapshot", func(t *testing.T) {
 		t.Parallel()
 
 		resp := contract.TaskRunMultipleSnapshotResponseFromSnapshot(contract.TaskRunMultipleSnapshot{

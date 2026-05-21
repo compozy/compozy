@@ -549,7 +549,15 @@ func handleStartedTaskRunMultiple(
 	if run.PresentationMode == attachModeUI {
 		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
 			if errors.Is(err, errRunSettledBeforeUIAttach) {
-				return watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID)
+				if watchErr := watchCLIRunUntilTerminalSuccess(
+					ctx,
+					cmd.OutOrStdout(),
+					client,
+					run.RunID,
+				); watchErr != nil {
+					return mapDaemonCommandError(watchErr)
+				}
+				return nil
 			}
 			return mapDaemonCommandError(err)
 		}
@@ -561,7 +569,10 @@ func handleStartedTaskRunMultiple(
 	if run.PresentationMode != attachModeStream {
 		return nil
 	}
-	return watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID)
+	if err := watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
+		return mapDaemonCommandError(err)
+	}
+	return nil
 }
 
 func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {
@@ -717,6 +728,11 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 func mapDaemonCommandError(err error) error {
 	if err == nil {
 		return nil
+	}
+
+	var exitErr *commandExitError
+	if errors.As(err, &exitErr) {
+		return err
 	}
 
 	var remoteErr *apiclient.RemoteError

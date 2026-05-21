@@ -245,8 +245,10 @@ func normalizeTaskMultiSlugs(values []string) ([]string, error) {
 
 func resolveTaskMultiMode(raw string) (string, error) {
 	switch strings.TrimSpace(raw) {
-	case "", workspacecfg.TaskRunMultipleModeEnqueued, workspacecfg.TaskRunMultipleModeParallel:
+	case "", workspacecfg.TaskRunMultipleModeEnqueued:
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
+	case workspacecfg.TaskRunMultipleModeParallel:
+		return workspacecfg.TaskRunMultipleModeParallel, nil
 	default:
 		return "", taskMultiValidationProblem(
 			"invalid_run_multiple_mode",
@@ -361,7 +363,7 @@ func (m *RunManager) runTaskMultiChildAt(
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			childCancelErr = m.Cancel(detachContext(context.Background()), childRun.RunID)
+			childCancelErr = m.Cancel(detachContext(active.ctx), childRun.RunID)
 		}
 		emitErr := m.emitTaskMultiItemEvent(
 			active,
@@ -440,7 +442,7 @@ func (m *RunManager) startTaskMultiChild(
 		childRun.RunID,
 		"",
 	); err != nil {
-		cancelErr := m.Cancel(detachContext(context.Background()), childRun.RunID)
+		cancelErr := m.Cancel(detachContext(active.ctx), childRun.RunID)
 		return apicore.Run{}, errors.Join(err, cancelErr)
 	}
 	return childRun, nil
@@ -505,7 +507,7 @@ func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (g
 		}
 		select {
 		case <-ctx.Done():
-			if cancelErr := m.Cancel(detachContext(context.Background()), runID); cancelErr != nil {
+			if cancelErr := m.Cancel(detachContext(ctx), runID); cancelErr != nil {
 				return globaldb.Run{}, errors.Join(ctx.Err(), fmt.Errorf("cancel child run %s: %w", runID, cancelErr))
 			}
 			return globaldb.Run{}, ctx.Err()

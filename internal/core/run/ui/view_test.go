@@ -806,16 +806,18 @@ func TestActiveRunHelpUsesExitLabel(t *testing.T) {
 func TestJobPaneHelpUsesVerticalNavigation(t *testing.T) {
 	t.Parallel()
 
-	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.focusedPane = uiPaneJobs
+	t.Run("Should advertise vertical navigation for job pane", func(t *testing.T) {
+		m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+		m.focusedPane = uiPaneJobs
 
-	help := m.renderHelp()
-	if !strings.Contains(help, "↑↓/JK") {
-		t.Fatalf("expected job help to advertise vertical navigation, got %q", help)
-	}
-	if strings.Contains(help, "←→/HL") {
-		t.Fatalf("expected job help not to advertise horizontal navigation, got %q", help)
-	}
+		help := m.renderHelp()
+		if !strings.Contains(help, "↑↓/JK") {
+			t.Fatalf("expected job help to advertise vertical navigation, got %q", help)
+		}
+		if strings.Contains(help, "←→/HL") {
+			t.Fatalf("expected job help not to advertise horizontal navigation, got %q", help)
+		}
+	})
 }
 
 func TestQuitDialogViewContainsChoices(t *testing.T) {

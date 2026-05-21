@@ -363,32 +363,56 @@ func TestMoveFocusedSelectionNavigatesTimelineEntries(t *testing.T) {
 func TestVerticalKeysNavigateFocusedJobs(t *testing.T) {
 	t.Parallel()
 
-	m := newUIModel(3)
-	m.jobs = []uiJob{
-		{safeName: "job-1"},
-		{safeName: "job-2"},
-		{safeName: "job-3"},
+	cases := []struct {
+		name         string
+		initial      int
+		key          tea.KeyPressMsg
+		wantSelected int
+	}{
+		{
+			name:         "Should move job selection forward with down arrow",
+			key:          keyCode(tea.KeyDown),
+			wantSelected: 1,
+		},
+		{
+			name:         "Should move job selection forward with j",
+			initial:      1,
+			key:          keyText("j"),
+			wantSelected: 2,
+		},
+		{
+			name:         "Should move job selection backward with up arrow",
+			initial:      2,
+			key:          keyCode(tea.KeyUp),
+			wantSelected: 1,
+		},
+		{
+			name:         "Should move job selection backward with k",
+			initial:      1,
+			key:          keyText("k"),
+			wantSelected: 0,
+		},
 	}
-	m.focusedPane = uiPaneJobs
 
-	m.handleKey(keyCode(tea.KeyDown))
-	if got := m.selectedJob; got != 1 {
-		t.Fatalf("expected down to move job selection forward, got %d", got)
-	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	m.handleKey(keyText("j"))
-	if got := m.selectedJob; got != 2 {
-		t.Fatalf("expected j to move job selection forward, got %d", got)
-	}
+			m := newUIModel(3)
+			m.jobs = []uiJob{
+				{safeName: "job-1"},
+				{safeName: "job-2"},
+				{safeName: "job-3"},
+			}
+			m.focusedPane = uiPaneJobs
+			m.selectedJob = tc.initial
 
-	m.handleKey(keyCode(tea.KeyUp))
-	if got := m.selectedJob; got != 1 {
-		t.Fatalf("expected up to move job selection backward, got %d", got)
-	}
-
-	m.handleKey(keyText("k"))
-	if got := m.selectedJob; got != 0 {
-		t.Fatalf("expected k to move job selection backward, got %d", got)
+			m.handleKey(tc.key)
+			if got := m.selectedJob; got != tc.wantSelected {
+				t.Fatalf("selectedJob = %d, want %d", got, tc.wantSelected)
+			}
+		})
 	}
 }
 
