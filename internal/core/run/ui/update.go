@@ -21,6 +21,8 @@ const (
 	keyTab      = "tab"
 	keyShiftTab = "shift+tab"
 	keyEnter    = "enter"
+	keyLeft     = "left"
+	keyRight    = "right"
 )
 
 var setSidebarViewportContent = func(vp *viewport.Model, content string) {
@@ -189,10 +191,10 @@ func (m *uiModel) requestRunStopFromQuit() tea.Cmd {
 
 func (m *uiModel) handleQuitDialogKey(v tea.KeyPressMsg) tea.Cmd {
 	switch strings.ToLower(v.String()) {
-	case "left", "h", keyShiftTab:
+	case keyLeft, "h", keyShiftTab:
 		m.quitDialog.Move(-1)
 		return nil
-	case "right", "l", keyTab:
+	case keyRight, "l", keyTab:
 		m.quitDialog.Move(1)
 		return nil
 	case keyEnter, "q", keyCtrlC:

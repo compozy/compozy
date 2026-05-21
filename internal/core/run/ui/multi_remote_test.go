@@ -168,7 +168,7 @@ func TestMultiRunTabNavigationDoesNotCycleChildPaneFocus(t *testing.T) {
 	}
 	mdl.tabs[0].child.focusedPane = uiPaneTimeline
 
-	cmd := mdl.handleKey(keyText("]"))
+	cmd := mdl.handleKey(keyCode(tea.KeyRight))
 	if cmd != nil {
 		t.Fatalf("expected tab navigation to stay local, got command %T", cmd())
 	}
@@ -180,6 +180,46 @@ func TestMultiRunTabNavigationDoesNotCycleChildPaneFocus(t *testing.T) {
 	}
 	if got := mdl.tabs[1].child.focusedPane; got != uiPaneJobs {
 		t.Fatalf("expected beta child focus to remain jobs, got %s", got)
+	}
+}
+
+func TestMultiRunTabNavigationUsesHorizontalKeys(t *testing.T) {
+	t.Parallel()
+
+	mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+		Snapshot: apicore.TaskRunMultipleSnapshot{
+			Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			Items: []apicore.TaskRunMultipleItem{
+				{Slug: "alpha", Status: taskMultiStatusQueued},
+				{Slug: "beta", Status: taskMultiStatusQueued},
+				{Slug: "gamma", Status: taskMultiStatusQueued},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+	}
+
+	mdl.handleKey(keyCode(tea.KeyRight))
+	if got := mdl.activeTab; got != 1 {
+		t.Fatalf("expected right arrow to move to beta tab, got %d", got)
+	}
+	mdl.handleKey(keyText("l"))
+	if got := mdl.activeTab; got != 2 {
+		t.Fatalf("expected l to move to gamma tab, got %d", got)
+	}
+	mdl.handleKey(keyCode(tea.KeyLeft))
+	if got := mdl.activeTab; got != 1 {
+		t.Fatalf("expected left arrow to move back to beta tab, got %d", got)
+	}
+	mdl.handleKey(keyText("h"))
+	if got := mdl.activeTab; got != 0 {
+		t.Fatalf("expected h to move back to alpha tab, got %d", got)
+	}
+
+	view := mdl.renderTabs()
+	if !strings.Contains(view, "←→/HL") || !strings.Contains(view, "TABS") {
+		t.Fatalf("expected tab help to advertise horizontal navigation, got %q", view)
 	}
 }
 
@@ -217,7 +257,7 @@ func TestMultiRunStopRunRequestsParentCancelOnceAndMarksQueuedCanceled(t *testin
 	}
 
 	mdl.handleKey(keyText("q"))
-	mdl.handleKey(keyText("right"))
+	mdl.handleKey(keyText(keyRight))
 	cmd := mdl.handleKey(keyCode(tea.KeyEnter))
 	if cmd == nil {
 		t.Fatal("expected Stop Run confirmation to return command")
@@ -272,7 +312,7 @@ func TestMultiRunQuitDialogNavigationEscapeAndForceEscalation(t *testing.T) {
 	}
 
 	mdl.handleKey(keyText("q"))
-	mdl.handleKey(keyText("left"))
+	mdl.handleKey(keyText(keyLeft))
 	if got := mdl.quitDialog.Selected; got != quitDialogActionCancel {
 		t.Fatalf("expected left from default to wrap to cancel, got %v", got)
 	}
@@ -547,8 +587,8 @@ func TestMultiRunQuitDialogRenderAndCancelAction(t *testing.T) {
 		t.Fatalf("expected queue quit dialog, got %q", view)
 	}
 
-	mdl.handleKey(keyText("right"))
-	mdl.handleKey(keyText("right"))
+	mdl.handleKey(keyText(keyRight))
+	mdl.handleKey(keyText(keyRight))
 	if got := mdl.quitDialog.Selected; got != quitDialogActionCancel {
 		t.Fatalf("expected cancel action selected, got %v", got)
 	}

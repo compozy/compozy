@@ -478,10 +478,10 @@ func (m *multiRunModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 	switch strings.ToLower(v.String()) {
 	case keyCtrlC, "q":
 		return m.handleQuitKey()
-	case "[", "shift+left":
+	case keyLeft, "h":
 		m.moveActiveTab(-1)
 		return nil
-	case "]", "shift+right":
+	case keyRight, "l":
 		m.moveActiveTab(1)
 		return nil
 	default:
@@ -509,10 +509,10 @@ func (m *multiRunModel) handleQuitKey() tea.Cmd {
 
 func (m *multiRunModel) handleQuitDialogKey(v tea.KeyPressMsg) tea.Cmd {
 	switch strings.ToLower(v.String()) {
-	case "left", "h", keyShiftTab:
+	case keyLeft, "h", keyShiftTab:
 		m.quitDialog.Move(-1)
 		return nil
-	case "right", "l", keyTab:
+	case keyRight, "l", keyTab:
 		m.quitDialog.Move(1)
 		return nil
 	case keyEnter, "q", keyCtrlC:
@@ -787,7 +787,7 @@ func (m *multiRunModel) renderTabs() string {
 		chunks = append(chunks, style.Render(truncateString(label, 32)))
 	}
 	left := renderGap(bg, 1) + strings.Join(chunks, renderGap(bg, 1))
-	hint := renderKeycap("[/]", bg) + renderGap(bg, 1) + renderStyledOnBackground(styleMutedText, bg, "TABS")
+	hint := renderKeycap("←→/hl", bg) + renderGap(bg, 1) + renderStyledOnBackground(styleMutedText, bg, "TABS")
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(hint)-1, 1)
 	line := renderOwnedLineKnownOwned(m.width, bg, left+renderGap(bg, gap)+hint)
 	separator := renderOwnedLineKnownOwned(

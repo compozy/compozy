@@ -81,7 +81,7 @@ func TestHandleKeyQuitDialogExplicitlyStopsRun(t *testing.T) {
 	if !m.quitDialog.Active {
 		t.Fatal("expected active run quit to open the quit dialog")
 	}
-	if cmd := m.handleKey(keyText("right")); cmd != nil {
+	if cmd := m.handleKey(keyText(keyRight)); cmd != nil {
 		t.Fatalf("expected action selection to stay local to the dialog, got %T", cmd())
 	}
 	if got := m.quitDialog.Selected; got != quitDialogActionStop {
@@ -357,6 +357,38 @@ func TestMoveFocusedSelectionNavigatesTimelineEntries(t *testing.T) {
 	m.handleKey(keyCode(tea.KeyUp))
 	if got := m.jobs[0].selectedEntry; got != 0 {
 		t.Fatalf("expected up to restore timeline selection, got %d", got)
+	}
+}
+
+func TestVerticalKeysNavigateFocusedJobs(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(3)
+	m.jobs = []uiJob{
+		{safeName: "job-1"},
+		{safeName: "job-2"},
+		{safeName: "job-3"},
+	}
+	m.focusedPane = uiPaneJobs
+
+	m.handleKey(keyCode(tea.KeyDown))
+	if got := m.selectedJob; got != 1 {
+		t.Fatalf("expected down to move job selection forward, got %d", got)
+	}
+
+	m.handleKey(keyText("j"))
+	if got := m.selectedJob; got != 2 {
+		t.Fatalf("expected j to move job selection forward, got %d", got)
+	}
+
+	m.handleKey(keyCode(tea.KeyUp))
+	if got := m.selectedJob; got != 1 {
+		t.Fatalf("expected up to move job selection backward, got %d", got)
+	}
+
+	m.handleKey(keyText("k"))
+	if got := m.selectedJob; got != 0 {
+		t.Fatalf("expected k to move job selection backward, got %d", got)
 	}
 }
 
