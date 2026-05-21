@@ -6,9 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
+
+var workspaceUserHomeDirMu sync.Mutex
 
 func TestDiscoverFindsNearestWorkspaceRoot(t *testing.T) {
 	t.Parallel()
@@ -387,14 +390,15 @@ func TestLoadConfigParsesTaskRunMultipleMode(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run("Should parse run_multiple_mode="+tc.name, func(t *testing.T) {
-			isolateWorkspaceConfigHome(t)
+			t.Parallel()
+
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, `
 [tasks.run]
 run_multiple_mode = "`+tc.mode+`"
 `)
 
-			cfg, _, err := LoadConfig(context.Background(), root)
+			cfg, _, err := loadConfigWithIsolatedHome(t, root)
 			if err != nil {
 				t.Fatalf("load config: %v", err)
 			}
@@ -408,13 +412,14 @@ run_multiple_mode = "`+tc.mode+`"
 
 func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
 	t.Run("Should default run_multiple_mode to enqueued", func(t *testing.T) {
-		isolateWorkspaceConfigHome(t)
+		t.Parallel()
+
 		root := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
 			t.Fatalf("mkdir .compozy: %v", err)
 		}
 
-		cfg, _, err := LoadConfig(context.Background(), root)
+		cfg, _, err := loadConfigWithIsolatedHome(t, root)
 		if err != nil {
 			t.Fatalf("load config: %v", err)
 		}
@@ -429,14 +434,15 @@ func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
 
 func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should reject invalid run_multiple_mode", func(t *testing.T) {
-		isolateWorkspaceConfigHome(t)
+		t.Parallel()
+
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
 [tasks.run]
 run_multiple_mode = "invalid"
 `)
 
-		_, _, err := LoadConfig(context.Background(), root)
+		_, _, err := loadConfigWithIsolatedHome(t, root)
 		if err == nil {
 			t.Fatal("expected invalid tasks.run.run_multiple_mode error")
 		}
@@ -448,14 +454,15 @@ run_multiple_mode = "invalid"
 
 func TestLoadConfigAcceptsTaskRunMultipleModeAndRejectsUnknownTaskRunKeys(t *testing.T) {
 	t.Run("Should accept run_multiple_mode", func(t *testing.T) {
-		isolateWorkspaceConfigHome(t)
+		t.Parallel()
+
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
 [tasks.run]
 run_multiple_mode = "enqueued"
 `)
 
-		cfg, _, err := LoadConfig(context.Background(), root)
+		cfg, _, err := loadConfigWithIsolatedHome(t, root)
 		if err != nil {
 			t.Fatalf("load config: %v", err)
 		}
@@ -468,14 +475,15 @@ run_multiple_mode = "enqueued"
 	})
 
 	t.Run("Should reject unknown task-run key", func(t *testing.T) {
-		isolateWorkspaceConfigHome(t)
+		t.Parallel()
+
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
 [tasks.run]
 unknown_task_run_key = true
 `)
 
-		_, _, err := LoadConfig(context.Background(), root)
+		_, _, err := loadConfigWithIsolatedHome(t, root)
 		if err == nil {
 			t.Fatal("expected unknown tasks.run key error")
 		}
@@ -1541,6 +1549,24 @@ func isolateWorkspaceConfigHome(t *testing.T) string {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	return homeDir
+}
+
+func loadConfigWithIsolatedHome(t *testing.T, workspaceRoot string) (ProjectConfig, string, error) {
+	t.Helper()
+
+	homeDir := t.TempDir()
+	workspaceUserHomeDirMu.Lock()
+	defer workspaceUserHomeDirMu.Unlock()
+
+	original := osUserHomeDir
+	osUserHomeDir = func() (string, error) {
+		return homeDir, nil
+	}
+	defer func() {
+		osUserHomeDir = original
+	}()
+
+	return LoadConfig(context.Background(), workspaceRoot)
 }
 
 func stubWorkspaceUserHomeDir(t *testing.T, fn func() (string, error)) {
