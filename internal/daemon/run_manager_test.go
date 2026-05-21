@@ -101,6 +101,36 @@ func TestRunManagerRejectsCompletedTaskWorkflowBeforeCreatingRun(t *testing.T) {
 	}
 }
 
+func TestRunManagerIncludeCompletedStartsCompletedTaskWorkflow(t *testing.T) {
+	seenIncludeCompleted := make(chan bool, 1)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			seenIncludeCompleted <- cfg.IncludeCompleted
+			return nil
+		},
+	})
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))
+
+	const runID = "task-run-include-completed"
+	run := env.startTaskRun(
+		t,
+		runID,
+		rawJSON(t, `{"run_id":"`+runID+`","include_completed":true}`),
+	)
+	if !waitForBool(t, seenIncludeCompleted) {
+		t.Fatal("execute saw IncludeCompleted=false, want true")
+	}
+	terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	if terminal.EndedAt == nil {
+		t.Fatal("EndedAt = nil, want terminal timestamp")
+	}
+}
+
 func TestRunManagerCancelTaskRunMirrorsTerminalStateAndIsIdempotent(t *testing.T) {
 	started := make(chan string, 1)
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
@@ -2922,6 +2952,38 @@ func waitForString(t *testing.T, ch <-chan string, want string) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for %q", want)
 	}
+}
+
+func waitForBool(t *testing.T, ch <-chan bool) bool {
+	t.Helper()
+
+	select {
+	case got := <-ch:
+		return got
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for bool")
+	}
+	return false
+}
+
+func waitForClosed(t *testing.T, ch <-chan struct{}, label string) {
+	t.Helper()
+
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", label)
+	}
+}
+
+func requireActiveRun(t *testing.T, manager *RunManager, runID string) *activeRun {
+	t.Helper()
+
+	active := manager.getActive(runID)
+	if active == nil {
+		t.Fatalf("active run %q = nil", runID)
+	}
+	return active
 }
 
 func waitForCondition(t *testing.T, timeout time.Duration, label string, fn func() bool) {

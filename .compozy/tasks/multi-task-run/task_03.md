@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement Daemon-Owned Sequential Multi-Run Coordinator
 type: backend
 complexity: critical
@@ -35,13 +35,13 @@ This task implements the daemon-owned parent queue that makes `Close TUI` keep t
 
 ## Subtasks
 
-- [ ] 3.1 Add parent run mode and active-run accounting for multi-run parents.
-- [ ] 3.2 Add preflight logic that validates every slug before parent run creation.
-- [ ] 3.3 Add coordinator state for ordered queued/running/completed/failed/canceled items.
-- [ ] 3.4 Start child task runs through the existing task-run machinery with parent linkage.
-- [ ] 3.5 Emit parent queue lifecycle events and reconstructable snapshot state.
-- [ ] 3.6 Implement cancellation behavior for active and queued children.
-- [ ] 3.7 Add run manager tests for success, child failure, duplicate/invalid slugs, and cancellation.
+- [x] 3.1 Add parent run mode and active-run accounting for multi-run parents.
+- [x] 3.2 Add preflight logic that validates every slug before parent run creation.
+- [x] 3.3 Add coordinator state for ordered queued/running/completed/failed/canceled items.
+- [x] 3.4 Start child task runs through the existing task-run machinery with parent linkage.
+- [x] 3.5 Emit parent queue lifecycle events and reconstructable snapshot state.
+- [x] 3.6 Implement cancellation behavior for active and queued children.
+- [x] 3.7 Add run manager tests for success, child failure, duplicate/invalid slugs, and cancellation.
 
 ## Implementation Details
 
@@ -81,15 +81,15 @@ Model this after the existing review-watch parent/child run pattern, but keep ta
 ## Tests
 
 - Unit tests:
-  - [ ] Starting `alpha,beta` creates one `task_multi` parent and later child task runs in order.
-  - [ ] Child runs have `ParentRunID` equal to the parent run ID.
-  - [ ] A failed first child marks the parent failed and does not start the second child.
-  - [ ] A successful first child starts the second child only after the first reaches a terminal state.
-  - [ ] Parent cancellation cancels the active child and marks queued items canceled.
-  - [ ] Invalid or completed workflow preflight prevents parent run creation.
+  - [x] Starting `alpha,beta` creates one `task_multi` parent and later child task runs in order.
+  - [x] Child runs have `ParentRunID` equal to the parent run ID.
+  - [x] A failed first child marks the parent failed and does not start the second child.
+  - [x] A successful first child starts the second child only after the first reaches a terminal state.
+  - [x] Parent cancellation cancels the active child and marks queued items canceled.
+  - [x] Invalid or completed workflow preflight prevents parent run creation.
 - Integration tests:
-  - [ ] Run manager list/snapshot APIs expose the parent and child rows with correct modes and relationships.
-  - [ ] Parent event log can reconstruct queued, running, completed, failed, and canceled item state.
+  - [x] Run manager list/snapshot APIs expose the parent and child rows with correct modes and relationships.
+  - [x] Parent event log can reconstruct queued, running, completed, failed, and canceled item state.
 - Test coverage target: >=80%
 - All tests must pass
 

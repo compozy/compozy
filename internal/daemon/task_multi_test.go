@@ -140,9 +140,11 @@ func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
 	}
 	wantItems := []apicore.TaskRunMultipleItem{
 		{Slug: "alpha", Status: taskMultiItemStatusFailed, RunID: "child-alpha", ErrorText: "alpha failed"},
-		{Slug: "beta", Status: taskMultiItemStatusQueued},
+		{Slug: "beta", Status: taskMultiItemStatusCanceled, ErrorText: "alpha failed"},
 	}
 	assertTaskMultiItems(t, snapshot.Items, wantItems)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
+	requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
 }
 
 func TestRunManagerTaskRunMultipleCancellationCancelsActiveAndQueuedChildren(t *testing.T) {
@@ -273,6 +275,121 @@ func TestRunManagerTaskRunMultiplePreflightRejectsInvalidInputBeforeParentRun(t 
 			t.Fatalf("GetRun(task-multi-completed) error = %v, want ErrRunNotFound", err)
 		}
 	})
+}
+
+func TestRunManagerTaskRunMultipleIncludeCompletedStartsCompletedWorkflow(t *testing.T) {
+	started := make(chan string, 2)
+	seenIncludeCompleted := make(chan bool, 2)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiRunIDBuilder("task-multi-include-completed"),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			started <- cfg.Name + ":" + cfg.RunID
+			seenIncludeCompleted <- cfg.IncludeCompleted
+			return nil
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+	writeTaskMultiWorkflow(t, env, "beta", "completed")
+
+	parent, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Slugs:            []string{"alpha", "beta"},
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-include-completed","include_completed":true}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple(include completed) error = %v", err)
+	}
+
+	waitForString(t, started, "alpha:child-alpha")
+	waitForString(t, started, "beta:child-beta")
+	for range 2 {
+		if !waitForBool(t, seenIncludeCompleted) {
+			t.Fatal("child run saw IncludeCompleted=false, want true")
+		}
+	}
+	waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	wantItems := []apicore.TaskRunMultipleItem{
+		{Slug: "alpha", Status: taskMultiItemStatusCompleted, RunID: "child-alpha"},
+		{Slug: "beta", Status: taskMultiItemStatusCompleted, RunID: "child-beta"},
+	}
+	assertTaskMultiItems(t, snapshot.Items, wantItems)
+}
+
+func TestRunManagerTaskRunMultipleChildPollReturnsRunLookupErrors(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	if err := env.globalDB.Close(); err != nil {
+		t.Fatalf("Close global DB: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, err := env.manager.waitForTaskMultiChild(ctx, "child-alpha")
+	if err == nil {
+		t.Fatal("waitForTaskMultiChild() error = nil, want run lookup error")
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForTaskMultiChild() error = %v, want lookup error before context cancellation", err)
+	}
+	if !strings.Contains(err.Error(), "load child run child-alpha") {
+		t.Fatalf("waitForTaskMultiChild() error = %v, want child lookup context", err)
+	}
+}
+
+func TestRunManagerTaskRunMultiplePollLookupErrorCancelsActiveChild(t *testing.T) {
+	childStarted := make(chan struct{})
+	childCanceled := make(chan error, 1)
+	var startedOnce sync.Once
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiRunIDBuilder("task-multi-poll-cancel"),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.Name != "alpha" {
+				return nil
+			}
+			startedOnce.Do(func() { close(childStarted) })
+			<-ctx.Done()
+			childCanceled <- ctx.Err()
+			return ctx.Err()
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+	parent := startTaskMultiRun(t, env, "task-multi-poll-cancel", []string{"alpha"})
+	waitForClosed(t, childStarted, "alpha child start")
+	parentActive := requireActiveRun(t, env.manager, parent.RunID)
+	childActive := requireActiveRun(t, env.manager, "child-alpha")
+	defer parentActive.cancel()
+	defer childActive.cancel()
+
+	if err := env.globalDB.Close(); err != nil {
+		t.Fatalf("Close global DB: %v", err)
+	}
+
+	select {
+	case err := <-childCanceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("child context error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("child was not canceled after parent %s hit child lookup error", parent.RunID)
+	}
+	waitForClosed(t, childActive.done, "alpha child cleanup")
+	waitForClosed(t, parentActive.done, "parent multi-run cleanup")
 }
 
 func TestRunManagerTaskRunMultipleSnapshotRejectsNonParentRun(t *testing.T) {

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Wire tasks run-multiple CLI Command and Non-UI Modes
 type: backend
 complexity: high
@@ -36,12 +36,12 @@ This task exposes the daemon-backed multi-run parent through `compozy tasks run-
 
 ## Subtasks
 
-- [ ] 4.1 Add a new Cobra subcommand under `tasks`.
-- [ ] 4.2 Add command state and defaults for task-run shared flags, runtime overrides, and config application.
-- [ ] 4.3 Resolve mode and print the `parallel` fallback message when needed.
-- [ ] 4.4 Start the daemon parent multi-run through the client method from task 02.
-- [ ] 4.5 Support detach and stream output for parent multi-runs.
-- [ ] 4.6 Add CLI tests for command registration, parser failures, fallback messaging, daemon request shape, and existing `tasks run` stability.
+- [x] 4.1 Add a new Cobra subcommand under `tasks`.
+- [x] 4.2 Add command state and defaults for task-run shared flags, runtime overrides, and config application.
+- [x] 4.3 Resolve mode and print the `parallel` fallback message when needed.
+- [x] 4.4 Start the daemon parent multi-run through the client method from task 02.
+- [x] 4.5 Support detach and stream output for parent multi-runs.
+- [x] 4.6 Add CLI tests for command registration, parser failures, fallback messaging, daemon request shape, and existing `tasks run` stability.
 
 ## Implementation Details
 
@@ -80,15 +80,15 @@ Keep the new command beside `newTasksRunCommandWithDefaults` rather than modifyi
 ## Tests
 
 - Unit tests:
-  - [ ] `tasks run-multiple alpha,beta --detach` sends ordered slugs `alpha`, `beta` to the multi-run client method.
-  - [ ] Missing slug input returns a user-facing workflow slug error.
-  - [ ] `alpha,,beta` returns an empty-slug validation error without contacting the daemon.
-  - [ ] `alpha,beta,alpha` returns a duplicate-slug validation error without contacting the daemon.
-  - [ ] Configured `parallel` prints a fallback message that mentions V2 and worktree isolation.
-  - [ ] `tasks run` still accepts exactly one slug and still calls `StartTaskRun`.
+  - [x] `tasks run-multiple alpha,beta --detach` sends ordered slugs `alpha`, `beta` to the multi-run client method.
+  - [x] Missing slug input returns a user-facing workflow slug error.
+  - [x] `alpha,,beta` returns an empty-slug validation error without contacting the daemon.
+  - [x] `alpha,beta,alpha` returns a duplicate-slug validation error without contacting the daemon.
+  - [x] Configured `parallel` prints a fallback message that mentions V2 and worktree isolation.
+  - [x] `tasks run` still accepts exactly one slug and still calls `StartTaskRun`.
 - Integration tests:
-  - [ ] In-process CLI daemon test starts a parent multi-run in detach mode and prints the parent run ID.
-  - [ ] Stream mode follows parent queue events and exits with a non-zero code on parent failure.
+  - [x] In-process CLI daemon test starts a parent multi-run in detach mode and prints the parent run ID.
+  - [x] Stream mode follows parent queue events and exits with a non-zero code on parent failure.
 - Test coverage target: >=80%
 - All tests must pass
 

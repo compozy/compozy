@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Document Multi-Run Usage and Add End-to-End Coverage
 type: docs
 complexity: medium
@@ -34,12 +34,12 @@ This task finishes the feature by documenting the user-facing command, config be
 
 ## Subtasks
 
-- [ ] 6.1 Add README or command documentation for `tasks run-multiple`.
-- [ ] 6.2 Add config examples for `run_multiple_mode`.
-- [ ] 6.3 Document V1 `parallel` fallback and V2 worktree expectation.
-- [ ] 6.4 Document queue-level quit dialog behavior.
-- [ ] 6.5 Add end-to-end or smoke coverage for multi-run command execution with multiple slugs.
-- [ ] 6.6 Run and document full project verification.
+- [x] 6.1 Add README or command documentation for `tasks run-multiple`.
+- [x] 6.2 Add config examples for `run_multiple_mode`.
+- [x] 6.3 Document V1 `parallel` fallback and V2 worktree expectation.
+- [x] 6.4 Document queue-level quit dialog behavior.
+- [x] 6.5 Add end-to-end or smoke coverage for multi-run command execution with multiple slugs.
+- [x] 6.6 Run and document full project verification.
 
 ## Implementation Details
 
@@ -77,13 +77,13 @@ Keep documentation near existing `tasks run` and `[tasks.run]` config guidance s
 ## Tests
 
 - Unit tests:
-  - [ ] Any new documentation helper or formatter code has focused unit coverage.
-  - [ ] Any changed command help text tests assert `run-multiple` examples are present.
+  - [x] Any new documentation helper or formatter code has focused unit coverage.
+  - [x] Any changed command help text tests assert `run-multiple` examples are present.
 - Integration tests:
-  - [ ] CLI e2e starts two task workflows using `tasks run-multiple alpha,beta`.
-  - [ ] CLI e2e verifies both requested slugs appear in parent queue state.
-  - [ ] CLI e2e verifies `parallel` config fallback messaging appears and execution remains enqueued.
-  - [ ] Full `make verify` passes after docs and tests.
+  - [x] CLI e2e starts two task workflows using `tasks run-multiple alpha,beta`.
+  - [x] CLI e2e verifies both requested slugs appear in parent queue state.
+  - [x] CLI e2e verifies `parallel` config fallback messaging appears and execution remains enqueued.
+  - [x] Full `make verify` passes after docs and tests.
 - Test coverage target: >=80%
 - All tests must pass
 

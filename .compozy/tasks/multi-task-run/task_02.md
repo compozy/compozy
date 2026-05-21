@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Multi-Run Daemon API Contracts and Client Surface
 type: backend
 complexity: medium
@@ -32,11 +32,11 @@ This task adds the daemon transport contract for starting and inspecting a daemo
 
 ## Subtasks
 
-- [ ] 2.1 Add contract types for multi-run start and snapshot payloads.
-- [ ] 2.2 Extend the shared API interfaces with multi-run start and snapshot methods.
-- [ ] 2.3 Register non-conflicting daemon routes for multi-run start and snapshot reads.
-- [ ] 2.4 Add client methods that call the new routes and decode typed responses.
-- [ ] 2.5 Add contract, client, handler, and OpenAPI tests for the new API surface.
+- [x] 2.1 Add contract types for multi-run start and snapshot payloads.
+- [x] 2.2 Extend the shared API interfaces with multi-run start and snapshot methods.
+- [x] 2.3 Register non-conflicting daemon routes for multi-run start and snapshot reads.
+- [x] 2.4 Add client methods that call the new routes and decode typed responses.
+- [x] 2.5 Add contract, client, handler, and OpenAPI tests for the new API surface.
 
 ## Implementation Details
 
@@ -74,14 +74,14 @@ Use `/api/task-runs/multiple` for the start route and `/api/task-runs/multiple/:
 ## Tests
 
 - Unit tests:
-  - [ ] Client start method posts to `/api/task-runs/multiple` with ordered slugs.
-  - [ ] Client snapshot method gets `/api/task-runs/multiple/<run_id>/snapshot`.
-  - [ ] Client rejects a nil context consistently with existing daemon client methods.
-  - [ ] Contract route metadata classifies multi-run start as long mutating work.
-  - [ ] Contract route metadata classifies multi-run snapshot as read work.
+  - [x] Client start method posts to `/api/task-runs/multiple` with ordered slugs.
+  - [x] Client snapshot method gets `/api/task-runs/multiple/<run_id>/snapshot`.
+  - [x] Client rejects a nil context consistently with existing daemon client methods.
+  - [x] Contract route metadata classifies multi-run start as long mutating work.
+  - [x] Contract route metadata classifies multi-run snapshot as read work.
 - Integration tests:
-  - [ ] Shared handler smoke test starts a multi-run parent through the new route and returns `201`.
-  - [ ] OpenAPI contract exposes `TaskRunMultipleRequest` and the new route request body.
+  - [x] Shared handler smoke test starts a multi-run parent through the new route and returns `201`.
+  - [x] OpenAPI contract exposes `TaskRunMultipleRequest` and the new route request body.
 - Test coverage target: >=80%
 - All tests must pass
 

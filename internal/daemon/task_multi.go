@@ -359,6 +359,10 @@ func (m *RunManager) runTaskMultiChildAt(
 	}
 	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
 	if err != nil {
+		var childCancelErr error
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			childCancelErr = m.Cancel(detachContext(context.Background()), childRun.RunID)
+		}
 		emitErr := m.emitTaskMultiItemEvent(
 			active,
 			eventspkg.EventKindTaskRunMultipleItemCanceled,
@@ -370,7 +374,7 @@ func (m *RunManager) runTaskMultiChildAt(
 			err.Error(),
 		)
 		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, err)
-		return errors.Join(err, emitErr, cancelErr)
+		return errors.Join(err, childCancelErr, emitErr, cancelErr)
 	}
 	if err := m.finishTaskMultiChild(active, item, index, total, childRow); err != nil {
 		return err
@@ -388,13 +392,17 @@ func (m *RunManager) runTaskMultiChildAt(
 		}
 		return cause
 	}
-	return fmt.Errorf(
+	childErr := fmt.Errorf(
 		"task multi child run %s for %s ended with status %s: %s",
 		childRow.RunID,
 		item.slug,
 		childRow.Status,
 		childRow.ErrorText,
 	)
+	if emitErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, childErr); emitErr != nil {
+		return errors.Join(childErr, emitErr)
+	}
+	return childErr
 }
 
 func (m *RunManager) startTaskMultiChild(
@@ -483,12 +491,16 @@ func (m *RunManager) finishTaskMultiChild(
 }
 
 func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (globaldb.Run, error) {
+	trimmedRunID := strings.TrimSpace(runID)
 	ticker := time.NewTicker(taskMultiChildPollInterval)
 	defer ticker.Stop()
 
 	for {
-		row, err := m.globalDB.GetRun(detachContext(ctx), strings.TrimSpace(runID))
-		if err == nil && isTerminalRunStatus(row.Status) {
+		row, err := m.globalDB.GetRun(detachContext(ctx), trimmedRunID)
+		if err != nil {
+			return globaldb.Run{}, fmt.Errorf("load child run %s: %w", trimmedRunID, err)
+		}
+		if isTerminalRunStatus(row.Status) {
 			return row, nil
 		}
 		select {

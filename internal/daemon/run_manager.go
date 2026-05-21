@@ -716,9 +716,11 @@ func (m *RunManager) OpenStream(
 
 // Cancel requests cancellation for one active run.
 func (m *RunManager) Cancel(ctx context.Context, runID string) error {
+	trimmedRunID := strings.TrimSpace(runID)
 	listCtx := detachContext(ctx)
-	row, err := m.globalDB.GetRun(listCtx, strings.TrimSpace(runID))
+	row, err := m.globalDB.GetRun(listCtx, trimmedRunID)
 	if err != nil {
+		m.cancelActiveRun(trimmedRunID)
 		return err
 	}
 	if isTerminalRunStatus(row.Status) {
@@ -733,6 +735,16 @@ func (m *RunManager) Cancel(ctx context.Context, runID string) error {
 		active.cancel()
 	}
 	return nil
+}
+
+func (m *RunManager) cancelActiveRun(runID string) {
+	active := m.getActive(runID)
+	if active == nil {
+		return
+	}
+	if active.markCancelRequested() {
+		active.cancel()
+	}
 }
 
 func (m *RunManager) prepareTaskStart(
@@ -759,10 +771,6 @@ func (m *RunManager) prepareTaskStart(
 	if err := requireDirectory(tasksDir); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
-	if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
-	}
-
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:              workspaceRow.RootDir,
 		Name:                       strings.TrimSpace(workflowSlug),
@@ -781,6 +789,11 @@ func (m *RunManager) prepareTaskStart(
 	applyTaskProjectConfig(runtimeCfg, projectCfg.Tasks.Run)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
+	}
+	if !runtimeCfg.IncludeCompleted {
+		if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
+			return globaldb.Workspace{}, nil, nil, "", err
+		}
 	}
 	runtimeCfg.ApplyDefaults()
 	runtimeCfg.TUI = false

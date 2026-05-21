@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Add Tabbed Multi-Run TUI Attach Experience
 type: frontend
 complexity: critical
@@ -35,13 +35,13 @@ This task adds the tabbed TUI experience required for queued, running, completed
 
 ## Subtasks
 
-- [ ] 5.1 Add a remote multi-run attach surface that loads parent snapshot state.
-- [ ] 5.2 Add tab state for ordered workflows, active tab, child run IDs, and item statuses.
-- [ ] 5.3 Render tabs above the existing task-run surface without changing single-run TUI layout.
-- [ ] 5.4 Wire tab navigation keys and help text without breaking existing pane focus controls.
-- [ ] 5.5 Follow parent queue events and child run streams so tabs update live.
-- [ ] 5.6 Map the existing quit dialog actions to parent queue detach/stop/cancel behavior.
-- [ ] 5.7 Add TUI model, rendering, remote attach, and quit behavior tests.
+- [x] 5.1 Add a remote multi-run attach surface that loads parent snapshot state.
+- [x] 5.2 Add tab state for ordered workflows, active tab, child run IDs, and item statuses.
+- [x] 5.3 Render tabs above the existing task-run surface without changing single-run TUI layout.
+- [x] 5.4 Wire tab navigation keys and help text without breaking existing pane focus controls.
+- [x] 5.5 Follow parent queue events and child run streams so tabs update live.
+- [x] 5.6 Map the existing quit dialog actions to parent queue detach/stop/cancel behavior.
+- [x] 5.7 Add TUI model, rendering, remote attach, and quit behavior tests.
 
 ## Implementation Details
 
@@ -80,15 +80,15 @@ Build a wrapper around the existing remote run UI instead of rewriting the singl
 ## Tests
 
 - Unit tests:
-  - [ ] Initial parent snapshot with three queued items renders three tabs in order.
-  - [ ] Starting child `beta` changes only the `beta` tab state and does not mutate `alpha` transcript state.
-  - [ ] Completed tabs remain navigable after the active tab advances to the next queued workflow.
-  - [ ] Tab navigation changes active tab without cycling the existing job/timeline focus unexpectedly.
-  - [ ] `Close TUI` exits the UI without calling parent cancel.
-  - [ ] `Stop Run` calls parent cancel once and marks active/queued visual state as stopping or canceled.
+  - [x] Initial parent snapshot with three queued items renders three tabs in order.
+  - [x] Starting child `beta` changes only the `beta` tab state and does not mutate `alpha` transcript state.
+  - [x] Completed tabs remain navigable after the active tab advances to the next queued workflow.
+  - [x] Tab navigation changes active tab without cycling the existing job/timeline focus unexpectedly.
+  - [x] `Close TUI` exits the UI without calling parent cancel.
+  - [x] `Stop Run` calls parent cancel once and marks active/queued visual state as stopping or canceled.
 - Integration tests:
-  - [ ] Remote attach reconstructs parent queue state from snapshot, then follows parent and child streams.
-  - [ ] Reattaching to an in-progress parent run restores completed, active, and queued tabs.
+  - [x] Remote attach reconstructs parent queue state from snapshot, then follows parent and child streams.
+  - [x] Reattaching to an in-progress parent run restores completed, active, and queued tabs.
 - Test coverage target: >=80%
 - All tests must pass
 
