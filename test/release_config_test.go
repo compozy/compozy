@@ -37,6 +37,20 @@ type goReleaserRepository struct {
 	Name  string `yaml:"name"`
 }
 
+type githubActionsWorkflow struct {
+	Jobs map[string]githubActionsJob `yaml:"jobs"`
+}
+
+type githubActionsJob struct {
+	Steps []githubActionsStep `yaml:"steps"`
+}
+
+type githubActionsStep struct {
+	Name string            `yaml:"name"`
+	Run  string            `yaml:"run"`
+	Env  map[string]string `yaml:"env"`
+}
+
 func TestReleaseWorkflowsUseScopedReleaseNotesGenerator(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +82,43 @@ func TestReleaseWorkflowsUseScopedReleaseNotesGenerator(t *testing.T) {
 				if strings.Contains(text, brokenModule) {
 					t.Fatalf("expected workflow to avoid broken releasepr module %q", brokenModule)
 				}
+			}
+		})
+	}
+}
+
+func TestPrReleaseWorkflowsUseDedicatedReleaseToken(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+
+	var workflow githubActionsWorkflow
+	if err := yaml.Unmarshal(content, &workflow); err != nil {
+		t.Fatalf("unmarshal release workflow: %v", err)
+	}
+
+	testCases := []struct {
+		jobName  string
+		stepName string
+	}{
+		{jobName: "release-pr", stepName: "Run PR Release Orchestrator"},
+		{jobName: "dry-run", stepName: "Run Dry-Run Orchestrator"},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.jobName, func(t *testing.T) {
+			t.Parallel()
+
+			step := workflowStepByName(t, workflow, tc.jobName, tc.stepName)
+			if !strings.Contains(step.Run, "PR_RELEASE_MODULE") {
+				t.Fatalf("expected %s/%s to invoke the pinned pr-release module", tc.jobName, tc.stepName)
+			}
+			if got := step.Env["GITHUB_TOKEN"]; got != "${{ secrets.RELEASE_TOKEN }}" {
+				t.Fatalf("expected %s/%s GITHUB_TOKEN to use RELEASE_TOKEN, got %q", tc.jobName, tc.stepName, got)
 			}
 		})
 	}
@@ -121,6 +172,27 @@ func readPackageVersion(t *testing.T, root string) string {
 		t.Fatal("expected package.json version to be set")
 	}
 	return strings.TrimSpace(pkg.Version)
+}
+
+func workflowStepByName(
+	t *testing.T,
+	workflow githubActionsWorkflow,
+	jobName string,
+	stepName string,
+) githubActionsStep {
+	t.Helper()
+
+	job, ok := workflow.Jobs[jobName]
+	if !ok {
+		t.Fatalf("expected workflow to contain job %q", jobName)
+	}
+	for _, step := range job.Steps {
+		if step.Name == stepName {
+			return step
+		}
+	}
+	t.Fatalf("expected workflow job %q to contain step %q", jobName, stepName)
+	return githubActionsStep{}
 }
 
 func releaseHeadingCount(markdown string) int {
