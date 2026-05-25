@@ -342,7 +342,7 @@ func decodeJSONLike(template any, data []byte) (any, error) {
 		return decoded, nil
 	}
 
-	if valueType.Kind() == reflect.Ptr {
+	if valueType.Kind() == reflect.Pointer {
 		target := reflect.New(valueType.Elem())
 		if err := json.Unmarshal(trimmed, target.Interface()); err != nil {
 			return nil, fmt.Errorf("decode json pointer: %w", err)

@@ -2182,7 +2182,7 @@ func roundTripHookPayload(value any) (any, error) {
 	}
 
 	valueType := reflect.TypeOf(value)
-	if valueType.Kind() == reflect.Ptr {
+	if valueType.Kind() == reflect.Pointer {
 		target := reflect.New(valueType.Elem())
 		if err := json.Unmarshal(raw, target.Interface()); err != nil {
 			return nil, fmt.Errorf("unmarshal hook payload: %w", err)

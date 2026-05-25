@@ -625,6 +625,7 @@ func TestRunManagerReviewWatchWaitsForProviderToSettleBeforeClean(t *testing.T) 
 				req.PushRemote = "origin"
 				req.PushBranch = "feature"
 				req.QuietPeriod = "1ms"
+				req.ReviewTimeout = "2s"
 				req.MaxRounds = 2
 			},
 		)

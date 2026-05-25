@@ -19,7 +19,7 @@ func ValidatePayload(block any) error {
 	}
 
 	value := reflect.ValueOf(block)
-	if value.Kind() == reflect.Ptr && value.IsNil() {
+	if value.Kind() == reflect.Pointer && value.IsNil() {
 		return fmt.Errorf("marshal content block: nil %T", block)
 	}
 	return nil

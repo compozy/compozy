@@ -15,7 +15,9 @@ BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
 GOLANGCI_LINT_VERSION=v2.11.4
-LINTCMD=golangci-lint
+GOTESTSUM_VERSION=v1.13.0
+LINTCMD=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+GOTESTSUMCMD=$(GOCMD) run gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 
 # Colors for output
 RED := \033[0;31m
@@ -168,7 +170,7 @@ tidy:
 deps: check-go-version
 	@echo "Installing Go dependencies..."
 	@echo "Installing gotestsum..."
-	@$(GOCMD) install gotest.tools/gotestsum@latest
+	@$(GOCMD) install gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
 	@echo "Installing golangci-lint v2..."
 	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GOCMD) env GOPATH)/bin $(GOLANGCI_LINT_VERSION)
 	@echo "$(GREEN)All dependencies installed successfully$(NC)"
@@ -177,13 +179,13 @@ deps: check-go-version
 # Testing
 # -----------------------------------------------------------------------------
 test:
-	@gotestsum --format pkgname -- -race -parallel=4 ./...
+	@$(GOTESTSUMCMD) --format pkgname -- -race -parallel=4 ./...
 
 test-coverage:
-	@gotestsum --format pkgname -- -race -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
+	@$(GOTESTSUMCMD) --format pkgname -- -race -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
 
 test-nocache:
-	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
+	@$(GOTESTSUMCMD) --format pkgname -- -race -count=1 -parallel=4 ./...
 
 # -----------------------------------------------------------------------------
 # Help

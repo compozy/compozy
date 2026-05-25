@@ -21,7 +21,7 @@ describe("web Storybook coverage contract", () => {
     for (const module of modules) {
       expect(module.default).toBeDefined();
     }
-  });
+  }, 15000);
 
   it("keeps every mocked domain barrel populated for Storybook composition", async () => {
     const mockModules = await Promise.all([

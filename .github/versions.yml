@@ -4,7 +4,7 @@
 
 versions:
   # Language versions
-  go: "1.26.1"
+  go: "1.26.3"
   node: "22"
 
   # Package manager versions
@@ -24,4 +24,4 @@ versions:
 
   # Development tools
   golangci_lint: "v2.11.4"
-  gotestsum: "latest"
+  gotestsum: "v1.13.0"
