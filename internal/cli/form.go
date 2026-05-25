@@ -69,6 +69,7 @@ type formInputs struct {
 	reasoningEffort   string
 	defineTaskRuntime bool
 	includeCompleted  bool
+	recursive         bool
 	includeResolved   bool
 	dryRun            bool
 	autoCommit        bool
@@ -106,6 +107,7 @@ func newFormInputsFromState(state *commandState) *formInputs {
 	inputs.reasoningEffort = state.reasoningEffort
 	inputs.defineTaskRuntime = len(state.taskRuntimeRules()) > 0
 	inputs.includeCompleted = state.includeCompleted
+	inputs.recursive = state.recursive
 	inputs.includeResolved = state.includeResolved
 	inputs.dryRun = state.dryRun
 	inputs.autoCommit = state.autoCommit
@@ -154,6 +156,12 @@ func (fi *formInputs) register(builder *formBuilder) {
 		&fi.includeCompleted,
 	)
 	builder.addConfirmField(
+		"recursive",
+		"Recursive Task Discovery?",
+		"Discover task_NNN.md files in nested subdirectories",
+		&fi.recursive,
+	)
+	builder.addConfirmField(
 		"include-resolved",
 		"Include Resolved Review Issues?",
 		"Process issues already marked as resolved",
@@ -180,6 +188,9 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 	applyInput(cmd, "auto-commit", fi.autoCommit, passThroughInput[bool], func(val bool) { state.autoCommit = val })
 	applyInput(cmd, "include-completed", fi.includeCompleted, passThroughInput[bool], func(val bool) {
 		state.includeCompleted = val
+	})
+	applyInput(cmd, "recursive", fi.recursive, passThroughInput[bool], func(val bool) {
+		state.recursive = val
 	})
 	applyInput(cmd, "include-resolved", fi.includeResolved, passThroughInput[bool], func(val bool) {
 		state.includeResolved = val

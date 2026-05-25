@@ -163,6 +163,11 @@ func FlattenAndSortIssues(groups map[string][]model.IssueEntry, mode model.Execu
 
 	if mode == model.ExecutionModePRDTasks {
 		sort.SliceStable(allIssues, func(i, j int) bool {
+			dirI := taskDirectorySortKey(allIssues[i].Name)
+			dirJ := taskDirectorySortKey(allIssues[j].Name)
+			if dirI != dirJ {
+				return dirI < dirJ
+			}
 			numI := tasks.ExtractTaskNumber(allIssues[i].Name)
 			numJ := tasks.ExtractTaskNumber(allIssues[j].Name)
 			if numI != numJ {
@@ -182,6 +187,14 @@ func FlattenAndSortIssues(groups map[string][]model.IssueEntry, mode model.Execu
 		return allIssues[i].Name < allIssues[j].Name
 	})
 	return allIssues
+}
+
+func taskDirectorySortKey(name string) string {
+	dir := filepath.ToSlash(filepath.Dir(filepath.FromSlash(name)))
+	if dir == "." {
+		return ""
+	}
+	return dir
 }
 
 func SafeFileName(path string) string {

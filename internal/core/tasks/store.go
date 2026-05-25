@@ -117,7 +117,7 @@ func MarkTaskCompleted(tasksDir, taskFileName string) error {
 
 func CompleteNonTerminalTasks(tasksDir string) (int, error) {
 	taskNames := make([]string, 0)
-	if err := walkTaskFiles(tasksDir, func(entry model.IssueEntry, task model.TaskEntry) error {
+	if err := walkTaskFiles(tasksDir, true, func(entry model.IssueEntry, task model.TaskEntry) error {
 		if IsTaskCompleted(task) {
 			return nil
 		}
@@ -141,11 +141,27 @@ func CompleteNonTerminalTasks(tasksDir string) (int, error) {
 }
 
 func resolveTaskName(taskFileName string) (string, error) {
-	name := filepath.Base(strings.TrimSpace(taskFileName))
-	if ExtractTaskNumber(name) == 0 {
-		return "", fmt.Errorf("invalid task file name %q", taskFileName)
+	trimmed := strings.TrimSpace(taskFileName)
+	if trimmed == "" {
+		return "", fmt.Errorf("invalid task file name %q: empty input", taskFileName)
 	}
-	return name, nil
+	clean := filepath.ToSlash(strings.ReplaceAll(trimmed, `\`, "/"))
+	if strings.HasPrefix(clean, "/") {
+		return "", fmt.Errorf("invalid task file name %q: leading slash not allowed", taskFileName)
+	}
+	for _, segment := range strings.Split(clean, "/") {
+		if segment == "" {
+			return "", fmt.Errorf("invalid task file name %q: empty path segment", taskFileName)
+		}
+		if segment == ".." {
+			return "", fmt.Errorf("invalid task file name %q: %q segment not allowed", taskFileName, "..")
+		}
+	}
+	base := filepath.Base(clean)
+	if ExtractTaskNumber(base) == 0 {
+		return "", fmt.Errorf("invalid task file name %q: basename %q does not match task pattern", taskFileName, base)
+	}
+	return clean, nil
 }
 
 func formatTaskMeta(meta model.TaskMeta) (string, error) {
@@ -223,7 +239,7 @@ func parseTaskMetaSummary(lines []string, meta *model.TaskMeta) error {
 func countTasks(tasksDir string) (int, int, error) {
 	total := 0
 	completed := 0
-	err := walkTaskFiles(tasksDir, func(_ model.IssueEntry, task model.TaskEntry) error {
+	err := walkTaskFiles(tasksDir, true, func(_ model.IssueEntry, task model.TaskEntry) error {
 		total++
 		if IsTaskCompleted(task) {
 			completed++

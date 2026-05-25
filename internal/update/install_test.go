@@ -70,7 +70,7 @@ func TestUpgradePrintsHomebrewCommand(t *testing.T) {
 	if err := Upgrade(context.Background(), "1.0.0", &out); err != nil {
 		t.Fatalf("Upgrade returned error: %v", err)
 	}
-	if got := out.String(); got != "brew upgrade --cask compozy\n" {
+	if got := out.String(); got != homebrewFormulaUpgradeCommand+"\n" {
 		t.Fatalf("unexpected output: %q", got)
 	}
 }

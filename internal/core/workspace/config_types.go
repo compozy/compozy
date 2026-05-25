@@ -49,6 +49,7 @@ type DefaultsConfig RuntimeOverrides
 
 type TaskRunConfig struct {
 	IncludeCompleted *bool                    `toml:"include_completed"`
+	Recursive        *bool                    `toml:"recursive"`
 	OutputFormat     *string                  `toml:"output_format"`
 	RunMultipleMode  *string                  `toml:"run_multiple_mode"`
 	TUI              *bool                    `toml:"tui"`

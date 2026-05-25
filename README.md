@@ -46,8 +46,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 #### Homebrew
 
 ```bash
-brew tap compozy/compozy
-brew install --cask compozy
+brew install compozy/compozy/compozy
 ```
 
 #### NPM
@@ -98,6 +97,7 @@ Execution runtimes are separate from skill installation. To run `compozy exec`, 
 | OpenCode           | `opencode`     | `opencode acp`                   |
 | pi ACP             | `pi`           | `pi-acp`                         |
 | Gemini CLI         | `gemini`       | `gemini --acp`                   |
+| Kiro CLI           | `kiro`         | `kiro-cli acp`                   |
 
 When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally. Codex defaults to `gpt-5.5`; using that model with a local `codex-acp` binary requires `@zed-industries/codex-acp >= 0.12.0`. Update with `npm install -g @zed-industries/codex-acp@latest`, or explicitly choose a model supported by your installed adapter.
 
@@ -614,6 +614,7 @@ The CLI resolves workspace defaults locally, validates the task metadata, auto-s
 | --------------------- | ------- | ----------------------------------------------------------------------------------- |
 | `--name`              |         | Workflow slug (defaults to the positional slug)                                     |
 | `--include-completed` | `false` | Re-run completed tasks                                                              |
+| `--recursive`, `-r`   | `false` | Discover `task_NNN.md` files in nested subdirectories of the workflow root          |
 | `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere        |
 | `--force`             | `false` | Continue after task metadata validation fails in non-interactive mode               |
 | `--attach`            | `auto`  | Attach mode: `auto`, `ui`, `stream`, or `detach`                                    |
@@ -621,6 +622,8 @@ The CLI resolves workspace defaults locally, validates the task metadata, auto-s
 | `--stream`            | `false` | Force textual stream attach mode                                                    |
 | `--detach`            | `false` | Start the run without attaching a client                                            |
 | `--task-runtime`      |         | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.) |
+
+When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
 </details>
 

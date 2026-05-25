@@ -418,6 +418,80 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 	})
 }
 
+func TestTaskRuntimeFormUsesRecursiveWalkerWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+	writeFormTaskFile(t, tasksDir, "task_01.md", "pending")
+	writeFormTaskFile(t, nestedDir, "task_01.md", "pending")
+
+	entries, err := readTaskRuntimeFormEntries(tasksDir, false, true)
+	if err != nil {
+		t.Fatalf("readTaskRuntimeFormEntries(recursive=true): %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("recursive walker should discover root + nested entries, got %d: %#v", len(entries), entries)
+	}
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	state.name = "demo"
+	state.recursive = true
+
+	form, err := newTaskRunRuntimeForm(state)
+	if err != nil {
+		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+	}
+	if form == nil {
+		t.Fatal("expected task runtime form")
+	}
+	if len(form.taskOptions) != 2 {
+		t.Fatalf("expected recursive form to discover 2 tasks, got %d: %#v", len(form.taskOptions), form.taskOptions)
+	}
+}
+
+func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+	writeFormTaskFile(t, tasksDir, "task_01.md", "pending")
+	writeFormTaskFile(t, nestedDir, "task_01.md", "pending")
+
+	entries, err := readTaskRuntimeFormEntries(tasksDir, false, false)
+	if err != nil {
+		t.Fatalf("readTaskRuntimeFormEntries(recursive=false): %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("flat walker should ignore nested entries, got %d: %#v", len(entries), entries)
+	}
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	state.name = "demo"
+	state.recursive = false
+
+	form, err := newTaskRunRuntimeForm(state)
+	if err != nil {
+		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+	}
+	if form == nil {
+		t.Fatal("expected task runtime form")
+	}
+	if len(form.taskOptions) != 1 {
+		t.Fatalf("expected flat form to discover 1 task, got %d: %#v", len(form.taskOptions), form.taskOptions)
+	}
+}
+
 func TestClearTaskRunRuntimeRulesRemovesConfiguredAndExecutionRules(t *testing.T) {
 	t.Parallel()
 

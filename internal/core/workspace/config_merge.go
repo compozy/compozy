@@ -76,6 +76,7 @@ func buildEffectiveTaskRunConfig(
 ) TaskRunConfig {
 	return TaskRunConfig{
 		IncludeCompleted: cloneOptionalValue(preferOverlay(global.IncludeCompleted, workspace.IncludeCompleted)),
+		Recursive:        cloneOptionalValue(preferOverlay(global.Recursive, workspace.Recursive)),
 		OutputFormat: effectiveCommandOverride(
 			globalDefaults.OutputFormat,
 			global.OutputFormat,

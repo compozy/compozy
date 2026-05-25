@@ -265,6 +265,235 @@ func TestCompleteNonTerminalTasksRewritesWorkflowAndRefreshesMeta(t *testing.T) 
 	}
 }
 
+func TestCountTasksRecursesAndCountsNested(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	files := map[string]string{
+		"task_01.md":                  pendingTaskBody("Root 01"),
+		"features/auth/task_01.md":    pendingTaskBody("Auth 01"),
+		"features/auth/task_02.md":    completedTaskBody("Auth 02"),
+		"features/payment/task_01.md": pendingTaskBody("Payment 01"),
+		".cache/task_01.md":           pendingTaskBody("Hidden"),
+		"reviews-001/task_01.md":      pendingTaskBody("Reviews"),
+	}
+	writeNestedFiles(t, tasksDir, files)
+
+	total, completed, err := countTasks(tasksDir)
+	if err != nil {
+		t.Fatalf("countTasks: %v", err)
+	}
+	if total != 4 {
+		t.Fatalf("total = %d, want 4", total)
+	}
+	if completed != 1 {
+		t.Fatalf("completed = %d, want 1", completed)
+	}
+}
+
+func TestMarkTaskCompletedAcceptsRelativeSubpath(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	rel := "features/auth/task_01.md"
+	writeNestedFiles(t, tasksDir, map[string]string{
+		rel: pendingTaskBody("Auth 01"),
+	})
+
+	if err := MarkTaskCompleted(tasksDir, rel); err != nil {
+		t.Fatalf("mark task completed: %v", err)
+	}
+
+	body, err := os.ReadFile(filepath.Join(tasksDir, filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	if !strings.Contains(string(body), "status: completed") {
+		t.Fatalf("expected nested task to be completed, got:\n%s", string(body))
+	}
+}
+
+func TestMarkTaskCompletedNormalizesBackslashes(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeNestedFiles(t, tasksDir, map[string]string{
+		"features/auth/task_01.md": pendingTaskBody("Auth 01"),
+	})
+
+	if err := MarkTaskCompleted(tasksDir, `features\auth\task_01.md`); err != nil {
+		t.Fatalf("mark task completed with backslash input: %v", err)
+	}
+
+	body, err := os.ReadFile(filepath.Join(tasksDir, "features", "auth", "task_01.md"))
+	if err != nil {
+		t.Fatalf("read nested task: %v", err)
+	}
+	if !strings.Contains(string(body), "status: completed") {
+		t.Fatalf("expected backslash input to resolve to nested task, got:\n%s", string(body))
+	}
+}
+
+func TestResolveTaskNameRejectsEmpty(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{"", "   ", "\t\n"}
+	for _, input := range cases {
+		input := input
+		t.Run(strings.TrimSpace(input)+"|raw="+input, func(t *testing.T) {
+			t.Parallel()
+			_, err := resolveTaskName(input)
+			if err == nil {
+				t.Fatalf("expected error for empty input %q", input)
+			}
+			if !strings.Contains(err.Error(), "empty input") {
+				t.Fatalf("error should mention empty input, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveTaskNameRejectsLeadingSlash(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{"/task_01.md", "/features/auth/task_01.md", "//features/task_01.md"}
+	for _, input := range cases {
+		input := input
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+			_, err := resolveTaskName(input)
+			if err == nil {
+				t.Fatalf("expected error for leading-slash input %q", input)
+			}
+			if !strings.Contains(err.Error(), input) {
+				t.Fatalf("error should reference offending input %q, got: %v", input, err)
+			}
+		})
+	}
+}
+
+func TestResolveTaskNameRejectsParentSegment(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"../task_01.md",
+		"features/../task_01.md",
+		"features/auth/../task_01.md",
+		"..",
+	}
+	for _, input := range cases {
+		input := input
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+			_, err := resolveTaskName(input)
+			if err == nil {
+				t.Fatalf("expected error for parent-segment input %q", input)
+			}
+			if !strings.Contains(err.Error(), "..") {
+				t.Fatalf("error should reference \"..\" segment, got: %v", err)
+			}
+			if !strings.Contains(err.Error(), input) {
+				t.Fatalf("error should reference offending input %q, got: %v", input, err)
+			}
+		})
+	}
+}
+
+func TestResolveTaskNameRejectsNonTaskBasename(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"features/auth/notes.md",
+		"task_bad.md",
+		"task_01.txt",
+		"features/auth/task_01",
+	}
+	for _, input := range cases {
+		input := input
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+			_, err := resolveTaskName(input)
+			if err == nil {
+				t.Fatalf("expected error for non-task basename %q", input)
+			}
+			if !strings.Contains(err.Error(), filepath.Base(input)) {
+				t.Fatalf("error should reference invalid basename %q, got: %v", filepath.Base(input), err)
+			}
+		})
+	}
+}
+
+func TestResolveTaskNameAcceptsValidRelpath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"task_01.md", "task_01.md"},
+		{"features/auth/task_01.md", "features/auth/task_01.md"},
+		{"  features/auth/task_02.md  ", "features/auth/task_02.md"},
+		{`features\auth\task_03.md`, "features/auth/task_03.md"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolveTaskName(tc.input)
+			if err != nil {
+				t.Fatalf("resolveTaskName(%q): %v", tc.input, err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolveTaskName(%q) = %q; want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCompleteNonTerminalTasksHandlesNestedFixture(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	pending := []string{
+		"task_01.md",
+		"features/auth/task_01.md",
+		"features/payment/task_01.md",
+	}
+	files := map[string]string{
+		"features/auth/task_02.md": completedTaskBody("Auth 02"),
+	}
+	for _, rel := range pending {
+		files[rel] = pendingTaskBody(rel)
+	}
+	writeNestedFiles(t, tasksDir, files)
+
+	completed, err := CompleteNonTerminalTasks(tasksDir)
+	if err != nil {
+		t.Fatalf("CompleteNonTerminalTasks: %v", err)
+	}
+	if completed != len(pending) {
+		t.Fatalf("completed = %d, want %d", completed, len(pending))
+	}
+
+	for rel := range files {
+		body, err := os.ReadFile(filepath.Join(tasksDir, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		if !strings.Contains(string(body), "status: completed") {
+			t.Fatalf("expected %s to be completed, got:\n%s", rel, string(body))
+		}
+	}
+
+	meta, err := ReadTaskMeta(tasksDir)
+	if err != nil {
+		t.Fatalf("read task meta: %v", err)
+	}
+	if meta.Total != len(files) || meta.Completed != len(files) || meta.Pending != 0 {
+		t.Fatalf("unexpected task meta after nested completion: %#v", meta)
+	}
+}
+
 func writeTaskFile(t *testing.T, tasksDir, name, status string) {
 	t.Helper()
 

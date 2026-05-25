@@ -104,6 +104,7 @@ type daemonRuntimeOverrides struct {
 	Verbose                    *bool                       `json:"verbose,omitempty"`
 	Persist                    *bool                       `json:"persist,omitempty"`
 	IncludeCompleted           *bool                       `json:"include_completed,omitempty"`
+	Recursive                  *bool                       `json:"recursive,omitempty"`
 	TaskRuntimeRules           *[]model.TaskRuntimeRule    `json:"task_runtime_rules,omitempty"`
 	EnableExecutableExtensions *bool                       `json:"enable_executable_extensions,omitempty"`
 }
@@ -316,6 +317,15 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		cmd.Flags().StringVar(&state.name, "name", "", "Task workflow slug (defaults to the positional slug)")
 	}
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
+	cmd.Flags().BoolVarP(
+		&state.recursive,
+		"recursive",
+		"r",
+		false,
+		"Recursively discover task_NNN.md files in subdirectories. "+
+			"Skips dot-, underscore-prefixed, reviews-*, adrs, and memory directories. "+
+			"Note: DB sync and extension Host API still operate on the slug root only.",
+	)
 	cmd.Flags().BoolVar(
 		&state.skipValidation,
 		"skip-validation",
@@ -705,6 +715,9 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 	})
 	set(commandFlagChanged(cmd, "include-completed"), func() {
 		overrides.IncludeCompleted = boolPointer(s.includeCompleted)
+	})
+	set(commandFlagChanged(cmd, "recursive"), func() {
+		overrides.Recursive = boolPointer(s.recursive)
 	})
 	set(commandFlagChanged(cmd, "task-runtime") || s.replaceConfiguredTaskRunRules, func() {
 		rules := model.CloneTaskRuntimeRules(s.taskRuntimeRules())

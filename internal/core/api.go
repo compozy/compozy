@@ -126,6 +126,7 @@ type Config struct {
 	ReadPromptStdin            bool
 	ResolvedPromptText         string
 	IncludeCompleted           bool
+	Recursive                  bool
 	IncludeResolved            bool
 	Timeout                    time.Duration
 	MaxRetries                 int
@@ -369,6 +370,7 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		ReadPromptStdin:            cfg.ReadPromptStdin,
 		ResolvedPromptText:         cfg.ResolvedPromptText,
 		IncludeCompleted:           cfg.IncludeCompleted,
+		Recursive:                  cfg.Recursive,
 		IncludeResolved:            cfg.IncludeResolved,
 		Timeout:                    cfg.Timeout,
 		MaxRetries:                 cfg.MaxRetries,

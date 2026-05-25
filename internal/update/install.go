@@ -12,6 +12,8 @@ import (
 
 var osExecutable = os.Executable
 
+const homebrewFormulaUpgradeCommand = "brew upgrade compozy/compozy/compozy"
+
 // InstallMethod identifies how the compozy binary was installed.
 type InstallMethod int
 
@@ -46,7 +48,7 @@ func Upgrade(ctx context.Context, currentVersion string, stdout io.Writer) error
 
 	switch DetectInstallMethod() {
 	case InstallHomebrew:
-		return printManagedUpgradeCommand(stdout, "brew upgrade --cask compozy")
+		return printManagedUpgradeCommand(stdout, homebrewFormulaUpgradeCommand)
 	case InstallNPM:
 		return printManagedUpgradeCommand(stdout, "npm install -g @compozy/cli@latest")
 	case InstallGo:

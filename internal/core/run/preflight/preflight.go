@@ -28,6 +28,7 @@ type Config struct {
 	IsInteractive  func() bool
 	Force          bool
 	SkipValidation bool
+	Recursive      bool
 	Stderr         io.Writer
 	FormInput      io.Reader
 	FormOutput     io.Writer
@@ -60,7 +61,11 @@ func CheckConfig(ctx context.Context, cfg Config) (Decision, error) {
 
 	validate := cfg.ValidationFn
 	if validate == nil {
-		validate = tasks.Validate
+		validate = func(ctx context.Context, tasksDir string, registry *tasks.TypeRegistry) (tasks.Report, error) {
+			return tasks.ValidateWithOptions(ctx, tasksDir, registry, tasks.ValidateOptions{
+				Recursive: cfg.Recursive,
+			})
+		}
 	}
 	form := cfg.ValidationForm
 	report, err := validate(ctx, cfg.TasksDir, cfg.Registry)

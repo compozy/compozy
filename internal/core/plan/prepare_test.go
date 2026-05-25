@@ -38,7 +38,7 @@ func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
 		}
 	}
 
-	entries, err := readTaskEntries(dir, false)
+	entries, err := readTaskEntries(dir, false, false)
 	if err != nil {
 		t.Fatalf("readTaskEntries: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestValidateAndFilterEntriesReportsCompletedTaskWorkflowsSeparately(t *test
 		t.Fatalf("refresh task meta: %v", err)
 	}
 
-	entries, err := readTaskEntries(dir, false)
+	entries, err := readTaskEntries(dir, false, false)
 	if err != nil {
 		t.Fatalf("readTaskEntries: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestValidateAndFilterEntriesKeepsEmptyTaskDirectoriesDistinct(t *testing.T)
 		t.Fatalf("refresh task meta: %v", err)
 	}
 
-	entries, err := readTaskEntries(dir, false)
+	entries, err := readTaskEntries(dir, false, false)
 	if err != nil {
 		t.Fatalf("readTaskEntries: %v", err)
 	}
@@ -227,7 +227,7 @@ complexity: low
 		t.Fatalf("write v1 task: %v", err)
 	}
 
-	_, err := readTaskEntries(dir, false)
+	_, err := readTaskEntries(dir, false, false)
 	if err == nil {
 		t.Fatal("expected readTaskEntries to fail for v1 task metadata")
 	}
@@ -1908,4 +1908,183 @@ func filterHooksByPrefix(hooks []string, prefix string) []string {
 		}
 	}
 	return filtered
+}
+
+func writeRecursiveTaskFixture(t *testing.T, tasksDir string) {
+	t.Helper()
+	body := "---\nstatus: pending\ntitle: %s\ntype: backend\ncomplexity: low\n---\n\n# %s\n"
+	files := map[string]string{
+		filepath.Join(tasksDir, "task_01.md"):                        "root",
+		filepath.Join(tasksDir, "features", "auth", "task_01.md"):    "auth",
+		filepath.Join(tasksDir, "features", "payment", "task_01.md"): "payment",
+	}
+	for path, label := range files {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+		}
+		content := fmt.Sprintf(body, label, label)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+}
+
+func TestReadIssueEntriesBranchesOnRecursive(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeRecursiveTaskFixture(t, tasksDir)
+
+	cases := []struct {
+		name      string
+		recursive bool
+		wantNames []string
+	}{
+		{
+			name:      "flat ignores nested directories",
+			recursive: false,
+			wantNames: []string{"task_01.md"},
+		},
+		{
+			name:      "recursive discovers nested directories",
+			recursive: true,
+			wantNames: []string{
+				"task_01.md",
+				"features/auth/task_01.md",
+				"features/payment/task_01.md",
+			},
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entries, err := readIssueEntries(tasksDir, model.ExecutionModePRDTasks, false, tc.recursive)
+			if err != nil {
+				t.Fatalf("readIssueEntries: %v", err)
+			}
+			gotNames := make([]string, 0, len(entries))
+			for _, entry := range entries {
+				gotNames = append(gotNames, entry.Name)
+			}
+			if !reflect.DeepEqual(gotNames, tc.wantNames) {
+				t.Fatalf("unexpected entry order\nwant: %#v\ngot:  %#v", tc.wantNames, gotNames)
+			}
+		})
+	}
+}
+
+func resolvePreparedEntriesForTest(
+	t *testing.T,
+	cfg *model.RuntimeConfig,
+) ([]model.IssueEntry, *model.SolvePreparation) {
+	t.Helper()
+	scope := openRunScopeForTest(t, cfg)
+	prep := &model.SolvePreparation{}
+	prep.RunArtifacts = scope.RunArtifacts()
+	prep.SetRunScope(scope)
+	entries, err := resolvePreparedEntries(context.Background(), prep, cfg)
+	if err != nil {
+		closePreparedJournalForTest(t, prep)
+		t.Fatalf("resolvePreparedEntries: %v", err)
+	}
+	t.Cleanup(func() { closePreparedJournalForTest(t, prep) })
+	return entries, prep
+}
+
+func TestResolvePreparedEntriesDiscoversNestedTasksWhenRecursive(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	writeRecursiveTaskFixture(t, tasksDir)
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		Recursive:     true,
+	}
+	entries, _ := resolvePreparedEntriesForTest(t, cfg)
+
+	wantNames := []string{
+		"task_01.md",
+		"features/auth/task_01.md",
+		"features/payment/task_01.md",
+	}
+	gotNames := make([]string, 0, len(entries))
+	codeFiles := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		gotNames = append(gotNames, entry.Name)
+		codeFiles[entry.CodeFile] = struct{}{}
+	}
+	if !reflect.DeepEqual(gotNames, wantNames) {
+		t.Fatalf("unexpected entry order\nwant: %#v\ngot:  %#v", wantNames, gotNames)
+	}
+	if len(codeFiles) != len(entries) {
+		t.Fatalf("expected unique CodeFile per nested task, got %d unique for %d entries", len(codeFiles), len(entries))
+	}
+}
+
+func TestPreparePRDTasksRecursivePreservesDirectoryGroupedOrder(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	writeRecursiveTaskFixture(t, tasksDir)
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		Recursive:     true,
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	gotCodeFiles := make([][]string, 0, len(prep.Jobs))
+	for _, job := range prep.Jobs {
+		gotCodeFiles = append(gotCodeFiles, job.CodeFiles)
+	}
+	wantCodeFiles := [][]string{
+		{"task_01"},
+		{"features/auth/task_01"},
+		{"features/payment/task_01"},
+	}
+	if !reflect.DeepEqual(gotCodeFiles, wantCodeFiles) {
+		t.Fatalf("unexpected recursive job order\nwant: %#v\ngot:  %#v", wantCodeFiles, gotCodeFiles)
+	}
+}
+
+func TestResolvePreparedEntriesIgnoresSubdirsWhenFlat(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	writeRecursiveTaskFixture(t, tasksDir)
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		Recursive:     false,
+	}
+	entries, _ := resolvePreparedEntriesForTest(t, cfg)
+
+	if len(entries) != 1 {
+		t.Fatalf("expected only the root task in flat mode, got %d entries", len(entries))
+	}
+	if got, want := entries[0].Name, "task_01.md"; got != want {
+		t.Fatalf("unexpected entry name\nwant: %q\ngot:  %q", want, got)
+	}
 }
