@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 0.2.5 - 2026-05-25
+
+### 🎉 Features
+
+- Add zsh task completion plugin docs and script (#149)- Add kiro-cli as supported ACP execution runtime (#160)- Discover task files recursively in nested subdirectories (#153)
+### 🐛 Bug Fixes
+
+- Homebrew formula- Emit one task slug per compozy completion candidate (#159)- Run managed upgrade commands (#158)
+### 📚 Documentation
+
+- Add star history on readme
+### 🧪 Testing
+
+- Internal test fix
 ## 0.2.4 - 2026-05-14
 
 ### 🐛 Bug Fixes
@@ -278,6 +292,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
+[0.2.5]: https://github.com///compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com///compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com///compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com///compare/v0.2.1...v0.2.2
