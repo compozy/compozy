@@ -67,7 +67,7 @@ func acquireLock(path string, pid int, deps lockDeps) (*Lock, error) {
 		return nil, fmt.Errorf("daemon: create lock directory for %q: %w", cleanPath, err)
 	}
 
-	priorPID, err := readLockPID(cleanPath)
+	priorPID, err := readLockPID(lockPIDPath(cleanPath))
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func acquireLock(path string, pid int, deps lockDeps) (*Lock, error) {
 		stalePID = priorPID
 	}
 
-	if err := writeLockPID(cleanPath, pid); err != nil {
+	if err := writeLockPID(lockPIDPath(cleanPath), pid); err != nil {
 		unlockErr := fileLock.Unlock()
 		closeErr := fileLock.Close()
 		return nil, errors.Join(err, unlockErr, closeErr)
@@ -123,7 +123,7 @@ func (l *Lock) Release() error {
 	}
 
 	var errs []error
-	if err := writeLockPID(l.path, 0); err != nil {
+	if err := writeLockPID(lockPIDPath(l.path), 0); err != nil {
 		errs = append(errs, err)
 	}
 	if l.flock != nil {

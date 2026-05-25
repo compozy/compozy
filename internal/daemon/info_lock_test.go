@@ -146,7 +146,7 @@ func TestAcquireLockLifecycle(t *testing.T) {
 		t.Fatalf("lock.StalePID() = %d, want 0", got)
 	}
 
-	pid, err := readLockPID(path)
+	pid, err := readLockPID(lockPIDPath(path))
 	if err != nil {
 		t.Fatalf("readLockPID() error = %v", err)
 	}
@@ -157,7 +157,7 @@ func TestAcquireLockLifecycle(t *testing.T) {
 	if err := lock.Release(); err != nil {
 		t.Fatalf("lock.Release() error = %v", err)
 	}
-	pid, err = readLockPID(path)
+	pid, err = readLockPID(lockPIDPath(path))
 	if err != nil {
 		t.Fatalf("readLockPID(after release) error = %v", err)
 	}
@@ -173,7 +173,7 @@ func TestAcquireLockDetectsStalePID(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("mkdir lock dir: %v", err)
 	}
-	if err := os.WriteFile(path, []byte("999001\n"), 0o600); err != nil {
+	if err := os.WriteFile(lockPIDPath(path), []byte("999001\n"), 0o600); err != nil {
 		t.Fatalf("write stale pid: %v", err)
 	}
 

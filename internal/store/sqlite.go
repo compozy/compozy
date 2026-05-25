@@ -91,9 +91,17 @@ func openSQLiteDatabaseOnce(
 }
 
 func sqliteDSN(path string) string {
+	slashPath := filepath.ToSlash(path)
+	// url.URL requires an absolute path starting with "/" to produce the
+	// three-slash form "file:///...". On Windows, filepath.ToSlash yields
+	// "C:/...", which url.URL serialises as "file://C:/..." where the SQLite
+	// URI parser interprets "C:" as the authority rather than a drive letter.
+	if !strings.HasPrefix(slashPath, "/") {
+		slashPath = "/" + slashPath
+	}
 	u := url.URL{
 		Scheme: "file",
-		Path:   filepath.ToSlash(path),
+		Path:   slashPath,
 	}
 	query := u.Query()
 	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))
