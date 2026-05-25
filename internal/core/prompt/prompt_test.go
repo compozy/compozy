@@ -564,16 +564,18 @@ func TestFlattenAndSortIssues(t *testing.T) {
 	t.Parallel()
 
 	prdGroups := map[string][]model.IssueEntry{
-		"b": {{Name: "task_10.md"}},
-		"a": {{Name: "task_2.md"}},
+		"nested-a": {{Name: "features/auth/task_01.md"}},
+		"root-a":   {{Name: "task_01.md"}},
+		"root-b":   {{Name: "task_10.md"}},
 	}
 	prdIssues := FlattenAndSortIssues(prdGroups, model.ExecutionModePRDTasks)
 	if got := []string{
 		prdIssues[0].Name,
 		prdIssues[1].Name,
+		prdIssues[2].Name,
 	}; !reflect.DeepEqual(
 		got,
-		[]string{"task_2.md", "task_10.md"},
+		[]string{"task_01.md", "task_10.md", "features/auth/task_01.md"},
 	) {
 		t.Fatalf("unexpected prd ordering: %#v", got)
 	}

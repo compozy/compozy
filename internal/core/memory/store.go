@@ -57,7 +57,11 @@ func WorkflowPath(tasksDir string) string {
 }
 
 func TaskPath(tasksDir, taskFileName string) string {
-	return filepath.Join(Directory(tasksDir), filepath.Base(taskFileName))
+	rel := sanitizeTaskMemoryRelpath(taskFileName)
+	if rel == "" {
+		return Directory(tasksDir)
+	}
+	return filepath.Join(Directory(tasksDir), filepath.FromSlash(rel))
 }
 
 func ResolveDocumentPath(tasksDir, taskFileName string) string {
@@ -65,6 +69,49 @@ func ResolveDocumentPath(tasksDir, taskFileName string) string {
 		return WorkflowPath(tasksDir)
 	}
 	return TaskPath(tasksDir, taskFileName)
+}
+
+func sanitizeTaskMemoryRelpath(taskFileName string) string {
+	trimmed := strings.TrimSpace(taskFileName)
+	if trimmed == "" {
+		return ""
+	}
+	clean := filepath.ToSlash(strings.ReplaceAll(trimmed, `\`, "/"))
+	parts := make([]string, 0, strings.Count(clean, "/")+1)
+	for _, seg := range strings.Split(clean, "/") {
+		seg = strings.TrimSpace(seg)
+		if seg == "" || seg == "." || seg == ".." {
+			continue
+		}
+		parts = append(parts, seg)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, "/")
+}
+
+func validateTaskMemoryRelpath(taskFileName string) (string, error) {
+	trimmed := strings.TrimSpace(taskFileName)
+	if trimmed == "" {
+		return "", fmt.Errorf("task file name is required")
+	}
+	clean := filepath.ToSlash(strings.ReplaceAll(trimmed, `\`, "/"))
+	if strings.HasPrefix(clean, "/") {
+		return "", fmt.Errorf("task file name %q: leading slash not allowed", taskFileName)
+	}
+	for _, seg := range strings.Split(clean, "/") {
+		if seg == "" {
+			return "", fmt.Errorf("task file name %q: empty path segment", taskFileName)
+		}
+		if seg == ".." {
+			return "", fmt.Errorf("task file name %q: %q segment not allowed", taskFileName, "..")
+		}
+	}
+	if filepath.Base(clean) == "." {
+		return "", fmt.Errorf("task file name %q: missing basename", taskFileName)
+	}
+	return clean, nil
 }
 
 func ReadDocument(tasksDir, taskFileName string) (Document, error) {
@@ -99,6 +146,9 @@ func WriteDocument(tasksDir, taskFileName, content string, mode WriteMode) (Docu
 	}
 
 	path := ResolveDocumentPath(tasksDir, taskFileName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return Document{}, 0, fmt.Errorf("prepare memory document dir: %w", err)
+	}
 	finalContent, err := renderedDocumentContent(path, content, mode)
 	if err != nil {
 		return Document{}, 0, err
@@ -116,9 +166,9 @@ func WriteDocument(tasksDir, taskFileName, content string, mode WriteMode) (Docu
 }
 
 func Prepare(tasksDir, taskFileName string) (Context, error) {
-	taskBase := filepath.Base(strings.TrimSpace(taskFileName))
-	if taskBase == "" || taskBase == "." {
-		return Context{}, fmt.Errorf("prepare workflow memory: task file name is required")
+	rel, err := validateTaskMemoryRelpath(taskFileName)
+	if err != nil {
+		return Context{}, fmt.Errorf("prepare workflow memory: %w", err)
 	}
 
 	dir := Directory(tasksDir)
@@ -131,8 +181,11 @@ func Prepare(tasksDir, taskFileName string) (Context, error) {
 		return Context{}, fmt.Errorf("bootstrap workflow memory: %w", err)
 	}
 
-	taskPath := TaskPath(tasksDir, taskBase)
-	if err := writeIfMissing(taskPath, taskTemplate(taskBase)); err != nil {
+	taskPath := filepath.Join(dir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(taskPath), 0o755); err != nil {
+		return Context{}, fmt.Errorf("prepare task memory dir: %w", err)
+	}
+	if err := writeIfMissing(taskPath, taskTemplate(filepath.Base(rel))); err != nil {
 		return Context{}, fmt.Errorf("bootstrap task memory: %w", err)
 	}
 

@@ -128,18 +128,7 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 
 	switch s.kind {
 	case commandKindTasksRun:
-		applyConfig(cmd, "attach", cfg.Runs.DefaultAttachMode, func(val string) { s.attachMode = val })
-		applyConfig(cmd, "format", cfg.Tasks.Run.OutputFormat, func(val string) { s.outputFormat = val })
-		applyConfig(cmd, "tui", cfg.Tasks.Run.TUI, func(val bool) { s.tui = val })
-		s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
-			derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules),
-		)
-		applyConfig(
-			cmd,
-			"include-completed",
-			cfg.Tasks.Run.IncludeCompleted,
-			func(val bool) { s.includeCompleted = val },
-		)
+		s.applyTasksRunConfig(cmd, cfg)
 	case commandKindFixReviews:
 		applyConfig(cmd, "format", cfg.FixReviews.OutputFormat, func(val string) { s.outputFormat = val })
 		applyConfig(cmd, "tui", cfg.FixReviews.TUI, func(val bool) { s.tui = val })
@@ -181,6 +170,27 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			func(val float64) { s.retryBackoffMultiplier = val },
 		)
 	}
+}
+
+func (s *commandState) applyTasksRunConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
+	applyConfig(cmd, "attach", cfg.Runs.DefaultAttachMode, func(val string) { s.attachMode = val })
+	applyConfig(cmd, "format", cfg.Tasks.Run.OutputFormat, func(val string) { s.outputFormat = val })
+	applyConfig(cmd, "tui", cfg.Tasks.Run.TUI, func(val bool) { s.tui = val })
+	s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
+		derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules),
+	)
+	applyConfig(
+		cmd,
+		"include-completed",
+		cfg.Tasks.Run.IncludeCompleted,
+		func(val bool) { s.includeCompleted = val },
+	)
+	applyConfig(
+		cmd,
+		"recursive",
+		cfg.Tasks.Run.Recursive,
+		func(val bool) { s.recursive = val },
+	)
 }
 
 func (s *commandState) applyWatchReviewsConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {

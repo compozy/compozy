@@ -1859,6 +1859,107 @@ func TestRunPreparedStartNonInteractiveValidationFailureBlocksWorkflow(t *testin
 	}
 }
 
+func TestRunPreparedStartFlatValidationIgnoresNestedDrafts(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "title: Root", "type: backend", "complexity: low"},
+		"# Root",
+	))
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writeRawTaskFileForCLI(t, nestedDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Nested Draft",
+	))
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	allowBundledSkillsForStartTest(state)
+	state.isInteractive = func() bool { return false }
+	state.workspaceRoot = workspaceRoot
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{
+		IDE:      core.IDECodex,
+		Mode:     core.ModePRDTasks,
+		TasksDir: tasksDir,
+	})
+	if err != nil {
+		t.Fatalf("runPrepared flat validation: %v", err)
+	}
+	if !runnerCalled {
+		t.Fatal("expected workflow runner when nested draft is outside flat discovery")
+	}
+	if !strings.Contains(output.String(), "preflight=ok") {
+		t.Fatalf("expected ok preflight log, got %q", output.String())
+	}
+}
+
+func TestRunPreparedStartRecursiveValidationChecksNestedTasks(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "title: Root", "type: backend", "complexity: low"},
+		"# Root",
+	))
+	nestedDir := filepath.Join(tasksDir, "features", "auth")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writeRawTaskFileForCLI(t, nestedDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Nested Draft",
+	))
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	allowBundledSkillsForStartTest(state)
+	state.isInteractive = func() bool { return false }
+	state.workspaceRoot = workspaceRoot
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{
+		IDE:       core.IDECodex,
+		Mode:      core.ModePRDTasks,
+		TasksDir:  tasksDir,
+		Recursive: true,
+	})
+	if err == nil {
+		t.Fatal("expected recursive task validation failure")
+	}
+	if runnerCalled {
+		t.Fatal("did not expect workflow runner when recursive preflight aborts")
+	}
+	if !strings.Contains(output.String(), "title is required") {
+		t.Fatalf("expected nested validation issue in output, got %q", output.String())
+	}
+}
+
 func TestRunPreparedStartNonInteractiveForceContinuesPastValidationFailure(t *testing.T) {
 	t.Parallel()
 

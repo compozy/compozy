@@ -223,7 +223,7 @@ func resolvePreparedEntries(
 		return nil, err
 	}
 
-	entries, err := readIssueEntries(prep.InputDirPath, cfg.Mode, cfg.IncludeCompleted)
+	entries, err := readIssueEntries(prep.InputDirPath, cfg.Mode, cfg.IncludeCompleted, cfg.Recursive)
 	if err != nil {
 		return nil, err
 	}
@@ -1079,7 +1079,7 @@ func readExtraIssueEntries(
 		if err != nil {
 			return nil, fmt.Errorf("resolve extra issue source %q: %w", source, err)
 		}
-		items, err := readIssueEntriesFromSource(resolvedSource, cfg.Mode, cfg.IncludeCompleted)
+		items, err := readIssueEntriesFromSource(resolvedSource, cfg.Mode, cfg.IncludeCompleted, cfg.Recursive)
 		if err != nil {
 			return nil, fmt.Errorf("read extra issue source %q: %w", source, err)
 		}
@@ -1106,17 +1106,18 @@ func readIssueEntriesFromSource(
 	resolvedSource string,
 	mode model.ExecutionMode,
 	includeCompleted bool,
+	recursive bool,
 ) ([]model.IssueEntry, error) {
 	info, err := os.Stat(resolvedSource)
 	if err != nil {
 		return nil, err
 	}
 	if info.IsDir() {
-		return readIssueEntries(resolvedSource, mode, includeCompleted)
+		return readIssueEntries(resolvedSource, mode, includeCompleted, recursive)
 	}
 
 	parent := filepath.Dir(resolvedSource)
-	entries, err := readIssueEntries(parent, mode, includeCompleted)
+	entries, err := readIssueEntries(parent, mode, includeCompleted, recursive)
 	if err != nil {
 		return nil, err
 	}

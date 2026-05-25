@@ -57,6 +57,7 @@ Execute PRD task files sequentially from a workflow directory through the shared
 | --- | --- | --- | --- |
 | `--name` | string | | Task workflow name (resolves to `.compozy/tasks/<name>`) |
 | `--include-completed` | bool | false | Include tasks already marked as completed |
+| `--recursive`, `-r` | bool | false | Discover `task_NNN.md` files in nested subdirectories of the workflow root |
 | `--skip-validation` | bool | false | Skip task metadata preflight check |
 | `--force` | bool | false | Continue after validation fails in non-interactive mode |
 | `--attach` | string | auto | Attach mode: auto, ui, stream, detach |
