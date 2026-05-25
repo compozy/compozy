@@ -51,6 +51,12 @@
             "sourceType": "github",
             "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
         },
+        "releasepr": {
+            "source": "compozy/releasepr",
+            "sourceType": "github",
+            "skillPath": "skills/releasepr/SKILL.md",
+            "computedHash": "e9bcd1dcb1967536dc8c038a40066eb6ae6110ce5a9b6b751e8e0acc483f3508"
+        },
         "smux": {
             "source": "ShawnPana/smux",
             "sourceType": "github",

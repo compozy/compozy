@@ -1,0 +1,40 @@
+# .pr-release.yaml — pr-release configuration (all fields optional).
+# Copy to the repository root as `.pr-release.yaml`. Legacy name:
+# `.compozy-release.yaml`. Most projects need none of this in CI because
+# owner/repo and token are detected from the GitHub Actions environment.
+# See skills/releasepr/references/configuration.md for full rules.
+
+# GitHub token. Prefer an environment variable / Actions secret over a
+# committed file. Accepted formats: classic PAT (40 hex), fine-grained
+# (github_pat_ + 82), app token (ghs_ + 36), OAuth (gho_ + 36).
+# github_token: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Owner/repo are auto-detected from GITHUB_REPOSITORY or the `origin` remote.
+# Set only to override.
+# github_owner: "your-org"
+# github_repo: "your-repo"
+
+# NPM workspace directory (default: tools). Cannot be empty; no `..`.
+# tools_dir: "tools"
+
+# Required only when publishing npm packages.
+# npm_token: "npm_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Logging. log_level: debug|info|warn|error (default info).
+# log_format: json|console (default json; console auto-selected in CI).
+# log_level: "info"
+# log_format: "json"
+
+# Git push timeout in minutes. Integer 1-30 (default 2).
+# git_push_timeout_minutes: 2
+
+# Optional extra build steps whose outputs are staged into the release.
+# command must be one of: bun, go, make, node, npm, npx, pnpm, yarn.
+# Each `add` entry must be repository-relative (no absolute paths, no `..`).
+# timeout_seconds: 1-3600 (omit or 0 = unset).
+# release_artifacts:
+#   - name: "Frontend bundle"
+#     command: "npm"
+#     args: ["run", "build"]
+#     add: ["dist/**", "*.min.js"]
+#     timeout_seconds: 300

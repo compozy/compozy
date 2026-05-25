@@ -1,0 +1,131 @@
+# Minimal pr-release workflow for a CONSUMING repository.
+# Copy to .github/workflows/release.yml and adjust PR_RELEASE_MODULE (pin a
+# real tag), go-version, default branch, and secret names.
+# See skills/releasepr/references/release-workflow.md and setup.md.
+#
+# RELEASE_TOKEN must be a PAT or GitHub App token (NOT the default
+# GITHUB_TOKEN) so the release-pr job can open PRs and trigger downstream
+# workflows. Store it as a repository/organization secret.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Workflow mode"
+        type: choice
+        default: release-pr
+        options: [release-pr, dry-run]
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  # Pin an explicit tag — never @latest — for reproducible releases.
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.21
+  GO_VERSION: "1.25.9"
+  # Set for a project's first release when no git tags exist yet.
+  INITIAL_VERSION: v0.0.1
+
+jobs:
+  # Create or update the release PR on normal pushes to main.
+  release-pr:
+    name: Create/Update Release PR
+    if: |
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       !startsWith(github.event.head_commit.message, 'release:') &&
+       !startsWith(github.event.head_commit.message, 'ci(release):') &&
+       !startsWith(github.event.head_commit.message, 'Merge pull request') &&
+       github.event.head_commit.author.name != 'github-actions[bot]') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.mode == 'release-pr' || inputs.mode == ''))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # REQUIRED: full history for version calc
+          fetch-tags: true     # REQUIRED: tags for version calc
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Run pr-release orchestrator
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
+        run: go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
+
+  # Validate the release PR (title starts with "release: Release ").
+  dry-run:
+    name: Dry-Run Release Check
+    if: |
+      (github.event_name == 'pull_request' &&
+       (startsWith(github.event.pull_request.title, 'release: Release ') ||
+        startsWith(github.event.pull_request.title, 'ci(release): Release '))) ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'dry-run')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Run dry-run
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
+        run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
+
+  # Production release: runs when the release PR merges (commit subject
+  # starts with "release:" / "ci(release):"). pr-release does NOT tag or
+  # publish — wire your own tag + publisher here (e.g. git-cliff
+  # --bumped-version to derive the tag, then GoReleaser / npm publish using
+  # RELEASE_BODY.md as the GitHub Release body).
+  #
+  # release:
+  #   name: Production Release
+  #   if: |
+  #     github.event_name == 'push' &&
+  #     github.ref == 'refs/heads/main' &&
+  #     (startsWith(github.event.head_commit.message, 'release:') ||
+  #      startsWith(github.event.head_commit.message, 'ci(release):'))
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with: { fetch-depth: 0, fetch-tags: true }
+  #     # version=$(git cliff --bumped-version); git tag -a "$version" ...
+  #     # then GoReleaser/npm publish with --release-notes=RELEASE_BODY.md
