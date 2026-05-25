@@ -199,8 +199,6 @@ func TestFollowRemoteRunReconnectsFromOverflowCursor(t *testing.T) {
 }
 
 func TestAttachRemoteSkipsLiveStreamForCompletedSnapshot(t *testing.T) {
-	t.Parallel()
-
 	snapshot := apicore.RunSnapshot{
 		Run: apicore.Run{RunID: "run-remote-ui-003", Status: "completed"},
 		Jobs: []apicore.RunJobState{{
@@ -292,8 +290,6 @@ func TestAttachRemoteKeepsOwnerSessionsCancelableFromLocalQuit(t *testing.T) {
 }
 
 func TestAttachRemoteOpensStreamFromSnapshotCursorForRunningRun(t *testing.T) {
-	t.Parallel()
-
 	originalSetup := setupRemoteUISession
 	setupRemoteUISession = func(context.Context, []job, *config, *eventspkg.Bus[eventspkg.Event], bool) Session {
 		return &recordingUISession{}
