@@ -33,7 +33,7 @@ func TestFormatTimestamp(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should "+tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := FormatTimestamp(tt.in)
 			if got != tt.want {
@@ -47,10 +47,11 @@ func TestParseTimestamp(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		in      string
-		want    time.Time
-		wantErr bool
+		name        string
+		in          string
+		want        time.Time
+		wantErr     bool
+		errContains string
 	}{
 		{
 			name: "valid canonical timestamp",
@@ -63,23 +64,28 @@ func TestParseTimestamp(t *testing.T) {
 			want: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
 		},
 		{
-			name:    "invalid format returns error",
-			in:      "not-a-timestamp",
-			wantErr: true,
+			name:        "invalid format returns error",
+			in:          "not-a-timestamp",
+			wantErr:     true,
+			errContains: "store: parse timestamp",
 		},
 		{
-			name:    "empty string returns error",
-			in:      "",
-			wantErr: true,
+			name:        "empty string returns error",
+			in:          "",
+			wantErr:     true,
+			errContains: "store: parse timestamp",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should "+tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := ParseTimestamp(tt.in)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("ParseTimestamp(%q) error = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if tt.wantErr && tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("ParseTimestamp(%q) error = %q, want to contain %q", tt.in, err.Error(), tt.errContains)
 			}
 			if !tt.wantErr && !got.Equal(tt.want) {
 				t.Errorf("ParseTimestamp(%q) = %v, want %v", tt.in, got, tt.want)
@@ -103,7 +109,7 @@ func TestNullableString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should "+tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := NullableString(tt.in)
 			if got != tt.want {
@@ -151,7 +157,7 @@ func TestNullString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should "+tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := NullString(tt.in)
 			if tt.want == nil {
@@ -173,7 +179,7 @@ func TestNullString(t *testing.T) {
 func TestNewID(t *testing.T) {
 	t.Parallel()
 
-	t.Run("without prefix returns 16-char hex string", func(t *testing.T) {
+	t.Run("Should return 16-char hex string without prefix", func(t *testing.T) {
 		t.Parallel()
 		id := NewID("")
 		if id == "" {
@@ -184,7 +190,7 @@ func TestNewID(t *testing.T) {
 		}
 	})
 
-	t.Run("with prefix returns prefix-hex format", func(t *testing.T) {
+	t.Run("Should return prefix-hex format with prefix", func(t *testing.T) {
 		t.Parallel()
 		id := NewID("run")
 		if !strings.HasPrefix(id, "run-") {
@@ -192,7 +198,7 @@ func TestNewID(t *testing.T) {
 		}
 	})
 
-	t.Run("whitespace-only prefix treated as empty prefix", func(t *testing.T) {
+	t.Run("Should treat whitespace-only prefix as empty", func(t *testing.T) {
 		t.Parallel()
 		id := NewID("   ")
 		if strings.Contains(id, " ") {
@@ -203,7 +209,7 @@ func TestNewID(t *testing.T) {
 		}
 	})
 
-	t.Run("successive calls return unique IDs", func(t *testing.T) {
+	t.Run("Should return unique IDs on successive calls", func(t *testing.T) {
 		t.Parallel()
 		id1 := NewID("test")
 		id2 := NewID("test")
