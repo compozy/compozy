@@ -254,7 +254,6 @@ func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefault
 	cmd.AddCommand(
 		newTasksValidateCommand(),
 		newTasksRunCommandWithDefaults(dispatcher, defaults),
-		newTasksRunMultipleCommandWithDefaults(dispatcher, defaults),
 	)
 	return cmd
 }
@@ -269,8 +268,16 @@ func newTasksRunCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateD
 		Long: `Start a task workflow through the shared home-scoped daemon.
 
 The CLI resolves the workspace root and attach mode locally, ensures the daemon
-is running, and then sends the workflow request over the daemon transport.`,
+is running, and then sends the workflow request over the daemon transport.
+
+Use --multiple with one comma-separated slug list to start several task workflows
+through one daemon-owned parent run. V1 runs the queue in enqueued order;
+configured parallel mode prints a V2 worktree-isolation fallback message before
+sending enqueued execution to the daemon.`,
 		Example: `  compozy tasks run my-feature
+  compozy tasks run --multiple alpha,beta --stream
+  compozy tasks run --multiple alpha,beta --detach
+  compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
   compozy tasks run my-feature --stream
   compozy tasks run my-feature --detach
   compozy tasks run --name my-feature --dry-run`,
@@ -283,30 +290,6 @@ is running, and then sends the workflow request over the daemon transport.`,
 	return cmd
 }
 
-func newTasksRunMultipleCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
-	state := newCommandStateWithDefaults(commandKindTasksRunMultiple, core.ModePRDTasks, defaults)
-	cmd := &cobra.Command{
-		Use:          "run-multiple [slugs]",
-		Short:        "Start a daemon-backed queue of task workflow runs",
-		SilenceUsage: true,
-		Args:         cobra.MaximumNArgs(1),
-		Long: `Start multiple task workflows through one daemon-owned parent run.
-
-The command accepts one comma-separated positional slug list. V1 runs the queue
-in enqueued order; configured parallel mode prints a V2 worktree-isolation
-fallback message before sending enqueued execution to the daemon.`,
-		Example: `  compozy tasks run-multiple alpha,beta --stream
-  compozy tasks run-multiple alpha,beta --detach
-  compozy tasks run-multiple alpha,beta --ide codex --model gpt-5.5`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return state.runTaskWorkflowsMultiple(cmd, args)
-		},
-	}
-
-	addTaskRunFlags(cmd, state, taskRunFlagOptions{})
-	return cmd
-}
-
 type taskRunFlagOptions struct {
 	includeName bool
 }
@@ -316,6 +299,12 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 	if opts.includeName {
 		cmd.Flags().StringVar(&state.name, "name", "", "Task workflow slug (defaults to the positional slug)")
 	}
+	cmd.Flags().StringVar(
+		&state.multiple,
+		"multiple",
+		"",
+		"Comma-separated task workflow slugs to run through one daemon-owned parent queue",
+	)
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVarP(
 		&state.recursive,
@@ -355,6 +344,10 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 }
 
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
+	if commandFlagChanged(cmd, "multiple") {
+		return s.runTaskWorkflowsMultiple(cmd, args)
+	}
+
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
@@ -414,7 +407,7 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
-	slugs, err := resolveTaskWorkflowSlugList(args)
+	slugs, err := s.resolveTaskWorkflowSlugList(args)
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -458,11 +451,14 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	return handleStartedTaskRunMultiple(ctx, cmd, client, run)
 }
 
-func resolveTaskWorkflowSlugList(args []string) ([]string, error) {
-	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
-		return nil, errors.New("workflow slug list is required; pass comma-separated slugs as the positional argument")
+func (s *commandState) resolveTaskWorkflowSlugList(args []string) ([]string, error) {
+	if len(args) > 0 || strings.TrimSpace(s.name) != "" {
+		return nil, errors.New("--multiple cannot be combined with a positional slug or --name")
 	}
-	slugs, err := taskscore.ParseCommaSeparatedSlugs(args[0])
+	if strings.TrimSpace(s.multiple) == "" {
+		return nil, errors.New("workflow slug list is required; pass comma-separated slugs to --multiple")
+	}
+	slugs, err := taskscore.ParseCommaSeparatedSlugs(s.multiple)
 	if err != nil {
 		return nil, fmt.Errorf("workflow slug list: %w", err)
 	}
@@ -508,7 +504,7 @@ func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, e
 			cmd.ErrOrStderr(),
 			"parallel multi-task execution is planned for V2 with git worktree isolation; running this queue in enqueued mode.",
 		); err != nil {
-			return "", fmt.Errorf("write run-multiple fallback message: %w", err)
+			return "", fmt.Errorf("write multi-run fallback message: %w", err)
 		}
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
 	default:

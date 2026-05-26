@@ -118,7 +118,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 - `compozy daemon start|status|stop` manages the home-scoped daemon lifecycle. `daemon start` is idempotent, and task/review/exec commands auto-start the daemon when needed.
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
 - `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
-- `compozy tasks run-multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run-multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run` for one workflow or scripts that expect one run ID per invocation.
+- `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
 - `compozy reviews fetch|list|show|fix` is the canonical review command family.
 
@@ -194,7 +194,7 @@ Supported sections:
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
-- `[tasks.run]` for workflow-run defaults used by `compozy tasks run` and `compozy tasks run-multiple`, such as `include_completed` and `run_multiple_mode`
+- `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed` and `run_multiple_mode`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[sound]` for optional run-completion audio presets or absolute file paths
@@ -205,7 +205,7 @@ Notes:
 - `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
 - Unknown keys and invalid value types are rejected during config loading.
 - Relative `add_dirs` are resolved against the owning config scope: the user home directory for `~/.compozy/config.toml` and the workspace root for `.compozy/config.toml`.
-- `[tasks.run] run_multiple_mode` controls `tasks run-multiple` scheduling. When unset, the built-in default is `"enqueued"`.
+- `[tasks.run] run_multiple_mode` controls `tasks run --multiple` scheduling. When unset, the built-in default is `"enqueued"`.
 - `run_multiple_mode = "parallel"` is accepted in V1 for forward-compatible config, but Compozy prints a V2 worktree-isolation fallback message and runs the queue in enqueued order. Real parallel multi-run execution waits for git worktree isolation.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
@@ -398,12 +398,12 @@ Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`
 
 ```bash
 compozy tasks run user-auth --ide claude
-compozy tasks run-multiple user-auth,cleanup --ide claude
+compozy tasks run --multiple user-auth,cleanup --ide claude
 ```
 
 Each pending task is processed sequentially through the shared daemon — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
 `compozy tasks run` validates task metadata before execution. Use `--skip-validation` when validation already ran elsewhere, or `--force` to continue after validation failures in non-interactive environments.
-Use `compozy tasks run-multiple <slug-a>,<slug-b>` when you want one command to enqueue several workflows with the same runtime flags. The input is one comma-separated slug list; `compozy tasks run <slug>` remains the single-workflow command.
+Use `compozy tasks run --multiple <slug-a>,<slug-b>` when you want one command to enqueue several workflows with the same runtime flags. The input is one comma-separated slug list; `compozy tasks run <slug>` remains the single-workflow command.
 
 ### 7. Review
 
@@ -613,6 +613,7 @@ The CLI resolves workspace defaults locally, validates the task metadata, auto-s
 | Flag                  | Default | Description                                                                         |
 | --------------------- | ------- | ----------------------------------------------------------------------------------- |
 | `--name`              |         | Workflow slug (defaults to the positional slug)                                     |
+| `--multiple`          |         | Comma-separated workflow slugs to run through one daemon-owned parent queue         |
 | `--include-completed` | `false` | Re-run completed tasks                                                              |
 | `--recursive`, `-r`   | `false` | Discover `task_NNN.md` files in nested subdirectories of the workflow root          |
 | `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere        |
@@ -625,23 +626,14 @@ The CLI resolves workspace defaults locally, validates the task metadata, auto-s
 
 When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
-</details>
+Use `tasks run --multiple` when you want to start several task workflows from one invocation with the same runtime flags. Use `tasks run <slug>` when you only need one workflow run, when a script expects a single workflow slug, or when you want the existing single-run command path.
 
-<details>
-<summary><code>compozy tasks run-multiple</code> — Start a daemon-backed queue of workflow runs</summary>
-
-```bash
-compozy tasks run-multiple <slug-a>,<slug-b> [flags]
-```
-
-Use `tasks run-multiple` when you want to start several task workflows from one invocation with the same runtime flags. Use `tasks run <slug>` when you only need one workflow run, when a script expects a single workflow slug, or when you want the existing single-run command path.
-
-The positional argument is one comma-separated slug list:
+The `--multiple` flag takes one comma-separated slug list:
 
 ```bash
-compozy tasks run-multiple alpha,beta --ide codex --model gpt-5.5
-compozy tasks run-multiple alpha,beta --stream
-compozy tasks run-multiple alpha,beta --detach
+compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
+compozy tasks run --multiple alpha,beta --stream
+compozy tasks run --multiple alpha,beta --detach
 ```
 
 Scheduling is controlled by `.compozy/config.toml` or `~/.compozy/config.toml`:
@@ -655,7 +647,7 @@ run_multiple_mode = "enqueued"
 
 In the TUI, every requested slug has a tab. Queued tabs appear before their child run exists, the running tab shows the familiar task-run surface, and completed, failed, or canceled tabs remain available for inspection. The quit dialog applies to the parent queue: `Close TUI` detaches and leaves the queue running in the daemon, `Stop Run` cancels the parent queue, cancels the active child, and marks queued workflows canceled, and `Cancel` returns to the TUI without changing execution.
 
-The command uses the same attach and runtime flags as `tasks run`, except it accepts the comma-separated positional slug list instead of `--name`.
+The multi-run path uses the same attach and runtime flags as single-run `tasks run`, except `--multiple` cannot be combined with a positional slug or `--name`.
 
 </details>
 

@@ -1039,7 +1039,7 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should default to enqueued", func(t *testing.T) {
 		t.Parallel()
 
-		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		cmd := &cobra.Command{}
 		mode, err := state.resolveTaskRunMultipleMode(cmd)
 		if err != nil {
@@ -1053,7 +1053,7 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should fallback to enqueued with warning", func(t *testing.T) {
 		t.Parallel()
 
-		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
 		cmd := &cobra.Command{}
 		var stderr bytes.Buffer
@@ -1073,7 +1073,7 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should return error for invalid internal value", func(t *testing.T) {
 		t.Parallel()
 
-		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("bogus")
 		_, err := state.resolveTaskRunMultipleMode(&cobra.Command{})
 		if err == nil || !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
@@ -1084,12 +1084,12 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should surface write failure when fallback message cannot be written", func(t *testing.T) {
 		t.Parallel()
 
-		state := newCommandState(commandKindTasksRunMultiple, core.ModePRDTasks)
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
 		cmd := &cobra.Command{}
 		cmd.SetErr(failingCLIWriter{})
 		_, err := state.resolveTaskRunMultipleMode(cmd)
-		if err == nil || !strings.Contains(err.Error(), "write run-multiple fallback message") {
+		if err == nil || !strings.Contains(err.Error(), "write multi-run fallback message") {
 			t.Fatalf("expected fallback write error, got %v", err)
 		}
 	})

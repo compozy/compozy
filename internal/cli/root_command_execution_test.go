@@ -1205,14 +1205,15 @@ func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
 		cmd,
 		nil,
 		"tasks",
-		"run-multiple",
+		"run",
+		"--multiple",
 		"alpha,beta",
 		"--detach",
 		"--dry-run",
 		"--include-completed",
 	)
 	if err != nil {
-		t.Fatalf("execute tasks run-multiple detach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute tasks run --multiple detach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if readyClient.startCalls != 0 {
 		t.Fatalf("StartTaskRun calls = %d, want 0", readyClient.startCalls)
@@ -1259,17 +1260,17 @@ func TestTasksRunMultipleCommandRejectsInvalidSlugListsBeforeDaemon(t *testing.T
 	}{
 		{
 			name: "Should return error for missing slug",
-			args: []string{"tasks", "run-multiple"},
+			args: []string{"tasks", "run", "--multiple", ""},
 			want: "workflow slug list is required",
 		},
 		{
 			name: "Should return error for empty entry",
-			args: []string{"tasks", "run-multiple", "alpha,,beta"},
+			args: []string{"tasks", "run", "--multiple", "alpha,,beta"},
 			want: "task slug at position 2 cannot be empty",
 		},
 		{
 			name: "Should return error for duplicate slug",
-			args: []string{"tasks", "run-multiple", "alpha,beta,alpha"},
+			args: []string{"tasks", "run", "--multiple", "alpha,beta,alpha"},
 			want: "duplicate task slug \"alpha\"",
 		},
 	}
@@ -1343,12 +1344,13 @@ run_multiple_mode = "parallel"
 		cmd,
 		nil,
 		"tasks",
-		"run-multiple",
+		"run",
+		"--multiple",
 		"alpha,beta",
 		"--detach",
 	)
 	if err != nil {
-		t.Fatalf("execute tasks run-multiple parallel fallback: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute tasks run --multiple parallel fallback: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if readyClient.startMultipleRequest.Mode != "enqueued" {
 		t.Fatalf("mode = %q, want enqueued fallback", readyClient.startMultipleRequest.Mode)
@@ -1432,13 +1434,14 @@ func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *t
 		cmd,
 		nil,
 		"tasks",
-		"run-multiple",
+		"run",
+		"--multiple",
 		"alpha,beta",
 		"--stream",
 		"--dry-run",
 	)
 	if err != nil {
-		t.Fatalf("execute in-process tasks run-multiple stream: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute in-process tasks run --multiple stream: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if !strings.Contains(stderr, "preflight=ok") {
 		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
@@ -1492,14 +1495,15 @@ run_multiple_mode = "parallel"
 		cmd,
 		nil,
 		"tasks",
-		"run-multiple",
+		"run",
+		"--multiple",
 		"alpha,beta",
 		"--stream",
 		"--dry-run",
 	)
 	if err != nil {
 		t.Fatalf(
-			"execute in-process tasks run-multiple parallel stream: %v\nstdout:\n%s\nstderr:\n%s",
+			"execute in-process tasks run --multiple parallel stream: %v\nstdout:\n%s\nstderr:\n%s",
 			err,
 			stdout,
 			stderr,
@@ -1558,7 +1562,8 @@ func TestTasksRunMultipleCommandStreamReturnsNonZeroOnParentFailure(t *testing.T
 		cmd,
 		nil,
 		"tasks",
-		"run-multiple",
+		"run",
+		"--multiple",
 		"alpha,beta",
 		"--stream",
 		"--dry-run",

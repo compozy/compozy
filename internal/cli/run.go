@@ -246,5 +246,5 @@ func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Com
 }
 
 func isTaskRunCommandKind(kind commandKind) bool {
-	return kind == commandKindTasksRun || kind == commandKindTasksRunMultiple
+	return kind == commandKindTasksRun
 }

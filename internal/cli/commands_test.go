@@ -111,24 +111,28 @@ func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 	}
 }
 
-func TestNewTasksCommandRegistersRunMultiple(t *testing.T) {
+func TestNewTasksCommandDoesNotRegisterRunMultiple(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should register run-multiple with correct flags", func(t *testing.T) {
+	t.Run("Should expose multiple execution through run flag", func(t *testing.T) {
 		cmd := newTasksCommand(nil, defaultCommandStateDefaults())
-		runMultiple, _, err := cmd.Find([]string{"run-multiple"})
+		found, _, err := cmd.Find([]string{"run-multiple"})
+		if err == nil && found.Name() == "run-multiple" {
+			t.Fatal("expected run-multiple command to be removed")
+		}
+		run, _, err := cmd.Find([]string{"run"})
 		if err != nil {
-			t.Fatalf("find run-multiple: %v", err)
+			t.Fatalf("find run: %v", err)
 		}
-		if runMultiple.Name() != "run-multiple" {
-			t.Fatalf("expected run-multiple command, got %q", runMultiple.Name())
+		if run.Flags().Lookup("name") == nil {
+			t.Fatal("expected run to preserve --name for single-task execution")
 		}
-		if runMultiple.Flags().Lookup("name") != nil {
-			t.Fatal("expected run-multiple to accept positional slugs instead of --name")
+		if run.Flags().Lookup("multiple") == nil {
+			t.Fatal("expected run --multiple flag")
 		}
-		flag := runMultiple.Flags().Lookup("attach")
+		flag := run.Flags().Lookup("attach")
 		if flag == nil {
-			t.Fatal("expected run-multiple --attach flag")
+			t.Fatal("expected run --attach flag")
 		}
 		if flag.DefValue != attachModeAuto {
 			t.Fatalf("expected --attach default %q, got %q", attachModeAuto, flag.DefValue)

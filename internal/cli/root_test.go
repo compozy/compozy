@@ -450,26 +450,30 @@ func TestTasksRunHelpShowsDaemonTaskFlagsOnly(t *testing.T) {
 	}
 }
 
-func TestTasksRunMultipleHelpShowsExamplesAndSharedTaskFlags(t *testing.T) {
-	t.Run("Should show examples and shared task flags in help output", func(t *testing.T) {
+func TestTasksRunHelpShowsMultipleExamplesAndSharedTaskFlags(t *testing.T) {
+	t.Run("Should show multiple examples and shared task flags in help output", func(t *testing.T) {
 		t.Parallel()
 
-		cmd := findNestedCommand(t, NewRootCommand(), "tasks", "run-multiple [slugs]")
-		if cmd.Flags().Lookup("name") != nil {
-			t.Fatal("expected tasks run-multiple to omit --name")
+		cmd := findNestedCommand(t, NewRootCommand(), "tasks", "run [slug]")
+		if cmd.Flags().Lookup("name") == nil {
+			t.Fatal("expected tasks run to preserve --name")
+		}
+		if cmd.Flags().Lookup("multiple") == nil {
+			t.Fatal("expected tasks run to include --multiple")
 		}
 
-		output, err := executeRootCommand("tasks", "run-multiple", "--help")
+		output, err := executeRootCommand("tasks", "run", "--help")
 		if err != nil {
-			t.Fatalf("execute tasks run-multiple help: %v", err)
+			t.Fatalf("execute tasks run help: %v", err)
 		}
 
 		required := []string{
-			"compozy tasks run-multiple alpha,beta --stream",
-			"compozy tasks run-multiple alpha,beta --detach",
-			"compozy tasks run-multiple alpha,beta --ide codex --model gpt-5.5",
-			"one comma-separated positional slug list",
+			"compozy tasks run --multiple alpha,beta --stream",
+			"compozy tasks run --multiple alpha,beta --detach",
+			"compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5",
+			"one comma-separated slug list",
 			"configured parallel mode prints a V2 worktree-isolation",
+			"--multiple",
 			"--attach",
 			"--detach",
 			"--stream",
@@ -481,12 +485,11 @@ func TestTasksRunMultipleHelpShowsExamplesAndSharedTaskFlags(t *testing.T) {
 		}
 		for _, snippet := range required {
 			if !strings.Contains(output, snippet) {
-				t.Fatalf("expected tasks run-multiple help to include %q\noutput:\n%s", snippet, output)
+				t.Fatalf("expected tasks run help to include %q\noutput:\n%s", snippet, output)
 			}
 		}
 
 		forbidden := []string{
-			"--name",
 			"--pr",
 			"--provider",
 			"--reviews-dir",
@@ -501,7 +504,7 @@ func TestTasksRunMultipleHelpShowsExamplesAndSharedTaskFlags(t *testing.T) {
 		}
 		for _, snippet := range forbidden {
 			if strings.Contains(output, snippet) {
-				t.Fatalf("expected tasks run-multiple help to omit %q\noutput:\n%s", snippet, output)
+				t.Fatalf("expected tasks run help to omit %q\noutput:\n%s", snippet, output)
 			}
 		}
 	})

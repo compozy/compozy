@@ -21,6 +21,7 @@ import (
 type workflowIdentity struct {
 	pr         string
 	name       string
+	multiple   string
 	provider   string
 	round      int
 	nitpicks   bool
@@ -372,7 +373,7 @@ func (s *commandState) enableExecutableExtensions() bool {
 	}
 
 	switch s.kind {
-	case commandKindTasksRun, commandKindTasksRunMultiple, commandKindFixReviews, commandKindWatchReviews:
+	case commandKindTasksRun, commandKindFixReviews, commandKindWatchReviews:
 		return true
 	case commandKindExec:
 		return s.extensionsEnabled
@@ -428,7 +429,7 @@ func (s *commandState) isWorkflowExecutionCommand() bool {
 		return false
 	}
 	switch s.kind {
-	case commandKindTasksRun, commandKindTasksRunMultiple, commandKindFixReviews, commandKindWatchReviews:
+	case commandKindTasksRun, commandKindFixReviews, commandKindWatchReviews:
 		return true
 	default:
 		return false
@@ -440,7 +441,7 @@ func (s *commandState) hasConfiguredWorkflowTUI() bool {
 		return false
 	}
 	switch s.kind {
-	case commandKindTasksRun, commandKindTasksRunMultiple:
+	case commandKindTasksRun:
 		return s.projectConfig.Tasks.Run.TUI != nil
 	case commandKindFixReviews:
 		return s.projectConfig.FixReviews.TUI != nil

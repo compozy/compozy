@@ -18,14 +18,13 @@ import (
 type commandKind string
 
 const (
-	commandKindFetchReviews     commandKind = "reviews fetch"
-	commandKindFixReviews       commandKind = "reviews fix"
-	commandKindWatchReviews     commandKind = "reviews watch"
-	commandKindExec             commandKind = "exec"
-	commandKindArchive          commandKind = "archive"
-	commandKindTasksRun         commandKind = "tasks run"
-	commandKindTasksRunMultiple commandKind = "tasks run-multiple"
-	commandKindSync             commandKind = "sync"
+	commandKindFetchReviews commandKind = "reviews fetch"
+	commandKindFixReviews   commandKind = "reviews fix"
+	commandKindWatchReviews commandKind = "reviews watch"
+	commandKindExec         commandKind = "exec"
+	commandKindArchive      commandKind = "archive"
+	commandKindTasksRun     commandKind = "tasks run"
+	commandKindSync         commandKind = "sync"
 )
 
 var validateRootDispatcher = kernel.ValidateDefaultRegistry

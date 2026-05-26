@@ -127,7 +127,7 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	)
 
 	switch s.kind {
-	case commandKindTasksRun, commandKindTasksRunMultiple:
+	case commandKindTasksRun:
 		s.applyTasksRunConfig(cmd, cfg)
 	case commandKindFixReviews:
 		applyConfig(cmd, "format", cfg.FixReviews.OutputFormat, func(val string) { s.outputFormat = val })

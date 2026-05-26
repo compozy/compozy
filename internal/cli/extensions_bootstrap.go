@@ -72,8 +72,7 @@ func (s *commandState) requiresDeclarativeAssetBootstrap() bool {
 	case commandKindFetchReviews,
 		commandKindFixReviews,
 		commandKindExec,
-		commandKindTasksRun,
-		commandKindTasksRunMultiple:
+		commandKindTasksRun:
 		return true
 	default:
 		return false
