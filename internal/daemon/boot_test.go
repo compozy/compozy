@@ -30,7 +30,7 @@ func TestStartRemovesStaleArtifactsAndMarksReady(t *testing.T) {
 	if err := os.WriteFile(paths.SocketPath, []byte("stale"), 0o600); err != nil {
 		t.Fatalf("write stale socket marker: %v", err)
 	}
-	if err := os.WriteFile(paths.LockPath, []byte("999001\n"), 0o600); err != nil {
+	if err := os.WriteFile(lockPIDPath(paths.LockPath), []byte("999001\n"), 0o600); err != nil {
 		t.Fatalf("write stale lock file: %v", err)
 	}
 
@@ -71,7 +71,7 @@ func TestStartRemovesStaleArtifactsAndMarksReady(t *testing.T) {
 	if currentInfo.State != ReadyStateReady {
 		t.Fatalf("current info state = %q, want %q", currentInfo.State, ReadyStateReady)
 	}
-	lockPID, err := readLockPID(paths.LockPath)
+	lockPID, err := readLockPID(lockPIDPath(paths.LockPath))
 	if err != nil {
 		t.Fatalf("readLockPID() error = %v", err)
 	}
@@ -254,7 +254,7 @@ func TestStartCleansUpAfterPrepareFailure(t *testing.T) {
 	if _, statErr := os.Stat(paths.InfoPath); !os.IsNotExist(statErr) {
 		t.Fatalf("expected info file to be removed after prepare failure, stat err = %v", statErr)
 	}
-	pid, readErr := readLockPID(paths.LockPath)
+	pid, readErr := readLockPID(lockPIDPath(paths.LockPath))
 	if readErr != nil {
 		t.Fatalf("readLockPID() error = %v", readErr)
 	}
@@ -336,7 +336,7 @@ func TestStartRebuildsMismatchedRuntimeArtifacts(t *testing.T) {
 	if err := WriteInfo(paths.InfoPath, existingInfo); err != nil {
 		t.Fatalf("WriteInfo(existing) error = %v", err)
 	}
-	if err := os.WriteFile(paths.LockPath, []byte("2222\n"), 0o600); err != nil {
+	if err := os.WriteFile(lockPIDPath(paths.LockPath), []byte("2222\n"), 0o600); err != nil {
 		t.Fatalf("write stale lock file: %v", err)
 	}
 	if err := os.WriteFile(paths.SocketPath, []byte("stale"), 0o600); err != nil {
@@ -369,7 +369,7 @@ func TestStartRebuildsMismatchedRuntimeArtifacts(t *testing.T) {
 		t.Fatalf("current info started_at = %v, want %v", currentInfo.StartedAt, startedAt)
 	}
 
-	lockPID, err := readLockPID(paths.LockPath)
+	lockPID, err := readLockPID(lockPIDPath(paths.LockPath))
 	if err != nil {
 		t.Fatalf("readLockPID() error = %v", err)
 	}
