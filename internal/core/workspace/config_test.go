@@ -480,6 +480,20 @@ func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
 	})
 }
 
+func TestTaskRunConfigEffectiveRunMultipleMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should treat whitespace-only run_multiple_mode as missing", func(t *testing.T) {
+		t.Parallel()
+
+		mode := "   "
+		cfg := TaskRunConfig{RunMultipleMode: &mode}
+		if got := cfg.EffectiveRunMultipleMode(); got != TaskRunMultipleModeEnqueued {
+			t.Fatalf("EffectiveRunMultipleMode() = %q, want %q", got, TaskRunMultipleModeEnqueued)
+		}
+	})
+}
+
 func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should reject invalid run_multiple_mode", func(t *testing.T) {
 		t.Parallel()

@@ -248,11 +248,15 @@ func resolveTaskMultiMode(raw string) (string, error) {
 	case "", workspacecfg.TaskRunMultipleModeEnqueued:
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
 	case workspacecfg.TaskRunMultipleModeParallel:
-		return workspacecfg.TaskRunMultipleModeParallel, nil
+		return "", taskMultiValidationProblem(
+			"unsupported_run_multiple_mode",
+			"parallel run_multiple mode is not supported by the daemon; use enqueued",
+			"mode",
+		)
 	default:
 		return "", taskMultiValidationProblem(
 			"invalid_run_multiple_mode",
-			"run_multiple mode must be enqueued or parallel",
+			"run_multiple mode must be enqueued",
 			"mode",
 		)
 	}
@@ -357,7 +361,18 @@ func (m *RunManager) runTaskMultiChildAt(
 ) error {
 	childRun, err := m.startTaskMultiChild(active, prepared, item, index, total)
 	if err != nil {
-		return err
+		emitErr := m.emitTaskMultiItemEvent(
+			active,
+			eventspkg.EventKindTaskRunMultipleChildFailed,
+			item,
+			index,
+			total,
+			taskMultiItemStatusFailed,
+			"",
+			err.Error(),
+		)
+		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, err)
+		return errors.Join(err, emitErr, cancelErr)
 	}
 	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
 	if err != nil {

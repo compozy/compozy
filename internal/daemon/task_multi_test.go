@@ -158,6 +158,62 @@ func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
 	})
 }
 
+func TestRunManagerTaskRunMultipleStartChildFailureCancelsQueuedItems(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should mark failed child and cancel queued items when child start fails", func(t *testing.T) {
+		t.Parallel()
+
+		parentRunID := "task-multi-start-child-failure"
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+				if cfg != nil && strings.TrimSpace(cfg.ParentRunID) == parentRunID {
+					return "", errors.New("child id allocation failed")
+				}
+				return taskMultiRunIDBuilder(parentRunID)(cfg)
+			},
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+		})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "pending")
+
+		parent := startTaskMultiRun(t, env, parentRunID, []string{"alpha", "beta"})
+		parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusFailed
+		})
+		if !strings.Contains(parentRow.ErrorText, "child id allocation failed") {
+			t.Fatalf("parent error = %q, want child start failure", parentRow.ErrorText)
+		}
+		if _, err := env.globalDB.GetRun(
+			context.Background(),
+			"child-alpha",
+		); !errors.Is(
+			err,
+			globaldb.ErrRunNotFound,
+		) {
+			t.Fatalf("GetRun(child-alpha) error = %v, want ErrRunNotFound", err)
+		}
+		if _, err := env.globalDB.GetRun(context.Background(), "child-beta"); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(child-beta) error = %v, want ErrRunNotFound", err)
+		}
+
+		snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+		if err != nil {
+			t.Fatalf("RunMultipleSnapshot() error = %v", err)
+		}
+		wantItems := []apicore.TaskRunMultipleItem{
+			{Slug: "alpha", Status: taskMultiItemStatusFailed, ErrorText: "child id allocation failed"},
+			{Slug: "beta", Status: taskMultiItemStatusCanceled, ErrorText: "child id allocation failed"},
+		}
+		assertTaskMultiItems(t, snapshot.Items, wantItems)
+		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildFailed)
+		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
+		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
+	})
+}
+
 func TestRunManagerTaskRunMultipleCancellationCancelsActiveAndQueuedChildren(t *testing.T) {
 	t.Parallel()
 
@@ -242,6 +298,38 @@ func TestRunManagerTaskRunMultiplePreflightRejectsInvalidInputBeforeParentRun(t 
 		}
 	})
 
+	t.Run("Should reject parallel mode before creating parent", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRunManagerTestEnv(
+			t,
+			runManagerTestDeps{buildRunID: taskMultiRunIDBuilder("task-multi-parallel-mode")},
+		)
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Slugs:            []string{"alpha"},
+				Mode:             "parallel",
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-parallel-mode"}`),
+			},
+		)
+		assertProblemStatus(t, err, http.StatusUnprocessableEntity)
+		if _, err := env.globalDB.GetRun(
+			context.Background(),
+			"task-multi-parallel-mode",
+		); !errors.Is(
+			err,
+			globaldb.ErrRunNotFound,
+		) {
+			t.Fatalf("GetRun(task-multi-parallel-mode) error = %v, want ErrRunNotFound", err)
+		}
+	})
+
 	t.Run("Should reject duplicate slugs", func(t *testing.T) {
 		t.Parallel()
 
@@ -311,7 +399,7 @@ func TestResolveTaskMultiMode(t *testing.T) {
 	}{
 		{name: "Should default empty mode to enqueued", want: "enqueued"},
 		{name: "Should preserve enqueued mode", raw: " enqueued ", want: "enqueued"},
-		{name: "Should preserve parallel mode", raw: " parallel ", want: "parallel"},
+		{name: "Should reject parallel mode", raw: " parallel ", wantErr: true},
 		{name: "Should reject unsupported mode", raw: "unsupported", wantErr: true},
 	}
 	for _, tc := range cases {
@@ -531,7 +619,7 @@ func startTaskMultiRun(t *testing.T, env *runManagerTestEnv, runID string, slugs
 		apicore.TaskRunMultipleRequest{
 			Workspace:        env.workspaceRoot,
 			Slugs:            slugs,
-			Mode:             "parallel",
+			Mode:             "enqueued",
 			PresentationMode: defaultPresentationMode,
 			RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
 		},

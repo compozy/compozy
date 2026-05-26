@@ -373,18 +373,14 @@ func followRemoteMultiRunChild(
 	cursor apicore.StreamCursor,
 	bootstrap bool,
 ) {
-	if bootstrap {
-		if opts.LoadChildSnapshot == nil {
-			return
-		}
+	if bootstrap && opts.LoadChildSnapshot != nil {
 		snapshot, err := opts.LoadChildSnapshot(ctx, runID)
-		if err != nil {
-			return
-		}
-		session.Enqueue(multiRunChildBootstrapMsg{RunID: runID, Snapshot: snapshot})
-		cursor = streamCursorOrZero(snapshot.NextCursor)
-		if isTerminalRunStatus(snapshot.Run.Status) {
-			return
+		if err == nil {
+			session.Enqueue(multiRunChildBootstrapMsg{RunID: runID, Snapshot: snapshot})
+			cursor = streamCursorOrZero(snapshot.NextCursor)
+			if isTerminalRunStatus(snapshot.Run.Status) {
+				return
+			}
 		}
 	}
 	if opts.OpenChildStream == nil {

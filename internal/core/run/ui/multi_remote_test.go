@@ -707,6 +707,41 @@ func TestMultiRunChildEventCreatesPlaceholderAndMapsTerminalRunStatus(t *testing
 	}
 }
 
+func TestFollowRemoteMultiRunChildFallsBackToStreamWhenBootstrapSnapshotFails(t *testing.T) {
+	t.Parallel()
+
+	mdl := multiRunModelForQuitTest()
+	session := newRecordingMultiRunSession(context.Background(), mdl)
+	streamOpened := false
+	now := time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)
+
+	followRemoteMultiRunChild(context.Background(), session, RemoteMultiRunAttachOptions{
+		LoadChildSnapshot: func(context.Context, string) (apicore.RunSnapshot, error) {
+			return apicore.RunSnapshot{}, errors.New("snapshot unavailable")
+		},
+		OpenChildStream: func(_ context.Context, runID string, _ apicore.StreamCursor) (apiclient.RunStream, error) {
+			if runID != "run-alpha" {
+				t.Fatalf("unexpected child stream run id %q", runID)
+			}
+			streamOpened = true
+			return newBufferedClientRunStream(apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
+				t,
+				eventspkg.EventKindRunCompleted,
+				kinds.RunCompletedPayload{JobsTotal: 1, JobsSucceeded: 1},
+			), 1, now)}), nil
+		},
+	}, "run-alpha", apicore.StreamCursor{}, true)
+
+	if !streamOpened {
+		t.Fatal("expected child stream to open after bootstrap snapshot failure")
+	}
+	session.withModel(func(mdl *multiRunModel) {
+		if got := mdl.tabs[0].status; got != taskMultiStatusCompleted {
+			t.Fatalf("alpha status = %q, want completed", got)
+		}
+	})
+}
+
 func TestMultiRunUpdateRoutesResizeTicksParentAndChildMessages(t *testing.T) {
 	t.Parallel()
 
@@ -785,24 +820,42 @@ func TestMultiRunStatusHelpersCoverAllStatuses(t *testing.T) {
 			t.Fatalf("expected color for status %q", status)
 		}
 	}
-	for _, status := range []string{
-		remoteRunStatusRunning,
-		remoteRunStatusRetrying,
-		remoteRunStatusCompleted,
-		remoteRunStatusFailed,
-		remoteRunStatusCrashed,
-		remoteRunStatusCanceled,
-		"pending",
-	} {
-		_ = taskMultiStatusFromRunStatus(status)
+	runStatusCases := []struct {
+		input string
+		want  string
+	}{
+		{input: remoteRunStatusRunning, want: taskMultiStatusRunning},
+		{input: remoteRunStatusRetrying, want: taskMultiStatusRunning},
+		{input: remoteRunStatusCompleted, want: taskMultiStatusCompleted},
+		{input: remoteRunStatusFailed, want: taskMultiStatusFailed},
+		{input: remoteRunStatusCrashed, want: taskMultiStatusFailed},
+		{input: remoteRunStatusCanceled, want: taskMultiStatusCanceled},
+		{input: "pending", want: ""},
 	}
-	for _, kind := range []eventspkg.EventKind{
-		eventspkg.EventKindRunCompleted,
-		eventspkg.EventKindRunFailed,
-		eventspkg.EventKindRunCancelled,
-		eventspkg.EventKindJobQueued,
-	} {
-		_ = taskMultiStatusFromChildRunEvent(kind)
+	for _, tc := range runStatusCases {
+		tc := tc
+		t.Run("Should map run status "+tc.input, func(t *testing.T) {
+			if got := taskMultiStatusFromRunStatus(tc.input); got != tc.want {
+				t.Fatalf("taskMultiStatusFromRunStatus(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+	childEventCases := []struct {
+		input eventspkg.EventKind
+		want  string
+	}{
+		{input: eventspkg.EventKindRunCompleted, want: taskMultiStatusCompleted},
+		{input: eventspkg.EventKindRunFailed, want: taskMultiStatusFailed},
+		{input: eventspkg.EventKindRunCancelled, want: taskMultiStatusCanceled},
+		{input: eventspkg.EventKindJobQueued, want: ""},
+	}
+	for _, tc := range childEventCases {
+		tc := tc
+		t.Run("Should map child event "+string(tc.input), func(t *testing.T) {
+			if got := taskMultiStatusFromChildRunEvent(tc.input); got != tc.want {
+				t.Fatalf("taskMultiStatusFromChildRunEvent(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
 	}
 }
 

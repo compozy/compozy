@@ -204,7 +204,11 @@ func (c *Client) GetTaskRunMultipleSnapshot(
 	var payload contract.TaskRunMultipleSnapshotResponse
 	path := "/api/task-runs/multiple/" + url.PathEscape(trimmedRunID) + "/snapshot"
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &payload); err != nil {
-		return apicore.TaskRunMultipleSnapshot{}, err
+		return apicore.TaskRunMultipleSnapshot{}, fmt.Errorf(
+			"failed to fetch multiple snapshot for run %s: %w",
+			trimmedRunID,
+			err,
+		)
 	}
 
 	return payload.Decode(), nil

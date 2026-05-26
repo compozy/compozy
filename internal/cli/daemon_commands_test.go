@@ -1105,19 +1105,19 @@ func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "queue started",
+			name:    "Should render queue started",
 			kind:    eventspkg.EventKindTaskRunMultipleStarted,
 			payload: kinds.TaskRunMultiplePayload{Mode: "enqueued", Slugs: []string{"alpha", "beta"}, Total: 2},
 			want:    "task queue started | mode=enqueued total=2\n",
 		},
 		{
-			name:    "item queued",
+			name:    "Should render item queued",
 			kind:    eventspkg.EventKindTaskRunMultipleItemQueued,
 			payload: kinds.TaskRunMultiplePayload{Slug: "alpha", Index: 0, Total: 2, Status: "queued"},
 			want:    "task[1/2] alpha queued\n",
 		},
 		{
-			name: "child started",
+			name: "Should render child started",
 			kind: eventspkg.EventKindTaskRunMultipleChildStarted,
 			payload: kinds.TaskRunMultiplePayload{
 				Slug:       "alpha",
@@ -1129,7 +1129,7 @@ func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 			want: "task[1/2] alpha running | run=child-alpha\n",
 		},
 		{
-			name: "child completed",
+			name: "Should render child completed",
 			kind: eventspkg.EventKindTaskRunMultipleChildCompleted,
 			payload: kinds.TaskRunMultiplePayload{
 				Slug:       "alpha",
@@ -1141,7 +1141,7 @@ func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 			want: "task[1/2] alpha completed | run=child-alpha\n",
 		},
 		{
-			name: "child failed",
+			name: "Should render child failed",
 			kind: eventspkg.EventKindTaskRunMultipleChildFailed,
 			payload: kinds.TaskRunMultiplePayload{
 				Slug:       "alpha",
@@ -1154,7 +1154,7 @@ func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 			want: "task[1/2] alpha failed | run=child-alpha | forced failure\n",
 		},
 		{
-			name: "item canceled",
+			name: "Should render item canceled",
 			kind: eventspkg.EventKindTaskRunMultipleItemCanceled,
 			payload: kinds.TaskRunMultiplePayload{
 				Slug:   "beta",
@@ -1166,13 +1166,13 @@ func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 			want: "task[2/2] beta canceled | parent failed\n",
 		},
 		{
-			name:    "queue completed",
+			name:    "Should render queue completed",
 			kind:    eventspkg.EventKindTaskRunMultipleQueueCompleted,
 			payload: kinds.TaskRunMultiplePayload{Total: 2},
 			want:    "task queue completed | total=2\n",
 		},
 		{
-			name:    "queue canceled",
+			name:    "Should render queue canceled",
 			kind:    eventspkg.EventKindTaskRunMultipleQueueCanceled,
 			payload: kinds.TaskRunMultiplePayload{Error: "stop requested"},
 			want:    "task queue canceled | stop requested\n",
@@ -1208,22 +1208,22 @@ func TestRenderObservedTaskMultiLifecycleFallbacks(t *testing.T) {
 		want string
 	}{
 		{
-			name: "queue started",
+			name: "Should render queue started fallback",
 			kind: eventspkg.EventKindTaskRunMultipleStarted,
 			want: "task queue started\n",
 		},
 		{
-			name: "item failed",
+			name: "Should render item failed fallback",
 			kind: eventspkg.EventKindTaskRunMultipleChildFailed,
 			want: "task failed\n",
 		},
 		{
-			name: "queue completed",
+			name: "Should render queue completed fallback",
 			kind: eventspkg.EventKindTaskRunMultipleQueueCompleted,
 			want: "task queue completed\n",
 		},
 		{
-			name: "queue canceled",
+			name: "Should render queue canceled fallback",
 			kind: eventspkg.EventKindTaskRunMultipleQueueCanceled,
 			want: "task queue canceled\n",
 		},

@@ -345,7 +345,7 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			"/api/task-runs/multiple/multi-run-1/snapshot",
 			"",
 			http.StatusOK,
-			`"items":[`,
+			`"items":[{"slug":"daemon","status":"active","run_id":"run-1"},{"slug":"followup","status":"queued"}]`,
 		},
 		{
 			"task archive",

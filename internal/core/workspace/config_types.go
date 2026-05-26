@@ -60,7 +60,11 @@ func (cfg TaskRunConfig) EffectiveRunMultipleMode() string {
 	if cfg.RunMultipleMode == nil {
 		return TaskRunMultipleModeEnqueued
 	}
-	return strings.TrimSpace(*cfg.RunMultipleMode)
+	mode := strings.TrimSpace(*cfg.RunMultipleMode)
+	if mode == "" {
+		return TaskRunMultipleModeEnqueued
+	}
+	return mode
 }
 
 type TasksConfig struct {
