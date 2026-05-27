@@ -1,5 +1,5 @@
-## 0.2.6 - 2026-05-26
+## 0.2.7 - 2026-05-27
 
-### 🐛 Bug Fixes
+### 🎉 Features
 
-- Add Windows daemon support (#163)
+- Add multi-task run support (#162)
