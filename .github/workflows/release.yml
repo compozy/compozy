@@ -23,6 +23,11 @@ on:
         required: false
         type: boolean
         default: true
+      release_version:
+        description: "Force an exact release version (e.g. v0.2.7). Runs Production Release directly and bypasses git-cliff. Leave empty for normal Release PR behavior."
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -54,7 +59,7 @@ jobs:
        !startsWith(github.event.head_commit.message, 'ci(release):') &&
        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
        github.event.head_commit.author.name != 'github-actions[bot]') ||
-      (github.event_name == 'workflow_dispatch')
+      (github.event_name == 'workflow_dispatch' && inputs.release_version == '')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -136,10 +141,11 @@ jobs:
   release:
     name: Production Release
     if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      (contains(github.event.head_commit.message, 'ci(release):') ||
-       startsWith(github.event.head_commit.message, 'release:'))
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       (contains(github.event.head_commit.message, 'ci(release):') ||
+        startsWith(github.event.head_commit.message, 'release:'))) ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_version != '')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -180,9 +186,18 @@ jobs:
       - name: Create Git Tag
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          FORCED_VERSION: ${{ inputs.release_version }}
         run: |
-          # Use git-cliff to get the bumped version
-          VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+          # A forced version (workflow_dispatch input) bypasses git-cliff and
+          # pins the release to an exact version. Empty input keeps the normal
+          # git-cliff-driven behavior unchanged.
+          if [[ -n "$FORCED_VERSION" ]]; then
+            VERSION="${FORCED_VERSION#v}"
+            echo "Using forced version from workflow input: v$VERSION"
+          else
+            # Use git-cliff to get the bumped version
+            VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+          fi
           if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
