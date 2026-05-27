@@ -59,6 +59,7 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"GET /api/runs/{run_id}/snapshot",
 		"GET /api/runs/{run_id}/transcript",
 		"GET /api/runs/{run_id}/stream",
+		"GET /api/task-runs/multiple/{run_id}/snapshot",
 		"GET /api/tasks",
 		"GET /api/tasks/{slug}",
 		"GET /api/tasks/{slug}/board",
@@ -72,6 +73,7 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"POST /api/reviews/{slug}/rounds/{round}/runs",
 		"POST /api/runs/{run_id}/cancel",
 		"POST /api/sync",
+		"POST /api/task-runs/multiple",
 		"POST /api/tasks/{slug}/archive",
 		"POST /api/tasks/{slug}/runs",
 		"POST /api/workspaces/resolve",
@@ -120,6 +122,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"GET /api/tasks/{slug}/items/{task_id}",
 		"GET /api/reviews/{slug}",
 		"POST /api/reviews/{slug}/watch",
+		"POST /api/task-runs/multiple",
 		"GET /api/reviews/{slug}/rounds/{round}",
 		"GET /api/reviews/{slug}/rounds/{round}/issues",
 		"GET /api/reviews/{slug}/rounds/{round}/issues/{issue_id}",
@@ -148,6 +151,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 
 	postBodies := map[string]string{
 		"POST /api/tasks/{slug}/runs":                  "#/components/schemas/TaskRunRequest",
+		"POST /api/task-runs/multiple":                 "#/components/schemas/TaskRunMultipleRequest",
 		"POST /api/tasks/{slug}/archive":               "#/components/schemas/WorkflowArchiveRequest",
 		"POST /api/reviews/{slug}/watch":               "#/components/schemas/ReviewWatchRequest",
 		"POST /api/reviews/{slug}/rounds/{round}/runs": "#/components/schemas/ReviewRunRequest",
@@ -170,6 +174,30 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	taskRunSchema := getSchema(t, spec, "TaskRunRequest")
 	if schemaRequires(taskRunSchema, "workspace") {
 		t.Fatal("TaskRunRequest must not require workspace")
+	}
+	taskRunMultipleSchema := getSchema(t, spec, "TaskRunMultipleRequest")
+	if schemaRequires(taskRunMultipleSchema, "workspace") {
+		t.Fatal("TaskRunMultipleRequest must not require workspace")
+	}
+	if !schemaRequires(taskRunMultipleSchema, "slugs") {
+		t.Fatal("TaskRunMultipleRequest must require slugs")
+	}
+	taskRunMultipleProperties := getMap(t, taskRunMultipleSchema, "properties")
+	for _, field := range []string{"slugs", "mode", "presentation_mode", "runtime_overrides", "workspace"} {
+		if _, ok := taskRunMultipleProperties[field]; !ok {
+			t.Fatalf("TaskRunMultipleRequest must expose %s", field)
+		}
+	}
+	multiRunSnapshot := getSchema(t, spec, "TaskRunMultipleSnapshotResponse")
+	if !schemaRequires(multiRunSnapshot, "run") {
+		t.Fatal("TaskRunMultipleSnapshotResponse must require run")
+	}
+	multiRunSnapshotProperties := getMap(t, multiRunSnapshot, "properties")
+	if _, ok := multiRunSnapshotProperties["items"]; !ok {
+		t.Fatal("TaskRunMultipleSnapshotResponse must expose items")
+	}
+	if _, ok := getSchema(t, spec, "TaskRunMultipleItem")["properties"]; !ok {
+		t.Fatal("TaskRunMultipleItem must expose properties")
 	}
 	reviewRunSchema := getSchema(t, spec, "ReviewRunRequest")
 	if schemaRequires(reviewRunSchema, "workspace") {
@@ -217,6 +245,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/tasks/{slug}/archive",
 		"POST /api/reviews/{slug}/watch",
 		"POST /api/reviews/{slug}/rounds/{round}/runs",
+		"POST /api/task-runs/multiple",
 		"POST /api/sync",
 		"POST /api/runs/{run_id}/cancel",
 		"POST /api/workspaces/resolve",

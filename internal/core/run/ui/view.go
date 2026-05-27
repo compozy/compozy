@@ -159,12 +159,12 @@ func (m *uiModel) renderHelp() string {
 	case uiPaneJobs:
 		pairs = append(pairs,
 			renderKeycap("↑↓/jk", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "JOB"),
-			renderKeycap("tab", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "FOCUS"),
+			renderKeycap(keyTab, bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "FOCUS"),
 		)
 	case uiPaneTimeline:
 		pairs = append(pairs,
 			renderKeycap("↑↓/jk", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "ENTRY"),
-			renderKeycap("enter", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "EXPAND"),
+			renderKeycap(keyEnter, bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "EXPAND"),
 			renderKeycap("pg/home/end", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "SCROLL"),
 		)
 	}

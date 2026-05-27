@@ -21,6 +21,7 @@ import (
 type workflowIdentity struct {
 	pr         string
 	name       string
+	multiple   string
 	provider   string
 	round      int
 	nitpicks   bool

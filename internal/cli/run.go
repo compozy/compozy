@@ -210,7 +210,7 @@ func isReusableAgentValidationText(err error) bool {
 }
 
 func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
-	if s.kind != commandKindTasksRun || cfg.Mode != core.ModePRDTasks {
+	if !isTaskRunCommandKind(s.kind) || cfg.Mode != core.ModePRDTasks {
 		return nil
 	}
 
@@ -243,4 +243,8 @@ func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Com
 		return withExitCode(1, fmt.Errorf("task validation failed"))
 	}
 	return nil
+}
+
+func isTaskRunCommandKind(kind commandKind) bool {
+	return kind == commandKindTasksRun
 }

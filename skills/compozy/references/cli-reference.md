@@ -56,6 +56,7 @@ Execute PRD task files sequentially from a workflow directory through the shared
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--name` | string | | Task workflow name (resolves to `.compozy/tasks/<name>`) |
+| `--multiple` | string | | Comma-separated task workflow slugs to run through one daemon-owned parent queue |
 | `--include-completed` | bool | false | Include tasks already marked as completed |
 | `--recursive`, `-r` | bool | false | Discover `task_NNN.md` files in nested subdirectories of the workflow root |
 | `--skip-validation` | bool | false | Skip task metadata preflight check |
@@ -70,6 +71,7 @@ Execute PRD task files sequentially from a workflow directory through the shared
 ```
 compozy tasks run multi-repo --ide claude
 compozy tasks run --name multi-repo --ide codex --auto-commit
+compozy tasks run --multiple alpha,beta --stream
 compozy tasks run multi-repo --stream
 ```
 

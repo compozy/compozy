@@ -74,6 +74,28 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 				PresentationMode: "stream",
 				StartedAt:        now,
 			},
+			multiRun: core.Run{
+				RunID:            "multi-run-1",
+				WorkspaceID:      "ws-1",
+				Mode:             "task_multi",
+				Status:           "running",
+				PresentationMode: "stream",
+				StartedAt:        now,
+			},
+			multiSnapshot: core.TaskRunMultipleSnapshot{
+				Run: core.Run{
+					RunID:            "multi-run-1",
+					WorkspaceID:      "ws-1",
+					Mode:             "task_multi",
+					Status:           "running",
+					PresentationMode: "stream",
+					StartedAt:        now,
+				},
+				Items: []core.TaskRunMultipleItem{
+					{Slug: "daemon", Status: "active", RunID: "run-1"},
+					{Slug: "followup", Status: "queued"},
+				},
+			},
 		},
 		Reviews: &smokeReviewService{
 			summary: core.ReviewSummary{
@@ -310,6 +332,22 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			`"run":{"run_id":"run-1"`,
 		},
 		{
+			"Should run multiple tasks",
+			http.MethodPost,
+			"/api/task-runs/multiple",
+			`{"workspace":"ws-1","slugs":["daemon","followup"],"mode":"enqueued","presentation_mode":"stream"}`,
+			http.StatusCreated,
+			`"run":{"run_id":"multi-run-1"`,
+		},
+		{
+			"Should return snapshot for multiple run",
+			http.MethodGet,
+			"/api/task-runs/multiple/multi-run-1/snapshot",
+			"",
+			http.StatusOK,
+			`"items":[{"slug":"daemon","status":"active","run_id":"run-1"},{"slug":"followup","status":"queued"}]`,
+		},
+		{
 			"task archive",
 			http.MethodPost,
 			"/api/tasks/daemon/archive",
@@ -487,9 +525,11 @@ func (*smokeWorkspaceService) Sync(context.Context) (core.WorkspaceSyncResult, e
 }
 
 type smokeTaskService struct {
-	workflow core.WorkflowSummary
-	item     core.TaskItem
-	run      core.Run
+	workflow      core.WorkflowSummary
+	item          core.TaskItem
+	run           core.Run
+	multiRun      core.Run
+	multiSnapshot core.TaskRunMultipleSnapshot
 }
 
 func (s *smokeTaskService) Dashboard(context.Context, string) (core.DashboardPayload, error) {
@@ -538,6 +578,18 @@ func (*smokeTaskService) Validate(context.Context, string, string) (core.Validat
 
 func (s *smokeTaskService) StartRun(context.Context, string, string, core.TaskRunRequest) (core.Run, error) {
 	return s.run, nil
+}
+
+func (s *smokeTaskService) StartRunMultiple(
+	context.Context,
+	string,
+	core.TaskRunMultipleRequest,
+) (core.Run, error) {
+	return s.multiRun, nil
+}
+
+func (s *smokeTaskService) RunMultipleSnapshot(context.Context, string) (core.TaskRunMultipleSnapshot, error) {
+	return s.multiSnapshot, nil
 }
 
 func (*smokeTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {

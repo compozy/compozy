@@ -1170,6 +1170,456 @@ func TestTasksRunCommandPositionalSlugSkipsInteractiveFormWithoutTTY(t *testing.
 	}
 }
 
+func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
+	t.Run("Should send ordered slugs for detached multi-run", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startMultipleRun: apicore.Run{
+				RunID:            "run-task-multi-001",
+				Mode:             "task_multi",
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 5, 45, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"--multiple",
+			"alpha,beta",
+			"--detach",
+			"--dry-run",
+			"--include-completed",
+		)
+		if err != nil {
+			t.Fatalf("execute tasks run --multiple detach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if readyClient.startCalls != 0 {
+			t.Fatalf("StartTaskRun calls = %d, want 0", readyClient.startCalls)
+		}
+		if readyClient.startMultipleCalls != 1 {
+			t.Fatalf("StartTaskRunMultiple calls = %d, want 1", readyClient.startMultipleCalls)
+		}
+		if !slices.Equal(readyClient.startMultipleRequest.Slugs, []string{"alpha", "beta"}) {
+			t.Fatalf("unexpected multi-run slugs: %#v", readyClient.startMultipleRequest.Slugs)
+		}
+		resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+		if err != nil {
+			t.Fatalf("resolve workspace root symlinks: %v", err)
+		}
+		if readyClient.startMultipleRequest.Workspace != resolvedWorkspaceRoot {
+			t.Fatalf("workspace = %q, want %q", readyClient.startMultipleRequest.Workspace, resolvedWorkspaceRoot)
+		}
+		if readyClient.startMultipleRequest.Mode != "enqueued" {
+			t.Fatalf("mode = %q, want enqueued", readyClient.startMultipleRequest.Mode)
+		}
+		if readyClient.startMultipleRequest.PresentationMode != attachModeDetach {
+			t.Fatalf("presentation mode = %q, want detach", readyClient.startMultipleRequest.PresentationMode)
+		}
+		overrides := decodeTaskRunOverrides(t, readyClient.startMultipleRequest.RuntimeOverrides)
+		if overrides.DryRun == nil || !*overrides.DryRun {
+			t.Fatalf("expected dry-run runtime override, got %#v", overrides.DryRun)
+		}
+		if overrides.IncludeCompleted == nil || !*overrides.IncludeCompleted {
+			t.Fatalf("expected include-completed runtime override, got %#v", overrides.IncludeCompleted)
+		}
+		if !strings.Contains(stderr, "preflight=ok") {
+			t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+		}
+		if got := stdout; got != "task multi-run started: run-task-multi-001 (mode=detach)\n" {
+			t.Fatalf("unexpected stdout: %q", got)
+		}
+	})
+}
+
+func TestTasksRunMultipleCommandRejectsInvalidSlugListsBeforeDaemon(t *testing.T) {
+	t.Run("Should reject invalid slug lists before daemon", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name string
+			args []string
+			want string
+		}{
+			{
+				name: "Should return error for missing slug",
+				args: []string{"tasks", "run", "--multiple", ""},
+				want: "workflow slug list is required",
+			},
+			{
+				name: "Should return error for empty entry",
+				args: []string{"tasks", "run", "--multiple", "alpha,,beta"},
+				want: "task slug at position 2 cannot be empty",
+			},
+			{
+				name: "Should return error for duplicate slug",
+				args: []string{"tasks", "run", "--multiple", "alpha,beta,alpha"},
+				want: "duplicate task slug \"alpha\"",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+					resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+						t.Fatal("daemon bootstrap should not run for invalid slug input")
+						return compozyconfig.HomePaths{}, nil
+					},
+				})
+
+				defaults := allowBundledSkillsForExecutionTests()
+				defaults.isInteractive = func() bool { return false }
+				cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+				stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, tc.args...)
+				if err == nil {
+					t.Fatalf("expected slug validation error\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+				}
+				var exitErr *commandExitError
+				if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+					t.Fatalf("expected exit code 1, got %v", err)
+				}
+				if stdout != "" {
+					t.Fatalf("expected no stdout, got %q", stdout)
+				}
+				if !strings.Contains(stderr, tc.want) {
+					t.Fatalf("stderr = %q, want %q", stderr, tc.want)
+				}
+			})
+		}
+	})
+}
+
+func TestTasksRunMultipleCommandParallelConfigFallsBackToEnqueued(t *testing.T) {
+	t.Run("Should fall back parallel config to enqueued", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		writeCLIWorkspaceConfig(t, workspaceRoot, `
+[tasks.run]
+run_multiple_mode = "parallel"
+`)
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startMultipleRun: apicore.Run{
+				RunID:            "run-task-multi-parallel",
+				Mode:             "task_multi",
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 7, 0, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"--multiple",
+			"alpha,beta",
+			"--detach",
+		)
+		if err != nil {
+			t.Fatalf(
+				"execute tasks run --multiple parallel fallback: %v\nstdout:\n%s\nstderr:\n%s",
+				err,
+				stdout,
+				stderr,
+			)
+		}
+		if readyClient.startMultipleRequest.Mode != "enqueued" {
+			t.Fatalf("mode = %q, want enqueued fallback", readyClient.startMultipleRequest.Mode)
+		}
+		if !containsAll(stderr, "V2", "worktree isolation", "enqueued") {
+			t.Fatalf("expected fallback message mentioning V2 and worktree isolation, got %q", stderr)
+		}
+		if !strings.Contains(stdout, "task multi-run started: run-task-multi-parallel") {
+			t.Fatalf("unexpected stdout: %q", stdout)
+		}
+	})
+}
+
+func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
+	t.Run("Should still call single run client", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Demo Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Demo Task",
+		))
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startRun: apicore.Run{
+				RunID:            "run-task-single-stable",
+				Mode:             string(core.ModePRDTasks),
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 7, 30, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "tasks", "run", "demo", "--detach")
+		if err != nil {
+			t.Fatalf("execute tasks run detach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if readyClient.startCalls != 1 {
+			t.Fatalf("StartTaskRun calls = %d, want 1", readyClient.startCalls)
+		}
+		if readyClient.startMultipleCalls != 0 {
+			t.Fatalf("StartTaskRunMultiple calls = %d, want 0", readyClient.startMultipleCalls)
+		}
+		if readyClient.startSlug != "demo" {
+			t.Fatalf("single-run slug = %q, want demo", readyClient.startSlug)
+		}
+		if !strings.Contains(stdout, "task run started: run-task-single-stable (mode=detach)") {
+			t.Fatalf("unexpected stdout: %q", stdout)
+		}
+	})
+}
+
+func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *testing.T) {
+	t.Run("Should reconstruct parent queue state while streaming in process", func(t *testing.T) {
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		withWorkingDir(t, workspaceRoot)
+
+		client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{})
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"--multiple",
+			"alpha,beta",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf(
+				"execute in-process tasks run --multiple stream: %v\nstdout:\n%s\nstderr:\n%s",
+				err,
+				stdout,
+				stderr,
+			)
+		}
+		if !strings.Contains(stderr, "preflight=ok") {
+			t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=enqueued total=2",
+			"task[1/2] alpha queued",
+			"task[2/2] beta queued",
+			"task[1/2] alpha completed",
+			"task[2/2] beta completed",
+			"task queue completed | total=2",
+		) {
+			t.Fatalf("expected complete parent queue stream output, got %q\nstderr:\n%s", stdout, stderr)
+		}
+
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		assertTaskMultiSnapshotItemsForCLI(t, snapshot, []string{"alpha", "beta"})
+	})
+}
+
+func TestTasksRunMultipleCommandInProcessParallelConfigStreamsEnqueuedQueue(t *testing.T) {
+	t.Run("Should stream enqueued queue for in-process parallel config fallback", func(t *testing.T) {
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		writeCLIWorkspaceConfig(t, workspaceRoot, `
+[tasks.run]
+run_multiple_mode = "parallel"
+`)
+		withWorkingDir(t, workspaceRoot)
+
+		client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{})
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"--multiple",
+			"alpha,beta",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf(
+				"execute in-process tasks run --multiple parallel stream: %v\nstdout:\n%s\nstderr:\n%s",
+				err,
+				stdout,
+				stderr,
+			)
+		}
+		if !containsAll(stderr, "V2", "worktree isolation", "enqueued") {
+			t.Fatalf("expected fallback message mentioning V2 and worktree isolation, got %q", stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task queue started | mode=enqueued total=2",
+			"task[1/2] alpha completed",
+			"task[2/2] beta completed",
+		) {
+			t.Fatalf("expected enqueued parent queue stream output, got %q\nstderr:\n%s", stdout, stderr)
+		}
+
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		assertTaskMultiSnapshotItemsForCLI(t, snapshot, []string{"alpha", "beta"})
+
+		started := taskMultiStartedPayloadForCLI(t, client, runID)
+		if started.Mode != "enqueued" {
+			t.Fatalf("task.multi.started mode = %q, want enqueued", started.Mode)
+		}
+	})
+}
+
+func TestTasksRunMultipleCommandStreamReturnsNonZeroOnParentFailure(t *testing.T) {
+	t.Run("Should return non-zero when streamed parent fails", func(t *testing.T) {
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		withWorkingDir(t, workspaceRoot)
+
+		installInProcessCLIDaemonBootstrapWithConfig(t, daemon.RunManagerConfig{
+			Execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				return errors.New("forced child failure")
+			},
+		})
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"--multiple",
+			"alpha,beta",
+			"--stream",
+			"--dry-run",
+		)
+		if err == nil {
+			t.Fatalf("expected stream failure exit\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			t.Fatalf("expected exit code 1 for failed parent, got %v", err)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started",
+			"task[1/2] alpha",
+			"failed",
+			"forced child failure",
+			"run failed",
+		) {
+			t.Fatalf("expected parent queue stream output, got %q\nstderr:\n%s", stdout, stderr)
+		}
+	})
+}
+
 func TestTasksRunCommandNoFlagsUsesInteractiveForm(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
@@ -2324,6 +2774,82 @@ func decodeExecJSONLEvents(t *testing.T, stdout string) []map[string]any {
 		events = append(events, payload)
 	}
 	return events
+}
+
+func taskMultiRunIDFromCLIOutput(t *testing.T, stdout string) string {
+	t.Helper()
+
+	const prefix = "task multi-run started: "
+	for _, line := range strings.Split(stdout, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, prefix) {
+			continue
+		}
+		runPart := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+		runID, _, ok := strings.Cut(runPart, " ")
+		if !ok || strings.TrimSpace(runID) == "" {
+			t.Fatalf("parse task multi-run id from line %q", line)
+		}
+		return runID
+	}
+	t.Fatalf("task multi-run start line not found in output:\n%s", stdout)
+	return ""
+}
+
+func assertTaskMultiSnapshotItemsForCLI(
+	t *testing.T,
+	snapshot apicore.TaskRunMultipleSnapshot,
+	wantSlugs []string,
+) {
+	t.Helper()
+
+	if snapshot.Run.Mode != "task_multi" {
+		t.Fatalf("snapshot parent mode = %q, want task_multi", snapshot.Run.Mode)
+	}
+	if snapshot.Run.Status != "completed" {
+		t.Fatalf("snapshot parent status = %q, want completed", snapshot.Run.Status)
+	}
+	if len(snapshot.Items) != len(wantSlugs) {
+		t.Fatalf("snapshot item count = %d, want %d: %#v", len(snapshot.Items), len(wantSlugs), snapshot.Items)
+	}
+	gotSlugs := make([]string, 0, len(snapshot.Items))
+	for _, item := range snapshot.Items {
+		gotSlugs = append(gotSlugs, item.Slug)
+		if item.Status != "completed" {
+			t.Fatalf("snapshot item %q status = %q, want completed", item.Slug, item.Status)
+		}
+		if strings.TrimSpace(item.RunID) == "" {
+			t.Fatalf("snapshot item %q is missing child run id", item.Slug)
+		}
+	}
+	if !slices.Equal(gotSlugs, wantSlugs) {
+		t.Fatalf("snapshot slugs = %#v, want %#v", gotSlugs, wantSlugs)
+	}
+}
+
+func taskMultiStartedPayloadForCLI(
+	t *testing.T,
+	client *inProcessDaemonCommandClient,
+	runID string,
+) kinds.TaskRunMultiplePayload {
+	t.Helper()
+
+	page, err := client.ListRunEvents(context.Background(), runID, apicore.StreamCursor{}, 100)
+	if err != nil {
+		t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
+	}
+	for _, event := range page.Events {
+		if event.Kind != eventspkg.EventKindTaskRunMultipleStarted {
+			continue
+		}
+		var payload kinds.TaskRunMultiplePayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode %s payload: %v", event.Kind, err)
+		}
+		return payload
+	}
+	t.Fatalf("%s event not found for run %q", eventspkg.EventKindTaskRunMultipleStarted, runID)
+	return kinds.TaskRunMultiplePayload{}
 }
 
 func withWorkingDir(t *testing.T, dir string) {

@@ -840,6 +840,22 @@ func TestNilReceiverAndUtilityGuards(t *testing.T) {
 	if _, err := nilClient.GetRunSnapshot(context.Background(), "run-1"); !errors.Is(err, ErrDaemonClientRequired) {
 		t.Fatalf("nil GetRunSnapshot() error = %v, want ErrDaemonClientRequired", err)
 	}
+	t.Run("Should return ErrDaemonClientRequired for StartTaskRunMultiple", func(t *testing.T) {
+		if _, err := nilClient.StartTaskRunMultiple(
+			context.Background(),
+			apicore.TaskRunMultipleRequest{Slugs: []string{"alpha"}},
+		); !errors.Is(err, ErrDaemonClientRequired) {
+			t.Fatalf("nil StartTaskRunMultiple() error = %v, want ErrDaemonClientRequired", err)
+		}
+	})
+	t.Run("Should return ErrDaemonClientRequired for GetTaskRunMultipleSnapshot", func(t *testing.T) {
+		if _, err := nilClient.GetTaskRunMultipleSnapshot(
+			context.Background(),
+			"run-1",
+		); !errors.Is(err, ErrDaemonClientRequired) {
+			t.Fatalf("nil GetTaskRunMultipleSnapshot() error = %v, want ErrDaemonClientRequired", err)
+		}
+	})
 	if _, err := nilClient.ListRunEvents(
 		context.Background(),
 		"run-1",

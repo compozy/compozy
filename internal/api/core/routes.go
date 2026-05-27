@@ -9,13 +9,23 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	}
 
 	api := router.Group("/api")
+	registerDaemonRoutes(api, handlers)
+	registerWorkspaceRoutes(api, handlers)
+	registerTaskRoutes(api, handlers)
+	registerReviewRoutes(api, handlers)
+	registerRunRoutes(api, handlers)
+	registerUtilityRoutes(api, handlers)
+}
 
+func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {
 	daemon := api.Group("/daemon")
 	daemon.GET("/status", handlers.DaemonStatus)
 	daemon.GET("/health", handlers.DaemonHealth)
 	daemon.GET("/metrics", handlers.DaemonMetrics)
 	daemon.POST("/stop", handlers.StopDaemon)
+}
 
+func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaces := api.Group("/workspaces")
 	workspaces.POST("", handlers.RegisterWorkspace)
 	workspaces.GET("", handlers.ListWorkspaces)
@@ -25,7 +35,9 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	workspaces.PATCH("/:id", handlers.UpdateWorkspace)
 	workspaces.DELETE("/:id", handlers.DeleteWorkspace)
 	workspaces.POST("/resolve", handlers.ResolveWorkspace)
+}
 
+func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	ui := api.Group("/ui")
 	ui.GET("/dashboard", handlers.GetDashboard)
 
@@ -42,6 +54,12 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	tasks.POST("/:slug/runs", handlers.StartTaskRun)
 	tasks.POST("/:slug/archive", handlers.ArchiveTaskWorkflow)
 
+	taskRuns := api.Group("/task-runs")
+	taskRuns.POST("/multiple", handlers.StartTaskRunMultiple)
+	taskRuns.GET("/multiple/:run_id/snapshot", handlers.GetTaskRunMultipleSnapshot)
+}
+
+func registerReviewRoutes(api gin.IRouter, handlers *Handlers) {
 	reviews := api.Group("/reviews")
 	reviews.POST("/:slug/fetch", handlers.FetchReview)
 	reviews.POST("/:slug/watch", handlers.StartReviewWatch)
@@ -50,7 +68,9 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	reviews.GET("/:slug/rounds/:round", handlers.GetReviewRound)
 	reviews.POST("/:slug/rounds/:round/runs", handlers.StartReviewRun)
 	reviews.GET("/:slug", handlers.GetLatestReview)
+}
 
+func registerRunRoutes(api gin.IRouter, handlers *Handlers) {
 	runs := api.Group("/runs")
 	runs.GET("", handlers.ListRuns)
 	runs.GET("/:run_id", handlers.GetRun)
@@ -59,7 +79,9 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	runs.GET("/:run_id/events", handlers.ListRunEvents)
 	runs.GET("/:run_id/stream", handlers.StreamRun)
 	runs.POST("/:run_id/cancel", handlers.CancelRun)
+}
 
+func registerUtilityRoutes(api gin.IRouter, handlers *Handlers) {
 	api.POST("/sync", handlers.SyncWorkflow)
 	api.POST("/exec", handlers.StartExecRun)
 }

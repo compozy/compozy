@@ -59,10 +59,18 @@ const (
 	EventKindUsageAggregated EventKind = "usage.aggregated"
 
 	// Task mutation events.
-	EventKindTaskFileUpdated       EventKind = "task.file_updated"
-	EventKindTaskFileSkipped       EventKind = "task.file_skipped"
-	EventKindTaskMetadataRefreshed EventKind = "task.metadata_refreshed"
-	EventKindTaskMemoryUpdated     EventKind = "task.memory_updated"
+	EventKindTaskFileUpdated               EventKind = "task.file_updated"
+	EventKindTaskFileSkipped               EventKind = "task.file_skipped"
+	EventKindTaskMetadataRefreshed         EventKind = "task.metadata_refreshed"
+	EventKindTaskMemoryUpdated             EventKind = "task.memory_updated"
+	EventKindTaskRunMultipleStarted        EventKind = "task.multi.started"
+	EventKindTaskRunMultipleItemQueued     EventKind = "task.multi.item_queued"
+	EventKindTaskRunMultipleChildStarted   EventKind = "task.multi.child_started"
+	EventKindTaskRunMultipleChildCompleted EventKind = "task.multi.child_completed"
+	EventKindTaskRunMultipleChildFailed    EventKind = "task.multi.child_failed"
+	EventKindTaskRunMultipleItemCanceled   EventKind = "task.multi.item_canceled"
+	EventKindTaskRunMultipleQueueCanceled  EventKind = "task.multi.queue_canceled"
+	EventKindTaskRunMultipleQueueCompleted EventKind = "task.multi.queue_completed"
 
 	// Artifact and extension events.
 	EventKindArtifactUpdated EventKind = "artifact.updated"

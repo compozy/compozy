@@ -83,6 +83,7 @@ func buildEffectiveTaskRunConfig(
 			workspaceDefaults.OutputFormat,
 			workspace.OutputFormat,
 		),
+		RunMultipleMode:  cloneOptionalValue(preferOverlay(global.RunMultipleMode, workspace.RunMultipleMode)),
 		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		TaskRuntimeRules: mergeTaskRunRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}

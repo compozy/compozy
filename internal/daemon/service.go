@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	daemonMetricModes          = []string{runModeExec, runModeReview, runModeTask}
+	daemonMetricModes          = []string{runModeExec, runModeReview, runModeTask, runModeTaskMulti}
 	daemonTerminalMetricStatus = []string{runStatusCancelled, runStatusCompleted, runStatusCrashed, runStatusFailed}
 )
 

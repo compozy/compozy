@@ -73,7 +73,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | **Workflow Execution** | | |
 | `compozy daemon` | Manage the home-scoped daemon lifecycle | `start`, `status`, `stop` |
 | `compozy workspaces` | Inspect and manage daemon workspace registrations | `list`, `show`, `register`, `unregister`, `resolve` |
-| `compozy tasks run` | Execute PRD task files through the daemon | `--name`, `--recursive` / `-r`, `--attach`, `--ui`, `--stream`, `--detach`, `--task-runtime` |
+| `compozy tasks run` | Execute PRD task files through the daemon | `--name`, `--multiple`, `--recursive` / `-r`, `--attach`, `--ui`, `--stream`, `--detach`, `--task-runtime` |
 | `compozy exec` | Execute an ad hoc prompt | `--agent`, `--format`, `--prompt-file`, `--tui`, `--persist`, `--run-id` |
 | `compozy runs` | Attach, watch, and purge daemon-managed runs | `attach`, `watch`, `purge` |
 | **Review** | | |

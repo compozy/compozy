@@ -81,7 +81,7 @@ func TestHandleKeyQuitDialogExplicitlyStopsRun(t *testing.T) {
 	if !m.quitDialog.Active {
 		t.Fatal("expected active run quit to open the quit dialog")
 	}
-	if cmd := m.handleKey(keyText("right")); cmd != nil {
+	if cmd := m.handleKey(keyText(keyRight)); cmd != nil {
 		t.Fatalf("expected action selection to stay local to the dialog, got %T", cmd())
 	}
 	if got := m.quitDialog.Selected; got != quitDialogActionStop {
@@ -313,7 +313,7 @@ func TestPaneNavigationCyclesVisiblePanes(t *testing.T) {
 		t.Fatalf("expected second tab to wrap focus back to jobs, got %s", got)
 	}
 
-	m.handleKey(keyText("shift+tab"))
+	m.handleKey(keyText(keyShiftTab))
 	if got := m.focusedPane; got != uiPaneTimeline {
 		t.Fatalf("expected shift+tab to move focus back to timeline, got %s", got)
 	}
@@ -357,6 +357,62 @@ func TestMoveFocusedSelectionNavigatesTimelineEntries(t *testing.T) {
 	m.handleKey(keyCode(tea.KeyUp))
 	if got := m.jobs[0].selectedEntry; got != 0 {
 		t.Fatalf("expected up to restore timeline selection, got %d", got)
+	}
+}
+
+func TestVerticalKeysNavigateFocusedJobs(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		initial      int
+		key          tea.KeyPressMsg
+		wantSelected int
+	}{
+		{
+			name:         "Should move job selection forward with down arrow",
+			key:          keyCode(tea.KeyDown),
+			wantSelected: 1,
+		},
+		{
+			name:         "Should move job selection forward with j",
+			initial:      1,
+			key:          keyText("j"),
+			wantSelected: 2,
+		},
+		{
+			name:         "Should move job selection backward with up arrow",
+			initial:      2,
+			key:          keyCode(tea.KeyUp),
+			wantSelected: 1,
+		},
+		{
+			name:         "Should move job selection backward with k",
+			initial:      1,
+			key:          keyText("k"),
+			wantSelected: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := newUIModel(3)
+			m.jobs = []uiJob{
+				{safeName: "job-1"},
+				{safeName: "job-2"},
+				{safeName: "job-3"},
+			}
+			m.focusedPane = uiPaneJobs
+			m.selectedJob = tc.initial
+
+			m.handleKey(tc.key)
+			if got := m.selectedJob; got != tc.wantSelected {
+				t.Fatalf("selectedJob = %d, want %d", got, tc.wantSelected)
+			}
+		})
 	}
 }
 

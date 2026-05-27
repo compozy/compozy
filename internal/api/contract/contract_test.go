@@ -92,6 +92,22 @@ func TestTimeoutClassesFollowCanonicalRoutePolicy(t *testing.T) {
 			true,
 			120 * time.Second,
 		},
+		{
+			"Should classify multi-run starts as long mutations",
+			http.MethodPost,
+			"/api/task-runs/multiple",
+			contract.TimeoutLongMutate,
+			true,
+			120 * time.Second,
+		},
+		{
+			"Should classify multi-run snapshots as reads",
+			http.MethodGet,
+			"/api/task-runs/multiple/multi-run-1/snapshot",
+			contract.TimeoutRead,
+			true,
+			15 * time.Second,
+		},
 		{"Should classify run streams", http.MethodGet, "/api/runs/run-1/stream", contract.TimeoutStream, false, 0},
 		{
 			"Should classify workspace sockets",
@@ -387,6 +403,45 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			if _, ok := meta[field]; !ok {
 				t.Fatalf("wire session meta missing %q: %#v", field, meta)
 			}
+		}
+	})
+
+	t.Run("Should round trip task run multiple snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		resp := contract.TaskRunMultipleSnapshotResponseFromSnapshot(contract.TaskRunMultipleSnapshot{
+			Run: contract.Run{
+				RunID:       "multi-run-1",
+				WorkspaceID: "ws-1",
+				Mode:        "task_multi",
+				Status:      "running",
+				StartedAt:   now,
+			},
+			Items: []contract.TaskRunMultipleItem{
+				{Slug: "queued", Status: "queued"},
+				{Slug: "active", Status: "active", RunID: "run-active"},
+				{Slug: "completed", Status: "completed", RunID: "run-completed"},
+				{Slug: "failed", Status: "failed", RunID: "run-failed", ErrorText: "boom"},
+				{Slug: "canceled", Status: "canceled"},
+			},
+		})
+
+		var decoded contract.TaskRunMultipleSnapshotResponse
+		roundTripJSON(t, resp, &decoded)
+		snapshot := decoded.Decode()
+
+		if snapshot.Run.RunID != "multi-run-1" || snapshot.Run.Mode != "task_multi" {
+			t.Fatalf("decoded multi-run = %#v, want parent run", snapshot.Run)
+		}
+		if len(snapshot.Items) != 5 {
+			t.Fatalf("decoded multi-run item count = %d, want 5", len(snapshot.Items))
+		}
+		if snapshot.Items[0].Status != "queued" ||
+			snapshot.Items[1].Status != "active" ||
+			snapshot.Items[2].Status != "completed" ||
+			snapshot.Items[3].Status != "failed" ||
+			snapshot.Items[4].Status != "canceled" {
+			t.Fatalf("decoded multi-run items = %#v, want queued/active/completed/failed/canceled", snapshot.Items)
 		}
 	})
 

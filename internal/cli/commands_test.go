@@ -111,6 +111,35 @@ func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 	}
 }
 
+func TestNewTasksCommandDoesNotRegisterRunMultiple(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose multiple execution through run flag", func(t *testing.T) {
+		cmd := newTasksCommand(nil, defaultCommandStateDefaults())
+		found, _, err := cmd.Find([]string{"run-multiple"})
+		if err == nil && found.Name() == "run-multiple" {
+			t.Fatal("expected run-multiple command to be removed")
+		}
+		run, _, err := cmd.Find([]string{"run"})
+		if err != nil {
+			t.Fatalf("find run: %v", err)
+		}
+		if run.Flags().Lookup("name") == nil {
+			t.Fatal("expected run to preserve --name for single-task execution")
+		}
+		if run.Flags().Lookup("multiple") == nil {
+			t.Fatal("expected run --multiple flag")
+		}
+		flag := run.Flags().Lookup("attach")
+		if flag == nil {
+			t.Fatal("expected run --attach flag")
+		}
+		if flag.DefValue != attachModeAuto {
+			t.Fatalf("expected --attach default %q, got %q", attachModeAuto, flag.DefValue)
+		}
+	})
+}
+
 func TestNewTasksRunCommandRegistersRecursiveFlag(t *testing.T) {
 	t.Parallel()
 

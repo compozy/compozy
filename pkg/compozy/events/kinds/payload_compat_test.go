@@ -142,6 +142,40 @@ func TestReviewWatchPayloadJSONCompatibility(t *testing.T) {
 	})
 }
 
+func TestTaskRunMultiplePayloadJSONCompatibility(t *testing.T) {
+	payload := TaskRunMultiplePayload{
+		RunID:      "multi-run-1",
+		Mode:       "enqueued",
+		Slug:       "alpha",
+		Slugs:      []string{"alpha", "beta"},
+		Index:      1,
+		Total:      2,
+		Status:     "completed",
+		ChildRunID: "task-run-alpha",
+		Error:      "boom",
+	}
+
+	t.Run("Should produce compatible JSON", func(t *testing.T) {
+		t.Parallel()
+
+		got := mustMarshalMap(t, payload)
+		want := map[string]any{
+			"run_id":       "multi-run-1",
+			"mode":         "enqueued",
+			"slug":         "alpha",
+			"slugs":        []any{"alpha", "beta"},
+			"index":        float64(1),
+			"total":        float64(2),
+			"status":       "completed",
+			"child_run_id": "task-run-alpha",
+			"error":        "boom",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("task run multiple payload JSON mismatch: got %#v want %#v", got, want)
+		}
+	})
+}
+
 func mustMarshalMap(t *testing.T, payload any) map[string]any {
 	t.Helper()
 

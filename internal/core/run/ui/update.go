@@ -18,6 +18,11 @@ const (
 	keyEnd      = "end"
 	keyCtrlC    = "ctrl+c"
 	keyEscape   = "esc"
+	keyTab      = "tab"
+	keyShiftTab = "shift+tab"
+	keyEnter    = "enter"
+	keyLeft     = "left"
+	keyRight    = "right"
 )
 
 var setSidebarViewportContent = func(vp *viewport.Model, content string) {
@@ -125,13 +130,13 @@ func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 		return m.handleSummaryToggle()
 	case keyEscape:
 		return m.handleEscape()
-	case "tab":
+	case keyTab:
 		m.cycleFocusedPane(1)
 		return nil
-	case "shift+tab":
+	case keyShiftTab:
 		m.cycleFocusedPane(-1)
 		return nil
-	case "enter":
+	case keyEnter:
 		m.toggleSelectedEntryExpansion()
 		return nil
 	case "up", "k":
@@ -186,13 +191,13 @@ func (m *uiModel) requestRunStopFromQuit() tea.Cmd {
 
 func (m *uiModel) handleQuitDialogKey(v tea.KeyPressMsg) tea.Cmd {
 	switch strings.ToLower(v.String()) {
-	case "left", "h", "shift+tab":
+	case keyLeft, "h", keyShiftTab:
 		m.quitDialog.Move(-1)
 		return nil
-	case "right", "l", "tab":
+	case keyRight, "l", keyTab:
 		m.quitDialog.Move(1)
 		return nil
-	case "enter", "q", keyCtrlC:
+	case keyEnter, "q", keyCtrlC:
 		return m.confirmQuitDialog()
 	case keyEscape:
 		m.closeQuitDialog()

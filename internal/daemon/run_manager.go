@@ -34,6 +34,7 @@ import (
 
 const (
 	runModeTask        = "task"
+	runModeTaskMulti   = "task_multi"
 	runModeReview      = "review"
 	runModeReviewWatch = "review_watch"
 	runModeExec        = "exec"
@@ -54,6 +55,7 @@ const (
 	defaultStreamPageLimit    = 256
 	cancelRequestedByDaemon   = "daemon"
 	completedNoWorkSummary    = "no work"
+	taskMultiRunName          = "task-multi"
 
 	maxImplicitRunIDAllocationAttempts = 8
 )
@@ -132,6 +134,7 @@ type activeRun struct {
 	watcher        *workflowWatcher
 	reviewWatch    *preparedReviewWatch
 	reviewWatchKey *reviewWatchKey
+	taskMulti      *preparedTaskMulti
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
@@ -183,6 +186,7 @@ type startRunSpec struct {
 	runtimeCfg       *model.RuntimeConfig
 	reviewWatch      *preparedReviewWatch
 	reviewWatchKey   *reviewWatchKey
+	taskMulti        *preparedTaskMulti
 }
 
 type terminalState struct {
@@ -713,9 +717,11 @@ func (m *RunManager) OpenStream(
 
 // Cancel requests cancellation for one active run.
 func (m *RunManager) Cancel(ctx context.Context, runID string) error {
+	trimmedRunID := strings.TrimSpace(runID)
 	listCtx := detachContext(ctx)
-	row, err := m.globalDB.GetRun(listCtx, strings.TrimSpace(runID))
+	row, err := m.globalDB.GetRun(listCtx, trimmedRunID)
 	if err != nil {
+		m.cancelActiveRun(trimmedRunID)
 		return err
 	}
 	if isTerminalRunStatus(row.Status) {
@@ -730,6 +736,16 @@ func (m *RunManager) Cancel(ctx context.Context, runID string) error {
 		active.cancel()
 	}
 	return nil
+}
+
+func (m *RunManager) cancelActiveRun(runID string) {
+	active := m.getActive(runID)
+	if active == nil {
+		return
+	}
+	if active.markCancelRequested() {
+		active.cancel()
+	}
 }
 
 func (m *RunManager) prepareTaskStart(
@@ -756,10 +772,6 @@ func (m *RunManager) prepareTaskStart(
 	if err := requireDirectory(tasksDir); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
-	if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
-	}
-
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:              workspaceRow.RootDir,
 		Name:                       strings.TrimSpace(workflowSlug),
@@ -778,6 +790,11 @@ func (m *RunManager) prepareTaskStart(
 	applyTaskProjectConfig(runtimeCfg, projectCfg.Tasks.Run)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
+	}
+	if !runtimeCfg.IncludeCompleted {
+		if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
+			return globaldb.Workspace{}, nil, nil, "", err
+		}
 	}
 	runtimeCfg.ApplyDefaults()
 	runtimeCfg.TUI = false
@@ -1382,6 +1399,7 @@ func newActiveRun(
 		workflowRoot:   strings.TrimSpace(spec.workflowRoot),
 		reviewWatch:    spec.reviewWatch,
 		reviewWatchKey: cloneReviewWatchKey(spec.reviewWatchKey),
+		taskMulti:      spec.taskMulti,
 	}
 }
 
@@ -1446,6 +1464,10 @@ func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *m
 
 	if active.mode == runModeReviewWatch {
 		m.executeReviewWatchRun(active, row)
+		return
+	}
+	if active.mode == runModeTaskMulti {
+		m.executeTaskMultiRun(active, row)
 		return
 	}
 	if runtimeCfg.Mode == model.ExecutionModeExec {

@@ -42,6 +42,26 @@ type TaskRunRequest struct {
 	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
 }
 
+type TaskRunMultipleRequest struct {
+	Workspace        string          `json:"workspace"`
+	Slugs            []string        `json:"slugs"`
+	Mode             string          `json:"mode,omitempty"`
+	PresentationMode string          `json:"presentation_mode,omitempty"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+}
+
+type TaskRunMultipleItem struct {
+	Slug      string `json:"slug"`
+	Status    string `json:"status"`
+	RunID     string `json:"run_id,omitempty"`
+	ErrorText string `json:"error_text,omitempty"`
+}
+
+type TaskRunMultipleSnapshot struct {
+	Run   Run                   `json:"run"`
+	Items []TaskRunMultipleItem `json:"items,omitempty"`
+}
+
 type ReviewFetchRequest struct {
 	Workspace string `json:"workspace"`
 	Provider  string `json:"provider,omitempty"`
@@ -573,6 +593,11 @@ type RunSnapshotResponse struct {
 	NextCursor        string                 `json:"next_cursor,omitempty"`
 }
 
+type TaskRunMultipleSnapshotResponse struct {
+	Run   Run                   `json:"run"`
+	Items []TaskRunMultipleItem `json:"items,omitempty"`
+}
+
 type RunTranscriptResponse struct {
 	RunID             string              `json:"run_id"`
 	Messages          []RunUIMessage      `json:"messages"`
@@ -622,6 +647,20 @@ func (r RunSnapshotResponse) Decode() (RunSnapshot, error) {
 		snapshot.NextCursor = &nextCursor
 	}
 	return snapshot, nil
+}
+
+func TaskRunMultipleSnapshotResponseFromSnapshot(snapshot TaskRunMultipleSnapshot) TaskRunMultipleSnapshotResponse {
+	return TaskRunMultipleSnapshotResponse{
+		Run:   snapshot.Run,
+		Items: append([]TaskRunMultipleItem(nil), snapshot.Items...),
+	}
+}
+
+func (r TaskRunMultipleSnapshotResponse) Decode() TaskRunMultipleSnapshot {
+	return TaskRunMultipleSnapshot{
+		Run:   r.Run,
+		Items: append([]TaskRunMultipleItem(nil), r.Items...),
+	}
 }
 
 func RunTranscriptResponseFromTranscript(transcript RunTranscript) RunTranscriptResponse {

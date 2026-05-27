@@ -6,9 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
+
+var workspaceUserHomeDirMu sync.Mutex
 
 func TestDiscoverFindsNearestWorkspaceRoot(t *testing.T) {
 	t.Parallel()
@@ -375,6 +378,38 @@ output_format = "json"
 	}
 }
 
+func TestLoadConfigParsesTaskRunMultipleMode(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+	}{
+		{name: "enqueued", mode: TaskRunMultipleModeEnqueued},
+		{name: "parallel", mode: TaskRunMultipleModeParallel},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run("Should parse run_multiple_mode="+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "`+tc.mode+`"
+`)
+
+			cfg, _, err := loadConfigWithIsolatedHome(t, root)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			assertOptionalString(t, "tasks.run.run_multiple_mode", cfg.Tasks.Run.RunMultipleMode, ptrString(tc.mode))
+			if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != tc.mode {
+				t.Fatalf("expected effective run_multiple_mode %q, got %q", tc.mode, got)
+			}
+		})
+	}
+}
+
 func TestWorkspaceConfigRoundTripsTasksRunRecursive(t *testing.T) {
 	t.Parallel()
 
@@ -421,6 +456,103 @@ recursive = false
 			}
 		})
 	}
+}
+
+func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
+	t.Run("Should default run_multiple_mode to enqueued", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+			t.Fatalf("mkdir .compozy: %v", err)
+		}
+
+		cfg, _, err := loadConfigWithIsolatedHome(t, root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if cfg.Tasks.Run.RunMultipleMode != nil {
+			t.Fatalf("expected unset run_multiple_mode pointer, got %#v", cfg.Tasks.Run.RunMultipleMode)
+		}
+		if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != TaskRunMultipleModeEnqueued {
+			t.Fatalf("expected default run_multiple_mode %q, got %q", TaskRunMultipleModeEnqueued, got)
+		}
+	})
+}
+
+func TestTaskRunConfigEffectiveRunMultipleMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should treat whitespace-only run_multiple_mode as missing", func(t *testing.T) {
+		t.Parallel()
+
+		mode := "   "
+		cfg := TaskRunConfig{RunMultipleMode: &mode}
+		if got := cfg.EffectiveRunMultipleMode(); got != TaskRunMultipleModeEnqueued {
+			t.Fatalf("EffectiveRunMultipleMode() = %q, want %q", got, TaskRunMultipleModeEnqueued)
+		}
+	})
+}
+
+func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
+	t.Run("Should reject invalid run_multiple_mode", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "invalid"
+`)
+
+		_, _, err := loadConfigWithIsolatedHome(t, root)
+		if err == nil {
+			t.Fatal("expected invalid tasks.run.run_multiple_mode error")
+		}
+		if !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestLoadConfigAcceptsTaskRunMultipleModeAndRejectsUnknownTaskRunKeys(t *testing.T) {
+	t.Run("Should accept run_multiple_mode", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "enqueued"
+`)
+
+		cfg, _, err := loadConfigWithIsolatedHome(t, root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		assertOptionalString(
+			t,
+			"tasks.run.run_multiple_mode",
+			cfg.Tasks.Run.RunMultipleMode,
+			ptrString(TaskRunMultipleModeEnqueued),
+		)
+	})
+
+	t.Run("Should reject unknown task-run key", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+unknown_task_run_key = true
+`)
+
+		_, _, err := loadConfigWithIsolatedHome(t, root)
+		if err == nil {
+			t.Fatal("expected unknown tasks.run key error")
+		}
+		if !strings.Contains(err.Error(), "decode workspace config") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestWorkspaceConfigOmitsRecursiveWhenUnset(t *testing.T) {
@@ -1263,6 +1395,7 @@ access_mode = "default"
 
 [tasks.run]
 include_completed = false
+run_multiple_mode = "enqueued"
 `)
 	writeWorkspaceConfig(t, root, `
 [defaults]
@@ -1270,6 +1403,7 @@ model = "gpt-5.5"
 
 [tasks.run]
 include_completed = true
+run_multiple_mode = "parallel"
 `)
 
 	cfg, path, err := LoadConfig(context.Background(), root)
@@ -1288,6 +1422,12 @@ include_completed = true
 	if cfg.Tasks.Run.IncludeCompleted == nil || !*cfg.Tasks.Run.IncludeCompleted {
 		t.Fatalf("expected workspace tasks.run.include_completed override, got %#v", cfg.Tasks.Run.IncludeCompleted)
 	}
+	assertOptionalString(
+		t,
+		"tasks.run.run_multiple_mode",
+		cfg.Tasks.Run.RunMultipleMode,
+		ptrString(TaskRunMultipleModeParallel),
+	)
 }
 
 func TestLoadConfigKeepsWorkspaceDefaultsAheadOfGlobalCommandOverrides(t *testing.T) {
@@ -1491,13 +1631,33 @@ func isolateWorkspaceConfigHome(t *testing.T) string {
 	return homeDir
 }
 
+func loadConfigWithIsolatedHome(t *testing.T, workspaceRoot string) (ProjectConfig, string, error) {
+	t.Helper()
+
+	homeDir := t.TempDir()
+	workspaceUserHomeDirMu.Lock()
+	defer workspaceUserHomeDirMu.Unlock()
+
+	original := osUserHomeDir
+	osUserHomeDir = func() (string, error) {
+		return homeDir, nil
+	}
+	defer func() {
+		osUserHomeDir = original
+	}()
+
+	return LoadConfig(context.Background(), workspaceRoot)
+}
+
 func stubWorkspaceUserHomeDir(t *testing.T, fn func() (string, error)) {
 	t.Helper()
 
+	workspaceUserHomeDirMu.Lock()
 	original := osUserHomeDir
 	osUserHomeDir = fn
 	t.Cleanup(func() {
 		osUserHomeDir = original
+		workspaceUserHomeDirMu.Unlock()
 	})
 }
 

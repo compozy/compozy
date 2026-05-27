@@ -173,6 +173,49 @@ func (c *Client) StartTaskRun(
 	return response.Run, nil
 }
 
+// StartTaskRunMultiple starts one daemon-owned parent run for an ordered set of task workflows.
+func (c *Client) StartTaskRunMultiple(
+	ctx context.Context,
+	req apicore.TaskRunMultipleRequest,
+) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, ErrDaemonClientRequired
+	}
+	slugs, err := normalizeClientSlugs(req.Slugs)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+
+	body := contract.TaskRunMultipleRequest{
+		Workspace:        strings.TrimSpace(req.Workspace),
+		Slugs:            slugs,
+		Mode:             strings.TrimSpace(req.Mode),
+		PresentationMode: strings.TrimSpace(req.PresentationMode),
+		RuntimeOverrides: req.RuntimeOverrides,
+	}
+
+	var response contract.RunResponse
+	if _, err := c.doJSON(ctx, http.MethodPost, "/api/task-runs/multiple", body, &response); err != nil {
+		return apicore.Run{}, err
+	}
+	return response.Run, nil
+}
+
+func normalizeClientSlugs(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, ErrWorkflowSlugRequired
+	}
+	slugs := make([]string, 0, len(values))
+	for _, value := range values {
+		slug := strings.TrimSpace(value)
+		if slug == "" {
+			return nil, ErrWorkflowSlugRequired
+		}
+		slugs = append(slugs, slug)
+	}
+	return slugs, nil
+}
+
 func (c *Client) doJSON(
 	ctx context.Context,
 	method string,

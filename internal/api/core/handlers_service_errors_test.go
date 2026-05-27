@@ -725,6 +725,18 @@ func (s *errorTaskService) StartRun(context.Context, string, string, core.TaskRu
 	return core.Run{}, s.err
 }
 
+func (s *errorTaskService) StartRunMultiple(
+	context.Context,
+	string,
+	core.TaskRunMultipleRequest,
+) (core.Run, error) {
+	return core.Run{}, s.err
+}
+
+func (s *errorTaskService) RunMultipleSnapshot(context.Context, string) (core.TaskRunMultipleSnapshot, error) {
+	return core.TaskRunMultipleSnapshot{}, s.err
+}
+
 func (s *errorTaskService) Archive(context.Context, string, string, core.ArchiveRequest) (core.ArchiveResult, error) {
 	return core.ArchiveResult{}, s.err
 }

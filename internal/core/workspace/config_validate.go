@@ -90,6 +90,12 @@ func validateTaskRun(scope string, defaults DefaultsConfig, cfg TaskRunConfig) e
 	if err := validateWorkflowTUI(scope, "tasks.run", defaults, cfg.OutputFormat, cfg.TUI); err != nil {
 		return err
 	}
+	if err := validateTaskRunMultipleMode(
+		configFieldName(scope, "tasks.run.run_multiple_mode"),
+		cfg.RunMultipleMode,
+	); err != nil {
+		return err
+	}
 	return validateTaskRunRuntimeRules(scope, cfg.TaskRuntimeRules)
 }
 
@@ -314,6 +320,26 @@ func validateAttachModeValue(field string, value *string) error {
 			"ui",
 			"stream",
 			"detach",
+			strings.TrimSpace(*value),
+		)
+	}
+}
+
+func validateTaskRunMultipleMode(field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+	switch strings.TrimSpace(*value) {
+	case "":
+		return fmt.Errorf("%s cannot be empty", field)
+	case TaskRunMultipleModeEnqueued, TaskRunMultipleModeParallel:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%s must be %q or %q (got %q)",
+			field,
+			TaskRunMultipleModeEnqueued,
+			TaskRunMultipleModeParallel,
 			strings.TrimSpace(*value),
 		)
 	}
