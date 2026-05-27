@@ -1,3 +1,9 @@
+## 0.2.7 - 2026-05-27
+
+### 🎉 Features
+
+- Add multi-task run support (#162)
+
 ## 0.2.6 - 2026-05-26
 
 ### 🐛 Bug Fixes
