@@ -433,10 +433,13 @@ func childRunIDFromTaskMultiEvent(ev events.Event) string {
 }
 
 func (m *multiRunModel) Init() tea.Cmd {
-	if child := m.activeChild(); child != nil {
-		return child.Init()
-	}
-	return nil
+	return m.clockTick()
+}
+
+func (m *multiRunModel) clockTick() tea.Cmd {
+	return tea.Every(uiClockTickInterval, func(at time.Time) tea.Msg {
+		return clockTickMsg{at: at}
+	})
 }
 
 func (m *multiRunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -601,9 +604,9 @@ func (m *multiRunModel) handleClockTick(v clockTickMsg) tea.Cmd {
 		m.now = v.at
 	}
 	if child := m.activeChild(); child != nil {
-		return child.handleClockTick(v)
+		child.handleClockTick(v)
 	}
-	return nil
+	return m.clockTick()
 }
 
 func (m *multiRunModel) handleSpinnerTick(v spinnerTickMsg) tea.Cmd {
