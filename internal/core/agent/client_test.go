@@ -1636,6 +1636,10 @@ func TestACPHelperProcess(_ *testing.T) {
 			os.Exit(2)
 		}
 	}
+	if err := validateHelperEnvironment(scenario.ExpectedProcessEnv, scenario.UnexpectedProcessEnv); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 
 	agent := &helperAgent{
 		scenario:  scenario,
@@ -1682,6 +1686,8 @@ type helperScenario struct {
 	SessionID                     string              `json:"session_id,omitempty"`
 	ExpectedCWD                   string              `json:"expected_cwd,omitempty"`
 	ExpectedProcessCWD            string              `json:"expected_process_cwd,omitempty"`
+	ExpectedProcessEnv            map[string]string   `json:"expected_process_env,omitempty"`
+	UnexpectedProcessEnv          []string            `json:"unexpected_process_env,omitempty"`
 	ExpectedLoadSessionID         string              `json:"expected_load_session_id,omitempty"`
 	ExpectedNewSessionMCPServers  []acp.McpServer     `json:"expected_new_session_mcp_servers,omitempty"`
 	ExpectedLoadSessionMCPServers []acp.McpServer     `json:"expected_load_session_mcp_servers,omitempty"`

@@ -609,7 +609,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 
 	process, err := subprocess.Launch(detachedContext(ctx), subprocess.LaunchConfig{
 		Command:         command,
-		Env:             subprocess.MergeEnvironment(c.spec.EnvVars, req.ExtraEnv),
+		Env:             buildLaunchEnvironment(c.spec, req.ExtraEnv),
 		WorkingDir:      req.WorkingDir,
 		WaitDelay:       c.shutdownTimeout,
 		WaitErrorPrefix: "wait for ACP agent process",

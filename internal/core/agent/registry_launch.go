@@ -11,7 +11,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/modelprovider"
-	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 // AvailabilityError reports an ACP runtime that is missing or incorrectly installed.
@@ -324,7 +323,7 @@ func verifyLauncher(ctx context.Context, spec Spec, launcher Launcher) error {
 	}
 
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
-	cmd.Env = subprocess.MergeEnvironment(spec.EnvVars, nil)
+	cmd.Env = buildLaunchEnvironment(spec, nil)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
