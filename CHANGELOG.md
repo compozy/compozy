@@ -4,16 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 0.2.8 - 2026-05-31
+
+### 🐛 Bug Fixes
+
+- Keep multi-run task timers ticking (#179)- Treat model auto as runtime default (#181)
 ## 0.2.7 - 2026-05-27
+
+### 🔧 CI/CD
+
+- Support forced release version via workflow_dispatch (#175)
+## 0.2.6 - 2026-05-27
 
 ### 🎉 Features
 
 - Add multi-task run support (#162)
-## 0.2.6 - 2026-05-26
-
 ### 🐛 Bug Fixes
 
 - Add Windows daemon support (#163)
+### 📚 Documentation
+
+- Release notes
 ## 0.2.5 - 2026-05-25
 
 ### 🎉 Features
@@ -305,6 +316,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
+[0.2.8]: https://github.com///compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com///compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com///compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com///compare/v0.2.4...v0.2.5
