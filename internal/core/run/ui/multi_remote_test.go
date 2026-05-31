@@ -148,6 +148,45 @@ func TestMultiRunCompletedTabRemainsNavigableAfterActiveAdvances(t *testing.T) {
 	})
 }
 
+func TestMultiRunInitStartsClockWhenActiveTabHasNoChild(t *testing.T) {
+	t.Parallel()
+
+	mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+		Snapshot: apicore.TaskRunMultipleSnapshot{
+			Run:   apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			Items: []apicore.TaskRunMultipleItem{{Slug: "alpha", Status: taskMultiStatusQueued}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+	}
+
+	if cmd := mdl.Init(); cmd == nil {
+		t.Fatal("expected multi-run init to start clock ticks without an active child")
+	}
+}
+
+func TestMultiRunClockTickContinuesAfterAdvancingToQueuedTab(t *testing.T) {
+	t.Parallel()
+
+	mdl := multiRunModelForQuitTest()
+	mdl.handleChildEvent(multiRunChildEventMsg{
+		RunID: "run-alpha",
+		Event: mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunCompleted,
+			kinds.RunCompletedPayload{JobsTotal: 1, JobsSucceeded: 1},
+		),
+	})
+	if got := mdl.activeTab; got != 1 {
+		t.Fatalf("expected active tab to advance to queued beta, got %d", got)
+	}
+
+	if _, cmd := mdl.Update(clockTickMsg{at: time.Unix(1, 0)}); cmd == nil {
+		t.Fatal("expected clock loop to continue after the active tab advances to a queued child")
+	}
+}
+
 func TestMultiRunTabNavigationDoesNotCycleChildPaneFocus(t *testing.T) {
 	t.Parallel()
 
