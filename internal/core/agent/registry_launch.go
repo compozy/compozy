@@ -163,11 +163,19 @@ func assertCommandExists(spec Spec, command []string) error {
 }
 
 func resolveModel(spec Spec, modelName string) string {
-	selected := strings.TrimSpace(modelName)
+	selected := normalizeRequestedModel(modelName)
 	if selected == "" {
 		selected = spec.DefaultModel
 	}
 	return normalizeRuntimeModel(spec, modelprovider.ResolveAlias(selected))
+}
+
+func normalizeRequestedModel(modelName string) string {
+	selected := strings.TrimSpace(modelName)
+	if strings.EqualFold(selected, "auto") {
+		return ""
+	}
+	return selected
 }
 
 func normalizeRuntimeModel(spec Spec, modelName string) string {

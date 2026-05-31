@@ -21,7 +21,7 @@ link_skill() {
   skill_name="$(basename "$skill_path")"
   local target_path="$REPO_ROOT/$target_dir/skills/$skill_name"
 
-  if [ -e "$target_path" ]; then
+  if [ -e "$target_path" ] || [ -L "$target_path" ]; then
     if [ -L "$target_path" ]; then
       CURRENT_TARGET="$(readlink "$target_path")"
       if [ "$CURRENT_TARGET" = "$skill_path" ]; then

@@ -202,6 +202,57 @@ func TestResolveRuntimeModelNormalizesCodexProviderPrefix(t *testing.T) {
 	})
 }
 
+func TestResolveRuntimeModelTreatsAutoAsRuntimeDefault(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		ide   string
+		input string
+		want  string
+	}{
+		{
+			name:  "cursor lower-case auto",
+			ide:   model.IDECursor,
+			input: "auto",
+			want:  model.DefaultCursorModel,
+		},
+		{
+			name:  "cursor trimmed upper-case auto",
+			ide:   model.IDECursor,
+			input: " AUTO ",
+			want:  model.DefaultCursorModel,
+		},
+		{
+			name:  "codex auto",
+			ide:   model.IDECodex,
+			input: "auto",
+			want:  model.DefaultCodexModel,
+		},
+		{
+			name:  "cursor explicit model",
+			ide:   model.IDECursor,
+			input: " composer-2 ",
+			want:  "composer-2",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ResolveRuntimeModel(tc.ide, tc.input)
+			if err != nil {
+				t.Fatalf("ResolveRuntimeModel() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCodexBootstrapArgsSetManagedRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 
