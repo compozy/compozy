@@ -399,6 +399,98 @@ func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing
 	}
 }
 
+func TestClientCreateSessionTreatsAutoModelAsRuntimeDefaultForNonBootstrapACP(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:        t.TempDir(),
+		ExpectedPrompt:     "use runtime default model",
+		RejectSessionModel: true,
+		StopReason:         string(acp.StopReasonEndTurn),
+	}
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.DefaultModel = "runtime-default"
+			spec.UsesBootstrapModel = false
+		},
+		func(cfg *ClientConfig) {
+			cfg.Model = " AUTO "
+		},
+	)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 {
+		t.Fatalf("unexpected updates length: %d", len(updates))
+	}
+	if updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[0].Status)
+	}
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+}
+
+func TestClientCreateSessionSetsExplicitModelForNonBootstrapACP(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:            t.TempDir(),
+		ExpectedPrompt:         "use explicit model",
+		ExpectedSessionModelID: "composer-2",
+		StopReason:             string(acp.StopReasonEndTurn),
+	}
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.DefaultModel = "runtime-default"
+			spec.UsesBootstrapModel = false
+		},
+		func(cfg *ClientConfig) {
+			cfg.Model = "composer-2"
+		},
+	)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 {
+		t.Fatalf("unexpected updates length: %d", len(updates))
+	}
+	if updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[0].Status)
+	}
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+}
+
 func TestClientCreateSessionForwardsMCPServersIntoNewSessionRequest(t *testing.T) {
 	t.Parallel()
 
@@ -1687,6 +1779,8 @@ type helperScenario struct {
 	ExpectedLoadSessionMCPServers []acp.McpServer     `json:"expected_load_session_mcp_servers,omitempty"`
 	ExpectedPrompt                string              `json:"expected_prompt,omitempty"`
 	ExpectedSessionModeID         string              `json:"expected_session_mode_id,omitempty"`
+	ExpectedSessionModelID        string              `json:"expected_session_model_id,omitempty"`
+	RejectSessionModel            bool                `json:"reject_session_model,omitempty"`
 	UpdateIntervalMillis          int                 `json:"update_interval_millis,omitempty"`
 	SupportsLoadSession           bool                `json:"supports_load_session,omitempty"`
 	SessionMeta                   map[string]any      `json:"session_meta,omitempty"`
@@ -1716,6 +1810,8 @@ type helperAgent struct {
 	connReady chan struct{}
 	scenario  helperScenario
 	sessionID string
+	modelMu   sync.Mutex
+	modelSet  bool
 }
 
 func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
@@ -1726,6 +1822,18 @@ func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
 func (a *helperAgent) connection() *acp.AgentSideConnection {
 	<-a.connReady
 	return a.conn
+}
+
+func (a *helperAgent) markSessionModelSet() {
+	a.modelMu.Lock()
+	defer a.modelMu.Unlock()
+	a.modelSet = true
+}
+
+func (a *helperAgent) sessionModelWasSet() bool {
+	a.modelMu.Lock()
+	defer a.modelMu.Unlock()
+	return a.modelSet
 }
 
 func (a *helperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
@@ -1794,6 +1902,15 @@ func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (ac
 }
 
 func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	if a.scenario.ExpectedSessionModelID != "" && !a.sessionModelWasSet() {
+		return acp.PromptResponse{}, &acp.RequestError{
+			Code: 4005,
+			Message: fmt.Sprintf(
+				"expected session model %q to be set before prompt",
+				a.scenario.ExpectedSessionModelID,
+			),
+		}
+	}
 	if a.scenario.ExpectedPrompt != "" {
 		gotPrompt := firstPromptText(req.Prompt)
 		if gotPrompt != a.scenario.ExpectedPrompt {
@@ -1905,6 +2022,26 @@ func (a *helperAgent) Cancel(context.Context, acp.CancelNotification) error {
 	return nil
 }
 
+func (a *helperAgent) SetSessionModel(
+	_ context.Context,
+	req acp.SetSessionModelRequest,
+) (acp.SetSessionModelResponse, error) {
+	if a.scenario.RejectSessionModel {
+		return acp.SetSessionModelResponse{}, &acp.RequestError{
+			Code:    4005,
+			Message: fmt.Sprintf("unexpected session model %q", req.ModelId),
+		}
+	}
+	if a.scenario.ExpectedSessionModelID != "" && string(req.ModelId) != a.scenario.ExpectedSessionModelID {
+		return acp.SetSessionModelResponse{}, &acp.RequestError{
+			Code:    4005,
+			Message: fmt.Sprintf("unexpected session model %q", req.ModelId),
+		}
+	}
+	a.markSessionModelSet()
+	return acp.SetSessionModelResponse{}, nil
+}
+
 func (a *helperAgent) SetSessionMode(
 	_ context.Context,
 	req acp.SetSessionModeRequest,
@@ -1943,13 +2080,24 @@ func newTestClient(t *testing.T, scenario helperScenario) Client {
 func newTestClientWithConfig(t *testing.T, scenario helperScenario, configure func(*ClientConfig)) Client {
 	t.Helper()
 
+	return newTestClientWithSpecConfig(t, scenario, nil, configure)
+}
+
+func newTestClientWithSpecConfig(
+	t *testing.T,
+	scenario helperScenario,
+	configureSpec func(*Spec),
+	configure func(*ClientConfig),
+) Client {
+	t.Helper()
+
 	scenarioJSON, err := json.Marshal(scenario)
 	if err != nil {
 		t.Fatalf("marshal helper scenario: %v", err)
 	}
 
 	ide := "test-acp-" + sanitizeTestName(t.Name())
-	registerTestSpec(t, Spec{
+	spec := Spec{
 		ID:           ide,
 		DisplayName:  "Test ACP",
 		DefaultModel: "test-model",
@@ -1963,7 +2111,11 @@ func newTestClientWithConfig(t *testing.T, scenario helperScenario, configure fu
 		BootstrapArgs: func(_, _ string, _ []string, _ string) []string {
 			return []string{"-test.run=TestACPHelperProcess", "--"}
 		},
-	})
+	}
+	if configureSpec != nil {
+		configureSpec(&spec)
+	}
+	registerTestSpec(t, spec)
 
 	cfg := ClientConfig{
 		IDE:             ide,
