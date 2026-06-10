@@ -315,7 +315,10 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 			ModelId:   acp.ModelId(requestedModel),
 		}); err != nil {
 			c.removeSession(session.id)
-			return nil, wrapSessionSetupError(SessionSetupStageSetModel, wrapACPError(err))
+			return nil, wrapSessionSetupError(
+				SessionSetupStageSetModel,
+				modelSwitchUnsupportedHint(c.spec, requestedModel, wrapACPError(err)),
+			)
 		}
 	}
 	if modeID := c.spec.sessionModeForAccess(c.cfg.AccessMode); modeID != "" {
@@ -609,7 +612,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 
 	process, err := subprocess.Launch(detachedContext(ctx), subprocess.LaunchConfig{
 		Command:         command,
-		Env:             subprocess.MergeEnvironment(c.spec.EnvVars, req.ExtraEnv),
+		Env:             c.launchEnvironment(req),
 		WorkingDir:      req.WorkingDir,
 		WaitDelay:       c.shutdownTimeout,
 		WaitErrorPrefix: "wait for ACP agent process",
@@ -675,6 +678,24 @@ func detachedContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return context.WithoutCancel(ctx)
+}
+
+// launchEnvironment merges the spec environment, the launch-time model pin,
+// and the per-session extra environment for the agent subprocess.
+func (c *clientImpl) launchEnvironment(req SessionRequest) []string {
+	modelEnv := launchModelEnv(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
+	if len(modelEnv) == 0 {
+		return subprocess.MergeEnvironment(c.spec.EnvVars, req.ExtraEnv)
+	}
+
+	base := make(map[string]string, len(c.spec.EnvVars)+len(modelEnv))
+	for key, value := range c.spec.EnvVars {
+		base[key] = value
+	}
+	for key, value := range modelEnv {
+		base[key] = value
+	}
+	return subprocess.MergeEnvironment(base, req.ExtraEnv)
 }
 
 func (c *clientImpl) resolveStartCommand(ctx context.Context, req SessionRequest) (string, []string, error) {
@@ -1068,6 +1089,28 @@ func pathWithinRoots(path string, roots []string) bool {
 		}
 	}
 	return false
+}
+
+// jsonRPCMethodNotFound is the JSON-RPC 2.0 error code agents return for
+// methods they do not implement.
+const jsonRPCMethodNotFound = -32601
+
+// modelSwitchUnsupportedHint augments session/set_model "Method not found"
+// failures with an actionable explanation, since the raw JSON-RPC error does
+// not tell users that the runtime cannot switch models after launch.
+func modelSwitchUnsupportedHint(spec Spec, modelName string, err error) error {
+	var sessionErr *SessionError
+	if !errors.As(err, &sessionErr) || sessionErr.Code != jsonRPCMethodNotFound {
+		return err
+	}
+	return fmt.Errorf(
+		"%w. The %s runtime does not support switching models over ACP (session/set_model), "+
+			"so the requested model %q cannot be applied; omit --model or use --model auto "+
+			"to run with the runtime default",
+		err,
+		firstNonEmpty(spec.DisplayName, spec.ID),
+		modelName,
+	)
 }
 
 func wrapACPError(err error) error {

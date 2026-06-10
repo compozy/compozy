@@ -124,8 +124,9 @@ func BuildShellCommandString(
 	}
 	args := spec.launchCommandForPreview(launchModel, reasoningEffort, resolvedDirs, accessMode)
 
-	parts := make([]string, 0, len(spec.EnvVars)+1)
+	parts := make([]string, 0, len(spec.EnvVars)+2)
 	parts = append(parts, sortedEnvAssignments(spec.EnvVars)...)
+	parts = append(parts, sortedEnvAssignments(launchModelEnv(spec, modelName))...)
 	parts = append(parts, formatShellCommand(args))
 	return strings.Join(parts, " ")
 }
@@ -168,6 +169,19 @@ func resolveModel(spec Spec, modelName string) string {
 		selected = spec.DefaultModel
 	}
 	return normalizeRuntimeModel(spec, modelprovider.ResolveAlias(selected))
+}
+
+// launchModelEnv returns the launch-time environment entry that pins an
+// explicitly requested model for runtimes that read it from the environment.
+// It returns nil when the runtime has no model env var or when the user left
+// model selection to the runtime ("auto" or empty), so runtime-side defaults
+// keep applying.
+func launchModelEnv(spec Spec, modelName string) map[string]string {
+	envVar := strings.TrimSpace(spec.ModelEnvVar)
+	if envVar == "" || normalizeRequestedModel(modelName) == "" {
+		return nil
+	}
+	return map[string]string{envVar: resolveModel(spec, modelName)}
 }
 
 func normalizeRequestedModel(modelName string) string {
