@@ -46,6 +46,7 @@ type stubDaemonCommandClient struct {
 	status               apicore.DaemonStatus
 	statusErr            error
 	statusCtx            context.Context
+	statusCalls          int
 	startCalls           int
 	startSlug            string
 	startRequest         apicore.TaskRunRequest
@@ -129,6 +130,7 @@ func (c *stubDaemonCommandClient) DaemonStatus(ctx context.Context) (apicore.Dae
 		return apicore.DaemonStatus{}, errors.New("stub daemon client is required")
 	}
 	c.statusCtx = ctx
+	c.statusCalls++
 	if c.statusErr != nil {
 		return apicore.DaemonStatus{}, c.statusErr
 	}
@@ -1269,6 +1271,7 @@ func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
 		readInfo: func(string) (daemon.Info, error) {
 			return daemon.Info{
 				PID:        4242,
+				Version:    "test-version",
 				SocketPath: "/tmp/compozy-ready.sock",
 				StartedAt:  time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
 				State:      daemon.ReadyStateReady,
@@ -1283,6 +1286,7 @@ func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
 		},
 		sleep:          func(time.Duration) {},
 		now:            func() time.Time { return time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC) },
+		cliVersion:     func() string { return "test-version" },
 		startupTimeout: time.Second,
 		pollInterval:   time.Millisecond,
 	})
@@ -1689,7 +1693,7 @@ func TestNewDefaultCLIDaemonBootstrapProvidesRuntimeDependencies(t *testing.T) {
 
 	bootstrap := newDefaultCLIDaemonBootstrap()
 	if bootstrap.resolveHomePaths == nil || bootstrap.readInfo == nil || bootstrap.newClient == nil ||
-		bootstrap.launch == nil {
+		bootstrap.launch == nil || bootstrap.cliVersion == nil || bootstrap.notify == nil {
 		t.Fatalf("expected daemon bootstrap dependencies to be wired: %#v", bootstrap)
 	}
 	if bootstrap.sleep == nil || bootstrap.now == nil {
@@ -1708,6 +1712,339 @@ func TestNewDefaultCLIDaemonBootstrapProvidesRuntimeDependencies(t *testing.T) {
 	}
 	if client.Target().HTTPPort != 43123 {
 		t.Fatalf("unexpected bootstrap client target: %#v", client.Target())
+	}
+}
+
+func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
+	t.Parallel()
+
+	currentVersion := "v2.0.0 (commit=current date=2026-06-11)"
+	oldVersion := "v1.9.0 (commit=old date=2026-06-10)"
+	devVersion := "dev (commit=none date=unknown)"
+	now := time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name              string
+		cliVersion        string
+		initialVersion    string
+		initialStatus     apicore.DaemonStatus
+		restartedVersion  string
+		readInfoErrOnStop bool
+		wantClient        string
+		wantLaunchCalls   int
+		wantStopCalls     int
+		wantStopForce     bool
+		wantNotice        []string
+		wantErr           []string
+	}{
+		{
+			name:           "Should reuse daemon when versions match",
+			cliVersion:     currentVersion,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version: currentVersion,
+			},
+			wantClient: "initial",
+		},
+		{
+			name:           "Should restart and reconnect idle daemon when release versions differ",
+			cliVersion:     currentVersion,
+			initialVersion: oldVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:        oldVersion,
+				ActiveRunCount: 0,
+			},
+			restartedVersion:  currentVersion,
+			readInfoErrOnStop: true,
+			wantClient:        "restarted",
+			wantLaunchCalls:   1,
+			wantStopCalls:     1,
+			wantNotice: []string{
+				"Restarting stale compozy daemon",
+				oldVersion,
+				currentVersion,
+			},
+		},
+		{
+			name:           "Should fail without stopping busy daemon when release versions differ",
+			cliVersion:     currentVersion,
+			initialVersion: oldVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:        oldVersion,
+				ActiveRunCount: 2,
+			},
+			wantErr: []string{
+				oldVersion,
+				currentVersion,
+				"2 active runs",
+				"retry after",
+				"compozy daemon stop --force",
+			},
+		},
+		{
+			name:           "Should reuse daemon when dev and empty versions are compatible",
+			cliVersion:     devVersion,
+			initialVersion: "",
+			initialStatus:  apicore.DaemonStatus{},
+			wantClient:     "initial",
+		},
+		{
+			name:           "Should reuse daemon when daemon build is dev and CLI build is release",
+			cliVersion:     currentVersion,
+			initialVersion: devVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version: devVersion,
+			},
+			wantClient: "initial",
+		},
+		{
+			name:           "Should reuse daemon when CLI build is dev and daemon build is release",
+			cliVersion:     devVersion,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version: currentVersion,
+			},
+			wantClient: "initial",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			initialInfo := daemon.Info{
+				PID:        1234,
+				Version:    tt.initialVersion,
+				SocketPath: "/tmp/compozy-version-old.sock",
+				StartedAt:  now,
+				State:      daemon.ReadyStateReady,
+			}
+			restartedInfo := daemon.Info{
+				PID:        4321,
+				Version:    tt.restartedVersion,
+				SocketPath: "/tmp/compozy-version-new.sock",
+				StartedAt:  now.Add(time.Second),
+				State:      daemon.ReadyStateReady,
+			}
+			initialClient := &stubDaemonCommandClient{
+				target: apiclient.Target{SocketPath: initialInfo.SocketPath},
+				health: apicore.DaemonHealth{
+					Ready: true,
+				},
+				status: tt.initialStatus,
+			}
+			restartedClient := &stubDaemonCommandClient{
+				target: apiclient.Target{SocketPath: restartedInfo.SocketPath},
+				health: apicore.DaemonHealth{
+					Ready: true,
+				},
+				status: apicore.DaemonStatus{
+					Version: tt.restartedVersion,
+				},
+			}
+
+			var launchCalls int
+			var notices []string
+			var readInfoCalls int
+			bootstrap := cliDaemonBootstrap{
+				resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+					return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+				},
+				readInfo: func(path string) (daemon.Info, error) {
+					if path != "/tmp/compozy-home/daemon.json" {
+						t.Fatalf("unexpected daemon info path: %q", path)
+					}
+					readInfoCalls++
+					if readInfoCalls == 2 && tt.readInfoErrOnStop {
+						return daemon.Info{}, fmt.Errorf("daemon info removed: %w", os.ErrNotExist)
+					}
+					if launchCalls > 0 {
+						return restartedInfo, nil
+					}
+					return initialInfo, nil
+				},
+				newClient: func(target apiclient.Target) (daemonCommandClient, error) {
+					switch target.SocketPath {
+					case initialInfo.SocketPath:
+						return initialClient, nil
+					case restartedInfo.SocketPath:
+						return restartedClient, nil
+					default:
+						return nil, fmt.Errorf("unexpected daemon target: %#v", target)
+					}
+				},
+				launch: func(compozyconfig.HomePaths) error {
+					launchCalls++
+					return nil
+				},
+				sleep:          func(time.Duration) {},
+				now:            func() time.Time { return now },
+				startupTimeout: time.Second,
+				pollInterval:   time.Millisecond,
+				cliVersion:     func() string { return tt.cliVersion },
+				notify: func(message string) error {
+					notices = append(notices, message)
+					return nil
+				},
+			}
+
+			gotClient, err := bootstrap.ensure(context.Background())
+			if len(tt.wantErr) > 0 {
+				if err == nil {
+					t.Fatal("ensure() error = nil, want version mismatch")
+				}
+				if !containsAll(err.Error(), tt.wantErr...) {
+					t.Fatalf("ensure() error = %q, want fragments %#v", err.Error(), tt.wantErr)
+				}
+				if initialClient.stopCtx != nil {
+					t.Fatal("expected busy version mismatch not to stop daemon")
+				}
+				if launchCalls != 0 {
+					t.Fatalf("expected busy version mismatch not to launch, got %d", launchCalls)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ensure() error = %v", err)
+			}
+			switch tt.wantClient {
+			case "initial":
+				if gotClient != initialClient {
+					t.Fatalf("ensure() client = %#v, want initial client", gotClient)
+				}
+			case "restarted":
+				if gotClient != restartedClient {
+					t.Fatalf("ensure() client = %#v, want restarted client", gotClient)
+				}
+			default:
+				t.Fatalf("test has unsupported wantClient %q", tt.wantClient)
+			}
+			if launchCalls != tt.wantLaunchCalls {
+				t.Fatalf("launch calls = %d, want %d", launchCalls, tt.wantLaunchCalls)
+			}
+			stopCalls := 0
+			if initialClient.stopCtx != nil {
+				stopCalls = 1
+			}
+			if stopCalls != tt.wantStopCalls {
+				t.Fatalf("stop calls = %d, want %d", stopCalls, tt.wantStopCalls)
+			}
+			if initialClient.stopForce != tt.wantStopForce {
+				t.Fatalf("stop force = %t, want %t", initialClient.stopForce, tt.wantStopForce)
+			}
+			if len(tt.wantNotice) == 0 {
+				if len(notices) != 0 {
+					t.Fatalf("notices = %#v, want none", notices)
+				}
+				return
+			}
+			if len(notices) != 1 || !containsAll(notices[0], tt.wantNotice...) {
+				t.Fatalf("notices = %#v, want one notice with %#v", notices, tt.wantNotice)
+			}
+		})
+	}
+}
+
+func TestCLIDaemonBootstrapWaitForDaemonInfoRelease(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 11, 12, 30, 0, 0, time.UTC)
+	previous := daemon.Info{
+		PID:        1234,
+		SocketPath: "/tmp/compozy-version-old.sock",
+		StartedAt:  now,
+		State:      daemon.ReadyStateReady,
+	}
+	permissionErr := errors.New("permission denied")
+
+	tests := []struct {
+		name        string
+		readErrors  []error
+		wantCalls   int
+		wantErrText []string
+	}{
+		{
+			name:       "Should proceed when daemon info is missing",
+			readErrors: []error{fmt.Errorf("daemon info removed: %w", os.ErrNotExist)},
+			wantCalls:  1,
+		},
+		{
+			name: "Should proceed after transient read error when daemon info becomes missing",
+			readErrors: []error{
+				permissionErr,
+				fmt.Errorf("daemon info removed: %w", os.ErrNotExist),
+			},
+			wantCalls: 2,
+		},
+		{
+			name:       "Should time out when daemon info read keeps failing without missing sentinel",
+			readErrors: []error{permissionErr},
+			wantCalls:  4,
+			wantErrText: []string{
+				"wait for stale daemon shutdown",
+				"read daemon info while waiting for stale daemon release",
+				"permission denied",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			currentTime := now
+			readInfoCalls := 0
+			bootstrap := cliDaemonBootstrap{
+				readInfo: func(path string) (daemon.Info, error) {
+					if path != "/tmp/compozy-home/daemon.json" {
+						t.Fatalf("unexpected daemon info path: %q", path)
+					}
+					readInfoCalls++
+					errIndex := readInfoCalls - 1
+					if errIndex >= len(tt.readErrors) {
+						errIndex = len(tt.readErrors) - 1
+					}
+					if err := tt.readErrors[errIndex]; err != nil {
+						return daemon.Info{}, err
+					}
+					return previous, nil
+				},
+				sleep: func(duration time.Duration) {
+					currentTime = currentTime.Add(duration)
+				},
+				now:            func() time.Time { return currentTime },
+				startupTimeout: 3 * time.Millisecond,
+				pollInterval:   time.Millisecond,
+			}
+
+			err := bootstrap.waitForDaemonInfoRelease(
+				context.Background(),
+				" /tmp/compozy-home/daemon.json ",
+				previous,
+			)
+			if len(tt.wantErrText) == 0 {
+				if err != nil {
+					t.Fatalf("waitForDaemonInfoRelease() error = %v, want nil", err)
+				}
+			} else {
+				if err == nil {
+					t.Fatal("waitForDaemonInfoRelease() error = nil, want timeout")
+				}
+				if !containsAll(err.Error(), tt.wantErrText...) {
+					t.Fatalf(
+						"waitForDaemonInfoRelease() error = %q, want fragments %#v",
+						err.Error(),
+						tt.wantErrText,
+					)
+				}
+			}
+			if readInfoCalls != tt.wantCalls {
+				t.Fatalf("readInfo calls = %d, want %d", readInfoCalls, tt.wantCalls)
+			}
+		})
 	}
 }
 
