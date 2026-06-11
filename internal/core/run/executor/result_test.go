@@ -199,6 +199,53 @@ func TestBuildExecutionResultKeepsCanceledStatusWhenFailuresArePresent(t *testin
 	}
 }
 
+func TestBuildExecutionResultPrefersFailedStatusOverFailFastCanceledJobs(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "exec-test-run")
+	cfg := &config{
+		Mode:         model.ExecutionModeExec,
+		IDE:          model.IDECursor,
+		Model:        "gpt-5.5",
+		OutputFormat: model.OutputFormatJSON,
+		RunArtifacts: runArtifacts,
+	}
+	jobs := []job{
+		{
+			SafeName:      "first",
+			CodeFiles:     []string{"first"},
+			Status:        runStatusFailed,
+			ExitCode:      -1,
+			OutPromptPath: filepath.Join(runArtifacts.JobsDir, "first.Prompt.md"),
+			OutLog:        filepath.Join(runArtifacts.JobsDir, "first.out.log"),
+			ErrLog:        filepath.Join(runArtifacts.JobsDir, "first.err.log"),
+		},
+		{
+			SafeName:      "second",
+			CodeFiles:     []string{"second"},
+			Status:        runStatusCanceled,
+			ExitCode:      -1,
+			OutPromptPath: filepath.Join(runArtifacts.JobsDir, "second.Prompt.md"),
+			OutLog:        filepath.Join(runArtifacts.JobsDir, "second.out.log"),
+			ErrLog:        filepath.Join(runArtifacts.JobsDir, "second.err.log"),
+		},
+	}
+
+	result := buildExecutionResult(
+		cfg,
+		jobs,
+		[]failInfo{{Err: errors.New("cursor-agent is not authenticated")}},
+		nil,
+	)
+
+	if result.Status != runStatusFailed {
+		t.Fatalf("unexpected result Status: %q", result.Status)
+	}
+	if result.Error != "cursor-agent is not authenticated" {
+		t.Fatalf("unexpected primary result error: %q", result.Error)
+	}
+}
+
 func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T) {
 	runArtifacts := model.NewRunArtifacts(t.TempDir(), "workflow-run")
 	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {

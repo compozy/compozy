@@ -370,6 +370,9 @@ func BuildFailureResult(err error, exitCode int, j *job, index int, emitHuman bo
 }
 
 func RetryableSetupFailure(err error) bool {
+	if agent.IsAuthenticationRequired(err) {
+		return false
+	}
 	var setupErr *agent.SessionSetupError
 	if !errors.As(err, &setupErr) {
 		return false

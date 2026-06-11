@@ -1723,6 +1723,23 @@ func TestClientUtilityHelpers(t *testing.T) {
 		t.Fatalf("unexpected session error string: %q", sessionErr.Error())
 	}
 
+	authWrapped := wrapACPError(&acp.RequestError{
+		Code:    -32000,
+		Message: "Authentication required",
+		Data:    map[string]any{"message": "Authentication required"},
+	})
+	var authErr *AuthenticationRequiredError
+	if !errors.As(authWrapped, &authErr) {
+		t.Fatalf("expected AuthenticationRequiredError, got %T", authWrapped)
+	}
+	var authSessionErr *SessionError
+	if !errors.As(authWrapped, &authSessionErr) || authSessionErr.Code != -32000 {
+		t.Fatalf("expected wrapped SessionError, got %#v", authWrapped)
+	}
+	if !IsAuthenticationRequired(authWrapped) {
+		t.Fatal("expected IsAuthenticationRequired to match typed auth error")
+	}
+
 	noDataErr := (&SessionError{Code: 7, Message: "plain"}).Error()
 	if !strings.Contains(noDataErr, "plain") {
 		t.Fatalf("unexpected no-data session error string: %q", noDataErr)

@@ -89,10 +89,17 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 }
 
 func deriveRunStatus(jobs []job, failures []failInfo) string {
+	hasCanceled := false
 	for idx := range jobs {
-		if jobs[idx].Status == runStatusCanceled {
-			return runStatusCanceled
+		switch jobs[idx].Status {
+		case runStatusFailed:
+			return runStatusFailed
+		case runStatusCanceled:
+			hasCanceled = true
 		}
+	}
+	if hasCanceled {
+		return runStatusCanceled
 	}
 	if len(failures) > 0 {
 		return runStatusFailed

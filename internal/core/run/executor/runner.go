@@ -128,7 +128,9 @@ func (r *jobRunner) handleResult(
 		return timeout, 0, false
 	}
 	if !result.NeedsRetry() || attempt == attempts {
-		r.lifecycle.markGiveUp(r.ensureFailure(result, "job failed"))
+		failure := r.ensureFailure(result, "job failed")
+		r.lifecycle.markGiveUp(failure)
+		r.execCtx.stopJobsAfterAuthenticationFailure(failure.Err)
 		return timeout, 0, false
 	}
 	retryDecision, err := r.dispatchPreRetryHook(ctx, attempt, result)

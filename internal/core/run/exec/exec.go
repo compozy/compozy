@@ -1425,6 +1425,9 @@ func isExecRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if agent.IsAuthenticationRequired(err) {
+		return false
+	}
 	if isActivityTimeout(err) {
 		return true
 	}
