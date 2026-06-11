@@ -1774,6 +1774,8 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 	t.Parallel()
 
 	currentVersion := "v2.0.0 (commit=current date=2026-06-11)"
+	currentVersionRebuilt := "v2.0.0 (commit=current date=2026-06-11T21:45:40Z)"
+	currentVersionDifferentCommit := "v2.0.0 (commit=different date=2026-06-11)"
 	oldVersion := "v1.9.0 (commit=old date=2026-06-10)"
 	devVersion := "dev (commit=none date=unknown)"
 	now := time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC)
@@ -1800,6 +1802,32 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 				Version: currentVersion,
 			},
 			wantClient: "initial",
+		},
+		{
+			name:           "Should reuse busy daemon when release version and commit match but dates differ",
+			cliVersion:     currentVersionRebuilt,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:        currentVersion,
+				ActiveRunCount: 2,
+			},
+			wantClient: "initial",
+		},
+		{
+			name:           "Should fail without stopping busy daemon when commit differs",
+			cliVersion:     currentVersionDifferentCommit,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:        currentVersion,
+				ActiveRunCount: 2,
+			},
+			wantErr: []string{
+				currentVersion,
+				currentVersionDifferentCommit,
+				"2 active runs",
+				"retry after",
+				"compozy daemon stop --force",
+			},
 		},
 		{
 			name:           "Should restart and reconnect idle daemon when release versions differ",
@@ -1997,6 +2025,77 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			}
 			if len(notices) != 1 || !containsAll(notices[0], tt.wantNotice...) {
 				t.Fatalf("notices = %#v, want one notice with %#v", notices, tt.wantNotice)
+			}
+		})
+	}
+}
+
+func TestDaemonBuildVersionsCompatible(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		daemon string
+		cli    string
+		want   bool
+	}{
+		{
+			name:   "Should match exact build strings",
+			daemon: "v2.0.0 (commit=abc123 date=2026-06-11T17:15:44Z)",
+			cli:    "v2.0.0 (commit=abc123 date=2026-06-11T17:15:44Z)",
+			want:   true,
+		},
+		{
+			name:   "Should ignore build date when release version and commit match",
+			daemon: "v2.0.0 (commit=abc123 date=2026-06-11T17:15:44Z)",
+			cli:    "v2.0.0 (commit=abc123 date=2026-06-11T21:45:40Z)",
+			want:   true,
+		},
+		{
+			name:   "Should reject same version with different commits",
+			daemon: "v2.0.0 (commit=abc123 date=2026-06-11T17:15:44Z)",
+			cli:    "v2.0.0 (commit=def456 date=2026-06-11T21:45:40Z)",
+			want:   false,
+		},
+		{
+			name:   "Should reject different versions with same commit",
+			daemon: "v2.0.0 (commit=abc123 date=2026-06-11T17:15:44Z)",
+			cli:    "v2.1.0 (commit=abc123 date=2026-06-11T21:45:40Z)",
+			want:   false,
+		},
+		{
+			name:   "Should preserve dev compatibility",
+			daemon: "dev (commit=none date=unknown)",
+			cli:    "v2.0.0 (commit=abc123 date=2026-06-11T21:45:40Z)",
+			want:   true,
+		},
+		{
+			name:   "Should reject malformed release strings unless exact",
+			daemon: "v2.0.0 commit=abc123 date=2026-06-11T17:15:44Z",
+			cli:    "v2.0.0 commit=abc123 date=2026-06-11T21:45:40Z",
+			want:   false,
+		},
+		{
+			name:   "Should keep exact-match fallback for release strings missing date metadata",
+			daemon: "v2.0.0 (commit=abc123)",
+			cli:    "v2.0.0 (commit=abc123)",
+			want:   true,
+		},
+		{
+			name:   "Should not treat different missing-date release strings as compatible",
+			daemon: "v2.0.0 (commit=abc123)",
+			cli:    "v2.0.0 (commit=abc123 extra=true)",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := daemonBuildVersionsCompatible(tt.daemon, tt.cli); got != tt.want {
+				t.Fatalf("daemonBuildVersionsCompatible(%q, %q) = %t, want %t", tt.daemon, tt.cli, got, tt.want)
 			}
 		})
 	}
