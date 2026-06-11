@@ -46,6 +46,7 @@ type stubDaemonCommandClient struct {
 	status               apicore.DaemonStatus
 	statusErr            error
 	statusCtx            context.Context
+	statusCalls          int
 	startCalls           int
 	startSlug            string
 	startRequest         apicore.TaskRunRequest
@@ -70,6 +71,9 @@ type stubDaemonCommandClient struct {
 	register             apicore.WorkspaceRegisterResult
 	registerErr          error
 	listErr              error
+	runs                 []apicore.Run
+	runsErr              error
+	runListRequests      []apiclient.RunListOptions
 	deleteRef            string
 	deleteErr            error
 	workflows            []apicore.WorkflowSummary
@@ -129,6 +133,7 @@ func (c *stubDaemonCommandClient) DaemonStatus(ctx context.Context) (apicore.Dae
 		return apicore.DaemonStatus{}, errors.New("stub daemon client is required")
 	}
 	c.statusCtx = ctx
+	c.statusCalls++
 	if c.statusErr != nil {
 		return apicore.DaemonStatus{}, c.statusErr
 	}
@@ -210,6 +215,31 @@ func (c *stubDaemonCommandClient) ResolveWorkspace(context.Context, string) (api
 		return apicore.Workspace{}, c.workspaceErr
 	}
 	return c.workspace, nil
+}
+
+func (c *stubDaemonCommandClient) ListRuns(
+	_ context.Context,
+	opts apiclient.RunListOptions,
+) ([]apicore.Run, error) {
+	if c == nil {
+		return nil, errors.New("stub daemon client is required")
+	}
+	c.runListRequests = append(c.runListRequests, opts)
+	if c.runsErr != nil {
+		return nil, c.runsErr
+	}
+	status := strings.TrimSpace(opts.Status)
+	if status == "" {
+		return append([]apicore.Run(nil), c.runs...), nil
+	}
+	runs := make([]apicore.Run, 0, len(c.runs))
+	for i := range c.runs {
+		run := c.runs[i]
+		if strings.EqualFold(strings.TrimSpace(run.Status), status) {
+			runs = append(runs, run)
+		}
+	}
+	return runs, nil
 }
 
 func (c *stubDaemonCommandClient) ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error) {
@@ -2352,6 +2382,145 @@ func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T
 	if _, err := state.resolveTaskPresentationMode(cmd); err == nil ||
 		!containsAll(err.Error(), "attach mode must be one of auto, ui, stream, or detach") {
 		t.Fatalf("expected invalid attach mode error, got %v", err)
+	}
+}
+
+func TestWarnIfOtherWorkspaceTaskRunsActive(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		configure           func(t *testing.T) (*commandState, *stubDaemonCommandClient)
+		wantWarningContains []string
+		wantNoWarning       bool
+		wantStatusCalls     int
+		wantRunListCalls    int
+	}{
+		{
+			name: "Should warn for active run in different workspace",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				currentRoot := t.TempDir()
+				busyRoot := t.TempDir()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = currentRoot
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 1},
+					workspaces: []apicore.Workspace{
+						{ID: "ws-current", RootDir: currentRoot, Name: "current"},
+						{ID: "ws-busy", RootDir: busyRoot, Name: "busy-project"},
+					},
+					runs: []apicore.Run{{
+						RunID:       "run-busy-001",
+						WorkspaceID: "ws-busy",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantWarningContains: []string{
+				"Warning: daemon already has active run(s) in another workspace",
+				"busy-project",
+				"ws-busy",
+				"run-busy-001",
+			},
+			wantStatusCalls:  1,
+			wantRunListCalls: 4,
+		},
+		{
+			name: "Should not warn for active run in same workspace",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				currentRoot := t.TempDir()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = currentRoot
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 1},
+					workspaces: []apicore.Workspace{{
+						ID:      "ws-current",
+						RootDir: currentRoot,
+						Name:    "current",
+					}},
+					runs: []apicore.Run{{
+						RunID:       "run-current-001",
+						WorkspaceID: "ws-current",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 4,
+		},
+		{
+			name: "Should not inspect runs when daemon is idle",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 0},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 0,
+		},
+		{
+			name: "Should skip guard for dry run",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				state.dryRun = true
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 1},
+					runs: []apicore.Run{{
+						RunID:       "run-busy-001",
+						WorkspaceID: "ws-busy",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  0,
+			wantRunListCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state, client := tt.configure(t)
+			cmd := &cobra.Command{Use: "compozy tasks run"}
+			var stderr bytes.Buffer
+			cmd.SetErr(&stderr)
+
+			if err := state.warnIfOtherWorkspaceTaskRunsActive(context.Background(), cmd, client); err != nil {
+				t.Fatalf("warnIfOtherWorkspaceTaskRunsActive() error = %v", err)
+			}
+
+			output := stderr.String()
+			if tt.wantNoWarning && output != "" {
+				t.Fatalf("expected no warning, got %q", output)
+			}
+			for _, want := range tt.wantWarningContains {
+				if !strings.Contains(output, want) {
+					t.Fatalf("expected warning to contain %q, got %q", want, output)
+				}
+			}
+			if client.statusCalls != tt.wantStatusCalls {
+				t.Fatalf("status calls = %d, want %d", client.statusCalls, tt.wantStatusCalls)
+			}
+			if len(client.runListRequests) != tt.wantRunListCalls {
+				t.Fatalf("run list calls = %d, want %d", len(client.runListRequests), tt.wantRunListCalls)
+			}
+		})
 	}
 }
 
