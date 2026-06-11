@@ -394,9 +394,7 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err != nil {
 		return withExitCode(2, err)
 	}
-	if err := s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client); err != nil {
-		return err
-	}
+	s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client)
 
 	run, err := client.StartTaskRun(ctx, s.name, apicore.TaskRunRequest{
 		Workspace:        s.workspaceRoot,
@@ -443,9 +441,7 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err != nil {
 		return withExitCode(2, err)
 	}
-	if err := s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client); err != nil {
-		return err
-	}
+	s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client)
 
 	run, err := client.StartTaskRunMultiple(ctx, apicore.TaskRunMultipleRequest{
 		Workspace:        s.workspaceRoot,
@@ -532,64 +528,64 @@ type taskRunBusyWorkspace struct {
 	runIDs      []string
 }
 
+var taskRunGuardActiveStatuses = []string{"starting", "running", "pending", "retrying"}
+
 func (s *commandState) warnIfOtherWorkspaceTaskRunsActive(
 	ctx context.Context,
 	cmd *cobra.Command,
 	client daemonCommandClient,
-) error {
+) {
 	if s.dryRun {
-		return nil
+		return
 	}
 	status, err := client.DaemonStatus(ctx)
 	if err != nil {
-		return withExitCode(2, fmt.Errorf("query daemon status before task run: %w", err))
+		// This guard is advisory; inability to inspect daemon state must not block a task run.
+		return
 	}
 	if status.ActiveRunCount <= 0 {
-		return nil
+		return
 	}
 
 	activeRuns, err := listTaskRunGuardActiveRuns(ctx, client)
 	if err != nil {
-		return withExitCode(2, fmt.Errorf("list active daemon runs before task run: %w", err))
+		return
 	}
 	if len(activeRuns) == 0 {
-		return nil
+		return
 	}
 	workspaces, err := client.ListWorkspaces(ctx)
 	if err != nil {
-		return withExitCode(2, fmt.Errorf("list daemon workspaces before task run: %w", err))
+		return
 	}
 	busy := otherWorkspaceActiveRuns(s.workspaceRoot, activeRuns, workspaces)
 	if len(busy) == 0 {
-		return nil
+		return
 	}
-	return writeTaskRunConcurrencyWarning(cmd, busy)
+	writeTaskRunConcurrencyWarning(cmd, busy)
 }
 
 func listTaskRunGuardActiveRuns(ctx context.Context, client daemonCommandClient) ([]apicore.Run, error) {
-	statuses := []string{"starting", "running", "pending", "retrying"}
-	runs := make([]apicore.Run, 0)
+	listed, err := client.ListRuns(ctx, apiclient.RunListOptions{
+		Statuses: taskRunGuardActiveStatuses,
+		Limit:    taskRunGuardRunListLimit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	runs := make([]apicore.Run, 0, len(listed))
 	seen := make(map[string]struct{})
-	for _, status := range statuses {
-		listed, err := client.ListRuns(ctx, apiclient.RunListOptions{
-			Status: status,
-			Limit:  taskRunGuardRunListLimit,
-		})
-		if err != nil {
-			return nil, err
+	for i := range listed {
+		run := listed[i]
+		runID := strings.TrimSpace(run.RunID)
+		if runID == "" {
+			continue
 		}
-		for i := range listed {
-			run := listed[i]
-			runID := strings.TrimSpace(run.RunID)
-			if runID == "" {
-				continue
-			}
-			if _, ok := seen[runID]; ok {
-				continue
-			}
-			seen[runID] = struct{}{}
-			runs = append(runs, run)
+		if _, ok := seen[runID]; ok {
+			continue
 		}
+		seen[runID] = struct{}{}
+		runs = append(runs, run)
 	}
 	return runs, nil
 }
@@ -612,6 +608,7 @@ func otherWorkspaceActiveRuns(
 		if taskRunGuardIsCurrentWorkspace(workspaceID, currentWorkspaceID, currentKey, workspace) {
 			continue
 		}
+		// The registry can miss a workspace referenced by a durable run; keep reporting it by id.
 		group := taskRunGuardBusyWorkspaceGroup(groupsByWorkspace, workspaceID, workspace)
 		group.runIDs = append(group.runIDs, runID)
 	}
@@ -703,16 +700,17 @@ func taskRunGuardWorkspaceRootKey(root string) string {
 	return filepath.Clean(absolute)
 }
 
-func writeTaskRunConcurrencyWarning(cmd *cobra.Command, busy []taskRunBusyWorkspace) error {
+func writeTaskRunConcurrencyWarning(cmd *cobra.Command, busy []taskRunBusyWorkspace) {
 	writer := cmd.ErrOrStderr()
 	if _, err := fmt.Fprintln(
 		writer,
 		"Warning: daemon already has active run(s) in another workspace; starting this task run concurrently.",
 	); err != nil {
-		return withExitCode(2, fmt.Errorf("write cross-workspace run warning: %w", err))
+		// The warning is advisory; a closed stderr must not prevent starting the run.
+		return
 	}
 	if _, err := fmt.Fprintln(writer, "Busy workspace(s):"); err != nil {
-		return withExitCode(2, fmt.Errorf("write cross-workspace run warning: %w", err))
+		return
 	}
 	for _, workspace := range busy {
 		if _, err := fmt.Fprintf(
@@ -721,10 +719,9 @@ func writeTaskRunConcurrencyWarning(cmd *cobra.Command, busy []taskRunBusyWorksp
 			taskRunBusyWorkspaceLabel(workspace),
 			strings.Join(workspace.runIDs, ", "),
 		); err != nil {
-			return withExitCode(2, fmt.Errorf("write cross-workspace run warning: %w", err))
+			return
 		}
 	}
-	return nil
 }
 
 func taskRunBusyWorkspaceLabel(workspace taskRunBusyWorkspace) string {

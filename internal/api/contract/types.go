@@ -493,6 +493,7 @@ type RunSnapshot struct {
 type RunListQuery struct {
 	Workspace string
 	Status    string
+	Statuses  []string
 	Mode      string
 	Limit     int
 }

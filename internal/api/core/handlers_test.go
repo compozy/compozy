@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -387,12 +388,54 @@ func TestStreamRunLogsCloseErrors(t *testing.T) {
 	}
 }
 
+func TestListRunsParsesMultiStatusFilters(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	var got core.RunListQuery
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName: "test",
+		Runs: &fakeRunService{
+			list: func(_ context.Context, query core.RunListQuery) ([]core.Run, error) {
+				got = query
+				return nil, nil
+			},
+		},
+	})
+	engine := gin.New()
+	engine.Use(core.RequestIDMiddleware())
+	engine.Use(core.ErrorMiddleware())
+	core.RegisterRoutes(engine, handlers)
+
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/api/runs?status=running,pending&status=retrying&limit=10",
+		http.NoBody,
+	)
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	want := []string{"running", "pending", "retrying"}
+	if !slices.Equal(got.Statuses, want) {
+		t.Fatalf("statuses = %#v, want %#v", got.Statuses, want)
+	}
+}
+
 type fakeRunService struct {
 	getErr     error
+	list       func(context.Context, core.RunListQuery) ([]core.Run, error)
 	openStream func(context.Context, string, core.StreamCursor) (core.RunStream, error)
 }
 
-func (f *fakeRunService) List(context.Context, core.RunListQuery) ([]core.Run, error) {
+func (f *fakeRunService) List(ctx context.Context, query core.RunListQuery) ([]core.Run, error) {
+	if f.list != nil {
+		return f.list(ctx, query)
+	}
 	return nil, nil
 }
 

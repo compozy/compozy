@@ -25,6 +25,7 @@ var streamHeartbeatGapTolerance = contract.HeartbeatGapTolerance
 type RunListOptions struct {
 	Workspace string
 	Status    string
+	Statuses  []string
 	Mode      string
 	Limit     int
 }
@@ -107,8 +108,8 @@ func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.R
 	if workspace := strings.TrimSpace(opts.Workspace); workspace != "" {
 		values.Set("workspace", workspace)
 	}
-	if status := strings.TrimSpace(opts.Status); status != "" {
-		values.Set("status", status)
+	if statuses := runListStatusFilters(opts.Status, opts.Statuses); len(statuses) > 0 {
+		values.Set("status", strings.Join(statuses, ","))
 	}
 	if mode := strings.TrimSpace(opts.Mode); mode != "" {
 		values.Set("mode", mode)
@@ -126,6 +127,29 @@ func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.R
 		return nil, err
 	}
 	return response.Runs, nil
+}
+
+func runListStatusFilters(status string, statuses []string) []string {
+	seen := make(map[string]struct{}, len(statuses)+1)
+	filters := make([]string, 0, len(statuses)+1)
+	appendStatus := func(raw string) {
+		for _, candidate := range strings.Split(raw, ",") {
+			trimmed := strings.TrimSpace(candidate)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			filters = append(filters, trimmed)
+		}
+	}
+	appendStatus(status)
+	for _, candidate := range statuses {
+		appendStatus(candidate)
+	}
+	return filters
 }
 
 // GetRun loads the latest daemon-backed run summary for one run.
