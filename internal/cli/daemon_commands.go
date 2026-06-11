@@ -276,7 +276,12 @@ func (b cliDaemonBootstrap) waitForDaemonInfoRelease(
 		}
 		info, err := b.readInfo(strings.TrimSpace(infoPath))
 		if err != nil {
-			return nil
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			lastErr = fmt.Errorf("read daemon info while waiting for stale daemon release: %w", err)
+			b.sleep(b.pollInterval)
+			continue
 		}
 		if !sameDaemonInfoOwner(info, previous) {
 			return nil
@@ -341,7 +346,7 @@ func daemonBuildVersionsCompatible(daemonVersion string, cliVersion string) bool
 	if daemonVersion == cliVersion {
 		return true
 	}
-	return isDevBuildVersion(daemonVersion) && isDevBuildVersion(cliVersion)
+	return isDevBuildVersion(daemonVersion) || isDevBuildVersion(cliVersion)
 }
 
 func isDevBuildVersion(value string) bool {

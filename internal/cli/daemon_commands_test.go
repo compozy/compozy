@@ -1720,6 +1720,7 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 
 	currentVersion := "v2.0.0 (commit=current date=2026-06-11)"
 	oldVersion := "v1.9.0 (commit=old date=2026-06-10)"
+	devVersion := "dev (commit=none date=unknown)"
 	now := time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -1737,7 +1738,7 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 		wantErr           []string
 	}{
 		{
-			name:           "matching versions reuse daemon",
+			name:           "Should reuse daemon when versions match",
 			cliVersion:     currentVersion,
 			initialVersion: currentVersion,
 			initialStatus: apicore.DaemonStatus{
@@ -1746,7 +1747,7 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			wantClient: "initial",
 		},
 		{
-			name:           "idle mismatch restarts and reconnects",
+			name:           "Should restart and reconnect idle daemon when release versions differ",
 			cliVersion:     currentVersion,
 			initialVersion: oldVersion,
 			initialStatus: apicore.DaemonStatus{
@@ -1765,7 +1766,7 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			},
 		},
 		{
-			name:           "busy mismatch fails without stopping",
+			name:           "Should fail without stopping busy daemon when release versions differ",
 			cliVersion:     currentVersion,
 			initialVersion: oldVersion,
 			initialStatus: apicore.DaemonStatus{
@@ -1781,11 +1782,29 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			},
 		},
 		{
-			name:           "dev and empty versions are compatible",
-			cliVersion:     "dev (commit=none date=unknown)",
+			name:           "Should reuse daemon when dev and empty versions are compatible",
+			cliVersion:     devVersion,
 			initialVersion: "",
 			initialStatus:  apicore.DaemonStatus{},
 			wantClient:     "initial",
+		},
+		{
+			name:           "Should reuse daemon when daemon build is dev and CLI build is release",
+			cliVersion:     currentVersion,
+			initialVersion: devVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version: devVersion,
+			},
+			wantClient: "initial",
+		},
+		{
+			name:           "Should reuse daemon when CLI build is dev and daemon build is release",
+			cliVersion:     devVersion,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version: currentVersion,
+			},
+			wantClient: "initial",
 		},
 	}
 
@@ -1838,7 +1857,7 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 					}
 					readInfoCalls++
 					if readInfoCalls == 2 && tt.readInfoErrOnStop {
-						return daemon.Info{}, errors.New("daemon info removed")
+						return daemon.Info{}, fmt.Errorf("daemon info removed: %w", os.ErrNotExist)
 					}
 					if launchCalls > 0 {
 						return restartedInfo, nil
@@ -1923,6 +1942,107 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			}
 			if len(notices) != 1 || !containsAll(notices[0], tt.wantNotice...) {
 				t.Fatalf("notices = %#v, want one notice with %#v", notices, tt.wantNotice)
+			}
+		})
+	}
+}
+
+func TestCLIDaemonBootstrapWaitForDaemonInfoRelease(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 11, 12, 30, 0, 0, time.UTC)
+	previous := daemon.Info{
+		PID:        1234,
+		SocketPath: "/tmp/compozy-version-old.sock",
+		StartedAt:  now,
+		State:      daemon.ReadyStateReady,
+	}
+	permissionErr := errors.New("permission denied")
+
+	tests := []struct {
+		name        string
+		readErrors  []error
+		wantCalls   int
+		wantErrText []string
+	}{
+		{
+			name:       "Should proceed when daemon info is missing",
+			readErrors: []error{fmt.Errorf("daemon info removed: %w", os.ErrNotExist)},
+			wantCalls:  1,
+		},
+		{
+			name: "Should proceed after transient read error when daemon info becomes missing",
+			readErrors: []error{
+				permissionErr,
+				fmt.Errorf("daemon info removed: %w", os.ErrNotExist),
+			},
+			wantCalls: 2,
+		},
+		{
+			name:       "Should time out when daemon info read keeps failing without missing sentinel",
+			readErrors: []error{permissionErr},
+			wantCalls:  4,
+			wantErrText: []string{
+				"wait for stale daemon shutdown",
+				"read daemon info while waiting for stale daemon release",
+				"permission denied",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			currentTime := now
+			readInfoCalls := 0
+			bootstrap := cliDaemonBootstrap{
+				readInfo: func(path string) (daemon.Info, error) {
+					if path != "/tmp/compozy-home/daemon.json" {
+						t.Fatalf("unexpected daemon info path: %q", path)
+					}
+					readInfoCalls++
+					errIndex := readInfoCalls - 1
+					if errIndex >= len(tt.readErrors) {
+						errIndex = len(tt.readErrors) - 1
+					}
+					if err := tt.readErrors[errIndex]; err != nil {
+						return daemon.Info{}, err
+					}
+					return previous, nil
+				},
+				sleep: func(duration time.Duration) {
+					currentTime = currentTime.Add(duration)
+				},
+				now:            func() time.Time { return currentTime },
+				startupTimeout: 3 * time.Millisecond,
+				pollInterval:   time.Millisecond,
+			}
+
+			err := bootstrap.waitForDaemonInfoRelease(
+				context.Background(),
+				" /tmp/compozy-home/daemon.json ",
+				previous,
+			)
+			if len(tt.wantErrText) == 0 {
+				if err != nil {
+					t.Fatalf("waitForDaemonInfoRelease() error = %v, want nil", err)
+				}
+			} else {
+				if err == nil {
+					t.Fatal("waitForDaemonInfoRelease() error = nil, want timeout")
+				}
+				if !containsAll(err.Error(), tt.wantErrText...) {
+					t.Fatalf(
+						"waitForDaemonInfoRelease() error = %q, want fragments %#v",
+						err.Error(),
+						tt.wantErrText,
+					)
+				}
+			}
+			if readInfoCalls != tt.wantCalls {
+				t.Fatalf("readInfo calls = %d, want %d", readInfoCalls, tt.wantCalls)
 			}
 		})
 	}
