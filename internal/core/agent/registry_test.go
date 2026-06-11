@@ -188,6 +188,106 @@ func TestValidateRuntimeConfigAcceptsAddDirsForSupportedIDE(t *testing.T) {
 	}
 }
 
+func TestClaudeSpecSelectsModelAtLaunchViaEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pin the claude model at launch through ANTHROPIC_MODEL", func(t *testing.T) {
+		t.Parallel()
+
+		spec, err := lookupAgentSpec(model.IDEClaude)
+		if err != nil {
+			t.Fatalf("lookup claude spec: %v", err)
+		}
+		if !spec.UsesBootstrapModel {
+			t.Fatal("claude spec must use a bootstrap model so sessions never call session/set_model")
+		}
+		if spec.ModelEnvVar != "ANTHROPIC_MODEL" {
+			t.Fatalf("claude spec ModelEnvVar = %q, want %q", spec.ModelEnvVar, "ANTHROPIC_MODEL")
+		}
+	})
+}
+
+func TestLaunchModelEnv(t *testing.T) {
+	t.Parallel()
+
+	spec := Spec{
+		ID:           "test-launch-env",
+		DefaultModel: "default-model",
+		ModelEnvVar:  "TEST_MODEL_ENV",
+	}
+
+	cases := []struct {
+		name  string
+		spec  Spec
+		input string
+		want  map[string]string
+	}{
+		{
+			name:  "Should pin an explicitly requested model",
+			spec:  spec,
+			input: " sonnet ",
+			want:  map[string]string{"TEST_MODEL_ENV": "sonnet"},
+		},
+		{
+			name:  "Should leave model selection to the runtime for auto",
+			spec:  spec,
+			input: " AUTO ",
+			want:  nil,
+		},
+		{
+			name:  "Should leave model selection to the runtime for empty input",
+			spec:  spec,
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "Should return nil for specs without a model env var",
+			spec:  Spec{ID: "no-env", DefaultModel: "default-model"},
+			input: "sonnet",
+			want:  nil,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := launchModelEnv(tc.spec, tc.input)
+			if len(got) != len(tc.want) {
+				t.Fatalf("launchModelEnv() = %#v, want %#v", got, tc.want)
+			}
+			for key, want := range tc.want {
+				if got[key] != want {
+					t.Fatalf("launchModelEnv()[%q] = %q, want %q", key, got[key], want)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildShellCommandStringIncludesClaudeModelEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pin explicit model through ANTHROPIC_MODEL", func(t *testing.T) {
+		t.Parallel()
+
+		got := BuildShellCommandString(model.IDEClaude, "sonnet", nil, "", "")
+		if !strings.Contains(got, "ANTHROPIC_MODEL=sonnet") {
+			t.Fatalf("shell command %q does not contain ANTHROPIC_MODEL=sonnet", got)
+		}
+	})
+
+	t.Run("Should omit ANTHROPIC_MODEL for auto model", func(t *testing.T) {
+		t.Parallel()
+
+		got := BuildShellCommandString(model.IDEClaude, "auto", nil, "", "")
+		if strings.Contains(got, "ANTHROPIC_MODEL") {
+			t.Fatalf("shell command %q must not contain ANTHROPIC_MODEL", got)
+		}
+	})
+}
+
 func TestResolveRuntimeModelNormalizesCodexProviderPrefix(t *testing.T) {
 	t.Parallel()
 

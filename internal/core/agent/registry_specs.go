@@ -23,11 +23,15 @@ type Spec struct {
 	Fallbacks          []Launcher
 	SupportsAddDirs    bool
 	UsesBootstrapModel bool
-	EnvVars            map[string]string
-	DocsURL            string
-	InstallHint        string
-	FullAccessModeID   string
-	BootstrapArgs      func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string
+	// ModelEnvVar names the environment variable that carries an explicitly
+	// requested model to the agent process at launch, for runtimes that read
+	// their model from the environment instead of supporting session/set_model.
+	ModelEnvVar      string
+	EnvVars          map[string]string
+	DocsURL          string
+	InstallHint      string
+	FullAccessModeID string
+	BootstrapArgs    func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string
 }
 
 // Launcher defines one ACP-compatible command shape for a runtime.
@@ -91,6 +95,11 @@ var (
 			DefaultModel:    model.DefaultClaudeModel,
 			Command:         "claude-agent-acp",
 			SupportsAddDirs: true,
+			// claude-agent-acp does not implement session/set_model; it resolves
+			// the model at launch with ANTHROPIC_MODEL as the highest priority,
+			// so explicit models must be pinned through the launch environment.
+			UsesBootstrapModel: true,
+			ModelEnvVar:        "ANTHROPIC_MODEL",
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
