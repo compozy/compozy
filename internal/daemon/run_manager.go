@@ -492,9 +492,10 @@ func (m *RunManager) StartExecRun(
 func (m *RunManager) List(ctx context.Context, query apicore.RunListQuery) ([]apicore.Run, error) {
 	listCtx := detachContext(ctx)
 	opts := globaldb.ListRunsOptions{
-		Status: strings.TrimSpace(query.Status),
-		Mode:   strings.TrimSpace(query.Mode),
-		Limit:  query.Limit,
+		Status:   strings.TrimSpace(query.Status),
+		Statuses: query.Statuses,
+		Mode:     strings.TrimSpace(query.Mode),
+		Limit:    query.Limit,
 	}
 	if opts.Limit <= 0 {
 		opts.Limit = defaultRunListLimit

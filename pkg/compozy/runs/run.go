@@ -190,6 +190,7 @@ func (d *defaultDaemonRunReader) ListRuns(
 
 	runs, err := d.daemon.ListRuns(ctx, apiclient.RunListOptions{
 		Workspace: strings.TrimSpace(workspaceRoot),
+		Statuses:  opts.Status,
 		Limit:     limit,
 	})
 	if err != nil {

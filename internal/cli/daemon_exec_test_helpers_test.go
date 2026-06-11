@@ -148,8 +148,11 @@ func (*inProcessDaemonCommandClient) Health(context.Context) (apicore.DaemonHeal
 	return apicore.DaemonHealth{Ready: true}, nil
 }
 
-func (*inProcessDaemonCommandClient) DaemonStatus(context.Context) (apicore.DaemonStatus, error) {
-	return apicore.DaemonStatus{}, nil
+func (c *inProcessDaemonCommandClient) DaemonStatus(context.Context) (apicore.DaemonStatus, error) {
+	if c == nil || c.manager == nil {
+		return apicore.DaemonStatus{}, errors.New("DaemonStatus requires an in-process run manager")
+	}
+	return apicore.DaemonStatus{ActiveRunCount: c.manager.ActiveRunCount()}, nil
 }
 
 func (*inProcessDaemonCommandClient) StopDaemon(context.Context, bool) error { return nil }
@@ -169,8 +172,34 @@ func (*inProcessDaemonCommandClient) RegisterWorkspace(
 	return apicore.WorkspaceRegisterResult{}, errors.New("RegisterWorkspace not implemented for in-process exec tests")
 }
 
-func (*inProcessDaemonCommandClient) ListWorkspaces(context.Context) ([]apicore.Workspace, error) {
-	return nil, errors.New("ListWorkspaces not implemented for in-process exec tests")
+func (c *inProcessDaemonCommandClient) ListWorkspaces(ctx context.Context) ([]apicore.Workspace, error) {
+	if c == nil || c.globalDB == nil {
+		return nil, errors.New("ListWorkspaces requires an in-process global db")
+	}
+	rows, err := c.globalDB.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	workspaces := make([]apicore.Workspace, 0, len(rows))
+	for i := range rows {
+		row := rows[i]
+		workspaces = append(workspaces, apicore.Workspace{
+			ID:              row.ID,
+			RootDir:         row.RootDir,
+			Name:            row.Name,
+			FilesystemState: row.FilesystemState,
+			ReadOnly:        row.ReadOnly,
+			HasCatalogData:  row.HasCatalogData,
+			WorkflowCount:   row.WorkflowCount,
+			RunCount:        row.RunCount,
+			LastCheckedAt:   row.LastCheckedAt,
+			LastSyncedAt:    row.LastSyncedAt,
+			LastSyncError:   row.LastSyncError,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
+		})
+	}
+	return workspaces, nil
 }
 
 func (*inProcessDaemonCommandClient) GetWorkspace(context.Context, string) (apicore.Workspace, error) {
@@ -183,6 +212,21 @@ func (*inProcessDaemonCommandClient) DeleteWorkspace(context.Context, string) er
 
 func (*inProcessDaemonCommandClient) ResolveWorkspace(context.Context, string) (apicore.Workspace, error) {
 	return apicore.Workspace{}, errors.New("ResolveWorkspace not implemented for in-process exec tests")
+}
+
+func (c *inProcessDaemonCommandClient) ListRuns(
+	ctx context.Context,
+	opts apiclient.RunListOptions,
+) ([]apicore.Run, error) {
+	if c == nil || c.manager == nil {
+		return nil, errors.New("ListRuns requires an in-process run manager")
+	}
+	return c.manager.List(ctx, apicore.RunListQuery{
+		Workspace: opts.Workspace,
+		Status:    opts.Status,
+		Mode:      opts.Mode,
+		Limit:     opts.Limit,
+	})
 }
 
 func (*inProcessDaemonCommandClient) ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error) {

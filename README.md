@@ -119,6 +119,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
 - `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
 - `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation.
+- Independent `compozy tasks run` invocations from different workspaces run concurrently on the shared home-scoped daemon. When another workspace already has an active run, the CLI prints a warning with the busy workspace and run ID before starting the new run.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
 - `compozy reviews fetch|list|show|fix` is the canonical review command family.
 
@@ -644,6 +645,8 @@ run_multiple_mode = "enqueued"
 ```
 
 `"enqueued"` is the default and runs one child workflow at a time in the requested order. `"parallel"` is also accepted in V1, but Compozy prints a fallback message and still runs the queue as `"enqueued"` until V2 adds git worktree-backed isolation for concurrent agents.
+
+Cross-workspace runs are different from `--multiple` scheduling: the home-scoped daemon accepts separate `compozy tasks run` invocations from different workspaces concurrently and does not queue or reject the second run. Before starting a non-dry-run task workflow, the CLI checks daemon status; if active runs belong to another registered workspace, it warns with the busy workspace name/path and run ID, then proceeds. The warning is skipped when the daemon is idle, when the active run belongs to the same workspace, or when `--dry-run` is set.
 
 In the TUI, every requested slug has a tab. Queued tabs appear before their child run exists, the running tab shows the familiar task-run surface, and completed, failed, or canceled tabs remain available for inspection. The quit dialog applies to the parent queue: `Close TUI` detaches and leaves the queue running in the daemon, `Stop Run` cancels the parent queue, cancels the active child, and marks queued workflows canceled, and `Cancel` returns to the TUI without changing execution.
 

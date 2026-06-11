@@ -553,7 +553,7 @@ func TestClientRunQueriesUseCanonicalContract(t *testing.T) {
 				case http.MethodGet + " /api/runs":
 					query := req.URL.Query()
 					if query.Get("workspace") != "/tmp/workspace" ||
-						query.Get("status") != "running" ||
+						query.Get("status") != "pending,running" ||
 						query.Get("mode") != "exec" ||
 						query.Get("limit") != "25" {
 						t.Fatalf("run list query = %#v, want canonical filters", query)
@@ -584,7 +584,7 @@ func TestClientRunQueriesUseCanonicalContract(t *testing.T) {
 
 	runs, err := client.ListRuns(context.Background(), RunListOptions{
 		Workspace: "/tmp/workspace",
-		Status:    "running",
+		Statuses:  []string{" pending ", "running"},
 		Mode:      "exec",
 		Limit:     25,
 	})

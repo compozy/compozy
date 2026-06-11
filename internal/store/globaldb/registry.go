@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -100,6 +101,7 @@ type ListWorkflowsOptions struct {
 type ListRunsOptions struct {
 	WorkspaceID string
 	Status      string
+	Statuses    []string
 	Mode        string
 	Limit       int
 }
@@ -708,10 +710,17 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 		query += ` AND workspace_id = ?`
 		args = append(args, workspaceID)
 	}
-	if status := strings.TrimSpace(opts.Status); status != "" {
-		status = normalizeRunStatus(status)
+	if statuses := normalizeRunStatusFilters(opts.Status, opts.Statuses); len(statuses) == 1 {
+		status := statuses[0]
 		query += ` AND status = ?`
 		args = append(args, status)
+	} else if len(statuses) > 1 {
+		statusPayload, err := json.Marshal(statuses)
+		if err != nil {
+			return nil, fmt.Errorf("globaldb: encode run status filters: %w", err)
+		}
+		query += ` AND status IN (SELECT value FROM json_each(?))`
+		args = append(args, string(statusPayload))
 	}
 	if mode := strings.TrimSpace(opts.Mode); mode != "" {
 		query += ` AND mode = ?`

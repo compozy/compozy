@@ -238,6 +238,19 @@ func TestPutRunNormalizesStatusAndListRunsUsesWorkspaceStatusIndex(t *testing.T)
 	if !strings.Contains(plan, "idx_runs_workspace_status") {
 		t.Fatalf("query plan = %q, want idx_runs_workspace_status", plan)
 	}
+
+	listed, err := db.ListRuns(context.Background(), ListRunsOptions{
+		WorkspaceID: workspace.ID,
+		Statuses:    []string{" running ", "completed"},
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns(multi-status) error = %v", err)
+	}
+	wantRuns := []string{"run-status-190000.000000002", "run-status-190000.000000000"}
+	if got := runIDs(listed); !reflect.DeepEqual(got, wantRuns) {
+		t.Fatalf("multi-status runs = %v, want %v", got, wantRuns)
+	}
 }
 
 func TestRunParentRunIDRoundTripsThroughDurableQueries(t *testing.T) {

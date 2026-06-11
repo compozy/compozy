@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ const (
 
 	defaultDaemonStartupTimeout = 10 * time.Second
 	defaultDaemonPollInterval   = 100 * time.Millisecond
+	taskRunGuardRunListLimit    = 1000
 )
 
 var (
@@ -56,6 +58,7 @@ type daemonCommandClient interface {
 	GetWorkspace(context.Context, string) (apicore.Workspace, error)
 	DeleteWorkspace(context.Context, string) error
 	ResolveWorkspace(context.Context, string) (apicore.Workspace, error)
+	ListRuns(context.Context, apiclient.RunListOptions) ([]apicore.Run, error)
 	ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error)
 	ArchiveTaskWorkflow(context.Context, string, string) (apicore.ArchiveResult, error)
 	SyncWorkflow(context.Context, apicore.SyncRequest) (apicore.SyncResult, error)
@@ -579,6 +582,7 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client)
 
 	run, err := client.StartTaskRun(ctx, s.name, apicore.TaskRunRequest{
 		Workspace:        s.workspaceRoot,
@@ -625,6 +629,7 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client)
 
 	run, err := client.StartTaskRunMultiple(ctx, apicore.TaskRunMultipleRequest{
 		Workspace:        s.workspaceRoot,
@@ -702,6 +707,226 @@ func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, e
 			mode,
 		)
 	}
+}
+
+type taskRunBusyWorkspace struct {
+	workspaceID string
+	rootDir     string
+	name        string
+	runIDs      []string
+}
+
+var taskRunGuardActiveStatuses = []string{"starting", "running", "pending", "retrying"}
+
+func (s *commandState) warnIfOtherWorkspaceTaskRunsActive(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+) {
+	if s.dryRun {
+		return
+	}
+	status, err := client.DaemonStatus(ctx)
+	if err != nil {
+		// This guard is advisory; inability to inspect daemon state must not block a task run.
+		return
+	}
+	if status.ActiveRunCount <= 0 {
+		return
+	}
+
+	activeRuns, err := listTaskRunGuardActiveRuns(ctx, client)
+	if err != nil {
+		return
+	}
+	if len(activeRuns) == 0 {
+		return
+	}
+	workspaces, err := client.ListWorkspaces(ctx)
+	if err != nil {
+		return
+	}
+	busy := otherWorkspaceActiveRuns(s.workspaceRoot, activeRuns, workspaces)
+	if len(busy) == 0 {
+		return
+	}
+	writeTaskRunConcurrencyWarning(cmd, busy)
+}
+
+func listTaskRunGuardActiveRuns(ctx context.Context, client daemonCommandClient) ([]apicore.Run, error) {
+	listed, err := client.ListRuns(ctx, apiclient.RunListOptions{
+		Statuses: taskRunGuardActiveStatuses,
+		Limit:    taskRunGuardRunListLimit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	runs := make([]apicore.Run, 0, len(listed))
+	seen := make(map[string]struct{})
+	for i := range listed {
+		run := listed[i]
+		runID := strings.TrimSpace(run.RunID)
+		if runID == "" {
+			continue
+		}
+		if _, ok := seen[runID]; ok {
+			continue
+		}
+		seen[runID] = struct{}{}
+		runs = append(runs, run)
+	}
+	return runs, nil
+}
+
+func otherWorkspaceActiveRuns(
+	currentRoot string,
+	activeRuns []apicore.Run,
+	workspaces []apicore.Workspace,
+) []taskRunBusyWorkspace {
+	workspaceByID, currentWorkspaceID, currentKey := taskRunGuardWorkspaceIndex(currentRoot, workspaces)
+	groupsByWorkspace := make(map[string]*taskRunBusyWorkspace)
+	for i := range activeRuns {
+		run := activeRuns[i]
+		runID := strings.TrimSpace(run.RunID)
+		workspaceID := strings.TrimSpace(run.WorkspaceID)
+		if runID == "" || workspaceID == "" {
+			continue
+		}
+		workspace := workspaceByID[workspaceID]
+		if taskRunGuardIsCurrentWorkspace(workspaceID, currentWorkspaceID, currentKey, workspace) {
+			continue
+		}
+		// The registry can miss a workspace referenced by a durable run; keep reporting it by id.
+		group := taskRunGuardBusyWorkspaceGroup(groupsByWorkspace, workspaceID, workspace)
+		group.runIDs = append(group.runIDs, runID)
+	}
+	return taskRunGuardSortedBusyWorkspaces(groupsByWorkspace)
+}
+
+func taskRunGuardWorkspaceIndex(
+	currentRoot string,
+	workspaces []apicore.Workspace,
+) (map[string]*apicore.Workspace, string, string) {
+	workspaceByID := make(map[string]*apicore.Workspace, len(workspaces))
+	currentWorkspaceID := ""
+	currentKey := taskRunGuardWorkspaceRootKey(currentRoot)
+	for i := range workspaces {
+		workspace := &workspaces[i]
+		workspaceID := strings.TrimSpace(workspace.ID)
+		if workspaceID != "" {
+			workspaceByID[workspaceID] = workspace
+		}
+		if currentKey != "" && taskRunGuardWorkspaceRootKey(workspace.RootDir) == currentKey {
+			currentWorkspaceID = workspaceID
+		}
+	}
+	return workspaceByID, currentWorkspaceID, currentKey
+}
+
+func taskRunGuardIsCurrentWorkspace(
+	workspaceID string,
+	currentWorkspaceID string,
+	currentKey string,
+	workspace *apicore.Workspace,
+) bool {
+	if currentWorkspaceID != "" {
+		return workspaceID == currentWorkspaceID
+	}
+	return currentKey != "" && workspace != nil && taskRunGuardWorkspaceRootKey(workspace.RootDir) == currentKey
+}
+
+func taskRunGuardBusyWorkspaceGroup(
+	groupsByWorkspace map[string]*taskRunBusyWorkspace,
+	workspaceID string,
+	workspace *apicore.Workspace,
+) *taskRunBusyWorkspace {
+	group, ok := groupsByWorkspace[workspaceID]
+	if ok {
+		return group
+	}
+	group = &taskRunBusyWorkspace{workspaceID: workspaceID}
+	if workspace != nil {
+		group.rootDir = strings.TrimSpace(workspace.RootDir)
+		group.name = strings.TrimSpace(workspace.Name)
+	}
+	groupsByWorkspace[workspaceID] = group
+	return group
+}
+
+func taskRunGuardSortedBusyWorkspaces(
+	groupsByWorkspace map[string]*taskRunBusyWorkspace,
+) []taskRunBusyWorkspace {
+	busy := make([]taskRunBusyWorkspace, 0, len(groupsByWorkspace))
+	for _, group := range groupsByWorkspace {
+		sort.Strings(group.runIDs)
+		busy = append(busy, *group)
+	}
+	sort.Slice(busy, func(i, j int) bool {
+		left := taskRunBusyWorkspaceLabel(busy[i])
+		right := taskRunBusyWorkspaceLabel(busy[j])
+		if left == right {
+			return busy[i].workspaceID < busy[j].workspaceID
+		}
+		return left < right
+	})
+	return busy
+}
+
+func taskRunGuardWorkspaceRootKey(root string) string {
+	trimmed := strings.TrimSpace(root)
+	if trimmed == "" {
+		return ""
+	}
+	absolute, err := filepath.Abs(trimmed)
+	if err != nil {
+		absolute = trimmed
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err == nil {
+		absolute = resolved
+	}
+	return filepath.Clean(absolute)
+}
+
+func writeTaskRunConcurrencyWarning(cmd *cobra.Command, busy []taskRunBusyWorkspace) {
+	writer := cmd.ErrOrStderr()
+	if _, err := fmt.Fprintln(
+		writer,
+		"Warning: daemon already has active run(s) in another workspace; starting this task run concurrently.",
+	); err != nil {
+		// The warning is advisory; a closed stderr must not prevent starting the run.
+		return
+	}
+	if _, err := fmt.Fprintln(writer, "Busy workspace(s):"); err != nil {
+		return
+	}
+	for _, workspace := range busy {
+		if _, err := fmt.Fprintf(
+			writer,
+			"  - %s: %s\n",
+			taskRunBusyWorkspaceLabel(workspace),
+			strings.Join(workspace.runIDs, ", "),
+		); err != nil {
+			return
+		}
+	}
+}
+
+func taskRunBusyWorkspaceLabel(workspace taskRunBusyWorkspace) string {
+	parts := make([]string, 0, 3)
+	if workspace.name != "" {
+		parts = append(parts, workspace.name)
+	}
+	if workspace.rootDir != "" {
+		parts = append(parts, workspace.rootDir)
+	}
+	if workspace.workspaceID != "" {
+		parts = append(parts, "id="+workspace.workspaceID)
+	}
+	if len(parts) == 0 {
+		return "unknown workspace"
+	}
+	return strings.Join(parts, " | ")
 }
 
 func handleStartedTaskRun(

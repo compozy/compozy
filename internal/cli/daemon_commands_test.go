@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -71,6 +72,9 @@ type stubDaemonCommandClient struct {
 	register             apicore.WorkspaceRegisterResult
 	registerErr          error
 	listErr              error
+	runs                 []apicore.Run
+	runsErr              error
+	runListRequests      []apiclient.RunListOptions
 	deleteRef            string
 	deleteErr            error
 	workflows            []apicore.WorkflowSummary
@@ -212,6 +216,57 @@ func (c *stubDaemonCommandClient) ResolveWorkspace(context.Context, string) (api
 		return apicore.Workspace{}, c.workspaceErr
 	}
 	return c.workspace, nil
+}
+
+func (c *stubDaemonCommandClient) ListRuns(
+	_ context.Context,
+	opts apiclient.RunListOptions,
+) ([]apicore.Run, error) {
+	if c == nil {
+		return nil, errors.New("stub daemon client is required")
+	}
+	c.runListRequests = append(c.runListRequests, opts)
+	if c.runsErr != nil {
+		return nil, c.runsErr
+	}
+	statuses := stubRunListStatuses(opts)
+	if len(statuses) == 0 {
+		return append([]apicore.Run(nil), c.runs...), nil
+	}
+	runs := make([]apicore.Run, 0, len(c.runs))
+	for i := range c.runs {
+		run := c.runs[i]
+		if slices.ContainsFunc(statuses, func(status string) bool {
+			return strings.EqualFold(strings.TrimSpace(run.Status), status)
+		}) {
+			runs = append(runs, run)
+		}
+	}
+	return runs, nil
+}
+
+func stubRunListStatuses(opts apiclient.RunListOptions) []string {
+	statuses := make([]string, 0, len(opts.Statuses)+1)
+	appendStatus := func(raw string) {
+		for _, candidate := range strings.Split(raw, ",") {
+			trimmed := strings.TrimSpace(candidate)
+			if trimmed == "" || slices.Contains(statuses, trimmed) {
+				continue
+			}
+			statuses = append(statuses, trimmed)
+		}
+	}
+	appendStatus(opts.Status)
+	for _, status := range opts.Statuses {
+		appendStatus(status)
+	}
+	return statuses
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
 }
 
 func (c *stubDaemonCommandClient) ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error) {
@@ -2689,6 +2744,241 @@ func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T
 	if _, err := state.resolveTaskPresentationMode(cmd); err == nil ||
 		!containsAll(err.Error(), "attach mode must be one of auto, ui, stream, or detach") {
 		t.Fatalf("expected invalid attach mode error, got %v", err)
+	}
+}
+
+func TestWarnIfOtherWorkspaceTaskRunsActive(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		configure           func(t *testing.T) (*commandState, *stubDaemonCommandClient)
+		wantWarningContains []string
+		wantNoWarning       bool
+		wantStatusCalls     int
+		wantRunListCalls    int
+		wantRunStatuses     []string
+	}{
+		{
+			name: "Should warn for active run in different workspace",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				currentRoot := t.TempDir()
+				busyRoot := t.TempDir()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = currentRoot
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 1},
+					workspaces: []apicore.Workspace{
+						{ID: "ws-current", RootDir: currentRoot, Name: "current"},
+						{ID: "ws-busy", RootDir: busyRoot, Name: "busy-project"},
+					},
+					runs: []apicore.Run{{
+						RunID:       "run-busy-001",
+						WorkspaceID: "ws-busy",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantWarningContains: []string{
+				"Warning: daemon already has active run(s) in another workspace",
+				"busy-project",
+				"ws-busy",
+				"run-busy-001",
+			},
+			wantStatusCalls:  1,
+			wantRunListCalls: 1,
+			wantRunStatuses:  taskRunGuardActiveStatuses,
+		},
+		{
+			name: "Should not warn for active run in same workspace",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				currentRoot := t.TempDir()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = currentRoot
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 1},
+					workspaces: []apicore.Workspace{{
+						ID:      "ws-current",
+						RootDir: currentRoot,
+						Name:    "current",
+					}},
+					runs: []apicore.Run{{
+						RunID:       "run-current-001",
+						WorkspaceID: "ws-current",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 1,
+			wantRunStatuses:  taskRunGuardActiveStatuses,
+		},
+		{
+			name: "Should ignore daemon status errors because guard is best effort",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				client := &stubDaemonCommandClient{
+					statusErr: errors.New("status unavailable"),
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 0,
+		},
+		{
+			name: "Should ignore run list errors because guard is best effort",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				client := &stubDaemonCommandClient{
+					status:  apicore.DaemonStatus{ActiveRunCount: 1},
+					runsErr: errors.New("runs unavailable"),
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 1,
+			wantRunStatuses:  taskRunGuardActiveStatuses,
+		},
+		{
+			name: "Should ignore workspace list errors because guard is best effort",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				client := &stubDaemonCommandClient{
+					status:  apicore.DaemonStatus{ActiveRunCount: 1},
+					listErr: errors.New("workspaces unavailable"),
+					runs: []apicore.Run{{
+						RunID:       "run-busy-001",
+						WorkspaceID: "ws-busy",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 1,
+			wantRunStatuses:  taskRunGuardActiveStatuses,
+		},
+		{
+			name: "Should not inspect runs when daemon is idle",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 0},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  1,
+			wantRunListCalls: 0,
+		},
+		{
+			name: "Should skip guard for dry run",
+			configure: func(t *testing.T) (*commandState, *stubDaemonCommandClient) {
+				t.Helper()
+				state := newCommandState(commandKindTasksRun, "")
+				state.workspaceRoot = t.TempDir()
+				state.dryRun = true
+				client := &stubDaemonCommandClient{
+					status: apicore.DaemonStatus{ActiveRunCount: 1},
+					runs: []apicore.Run{{
+						RunID:       "run-busy-001",
+						WorkspaceID: "ws-busy",
+						Status:      "running",
+					}},
+				}
+				return state, client
+			},
+			wantNoWarning:    true,
+			wantStatusCalls:  0,
+			wantRunListCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state, client := tt.configure(t)
+			cmd := &cobra.Command{Use: "compozy tasks run"}
+			var stderr bytes.Buffer
+			cmd.SetErr(&stderr)
+
+			state.warnIfOtherWorkspaceTaskRunsActive(context.Background(), cmd, client)
+
+			output := stderr.String()
+			if tt.wantNoWarning && output != "" {
+				t.Fatalf("expected no warning, got %q", output)
+			}
+			for _, want := range tt.wantWarningContains {
+				if !strings.Contains(output, want) {
+					t.Fatalf("expected warning to contain %q, got %q", want, output)
+				}
+			}
+			if client.statusCalls != tt.wantStatusCalls {
+				t.Fatalf("status calls = %d, want %d", client.statusCalls, tt.wantStatusCalls)
+			}
+			if len(client.runListRequests) != tt.wantRunListCalls {
+				t.Fatalf("run list calls = %d, want %d", len(client.runListRequests), tt.wantRunListCalls)
+			}
+			if len(tt.wantRunStatuses) > 0 {
+				if len(client.runListRequests) == 0 {
+					t.Fatal("expected one run list request")
+				}
+				if !slices.Equal(client.runListRequests[0].Statuses, tt.wantRunStatuses) {
+					t.Fatalf(
+						"run list statuses = %#v, want %#v",
+						client.runListRequests[0].Statuses,
+						tt.wantRunStatuses,
+					)
+				}
+			}
+		})
+	}
+}
+
+func TestWarnIfOtherWorkspaceTaskRunsActiveIgnoresWarningWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	currentRoot := t.TempDir()
+	busyRoot := t.TempDir()
+	state := newCommandState(commandKindTasksRun, "")
+	state.workspaceRoot = currentRoot
+	client := &stubDaemonCommandClient{
+		status: apicore.DaemonStatus{ActiveRunCount: 1},
+		workspaces: []apicore.Workspace{
+			{ID: "ws-current", RootDir: currentRoot, Name: "current"},
+			{ID: "ws-busy", RootDir: busyRoot, Name: "busy-project"},
+		},
+		runs: []apicore.Run{{
+			RunID:       "run-busy-001",
+			WorkspaceID: "ws-busy",
+			Status:      "running",
+		}},
+	}
+	cmd := &cobra.Command{Use: "compozy tasks run"}
+	cmd.SetErr(failingWriter{})
+
+	state.warnIfOtherWorkspaceTaskRunsActive(context.Background(), cmd, client)
+
+	if len(client.runListRequests) != 1 {
+		t.Fatalf("run list calls = %d, want 1", len(client.runListRequests))
 	}
 }
 

@@ -1176,6 +1176,7 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 	runs, err := h.Runs.List(c.Request.Context(), RunListQuery{
 		Workspace: h.optionalWorkspaceContext(c, c.Query("workspace")),
 		Status:    strings.TrimSpace(c.Query("status")),
+		Statuses:  runListStatusFilters(c.QueryArray("status")),
 		Mode:      strings.TrimSpace(c.Query("mode")),
 		Limit:     limit,
 	})
@@ -1184,6 +1185,25 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.RunListResponse{Runs: runs})
+}
+
+func runListStatusFilters(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	filters := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, candidate := range strings.Split(value, ",") {
+			trimmed := strings.TrimSpace(candidate)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			filters = append(filters, trimmed)
+		}
+	}
+	return filters
 }
 
 // GetRun returns one run summary.
