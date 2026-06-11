@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -109,7 +110,12 @@ func (m *RunManager) StartReviewWatch(
 	workflowSlug string,
 	req apicore.ReviewWatchRequest,
 ) (apicore.Run, error) {
-	prepared, runtimeCfg, err := m.prepareReviewWatchStart(detachContext(ctx), workspaceRef, workflowSlug, req)
+	prepared, runtimeCfg, presentationMode, err := m.prepareReviewWatchStart(
+		detachContext(ctx),
+		workspaceRef,
+		workflowSlug,
+		req,
+	)
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -134,7 +140,7 @@ func (m *RunManager) StartReviewWatch(
 		workflowSlug:     prepared.workflowSlug,
 		workflowRoot:     prepared.workflowRoot,
 		mode:             runModeReviewWatch,
-		presentationMode: defaultPresentationMode,
+		presentationMode: presentationMode,
 		runtimeCfg:       runtimeCfg,
 		reviewWatch:      prepared,
 		reviewWatchKey:   &key,
@@ -151,21 +157,25 @@ func (m *RunManager) prepareReviewWatchStart(
 	workspaceRef string,
 	workflowSlug string,
 	req apicore.ReviewWatchRequest,
-) (*preparedReviewWatch, *model.RuntimeConfig, error) {
+) (*preparedReviewWatch, *model.RuntimeConfig, string, error) {
 	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	options, err := resolveReviewWatchOptions(projectCfg, req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
+	}
+	presentationMode, err := normalizePresentationMode(req.PresentationMode)
+	if err != nil {
+		return nil, nil, "", err
 	}
 	overrides, err := parseRuntimeOverrides(req.RuntimeOverrides)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	if options.AutoPush && overrides.AutoCommit != nil && !*overrides.AutoCommit {
-		return nil, nil, apicore.NewProblem(
+		return nil, nil, "", apicore.NewProblem(
 			http.StatusUnprocessableEntity,
 			"invalid_watch_request",
 			"auto_push requires auto_commit to be true",
@@ -175,17 +185,17 @@ func (m *RunManager) prepareReviewWatchStart(
 	}
 	childRuntimeOverrides, err := reviewWatchChildRuntimeOverrides(req.RuntimeOverrides, options.AutoPush)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	options.RuntimeOverrides = childRuntimeOverrides
 	if _, err := parseReviewBatching(req.Batching); err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	options.Batching = cloneJSON(req.Batching)
 
 	workflowRoot := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
-	if err := requireDirectory(workflowRoot); err != nil {
-		return nil, nil, err
+	if err := ensureReviewWatchWorkflowDirectory(workflowRoot, workflowSlug, options.PR); err != nil {
+		return nil, nil, "", err
 	}
 
 	runtimeCfg := &model.RuntimeConfig{
@@ -212,7 +222,27 @@ func (m *RunManager) prepareReviewWatchStart(
 		workflowSlug: strings.TrimSpace(workflowSlug),
 		workflowRoot: workflowRoot,
 		options:      options,
-	}, runtimeCfg, nil
+	}, runtimeCfg, presentationMode, nil
+}
+
+func ensureReviewWatchWorkflowDirectory(dir string, workflowSlug string, prRef string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if !reviews.IsPRDerivedTaskName(workflowSlug, prRef) {
+				return fmt.Errorf("review watch workflow directory not found: %s", dir)
+			}
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return fmt.Errorf("create review watch workflow directory: %w", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("stat review watch workflow directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("review watch workflow path is not a directory: %s", dir)
+	}
+	return nil
 }
 
 func resolveReviewWatchOptions(

@@ -12,6 +12,7 @@ coverage.out
 coverage.html
 .codex/CONTINUITY*
 .codex/plans
+.peer-reviews/
 .resources/
 .factory/skills
 skills/*/autoresearch-*/

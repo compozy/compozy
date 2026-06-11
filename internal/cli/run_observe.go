@@ -24,6 +24,7 @@ var (
 	watchCLIRun                    = defaultWatchCLIRun
 	openCLIRemoteUISession         = uipkg.AttachRemote
 	openCLIRemoteMultiRunUISession = uipkg.AttachRemoteMultiple
+	openCLIRemoteReviewWatchUI     = uipkg.AttachRemoteReviewWatch
 )
 
 var errRunSettledBeforeUIAttach = errors.New("run settled before ui attach")
@@ -33,6 +34,7 @@ const (
 	defaultUIAttachSnapshotPollInterval = 10 * time.Millisecond
 	defaultOwnedRunCancelTimeout        = 5 * time.Second
 	daemonRunModeTaskMulti              = "task_multi"
+	daemonRunModeReviewWatch            = "review_watch"
 )
 
 type cliRunObserveConfig struct {
@@ -134,6 +136,9 @@ func attachRemoteCLIRunUI(
 	if isTaskMultiRunSnapshot(snapshot) {
 		return attachRemoteCLIMultiRunUI(ctx, client, trimmedRunID, cancelOwnedRunOnExit, cfg)
 	}
+	if isReviewWatchRunSnapshot(snapshot) {
+		return attachRemoteCLIReviewWatchUI(ctx, client, trimmedRunID, snapshot, cancelOwnedRunOnExit, cfg)
+	}
 	if runSnapshotSettledBeforeUIAttach(snapshot) {
 		return errRunSettledBeforeUIAttach
 	}
@@ -169,6 +174,10 @@ func isTaskMultiRunSnapshot(snapshot apicore.RunSnapshot) bool {
 	return snapshot.Run.Mode == daemonRunModeTaskMulti
 }
 
+func isReviewWatchRunSnapshot(snapshot apicore.RunSnapshot) bool {
+	return snapshot.Run.Mode == daemonRunModeReviewWatch
+}
+
 func attachRemoteCLIMultiRunUI(
 	ctx context.Context,
 	client daemonCommandClient,
@@ -191,6 +200,40 @@ func attachRemoteCLIMultiRunUI(
 		OwnerSession: cancelOwnedRunOnExit,
 		LoadSnapshot: func(loadCtx context.Context) (apicore.TaskRunMultipleSnapshot, error) {
 			return client.GetTaskRunMultipleSnapshot(loadCtx, runID)
+		},
+		LoadChildSnapshot: func(loadCtx context.Context, childRunID string) (apicore.RunSnapshot, error) {
+			return client.GetRunSnapshot(loadCtx, childRunID)
+		},
+		OpenParentStream: func(streamCtx context.Context, after apicore.StreamCursor) (apiclient.RunStream, error) {
+			return client.OpenRunStream(streamCtx, runID, after)
+		},
+		OpenChildStream: func(
+			streamCtx context.Context,
+			childRunID string,
+			after apicore.StreamCursor,
+		) (apiclient.RunStream, error) {
+			return client.OpenRunStream(streamCtx, childRunID, after)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return waitRemoteCLIRunUI(ctx, client, runID, session, cancelOwnedRunOnExit, cfg.ownedRunCancelTimeout)
+}
+
+func attachRemoteCLIReviewWatchUI(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	snapshot apicore.RunSnapshot,
+	cancelOwnedRunOnExit bool,
+	cfg cliRunObserveConfig,
+) error {
+	session, err := openCLIRemoteReviewWatchUI(ctx, uipkg.RemoteReviewWatchAttachOptions{
+		Snapshot:     snapshot,
+		OwnerSession: cancelOwnedRunOnExit,
+		LoadSnapshot: func(loadCtx context.Context) (apicore.RunSnapshot, error) {
+			return client.GetRunSnapshot(loadCtx, runID)
 		},
 		LoadChildSnapshot: func(loadCtx context.Context, childRunID string) (apicore.RunSnapshot, error) {
 			return client.GetRunSnapshot(loadCtx, childRunID)

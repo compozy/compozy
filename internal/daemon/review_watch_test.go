@@ -40,12 +40,17 @@ func TestRunManagerReviewWatchCompletesCleanWithoutEmptyRound(t *testing.T) {
 		}
 		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
 
-		run := startReviewWatch(t, env, reviewWatchRequest(`{"run_id":"review-watch-clean"}`))
+		req := reviewWatchRequest("{\"run_id\":\"review-watch-clean\"}")
+		req.PresentationMode = "ui"
+		run := startReviewWatch(t, env, req)
 		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
 			return row.Status == runStatusCompleted
 		})
 		if row.Mode != runModeReviewWatch {
 			t.Fatalf("row.Mode = %q, want %q", row.Mode, runModeReviewWatch)
+		}
+		if row.PresentationMode != "ui" {
+			t.Fatalf("row.PresentationMode = %q, want ui", row.PresentationMode)
 		}
 		if _, err := os.Stat(env.workflowDir(env.workflowSlug) + "/reviews-001"); !os.IsNotExist(err) {
 			t.Fatalf("reviews-001 stat error = %v, want not exist", err)
@@ -56,6 +61,74 @@ func TestRunManagerReviewWatchCompletesCleanWithoutEmptyRound(t *testing.T) {
 			t.Fatalf("watch_started payload = %#v, want dirty/unpushed/head metadata", started)
 		}
 		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+	})
+}
+
+func TestRunManagerReviewWatchCreatesReviewOnlyWorkflowDirectory(t *testing.T) {
+	t.Run("Should create missing review-only workflow directory", func(t *testing.T) {
+		reviewProvider := &fakeReviewWatchProvider{
+			statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+			fetches:  [][]provider.ReviewItem{{}},
+		}
+		git := &fakeReviewWatchGit{
+			states: []ReviewWatchGitState{{HeadSHA: "head-1"}},
+		}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
+		slug := "pr-51"
+		workflowDir := env.workflowDir(slug)
+		if _, err := os.Stat(workflowDir); !os.IsNotExist(err) {
+			t.Fatalf("workflow dir stat before start = %v, want not exist", err)
+		}
+
+		req := reviewWatchRequest("{\"run_id\":\"review-watch-pr-51\"}")
+		req.PRRef = "51"
+		run, err := env.manager.StartReviewWatch(
+			context.Background(),
+			env.workspaceRoot,
+			slug,
+			req,
+		)
+		if err != nil {
+			t.Fatalf("StartReviewWatch() error = %v", err)
+		}
+		waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		info, err := os.Stat(workflowDir)
+		if err != nil {
+			t.Fatalf("workflow dir stat after start: %v", err)
+		}
+		if !info.IsDir() {
+			t.Fatalf("workflow path is not a directory: %s", workflowDir)
+		}
+	})
+}
+
+func TestRunManagerReviewWatchRequiresExistingDirectoryForExplicitWorkflowName(t *testing.T) {
+	t.Run("Should not create arbitrary missing workflow directory", func(t *testing.T) {
+		reviewProvider := &fakeReviewWatchProvider{
+			statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+			fetches:  [][]provider.ReviewItem{{}},
+		}
+		git := &fakeReviewWatchGit{
+			states: []ReviewWatchGitState{{HeadSHA: "head-1"}},
+		}
+		env := newReviewWatchTestEnv(t, reviewProvider, git, runManagerTestDeps{})
+		slug := "my-featuer"
+		workflowDir := env.workflowDir(slug)
+
+		_, err := env.manager.StartReviewWatch(
+			context.Background(),
+			env.workspaceRoot,
+			slug,
+			reviewWatchRequest("{\"run_id\":\"review-watch-explicit-missing\"}"),
+		)
+		if err == nil || !strings.Contains(err.Error(), "review watch workflow directory not found") {
+			t.Fatalf("StartReviewWatch() error = %v, want missing workflow directory", err)
+		}
+		if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
+			t.Fatalf("workflow dir stat after failed start = %v, want not exist", statErr)
+		}
 	})
 }
 

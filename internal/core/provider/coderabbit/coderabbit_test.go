@@ -10,6 +10,125 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
+func TestGetRepoPrefersLocalGitRemote(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefer local git remote", func(t *testing.T) {
+		t.Parallel()
+
+		ghCalled := false
+		runGH := func(context.Context, ...string) ([]byte, error) {
+			ghCalled = true
+			return nil, errors.New("gh should not be called when origin is usable")
+		}
+		runGit := func(_ context.Context, args ...string) ([]byte, error) {
+			if strings.Join(args, " ") != "remote get-url origin" {
+				return nil, errors.New("unexpected git invocation: " + strings.Join(args, " "))
+			}
+			return []byte("git@github.com:acme/compozy.git\n"), nil
+		}
+
+		owner, repo, err := New(WithCommandRunner(runGH), WithGitCommandRunner(runGit)).getRepo(context.Background())
+		if err != nil {
+			t.Fatalf("getRepo() error = %v", err)
+		}
+		if owner != "acme" || repo != "compozy" {
+			t.Fatalf("getRepo() = %s/%s, want acme/compozy", owner, repo)
+		}
+		if ghCalled {
+			t.Fatal("gh repo view was called despite a usable local origin remote")
+		}
+	})
+}
+
+func TestGetRepoFallsBackToGHWhenGitRemoteIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fall back to gh when git remote is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		runGit := func(context.Context, ...string) ([]byte, error) {
+			return nil, errors.New("origin not configured")
+		}
+		runGH := func(_ context.Context, args ...string) ([]byte, error) {
+			if strings.Join(args, " ") != "repo view --json owner,name" {
+				return nil, errors.New("unexpected gh invocation: " + strings.Join(args, " "))
+			}
+			return []byte("{\"owner\":{\"login\":\"acme\"},\"name\":\"compozy\"}"), nil
+		}
+
+		owner, repo, err := New(WithCommandRunner(runGH), WithGitCommandRunner(runGit)).getRepo(context.Background())
+		if err != nil {
+			t.Fatalf("getRepo() error = %v", err)
+		}
+		if owner != "acme" || repo != "compozy" {
+			t.Fatalf("getRepo() = %s/%s, want acme/compozy", owner, repo)
+		}
+	})
+}
+
+func TestParseGitHubRemoteURL(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		remote string
+		owner  string
+		repo   string
+		ok     bool
+	}{
+		{
+			name:   "Should parse scp-style GitHub remotes",
+			remote: "git@github.com:acme/compozy.git",
+			owner:  "acme",
+			repo:   "compozy",
+			ok:     true,
+		},
+		{
+			name:   "Should parse HTTPS GitHub remotes",
+			remote: "https://github.com/acme/compozy.git",
+			owner:  "acme",
+			repo:   "compozy",
+			ok:     true,
+		},
+		{
+			name:   "Should parse SSH GitHub remotes",
+			remote: "ssh://git@github.com:22/acme/compozy.git",
+			owner:  "acme",
+			repo:   "compozy",
+			ok:     true,
+		},
+		{
+			name:   "Should strip mixed-case git suffixes without changing repo casing",
+			remote: "https://github.com/Acme/Compozy.GIT",
+			owner:  "Acme",
+			repo:   "Compozy",
+			ok:     true,
+		},
+		{name: "Should reject non-GitHub hosts", remote: "https://gitlab.com/acme/compozy.git", ok: false},
+		{name: "Should reject malformed remotes", remote: "not-a-remote", ok: false},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			owner, repo, ok := parseGitHubRemoteURL(tc.remote)
+			if ok != tc.ok || owner != tc.owner || repo != tc.repo {
+				t.Fatalf(
+					"parseGitHubRemoteURL(%q) = (%q, %q, %v), want (%q, %q, %v)",
+					tc.remote,
+					owner,
+					repo,
+					ok,
+					tc.owner,
+					tc.repo,
+					tc.ok,
+				)
+			}
+		})
+	}
+}
+
 func TestFetchReviewsFiltersResolvedThreadsAndNonBotComments(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +226,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 		wantCommit string
 	}{
 		{
-			name:    "pending when latest provider review has not been submitted",
+			name:    "Should stay pending when latest provider review has not been submitted",
 			headSHA: "head-new",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4100, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
@@ -117,7 +236,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantCommit: "old-head",
 		},
 		{
-			name:    "stale when latest submitted provider review is for an older head",
+			name:    "Should report stale when latest submitted provider review is for an older head",
 			headSHA: "head-new",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
@@ -126,7 +245,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantCommit: "old-head",
 		},
 		{
-			name:    "current reviewed when latest submitted provider review matches head and status completed",
+			name:    "Should report current reviewed when latest submitted provider review matches head",
 			headSHA: "head-current",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4101, "old-head", "COMMENTED", "2026-04-10T13:33:25Z", defaultBotLogin, ""),
@@ -137,7 +256,7 @@ func TestWatchStatusClassifiesCodeRabbitReviewState(t *testing.T) {
 			wantCommit: "head-current",
 		},
 		{
-			name:    "pending when no provider review exists",
+			name:    "Should stay pending when no provider review exists",
 			headSHA: "head-without-review",
 			reviews: []pullRequestReview{
 				testPullRequestReview(4103, "head-without-review", "COMMENTED", "2026-04-10T14:33:25Z", "pedro", ""),

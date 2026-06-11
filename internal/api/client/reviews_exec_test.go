@@ -201,6 +201,7 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 						t.Fatalf("unexpected batching payload: %#v", payload)
 					}
 					if payload["workspace"] != "/tmp/workspace" ||
+						payload["presentation_mode"] != "ui" ||
 						payload["provider"] != "coderabbit" ||
 						payload["pr_ref"] != "85" ||
 						payload["until_clean"] != true ||
@@ -226,6 +227,7 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 			" /tmp/workspace ",
 			" tools-registry ",
 			apicore.ReviewWatchRequest{
+				PresentationMode: " ui ",
 				Provider:         " coderabbit ",
 				PRRef:            " 85 ",
 				UntilClean:       true,

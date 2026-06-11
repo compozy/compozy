@@ -103,6 +103,71 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	}
 }
 
+func TestFetchReviewsCreatesReviewOnlyWorkflowDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	restore := defaultProviderRegistry
+	defaultProviderRegistry = func(_ string) *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(stubReviewProvider{
+			name: "stub",
+			items: []provider.ReviewItem{
+				{
+					Title:       "Add nil check",
+					File:        "internal/app/service.go",
+					Line:        42,
+					Author:      "review-bot",
+					ProviderRef: "thread:PRT_1,comment:RC_1",
+					Body:        "Please add a nil check here.",
+				},
+			},
+		})
+		return registry
+	}
+	t.Cleanup(func() { defaultProviderRegistry = restore })
+
+	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "pr-51")
+	if _, err := os.Stat(workflowDir); !os.IsNotExist(err) {
+		t.Fatalf("workflow dir stat before fetch = %v, want not exist", err)
+	}
+
+	result, err := fetchReviews(context.Background(), &model.RuntimeConfig{
+		Name:     "pr-51",
+		Provider: "stub",
+		PR:       "51",
+	})
+	if err != nil {
+		t.Fatalf("fetch reviews: %v", err)
+	}
+	if result.Round != 1 {
+		t.Fatalf("expected round 1, got %d", result.Round)
+	}
+	if _, err := os.Stat(filepath.Join(workflowDir, "reviews-001", "issue_001.md")); err != nil {
+		t.Fatalf("expected review issue in review-only workflow dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workflowDir, "_techspec.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected review-only workflow to avoid _techspec.md, got err=%v", err)
+	}
+}
+
+func TestFetchReviewsRequiresExistingDirectoryForExplicitWorkflowName(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	_, err := fetchReviews(context.Background(), &model.RuntimeConfig{
+		Name:     "my-featuer",
+		Provider: "stub",
+		PR:       "51",
+	})
+	if err == nil || !strings.Contains(err.Error(), "prd directory not found") {
+		t.Fatalf("fetch reviews error = %v, want missing prd directory", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(tmpDir, ".compozy", "tasks", "my-featuer")); !os.IsNotExist(statErr) {
+		t.Fatalf("workflow dir stat after failed fetch = %v, want not exist", statErr)
+	}
+}
+
 func TestFetchReviewsAutoIncrementsRound(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)

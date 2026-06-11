@@ -19,6 +19,7 @@
         "**/coverage/**",
         "**/*.min.js",
         ".resources/**",
+        ".peer-reviews/**",
         ".claude/skills/**",
         ".agents/skills/**",
         ".compozy/tasks/**",

@@ -349,7 +349,60 @@ func daemonBuildVersionsCompatible(daemonVersion string, cliVersion string) bool
 	if daemonVersion == cliVersion {
 		return true
 	}
-	return isDevBuildVersion(daemonVersion) || isDevBuildVersion(cliVersion)
+	if isDevBuildVersion(daemonVersion) || isDevBuildVersion(cliVersion) {
+		return true
+	}
+	daemonIdentity, daemonOK := parseDaemonBuildIdentity(daemonVersion)
+	cliIdentity, cliOK := parseDaemonBuildIdentity(cliVersion)
+	return daemonOK && cliOK && daemonIdentity == cliIdentity
+}
+
+type daemonBuildIdentity struct {
+	version string
+	commit  string
+}
+
+func parseDaemonBuildIdentity(value string) (daemonBuildIdentity, bool) {
+	versionPart, metadata, ok := strings.Cut(strings.TrimSpace(value), " (")
+	if !ok {
+		return daemonBuildIdentity{}, false
+	}
+	versionPart = strings.TrimSpace(versionPart)
+	if versionPart == "" || isDevBuildVersion(versionPart) {
+		return daemonBuildIdentity{}, false
+	}
+	metadata = strings.TrimSpace(metadata)
+	if !strings.HasSuffix(metadata, ")") {
+		return daemonBuildIdentity{}, false
+	}
+	metadata = strings.TrimSuffix(metadata, ")")
+
+	var commit string
+	var date string
+	for _, field := range strings.Fields(metadata) {
+		key, val, ok := strings.Cut(field, "=")
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case "commit":
+			commit = strings.TrimSpace(val)
+		case "date":
+			date = strings.TrimSpace(val)
+		}
+	}
+	if !isStableDaemonBuildCommit(commit) || strings.TrimSpace(date) == "" {
+		return daemonBuildIdentity{}, false
+	}
+	return daemonBuildIdentity{
+		version: versionPart,
+		commit:  commit,
+	}, true
+}
+
+func isStableDaemonBuildCommit(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized != "" && normalized != "none"
 }
 
 func isDevBuildVersion(value string) bool {
@@ -1056,6 +1109,7 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 		{name: "ui", value: attachModeUI},
 		{name: "stream", value: attachModeStream},
 		{name: "detach", value: attachModeDetach},
+		{name: "background", value: attachModeDetach},
 	} {
 		if !commandFlagChanged(cmd, item.name) {
 			continue
@@ -1064,7 +1118,11 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 		explicitModes++
 	}
 	if explicitModes > 1 {
-		return "", errors.New("choose only one of --attach, --ui, --stream, or --detach")
+		message := "choose only one of --attach, --ui, --stream, or --detach"
+		if cmd != nil && cmd.Flags() != nil && cmd.Flags().Lookup("background") != nil {
+			message = "choose only one of --attach, --ui, --stream, --detach, or --background"
+		}
+		return "", errors.New(message)
 	}
 
 	isInteractive := s.isInteractive

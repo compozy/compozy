@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -290,6 +291,78 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		}
 		if detail.Task.Title != "Transport task" || detail.Document.Title != "Transport task" {
 			t.Fatalf("unexpected archived task detail: %#v", detail)
+		}
+	})
+
+	t.Run("Should refresh stale empty workflow state before archiving review-only workflows", func(t *testing.T) {
+		testCases := []struct {
+			name         string
+			slug         string
+			reviewStatus string
+			wantArchived bool
+			wantProblem  bool
+		}{
+			{
+				name:         "Should archive resolved review-only workflow",
+				slug:         "review-only-resolved-stale",
+				reviewStatus: "resolved",
+				wantArchived: true,
+			},
+			{
+				name:         "Should require force for unresolved review-only workflow",
+				slug:         "review-only-pending-stale",
+				reviewStatus: "pending",
+				wantProblem:  true,
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				env := newRunManagerTestEnv(t, runManagerTestDeps{})
+				if err := os.MkdirAll(env.workflowDir(tc.slug), 0o755); err != nil {
+					t.Fatalf("mkdir workflow dir: %v", err)
+				}
+				syncNamedWorkflowForDaemonTest(t, env, tc.slug)
+				env.writeWorkflowFile(
+					t,
+					tc.slug,
+					filepath.Join("reviews-001", "issue_001.md"),
+					daemonReviewIssueBody(tc.reviewStatus, "medium"),
+				)
+
+				service := newTransportTaskService(env.globalDB, env.manager)
+				result, err := service.Archive(
+					context.Background(),
+					env.workspaceRoot,
+					tc.slug,
+					apicore.ArchiveRequest{},
+				)
+				if tc.wantProblem {
+					var problem *apicore.Problem
+					if !errors.As(err, &problem) {
+						t.Fatalf("Archive() error = %v, want transport problem", err)
+					}
+					if problem.Code != string(contract.CodeWorkflowForceRequired) {
+						t.Fatalf(
+							"Archive() problem code = %q, want %q",
+							problem.Code,
+							contract.CodeWorkflowForceRequired,
+						)
+					}
+					if got := problem.Details["review_unresolved"]; got != 1 {
+						t.Fatalf("review_unresolved = %#v, want 1", got)
+					}
+					return
+				}
+
+				if err != nil {
+					t.Fatalf("Archive() error = %v", err)
+				}
+				if result.Archived != tc.wantArchived {
+					t.Fatalf("Archive().Archived = %v, want %v", result.Archived, tc.wantArchived)
+				}
+			})
 		}
 	})
 

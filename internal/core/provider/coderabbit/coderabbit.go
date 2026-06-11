@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -26,6 +27,8 @@ type Option func(*Provider)
 type Provider struct {
 	botLogin   string
 	run        CommandRunner
+	runGit     CommandRunner
+	runGitSet  bool
 	workingDir string
 }
 
@@ -37,6 +40,7 @@ func New(opts ...Option) *Provider {
 		botLogin: defaultBotLogin,
 	}
 	p.run = p.runGH
+	p.runGit = p.runGitCommand
 	for _, opt := range opts {
 		if opt != nil {
 			opt(p)
@@ -49,6 +53,15 @@ func WithCommandRunner(run CommandRunner) Option {
 	return func(p *Provider) {
 		if run != nil {
 			p.run = run
+		}
+	}
+}
+
+func WithGitCommandRunner(run CommandRunner) Option {
+	return func(p *Provider) {
+		if run != nil {
+			p.runGit = run
+			p.runGitSet = true
 		}
 	}
 }
@@ -477,9 +490,40 @@ func (p *Provider) ResolveIssues(ctx context.Context, _ string, issues []provide
 }
 
 func (p *Provider) getRepo(ctx context.Context) (string, string, error) {
+	gitOwner, gitRepo, gitErr := p.getRepoFromGitRemote(ctx)
+	if gitErr == nil {
+		return gitOwner, gitRepo, nil
+	}
+
+	ghOwner, ghRepo, ghErr := p.getRepoFromGH(ctx)
+	if ghErr == nil {
+		return ghOwner, ghRepo, nil
+	}
+	return "", "", fmt.Errorf("resolve repository metadata: git remote: %w; gh repo view: %w", gitErr, ghErr)
+}
+
+func (p *Provider) getRepoFromGitRemote(ctx context.Context) (string, string, error) {
+	if p == nil || p.runGit == nil {
+		return "", "", errors.New("git command runner is not configured")
+	}
+	if !p.runGitSet && strings.TrimSpace(p.workingDir) == "" {
+		return "", "", errors.New("git working directory is not configured")
+	}
+	output, err := p.runGit(ctx, "remote", "get-url", "origin")
+	if err != nil {
+		return "", "", err
+	}
+	owner, repo, ok := parseGitHubRemoteURL(string(output))
+	if !ok {
+		return "", "", fmt.Errorf("origin remote is not a GitHub repository: %q", strings.TrimSpace(string(output)))
+	}
+	return owner, repo, nil
+}
+
+func (p *Provider) getRepoFromGH(ctx context.Context) (string, string, error) {
 	output, err := p.run(ctx, "repo", "view", "--json", "owner,name")
 	if err != nil {
-		return "", "", fmt.Errorf("resolve repository metadata: %w", err)
+		return "", "", err
 	}
 
 	var payload struct {
@@ -495,6 +539,38 @@ func (p *Provider) getRepo(ctx context.Context) (string, string, error) {
 		return "", "", errors.New("repository metadata response is incomplete")
 	}
 	return payload.Owner.Login, payload.Name, nil
+}
+
+func parseGitHubRemoteURL(raw string) (string, string, bool) {
+	remote := strings.TrimSpace(raw)
+	if remote == "" {
+		return "", "", false
+	}
+	if strings.HasPrefix(remote, "git@github.com:") {
+		return parseGitHubRemotePath(strings.TrimPrefix(remote, "git@github.com:"))
+	}
+
+	parsed, err := url.Parse(remote)
+	if err != nil || parsed.Host == "" {
+		return "", "", false
+	}
+	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
+	if host != "github.com" {
+		return "", "", false
+	}
+	return parseGitHubRemotePath(parsed.Path)
+}
+
+func parseGitHubRemotePath(path string) (string, string, bool) {
+	trimmed := strings.Trim(strings.TrimSpace(path), "/")
+	if strings.HasSuffix(strings.ToLower(trimmed), ".git") {
+		trimmed = trimmed[:len(trimmed)-len(".git")]
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 func (p *Provider) fetchReviewComments(
@@ -669,6 +745,27 @@ func (p *Provider) runGH(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("gh %s: %w", strings.Join(args, " "), err)
 	}
 	return nil, fmt.Errorf("gh %s: %s", strings.Join(args, " "), trimmed)
+}
+
+func (p *Provider) runGitCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmdArgs := make([]string, 0, len(args)+2)
+	if p != nil {
+		if workingDir := strings.TrimSpace(p.workingDir); workingDir != "" {
+			cmdArgs = append(cmdArgs, "-C", workingDir)
+		}
+	}
+	cmdArgs = append(cmdArgs, args...)
+	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return output, nil
+	}
+
+	trimmed := strings.TrimSpace(string(output))
+	if trimmed == "" {
+		return nil, fmt.Errorf("git %s: %w", strings.Join(cmdArgs, " "), err)
+	}
+	return nil, fmt.Errorf("git %s: %s", strings.Join(cmdArgs, " "), trimmed)
 }
 
 type pullRequestComment struct {

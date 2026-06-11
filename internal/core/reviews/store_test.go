@@ -14,6 +14,38 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
+func TestIsPRDerivedTaskName(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		caseName string
+		name     string
+		pr       string
+		want     bool
+	}{
+		{caseName: "Should accept canonical PR-derived task names", name: "pr-51", pr: "51", want: true},
+		{caseName: "Should trim surrounding whitespace", name: " pr-51 ", pr: " 51 ", want: true},
+		{caseName: "Should reject PR refs with leading zeroes", name: "pr-051", pr: "051", want: false},
+		{caseName: "Should reject mismatched PR refs", name: "pr-51", pr: "52", want: false},
+		{caseName: "Should reject names without PR prefix", name: "demo", pr: "51", want: false},
+		{caseName: "Should reject non-numeric PR refs", name: "pr-main", pr: "main", want: false},
+		{caseName: "Should reject empty PR refs", name: "pr-", pr: "", want: false},
+		{caseName: "Should reject signed positive PR refs", name: "pr-+1", pr: "+1", want: false},
+		{caseName: "Should reject signed negative PR refs", name: "pr--1", pr: "-1", want: false},
+		{caseName: "Should reject zero PR refs", name: "pr-0", pr: "0", want: false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.caseName, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsPRDerivedTaskName(tc.name, tc.pr); got != tc.want {
+				t.Fatalf("IsPRDerivedTaskName(%q, %q) = %t, want %t", tc.name, tc.pr, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestReadLegacyRoundMetaAllowsOptionalPR(t *testing.T) {
 	t.Parallel()
 
