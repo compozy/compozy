@@ -194,7 +194,7 @@ func resolveFetchPRDDirectory(cfg *model.RuntimeConfig) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve prd dir: %w", err)
 	}
-	if err := ensureFetchPRDDirectory(resolvedPRDDir); err != nil {
+	if err := ensureFetchPRDDirectory(resolvedPRDDir, cfg.Name, cfg.PR); err != nil {
 		return "", err
 	}
 	return resolvedPRDDir, nil
@@ -219,11 +219,17 @@ func validateFetchConfig(cfg *model.RuntimeConfig) error {
 	return nil
 }
 
-func ensureFetchPRDDirectory(dir string) error {
+func ensureFetchPRDDirectory(dir string, name string, prRef string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("prd directory not found: %s", dir)
+			if !reviews.IsPRDerivedTaskName(name, prRef) {
+				return fmt.Errorf("prd directory not found: %s", dir)
+			}
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return fmt.Errorf("create review workflow directory: %w", err)
+			}
+			return nil
 		}
 		return fmt.Errorf("stat prd directory: %w", err)
 	}

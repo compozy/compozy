@@ -33,6 +33,19 @@ func TaskDirectoryForWorkspace(workspaceRoot, name string) string {
 	return model.TaskDirectoryForWorkspace(workspaceRoot, name)
 }
 
+func IsPRDerivedTaskName(name, prRef string) bool {
+	name = strings.TrimSpace(name)
+	prRef = strings.TrimSpace(prRef)
+	if name == "" || prRef == "" || !strings.HasPrefix(name, "pr-") {
+		return false
+	}
+	if strings.TrimPrefix(name, "pr-") != prRef {
+		return false
+	}
+	_, err := strconv.Atoi(prRef)
+	return err == nil
+}
+
 func RoundDirName(round int) string {
 	return fmt.Sprintf("%s%03d", reviewsPrefix, round)
 }

@@ -157,8 +157,8 @@ func newReviewsWatchCommandWithDefaults(defaults commandStateDefaults) *cobra.Co
 		Args:         cobra.MaximumNArgs(1),
 		Long: `Start a daemon-owned review watch run that waits for provider feedback,
 imports actionable review rounds, starts child review-fix runs, and optionally pushes committed fixes.
-Text mode starts the watch in the background by default. Use --stream to follow events
-without opening the interactive cockpit UI.`,
+Interactive terminals open the review watch cockpit by default. Use --stream to follow
+events as text, or --background/--detach to start the watch without attaching a client.`,
 		Example: `  compozy reviews watch tools-registry --provider coderabbit --pr 85 --auto-push \
     --until-clean --max-rounds 6
   compozy reviews watch --name tools-registry --provider coderabbit --pr 85 --stream
@@ -188,6 +188,7 @@ without opening the interactive cockpit UI.`,
 	cmd.Flags().Bool("ui", false, "Force interactive UI attach mode")
 	cmd.Flags().Bool("stream", false, "Force textual stream attach mode")
 	cmd.Flags().Bool("detach", false, "Start the run without attaching a client")
+	cmd.Flags().Bool("background", false, "Alias for --detach")
 	return cmd
 }
 
@@ -447,6 +448,7 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 
 	run, err := client.StartReviewWatch(ctx, s.workspaceRoot, s.name, apicore.ReviewWatchRequest{
 		Workspace:        s.workspaceRoot,
+		PresentationMode: presentationMode,
 		Provider:         s.provider,
 		PRRef:            s.pr,
 		UntilClean:       s.untilClean,
@@ -463,7 +465,6 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
-	run.PresentationMode = presentationMode
 
 	return s.observeStartedReviewWatchRun(ctx, cmd, client, run)
 }
@@ -573,62 +574,14 @@ func (s *commandState) resolveExecPresentationMode(cmd *cobra.Command) (string, 
 }
 
 func (s *commandState) resolveReviewWatchPresentationMode(cmd *cobra.Command) (string, error) {
-	mode := strings.TrimSpace(s.attachMode)
-	if mode == "" {
-		mode = attachModeAuto
-	}
-
-	explicitModes := 0
-	if commandFlagChanged(cmd, "attach") {
-		explicitModes++
-	}
-	for _, item := range []struct {
-		name  string
-		value string
-	}{
-		{name: "ui", value: attachModeUI},
-		{name: "stream", value: attachModeStream},
-		{name: "detach", value: attachModeDetach},
-	} {
-		if !commandFlagChanged(cmd, item.name) {
-			continue
-		}
-		mode = item.value
-		explicitModes++
-	}
-	if explicitModes > 1 {
-		return "", errors.New("choose only one of --attach, --ui, --stream, or --detach")
-	}
-	switch mode {
-	case attachModeAuto, attachModeUI, attachModeStream, attachModeDetach:
-	default:
-		return "", fmt.Errorf("attach mode must be one of auto, ui, stream, or detach (got %q)", mode)
-	}
-	if mode == attachModeUI || (commandFlagChanged(cmd, "tui") && s.tui) {
-		return "", reviewWatchUIUnsupportedError(cmd)
-	}
 	if isJSONOutputFormat(s.outputFormat) {
+		if commandFlagChanged(cmd, "ui") ||
+			(commandFlagChanged(cmd, "attach") && strings.TrimSpace(s.attachMode) == attachModeUI) {
+			return "", fmt.Errorf("%s cannot combine json output with ui attach mode", cmd.CommandPath())
+		}
 		return attachModeStream, nil
 	}
-	switch mode {
-	case attachModeAuto, attachModeDetach:
-		return attachModeDetach, nil
-	case attachModeStream:
-		return attachModeStream, nil
-	default:
-		return "", fmt.Errorf("attach mode must be one of auto, ui, stream, or detach (got %q)", mode)
-	}
-}
-
-func reviewWatchUIUnsupportedError(cmd *cobra.Command) error {
-	commandLabel := "reviews watch"
-	if cmd != nil {
-		commandLabel = strings.TrimSpace(cmd.CommandPath())
-	}
-	return fmt.Errorf(
-		"%s does not support UI attach; use --stream to follow events or --detach to run in background",
-		commandLabel,
-	)
+	return s.resolveTaskPresentationMode(cmd)
 }
 
 func handleStartedReviewWatchRun(
@@ -637,6 +590,18 @@ func handleStartedReviewWatchRun(
 	client daemonCommandClient,
 	run apicore.Run,
 ) error {
+	if run.PresentationMode == attachModeUI {
+		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
+			if errors.Is(err, errRunSettledBeforeUIAttach) {
+				if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
+					return mapDaemonCommandError(err)
+				}
+				return nil
+			}
+			return mapDaemonCommandError(err)
+		}
+		return nil
+	}
 	if err := writeStartedReviewWatchRun(cmd, run); err != nil {
 		return err
 	}
@@ -653,7 +618,9 @@ func writeStartedReviewWatchRun(cmd *cobra.Command, run apicore.Run) error {
 	message := fmt.Sprintf("review watch started: %s (mode=%s)\n", run.RunID, run.PresentationMode)
 	if run.PresentationMode == attachModeDetach {
 		message = fmt.Sprintf(
-			"review watch started: %s (running in background; follow with: compozy runs watch %s)\n",
+			"review watch started: %s (running in background; attach with: compozy runs attach %s; "+
+				"follow text with: compozy runs watch %s)\n",
+			run.RunID,
 			run.RunID,
 			run.RunID,
 		)
@@ -1305,6 +1272,9 @@ func (s *commandState) resolveWorkflowNameArg(cmd *cobra.Command, args []string)
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		s.name = strings.TrimSpace(args[0])
 	}
+	if strings.TrimSpace(s.name) == "" && reviewCommandSupportsPRSlugFallback(cmd, s.kind) {
+		s.name = reviewWorkflowSlugFromPR(s.pr)
+	}
 	if strings.TrimSpace(s.name) == "" {
 		commandLabel := "reviews"
 		if cmd != nil {
@@ -1318,6 +1288,31 @@ func (s *commandState) resolveWorkflowNameArg(cmd *cobra.Command, args []string)
 		}
 	}
 	return nil
+}
+
+func reviewCommandSupportsPRSlugFallback(cmd *cobra.Command, kind commandKind) bool {
+	commandName := ""
+	if cmd != nil {
+		commandName = cmd.Name()
+	}
+	switch kind {
+	case commandKindFetchReviews:
+		return commandName == "" || commandName == "fetch"
+	case commandKindFixReviews:
+		return commandName == "" || commandName == "fix"
+	case commandKindWatchReviews:
+		return commandName == "" || commandName == "watch"
+	default:
+		return false
+	}
+}
+
+func reviewWorkflowSlugFromPR(pr string) string {
+	trimmed := strings.TrimSpace(pr)
+	if trimmed == "" {
+		return ""
+	}
+	return "pr-" + trimmed
 }
 
 func (s *commandState) resolveWorkflowNameAndRoundArgs(cmd *cobra.Command, args []string) error {

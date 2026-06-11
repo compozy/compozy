@@ -1141,6 +1141,7 @@ export interface components {
             batching?: {
                 [key: string]: unknown;
             };
+            presentation_mode?: string;
             max_rounds?: number;
             poll_interval?: string;
             pr_ref: string;

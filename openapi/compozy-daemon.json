@@ -2016,6 +2016,9 @@
                         "additionalProperties": true,
                         "type": "object"
                     },
+                    "presentation_mode": {
+                        "type": "string"
+                    },
                     "max_rounds": {
                         "type": "integer"
                     },

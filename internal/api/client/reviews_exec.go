@@ -167,6 +167,7 @@ func (c *Client) StartReviewWatch(
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/watch"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewWatchRequest{
 		Workspace:        strings.TrimSpace(workspace),
+		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		Provider:         strings.TrimSpace(req.Provider),
 		PRRef:            strings.TrimSpace(req.PRRef),
 		UntilClean:       req.UntilClean,

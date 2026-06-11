@@ -14,6 +14,34 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
+func TestIsPRDerivedTaskName(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		pr   string
+		want bool
+	}{
+		{name: "pr-51", pr: "51", want: true},
+		{name: " pr-51 ", pr: " 51 ", want: true},
+		{name: "pr-051", pr: "051", want: true},
+		{name: "pr-51", pr: "52", want: false},
+		{name: "demo", pr: "51", want: false},
+		{name: "pr-main", pr: "main", want: false},
+		{name: "pr-", pr: "", want: false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name+"/"+tc.pr, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsPRDerivedTaskName(tc.name, tc.pr); got != tc.want {
+				t.Fatalf("IsPRDerivedTaskName(%q, %q) = %t, want %t", tc.name, tc.pr, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestReadLegacyRoundMetaAllowsOptionalPR(t *testing.T) {
 	t.Parallel()
 

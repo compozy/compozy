@@ -1129,6 +1129,7 @@ func (h *Handlers) StartReviewWatch(c *gin.Context) {
 
 	run, err := h.Reviews.StartWatch(c.Request.Context(), workspace, c.Param("slug"), ReviewWatchRequest{
 		Workspace:        workspace,
+		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		Provider:         strings.TrimSpace(body.Provider),
 		PRRef:            strings.TrimSpace(body.PRRef),
 		UntilClean:       body.UntilClean,

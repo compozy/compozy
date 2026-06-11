@@ -1056,6 +1056,7 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 		{name: "ui", value: attachModeUI},
 		{name: "stream", value: attachModeStream},
 		{name: "detach", value: attachModeDetach},
+		{name: "background", value: attachModeDetach},
 	} {
 		if !commandFlagChanged(cmd, item.name) {
 			continue
@@ -1064,7 +1065,11 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 		explicitModes++
 	}
 	if explicitModes > 1 {
-		return "", errors.New("choose only one of --attach, --ui, --stream, or --detach")
+		message := "choose only one of --attach, --ui, --stream, or --detach"
+		if cmd != nil && cmd.Flags() != nil && cmd.Flags().Lookup("background") != nil {
+			message = "choose only one of --attach, --ui, --stream, --detach, or --background"
+		}
+		return "", errors.New(message)
 	}
 
 	isInteractive := s.isInteractive

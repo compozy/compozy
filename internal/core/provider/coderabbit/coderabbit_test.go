@@ -10,6 +10,91 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
+func TestGetRepoPrefersLocalGitRemote(t *testing.T) {
+	t.Parallel()
+
+	ghCalled := false
+	runGH := func(context.Context, ...string) ([]byte, error) {
+		ghCalled = true
+		return nil, errors.New("gh should not be called when origin is usable")
+	}
+	runGit := func(_ context.Context, args ...string) ([]byte, error) {
+		if strings.Join(args, " ") != "remote get-url origin" {
+			return nil, errors.New("unexpected git invocation: " + strings.Join(args, " "))
+		}
+		return []byte("git@github.com:acme/compozy.git\n"), nil
+	}
+
+	owner, repo, err := New(WithCommandRunner(runGH), WithGitCommandRunner(runGit)).getRepo(context.Background())
+	if err != nil {
+		t.Fatalf("getRepo() error = %v", err)
+	}
+	if owner != "acme" || repo != "compozy" {
+		t.Fatalf("getRepo() = %s/%s, want acme/compozy", owner, repo)
+	}
+	if ghCalled {
+		t.Fatal("gh repo view was called despite a usable local origin remote")
+	}
+}
+
+func TestGetRepoFallsBackToGHWhenGitRemoteIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	runGit := func(context.Context, ...string) ([]byte, error) {
+		return nil, errors.New("origin not configured")
+	}
+	runGH := func(_ context.Context, args ...string) ([]byte, error) {
+		if strings.Join(args, " ") != "repo view --json owner,name" {
+			return nil, errors.New("unexpected gh invocation: " + strings.Join(args, " "))
+		}
+		return []byte("{\"owner\":{\"login\":\"acme\"},\"name\":\"compozy\"}"), nil
+	}
+
+	owner, repo, err := New(WithCommandRunner(runGH), WithGitCommandRunner(runGit)).getRepo(context.Background())
+	if err != nil {
+		t.Fatalf("getRepo() error = %v", err)
+	}
+	if owner != "acme" || repo != "compozy" {
+		t.Fatalf("getRepo() = %s/%s, want acme/compozy", owner, repo)
+	}
+}
+
+func TestParseGitHubRemoteURL(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		remote string
+		owner  string
+		repo   string
+		ok     bool
+	}{
+		{remote: "git@github.com:acme/compozy.git", owner: "acme", repo: "compozy", ok: true},
+		{remote: "https://github.com/acme/compozy.git", owner: "acme", repo: "compozy", ok: true},
+		{remote: "ssh://git@github.com:22/acme/compozy.git", owner: "acme", repo: "compozy", ok: true},
+		{remote: "https://gitlab.com/acme/compozy.git", ok: false},
+		{remote: "not-a-remote", ok: false},
+	} {
+		tc := tc
+		t.Run(tc.remote, func(t *testing.T) {
+			t.Parallel()
+
+			owner, repo, ok := parseGitHubRemoteURL(tc.remote)
+			if ok != tc.ok || owner != tc.owner || repo != tc.repo {
+				t.Fatalf(
+					"parseGitHubRemoteURL(%q) = (%q, %q, %v), want (%q, %q, %v)",
+					tc.remote,
+					owner,
+					repo,
+					ok,
+					tc.owner,
+					tc.repo,
+					tc.ok,
+				)
+			}
+		})
+	}
+}
+
 func TestFetchReviewsFiltersResolvedThreadsAndNonBotComments(t *testing.T) {
 	t.Parallel()
 

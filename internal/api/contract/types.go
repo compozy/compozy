@@ -78,6 +78,7 @@ type ReviewRunRequest struct {
 
 type ReviewWatchRequest struct {
 	Workspace        string          `json:"workspace"`
+	PresentationMode string          `json:"presentation_mode,omitempty"`
 	Provider         string          `json:"provider,omitempty"`
 	PRRef            string          `json:"pr_ref"`
 	UntilClean       bool            `json:"until_clean,omitempty"`
