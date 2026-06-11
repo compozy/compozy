@@ -599,123 +599,127 @@ func TestReviewsWatchCommandBuildsDaemonRequest(t *testing.T) {
 }
 
 func TestReviewsWatchCommandNoFlagsUsesInteractiveFormAndOpensUI(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
-		t.Fatalf("mkdir workflow dir: %v", err)
-	}
-	withWorkingDir(t, workspaceRoot)
+	t.Run("Should use interactive form and open UI", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
 
-	client := &reviewExecCaptureClient{
-		stubDaemonCommandClient: &stubDaemonCommandClient{
-			health: apicore.DaemonHealth{Ready: true},
-			reviewWatchRun: apicore.Run{
-				RunID: "review-watch-form",
-				Mode:  "review_watch",
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewWatchRun: apicore.Run{
+					RunID: "review-watch-form",
+					Mode:  "review_watch",
+				},
 			},
-		},
-	}
-	installTestCLIReadyDaemonBootstrap(t, client)
-	var attachedRunID string
-	installTestCLIRunObservers(
-		t,
-		func(_ context.Context, _ daemonCommandClient, runID string) error {
-			attachedRunID = runID
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+		var attachedRunID string
+		installTestCLIRunObservers(
+			t,
+			func(_ context.Context, _ daemonCommandClient, runID string) error {
+				attachedRunID = runID
+				return nil
+			},
+			nil,
+		)
+
+		defaults := testReviewExecCommandDefaults()
+		defaults.isInteractive = func() bool { return true }
+		var collectFormCalls int
+		defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+			collectFormCalls++
+			state.name = "demo"
+			state.provider = "coderabbit"
+			state.pr = "85"
 			return nil
-		},
-		nil,
-	)
+		}
 
-	defaults := testReviewExecCommandDefaults()
-	defaults.isInteractive = func() bool { return true }
-	var collectFormCalls int
-	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
-		collectFormCalls++
-		state.name = "demo"
-		state.provider = "coderabbit"
-		state.pr = "85"
-		return nil
-	}
-
-	output, err := executeCommandCombinedOutput(
-		newReviewsCommandWithDefaults(defaults),
-		nil,
-		"watch",
-	)
-	if err != nil {
-		t.Fatalf("execute reviews watch form flow: %v\noutput:\n%s", err, output)
-	}
-	if collectFormCalls != 1 {
-		t.Fatalf("expected one interactive form call, got %d", collectFormCalls)
-	}
-	if client.startWatchSlug != "demo" {
-		t.Fatalf("watch slug = %q, want demo", client.startWatchSlug)
-	}
-	if client.startWatchReq.Provider != "coderabbit" || client.startWatchReq.PRRef != "85" {
-		t.Fatalf("unexpected watch request from form: %#v", client.startWatchReq)
-	}
-	if client.startWatchReq.PresentationMode != attachModeUI {
-		t.Fatalf("watch presentation mode = %q, want ui", client.startWatchReq.PresentationMode)
-	}
-	if attachedRunID != "review-watch-form" {
-		t.Fatalf("attached run id = %q, want review-watch-form", attachedRunID)
-	}
-	if strings.TrimSpace(output) != "" {
-		t.Fatalf("unexpected reviews watch UI output:\n%s", output)
-	}
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(defaults),
+			nil,
+			"watch",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews watch form flow: %v\noutput:\n%s", err, output)
+		}
+		if collectFormCalls != 1 {
+			t.Fatalf("expected one interactive form call, got %d", collectFormCalls)
+		}
+		if client.startWatchSlug != "demo" {
+			t.Fatalf("watch slug = %q, want demo", client.startWatchSlug)
+		}
+		if client.startWatchReq.Provider != "coderabbit" || client.startWatchReq.PRRef != "85" {
+			t.Fatalf("unexpected watch request from form: %#v", client.startWatchReq)
+		}
+		if client.startWatchReq.PresentationMode != attachModeUI {
+			t.Fatalf("watch presentation mode = %q, want ui", client.startWatchReq.PresentationMode)
+		}
+		if attachedRunID != "review-watch-form" {
+			t.Fatalf("attached run id = %q, want review-watch-form", attachedRunID)
+		}
+		if strings.TrimSpace(output) != "" {
+			t.Fatalf("unexpected reviews watch UI output:\n%s", output)
+		}
+	})
 }
 
 func TestReviewsWatchCommandInteractiveTextDefaultsToUI(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
-		t.Fatalf("mkdir workflow dir: %v", err)
-	}
-	withWorkingDir(t, workspaceRoot)
+	t.Run("Should default interactive text watch to UI", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
 
-	client := &reviewExecCaptureClient{
-		stubDaemonCommandClient: &stubDaemonCommandClient{
-			health: apicore.DaemonHealth{Ready: true},
-			reviewWatchRun: apicore.Run{
-				RunID: "review-watch-background",
-				Mode:  "review_watch",
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewWatchRun: apicore.Run{
+					RunID: "review-watch-background",
+					Mode:  "review_watch",
+				},
 			},
-		},
-	}
-	installTestCLIReadyDaemonBootstrap(t, client)
-	var attachedRunID string
-	installTestCLIRunObservers(
-		t,
-		func(_ context.Context, _ daemonCommandClient, runID string) error {
-			attachedRunID = runID
-			return nil
-		},
-		nil,
-	)
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+		var attachedRunID string
+		installTestCLIRunObservers(
+			t,
+			func(_ context.Context, _ daemonCommandClient, runID string) error {
+				attachedRunID = runID
+				return nil
+			},
+			nil,
+		)
 
-	defaults := testReviewExecCommandDefaults()
-	defaults.isInteractive = func() bool { return true }
+		defaults := testReviewExecCommandDefaults()
+		defaults.isInteractive = func() bool { return true }
 
-	output, err := executeCommandCombinedOutput(
-		newReviewsCommandWithDefaults(defaults),
-		nil,
-		"watch",
-		"demo",
-		"--provider",
-		"coderabbit",
-		"--pr",
-		"85",
-	)
-	if err != nil {
-		t.Fatalf("execute reviews watch default UI: %v\noutput:\n%s", err, output)
-	}
-	if client.startWatchReq.PresentationMode != attachModeUI {
-		t.Fatalf("watch presentation mode = %q, want ui", client.startWatchReq.PresentationMode)
-	}
-	if attachedRunID != "review-watch-background" {
-		t.Fatalf("attached run id = %q, want review-watch-background", attachedRunID)
-	}
-	if strings.TrimSpace(output) != "" {
-		t.Fatalf("unexpected reviews watch UI output:\n%s", output)
-	}
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(defaults),
+			nil,
+			"watch",
+			"demo",
+			"--provider",
+			"coderabbit",
+			"--pr",
+			"85",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews watch default UI: %v\noutput:\n%s", err, output)
+		}
+		if client.startWatchReq.PresentationMode != attachModeUI {
+			t.Fatalf("watch presentation mode = %q, want ui", client.startWatchReq.PresentationMode)
+		}
+		if attachedRunID != "review-watch-background" {
+			t.Fatalf("attached run id = %q, want review-watch-background", attachedRunID)
+		}
+		if strings.TrimSpace(output) != "" {
+			t.Fatalf("unexpected reviews watch UI output:\n%s", output)
+		}
+	})
 }
 
 func TestReviewsWatchCommandAppliesWatchConfigAndRejectsAutoCommitContradiction(t *testing.T) {
@@ -1599,6 +1603,7 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		}
 
 		state = newCommandState(commandKindFetchReviews, core.ModePRReview)
+		cmd = &cobra.Command{Use: "fetch [slug]"}
 		if err := state.resolveWorkflowNameArg(
 			cmd,
 			nil,

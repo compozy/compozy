@@ -390,12 +390,22 @@ func refreshArchiveEligibility(
 		WorkspaceRoot: workspace.RootDir,
 		TasksDir:      tasksDir,
 	}); err != nil {
-		return globaldb.WorkflowArchiveEligibility{}, err
+		return globaldb.WorkflowArchiveEligibility{}, fmt.Errorf(
+			"refresh archive eligibility sync for workspace %s slug %q: %w",
+			workspace.ID,
+			slug,
+			err,
+		)
 	}
 
 	updatedEligibility, err := db.GetWorkflowArchiveEligibility(ctx, workspace.ID, slug)
 	if err != nil {
-		return globaldb.WorkflowArchiveEligibility{}, err
+		return globaldb.WorkflowArchiveEligibility{}, fmt.Errorf(
+			"refresh archive eligibility lookup for workspace %s slug %q: %w",
+			workspace.ID,
+			slug,
+			err,
+		)
 	}
 	return updatedEligibility, nil
 }

@@ -18,21 +18,25 @@ func TestIsPRDerivedTaskName(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		pr   string
-		want bool
+		caseName string
+		name     string
+		pr       string
+		want     bool
 	}{
-		{name: "pr-51", pr: "51", want: true},
-		{name: " pr-51 ", pr: " 51 ", want: true},
-		{name: "pr-051", pr: "051", want: true},
-		{name: "pr-51", pr: "52", want: false},
-		{name: "demo", pr: "51", want: false},
-		{name: "pr-main", pr: "main", want: false},
-		{name: "pr-", pr: "", want: false},
+		{caseName: "Should accept canonical PR-derived task names", name: "pr-51", pr: "51", want: true},
+		{caseName: "Should trim surrounding whitespace", name: " pr-51 ", pr: " 51 ", want: true},
+		{caseName: "Should reject PR refs with leading zeroes", name: "pr-051", pr: "051", want: false},
+		{caseName: "Should reject mismatched PR refs", name: "pr-51", pr: "52", want: false},
+		{caseName: "Should reject names without PR prefix", name: "demo", pr: "51", want: false},
+		{caseName: "Should reject non-numeric PR refs", name: "pr-main", pr: "main", want: false},
+		{caseName: "Should reject empty PR refs", name: "pr-", pr: "", want: false},
+		{caseName: "Should reject signed positive PR refs", name: "pr-+1", pr: "+1", want: false},
+		{caseName: "Should reject signed negative PR refs", name: "pr--1", pr: "-1", want: false},
+		{caseName: "Should reject zero PR refs", name: "pr-0", pr: "0", want: false},
 	}
 	for _, tc := range cases {
 		tc := tc
-		t.Run(tc.name+"/"+tc.pr, func(t *testing.T) {
+		t.Run(tc.caseName, func(t *testing.T) {
 			t.Parallel()
 
 			if got := IsPRDerivedTaskName(tc.name, tc.pr); got != tc.want {

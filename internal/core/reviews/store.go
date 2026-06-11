@@ -23,7 +23,10 @@ const (
 
 var ErrNoReviewRounds = errors.New("no review rounds found")
 
-var errReviewRoundMetadataUnavailable = errors.New("review round metadata unavailable from issue front matter")
+var (
+	errReviewRoundMetadataUnavailable = errors.New("review round metadata unavailable from issue front matter")
+	prRefRe                           = regexp.MustCompile(`^[1-9][0-9]*$`)
+)
 
 func TaskDirectory(name string) string {
 	return TaskDirectoryForWorkspace("", name)
@@ -42,8 +45,7 @@ func IsPRDerivedTaskName(name, prRef string) bool {
 	if strings.TrimPrefix(name, "pr-") != prRef {
 		return false
 	}
-	_, err := strconv.Atoi(prRef)
-	return err == nil
+	return prRefRe.MatchString(prRef)
 }
 
 func RoundDirName(round int) string {

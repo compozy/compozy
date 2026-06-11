@@ -241,6 +241,17 @@ func TestParseReviewBodyCommentItemsParsesRealCodeRabbitMinorAndMajorMarkup(t *t
 						"A non-nil `PeerCard.DisplayName` containing only whitespace now produces an empty `DisplayName` instead of falling back to `peer.PeerID`.",
 					),
 				),
+				"",
+				testReviewBodyCommentBlockWithRawSections(
+					"Critical comments",
+					testReviewBodyCommentFileSectionWithMetadata(
+						"internal/core/scheduler.go-44-46",
+						"44-46",
+						"_⚠️ Potential issue_ | _🔴 Critical_",
+						"Stop launching duplicate workers.",
+						"Starting a new worker for an existing job can process the same task twice.",
+					),
+				),
 			}, "\n"),
 			SubmittedAt: "2026-04-10T14:24:56Z",
 			User: struct {
@@ -250,8 +261,8 @@ func TestParseReviewBodyCommentItemsParsesRealCodeRabbitMinorAndMajorMarkup(t *t
 	}
 
 	items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
-	if len(items) != 3 {
-		t.Fatalf("expected 3 parsed review body comment items, got %d (%#v)", len(items), items)
+	if len(items) != 4 {
+		t.Fatalf("expected 4 parsed review body comment items, got %d (%#v)", len(items), items)
 	}
 
 	itemByTitle := make(map[string]provider.ReviewItem, len(items))
@@ -297,62 +308,77 @@ func TestParseReviewBodyCommentItemsParsesRealCodeRabbitMinorAndMajorMarkup(t *t
 	if strings.Contains(majorItem.Body, "Potential issue") || strings.Contains(majorItem.Body, "Suggested change") {
 		t.Fatalf("expected major body to exclude metadata and nested details, got %q", majorItem.Body)
 	}
+
+	criticalItem, ok := itemByTitle["Stop launching duplicate workers."]
+	if !ok {
+		t.Fatalf("expected critical item, got %#v", itemByTitle)
+	}
+	if criticalItem.File != "internal/core/scheduler.go" {
+		t.Fatalf("unexpected critical file path: %#v", criticalItem)
+	}
+	if criticalItem.Line != 44 || criticalItem.Severity != reviewBodyCommentSeverityCritical {
+		t.Fatalf("unexpected critical metadata: %#v", criticalItem)
+	}
 }
 
 func TestParseReviewBodyCommentItemsParsesQuotedOutsideDiffRangeComments(t *testing.T) {
 	t.Parallel()
 
-	reviewBody := strings.Join([]string{
-		"> <details>",
-		"> <summary>⚠️ Outside diff range comments (1)</summary><blockquote>",
-		">",
-		"> <details>",
-		"> <summary>web/src/routes/_app/-automation.integration.test.tsx (1)</summary><blockquote>",
-		">",
-		"> `314-342`: _⚠️ Potential issue_ | _🟡 Minor_",
-		">",
-		"> **Wrap all post-mutation assertions in `waitFor()` to prevent flaky tests.**",
-		">",
-		"> Both `handleSubmitJob` and `handleTriggerNow` properly await `mutateAsync()` before calling side effects.",
-		">",
-		"> <details>",
-		"> <summary>🤖 Prompt for AI Agents</summary>",
-		"> ignored prompt details",
-		"> </details>",
-		">",
-		"> </blockquote></details>",
-		">",
-		"> </blockquote></details>",
-	}, "\n")
-	reviews := []pullRequestReview{
-		testPullRequestReview(
-			4473236147,
-			"1cfc78b23d61",
-			"CHANGES_REQUESTED",
-			"2026-06-11T02:35:19Z",
-			defaultBotLogin,
-			reviewBody,
-		),
-	}
+	t.Run("Should parse quoted outside-diff-range comments", func(t *testing.T) {
+		t.Parallel()
 
-	items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
-	if len(items) != 1 {
-		t.Fatalf("expected 1 outside-diff review body comment item, got %d (%#v)", len(items), items)
-	}
+		reviewBody := strings.Join([]string{
+			"> <details>",
+			"> <summary>⚠️ Outside diff range comments (1)</summary><blockquote>",
+			">",
+			"> <details>",
+			"> <summary>web/src/routes/_app/-automation.integration.test.tsx (1)</summary><blockquote>",
+			">",
+			"> `314-342`: _⚠️ Potential issue_ | _🟡 Minor_",
+			">",
+			"> **Wrap all post-mutation assertions in `waitFor()` to prevent flaky tests.**",
+			">",
+			"> Both `handleSubmitJob` and `handleTriggerNow` properly await `mutateAsync()` before calling side effects.",
+			">",
+			"> <details>",
+			"> <summary>🤖 Prompt for AI Agents</summary>",
+			"> ignored prompt details",
+			"> </details>",
+			">",
+			"> </blockquote></details>",
+			">",
+			"> </blockquote></details>",
+		}, "\n")
+		reviews := []pullRequestReview{
+			testPullRequestReview(
+				4473236147,
+				"1cfc78b23d61",
+				"CHANGES_REQUESTED",
+				"2026-06-11T02:35:19Z",
+				defaultBotLogin,
+				reviewBody,
+			),
+		}
 
-	item := items[0]
-	if item.Title != "Wrap all post-mutation assertions in waitFor() to prevent flaky tests." {
-		t.Fatalf("unexpected outside-diff title: %#v", item)
-	}
-	if item.File != "web/src/routes/_app/-automation.integration.test.tsx" {
-		t.Fatalf("unexpected outside-diff file path: %#v", item)
-	}
-	if item.Line != 314 || item.Severity != reviewBodyCommentSeverityMinor {
-		t.Fatalf("unexpected outside-diff metadata: %#v", item)
-	}
-	if strings.Contains(item.Body, "Potential issue") || strings.Contains(item.Body, "Prompt for AI Agents") {
-		t.Fatalf("expected outside-diff body to exclude metadata and nested details, got %q", item.Body)
-	}
+		items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
+		if len(items) != 1 {
+			t.Fatalf("expected 1 outside-diff review body comment item, got %d (%#v)", len(items), items)
+		}
+
+		item := items[0]
+		if item.Title != "Wrap all post-mutation assertions in waitFor() to prevent flaky tests." {
+			t.Fatalf("unexpected outside-diff title: %#v", item)
+		}
+		if item.File != "web/src/routes/_app/-automation.integration.test.tsx" {
+			t.Fatalf("unexpected outside-diff file path: %#v", item)
+		}
+		if item.Line != 314 || item.Severity != reviewBodyCommentSeverityMinor {
+			t.Fatalf("unexpected outside-diff metadata: %#v", item)
+		}
+		if strings.Contains(item.Body, "Potential issue") || strings.Contains(item.Body, "Prompt for AI Agents") {
+			t.Fatalf("expected outside-diff body to exclude metadata and nested details, got %q", item.Body)
+		}
+	})
 }
 
 func TestFetchReviewsSkipsPullRequestReviewsWhenReviewBodyCommentsAreDisabled(t *testing.T) {

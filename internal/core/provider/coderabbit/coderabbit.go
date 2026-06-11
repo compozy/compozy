@@ -563,7 +563,9 @@ func parseGitHubRemoteURL(raw string) (string, string, bool) {
 
 func parseGitHubRemotePath(path string) (string, string, bool) {
 	trimmed := strings.Trim(strings.TrimSpace(path), "/")
-	trimmed = strings.TrimSuffix(trimmed, ".git")
+	if strings.HasSuffix(strings.ToLower(trimmed), ".git") {
+		trimmed = trimmed[:len(trimmed)-len(".git")]
+	}
 	parts := strings.Split(trimmed, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", false

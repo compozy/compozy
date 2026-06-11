@@ -404,27 +404,29 @@ func TestArchiveTaskWorkflowRefreshesStaleEmptyCatalogForReviewOnlyWorkflows(t *
 }
 
 func TestArchiveTaskWorkflowKeepsTrulyEmptyWorkflowNotArchivableAfterRefresh(t *testing.T) {
-	rootDir := archiveTestRoot(t)
-	workflowDir := filepath.Join(rootDir, "action-gaps")
-	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
-		t.Fatalf("mkdir workflow dir: %v", err)
-	}
-	mustSyncArchiveWorkflow(t, workflowDir)
+	t.Run("Should keep truly empty workflow not archivable after refresh", func(t *testing.T) {
+		rootDir := archiveTestRoot(t)
+		workflowDir := filepath.Join(rootDir, "action-gaps")
+		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		mustSyncArchiveWorkflow(t, workflowDir)
 
-	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
-	if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
-		t.Fatalf("Archive(empty workflow) error = %v, want ErrWorkflowNotArchivable", err)
-	}
-	var notArchivable globaldb.WorkflowNotArchivableError
-	if !errors.As(err, &notArchivable) {
-		t.Fatalf("Archive(empty workflow) error = %T, want WorkflowNotArchivableError", err)
-	}
-	if result == nil || result.WorkflowsScanned != 1 || result.Archived != 0 {
-		t.Fatalf("unexpected archive result for empty workflow: %#v", result)
-	}
-	if _, statErr := os.Stat(workflowDir); statErr != nil {
-		t.Fatalf("expected empty workflow dir to remain: %v", statErr)
-	}
+		result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+		if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
+			t.Fatalf("Archive(empty workflow) error = %v, want ErrWorkflowNotArchivable", err)
+		}
+		var notArchivable globaldb.WorkflowNotArchivableError
+		if !errors.As(err, &notArchivable) {
+			t.Fatalf("Archive(empty workflow) error = %T, want WorkflowNotArchivableError", err)
+		}
+		if result == nil || result.WorkflowsScanned != 1 || result.Archived != 0 {
+			t.Fatalf("unexpected archive result for empty workflow: %#v", result)
+		}
+		if _, statErr := os.Stat(workflowDir); statErr != nil {
+			t.Fatalf("expected empty workflow dir to remain: %v", statErr)
+		}
+	})
 }
 
 func TestArchiveTaskWorkflowForceCompletesTasksAndResolvesReviewsBeforeArchiving(t *testing.T) {
