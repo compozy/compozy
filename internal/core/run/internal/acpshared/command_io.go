@@ -175,8 +175,9 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		req.Index,
 		session.Identity(),
 	); err != nil {
+		writeErr := writeSetupFailureToErrLog(execution.ErrFile, err)
 		execution.Close()
-		return nil, err
+		return nil, joinSetupFailure(err, writeErr)
 	}
 
 	return execution, nil

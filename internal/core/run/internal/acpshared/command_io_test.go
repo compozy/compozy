@@ -470,6 +470,75 @@ func TestSetupSessionExecutionWritesSessionCreateFailureToErrLog(t *testing.T) {
 	}
 }
 
+func TestSetupSessionExecutionWritesSessionStartedEventFailureToErrLog(t *testing.T) {
+	restore := SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return &lifecycleCommandIOClient{
+				session: fakeSessionExecutionSession{
+					id: "sess-event-failure",
+					identity: agent.SessionIdentity{
+						ACPSessionID: "sess-event-failure",
+					},
+					updates: make(chan model.SessionUpdate),
+					done:    make(chan struct{}),
+				},
+			}, nil
+		},
+	)
+	defer restore()
+
+	submitter := &stubRuntimeEventSubmitter{
+		submitFn: func(ev eventspkg.Event) error {
+			if ev.Kind == eventspkg.EventKindSessionStarted {
+				return errors.New("journal unavailable")
+			}
+			return nil
+		},
+	}
+	tmpDir := t.TempDir()
+	_, err := SetupSessionExecution(SessionSetupRequest{
+		Context: context.Background(),
+		Config: &config{
+			IDE:          model.IDECodex,
+			RunArtifacts: model.RunArtifacts{RunID: "run-event-failure"},
+		},
+		Job: &job{
+			SafeName: "exec",
+			Prompt:   []byte("finish the task"),
+			OutLog:   filepath.Join(tmpDir, "exec.out.log"),
+			ErrLog:   filepath.Join(tmpDir, "exec.err.log"),
+		},
+		CWD:        tmpDir,
+		RunJournal: submitter,
+		Logger:     silentLogger(),
+	})
+	if err == nil {
+		t.Fatal("expected setup error")
+	}
+	for _, want := range []string{
+		"submit session started event",
+		"journal unavailable",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("setup error %q does not contain %q", err, want)
+		}
+	}
+
+	errLog, readErr := os.ReadFile(filepath.Join(tmpDir, "exec.err.log"))
+	if readErr != nil {
+		t.Fatalf("read err log: %v", readErr)
+	}
+	for _, want := range []string{
+		"ACP session setup error:",
+		"submit session started event",
+		"journal unavailable",
+	} {
+		if !strings.Contains(string(errLog), want) {
+			t.Fatalf("err log %q does not contain %q", string(errLog), want)
+		}
+	}
+}
+
 type fakeSessionExecutionSession struct {
 	id       string
 	identity agent.SessionIdentity

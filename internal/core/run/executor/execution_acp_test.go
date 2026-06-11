@@ -418,89 +418,91 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 }
 
 func TestJobExecutionContextLaunchWorkersStopsAfterAuthenticationSetupFailure(t *testing.T) {
-	tmpDir := t.TempDir()
-	authErr := &agent.SessionSetupError{
-		Stage: agent.SessionSetupStageNewSession,
-		Err: &agent.AuthenticationRequiredError{
-			Err: &agent.SessionError{Code: -32000, Message: "Authentication required"},
-		},
-	}
-	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
-		return nil, authErr
-	})
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
-		session := newFakeACPSession("sess-should-not-run")
-		go session.finish(nil)
-		return session, nil
-	})
-	installFakeACPClients(t, firstClient, secondClient)
-
-	jobs := []job{
-		newTestACPJob(tmpDir),
-		newTestACPJob(tmpDir),
-	}
-	jobs[1].SafeName = "task_02"
-	jobs[1].CodeFiles = []string{"task_02"}
-	jobs[1].OutLog = filepath.Join(tmpDir, "task_02.out.log")
-	jobs[1].ErrLog = filepath.Join(tmpDir, "task_02.err.log")
-	execCtx := &jobExecutionContext{
-		ctx: context.Background(),
-		cfg: &config{
-			IDE:                    model.IDECursor,
-			Model:                  "test-model",
-			ReasoningEffort:        "medium",
-			Concurrent:             1,
-			MaxRetries:             3,
-			RetryBackoffMultiplier: 2,
-			Timeout:                time.Second,
-		},
-		jobs:  jobs,
-		total: len(jobs),
-		cwd:   tmpDir,
-		sem:   make(chan struct{}, 1),
-	}
-	jobCtx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(nil)
-	execCtx.cancelJobs = cancel
-
-	execCtx.launchWorkers(jobCtx)
-	select {
-	case <-execCtx.waitChannel():
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for auth fail-fast execution")
-	}
-
-	if got := firstClient.createCalls.Load(); got != 1 {
-		t.Fatalf("expected authentication setup attempt once, got %d", got)
-	}
-	if got := secondClient.createCalls.Load(); got != 0 {
-		t.Fatalf("expected later job not to create an ACP session after auth failure, got %d", got)
-	}
-	if got := jobs[0].Status; got != runStatusFailed {
-		t.Fatalf("expected first job failed status, got %q", got)
-	}
-	if got := jobs[1].Status; got != runStatusCanceled {
-		t.Fatalf("expected second job canceled status after fail-fast, got %q", got)
-	}
-	for _, want := range []string{
-		"cursor-agent is not authenticated",
-		"Run 'cursor-agent login' and retry",
-		"Authentication required",
-	} {
-		if !strings.Contains(jobs[0].Failure, want) {
-			t.Fatalf("first job failure %q does not contain %q", jobs[0].Failure, want)
+	t.Run("Should stop remaining jobs after authentication setup failure", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authErr := &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err: &agent.AuthenticationRequiredError{
+				Err: &agent.SessionError{Code: -32000, Message: "Authentication required"},
+			},
 		}
-	}
-	if !agent.IsAuthenticationRequired(context.Cause(jobCtx)) {
-		t.Fatalf("expected auth failure cancel cause, got %v", context.Cause(jobCtx))
-	}
-	errLog, err := os.ReadFile(jobs[0].ErrLog)
-	if err != nil {
-		t.Fatalf("read first job err log: %v", err)
-	}
-	if !strings.Contains(string(errLog), "cursor-agent is not authenticated") {
-		t.Fatalf("expected actionable auth message in err log, got %q", string(errLog))
-	}
+		firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
+			return nil, authErr
+		})
+		secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+			session := newFakeACPSession("sess-should-not-run")
+			go session.finish(nil)
+			return session, nil
+		})
+		installFakeACPClients(t, firstClient, secondClient)
+
+		jobs := []job{
+			newTestACPJob(tmpDir),
+			newTestACPJob(tmpDir),
+		}
+		jobs[1].SafeName = "task_02"
+		jobs[1].CodeFiles = []string{"task_02"}
+		jobs[1].OutLog = filepath.Join(tmpDir, "task_02.out.log")
+		jobs[1].ErrLog = filepath.Join(tmpDir, "task_02.err.log")
+		execCtx := &jobExecutionContext{
+			ctx: context.Background(),
+			cfg: &config{
+				IDE:                    model.IDECursor,
+				Model:                  "test-model",
+				ReasoningEffort:        "medium",
+				Concurrent:             1,
+				MaxRetries:             3,
+				RetryBackoffMultiplier: 2,
+				Timeout:                time.Second,
+			},
+			jobs:  jobs,
+			total: len(jobs),
+			cwd:   tmpDir,
+			sem:   make(chan struct{}, 1),
+		}
+		jobCtx, cancel := context.WithCancelCause(context.Background())
+		defer cancel(nil)
+		execCtx.cancelJobs = cancel
+
+		execCtx.launchWorkers(jobCtx)
+		select {
+		case <-execCtx.waitChannel():
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for auth fail-fast execution")
+		}
+
+		if got := firstClient.createCalls.Load(); got != 1 {
+			t.Fatalf("expected authentication setup attempt once, got %d", got)
+		}
+		if got := secondClient.createCalls.Load(); got != 0 {
+			t.Fatalf("expected later job not to create an ACP session after auth failure, got %d", got)
+		}
+		if got := jobs[0].Status; got != runStatusFailed {
+			t.Fatalf("expected first job failed status, got %q", got)
+		}
+		if got := jobs[1].Status; got != runStatusCanceled {
+			t.Fatalf("expected second job canceled status after fail-fast, got %q", got)
+		}
+		for _, want := range []string{
+			"cursor-agent is not authenticated",
+			"Run 'cursor-agent login' and retry",
+			"Authentication required",
+		} {
+			if !strings.Contains(jobs[0].Failure, want) {
+				t.Fatalf("first job failure %q does not contain %q", jobs[0].Failure, want)
+			}
+		}
+		if !agent.IsAuthenticationRequired(context.Cause(jobCtx)) {
+			t.Fatalf("expected auth failure cancel cause, got %v", context.Cause(jobCtx))
+		}
+		errLog, err := os.ReadFile(jobs[0].ErrLog)
+		if err != nil {
+			t.Fatalf("read first job err log: %v", err)
+		}
+		if !strings.Contains(string(errLog), "cursor-agent is not authenticated") {
+			t.Fatalf("expected actionable auth message in err log, got %q", string(errLog))
+		}
+	})
 }
 
 func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
