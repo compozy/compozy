@@ -46,6 +46,7 @@ type stubDaemonCommandClient struct {
 	status               apicore.DaemonStatus
 	statusErr            error
 	statusCtx            context.Context
+	statusCalls          int
 	startCalls           int
 	startSlug            string
 	startRequest         apicore.TaskRunRequest
@@ -129,6 +130,7 @@ func (c *stubDaemonCommandClient) DaemonStatus(ctx context.Context) (apicore.Dae
 		return apicore.DaemonStatus{}, errors.New("stub daemon client is required")
 	}
 	c.statusCtx = ctx
+	c.statusCalls++
 	if c.statusErr != nil {
 		return apicore.DaemonStatus{}, c.statusErr
 	}
@@ -1269,6 +1271,7 @@ func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
 		readInfo: func(string) (daemon.Info, error) {
 			return daemon.Info{
 				PID:        4242,
+				Version:    "test-version",
 				SocketPath: "/tmp/compozy-ready.sock",
 				StartedAt:  time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
 				State:      daemon.ReadyStateReady,
@@ -1283,6 +1286,7 @@ func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
 		},
 		sleep:          func(time.Duration) {},
 		now:            func() time.Time { return time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC) },
+		cliVersion:     func() string { return "test-version" },
 		startupTimeout: time.Second,
 		pollInterval:   time.Millisecond,
 	})
@@ -1689,7 +1693,7 @@ func TestNewDefaultCLIDaemonBootstrapProvidesRuntimeDependencies(t *testing.T) {
 
 	bootstrap := newDefaultCLIDaemonBootstrap()
 	if bootstrap.resolveHomePaths == nil || bootstrap.readInfo == nil || bootstrap.newClient == nil ||
-		bootstrap.launch == nil {
+		bootstrap.launch == nil || bootstrap.cliVersion == nil || bootstrap.notify == nil {
 		t.Fatalf("expected daemon bootstrap dependencies to be wired: %#v", bootstrap)
 	}
 	if bootstrap.sleep == nil || bootstrap.now == nil {
@@ -1708,6 +1712,219 @@ func TestNewDefaultCLIDaemonBootstrapProvidesRuntimeDependencies(t *testing.T) {
 	}
 	if client.Target().HTTPPort != 43123 {
 		t.Fatalf("unexpected bootstrap client target: %#v", client.Target())
+	}
+}
+
+func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
+	t.Parallel()
+
+	currentVersion := "v2.0.0 (commit=current date=2026-06-11)"
+	oldVersion := "v1.9.0 (commit=old date=2026-06-10)"
+	now := time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name              string
+		cliVersion        string
+		initialVersion    string
+		initialStatus     apicore.DaemonStatus
+		restartedVersion  string
+		readInfoErrOnStop bool
+		wantClient        string
+		wantLaunchCalls   int
+		wantStopCalls     int
+		wantStopForce     bool
+		wantNotice        []string
+		wantErr           []string
+	}{
+		{
+			name:           "matching versions reuse daemon",
+			cliVersion:     currentVersion,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version: currentVersion,
+			},
+			wantClient: "initial",
+		},
+		{
+			name:           "idle mismatch restarts and reconnects",
+			cliVersion:     currentVersion,
+			initialVersion: oldVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:        oldVersion,
+				ActiveRunCount: 0,
+			},
+			restartedVersion:  currentVersion,
+			readInfoErrOnStop: true,
+			wantClient:        "restarted",
+			wantLaunchCalls:   1,
+			wantStopCalls:     1,
+			wantNotice: []string{
+				"Restarting stale compozy daemon",
+				oldVersion,
+				currentVersion,
+			},
+		},
+		{
+			name:           "busy mismatch fails without stopping",
+			cliVersion:     currentVersion,
+			initialVersion: oldVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:        oldVersion,
+				ActiveRunCount: 2,
+			},
+			wantErr: []string{
+				oldVersion,
+				currentVersion,
+				"2 active runs",
+				"retry after",
+				"compozy daemon stop --force",
+			},
+		},
+		{
+			name:           "dev and empty versions are compatible",
+			cliVersion:     "dev (commit=none date=unknown)",
+			initialVersion: "",
+			initialStatus:  apicore.DaemonStatus{},
+			wantClient:     "initial",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			initialInfo := daemon.Info{
+				PID:        1234,
+				Version:    tt.initialVersion,
+				SocketPath: "/tmp/compozy-version-old.sock",
+				StartedAt:  now,
+				State:      daemon.ReadyStateReady,
+			}
+			restartedInfo := daemon.Info{
+				PID:        4321,
+				Version:    tt.restartedVersion,
+				SocketPath: "/tmp/compozy-version-new.sock",
+				StartedAt:  now.Add(time.Second),
+				State:      daemon.ReadyStateReady,
+			}
+			initialClient := &stubDaemonCommandClient{
+				target: apiclient.Target{SocketPath: initialInfo.SocketPath},
+				health: apicore.DaemonHealth{
+					Ready: true,
+				},
+				status: tt.initialStatus,
+			}
+			restartedClient := &stubDaemonCommandClient{
+				target: apiclient.Target{SocketPath: restartedInfo.SocketPath},
+				health: apicore.DaemonHealth{
+					Ready: true,
+				},
+				status: apicore.DaemonStatus{
+					Version: tt.restartedVersion,
+				},
+			}
+
+			var launchCalls int
+			var notices []string
+			var readInfoCalls int
+			bootstrap := cliDaemonBootstrap{
+				resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+					return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+				},
+				readInfo: func(path string) (daemon.Info, error) {
+					if path != "/tmp/compozy-home/daemon.json" {
+						t.Fatalf("unexpected daemon info path: %q", path)
+					}
+					readInfoCalls++
+					if readInfoCalls == 2 && tt.readInfoErrOnStop {
+						return daemon.Info{}, errors.New("daemon info removed")
+					}
+					if launchCalls > 0 {
+						return restartedInfo, nil
+					}
+					return initialInfo, nil
+				},
+				newClient: func(target apiclient.Target) (daemonCommandClient, error) {
+					switch target.SocketPath {
+					case initialInfo.SocketPath:
+						return initialClient, nil
+					case restartedInfo.SocketPath:
+						return restartedClient, nil
+					default:
+						return nil, fmt.Errorf("unexpected daemon target: %#v", target)
+					}
+				},
+				launch: func(compozyconfig.HomePaths) error {
+					launchCalls++
+					return nil
+				},
+				sleep:          func(time.Duration) {},
+				now:            func() time.Time { return now },
+				startupTimeout: time.Second,
+				pollInterval:   time.Millisecond,
+				cliVersion:     func() string { return tt.cliVersion },
+				notify: func(message string) error {
+					notices = append(notices, message)
+					return nil
+				},
+			}
+
+			gotClient, err := bootstrap.ensure(context.Background())
+			if len(tt.wantErr) > 0 {
+				if err == nil {
+					t.Fatal("ensure() error = nil, want version mismatch")
+				}
+				if !containsAll(err.Error(), tt.wantErr...) {
+					t.Fatalf("ensure() error = %q, want fragments %#v", err.Error(), tt.wantErr)
+				}
+				if initialClient.stopCtx != nil {
+					t.Fatal("expected busy version mismatch not to stop daemon")
+				}
+				if launchCalls != 0 {
+					t.Fatalf("expected busy version mismatch not to launch, got %d", launchCalls)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ensure() error = %v", err)
+			}
+			switch tt.wantClient {
+			case "initial":
+				if gotClient != initialClient {
+					t.Fatalf("ensure() client = %#v, want initial client", gotClient)
+				}
+			case "restarted":
+				if gotClient != restartedClient {
+					t.Fatalf("ensure() client = %#v, want restarted client", gotClient)
+				}
+			default:
+				t.Fatalf("test has unsupported wantClient %q", tt.wantClient)
+			}
+			if launchCalls != tt.wantLaunchCalls {
+				t.Fatalf("launch calls = %d, want %d", launchCalls, tt.wantLaunchCalls)
+			}
+			stopCalls := 0
+			if initialClient.stopCtx != nil {
+				stopCalls = 1
+			}
+			if stopCalls != tt.wantStopCalls {
+				t.Fatalf("stop calls = %d, want %d", stopCalls, tt.wantStopCalls)
+			}
+			if initialClient.stopForce != tt.wantStopForce {
+				t.Fatalf("stop force = %t, want %t", initialClient.stopForce, tt.wantStopForce)
+			}
+			if len(tt.wantNotice) == 0 {
+				if len(notices) != 0 {
+					t.Fatalf("notices = %#v, want none", notices)
+				}
+				return
+			}
+			if len(notices) != 1 || !containsAll(notices[0], tt.wantNotice...) {
+				t.Fatalf("notices = %#v, want one notice with %#v", notices, tt.wantNotice)
+			}
+		})
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	daemonlogger "github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -81,6 +82,8 @@ type cliDaemonBootstrap struct {
 	launch           func(compozyconfig.HomePaths) error
 	sleep            func(time.Duration)
 	now              func() time.Time
+	cliVersion       func() string
+	notify           func(string) error
 	startupTimeout   time.Duration
 	pollInterval     time.Duration
 }
@@ -116,9 +119,14 @@ func newDefaultCLIDaemonBootstrap() cliDaemonBootstrap {
 		newClient: func(target apiclient.Target) (daemonCommandClient, error) {
 			return apiclient.New(target)
 		},
-		launch:         launchCLIDaemonProcess,
-		sleep:          sleepForCLIDaemonPoll,
-		now:            nowForCLIDaemonPoll,
+		launch:     launchCLIDaemonProcess,
+		sleep:      sleepForCLIDaemonPoll,
+		now:        nowForCLIDaemonPoll,
+		cliVersion: version.String,
+		notify: func(message string) error {
+			_, err := fmt.Fprintln(os.Stderr, message)
+			return err
+		},
 		startupTimeout: defaultDaemonStartupTimeout,
 		pollInterval:   defaultDaemonPollInterval,
 	}
@@ -134,26 +142,45 @@ func (b cliDaemonBootstrap) ensure(ctx context.Context) (daemonCommandClient, er
 	if err == nil {
 		return client, nil
 	}
+	var versionMismatch *cliDaemonVersionMismatchError
+	if errors.As(err, &versionMismatch) {
+		return b.handleVersionMismatch(ctx, paths, versionMismatch)
+	}
 	lastErr := err
 
 	if err := b.launch(paths); err != nil {
 		return nil, fmt.Errorf("start daemon process: %w", err)
 	}
 
+	return b.waitForDaemonReadiness(ctx, paths.InfoPath, lastErr)
+}
+
+func (b cliDaemonBootstrap) waitForDaemonReadiness(
+	ctx context.Context,
+	infoPath string,
+	lastErr error,
+) (daemonCommandClient, error) {
 	deadline := b.now().Add(b.startupTimeout)
 	for b.now().Before(deadline) || b.now().Equal(deadline) {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("wait for daemon readiness: %w", err)
 		}
 
-		client, err := b.probe(ctx, paths.InfoPath)
+		client, err := b.probe(ctx, infoPath)
 		if err == nil {
 			return client, nil
+		}
+		var versionMismatch *cliDaemonVersionMismatchError
+		if errors.As(err, &versionMismatch) {
+			return nil, versionMismatch
 		}
 		lastErr = err
 		b.sleep(b.pollInterval)
 	}
 
+	if lastErr == nil {
+		lastErr = errors.New("daemon did not become ready")
+	}
 	return nil, fmt.Errorf("wait for daemon readiness: %w", lastErr)
 }
 
@@ -178,7 +205,163 @@ func (b cliDaemonBootstrap) probe(ctx context.Context, infoPath string) (daemonC
 	if !health.Ready {
 		return nil, fmt.Errorf("probe daemon health via %s: %w", client.Target().String(), cliDaemonHealthError(health))
 	}
+	status, err := client.DaemonStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("probe daemon status via %s: %w", client.Target().String(), err)
+	}
+	daemonVersion := firstNonEmptyDaemonBuildVersion(status.Version, info.Version)
+	cliVersion := b.currentCLIVersion()
+	if !daemonBuildVersionsCompatible(daemonVersion, cliVersion) {
+		return nil, &cliDaemonVersionMismatchError{
+			info:           info,
+			client:         client,
+			daemonVersion:  daemonVersion,
+			cliVersion:     cliVersion,
+			activeRunCount: status.ActiveRunCount,
+		}
+	}
 	return client, nil
+}
+
+func (b cliDaemonBootstrap) handleVersionMismatch(
+	ctx context.Context,
+	paths compozyconfig.HomePaths,
+	mismatch *cliDaemonVersionMismatchError,
+) (daemonCommandClient, error) {
+	if mismatch == nil {
+		return nil, errors.New("daemon version mismatch details are required")
+	}
+	if mismatch.activeRunCount > 0 {
+		return nil, mismatch
+	}
+	if err := b.notifyVersionMismatchRestart(mismatch); err != nil {
+		return nil, err
+	}
+	if err := mismatch.client.StopDaemon(ctx, false); err != nil {
+		return nil, fmt.Errorf("stop stale daemon: %w", err)
+	}
+	if err := b.waitForDaemonInfoRelease(ctx, paths.InfoPath, mismatch.info); err != nil {
+		return nil, err
+	}
+	if err := b.launch(paths); err != nil {
+		return nil, fmt.Errorf("start daemon process: %w", err)
+	}
+	return b.waitForDaemonReadiness(ctx, paths.InfoPath, nil)
+}
+
+func (b cliDaemonBootstrap) notifyVersionMismatchRestart(mismatch *cliDaemonVersionMismatchError) error {
+	if b.notify == nil {
+		return nil
+	}
+	if err := b.notify(fmt.Sprintf(
+		"Restarting stale compozy daemon (daemon %s, CLI %s).",
+		displayDaemonBuildVersion(mismatch.daemonVersion),
+		displayDaemonBuildVersion(mismatch.cliVersion),
+	)); err != nil {
+		return fmt.Errorf("write daemon restart notice: %w", err)
+	}
+	return nil
+}
+
+func (b cliDaemonBootstrap) waitForDaemonInfoRelease(
+	ctx context.Context,
+	infoPath string,
+	previous daemon.Info,
+) error {
+	deadline := b.now().Add(b.startupTimeout)
+	var lastErr error
+	for b.now().Before(deadline) || b.now().Equal(deadline) {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("wait for stale daemon shutdown: %w", err)
+		}
+		info, err := b.readInfo(strings.TrimSpace(infoPath))
+		if err != nil {
+			return nil
+		}
+		if !sameDaemonInfoOwner(info, previous) {
+			return nil
+		}
+		lastErr = fmt.Errorf("stale daemon still owns daemon info (pid=%d)", previous.PID)
+		b.sleep(b.pollInterval)
+	}
+	if lastErr == nil {
+		lastErr = errors.New("stale daemon info was not released")
+	}
+	return fmt.Errorf("wait for stale daemon shutdown: %w", lastErr)
+}
+
+func (b cliDaemonBootstrap) currentCLIVersion() string {
+	if b.cliVersion == nil {
+		return version.String()
+	}
+	return b.cliVersion()
+}
+
+type cliDaemonVersionMismatchError struct {
+	info           daemon.Info
+	client         daemonCommandClient
+	daemonVersion  string
+	cliVersion     string
+	activeRunCount int
+}
+
+func (e *cliDaemonVersionMismatchError) Error() string {
+	if e == nil {
+		return "daemon version mismatch"
+	}
+	if e.activeRunCount > 0 {
+		return fmt.Sprintf(
+			"running compozy daemon version %q does not match CLI version %q and has %d active runs; "+
+				"retry after the active runs finish or, when it is safe to cancel them, run "+
+				"`compozy daemon stop --force` and retry so the CLI starts the current daemon",
+			displayDaemonBuildVersion(e.daemonVersion),
+			displayDaemonBuildVersion(e.cliVersion),
+			e.activeRunCount,
+		)
+	}
+	return fmt.Sprintf(
+		"running compozy daemon version %q does not match CLI version %q",
+		displayDaemonBuildVersion(e.daemonVersion),
+		displayDaemonBuildVersion(e.cliVersion),
+	)
+}
+
+func firstNonEmptyDaemonBuildVersion(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func daemonBuildVersionsCompatible(daemonVersion string, cliVersion string) bool {
+	daemonVersion = strings.TrimSpace(daemonVersion)
+	cliVersion = strings.TrimSpace(cliVersion)
+	if daemonVersion == cliVersion {
+		return true
+	}
+	return isDevBuildVersion(daemonVersion) && isDevBuildVersion(cliVersion)
+}
+
+func isDevBuildVersion(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == "" ||
+		normalized == "dev" ||
+		strings.HasPrefix(normalized, "dev ") ||
+		strings.HasPrefix(normalized, "dev(")
+}
+
+func displayDaemonBuildVersion(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "unknown build"
+	}
+	return trimmed
+}
+
+func sameDaemonInfoOwner(a daemon.Info, b daemon.Info) bool {
+	return a.PID > 0 && a.PID == b.PID && a.StartedAt.Equal(b.StartedAt)
 }
 
 func defaultLaunchCLIDaemonProcess(paths compozyconfig.HomePaths) error {
