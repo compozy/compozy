@@ -191,16 +191,20 @@ func TestValidateRuntimeConfigAcceptsAddDirsForSupportedIDE(t *testing.T) {
 func TestClaudeSpecSelectsModelAtLaunchViaEnv(t *testing.T) {
 	t.Parallel()
 
-	spec, err := lookupAgentSpec(model.IDEClaude)
-	if err != nil {
-		t.Fatalf("lookup claude spec: %v", err)
-	}
-	if !spec.UsesBootstrapModel {
-		t.Fatal("claude spec must use a bootstrap model so sessions never call session/set_model")
-	}
-	if spec.ModelEnvVar != "ANTHROPIC_MODEL" {
-		t.Fatalf("claude spec ModelEnvVar = %q, want %q", spec.ModelEnvVar, "ANTHROPIC_MODEL")
-	}
+	t.Run("Should pin the claude model at launch through ANTHROPIC_MODEL", func(t *testing.T) {
+		t.Parallel()
+
+		spec, err := lookupAgentSpec(model.IDEClaude)
+		if err != nil {
+			t.Fatalf("lookup claude spec: %v", err)
+		}
+		if !spec.UsesBootstrapModel {
+			t.Fatal("claude spec must use a bootstrap model so sessions never call session/set_model")
+		}
+		if spec.ModelEnvVar != "ANTHROPIC_MODEL" {
+			t.Fatalf("claude spec ModelEnvVar = %q, want %q", spec.ModelEnvVar, "ANTHROPIC_MODEL")
+		}
+	})
 }
 
 func TestLaunchModelEnv(t *testing.T) {
@@ -219,25 +223,25 @@ func TestLaunchModelEnv(t *testing.T) {
 		want  map[string]string
 	}{
 		{
-			name:  "explicit model is pinned",
+			name:  "Should pin an explicitly requested model",
 			spec:  spec,
 			input: " sonnet ",
 			want:  map[string]string{"TEST_MODEL_ENV": "sonnet"},
 		},
 		{
-			name:  "auto leaves model selection to the runtime",
+			name:  "Should leave model selection to the runtime for auto",
 			spec:  spec,
 			input: " AUTO ",
 			want:  nil,
 		},
 		{
-			name:  "empty leaves model selection to the runtime",
+			name:  "Should leave model selection to the runtime for empty input",
 			spec:  spec,
 			input: "",
 			want:  nil,
 		},
 		{
-			name:  "spec without model env var",
+			name:  "Should return nil for specs without a model env var",
 			spec:  Spec{ID: "no-env", DefaultModel: "default-model"},
 			input: "sonnet",
 			want:  nil,
