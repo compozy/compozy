@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	reviewBodyCommentSeverityNitpick = "nitpick"
-	reviewBodyCommentSeverityMinor   = "minor"
-	reviewBodyCommentSeverityMajor   = "major"
-	reviewBodyCommentHashLength      = 12
+	reviewBodyCommentSeverityNitpick  = "nitpick"
+	reviewBodyCommentSeverityMinor    = "minor"
+	reviewBodyCommentSeverityMajor    = "major"
+	reviewBodyCommentSeverityCritical = "critical"
+	reviewBodyCommentHashLength       = 12
 )
 
 var (
@@ -108,7 +109,8 @@ func parseReviewBodyCommentItems(reviews []pullRequestReview, botLogin string) [
 }
 
 func parseReviewBodyComments(review pullRequestReview) []provider.ReviewItem {
-	topLevelBlocks := extractTopLevelDetailsBlocks(review.Body)
+	body := stripMarkdownQuotePrefixes(review.Body)
+	topLevelBlocks := extractTopLevelDetailsBlocks(body)
 	if len(topLevelBlocks) == 0 {
 		return nil
 	}
@@ -116,7 +118,7 @@ func parseReviewBodyComments(review pullRequestReview) []provider.ReviewItem {
 	items := make([]provider.ReviewItem, 0, len(topLevelBlocks))
 	for _, block := range topLevelBlocks {
 		severity, ok := reviewBodyCommentSeverity(block.summary)
-		if !ok {
+		if !ok && !reviewBodyCommentOutsideDiffRange(block.summary) {
 			continue
 		}
 
@@ -147,9 +149,17 @@ func reviewBodyCommentSeverity(summary string) (string, bool) {
 		return reviewBodyCommentSeverityMinor, true
 	case strings.Contains(normalized, "major comments"), strings.Contains(normalized, "major comment"):
 		return reviewBodyCommentSeverityMajor, true
+	case strings.Contains(normalized, "critical comments"), strings.Contains(normalized, "critical comment"):
+		return reviewBodyCommentSeverityCritical, true
 	default:
 		return "", false
 	}
+}
+
+func reviewBodyCommentOutsideDiffRange(summary string) bool {
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(summary)), " "))
+	return strings.Contains(normalized, "outside diff range comments") ||
+		strings.Contains(normalized, "outside diff comments")
 }
 
 func parseReviewBodyCommentsForFile(
@@ -174,7 +184,12 @@ func parseReviewBodyCommentsForFile(
 			bodyEnd = matches[idx+1][0]
 		}
 
-		title, commentBody := parseReviewBodyCommentSection(trimmed[sectionStart:bodyEnd])
+		section := trimmed[sectionStart:bodyEnd]
+		sectionSeverity := severity
+		if parsedSeverity, ok := reviewBodyCommentSectionSeverity(section); ok {
+			sectionSeverity = parsedSeverity
+		}
+		title, commentBody := parseReviewBodyCommentSection(section)
 		if title == "" {
 			continue
 		}
@@ -185,7 +200,7 @@ func parseReviewBodyCommentsForFile(
 			Title:                   title,
 			File:                    normalizedFilePath,
 			Line:                    parseReviewBodyCommentLine(lineRange),
-			Severity:                severity,
+			Severity:                sectionSeverity,
 			Author:                  review.User.Login,
 			Body:                    commentBody,
 			ProviderRef:             buildReviewBodyCommentProviderRef(reviewID, reviewHash),
@@ -196,6 +211,56 @@ func parseReviewBodyCommentsForFile(
 	}
 
 	return items
+}
+
+func reviewBodyCommentSectionSeverity(section string) (string, bool) {
+	lines := strings.Split(strings.TrimSpace(section), "\n")
+	if len(lines) == 0 {
+		return "", false
+	}
+
+	if severity, ok := reviewBodyCommentMetadataSeverity(lines[0]); ok {
+		return severity, true
+	}
+	if parseInlineReviewBodyCommentTitle(lines[0]) != "" {
+		return "", false
+	}
+	for idx := 1; idx < len(lines); idx++ {
+		line := strings.TrimSpace(lines[idx])
+		if line == "" {
+			continue
+		}
+		if parseInlineReviewBodyCommentTitle(line) != "" || parseStandaloneReviewBodyCommentTitle(line) != "" {
+			return "", false
+		}
+		return reviewBodyCommentMetadataSeverity(line)
+	}
+	return "", false
+}
+
+func reviewBodyCommentMetadataSeverity(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.Contains(trimmed, "**") {
+		return "", false
+	}
+
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.NewReplacer(
+		"`", " ",
+		"_", " ",
+		"|", " ",
+	).Replace(trimmed)), " "))
+	switch {
+	case strings.Contains(normalized, "nitpick"):
+		return reviewBodyCommentSeverityNitpick, true
+	case strings.Contains(normalized, "minor"):
+		return reviewBodyCommentSeverityMinor, true
+	case strings.Contains(normalized, "major"):
+		return reviewBodyCommentSeverityMajor, true
+	case strings.Contains(normalized, "critical"):
+		return reviewBodyCommentSeverityCritical, true
+	default:
+		return "", false
+	}
 }
 
 func parseReviewBodyCommentSection(section string) (string, string) {
@@ -359,6 +424,23 @@ func stripTopLevelDetailsBlocks(text string) string {
 		builder.WriteString(text[cursor:])
 	}
 	return strings.TrimSpace(builder.String())
+}
+
+func stripMarkdownQuotePrefixes(text string) string {
+	lines := strings.Split(text, "\n")
+	for idx, line := range lines {
+		lines[idx] = stripMarkdownQuotePrefix(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func stripMarkdownQuotePrefix(line string) string {
+	trimmed := strings.TrimLeft(line, " \t")
+	for strings.HasPrefix(trimmed, ">") {
+		trimmed = strings.TrimPrefix(trimmed, ">")
+		trimmed = strings.TrimPrefix(trimmed, " ")
+	}
+	return trimmed
 }
 
 func trimEnclosingTag(text string, tag string) string {

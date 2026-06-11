@@ -332,6 +332,15 @@ func prepareArchiveWorkflow(
 	conflictOnSkip bool,
 	eligibility globaldb.WorkflowArchiveEligibility,
 ) (globaldb.WorkflowArchiveEligibility, bool, error) {
+	if conflictOnSkip && archiveEligibilityNeedsFilesystemRefresh(eligibility) {
+		// Never-synced workflows still follow workflowStateNotSyncedReason; this
+		// refresh is only for visible DB rows whose zero-artifact counts are stale.
+		updatedEligibility, err := refreshArchiveEligibility(ctx, db, workspace, tasksDir, eligibility.Workflow.Slug)
+		if err != nil {
+			return globaldb.WorkflowArchiveEligibility{}, false, err
+		}
+		eligibility = updatedEligibility
+	}
 	if eligibility.SkipReason() == "" {
 		return eligibility, false, nil
 	}
@@ -360,6 +369,35 @@ func prepareArchiveWorkflow(
 		result.ResolvedReviewIssues += resolvedReviewIssues
 	}
 	return resolveArchiveConflict(result, tasksDir, conflictOnSkip, updatedEligibility)
+}
+
+func archiveEligibilityNeedsFilesystemRefresh(eligibility globaldb.WorkflowArchiveEligibility) bool {
+	// Keep this aligned with WorkflowArchiveEligibility.SkipReason's empty
+	// catalog branch: no active runs, no task files, and no review issues.
+	return eligibility.ActiveRuns == 0 &&
+		eligibility.TaskTotal == 0 &&
+		eligibility.ReviewIssueTotal == 0
+}
+
+func refreshArchiveEligibility(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	tasksDir string,
+	slug string,
+) (globaldb.WorkflowArchiveEligibility, error) {
+	if _, err := SyncWithDB(ctx, db, workspace, SyncConfig{
+		WorkspaceRoot: workspace.RootDir,
+		TasksDir:      tasksDir,
+	}); err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, err
+	}
+
+	updatedEligibility, err := db.GetWorkflowArchiveEligibility(ctx, workspace.ID, slug)
+	if err != nil {
+		return globaldb.WorkflowArchiveEligibility{}, err
+	}
+	return updatedEligibility, nil
 }
 
 func handleForceRequiredConflict(

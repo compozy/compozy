@@ -332,6 +332,101 @@ func TestArchiveTaskWorkflowHandlesReviewOnlyWorkflows(t *testing.T) {
 	}
 }
 
+func TestArchiveTaskWorkflowRefreshesStaleEmptyCatalogForReviewOnlyWorkflows(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		reviewStatus         string
+		wantErr              error
+		wantArchived         int
+		wantForceReviewTotal int
+		wantForceUnresolved  int
+	}{
+		{
+			name:         "Should archive resolved review-only workflow after stale empty sync",
+			reviewStatus: "resolved",
+			wantArchived: 1,
+		},
+		{
+			name:                 "Should require force for unresolved review-only workflow after stale empty sync",
+			reviewStatus:         "pending",
+			wantErr:              ErrWorkflowForceRequired,
+			wantForceReviewTotal: 1,
+			wantForceUnresolved:  1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			rootDir := archiveTestRoot(t)
+			workflowDir := filepath.Join(rootDir, "action-gaps")
+			if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+				t.Fatalf("mkdir workflow dir: %v", err)
+			}
+			mustSyncArchiveWorkflow(t, workflowDir)
+
+			writeArchiveReviewRound(t, workflowDir, 1, []string{tc.reviewStatus}, false)
+
+			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Archive(stale review-only) error = %v, want %v", err, tc.wantErr)
+			}
+			if result == nil || result.WorkflowsScanned != 1 || result.Archived != tc.wantArchived {
+				t.Fatalf("unexpected archive result: %#v", result)
+			}
+
+			if tc.wantErr == nil {
+				if len(result.ArchivedPaths) != 1 {
+					t.Fatalf("ArchivedPaths = %#v, want one path", result.ArchivedPaths)
+				}
+				if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
+					t.Fatalf("expected review-only workflow to leave active root, got err=%v", statErr)
+				}
+				return
+			}
+
+			var forceRequired WorkflowArchiveForceRequiredError
+			if !errors.As(err, &forceRequired) {
+				t.Fatalf("Archive() error = %T, want WorkflowArchiveForceRequiredError", err)
+			}
+			if forceRequired.ReviewTotal != tc.wantForceReviewTotal ||
+				forceRequired.ReviewUnresolved != tc.wantForceUnresolved {
+				t.Fatalf("unexpected force-required details: %#v", forceRequired)
+			}
+			if errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
+				t.Fatalf("Archive() error = %v, should not report stale no-task eligibility", err)
+			}
+			if _, statErr := os.Stat(workflowDir); statErr != nil {
+				t.Fatalf("expected unresolved review-only workflow dir to remain: %v", statErr)
+			}
+		})
+	}
+}
+
+func TestArchiveTaskWorkflowKeepsTrulyEmptyWorkflowNotArchivableAfterRefresh(t *testing.T) {
+	rootDir := archiveTestRoot(t)
+	workflowDir := filepath.Join(rootDir, "action-gaps")
+	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	mustSyncArchiveWorkflow(t, workflowDir)
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
+	if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
+		t.Fatalf("Archive(empty workflow) error = %v, want ErrWorkflowNotArchivable", err)
+	}
+	var notArchivable globaldb.WorkflowNotArchivableError
+	if !errors.As(err, &notArchivable) {
+		t.Fatalf("Archive(empty workflow) error = %T, want WorkflowNotArchivableError", err)
+	}
+	if result == nil || result.WorkflowsScanned != 1 || result.Archived != 0 {
+		t.Fatalf("unexpected archive result for empty workflow: %#v", result)
+	}
+	if _, statErr := os.Stat(workflowDir); statErr != nil {
+		t.Fatalf("expected empty workflow dir to remain: %v", statErr)
+	}
+}
+
 func TestArchiveTaskWorkflowForceCompletesTasksAndResolvesReviewsBeforeArchiving(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "daemon")
