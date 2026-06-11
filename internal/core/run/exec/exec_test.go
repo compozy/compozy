@@ -443,6 +443,14 @@ func TestExecRetryHelpersCoverRetryableAndBoundedTimeouts(t *testing.T) {
 	}) {
 		t.Fatal("expected session setup errors to be retryable")
 	}
+	if isExecRetryableError(&agent.SessionSetupError{
+		Stage: agent.SessionSetupStageNewSession,
+		Err: &agent.AuthenticationRequiredError{
+			Err: &agent.SessionError{Code: -32000, Message: "Authentication required"},
+		},
+	}) {
+		t.Fatal("expected authentication setup errors not to be retryable")
+	}
 	if isExecRetryableError(errors.New("plain")) {
 		t.Fatal("expected plain errors not to be retryable")
 	}

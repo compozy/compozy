@@ -410,6 +410,139 @@ func TestSetupSessionExecutionWarnsButContinuesWhenReusableAgentSetupLifecycleSu
 	}
 }
 
+func TestSetupSessionExecutionWritesSessionCreateFailureToErrLog(t *testing.T) {
+	t.Run("Should write authentication error to err.log when session creation fails", func(t *testing.T) {
+		authErr := &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err: &agent.AuthenticationRequiredError{
+				Err: &agent.SessionError{Code: -32000, Message: "Authentication required"},
+			},
+		}
+		restore := SwapNewAgentClientForTest(
+			func(context.Context, agent.ClientConfig) (agent.Client, error) {
+				return &failingCommandIOClient{createErr: authErr}, nil
+			},
+		)
+		defer restore()
+
+		tmpDir := t.TempDir()
+		_, err := SetupSessionExecution(SessionSetupRequest{
+			Context: context.Background(),
+			Config: &config{
+				IDE:          model.IDECursor,
+				RunArtifacts: model.RunArtifacts{RunID: "run-auth"},
+			},
+			Job: &job{
+				SafeName: "exec",
+				Prompt:   []byte("finish the task"),
+				OutLog:   filepath.Join(tmpDir, "exec.out.log"),
+				ErrLog:   filepath.Join(tmpDir, "exec.err.log"),
+			},
+			CWD:    tmpDir,
+			Logger: silentLogger(),
+		})
+		if err == nil {
+			t.Fatal("expected setup error")
+		}
+		for _, want := range []string{
+			"cursor-agent is not authenticated",
+			"Run 'cursor-agent login' and retry",
+			"create ACP session",
+			"Authentication required",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("setup error %q does not contain %q", err, want)
+			}
+		}
+
+		errLog, readErr := os.ReadFile(filepath.Join(tmpDir, "exec.err.log"))
+		if readErr != nil {
+			t.Fatalf("read err log: %v", readErr)
+		}
+		for _, want := range []string{
+			"ACP session setup error:",
+			"cursor-agent is not authenticated",
+			"Run 'cursor-agent login' and retry",
+			"Authentication required",
+		} {
+			if !strings.Contains(string(errLog), want) {
+				t.Fatalf("err log %q does not contain %q", string(errLog), want)
+			}
+		}
+	})
+}
+
+func TestSetupSessionExecutionWritesSessionStartedEventFailureToErrLog(t *testing.T) {
+	t.Run("Should write session started event failure to err.log", func(t *testing.T) {
+		restore := SwapNewAgentClientForTest(
+			func(context.Context, agent.ClientConfig) (agent.Client, error) {
+				return &lifecycleCommandIOClient{
+					session: fakeSessionExecutionSession{
+						id: "sess-event-failure",
+						identity: agent.SessionIdentity{
+							ACPSessionID: "sess-event-failure",
+						},
+						updates: make(chan model.SessionUpdate),
+						done:    make(chan struct{}),
+					},
+				}, nil
+			},
+		)
+		defer restore()
+
+		submitter := &stubRuntimeEventSubmitter{
+			submitFn: func(ev eventspkg.Event) error {
+				if ev.Kind == eventspkg.EventKindSessionStarted {
+					return errors.New("journal unavailable")
+				}
+				return nil
+			},
+		}
+		tmpDir := t.TempDir()
+		_, err := SetupSessionExecution(SessionSetupRequest{
+			Context: context.Background(),
+			Config: &config{
+				IDE:          model.IDECodex,
+				RunArtifacts: model.RunArtifacts{RunID: "run-event-failure"},
+			},
+			Job: &job{
+				SafeName: "exec",
+				Prompt:   []byte("finish the task"),
+				OutLog:   filepath.Join(tmpDir, "exec.out.log"),
+				ErrLog:   filepath.Join(tmpDir, "exec.err.log"),
+			},
+			CWD:        tmpDir,
+			RunJournal: submitter,
+			Logger:     silentLogger(),
+		})
+		if err == nil {
+			t.Fatal("expected setup error")
+		}
+		for _, want := range []string{
+			"submit session started event",
+			"journal unavailable",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("setup error %q does not contain %q", err, want)
+			}
+		}
+
+		errLog, readErr := os.ReadFile(filepath.Join(tmpDir, "exec.err.log"))
+		if readErr != nil {
+			t.Fatalf("read err log: %v", readErr)
+		}
+		for _, want := range []string{
+			"ACP session setup error:",
+			"submit session started event",
+			"journal unavailable",
+		} {
+			if !strings.Contains(string(errLog), want) {
+				t.Fatalf("err log %q does not contain %q", string(errLog), want)
+			}
+		}
+	})
+}
+
 type fakeSessionExecutionSession struct {
 	id       string
 	identity agent.SessionIdentity
@@ -452,6 +585,10 @@ type capturingCommandIOClient struct {
 
 type lifecycleCommandIOClient struct {
 	session agent.Session
+}
+
+type failingCommandIOClient struct {
+	createErr error
 }
 
 type stubRuntimeEventSubmitter struct {
@@ -529,3 +666,21 @@ func (c *lifecycleCommandIOClient) ResumeSession(
 func (*lifecycleCommandIOClient) SupportsLoadSession() bool { return true }
 func (*lifecycleCommandIOClient) Close() error              { return nil }
 func (*lifecycleCommandIOClient) Kill() error               { return nil }
+
+func (c *failingCommandIOClient) CreateSession(
+	context.Context,
+	agent.SessionRequest,
+) (agent.Session, error) {
+	return nil, c.createErr
+}
+
+func (c *failingCommandIOClient) ResumeSession(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.Session, error) {
+	return nil, c.createErr
+}
+
+func (*failingCommandIOClient) SupportsLoadSession() bool { return true }
+func (*failingCommandIOClient) Close() error              { return nil }
+func (*failingCommandIOClient) Kill() error               { return nil }

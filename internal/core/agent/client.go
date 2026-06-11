@@ -159,6 +159,36 @@ type SessionError struct {
 	Data    json.RawMessage
 }
 
+// AuthenticationRequiredError marks ACP protocol authentication failures.
+type AuthenticationRequiredError struct {
+	Err error
+}
+
+// Error implements the error interface.
+func (e *AuthenticationRequiredError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return "authentication required"
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying ACP session error.
+func (e *AuthenticationRequiredError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsAuthenticationRequired reports whether err is an ACP authentication failure.
+func IsAuthenticationRequired(err error) bool {
+	var authErr *AuthenticationRequiredError
+	return errors.As(err, &authErr)
+}
+
 // SessionSetupStage identifies which ACP bootstrap or session-configuration step failed.
 type SessionSetupStage string
 
@@ -1091,9 +1121,16 @@ func pathWithinRoots(path string, roots []string) bool {
 	return false
 }
 
-// jsonRPCMethodNotFound is the JSON-RPC 2.0 error code agents return for
-// methods they do not implement.
-const jsonRPCMethodNotFound = -32601
+const (
+	// jsonRPCServerError is the JSON-RPC 2.0 server error code currently used by
+	// ACP runtimes for protocol-level authentication failures.
+	jsonRPCServerError = -32000
+	// jsonRPCMethodNotFound is the JSON-RPC 2.0 error code agents return for
+	// methods they do not implement.
+	jsonRPCMethodNotFound = -32601
+)
+
+const acpAuthenticationRequiredMessage = "Authentication required"
 
 // modelSwitchUnsupportedHint augments session/set_model "Method not found"
 // failures with an actionable explanation, since the raw JSON-RPC error does
@@ -1129,9 +1166,35 @@ func wrapACPError(err error) error {
 			return errors.Join(sessionErr, fmt.Errorf("marshal ACP request error data: %w", marshalErr))
 		}
 		sessionErr.Data = data
+		if isAuthenticationRequiredSessionError(sessionErr) {
+			return &AuthenticationRequiredError{Err: sessionErr}
+		}
 		return sessionErr
 	}
 	return err
+}
+
+func isAuthenticationRequiredSessionError(err *SessionError) bool {
+	if err == nil || err.Code != jsonRPCServerError {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(err.Message), acpAuthenticationRequiredMessage) {
+		return true
+	}
+	return strings.EqualFold(sessionErrorDataMessage(err.Data), acpAuthenticationRequiredMessage)
+}
+
+func sessionErrorDataMessage(data json.RawMessage) string {
+	if len(data) == 0 {
+		return ""
+	}
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.Message)
 }
 
 func wrapACPLaunchError(spec Spec, command []string, stderr, stage string, err error) error {

@@ -64,6 +64,7 @@ func executeJobsWithGracefulShutdown(
 		shutdownRequests: make(chan shutdownRequest, 4),
 		onNormalDone:     onNormalDone,
 	}
+	execCtx.cancelJobs = cancelJobs
 	if execCtx.ui != nil {
 		execCtx.ui.SetQuitHandler(controller.requestShutdown)
 	}

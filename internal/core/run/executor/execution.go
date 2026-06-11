@@ -427,6 +427,7 @@ type jobExecutionContext struct {
 	wg             sync.WaitGroup
 	clientsMu      sync.Mutex
 	activeClients  map[agent.Client]struct{}
+	cancelJobs     context.CancelCauseFunc
 }
 
 func newJobExecutionContext(
@@ -590,6 +591,13 @@ func (j *jobExecutionContext) launchOrderedWorkers(jobCtx context.Context) {
 			j.executeSequentialJob(jobCtx, idx, &j.jobs[idx])
 		}
 	}()
+}
+
+func (j *jobExecutionContext) stopJobsAfterAuthenticationFailure(err error) {
+	if j == nil || err == nil || !agent.IsAuthenticationRequired(err) || j.cancelJobs == nil {
+		return
+	}
+	j.cancelJobs(err)
 }
 
 func (j *jobExecutionContext) executeSequentialJob(jobCtx context.Context, index int, jb *job) {

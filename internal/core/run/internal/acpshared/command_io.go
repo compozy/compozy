@@ -2,6 +2,7 @@ package acpshared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -122,20 +123,20 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	}
 	logger := resolveSessionLogger(req.Logger)
 
-	client, err := createACPClient(req.Context, req.Config, req.Job, logger)
+	outFile, errFile, err := createSessionLogFiles(req.Job)
 	if err != nil {
 		return nil, err
+	}
+	client, err := createACPClient(req.Context, req.Config, req.Job, logger)
+	if err != nil {
+		setupErr := setupFailureForUser(req.Config, req.Job, err)
+		writeErr := writeSetupFailureToErrLog(errFile, setupErr)
+		closeSetupLogFiles(outFile, errFile)
+		return nil, joinSetupFailure(setupErr, writeErr)
 	}
 	releaseClient := func() {}
 	if req.TrackClient != nil {
 		releaseClient = req.TrackClient(client)
-	}
-
-	outFile, errFile, err := createSessionLogFiles(req.Job)
-	if err != nil {
-		_ = client.Close()
-		releaseClient()
-		return nil, err
 	}
 	if err := emitReusableAgentSetupLifecycle(
 		req.Context,
@@ -148,11 +149,12 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 
 	session, err := createACPSession(req.Context, client, req.Config, req.Job, req.CWD)
 	if err != nil {
-		_ = outFile.Close()
-		_ = errFile.Close()
+		setupErr := setupFailureForUser(req.Config, req.Job, fmt.Errorf("create ACP session: %w", err))
+		writeErr := writeSetupFailureToErrLog(errFile, setupErr)
+		closeSetupLogFiles(outFile, errFile)
 		_ = client.Close()
 		releaseClient()
-		return nil, fmt.Errorf("create ACP session: %w", err)
+		return nil, joinSetupFailure(setupErr, writeErr)
 	}
 
 	execution := buildSessionExecution(
@@ -173,8 +175,9 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		req.Index,
 		session.Identity(),
 	); err != nil {
+		writeErr := writeSetupFailureToErrLog(execution.ErrFile, err)
 		execution.Close()
-		return nil, err
+		return nil, joinSetupFailure(err, writeErr)
 	}
 
 	return execution, nil
@@ -298,6 +301,41 @@ func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Lo
 	return client, nil
 }
 
+func setupFailureForUser(cfg *config, job *job, err error) error {
+	if err == nil || !agent.IsAuthenticationRequired(err) {
+		return err
+	}
+	runtimeID := strings.TrimSpace(jobIDE(cfg, job))
+	command := firstNonEmpty(agent.RuntimeCommandName(runtimeID), runtimeID, "ACP runtime")
+	return fmt.Errorf("%s is not authenticated. Run '%s login' and retry: %w", command, command, err)
+}
+
+func writeSetupFailureToErrLog(errFile *os.File, err error) error {
+	if errFile == nil || err == nil {
+		return nil
+	}
+	if _, writeErr := fmt.Fprintf(errFile, "ACP session setup error: %s\n", err.Error()); writeErr != nil {
+		return fmt.Errorf("write ACP session setup error: %w", writeErr)
+	}
+	return nil
+}
+
+func closeSetupLogFiles(outFile *os.File, errFile *os.File) {
+	if outFile != nil {
+		_ = outFile.Close()
+	}
+	if errFile != nil {
+		_ = errFile.Close()
+	}
+}
+
+func joinSetupFailure(setupErr error, writeErr error) error {
+	if writeErr == nil {
+		return setupErr
+	}
+	return errors.Join(setupErr, writeErr)
+}
+
 func createACPSession(
 	ctx context.Context,
 	client agent.Client,
@@ -368,7 +406,9 @@ func createSessionLogFiles(job *job) (*os.File, *os.File, error) {
 	}
 	errFile, err := CreateLogFile(job.ErrLog)
 	if err != nil {
-		_ = outFile.Close()
+		if outFile != nil {
+			_ = outFile.Close()
+		}
 		return nil, nil, fmt.Errorf("create err log: %w", err)
 	}
 	return outFile, errFile, nil

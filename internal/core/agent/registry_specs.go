@@ -334,6 +334,15 @@ func DisplayName(ide string) string {
 	return spec.DisplayName
 }
 
+// RuntimeCommandName returns the primary executable name for an agent runtime.
+func RuntimeCommandName(ide string) string {
+	spec, err := lookupAgentSpec(ide)
+	if err != nil {
+		return strings.TrimSpace(ide)
+	}
+	return firstNonEmpty(spec.Command, spec.ID)
+}
+
 // SetupAgentName returns the setup/install agent identifier for one ACP runtime.
 func SetupAgentName(ide string) (string, error) {
 	spec, err := lookupAgentSpec(ide)
