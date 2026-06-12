@@ -662,9 +662,10 @@ compozy reviews fetch <slug> [--provider coderabbit --pr 42 --round N]
 compozy reviews list <slug>
 compozy reviews show <slug> [round]
 compozy reviews fix <slug> [flags]
+compozy reviews watch <slug> [flags]
 ```
 
-`reviews fetch` imports provider feedback into `.compozy/tasks/<slug>/reviews-NNN/`. `reviews fix` uses the same daemon-backed runtime model as `tasks run`, including `--attach`, `--ui`, `--stream`, and `--detach`.
+`reviews fetch` imports provider feedback into `.compozy/tasks/<slug>/reviews-NNN/`. `reviews fix` uses the same daemon-backed runtime model as `tasks run`, including `--attach`, `--ui`, `--stream`, and `--detach`. `reviews watch` runs a long-lived loop that polls the review provider and automatically runs `reviews fix` for each round until the PR is clean.
 
 </details>
 
