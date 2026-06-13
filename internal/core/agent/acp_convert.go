@@ -505,8 +505,15 @@ func ensureTrailingNewline(text string) string {
 }
 
 // convertACPUsage maps an ACP PromptResponse usage payload to model.Usage.
-// thought_tokens is summed into OutputTokens; no new field is added to
-// model.Usage in this release (deferred to Phase 3 per ADR-001).
+//
+// ThoughtTokens (reasoning tokens) are summed into OutputTokens; no dedicated
+// model.Usage field is added in this release (deferred to Phase 3 per ADR-001).
+//
+// TotalTokens is passed through unchanged: the ACP spec defines acp.Usage.TotalTokens
+// as the "sum of all token types across session" (input + output + thought), so it
+// already accounts for the folded thought tokens. This preserves the invariant
+// InputTokens + OutputTokens == TotalTokens after folding, keeping model.Usage.Total
+// accurate as values accumulate across turns.
 func convertACPUsage(u acp.Usage) model.Usage {
 	return model.Usage{
 		InputTokens:  u.InputTokens,

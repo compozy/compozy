@@ -201,8 +201,6 @@ const (
 	SessionSetupStageNewSession SessionSetupStage = "new_session"
 	// SessionSetupStageLoadSession indicates that ACP session loading failed.
 	SessionSetupStageLoadSession SessionSetupStage = "load_session"
-	// SessionSetupStageSetModel indicates that ACP session model configuration failed.
-	SessionSetupStageSetModel SessionSetupStage = "set_model"
 	// SessionSetupStageSetMode indicates that ACP session mode configuration failed.
 	SessionSetupStageSetMode SessionSetupStage = "set_mode"
 )

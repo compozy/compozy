@@ -17,11 +17,13 @@ func TestConvertACPUsage(t *testing.T) {
 		want  model.Usage
 	}{
 		{
-			name: "all fields populated including thought tokens",
+			// TotalTokens is the ACP "sum of all token types" (input+output+thought),
+			// so 100+50+10 = 160 and the result stays self-consistent after folding.
+			name: "Should map all usage fields and fold thought tokens into output",
 			input: acp.Usage{
 				InputTokens:       100,
 				OutputTokens:      50,
-				TotalTokens:       150,
+				TotalTokens:       160,
 				CachedReadTokens:  acp.Ptr(20),
 				CachedWriteTokens: acp.Ptr(5),
 				ThoughtTokens:     acp.Ptr(10),
@@ -29,13 +31,13 @@ func TestConvertACPUsage(t *testing.T) {
 			want: model.Usage{
 				InputTokens:  100,
 				OutputTokens: 60,
-				TotalTokens:  150,
+				TotalTokens:  160,
 				CacheReads:   20,
 				CacheWrites:  5,
 			},
 		},
 		{
-			name: "no thought tokens",
+			name: "Should map usage when no thought tokens are present",
 			input: acp.Usage{
 				InputTokens:  100,
 				OutputTokens: 50,
@@ -48,12 +50,12 @@ func TestConvertACPUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "zero value usage",
+			name:  "Should return zero usage for an empty payload",
 			input: acp.Usage{},
 			want:  model.Usage{},
 		},
 		{
-			name: "cache fields only",
+			name: "Should map cache read and write tokens",
 			input: acp.Usage{
 				CachedReadTokens:  acp.Ptr(10),
 				CachedWriteTokens: acp.Ptr(3),
@@ -64,7 +66,9 @@ func TestConvertACPUsage(t *testing.T) {
 			},
 		},
 		{
-			name: "thought tokens only with no base output tokens",
+			// Runtime reported only thought tokens (TotalTokens left unset);
+			// model.Usage.Total derives the total from input+output downstream.
+			name: "Should fold thought tokens into output when only thought tokens are reported",
 			input: acp.Usage{
 				ThoughtTokens: acp.Ptr(15),
 			},

@@ -2,18 +2,25 @@
 
 package daemon
 
-import "golang.org/x/sys/windows"
+import (
+	"math"
+
+	"golang.org/x/sys/windows"
+)
 
 // ProcessAlive reports whether a process with pid is currently alive.
 func ProcessAlive(pid int) bool {
-	if pid <= 0 {
+	// Reject non-positive PIDs and any PID that cannot fit in the uint32 the
+	// Windows API expects. uint64(pid) avoids the constant-overflow that
+	// "pid > math.MaxUint32" would cause on 32-bit (windows/386) builds.
+	if pid <= 0 || uint64(pid) > math.MaxUint32 {
 		return false
 	}
 
 	handle, err := windows.OpenProcess(
 		windows.SYNCHRONIZE,
 		false,
-		uint32(pid), //nolint:gosec // G115: pid validated as positive above
+		uint32(pid), //nolint:gosec // G115: pid validated as 0 < pid <= math.MaxUint32 above
 	)
 	if err != nil {
 		return false
