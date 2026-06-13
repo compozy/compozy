@@ -1,72 +1,35 @@
-## 0.2.8 - 2026-06-11
+## 0.2.9 - 2026-06-13
 
-### 🎉 Features
-
-- Warn when tasks run starts beside active runs in other workspaces (#190)
 ### 🐛 Bug Fixes
 
-- Keep multi-run task timers ticking (#179)- Treat model auto as runtime default (#181)- Pin claude model via ANTHROPIC_MODEL instead of unsupported session/set_model (#187)- Restart stale daemon when CLI and daemon versions mismatch (#191)- Surface ACP session setup errors in job logs and fail runs fast (#192)- Reviews watch (#196)
+- Record ACP token usage and adapt to acp-go-sdk v0.13.5 (#198)
 
 ### Release Notes
 
-#### Features
+#### Fixes
 
-##### Run multiple task workflows from one command
-`compozy tasks run` now accepts a `--multiple` flag that enqueues several task workflows through a single daemon-owned parent run, with one TUI tab per requested slug. The single-workflow path (`compozy tasks run <slug>`) is unchanged — `--multiple` is purely additive, so existing habits, scripts, and CI invocations keep working byte-for-byte.
+##### ACP agents now record token usage
+Token usage from ACP-backed agents (Claude Code, Codex, and other ACP runtimes) is now recorded and surfaced. Previously the engine discarded the usage payload returned with each prompt response, so run journals and the Compozy UI always reported zero tokens for ACP agents. Usage is now converted after every prompt response and published as a session update, so it reaches the run journal and the live event stream.
 
-### Starting a multi-run
+### What gets reported
 
-Pass one comma-separated slug list. The same runtime flags (`--ide`, `--model`, `--stream`, `--detach`, `--attach`, etc.) apply to every workflow in the batch:
+After each ACP prompt response, Compozy maps the runtime's usage payload into the run's usage totals:
 
-```bash
-# Enqueue two workflows with shared runtime defaults
-compozy tasks run --multiple alpha,beta
+| Reported field       | Source                                                                     |
+| -------------------- | -------------------------------------------------------------------------- |
+| Input tokens         | ACP `inputTokens`                                                          |
+| Output tokens        | ACP `outputTokens` + `thoughtTokens` (reasoning tokens folded into output) |
+| Total tokens         | ACP `totalTokens` (the session-wide sum of all token types)                |
+| Cache reads / writes | ACP `cachedReadTokens` / `cachedWriteTokens`                               |
 
-# Pick the runtime once for the whole queue
-compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
+Reasoning/thought tokens are summed into output tokens for this release; a dedicated reasoning-token field is planned for a later milestone. Totals stay self-consistent because ACP's `totalTokens` already includes reasoning tokens, so `input + output` continues to match `total` after folding.
 
-# Stream or detach the parent queue
-compozy tasks run --multiple alpha,beta --stream
-compozy tasks run --multiple alpha,beta --detach
-```
+### Behavior
 
-Use `--multiple` when one command should drive an ordered batch with identical flags. Keep using `tasks run <slug>` for a single workflow or for scripts that expect exactly one run ID per invocation.
+- **Accumulates across turns.** Each prompt response adds to both the per-job and the aggregate run totals, so long-running sessions report cumulative usage rather than only the last turn.
+- **Zero-usage updates are skipped.** Empty payloads never perturb the totals or emit spurious usage events.
+- **Streamed to the UI and journal.** Every non-empty update emits a usage event and is appended to the durable run journal, so token counts show up live and on replay.
 
-`--multiple` cannot be combined with a positional slug or with `--name`.
+### Under the hood
 
-### Scheduling mode
-
-Scheduling is controlled by `[tasks.run] run_multiple_mode` in `.compozy/config.toml` or `~/.compozy/config.toml`:
-
-```toml
-[tasks.run]
-run_multiple_mode = "enqueued"
-```
-
-| Mode         | Behavior                                                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `"enqueued"` | **Default.** Runs one child workflow at a time, in the requested order. Later slugs stay queued until the active one finishes. |
-| `"parallel"` | Accepted for forward-compatible config, but V1 prints a fallback message and still runs the queue enqueued.                    |
-
-When unset, the built-in default is `"enqueued"`. The value is validated at config load: an empty string is rejected, and anything other than `"enqueued"` or `"parallel"` fails with a clear error.
-
-Real parallel multi-run waits on git worktree isolation so concurrent agents never edit the same checkout simultaneously — that lands in V2. Configuring `"parallel"` today is safe: Compozy explains the fallback and proceeds in enqueued order.
-
-### Tabbed TUI
-
-The task-run TUI shows one tab per requested slug:
-
-- Queued tabs appear before their child run exists.
-- The running tab shows the familiar single-task surface.
-- Completed, failed, and canceled tabs stay available for inspection.
-
-The quit dialog applies to the parent queue:
-
-- **Close TUI** — detaches and leaves the queue running in the daemon.
-- **Stop Run** — cancels the parent queue, cancels the active child, and marks queued workflows canceled.
-- **Cancel** — returns to the TUI without changing execution.
-
-### Notes
-
-- The multi-run path is daemon-owned end to end: a new parent run orchestrates independent child task runs over the same snapshot-plus-stream transport used by single runs.
-- `--dry-run` still previews prompts without executing.
+This change upgrades the ACP SDK (`github.com/coder/acp-go-sdk`) to v0.13.5. The SDK dropped the `session/set_model` RPC, so model selection for ACP agents is resolved at session creation rather than switched at runtime — pass the model up front (Compozy already pins the Claude agent's model via the environment).
