@@ -67,7 +67,7 @@ func TestConvertACPUpdateVariants(t *testing.T) {
 						Name:        "run",
 						Description: "Run the task",
 						Input: &acp.AvailableCommandInput{
-							UnstructuredCommandInput: &acp.AvailableCommandUnstructuredCommandInput{
+							Unstructured: &acp.UnstructuredCommandInput{
 								Hint: "--fast",
 							},
 						},

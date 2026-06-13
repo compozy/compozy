@@ -1319,3 +1319,119 @@ func decodeRuntimeEventPayload(t *testing.T, ev eventspkg.Event, dst any) {
 		t.Fatalf("decode %s payload: %v", ev.Kind, err)
 	}
 }
+
+func TestSessionUpdateHandlerRecordsUsageWhenNonZero(t *testing.T) {
+	t.Parallel()
+
+	submitter := &stubRuntimeEventSubmitter{}
+	var jobUsage model.Usage
+	var aggregate model.Usage
+	var mu sync.Mutex
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:        context.Background(),
+		Index:          1,
+		AgentID:        model.IDECodex,
+		SessionID:      "sess-usage-nonzero",
+		RunID:          "run-usage-nonzero",
+		OutWriter:      io.Discard,
+		ErrWriter:      io.Discard,
+		RunJournal:     submitter,
+		JobUsage:       &jobUsage,
+		AggregateUsage: &aggregate,
+		AggregateMu:    &mu,
+	})
+
+	wantUsage := model.Usage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150}
+	if err := handler.HandleUpdate(model.SessionUpdate{Usage: wantUsage}); err != nil {
+		t.Fatalf("handle update: %v", err)
+	}
+
+	if jobUsage != wantUsage {
+		t.Errorf("jobUsage = %+v, want %+v", jobUsage, wantUsage)
+	}
+	if aggregate != wantUsage {
+		t.Errorf("aggregateUsage = %+v, want %+v", aggregate, wantUsage)
+	}
+	if got := submitter.countKind(eventspkg.EventKindUsageUpdated); got != 1 {
+		t.Errorf("EventKindUsageUpdated count = %d, want 1", got)
+	}
+}
+
+func TestSessionUpdateHandlerSkipsUsageEventWhenUsageIsZero(t *testing.T) {
+	t.Parallel()
+
+	submitter := &stubRuntimeEventSubmitter{}
+	var jobUsage model.Usage
+	var aggregate model.Usage
+	var mu sync.Mutex
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:        context.Background(),
+		Index:          1,
+		AgentID:        model.IDECodex,
+		SessionID:      "sess-usage-zero",
+		RunID:          "run-usage-zero",
+		OutWriter:      io.Discard,
+		ErrWriter:      io.Discard,
+		RunJournal:     submitter,
+		JobUsage:       &jobUsage,
+		AggregateUsage: &aggregate,
+		AggregateMu:    &mu,
+	})
+
+	if err := handler.HandleUpdate(model.SessionUpdate{}); err != nil {
+		t.Fatalf("handle update: %v", err)
+	}
+
+	if jobUsage != (model.Usage{}) {
+		t.Errorf("expected jobUsage to remain zero, got %+v", jobUsage)
+	}
+	if aggregate != (model.Usage{}) {
+		t.Errorf("expected aggregateUsage to remain zero, got %+v", aggregate)
+	}
+	if got := submitter.countKind(eventspkg.EventKindUsageUpdated); got != 0 {
+		t.Errorf("EventKindUsageUpdated count = %d, want 0", got)
+	}
+}
+
+func TestSessionUpdateHandlerAccumulatesMultipleUsageUpdates(t *testing.T) {
+	t.Parallel()
+
+	submitter := &stubRuntimeEventSubmitter{}
+	var jobUsage model.Usage
+	var aggregate model.Usage
+	var mu sync.Mutex
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:        context.Background(),
+		Index:          1,
+		AgentID:        model.IDECodex,
+		SessionID:      "sess-usage-multi",
+		RunID:          "run-usage-multi",
+		OutWriter:      io.Discard,
+		ErrWriter:      io.Discard,
+		RunJournal:     submitter,
+		JobUsage:       &jobUsage,
+		AggregateUsage: &aggregate,
+		AggregateMu:    &mu,
+	})
+
+	first := model.Usage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150}
+	second := model.Usage{InputTokens: 80, OutputTokens: 30, TotalTokens: 110}
+	want := model.Usage{InputTokens: 180, OutputTokens: 80, TotalTokens: 260}
+
+	if err := handler.HandleUpdate(model.SessionUpdate{Usage: first}); err != nil {
+		t.Fatalf("handle first update: %v", err)
+	}
+	if err := handler.HandleUpdate(model.SessionUpdate{Usage: second}); err != nil {
+		t.Fatalf("handle second update: %v", err)
+	}
+
+	if jobUsage != want {
+		t.Errorf("jobUsage = %+v, want %+v", jobUsage, want)
+	}
+	if aggregate != want {
+		t.Errorf("aggregateUsage = %+v, want %+v", aggregate, want)
+	}
+	if got := submitter.countKind(eventspkg.EventKindUsageUpdated); got != 2 {
+		t.Errorf("EventKindUsageUpdated count = %d, want 2", got)
+	}
+}

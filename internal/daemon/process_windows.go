@@ -10,11 +10,15 @@ func ProcessAlive(pid int) bool {
 		return false
 	}
 
-	handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(pid))
+	handle, err := windows.OpenProcess(
+		windows.SYNCHRONIZE,
+		false,
+		uint32(pid), //nolint:gosec // G115: pid validated as positive above
+	)
 	if err != nil {
 		return false
 	}
-	defer windows.CloseHandle(handle)
+	defer func() { _ = windows.CloseHandle(handle) }() //nolint:errcheck // handle cleanup; error is unactionable
 
 	event, err := windows.WaitForSingleObject(handle, 0)
 	if err != nil {

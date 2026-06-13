@@ -403,10 +403,9 @@ func TestClientCreateSessionTreatsAutoModelAsRuntimeDefaultForNonBootstrapACP(t 
 	t.Parallel()
 
 	scenario := helperScenario{
-		ExpectedCWD:        t.TempDir(),
-		ExpectedPrompt:     "use runtime default model",
-		RejectSessionModel: true,
-		StopReason:         string(acp.StopReasonEndTurn),
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "use runtime default model",
+		StopReason:     string(acp.StopReasonEndTurn),
 	}
 	client := newTestClientWithSpecConfig(
 		t,
@@ -445,14 +444,13 @@ func TestClientCreateSessionTreatsAutoModelAsRuntimeDefaultForNonBootstrapACP(t 
 	}
 }
 
-func TestClientCreateSessionSetsExplicitModelForNonBootstrapACP(t *testing.T) {
+func TestClientCreateSessionCompletesWithExplicitModelForNonBootstrapACP(t *testing.T) {
 	t.Parallel()
 
 	scenario := helperScenario{
-		ExpectedCWD:            t.TempDir(),
-		ExpectedPrompt:         "use explicit model",
-		ExpectedSessionModelID: "composer-2",
-		StopReason:             string(acp.StopReasonEndTurn),
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "use explicit model",
+		StopReason:     string(acp.StopReasonEndTurn),
 	}
 	client := newTestClientWithSpecConfig(
 		t,
@@ -495,11 +493,10 @@ func TestClientCreateSessionPassesExplicitModelThroughLaunchEnv(t *testing.T) {
 	t.Parallel()
 
 	scenario := helperScenario{
-		ExpectedCWD:        t.TempDir(),
-		ExpectedPrompt:     "use launch env model",
-		RejectSessionModel: true,
-		ExpectedEnvVars:    map[string]string{"COMPOZY_TEST_ACP_MODEL": "sonnet"},
-		StopReason:         string(acp.StopReasonEndTurn),
+		ExpectedCWD:     t.TempDir(),
+		ExpectedPrompt:  "use launch env model",
+		ExpectedEnvVars: map[string]string{"COMPOZY_TEST_ACP_MODEL": "sonnet"},
+		StopReason:      string(acp.StopReasonEndTurn),
 	}
 	client := newTestClientWithSpecConfig(
 		t,
@@ -541,11 +538,10 @@ func TestClientCreateSessionOmitsLaunchEnvModelForAutoModel(t *testing.T) {
 	t.Parallel()
 
 	scenario := helperScenario{
-		ExpectedCWD:        t.TempDir(),
-		ExpectedPrompt:     "use runtime default model",
-		RejectSessionModel: true,
-		ExpectedEnvVars:    map[string]string{"COMPOZY_TEST_ACP_MODEL": ""},
-		StopReason:         string(acp.StopReasonEndTurn),
+		ExpectedCWD:     t.TempDir(),
+		ExpectedPrompt:  "use runtime default model",
+		ExpectedEnvVars: map[string]string{"COMPOZY_TEST_ACP_MODEL": ""},
+		StopReason:      string(acp.StopReasonEndTurn),
 	}
 	client := newTestClientWithSpecConfig(
 		t,
@@ -580,56 +576,6 @@ func TestClientCreateSessionOmitsLaunchEnvModelForAutoModel(t *testing.T) {
 	}
 	if session.Err() != nil {
 		t.Fatalf("unexpected session error: %v", session.Err())
-	}
-}
-
-func TestClientCreateSessionExplainsModelSwitchUnsupportedOnMethodNotFound(t *testing.T) {
-	t.Parallel()
-
-	scenario := helperScenario{
-		ExpectedCWD: t.TempDir(),
-		SessionModelError: &helperRequestError{
-			Code:    -32601,
-			Message: "Method not found",
-		},
-	}
-	client := newTestClientWithSpecConfig(
-		t,
-		scenario,
-		func(spec *Spec) {
-			spec.DefaultModel = "runtime-default"
-			spec.UsesBootstrapModel = false
-		},
-		func(cfg *ClientConfig) {
-			cfg.Model = "sonnet"
-		},
-	)
-	t.Cleanup(func() {
-		if err := client.Close(); err != nil {
-			t.Errorf("close client: %v", err)
-		}
-	})
-
-	_, err := client.CreateSession(context.Background(), SessionRequest{
-		WorkingDir: scenario.ExpectedCWD,
-		Prompt:     []byte("switch model"),
-	})
-	if err == nil {
-		t.Fatal("expected create session error")
-	}
-
-	var setupErr *SessionSetupError
-	if !errors.As(err, &setupErr) || setupErr.Stage != SessionSetupStageSetModel {
-		t.Fatalf("expected set_model setup error, got %v", err)
-	}
-	for _, want := range []string{
-		"does not support switching models over ACP",
-		`"sonnet"`,
-		"--model auto",
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q does not contain %q", err, want)
-		}
 	}
 }
 
@@ -1544,7 +1490,7 @@ func TestClientTerminalKillTerminatesCommandAndKeepsOutput(t *testing.T) {
 	}
 	waitForTerminalOutput(t, client, sessionID, resp.TerminalId, "ready")
 
-	if _, err := client.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{
+	if _, err := client.KillTerminal(context.Background(), acp.KillTerminalRequest{
 		SessionId:  acp.SessionId(sessionID),
 		TerminalId: resp.TerminalId,
 	}); err != nil {
@@ -1866,6 +1812,177 @@ func TestClientCreateSessionChecksCodexModelCompatibilityBeforeLaunch(t *testing
 	}
 }
 
+func TestClientRunPromptPublishesUsageUpdateOnEndTurn(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	scenario := helperScenario{
+		ExpectedCWD:    workingDir,
+		ExpectedPrompt: "hello with usage",
+		StopReason:     string(acp.StopReasonEndTurn),
+		PromptUsage:    &acp.Usage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150},
+	}
+
+	client := newTestClient(t, scenario)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: workingDir,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+
+	wantUsage := model.Usage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150}
+	var gotUsageUpdate bool
+	for _, u := range updates {
+		if u.Usage == wantUsage {
+			gotUsageUpdate = true
+			break
+		}
+	}
+	if !gotUsageUpdate {
+		t.Fatalf("expected at least one session update with usage %+v, got updates: %+v", wantUsage, updates)
+	}
+}
+
+func TestClientRunPromptDoesNotPublishUsageUpdateWhenNoneReturned(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	scenario := helperScenario{
+		ExpectedCWD:    workingDir,
+		ExpectedPrompt: "hello without usage",
+		StopReason:     string(acp.StopReasonEndTurn),
+		// PromptUsage intentionally nil
+	}
+
+	client := newTestClient(t, scenario)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: workingDir,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+
+	for _, u := range updates {
+		if u.Usage != (model.Usage{}) {
+			t.Fatalf("expected no usage update, got update with usage %+v", u.Usage)
+		}
+	}
+}
+
+func TestClientRunPromptPublishesUsageWithThoughtTokensSummedIntoOutput(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	scenario := helperScenario{
+		ExpectedCWD:    workingDir,
+		ExpectedPrompt: "hello with thought tokens",
+		StopReason:     string(acp.StopReasonEndTurn),
+		PromptUsage: &acp.Usage{
+			InputTokens:   200,
+			OutputTokens:  40,
+			TotalTokens:   250,
+			ThoughtTokens: acp.Ptr(35),
+		},
+	}
+
+	client := newTestClient(t, scenario)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: workingDir,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+
+	// ThoughtTokens(35) must be summed into OutputTokens: 40 + 35 = 75.
+	wantUsage := model.Usage{InputTokens: 200, OutputTokens: 75, TotalTokens: 250}
+	var gotUsage bool
+	for _, u := range updates {
+		if u.Usage == wantUsage {
+			gotUsage = true
+			break
+		}
+	}
+	if !gotUsage {
+		t.Fatalf(
+			"expected usage update with thought tokens summed into output, want %+v, got updates: %+v",
+			wantUsage,
+			updates,
+		)
+	}
+}
+
+func TestClientRunPromptDoesNotPublishUsageUpdateOnCancelledRun(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	scenario := helperScenario{
+		ExpectedCWD: workingDir,
+		StopReason:  string(acp.StopReasonCancelled),
+		PromptUsage: &acp.Usage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150},
+	}
+
+	client := newTestClient(t, scenario)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: workingDir,
+		Prompt:     []byte("hello canceled"),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	// session.Err() is context.Canceled for canceled runs — not checked here
+
+	for _, u := range updates {
+		if u.Usage != (model.Usage{}) {
+			t.Fatalf("expected no usage update for canceled run, got update with usage %+v", u.Usage)
+		}
+	}
+}
+
 func TestACPHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_ACP_HELPER_PROCESS") != "1" {
 		return
@@ -1936,17 +2053,14 @@ func TestProcessStderrHelperProcess(_ *testing.T) {
 }
 
 type helperScenario struct {
-	SessionID                     string              `json:"session_id,omitempty"`
-	ExpectedCWD                   string              `json:"expected_cwd,omitempty"`
-	ExpectedProcessCWD            string              `json:"expected_process_cwd,omitempty"`
-	ExpectedLoadSessionID         string              `json:"expected_load_session_id,omitempty"`
-	ExpectedNewSessionMCPServers  []acp.McpServer     `json:"expected_new_session_mcp_servers,omitempty"`
-	ExpectedLoadSessionMCPServers []acp.McpServer     `json:"expected_load_session_mcp_servers,omitempty"`
-	ExpectedPrompt                string              `json:"expected_prompt,omitempty"`
-	ExpectedSessionModeID         string              `json:"expected_session_mode_id,omitempty"`
-	ExpectedSessionModelID        string              `json:"expected_session_model_id,omitempty"`
-	RejectSessionModel            bool                `json:"reject_session_model,omitempty"`
-	SessionModelError             *helperRequestError `json:"session_model_error,omitempty"`
+	SessionID                     string          `json:"session_id,omitempty"`
+	ExpectedCWD                   string          `json:"expected_cwd,omitempty"`
+	ExpectedProcessCWD            string          `json:"expected_process_cwd,omitempty"`
+	ExpectedLoadSessionID         string          `json:"expected_load_session_id,omitempty"`
+	ExpectedNewSessionMCPServers  []acp.McpServer `json:"expected_new_session_mcp_servers,omitempty"`
+	ExpectedLoadSessionMCPServers []acp.McpServer `json:"expected_load_session_mcp_servers,omitempty"`
+	ExpectedPrompt                string          `json:"expected_prompt,omitempty"`
+	ExpectedSessionModeID         string          `json:"expected_session_mode_id,omitempty"`
 	// ExpectedEnvVars asserts process environment values at helper startup.
 	// An empty value means the variable must be unset or empty.
 	ExpectedEnvVars         map[string]string   `json:"expected_env_vars,omitempty"`
@@ -1966,6 +2080,7 @@ type helperScenario struct {
 	TerminalEnv             []acp.EnvVariable   `json:"terminal_env,omitempty"`
 	TerminalWantOutput      string              `json:"terminal_want_output,omitempty"`
 	TerminalWantExitCode    *int                `json:"terminal_want_exit_code,omitempty"`
+	PromptUsage             *acp.Usage          `json:"prompt_usage,omitempty"`
 }
 
 type helperRequestError struct {
@@ -1979,8 +2094,6 @@ type helperAgent struct {
 	connReady chan struct{}
 	scenario  helperScenario
 	sessionID string
-	modelMu   sync.Mutex
-	modelSet  bool
 }
 
 func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
@@ -1991,18 +2104,6 @@ func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
 func (a *helperAgent) connection() *acp.AgentSideConnection {
 	<-a.connReady
 	return a.conn
-}
-
-func (a *helperAgent) markSessionModelSet() {
-	a.modelMu.Lock()
-	defer a.modelMu.Unlock()
-	a.modelSet = true
-}
-
-func (a *helperAgent) sessionModelWasSet() bool {
-	a.modelMu.Lock()
-	defer a.modelMu.Unlock()
-	return a.modelSet
 }
 
 func (a *helperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
@@ -2071,15 +2172,6 @@ func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (ac
 }
 
 func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
-	if a.scenario.ExpectedSessionModelID != "" && !a.sessionModelWasSet() {
-		return acp.PromptResponse{}, &acp.RequestError{
-			Code: 4005,
-			Message: fmt.Sprintf(
-				"expected session model %q to be set before prompt",
-				a.scenario.ExpectedSessionModelID,
-			),
-		}
-	}
 	if a.scenario.ExpectedPrompt != "" {
 		gotPrompt := firstPromptText(req.Prompt)
 		if gotPrompt != a.scenario.ExpectedPrompt {
@@ -2117,7 +2209,7 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 	if a.scenario.StopReason != "" {
 		stopReason = acp.StopReason(a.scenario.StopReason)
 	}
-	return acp.PromptResponse{StopReason: stopReason}, nil
+	return acp.PromptResponse{StopReason: stopReason, Usage: a.scenario.PromptUsage}, nil
 }
 
 func (a *helperAgent) runTerminalRequest(ctx context.Context, sessionID acp.SessionId) error {
@@ -2191,27 +2283,27 @@ func (a *helperAgent) Cancel(context.Context, acp.CancelNotification) error {
 	return nil
 }
 
-func (a *helperAgent) SetSessionModel(
-	_ context.Context,
-	req acp.SetSessionModelRequest,
-) (acp.SetSessionModelResponse, error) {
-	if a.scenario.SessionModelError != nil {
-		return acp.SetSessionModelResponse{}, a.scenario.SessionModelError.toACPError()
-	}
-	if a.scenario.RejectSessionModel {
-		return acp.SetSessionModelResponse{}, &acp.RequestError{
-			Code:    4005,
-			Message: fmt.Sprintf("unexpected session model %q", req.ModelId),
-		}
-	}
-	if a.scenario.ExpectedSessionModelID != "" && string(req.ModelId) != a.scenario.ExpectedSessionModelID {
-		return acp.SetSessionModelResponse{}, &acp.RequestError{
-			Code:    4005,
-			Message: fmt.Sprintf("unexpected session model %q", req.ModelId),
-		}
-	}
-	a.markSessionModelSet()
-	return acp.SetSessionModelResponse{}, nil
+func (*helperAgent) Logout(context.Context, acp.LogoutRequest) (acp.LogoutResponse, error) {
+	return acp.LogoutResponse{}, nil
+}
+
+func (*helperAgent) CloseSession(context.Context, acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
+	return acp.CloseSessionResponse{}, nil
+}
+
+func (*helperAgent) ListSessions(context.Context, acp.ListSessionsRequest) (acp.ListSessionsResponse, error) {
+	return acp.ListSessionsResponse{}, nil
+}
+
+func (*helperAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
+	return acp.ResumeSessionResponse{}, nil
+}
+
+func (*helperAgent) SetSessionConfigOption(
+	context.Context,
+	acp.SetSessionConfigOptionRequest,
+) (acp.SetSessionConfigOptionResponse, error) {
+	return acp.SetSessionConfigOptionResponse{}, nil
 }
 
 func (a *helperAgent) SetSessionMode(
