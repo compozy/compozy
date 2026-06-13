@@ -201,8 +201,6 @@ const (
 	SessionSetupStageNewSession SessionSetupStage = "new_session"
 	// SessionSetupStageLoadSession indicates that ACP session loading failed.
 	SessionSetupStageLoadSession SessionSetupStage = "load_session"
-	// SessionSetupStageSetModel indicates that ACP session model configuration failed.
-	SessionSetupStageSetModel SessionSetupStage = "set_model"
 	// SessionSetupStageSetMode indicates that ACP session mode configuration failed.
 	SessionSetupStageSetMode SessionSetupStage = "set_mode"
 )
@@ -315,7 +313,6 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		return nil, err
 	}
 
-	requestedModel := resolveModel(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
 	mcpServers, err := toACPMCPServers(req.MCPServers)
 	if err != nil {
 		return nil, fmt.Errorf("prepare ACP MCP servers for new session: %w", err)
@@ -339,18 +336,6 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	session.setAgentSessionID(extractAgentSessionID(sessionResp.Meta))
 	c.storeSession(ctx, session)
 
-	if requestedModel != c.startModel {
-		if _, err := c.conn.SetSessionModel(ctx, acp.SetSessionModelRequest{
-			SessionId: sessionResp.SessionId,
-			ModelId:   acp.ModelId(requestedModel),
-		}); err != nil {
-			c.removeSession(session.id)
-			return nil, wrapSessionSetupError(
-				SessionSetupStageSetModel,
-				modelSwitchUnsupportedHint(c.spec, requestedModel, wrapACPError(err)),
-			)
-		}
-	}
 	if modeID := c.spec.sessionModeForAccess(c.cfg.AccessMode); modeID != "" {
 		if _, err := c.conn.SetSessionMode(ctx, acp.SetSessionModeRequest{
 			SessionId: sessionResp.SessionId,
@@ -595,11 +580,11 @@ func (c *clientImpl) CreateTerminal(
 	return c.createTerminal(ctx, params)
 }
 
-func (c *clientImpl) KillTerminalCommand(
+func (c *clientImpl) KillTerminal(
 	ctx context.Context,
-	params acp.KillTerminalCommandRequest,
-) (acp.KillTerminalCommandResponse, error) {
-	return c.killTerminalCommand(ctx, params)
+	params acp.KillTerminalRequest,
+) (acp.KillTerminalResponse, error) {
+	return c.killTerminal(ctx, params)
 }
 
 func (c *clientImpl) TerminalOutput(
@@ -671,7 +656,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 	initResp, err := conn.Initialize(ctx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
-			Fs: acp.FileSystemCapability{
+			Fs: acp.FileSystemCapabilities{
 				ReadTextFile:  true,
 				WriteTextFile: true,
 			},
@@ -867,6 +852,12 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 		}
 		session.finish(model.StatusFailed, cancelErr)
 		return
+	}
+
+	if resp.Usage != nil {
+		if u := convertACPUsage(*resp.Usage); u != (model.Usage{}) {
+			session.publish(ctx, model.SessionUpdate{Usage: u})
+		}
 	}
 
 	session.waitForIdle(ctx, 15*time.Millisecond)
@@ -1125,30 +1116,9 @@ const (
 	// jsonRPCServerError is the JSON-RPC 2.0 server error code currently used by
 	// ACP runtimes for protocol-level authentication failures.
 	jsonRPCServerError = -32000
-	// jsonRPCMethodNotFound is the JSON-RPC 2.0 error code agents return for
-	// methods they do not implement.
-	jsonRPCMethodNotFound = -32601
 )
 
 const acpAuthenticationRequiredMessage = "Authentication required"
-
-// modelSwitchUnsupportedHint augments session/set_model "Method not found"
-// failures with an actionable explanation, since the raw JSON-RPC error does
-// not tell users that the runtime cannot switch models after launch.
-func modelSwitchUnsupportedHint(spec Spec, modelName string, err error) error {
-	var sessionErr *SessionError
-	if !errors.As(err, &sessionErr) || sessionErr.Code != jsonRPCMethodNotFound {
-		return err
-	}
-	return fmt.Errorf(
-		"%w. The %s runtime does not support switching models over ACP (session/set_model), "+
-			"so the requested model %q cannot be applied; omit --model or use --model auto "+
-			"to run with the runtime default",
-		err,
-		firstNonEmpty(spec.DisplayName, spec.ID),
-		modelName,
-	)
-}
 
 func wrapACPError(err error) error {
 	if err == nil {

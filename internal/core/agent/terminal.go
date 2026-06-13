@@ -85,16 +85,16 @@ func (c *clientImpl) createTerminal(
 	return acp.CreateTerminalResponse{TerminalId: terminal.id}, nil
 }
 
-func (c *clientImpl) killTerminalCommand(
+func (c *clientImpl) killTerminal(
 	_ context.Context,
-	params acp.KillTerminalCommandRequest,
-) (acp.KillTerminalCommandResponse, error) {
+	params acp.KillTerminalRequest,
+) (acp.KillTerminalResponse, error) {
 	terminal, err := c.lookupTerminal(params.SessionId, params.TerminalId)
 	if err != nil {
-		return acp.KillTerminalCommandResponse{}, err
+		return acp.KillTerminalResponse{}, err
 	}
 	terminal.kill()
-	return acp.KillTerminalCommandResponse{}, nil
+	return acp.KillTerminalResponse{}, nil
 }
 
 func (c *clientImpl) terminalOutput(

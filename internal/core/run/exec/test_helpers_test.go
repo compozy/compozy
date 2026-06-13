@@ -173,6 +173,29 @@ func (a *runACPHelperAgent) Cancel(context.Context, acp.CancelNotification) erro
 	return nil
 }
 
+func (*runACPHelperAgent) Logout(context.Context, acp.LogoutRequest) (acp.LogoutResponse, error) {
+	return acp.LogoutResponse{}, nil
+}
+
+func (*runACPHelperAgent) CloseSession(context.Context, acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
+	return acp.CloseSessionResponse{}, nil
+}
+
+func (*runACPHelperAgent) ListSessions(context.Context, acp.ListSessionsRequest) (acp.ListSessionsResponse, error) {
+	return acp.ListSessionsResponse{}, nil
+}
+
+func (*runACPHelperAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
+	return acp.ResumeSessionResponse{}, nil
+}
+
+func (*runACPHelperAgent) SetSessionConfigOption(
+	context.Context,
+	acp.SetSessionConfigOptionRequest,
+) (acp.SetSessionConfigOptionResponse, error) {
+	return acp.SetSessionConfigOptionResponse{}, nil
+}
+
 func (a *runACPHelperAgent) SetSessionMode(
 	context.Context,
 	acp.SetSessionModeRequest,

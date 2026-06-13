@@ -174,8 +174,8 @@ func convertACPAvailableCommands(commands []acp.AvailableCommand) []model.Sessio
 			Name:        command.Name,
 			Description: command.Description,
 		}
-		if command.Input != nil && command.Input.UnstructuredCommandInput != nil {
-			item.ArgumentHint = command.Input.UnstructuredCommandInput.Hint
+		if command.Input != nil && command.Input.Unstructured != nil {
+			item.ArgumentHint = command.Input.Unstructured.Hint
 		}
 		converted = append(converted, item)
 	}
@@ -502,4 +502,31 @@ func ensureTrailingNewline(text string) string {
 		return text
 	}
 	return text + "\n"
+}
+
+// convertACPUsage maps an ACP PromptResponse usage payload to model.Usage.
+//
+// ThoughtTokens (reasoning tokens) are summed into OutputTokens; no dedicated
+// model.Usage field is added in this release (deferred to Phase 3 per ADR-001).
+//
+// TotalTokens is passed through unchanged: the ACP spec defines acp.Usage.TotalTokens
+// as the "sum of all token types across session" (input + output + thought), so it
+// already accounts for the folded thought tokens. This preserves the invariant
+// InputTokens + OutputTokens == TotalTokens after folding, keeping model.Usage.Total
+// accurate as values accumulate across turns.
+func convertACPUsage(u acp.Usage) model.Usage {
+	return model.Usage{
+		InputTokens:  u.InputTokens,
+		OutputTokens: u.OutputTokens + derefInt(u.ThoughtTokens),
+		TotalTokens:  u.TotalTokens,
+		CacheReads:   derefInt(u.CachedReadTokens),
+		CacheWrites:  derefInt(u.CachedWriteTokens),
+	}
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }

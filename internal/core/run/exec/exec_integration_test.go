@@ -559,7 +559,7 @@ func execJSONProjectionScenarioUpdates() []acp.SessionUpdate {
 					Name:        "run",
 					Description: "Run the task",
 					Input: &acp.AvailableCommandInput{
-						UnstructuredCommandInput: &acp.AvailableCommandUnstructuredCommandInput{Hint: "--fast"},
+						Unstructured: &acp.UnstructuredCommandInput{Hint: "--fast"},
 					},
 				}},
 			},

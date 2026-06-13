@@ -375,8 +375,8 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
 		return nil, &agent.SessionSetupError{
-			Stage: agent.SessionSetupStageSetModel,
-			Err:   errors.New("invalid session model override"),
+			Stage: agent.SessionSetupStageSetMode,
+			Err:   errors.New("invalid session mode override"),
 		}
 	})
 	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
@@ -1128,8 +1128,8 @@ func TestRetryableSetupFailureMatchesExpectedStages(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "non retryable set model",
-			err:  &agent.SessionSetupError{Stage: agent.SessionSetupStageSetModel, Err: errors.New("boom")},
+			name: "non retryable set mode",
+			err:  &agent.SessionSetupError{Stage: agent.SessionSetupStageSetMode, Err: errors.New("boom")},
 			want: false,
 		},
 		{
