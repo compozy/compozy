@@ -4,9 +4,13 @@
 
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
-| 01 | Add Multi-Run Config and Slug Parsing Foundations | completed | medium | — |
-| 02 | Add Multi-Run Daemon API Contracts and Client Surface | completed | medium | task_01 |
-| 03 | Implement Daemon-Owned Sequential Multi-Run Coordinator | completed | critical | task_01, task_02 |
-| 04 | Wire `tasks run-multiple` CLI Command and Non-UI Modes | completed | high | task_01, task_02, task_03 |
-| 05 | Add Tabbed Multi-Run TUI Attach Experience | completed | critical | task_03, task_04 |
-| 06 | Document Multi-Run Usage and Add End-to-End Coverage | completed | medium | task_04, task_05 |
+| 01 | Add Parallel Limit Workspace Configuration | completed | medium | — |
+| 02 | Extend Multi-Run API and Client Contracts | pending | high | task_01 |
+| 03 | Add Parallel CLI Controls and Request Wiring | pending | medium | task_01, task_02 |
+| 04 | Add Multi-Run Event and Snapshot Worktree Metadata | pending | high | task_02 |
+| 05 | Add Git Worktree Allocation and Path Planning | pending | high | task_04 |
+| 06 | Refactor `task_multi` Into a Mode-Aware Scheduler | pending | high | task_03, task_04 |
+| 07 | Register and Remap Parallel Children to Worktree Workspaces | pending | high | task_05, task_06 |
+| 08 | Implement Bounded Parallel Fanout and Fail-Late Aggregation | pending | critical | task_07 |
+| 09 | Render Parallel Worktree Handoff in TUI and CLI Output | pending | high | task_04, task_08 |
+| 10 | Update Documentation and End-to-End Coverage | pending | medium | task_08, task_09 |

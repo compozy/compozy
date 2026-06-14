@@ -21,6 +21,8 @@ const (
 	reasoningEffortHigh   = "high"
 	reasoningEffortXHigh  = "xhigh"
 	reasoningEffortValues = "low, medium, high, xhigh"
+
+	errMustBeGreaterThanZero = "%s must be greater than zero (got %d)"
 )
 
 func (cfg ProjectConfig) Validate() error {
@@ -96,6 +98,12 @@ func validateTaskRun(scope string, defaults DefaultsConfig, cfg TaskRunConfig) e
 	); err != nil {
 		return err
 	}
+	if err := validateTaskRunMultipleParallelLimit(
+		configFieldName(scope, "tasks.run.run_multiple_parallel_limit"),
+		cfg.RunMultipleParallelLimit,
+	); err != nil {
+		return err
+	}
 	return validateTaskRunRuntimeRules(scope, cfg.TaskRuntimeRules)
 }
 
@@ -121,14 +129,14 @@ func validateTasks(scope string, defaults DefaultsConfig, cfg TasksConfig) error
 func validateFixReviews(scope string, defaults DefaultsConfig, cfg FixReviewsConfig) error {
 	if cfg.Concurrent != nil && *cfg.Concurrent <= 0 {
 		return fmt.Errorf(
-			"%s must be greater than zero (got %d)",
+			errMustBeGreaterThanZero,
 			configFieldName(scope, "fix_reviews.concurrent"),
 			*cfg.Concurrent,
 		)
 	}
 	if cfg.BatchSize != nil && *cfg.BatchSize <= 0 {
 		return fmt.Errorf(
-			"%s must be greater than zero (got %d)",
+			errMustBeGreaterThanZero,
 			configFieldName(scope, "fix_reviews.batch_size"),
 			*cfg.BatchSize,
 		)
@@ -343,6 +351,16 @@ func validateTaskRunMultipleMode(field string, value *string) error {
 			strings.TrimSpace(*value),
 		)
 	}
+}
+
+func validateTaskRunMultipleParallelLimit(field string, value *int) error {
+	if value == nil {
+		return nil
+	}
+	if *value <= 0 {
+		return fmt.Errorf(errMustBeGreaterThanZero, field, *value)
+	}
+	return nil
 }
 
 func validateWorkflowTUI(scope, section string, defaults DefaultsConfig, outputFormat *string, tui *bool) error {

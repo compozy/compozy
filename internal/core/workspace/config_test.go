@@ -494,6 +494,237 @@ func TestTaskRunConfigEffectiveRunMultipleMode(t *testing.T) {
 	})
 }
 
+func TestLoadConfigParsesTaskRunMultipleParallelLimit(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    int
+	}{
+		{
+			name: "one",
+			content: `
+[tasks.run]
+run_multiple_parallel_limit = 1
+`,
+			want: 1,
+		},
+		{
+			name: "two",
+			content: `
+[tasks.run]
+run_multiple_parallel_limit = 2
+`,
+			want: 2,
+		},
+		{
+			name: "five",
+			content: `
+[tasks.run]
+run_multiple_parallel_limit = 5
+`,
+			want: 5,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tc.content)
+
+			cfg, _, err := loadConfigWithIsolatedHome(t, root)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			limit := cfg.Tasks.Run.RunMultipleParallelLimit
+			if limit == nil || *limit != tc.want {
+				t.Fatalf("run_multiple_parallel_limit = %#v, want %d", limit, tc.want)
+			}
+			if got := cfg.Tasks.Run.EffectiveRunMultipleParallelLimit(); got != tc.want {
+				t.Fatalf("EffectiveRunMultipleParallelLimit() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfigDefaultsTaskRunMultipleParallelLimit(t *testing.T) {
+	t.Run("Should default run_multiple_parallel_limit to two", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+			t.Fatalf("mkdir .compozy: %v", err)
+		}
+
+		cfg, _, err := loadConfigWithIsolatedHome(t, root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if cfg.Tasks.Run.RunMultipleParallelLimit != nil {
+			t.Fatalf("expected unset run_multiple_parallel_limit, got %#v", cfg.Tasks.Run.RunMultipleParallelLimit)
+		}
+		if got := cfg.Tasks.Run.EffectiveRunMultipleParallelLimit(); got != DefaultRunMultipleParallelLimit {
+			t.Fatalf("expected default %d, got %d", DefaultRunMultipleParallelLimit, got)
+		}
+	})
+}
+
+func TestTaskRunConfigEffectiveRunMultipleParallelLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default to two when unset", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := TaskRunConfig{}
+		if got := cfg.EffectiveRunMultipleParallelLimit(); got != DefaultRunMultipleParallelLimit {
+			t.Fatalf("EffectiveRunMultipleParallelLimit() = %d, want %d", got, DefaultRunMultipleParallelLimit)
+		}
+	})
+
+	t.Run("Should return the configured limit when set", func(t *testing.T) {
+		t.Parallel()
+
+		limit := 4
+		cfg := TaskRunConfig{RunMultipleParallelLimit: &limit}
+		if got := cfg.EffectiveRunMultipleParallelLimit(); got != limit {
+			t.Fatalf("EffectiveRunMultipleParallelLimit() = %d, want %d", got, limit)
+		}
+	})
+}
+
+func TestLoadConfigRejectsInvalidTaskRunMultipleParallelLimit(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "zero",
+			content: `
+[tasks.run]
+run_multiple_parallel_limit = 0
+`,
+		},
+		{
+			name: "negative",
+			content: `
+[tasks.run]
+run_multiple_parallel_limit = -1
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run("Should reject "+tc.name+" run_multiple_parallel_limit", func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tc.content)
+
+			_, _, err := loadConfigWithIsolatedHome(t, root)
+			if err == nil {
+				t.Fatal("expected invalid tasks.run.run_multiple_parallel_limit error")
+			}
+			if !strings.Contains(err.Error(), "tasks.run.run_multiple_parallel_limit") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigMergesWorkspaceOverGlobalParallelLimit(t *testing.T) {
+	t.Run("Should prefer workspace run_multiple_parallel_limit over global", func(t *testing.T) {
+		homeDir := isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeGlobalConfig(t, homeDir, `
+[tasks.run]
+run_multiple_parallel_limit = 3
+`)
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_parallel_limit = 5
+`)
+
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		limit := cfg.Tasks.Run.RunMultipleParallelLimit
+		if limit == nil || *limit != 5 {
+			t.Fatalf("run_multiple_parallel_limit = %#v, want 5", limit)
+		}
+		if got := cfg.Tasks.Run.EffectiveRunMultipleParallelLimit(); got != 5 {
+			t.Fatalf("EffectiveRunMultipleParallelLimit() = %d, want 5", got)
+		}
+	})
+
+	t.Run("Should fall back to global run_multiple_parallel_limit when workspace omits it", func(t *testing.T) {
+		homeDir := isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeGlobalConfig(t, homeDir, `
+[tasks.run]
+run_multiple_parallel_limit = 3
+`)
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+include_completed = true
+`)
+
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		limit := cfg.Tasks.Run.RunMultipleParallelLimit
+		if limit == nil || *limit != 3 {
+			t.Fatalf("run_multiple_parallel_limit = %#v, want 3", limit)
+		}
+		if got := cfg.Tasks.Run.EffectiveRunMultipleParallelLimit(); got != 3 {
+			t.Fatalf("EffectiveRunMultipleParallelLimit() = %d, want 3", got)
+		}
+	})
+}
+
+func TestLoadConfigMergesRunMultipleModeAndParallelLimitPrecedence(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[tasks.run]
+run_multiple_mode = "enqueued"
+run_multiple_parallel_limit = 3
+`)
+	writeWorkspaceConfig(t, root, `
+[tasks.run]
+run_multiple_mode = "parallel"
+run_multiple_parallel_limit = 4
+`)
+
+	cfg, path, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if path != filepath.Join(root, ".compozy", "config.toml") {
+		t.Fatalf("unexpected effective config path: %q", path)
+	}
+	assertOptionalString(
+		t,
+		"tasks.run.run_multiple_mode",
+		cfg.Tasks.Run.RunMultipleMode,
+		ptrString(TaskRunMultipleModeParallel),
+	)
+	if got := cfg.Tasks.Run.EffectiveRunMultipleMode(); got != TaskRunMultipleModeParallel {
+		t.Fatalf("EffectiveRunMultipleMode() = %q, want %q", got, TaskRunMultipleModeParallel)
+	}
+	limit := cfg.Tasks.Run.RunMultipleParallelLimit
+	if limit == nil || *limit != 4 {
+		t.Fatalf("run_multiple_parallel_limit = %#v, want 4", limit)
+	}
+	if got := cfg.Tasks.Run.EffectiveRunMultipleParallelLimit(); got != 4 {
+		t.Fatalf("EffectiveRunMultipleParallelLimit() = %d, want 4", got)
+	}
+}
+
 func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should reject invalid run_multiple_mode", func(t *testing.T) {
 		t.Parallel()

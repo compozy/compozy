@@ -1,16 +1,16 @@
 ---
 status: completed
-title: Add Multi-Run Config and Slug Parsing Foundations
+title: Add Parallel Limit Workspace Configuration
 type: backend
 complexity: medium
 dependencies: []
 ---
 
-# Task 1: Add Multi-Run Config and Slug Parsing Foundations
+# Task 1: Add Parallel Limit Workspace Configuration
 
 ## Overview
 
-This task adds the configuration and input parsing foundations required by `tasks run-multiple`. It keeps the existing `tasks run` path stable while introducing shared validation helpers that later CLI, API, and daemon work can rely on.
+This task adds the workspace configuration foundation for bounded parallel multi-run execution. It introduces the configurable fanout limit while preserving `enqueued` as the default multi-run mode.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -21,72 +21,67 @@ This task adds the configuration and input parsing foundations required by `task
 </critical>
 
 <requirements>
-- The implementation MUST add `[tasks.run] run_multiple_mode` to the workspace config model.
-- The implementation MUST merge global and workspace config using the same precedence pattern as the existing `[tasks.run]` fields.
-- The implementation MUST validate only `enqueued` and `parallel` as accepted V1 values.
-- The implementation MUST expose a default effective mode of `enqueued` when no config value is present.
-- The implementation MUST provide a reusable comma-separated slug parser that trims entries, preserves order, rejects empty entries, and rejects duplicates.
-- The implementation MUST NOT change the existing `compozy tasks run <slug>` command behavior.
+- The workspace config MUST accept `[tasks.run] run_multiple_parallel_limit`.
+- The effective parallel limit MUST default to `2` when unset.
+- Config validation MUST reject zero and negative `run_multiple_parallel_limit` values.
+- Global and workspace config merge behavior MUST follow existing `[tasks.run]` precedence.
+- Existing `run_multiple_mode` defaults and validation MUST remain compatible.
+- This task MUST NOT change CLI or daemon scheduling behavior.
 </requirements>
 
 ## Subtasks
 
-- [x] 1.1 Add the `run_multiple_mode` field to the task-run config model.
-- [x] 1.2 Add merge and validation behavior for the new config field.
-- [x] 1.3 Add a small parser for comma-separated multi-run slug input.
-- [x] 1.4 Add unit tests for config loading, merge precedence, invalid modes, parser errors, and duplicate slugs.
-- [x] 1.5 Confirm existing single-run config tests still pass unchanged.
+- [x] 1.1 Add the parallel limit field to the task-run config model.
+- [x] 1.2 Add an effective limit helper with default `2`.
+- [x] 1.3 Merge global and workspace parallel limit values.
+- [x] 1.4 Validate positive configured limit values.
+- [x] 1.5 Add config parsing, merge, default, and validation tests.
 
 ## Implementation Details
 
-Update the config layer first, then place the slug parser near the future CLI command wiring so later tasks can reuse it without importing daemon internals. See the TechSpec "Data Models" and "Development Sequencing" sections for the expected field name and accepted values.
+Use the TechSpec "CLI And Configuration" section and ADR-008 for default and precedence rules. Keep this task limited to configuration behavior so later CLI and daemon work can consume a stable helper.
 
 ### Relevant Files
 
-- `internal/core/workspace/config_types.go` — defines `TaskRunConfig`, which must accept `run_multiple_mode`.
+- `internal/core/workspace/config_types.go` — defines `TaskRunConfig` and effective config helpers.
 - `internal/core/workspace/config_merge.go` — merges global and workspace `[tasks.run]` values.
-- `internal/core/workspace/config_validate.go` — validates task-run config fields and should reject unsupported modes.
-- `internal/core/workspace/config_test.go` — covers config parsing, validation, and merge behavior.
-- `internal/cli/daemon_commands.go` — current task command file and likely home for the parser or parser call site.
-- `internal/cli/commands_test.go` — existing command-level tests for task-run defaults.
+- `internal/core/workspace/config_validate.go` — validates task-run config fields.
+- `internal/core/workspace/config_test.go` — covers config parsing, merge, defaults, and validation.
 
 ### Dependent Files
 
-- `internal/cli/workspace_config.go` — later tasks will apply the new config value to the multi-run command state.
-- `internal/cli/workspace_config_test.go` — later tests should assert config defaults are applied to `run-multiple`.
-- `README.md` — later documentation should mention the config key.
+- `internal/cli/daemon_commands.go` — later task consumes the effective limit for CLI request wiring.
+- `internal/api/contract/types.go` — later task adds the daemon request field receiving the resolved limit.
+- `README.md` — later documentation describes the config option and default.
 
 ### Related ADRs
 
-- [ADR-002: Introduce a Dedicated Multi-Run Command for V1](adrs/adr-002.md) — Keeps this work off the existing single-run command.
-- [ADR-003: Fix V1 Command Name and Config Behavior](adrs/adr-003.md) — Defines the config key, default mode, and accepted `parallel` fallback.
+- [ADR-005: Ship Worktree-Backed Parallel Multi-Run as an Opt-In Mode](adrs/adr-005.md) — Requires bounded parallel execution.
+- [ADR-008: Make the Parallel Multi-Run Limit Configurable](adrs/adr-008.md) — Defines the config key, default, and precedence.
 
 ## Deliverables
 
-- `run_multiple_mode` parsed, merged, and validated in workspace config.
-- Reusable comma-separated slug parser with order-preserving validation.
-- Unit tests with 80%+ coverage for the changed config and parser behavior **(REQUIRED)**.
-- Integration-oriented config tests that load workspace/global TOML combinations **(REQUIRED)**.
+- `run_multiple_parallel_limit` parsed, merged, defaulted, and validated.
+- Focused config tests for positive, zero, negative, unset, and merged values.
+- Unit tests with 80%+ coverage for changed config helpers **(REQUIRED)**.
+- Integration-oriented config load tests for TOML examples **(REQUIRED)**.
 
 ## Tests
 
 - Unit tests:
-  - [x] Loading `[tasks.run] run_multiple_mode = "enqueued"` stores the configured value.
-  - [x] Loading `[tasks.run] run_multiple_mode = "parallel"` stores the configured value without error.
-  - [x] Loading `[tasks.run] run_multiple_mode = "invalid"` returns a validation error naming `tasks.run.run_multiple_mode`.
-  - [x] Workspace config overrides global config for `run_multiple_mode`.
-  - [x] Parsing `alpha,beta,gamma` returns slugs in that order.
-  - [x] Parsing `alpha,,beta` rejects the empty slug.
-  - [x] Parsing `alpha, beta ,alpha` rejects the duplicate `alpha`.
+  - [x] Loading `[tasks.run] run_multiple_parallel_limit = 2` stores the configured value.
+  - [x] Unset `run_multiple_parallel_limit` returns effective limit `2`.
+  - [x] `run_multiple_parallel_limit = 0` returns a validation error naming the config field.
+  - [x] `run_multiple_parallel_limit = -1` returns a validation error naming the config field.
+  - [x] Workspace config overrides global config for the parallel limit.
 - Integration tests:
-  - [x] `workspace.LoadConfig` accepts the new key while still rejecting unknown task-run keys.
+  - [x] Loading global plus workspace TOML preserves existing `run_multiple_mode` behavior and applies the new limit precedence.
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
 
-- All tests passing.
-- Test coverage >=80%.
-- Config accepts `enqueued` and `parallel` only.
-- Parser behavior is deterministic and reusable by later tasks.
-- Existing `tasks run` tests remain green without behavioral changes.
+- All tests passing
+- Test coverage >=80%
+- Config exposes a positive parallel fanout limit with default `2`.
+- Existing multi-run mode config behavior is unchanged.

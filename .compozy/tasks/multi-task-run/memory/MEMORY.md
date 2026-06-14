@@ -10,8 +10,13 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - task_05 added the tabbed daemon attach UI for `task_multi` parents: `ui.AttachRemoteMultiple` builds ordered tabs from the parent snapshot, keeps child `uiModel`/translator state isolated per slug, follows parent and child streams, and maps the quit dialog to queue detach/stop/cancel semantics.
 - task_06 documented `tasks run-multiple`, `run_multiple_mode`, V1 `parallel` fallback, and queue-level TUI quit behavior in README, then added CLI integration coverage for comma-separated multi-run snapshot state and fallback-to-enqueued evidence.
 
+> NOTE: bullets above use the OLD V1 task numbering. The bullets below use the CURRENT V2 (worktree-backed parallel) task numbering from `_tasks.md`; the two numbering schemes do not correspond.
+
+- V2 task_01 added the bounded-parallel config foundation in `internal/core/workspace`: `TaskRunConfig.RunMultipleParallelLimit *int` (TOML `run_multiple_parallel_limit`), `EffectiveRunMultipleParallelLimit()` defaulting to `DefaultRunMultipleParallelLimit` (`2`), workspace-over-global merge mirroring `run_multiple_mode`, and validation rejecting zero/negative (shared `errMustBeGreaterThanZero` format). CLI and daemon scheduling are intentionally unchanged.
+
 ## Shared Decisions
 - Later tasks should consume `workspace.TaskRunMultipleModeEnqueued`, `workspace.TaskRunMultipleModeParallel`, and `TaskRunConfig.EffectiveRunMultipleMode()` instead of duplicating mode strings or default logic.
+- V2 tasks should consume `workspace.DefaultRunMultipleParallelLimit` and `TaskRunConfig.EffectiveRunMultipleParallelLimit()` instead of hardcoding the default `2` or re-implementing the unset-limit fallback.
 
 ## Shared Learnings
 - `parallel` is a valid configured value for V1, but execution tasks must still fall back to enqueued behavior until the daemon/worktree-backed parallel work lands.
@@ -24,6 +29,7 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 ## Open Risks
 
 ## Handoffs
+- V2 task_03 CLI `--parallel-limit` precedence should fall back to `cfg.Tasks.Run.EffectiveRunMultipleParallelLimit()`; the daemon request / runtime-override surface (V2 task_02/06/08) carries the resolved positive limit. The config layer already rejects zero/negative at load; CLI must still reject zero/negative before daemon contact per the techspec.
 - task_04 CLI wiring can call `tasks.ParseCommaSeparatedSlugs` for the `tasks run-multiple` positional argument, then use `cfg.Tasks.Run.EffectiveRunMultipleMode()` for the configured mode.
 - task_04 can call daemon client `StartTaskRunMultiple(ctx, apicore.TaskRunMultipleRequest{...})`; task_05 can call `GetTaskRunMultipleSnapshot(ctx, parentRunID)` for parent attach state.
 - Runtime override `run_id` is reserved for the parent multi-run request; children intentionally receive generated run IDs so a single request cannot duplicate child IDs.
