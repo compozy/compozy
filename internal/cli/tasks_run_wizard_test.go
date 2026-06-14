@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	core "github.com/compozy/compozy/internal/core"
 )
 
@@ -317,6 +319,67 @@ func TestTaskRunWizardModelAcceptsManualWorkflowFallback(t *testing.T) {
 	}
 	if !slices.Equal(selectedTaskRunWizardWorkflows(wizard.inputs), []string{"manual"}) {
 		t.Fatalf("selected workflows = %#v, want [manual]", selectedTaskRunWizardWorkflows(wizard.inputs))
+	}
+}
+
+// TestTaskRunWizardViewFitsTerminalBounds guards the layout invariant that the
+// rendered wizard never emits a line wider than the terminal nor more lines than
+// the terminal height. A regression here produces wrapped dividers and vertical
+// scroll (the symptom that motivated the inline -> alt-screen + width fixes).
+func TestTaskRunWizardViewFitsTerminalBounds(t *testing.T) {
+	t.Parallel()
+
+	state := newTaskRunWizardTestState(t, "alpha", "beta", "gamma")
+	dims := []struct {
+		name string
+		w, h int
+	}{
+		{"min", 72, 22},
+		{"std", 80, 24},
+		{"wide", 120, 40},
+		{"ultrawide", 200, 50},
+	}
+	steps := []taskRunWizardStep{
+		taskRunWizardStepWorkflows,
+		taskRunWizardStepRuntime,
+		taskRunWizardStepExecution,
+		taskRunWizardStepOverrides,
+		taskRunWizardStepReview,
+	}
+	for _, dim := range dims {
+		t.Run(dim.name, func(t *testing.T) {
+			t.Parallel()
+			wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+			updated, _ := wizard.Update(tea.WindowSizeMsg{Width: dim.w, Height: dim.h})
+			typed, ok := updated.(*taskRunWizardModel)
+			if !ok {
+				t.Fatalf("resize model type = %T, want *taskRunWizardModel", updated)
+			}
+			typed = updateTaskRunWizardTestModel(t, typed, "space")
+			for _, step := range steps {
+				typed.step = step
+				typed.syncTextFocus()
+				assertTaskRunWizardViewFits(t, typed, dim.w, dim.h)
+			}
+			typed.step = taskRunWizardStepWorkflows
+			typed.showHelp = true
+			assertTaskRunWizardViewFits(t, typed, dim.w, dim.h)
+		})
+	}
+}
+
+func assertTaskRunWizardViewFits(t *testing.T, wizard *taskRunWizardModel, width, height int) {
+	t.Helper()
+	lines := strings.Split(wizard.View().Content, "\n")
+	if len(lines) > height {
+		t.Fatalf("view rendered %d lines, want <= %d (step=%d help=%v)",
+			len(lines), height, wizard.step, wizard.showHelp)
+	}
+	for i, line := range lines {
+		if got := lipgloss.Width(line); got > width {
+			t.Fatalf("line %d width %d exceeds terminal width %d (step=%d help=%v): %q",
+				i, got, width, wizard.step, wizard.showHelp, line)
+		}
 	}
 }
 

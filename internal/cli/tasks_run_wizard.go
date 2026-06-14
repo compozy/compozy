@@ -25,6 +25,11 @@ const (
 )
 
 const (
+	taskRunWizardKindType = "type"
+	taskRunWizardKindTask = "task"
+)
+
+const (
 	taskRunWizardDefaultReasoning = "medium"
 	taskRunWizardKeyDown          = "down"
 	taskRunWizardKeyEnter         = "enter"
@@ -1395,51 +1400,48 @@ func (m *taskRunWizardModel) View() tea.View {
 		m.height = taskRunWizardMinHeight
 	}
 	contentWidth := max(40, m.width-4)
-	bodyHeight := max(8, m.height-7)
-	sections := []string{
-		m.renderHeader(contentWidth),
-		m.renderBody(contentWidth, bodyHeight),
-		m.renderFooter(contentWidth),
-	}
-	view := strings.Join(sections, "\n")
+	bodyHeight := max(6, m.height-7)
+	body := m.renderBody(contentWidth, bodyHeight)
 	if m.showHelp {
-		view += "\n" + m.renderHelp(contentWidth)
+		body = m.renderHelpOverlay(contentWidth, bodyHeight)
 	}
-	return tea.NewView(view)
+	inner := strings.Join([]string{
+		m.renderHeader(contentWidth),
+		wizardHR(contentWidth),
+		wizardClampBody(body, bodyHeight, contentWidth),
+		wizardHR(contentWidth),
+		m.renderFooter(contentWidth),
+	}, "\n")
+	view := tea.NewView(wizardChromeStyle(m.width).Render(inner))
+	view.AltScreen = true
+	return view
 }
 
 func (m *taskRunWizardModel) renderHeader(width int) string {
-	crumbs := []string{"Workflows", "Runtime", "Execution", "Overrides", "Review"}
-	for i := range crumbs {
-		if taskRunWizardStep(i) == m.step {
-			crumbs[i] = taskRunWizardActiveStyle().Render(crumbs[i])
-		} else {
-			crumbs[i] = taskRunWizardMutedStyle().Render(crumbs[i])
-		}
-	}
-	line := taskRunWizardTitleStyle().Render("Task Run Wizard") +
-		"  " + strings.Join(
-		crumbs,
-		taskRunWizardMutedStyle().Render(" > "),
-	)
-	return lipgloss.NewStyle().Width(width).Render(taskRunWizardTruncate(line, width))
+	return wizardBrandLine(m.step, width) + "\n" + wizardStepper(m.step, width)
 }
 
 func (m *taskRunWizardModel) renderBody(width int, height int) string {
-	var body string
 	switch m.step {
 	case taskRunWizardStepWorkflows:
-		body = m.renderWorkflowStep(width, height)
+		return m.renderWorkflowStep(width, height)
 	case taskRunWizardStepRuntime:
-		body = m.renderRuntimeStep(width)
+		return m.renderRuntimeStep(width)
 	case taskRunWizardStepExecution:
-		body = m.renderExecutionStep()
+		return m.renderExecutionStep()
 	case taskRunWizardStepOverrides:
-		body = m.renderOverridesStep(width, height)
+		return m.renderOverridesStep(width, height)
 	case taskRunWizardStepReview:
-		body = m.renderReviewStep(width)
+		return m.renderReviewStep(width)
+	default:
+		return ""
 	}
-	return taskRunWizardBoxStyle(width).Height(height).Render(taskRunWizardClampLines(body, height, width-4))
+}
+
+func (m *taskRunWizardModel) renderHelpOverlay(width int, height int) string {
+	helpWidth := min(width, 60)
+	box := charmtheme.TechPanelStyle(helpWidth, true).Render(m.helpContent())
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
 func (m *taskRunWizardModel) renderWorkflowStep(width int, height int) string {
@@ -1458,46 +1460,46 @@ func (m *taskRunWizardModel) renderWorkflowStep(width int, height int) string {
 }
 
 func (m *taskRunWizardModel) renderWorkflowDualPane(filtered []string, width int, height int) string {
-	leftWidth := max(28, (width-8)*3/5)
-	rightWidth := max(24, width-8-leftWidth)
-	rows := max(4, height-6)
-	leftLines := m.workflowListLines(filtered, leftWidth, rows)
-	rightLines := m.workflowOrderLines(rightWidth, rows)
+	gap := 1
+	leftTotal := max(30, (width-gap)*3/5)
+	rightTotal := max(24, width-gap-leftTotal)
+	rows := max(3, height-4)
+	listFocused := m.workflowFocus == taskRunWizardWorkflowFocusList
+	left := wizardRenderPane(leftTotal, rows, listFocused, m.workflowListLines(filtered, leftTotal-4, rows-1))
+	right := wizardRenderPane(rightTotal, rows, !listFocused, m.workflowOrderLines(rightTotal-4, rows-1))
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 	return strings.Join([]string{
-		taskRunWizardSubtitleStyle().Render("Select workflows and shape the run queue before execution."),
-		"",
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			taskRunWizardColumn(leftLines, leftWidth),
-			"  ",
-			taskRunWizardColumn(rightLines, rightWidth),
-		),
+		taskRunWizardSubtitleStyle().Render("Select workflows and shape the run queue."),
+		panes,
+		m.workflowStatusLine(),
 	}, "\n")
 }
 
 func (m *taskRunWizardModel) renderWorkflowCompact(filtered []string, width int, height int) string {
-	rows := max(3, (height-8)/2)
-	lines := []string{
-		taskRunWizardSubtitleStyle().Render("Select workflows, then use the Run Order section to reorder."),
-	}
+	rows := max(2, (height-5)/2)
+	listFocused := m.workflowFocus == taskRunWizardWorkflowFocusList
+	list := wizardRenderPane(width, rows, listFocused, m.workflowListLines(filtered, width-4, rows-1))
+	order := wizardRenderPane(width, rows, !listFocused, m.workflowOrderLines(width-4, rows-1))
+	return strings.Join([]string{list, order, m.workflowStatusLine()}, "\n")
+}
+
+func (m *taskRunWizardModel) workflowStatusLine() string {
+	status := taskRunWizardActiveStyle().Render(fmt.Sprintf("%d selected", len(m.inputs.selectedWorkflows)))
 	if m.searchActive || m.searchQuery != "" {
-		lines = append(lines, taskRunWizardMutedStyle().Render("Filter: ")+m.searchQuery)
+		status += taskRunWizardMutedStyle().Render("   filter: ") + m.searchQuery
 	}
-	lines = append(lines, m.workflowListLines(filtered, width-4, rows)...)
-	lines = append(lines, "")
-	lines = append(lines, m.workflowOrderLines(width-4, rows)...)
-	return strings.Join(lines, "\n")
+	return status
 }
 
 func (m *taskRunWizardModel) workflowListLines(filtered []string, width int, visibleRows int) []string {
-	title := "Workflows"
-	if m.workflowFocus == taskRunWizardWorkflowFocusList {
-		title = taskRunWizardActiveStyle().Render(title)
-	} else {
-		title = taskRunWizardMutedStyle().Render(title)
-	}
-	lines := []string{title}
+	focused := m.workflowFocus == taskRunWizardWorkflowFocusList
+	suffix := ""
 	if m.searchActive || m.searchQuery != "" {
-		lines = append(lines, taskRunWizardMutedStyle().Render("Filter: ")+m.searchQuery)
+		suffix = "/" + m.searchQuery
+	}
+	lines := []string{wizardPaneTitle("WORKFLOWS", focused, suffix)}
+	if len(filtered) == 0 {
+		return append(lines, taskRunWizardMutedStyle().Render("No workflows match the filter."))
 	}
 	start := 0
 	if m.workflowCursor >= visibleRows {
@@ -1507,29 +1509,21 @@ func (m *taskRunWizardModel) workflowListLines(filtered []string, width int, vis
 	for idx := start; idx < end; idx++ {
 		option := filtered[idx]
 		cursor := "  "
-		if idx == m.workflowCursor && m.workflowFocus == taskRunWizardWorkflowFocusList {
+		if idx == m.workflowCursor && focused {
 			cursor = taskRunWizardActiveStyle().Render("▸ ")
 		}
-		mark := "[ ]"
+		mark := taskRunWizardMutedStyle().Render("[ ]")
 		if slices.Contains(m.inputs.selectedWorkflows, option) {
 			mark = taskRunWizardActiveStyle().Render("[x]")
 		}
 		lines = append(lines, taskRunWizardTruncate(cursor+mark+" "+option, width))
 	}
-	if len(filtered) == 0 {
-		lines = append(lines, taskRunWizardMutedStyle().Render("No workflows match the filter."))
-	}
 	return lines
 }
 
 func (m *taskRunWizardModel) workflowOrderLines(width int, visibleRows int) []string {
-	title := "Run Order"
-	if m.workflowFocus == taskRunWizardWorkflowFocusOrder {
-		title = taskRunWizardActiveStyle().Render(title)
-	} else {
-		title = taskRunWizardMutedStyle().Render(title)
-	}
-	lines := []string{title}
+	focused := m.workflowFocus == taskRunWizardWorkflowFocusOrder
+	lines := []string{wizardPaneTitle("RUN ORDER", focused, "")}
 	if len(m.inputs.selectedWorkflows) == 0 {
 		return append(lines, taskRunWizardMutedStyle().Render("No workflows selected."))
 	}
@@ -1540,51 +1534,52 @@ func (m *taskRunWizardModel) workflowOrderLines(width int, visibleRows int) []st
 	end := min(start+visibleRows, len(m.inputs.selectedWorkflows))
 	for idx := start; idx < end; idx++ {
 		cursor := "  "
-		if idx == m.orderCursor && m.workflowFocus == taskRunWizardWorkflowFocusOrder {
+		num := taskRunWizardMutedStyle().Render(fmt.Sprintf("%02d", idx+1))
+		if idx == m.orderCursor && focused {
 			cursor = taskRunWizardActiveStyle().Render("▸ ")
+			num = taskRunWizardActiveStyle().Render(fmt.Sprintf("%02d", idx+1))
 		}
-		row := fmt.Sprintf("%s%02d %s", cursor, idx+1, m.inputs.selectedWorkflows[idx])
-		lines = append(lines, taskRunWizardTruncate(row, width))
+		lines = append(lines, taskRunWizardTruncate(cursor+num+" "+m.inputs.selectedWorkflows[idx], width))
 	}
 	return lines
 }
 
-func taskRunWizardColumn(lines []string, width int) string {
-	for i := range lines {
-		lines[i] = taskRunWizardTruncate(lines[i], width)
-	}
-	return strings.Join(lines, "\n")
-}
-
 func (m *taskRunWizardModel) renderRuntimeStep(width int) string {
+	ideActive := m.runtimeCursor == taskRunWizardFieldIDE
+	reasoningActive := m.runtimeCursor == taskRunWizardFieldReasoning
+	accessActive := m.runtimeCursor == taskRunWizardFieldAccessMode
 	return strings.Join([]string{
+		taskRunWizardSubtitleStyle().Render("Default runtime applied to every selected workflow."),
+		"",
 		m.renderField(
 			"Provider / IDE",
-			taskRunWizardChoiceLabel(m.ideOptions, m.inputs.ide),
-			m.runtimeCursor == taskRunWizardFieldIDE,
+			wizardSelectValue(taskRunWizardChoiceLabel(m.ideOptions, m.inputs.ide), ideActive),
+			ideActive,
 		),
 		m.renderField("Model", m.textInputs.model.View(), m.runtimeCursor == taskRunWizardFieldModel),
 		m.renderField("Additional dirs", m.textInputs.addDirs.View(), m.runtimeCursor == taskRunWizardFieldAddDirs),
 		m.renderField(
 			"Reasoning effort",
-			taskRunWizardChoiceLabel(m.reasoningOpts, m.inputs.reasoningEffort),
-			m.runtimeCursor == taskRunWizardFieldReasoning,
+			wizardSelectValue(taskRunWizardChoiceLabel(m.reasoningOpts, m.inputs.reasoningEffort), reasoningActive),
+			reasoningActive,
 		),
 		m.renderField(
 			"Access mode",
-			taskRunWizardChoiceLabel(m.accessModeOpts, m.inputs.accessMode),
-			m.runtimeCursor == taskRunWizardFieldAccessMode,
+			wizardSelectValue(taskRunWizardChoiceLabel(m.accessModeOpts, m.inputs.accessMode), accessActive),
+			accessActive,
 		),
 		"",
 		taskRunWizardMutedStyle().Render(taskRunWizardTruncate(
-			"Use left/right or Space to cycle select fields. Text fields edit in place.",
-			width-6,
+			"Use ←/→ or Space to cycle ‹ options ›. Text fields edit in place.",
+			width-2,
 		)),
 	}, "\n")
 }
 
 func (m *taskRunWizardModel) renderExecutionStep() string {
 	return strings.Join([]string{
+		taskRunWizardSubtitleStyle().Render("Tune retry, timeout, and run behavior."),
+		"",
 		m.renderField("Activity timeout", m.textInputs.timeout.View(), m.execCursor == taskRunWizardFieldTimeout),
 		m.renderField("Tail lines", m.textInputs.tailLines.View(), m.execCursor == taskRunWizardFieldTailLines),
 		m.renderField("Max retries", m.textInputs.maxRetries.View(), m.execCursor == taskRunWizardFieldMaxRetries),
@@ -1593,21 +1588,21 @@ func (m *taskRunWizardModel) renderExecutionStep() string {
 			m.textInputs.retryBackoff.View(),
 			m.execCursor == taskRunWizardFieldRetryBackoff,
 		),
-		m.renderField("Dry run", taskRunWizardBool(m.inputs.dryRun), m.execCursor == taskRunWizardFieldDryRun),
+		m.renderField("Dry run", wizardBoolValue(m.inputs.dryRun), m.execCursor == taskRunWizardFieldDryRun),
 		m.renderField(
 			"Auto commit",
-			taskRunWizardBool(m.inputs.autoCommit),
+			wizardBoolValue(m.inputs.autoCommit),
 			m.execCursor == taskRunWizardFieldAutoCommit,
 		),
 		m.renderField(
 			"Include completed",
-			taskRunWizardBool(m.inputs.includeCompleted),
+			wizardBoolValue(m.inputs.includeCompleted),
 			m.execCursor == taskRunWizardFieldIncludeCompleted,
 		),
-		m.renderField("Recursive", taskRunWizardBool(m.inputs.recursive), m.execCursor == taskRunWizardFieldRecursive),
+		m.renderField("Recursive", wizardBoolValue(m.inputs.recursive), m.execCursor == taskRunWizardFieldRecursive),
 		m.renderField(
 			"Runtime per task",
-			taskRunWizardBool(m.inputs.defineTaskRuntime),
+			wizardBoolValue(m.inputs.defineTaskRuntime),
 			m.execCursor == taskRunWizardFieldDefineRuntime,
 		),
 	}, "\n")
@@ -1636,45 +1631,39 @@ func (m *taskRunWizardModel) renderOverridesStep(width int, height int) string {
 		}, "\n")
 	}
 	targets := m.overrideTargets()
-	rows := max(4, height-7)
-	lines := []string{
-		taskRunWizardSubtitleStyle().Render("Select task types or individual tasks, scoped by workflow."),
-		taskRunWizardMutedStyle().Render("Workflow: ") + m.renderOverrideWorkflowTabs(width-16),
-		"",
-	}
+	subtitle := taskRunWizardSubtitleStyle().Render("Override runtime per task type or task, scoped by workflow.")
+	header := taskRunWizardMutedStyle().Render("Workflow ") + m.renderOverrideWorkflowTabs(width-12)
+	targetsFocused := m.overrideFocus == taskRunWizardOverrideFocusTargets
 	if width >= 104 {
-		leftWidth := max(36, (width-8)/2)
-		rightWidth := max(32, width-8-leftWidth)
-		return strings.Join(append(lines,
-			lipgloss.JoinHorizontal(lipgloss.Top,
-				taskRunWizardColumn(m.overrideTargetLines(targets, leftWidth, rows), leftWidth),
-				"  ",
-				taskRunWizardColumn(m.overrideEditorLines(rightWidth), rightWidth),
-			),
-		), "\n")
+		gap := 1
+		leftTotal := max(34, (width-gap)/2)
+		rightTotal := max(30, width-gap-leftTotal)
+		rows := max(3, height-4)
+		left := wizardRenderPane(leftTotal, rows, targetsFocused, m.overrideTargetLines(targets, leftTotal-4, rows-1))
+		right := wizardRenderPane(rightTotal, rows, !targetsFocused, m.overrideEditorLines(rightTotal-4))
+		panes := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
+		return strings.Join([]string{subtitle, header, panes}, "\n")
 	}
-	lines = append(lines, m.overrideTargetLines(targets, width-4, rows)...)
-	lines = append(lines, "")
-	lines = append(lines, m.overrideEditorLines(width-4)...)
-	return strings.Join(lines, "\n")
+	rows := max(2, (height-6)/2)
+	targetsPane := wizardRenderPane(width, rows, targetsFocused, m.overrideTargetLines(targets, width-4, rows-1))
+	editorPane := wizardRenderPane(width, rows, !targetsFocused, m.overrideEditorLines(width-4))
+	return strings.Join([]string{subtitle, header, targetsPane, editorPane}, "\n")
 }
 
 func (m *taskRunWizardModel) renderOverrideWorkflowTabs(width int) string {
 	slugs := selectedTaskRunWizardWorkflows(m.inputs)
 	parts := make([]string, 0, len(slugs))
 	for i, slug := range slugs {
-		label := slug
+		label := taskRunWizardMutedStyle().Render(slug)
 		if i == m.overrideWorkflowCursor {
-			label = taskRunWizardActiveStyle().Render(label)
-		} else {
-			label = taskRunWizardMutedStyle().Render(label)
+			label = taskRunWizardActiveStyle().Render("[" + slug + "]")
 		}
 		parts = append(parts, label)
 	}
 	if len(parts) == 0 {
-		return noneValue
+		return taskRunWizardMutedStyle().Render(noneValue)
 	}
-	return taskRunWizardTruncate(strings.Join(parts, taskRunWizardMutedStyle().Render(" / ")), width)
+	return taskRunWizardTruncate(strings.Join(parts, taskRunWizardMutedStyle().Render(" ")), width)
 }
 
 func (m *taskRunWizardModel) overrideTargetLines(
@@ -1682,13 +1671,8 @@ func (m *taskRunWizardModel) overrideTargetLines(
 	width int,
 	visibleRows int,
 ) []string {
-	title := "Targets"
-	if m.overrideFocus == taskRunWizardOverrideFocusTargets {
-		title = taskRunWizardActiveStyle().Render(title)
-	} else {
-		title = taskRunWizardMutedStyle().Render(title)
-	}
-	lines := []string{title}
+	focused := m.overrideFocus == taskRunWizardOverrideFocusTargets
+	lines := []string{wizardPaneTitle("TARGETS", focused, "")}
 	if len(targets) == 0 {
 		return append(lines, taskRunWizardMutedStyle().Render("No targets in this workflow."))
 	}
@@ -1700,29 +1684,26 @@ func (m *taskRunWizardModel) overrideTargetLines(
 	for idx := start; idx < end; idx++ {
 		target := targets[idx]
 		cursor := "  "
-		if idx == m.overrideTargetCursor && m.overrideFocus == taskRunWizardOverrideFocusTargets {
+		if idx == m.overrideTargetCursor && focused {
 			cursor = taskRunWizardActiveStyle().Render("▸ ")
 		}
-		mark := "[ ]"
+		mark := taskRunWizardMutedStyle().Render("[ ]")
 		if m.overrideTargetSelected(target) {
 			mark = taskRunWizardActiveStyle().Render("[x]")
 		}
-		kind := "type"
+		kind := taskRunWizardKindType
 		if target.Kind == taskRunWizardOverrideTargetTask {
-			kind = "task"
+			kind = taskRunWizardKindTask
 		}
-		lines = append(lines, taskRunWizardTruncate(cursor+mark+" "+kind+"  "+target.Label, width))
+		kindLabel := taskRunWizardMutedStyle().Render(kind)
+		lines = append(lines, taskRunWizardTruncate(cursor+mark+" "+kindLabel+" "+target.Label, width))
 	}
 	return lines
 }
 
 func (m *taskRunWizardModel) overrideEditorLines(width int) []string {
-	title := "Runtime Override"
-	if m.overrideFocus == taskRunWizardOverrideFocusEditor {
-		title = taskRunWizardActiveStyle().Render(title)
-	} else {
-		title = taskRunWizardMutedStyle().Render(title)
-	}
+	focused := m.overrideFocus == taskRunWizardOverrideFocusEditor
+	title := wizardPaneTitle("RUNTIME OVERRIDE", focused, "")
 	target, ok := m.currentOverrideTarget()
 	if !ok {
 		return []string{title, taskRunWizardMutedStyle().Render("Select a target to edit.")}
@@ -1730,7 +1711,7 @@ func (m *taskRunWizardModel) overrideEditorLines(width int) []string {
 	if !m.overrideTargetSelected(target) {
 		return []string{
 			title,
-			taskRunWizardMutedStyle().Render("Select this target with Space before editing."),
+			taskRunWizardMutedStyle().Render("Press Space to enable this target."),
 			taskRunWizardTruncate(target.Label, width),
 		}
 	}
@@ -1738,13 +1719,15 @@ func (m *taskRunWizardModel) overrideEditorLines(width int) []string {
 	if editor == nil {
 		return []string{title, taskRunWizardMutedStyle().Render("No editor is available for this target.")}
 	}
+	ideActive := m.overrideEditorCursor == taskRunWizardOverrideFieldIDE
+	reasoningActive := m.overrideEditorCursor == taskRunWizardOverrideFieldReasoning
 	return []string{
 		title,
-		taskRunWizardTruncate(target.Label, width),
+		taskRunWizardSubtitleStyle().Render(taskRunWizardTruncate(target.Label, width)),
 		m.renderOverrideField(
 			"IDE",
-			taskRunWizardChoiceLabel(m.overrideIDEOptions(), editor.IDE),
-			m.overrideEditorCursor == taskRunWizardOverrideFieldIDE,
+			wizardSelectValue(taskRunWizardChoiceLabel(m.overrideIDEOptions(), editor.IDE), ideActive && focused),
+			ideActive,
 		),
 		m.renderOverrideField(
 			"Model",
@@ -1753,10 +1736,13 @@ func (m *taskRunWizardModel) overrideEditorLines(width int) []string {
 		),
 		m.renderOverrideField(
 			"Reasoning",
-			taskRunWizardChoiceLabel(m.overrideReasoningOptions(), editor.ReasoningEffort),
-			m.overrideEditorCursor == taskRunWizardOverrideFieldReasoning,
+			wizardSelectValue(
+				taskRunWizardChoiceLabel(m.overrideReasoningOptions(), editor.ReasoningEffort),
+				reasoningActive && focused,
+			),
+			reasoningActive,
 		),
-		taskRunWizardMutedStyle().Render(taskRunWizardTruncate("Blank fields inherit the runtime defaults.", width)),
+		taskRunWizardMutedStyle().Render(taskRunWizardTruncate("Blank fields inherit runtime defaults.", width)),
 	}
 }
 
@@ -1764,74 +1750,180 @@ func (m *taskRunWizardModel) renderOverrideField(label string, value string, act
 	if m.overrideFocus != taskRunWizardOverrideFocusEditor {
 		active = false
 	}
-	return m.renderField(label, value, active)
+	return wizardField(label, value, active, wizardOverrideLabelWidth)
 }
 
 func (m *taskRunWizardModel) renderReviewStep(width int) string {
 	selected := selectedTaskRunWizardWorkflows(m.inputs)
 	lines := []string{
-		taskRunWizardSubtitleStyle().Render("Review selections before starting the daemon run."),
-		m.renderSummary("Run order", formatTaskRunWizardOrder(selected), width),
-		m.renderSummary("Runtime", strings.Join([]string{
-			taskRunWizardChoiceLabel(m.ideOptions, m.inputs.ide),
-			"model=" + taskRunWizardBlank(m.inputs.model),
-			"reasoning=" + taskRunWizardBlank(m.inputs.reasoningEffort),
-		}, "  "), width),
-		m.renderSummary("Execution", strings.Join([]string{
-			"timeout=" + taskRunWizardBlank(m.inputs.timeout),
-			"dry-run=" + strconv.FormatBool(m.inputs.dryRun),
-			"auto-commit=" + strconv.FormatBool(m.inputs.autoCommit),
-			"per-task=" + strconv.FormatBool(m.inputs.defineTaskRuntime),
-		}, "  "), width),
-		m.renderSummary("Overrides", formatTaskRunWizardRuntimeRules(m.inputs.taskRuntimeRules), width),
+		taskRunWizardSubtitleStyle().Render("Review before starting the daemon run."),
 		"",
-		taskRunWizardActiveStyle().Render("Press Enter to continue."),
+		taskRunWizardActiveStyle().Render("RUN ORDER"),
 	}
+	lines = append(lines, m.reviewOrderLines(selected, width)...)
+	lines = append(lines,
+		"",
+		taskRunWizardActiveStyle().Render("RUNTIME"),
+		wizardSummaryRow("Provider", taskRunWizardChoiceLabel(m.ideOptions, m.inputs.ide), width),
+		wizardSummaryRow("Model", taskRunWizardBlank(m.inputs.model), width),
+		wizardSummaryRow("Reasoning", taskRunWizardBlank(m.inputs.reasoningEffort), width),
+		"",
+		taskRunWizardActiveStyle().Render("EXECUTION"),
+		wizardSummaryRow("Timeout", taskRunWizardBlank(m.inputs.timeout), width),
+		wizardSummaryRow("Flags", m.reviewFlagsValue(), width),
+	)
+	if m.inputs.defineTaskRuntime {
+		lines = append(lines, "", taskRunWizardActiveStyle().Render("OVERRIDES"))
+		lines = append(lines, m.reviewOverrideLines(width)...)
+	}
+	lines = append(lines, "", taskRunWizardActiveStyle().Render("Press Enter to start the run."))
 	return strings.Join(lines, "\n")
 }
 
-func (m *taskRunWizardModel) renderSummary(label string, value string, width int) string {
-	return taskRunWizardMutedStyle().Render(label+": ") + taskRunWizardTruncate(value, width-len(label)-8)
+func (m *taskRunWizardModel) reviewOrderLines(selected []string, width int) []string {
+	if len(selected) == 0 {
+		return []string{"  " + taskRunWizardMutedStyle().Render(noneValue)}
+	}
+	const maxRows = 4
+	lines := make([]string, 0, len(selected))
+	for i, slug := range selected {
+		if i >= maxRows {
+			lines = append(lines, "  "+taskRunWizardMutedStyle().Render(fmt.Sprintf("+%d more", len(selected)-maxRows)))
+			break
+		}
+		num := taskRunWizardMutedStyle().Render(fmt.Sprintf("%02d", i+1))
+		lines = append(lines, "  "+num+" "+taskRunWizardTruncate(slug, max(8, width-6)))
+	}
+	return lines
+}
+
+func (m *taskRunWizardModel) reviewFlagsValue() string {
+	flags := make([]string, 0, 5)
+	if m.inputs.dryRun {
+		flags = append(flags, "dry-run")
+	}
+	if m.inputs.autoCommit {
+		flags = append(flags, "auto-commit")
+	}
+	if m.inputs.includeCompleted {
+		flags = append(flags, "include-completed")
+	}
+	if m.inputs.recursive {
+		flags = append(flags, "recursive")
+	}
+	if m.inputs.defineTaskRuntime {
+		flags = append(flags, "per-task-runtime")
+	}
+	if len(flags) == 0 {
+		return taskRunWizardMutedStyle().Render(noneValue)
+	}
+	return strings.Join(flags, ", ")
+}
+
+func (m *taskRunWizardModel) reviewOverrideLines(width int) []string {
+	rules := m.inputs.taskRuntimeRules
+	if len(rules) == 0 {
+		return []string{"  " + taskRunWizardMutedStyle().Render(noneValue)}
+	}
+	const maxRows = 4
+	lines := make([]string, 0, len(rules))
+	for i := range rules {
+		if i >= maxRows {
+			lines = append(lines, "  "+taskRunWizardMutedStyle().Render(fmt.Sprintf("+%d more", len(rules)-maxRows)))
+			break
+		}
+		lines = append(lines, "  "+taskRunWizardTruncate(formatTaskRunWizardRule(rules[i]), max(8, width-4)))
+	}
+	return lines
+}
+
+func formatTaskRunWizardRule(rule model.TaskRuntimeRule) string {
+	selector := taskRunWizardKindTask
+	target := ""
+	switch {
+	case rule.Type != nil:
+		selector = taskRunWizardKindType
+		target = strings.TrimSpace(*rule.Type)
+	case rule.ID != nil:
+		selector = taskRunWizardKindTask
+		target = strings.TrimSpace(*rule.ID)
+	}
+	scope := ""
+	if rule.Workflow != nil && strings.TrimSpace(*rule.Workflow) != "" {
+		scope = strings.TrimSpace(*rule.Workflow) + "/"
+	}
+	over := make([]string, 0, 3)
+	if rule.IDE != nil && strings.TrimSpace(*rule.IDE) != "" {
+		over = append(over, "ide="+strings.TrimSpace(*rule.IDE))
+	}
+	if rule.Model != nil && strings.TrimSpace(*rule.Model) != "" {
+		over = append(over, "model="+strings.TrimSpace(*rule.Model))
+	}
+	if rule.ReasoningEffort != nil && strings.TrimSpace(*rule.ReasoningEffort) != "" {
+		over = append(over, "reason="+strings.TrimSpace(*rule.ReasoningEffort))
+	}
+	overStr := taskRunWizardMutedStyle().Render("inherit")
+	if len(over) > 0 {
+		overStr = strings.Join(over, " ")
+	}
+	return taskRunWizardMutedStyle().Render(selector+" ") + scope + target +
+		taskRunWizardMutedStyle().Render(" → ") + overStr
 }
 
 func (m *taskRunWizardModel) renderField(label string, value string, active bool) string {
-	prefix := "  "
-	style := taskRunWizardMutedStyle()
-	if active {
-		prefix = taskRunWizardActiveStyle().Render("▸ ")
-		style = taskRunWizardActiveStyle()
-	}
-	return prefix + style.Render(label) + "  " + value
+	return wizardField(label, value, active, wizardFieldLabelWidth)
 }
 
 func (m *taskRunWizardModel) renderFooter(width int) string {
-	msg := "[q]uit [?]help [Tab/Enter]next [Shift+Tab/Esc]back"
-	if m.step == taskRunWizardStepWorkflows && len(m.workflowOptions) > 0 {
-		msg = "[Space]toggle [a]all [/]filter [h/l]focus [u/d]reorder [Enter]next"
+	if m.showHelp {
+		return taskRunWizardTruncate(wizardFooterHint([][2]string{{"?", "close"}, {"esc", "close"}}), width)
 	}
-	if m.step == taskRunWizardStepOverrides {
-		msg = "[[]prev workflow []]next workflow [Space]select [h/l]focus [Enter]review"
+	var pairs [][2]string
+	switch {
+	case m.step == taskRunWizardStepWorkflows && len(m.workflowOptions) > 0:
+		pairs = [][2]string{
+			{"space", "toggle"}, {"a", "all"}, {"/", "filter"},
+			{"h/l", "focus"}, {"u/d", "order"}, {"enter", "next"}, {"?", "help"},
+		}
+	case m.step == taskRunWizardStepOverrides:
+		pairs = [][2]string{
+			{"[", "prev wf"}, {"]", "next wf"}, {"space", "select"},
+			{"h/l", "focus"}, {"enter", "review"}, {"?", "help"},
+		}
+	case m.step == taskRunWizardStepReview:
+		pairs = [][2]string{{"enter", "start"}, {"tab", "restart"}, {"esc", "back"}, {"?", "help"}}
+	default:
+		pairs = [][2]string{
+			{"↑/↓", "move"}, {"←/→", "cycle"}, {"enter", "next"},
+			{"esc", "back"}, {"?", "help"}, {"q", "quit"},
+		}
 	}
+	hint := wizardFooterHint(pairs)
 	if m.message != "" {
-		msg = taskRunWizardErrorStyle().Render(m.message) + "  " + msg
+		hint = taskRunWizardErrorStyle().Render(m.message) + "  " + hint
 	}
-	return taskRunWizardMutedStyle().Render(taskRunWizardTruncate(msg, width))
+	return taskRunWizardTruncate(hint, width)
 }
 
-func (m *taskRunWizardModel) renderHelp(width int) string {
-	lines := []string{
-		"Keyboard",
-		"  j/k or arrows: move",
-		"  Space: toggle workflow or boolean/cycle select",
-		"  h/l: move focus between panes",
-		"  u/d: move workflow up or down in Run Order",
-		"  [ and ]: switch workflow in runtime overrides",
-		"  /: filter workflows",
-		"  Enter/Tab: advance",
-		"  Shift+Tab/Esc: back",
-		"  q/Ctrl+C: cancel",
+func (m *taskRunWizardModel) helpContent() string {
+	rows := [][2]string{
+		{"j/k · ↑/↓", "move cursor"},
+		{"space", "toggle selection / cycle option"},
+		{"←/→", "cycle option"},
+		{"h/l", "move focus between panes"},
+		{"u/d", "reorder workflow in run queue"},
+		{"/", "filter workflows"},
+		{"[ · ]", "switch workflow in overrides"},
+		{"enter · tab", "advance step"},
+		{"shift+tab · esc", "go back"},
+		{"q · ctrl+c", "cancel wizard"},
 	}
-	return taskRunWizardBoxStyle(min(width, 64)).Render(strings.Join(lines, "\n"))
+	muted := taskRunWizardMutedStyle()
+	lines := []string{taskRunWizardTitleStyle().Render("KEYBOARD"), ""}
+	for _, row := range rows {
+		lines = append(lines, charmtheme.Keycap(row[0])+" "+muted.Render(row[1]))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func taskRunWizardChoiceLabel(options []taskRunWizardChoice, value string) string {
@@ -1841,13 +1933,6 @@ func taskRunWizardChoiceLabel(options []taskRunWizardChoice, value string) strin
 		}
 	}
 	return taskRunWizardBlank(value)
-}
-
-func taskRunWizardBool(value bool) string {
-	if value {
-		return taskRunWizardActiveStyle().Render("on")
-	}
-	return taskRunWizardMutedStyle().Render("off")
 }
 
 func taskRunWizardBlank(value string) string {
@@ -1867,35 +1952,6 @@ func selectedTaskRunWizardWorkflows(inputs taskRunFormInputs) []string {
 		return nil
 	}
 	return []string{manual}
-}
-
-func formatTaskRunWizardOrder(slugs []string) string {
-	if len(slugs) == 0 {
-		return noneValue
-	}
-	parts := make([]string, 0, len(slugs))
-	for i, slug := range slugs {
-		parts = append(parts, fmt.Sprintf("%02d %s", i+1, slug))
-	}
-	return strings.Join(parts, "  ")
-}
-
-func formatTaskRunWizardRuntimeRules(rules []model.TaskRuntimeRule) string {
-	if len(rules) == 0 {
-		return noneValue
-	}
-	return fmt.Sprintf("%d selected", len(rules))
-}
-
-func taskRunWizardClampLines(value string, height int, width int) string {
-	lines := strings.Split(value, "\n")
-	if len(lines) > height {
-		lines = lines[:height]
-	}
-	for i := range lines {
-		lines[i] = taskRunWizardTruncate(lines[i], width)
-	}
-	return strings.Join(lines, "\n")
 }
 
 func taskRunWizardTruncate(value string, width int) string {
@@ -1927,14 +1983,6 @@ func taskRunWizardMutedStyle() lipgloss.Style {
 
 func taskRunWizardErrorStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Bold(true).Foreground(charmtheme.ColorError)
-}
-
-func taskRunWizardBoxStyle(width int) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Width(max(1, width-2)).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(charmtheme.ColorBorder).
-		Padding(0, 1)
 }
 
 func (inputs *taskRunFormInputs) apply(cmd *cobra.Command, state *commandState) error {
@@ -2009,19 +2057,6 @@ func parseTaskRunWorkflowSelection(raw string) ([]string, error) {
 		return nil, nil
 	}
 	return taskscore.ParseCommaSeparatedSlugs(trimmed)
-}
-
-func selectedTaskRunSlugs(state *commandState) []string {
-	if state == nil {
-		return nil
-	}
-	if slugs, err := parseTaskRunWorkflowSelection(state.multiple); err == nil && len(slugs) > 0 {
-		return slugs
-	}
-	if name := strings.TrimSpace(state.name); name != "" {
-		return []string{name}
-	}
-	return nil
 }
 
 func parseFloatInput(value string) (float64, bool) {
