@@ -492,6 +492,120 @@ func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
 	}
 }
 
+func TestTaskRunFormInputsApplyMultipleWorkflowSelection(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+	inputs := &taskRunFormInputs{
+		selectedWorkflows:      []string{"alpha", "beta"},
+		ide:                    "codex",
+		model:                  "gpt-5.5",
+		reasoningEffort:        "high",
+		accessMode:             core.AccessModeFull,
+		timeout:                "15m",
+		tailLines:              "25",
+		maxRetries:             "2",
+		retryBackoffMultiplier: "2.25",
+		dryRun:                 true,
+		autoCommit:             true,
+		includeCompleted:       true,
+		recursive:              true,
+	}
+
+	if err := inputs.apply(cmd, state); err != nil {
+		t.Fatalf("apply task run form inputs: %v", err)
+	}
+
+	if state.name != "" || state.multiple != "alpha,beta" {
+		t.Fatalf("unexpected workflow selection state: name=%q multiple=%q", state.name, state.multiple)
+	}
+	for _, flag := range []string{
+		"multiple",
+		"ide",
+		"model",
+		"reasoning-effort",
+		"access-mode",
+		"timeout",
+		"tail-lines",
+		"max-retries",
+		"retry-backoff-multiplier",
+		"dry-run",
+		"auto-commit",
+		"include-completed",
+		"recursive",
+	} {
+		if !cmd.Flags().Changed(flag) {
+			t.Fatalf("expected %s to be marked explicit", flag)
+		}
+	}
+	if !state.dryRun || !state.autoCommit || !state.includeCompleted || !state.recursive {
+		t.Fatalf("expected bool fields to apply, got %#v", state.runtimeConfig)
+	}
+	if state.tailLines != 25 || state.maxRetries != 2 || state.retryBackoffMultiplier != 2.25 {
+		t.Fatalf("unexpected numeric fields: tail=%d retries=%d backoff=%f",
+			state.tailLines,
+			state.maxRetries,
+			state.retryBackoffMultiplier,
+		)
+	}
+}
+
+func TestTaskRunRuntimeFormScopesDuplicateTaskIDsByWorkflow(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	for _, slug := range []string{"alpha", "beta"} {
+		workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
+		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", slug, err)
+		}
+		writeFormTaskFile(t, workflowDir, "task_01.md", "pending")
+	}
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	state.ide = "codex"
+	state.reasoningEffort = "medium"
+
+	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"alpha", "beta"})
+	if err != nil {
+		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
+	}
+	if form == nil {
+		t.Fatal("expected multi-workflow task runtime form")
+	}
+	if len(form.taskOptions) != 2 {
+		t.Fatalf("expected two task options, got %#v", form.taskOptions)
+	}
+	if form.taskOptions[0].Key != "alpha::task_01" || form.taskOptions[1].Key != "beta::task_01" {
+		t.Fatalf("unexpected task option keys: %#v", form.taskOptions)
+	}
+
+	form.selectedTypes = []string{"beta::backend"}
+	form.typeEditors["beta::backend"] = &taskRuntimeEditor{IDE: "claude", ReasoningEffort: "high"}
+	form.selectedTasks = []string{"alpha::task_01"}
+	form.taskEditors["alpha::task_01"] = &taskRuntimeEditor{Model: "alpha-model"}
+	form.apply(state)
+
+	if len(state.executionTaskRuntimeRules) != 2 {
+		t.Fatalf("expected two workflow-scoped runtime rules, got %#v", state.executionTaskRuntimeRules)
+	}
+	typeRule := state.executionTaskRuntimeRules[0]
+	if typeRule.Workflow == nil || *typeRule.Workflow != "beta" ||
+		typeRule.Type == nil || *typeRule.Type != "backend" ||
+		typeRule.IDE == nil || *typeRule.IDE != "claude" ||
+		typeRule.ReasoningEffort == nil || *typeRule.ReasoningEffort != "high" {
+		t.Fatalf("unexpected type rule: %#v", typeRule)
+	}
+	taskRule := state.executionTaskRuntimeRules[1]
+	if taskRule.Workflow == nil || *taskRule.Workflow != "alpha" ||
+		taskRule.ID == nil || *taskRule.ID != "task_01" ||
+		taskRule.Model == nil || *taskRule.Model != "alpha-model" {
+		t.Fatalf("unexpected task rule: %#v", taskRule)
+	}
+}
+
 func TestClearTaskRunRuntimeRulesRemovesConfiguredAndExecutionRules(t *testing.T) {
 	t.Parallel()
 

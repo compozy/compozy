@@ -17,6 +17,8 @@ import (
 
 type reusableAgentRegistryFactory func() *reusableagents.Registry
 
+const noneValue = "none"
+
 type agentsListCommandState struct {
 	simpleCommandBase
 	newRegistry reusableAgentRegistryFactory
@@ -404,7 +406,7 @@ func formatRuntimePart(label, value string) string {
 
 func formatMCPSummary(cfg *reusableagents.MCPConfig) string {
 	if cfg == nil || len(cfg.Servers) == 0 {
-		return "none"
+		return noneValue
 	}
 	names := make([]string, 0, len(cfg.Servers))
 	for _, server := range cfg.Servers {

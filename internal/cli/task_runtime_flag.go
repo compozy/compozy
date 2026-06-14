@@ -85,6 +85,8 @@ func applyTaskRuntimeField(rule *model.TaskRuntimeRule, seen map[string]struct{}
 	seen[key] = struct{}{}
 
 	switch key {
+	case "workflow":
+		rule.Workflow = stringPointer(value)
 	case "id":
 		rule.ID = stringPointer(value)
 	case "type":
@@ -97,7 +99,7 @@ func applyTaskRuntimeField(rule *model.TaskRuntimeRule, seen map[string]struct{}
 		rule.ReasoningEffort = stringPointer(value)
 	default:
 		return fmt.Errorf(
-			"parse --task-runtime: unknown key %q (expected one of id, type, ide, model, reasoning-effort)",
+			"parse --task-runtime: unknown key %q (expected one of workflow, id, type, ide, model, reasoning-effort)",
 			key,
 		)
 	}
@@ -119,7 +121,10 @@ func parseTaskRuntimeField(field string) (string, string, error) {
 }
 
 func formatTaskRuntimeRule(rule model.TaskRuntimeRule) string {
-	parts := make([]string, 0, 5)
+	parts := make([]string, 0, 6)
+	if rule.Workflow != nil {
+		parts = append(parts, "workflow="+strings.TrimSpace(*rule.Workflow))
+	}
 	if rule.ID != nil {
 		parts = append(parts, "id="+strings.TrimSpace(*rule.ID))
 	}

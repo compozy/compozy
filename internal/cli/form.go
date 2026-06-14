@@ -23,6 +23,10 @@ import (
 const workflowNameTitle = "Workflow Name"
 
 func collectFormParams(cmd *cobra.Command, state *commandState) error {
+	if state != nil && state.kind == commandKindTasksRun {
+		return collectTaskRunFormParams(cmd, state)
+	}
+
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormIntro())
 	inputs := newFormInputsFromState(state)

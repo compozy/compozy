@@ -402,7 +402,7 @@ func parseDaemonBuildIdentity(value string) (daemonBuildIdentity, bool) {
 
 func isStableDaemonBuildCommit(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
-	return normalized != "" && normalized != "none"
+	return normalized != "" && normalized != noneValue
 }
 
 func isDevBuildVersion(value string) bool {
@@ -598,11 +598,23 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if len(args) == 0 && strings.TrimSpace(s.name) == "" {
+	if len(args) == 0 && strings.TrimSpace(s.name) == "" && strings.TrimSpace(s.multiple) == "" {
 		if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 			return err
 		}
 	}
+	if strings.TrimSpace(s.multiple) != "" {
+		slugs, err := s.resolveTaskWorkflowSlugList(args)
+		if err != nil {
+			return withExitCode(1, err)
+		}
+		s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+		return s.runTaskWorkflowsMultiplePrepared(ctx, cmd, slugs)
+	}
+	return s.runTaskWorkflowPrepared(ctx, cmd, args)
+}
+
+func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.Command, args []string) error {
 	if err := s.resolveTaskWorkflowName(args); err != nil {
 		return withExitCode(1, err)
 	}
@@ -659,8 +671,15 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+	return s.runTaskWorkflowsMultiplePrepared(ctx, cmd, slugs)
+}
+
+func (s *commandState) runTaskWorkflowsMultiplePrepared(
+	ctx context.Context,
+	cmd *cobra.Command,
+	slugs []string,
+) error {
 	if err := s.preflightTaskWorkflowSlugs(ctx, cmd, slugs); err != nil {
 		return err
 	}

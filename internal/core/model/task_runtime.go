@@ -3,8 +3,10 @@ package model
 import "strings"
 
 // TaskRuntimeRule defines runtime overrides that apply to one task selector.
-// Exactly one selector should be set in validated inputs.
+// Exactly one selector should be set in validated inputs. Workflow is an
+// optional qualifier that scopes a rule without changing selector specificity.
 type TaskRuntimeRule struct {
+	Workflow        *string `toml:"workflow"         json:"workflow,omitempty"`
 	ID              *string `toml:"id"               json:"id,omitempty"`
 	Type            *string `toml:"type"             json:"type,omitempty"`
 	IDE             *string `toml:"ide"              json:"ide,omitempty"`
@@ -14,8 +16,9 @@ type TaskRuntimeRule struct {
 
 // TaskRuntimeTarget identifies the task being resolved against runtime rules.
 type TaskRuntimeTarget struct {
-	ID   string
-	Type string
+	Workflow string
+	ID       string
+	Type     string
 }
 
 // TaskRuntime describes the effective runtime fields that may vary per task.
@@ -49,6 +52,7 @@ func CloneTaskRuntimeRules(src []TaskRuntimeRule) []TaskRuntimeRule {
 
 func (r TaskRuntimeRule) clone() TaskRuntimeRule {
 	return TaskRuntimeRule{
+		Workflow:        cloneTrimmedOptionalString(r.Workflow),
 		ID:              cloneTrimmedOptionalString(r.ID),
 		Type:            cloneTrimmedOptionalString(r.Type),
 		IDE:             cloneTrimmedOptionalString(r.IDE),
@@ -74,6 +78,9 @@ func (r TaskRuntimeRule) IsTypeRule() bool {
 }
 
 func (r TaskRuntimeRule) Matches(target TaskRuntimeTarget) bool {
+	if r.Workflow != nil && strings.TrimSpace(*r.Workflow) != strings.TrimSpace(target.Workflow) {
+		return false
+	}
 	switch {
 	case r.ID != nil:
 		return strings.TrimSpace(target.ID) != "" && strings.TrimSpace(*r.ID) == strings.TrimSpace(target.ID)

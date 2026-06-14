@@ -675,9 +675,14 @@ func resolveTaskRuntimeTarget(
 	taskData model.TaskEntry,
 	safeName string,
 ) model.TaskRuntimeTarget {
+	workflow := ""
+	if cfg != nil {
+		workflow = strings.TrimSpace(cfg.Name)
+	}
 	target := model.TaskRuntimeTarget{
-		ID:   safeName,
-		Type: taskData.TaskType,
+		Workflow: workflow,
+		ID:       safeName,
+		Type:     taskData.TaskType,
 	}
 	if cfg != nil && cfg.Mode != model.ExecutionModePRDTasks {
 		target.Type = ""

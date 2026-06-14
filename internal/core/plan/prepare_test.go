@@ -343,6 +343,16 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 				ReasoningEffort: testStringPointer("high"),
 			},
 			{
+				Workflow: testStringPointer("other"),
+				Type:     testStringPointer("backend"),
+				IDE:      testStringPointer(model.IDECursor),
+			},
+			{
+				Workflow: testStringPointer("demo"),
+				Type:     testStringPointer("backend"),
+				IDE:      testStringPointer(model.IDEClaude),
+			},
+			{
 				ID:    testStringPointer("task_02"),
 				Model: testStringPointer("codex-fast"),
 			},
@@ -357,7 +367,7 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
 		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
 	}
-	if jobs[1].IDE != model.IDECodex || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "medium" {
+	if jobs[1].IDE != model.IDEClaude || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "medium" {
 		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
 	}
 }
