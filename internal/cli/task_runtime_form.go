@@ -5,10 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"charm.land/huh/v2"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/spf13/cobra"
 )
 
 type taskRuntimeEditor struct {
@@ -39,28 +37,6 @@ type taskRunRuntimeForm struct {
 	taskOptions   []taskRuntimeTaskOption
 	typeEditors   map[string]*taskRuntimeEditor
 	taskEditors   map[string]*taskRuntimeEditor
-	baseRuntime   string
-}
-
-func collectTaskRunRuntimeForm(cmd *cobra.Command, state *commandState) error {
-	return collectTaskRunRuntimeFormForSlugs(cmd, state, selectedTaskRunSlugs(state))
-}
-
-func collectTaskRunRuntimeFormForSlugs(cmd *cobra.Command, state *commandState, slugs []string) error {
-	if state == nil || state.kind != commandKindTasksRun {
-		return nil
-	}
-
-	form, err := newTaskRunRuntimeFormForSlugs(state, slugs)
-	if err != nil || form == nil {
-		return err
-	}
-	if err := form.build().Run(); err != nil {
-		return fmt.Errorf("task runtime form canceled or error: %w", err)
-	}
-	form.apply(state)
-	markInputFlagChanged(cmd, "task-runtime")
-	return nil
 }
 
 func readTaskRuntimeFormEntries(tasksDir string, includeCompleted, recursive bool) ([]model.IssueEntry, error) {
@@ -68,10 +44,6 @@ func readTaskRuntimeFormEntries(tasksDir string, includeCompleted, recursive boo
 		return tasks.ReadTaskEntriesRecursive(tasksDir, includeCompleted)
 	}
 	return tasks.ReadTaskEntries(tasksDir, includeCompleted)
-}
-
-func newTaskRunRuntimeForm(state *commandState) (*taskRunRuntimeForm, error) {
-	return newTaskRunRuntimeFormForSlugs(state, selectedTaskRunSlugs(state))
 }
 
 func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRunRuntimeForm, error) {
@@ -82,7 +54,6 @@ func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRu
 	form := &taskRunRuntimeForm{
 		typeEditors: make(map[string]*taskRuntimeEditor),
 		taskEditors: make(map[string]*taskRuntimeEditor),
-		baseRuntime: formatBaseTaskRuntime(state),
 	}
 	typeRuleByValue, taskRuleByID := indexTaskRuntimeRules(state.taskRuntimeRules())
 	for _, slug := range slugs {
@@ -107,89 +78,6 @@ func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRu
 	}
 	form.ensureEditors()
 	return form, nil
-}
-
-func (f *taskRunRuntimeForm) build() *huh.Form {
-	groups := []*huh.Group{
-		huh.NewGroup(f.selectorFields()...).Title("Per-Task Runtime"),
-	}
-	for _, option := range f.typeOptions {
-		option := option
-		editor := f.typeEditors[option.Key]
-		groups = append(groups, huh.NewGroup(
-			taskRuntimeIDEField(
-				"type-"+option.Key+"-ide",
-				"IDE",
-				"Override the runtime for this task type",
-				&editor.IDE,
-			),
-			taskRuntimeModelField("type-"+option.Key+"-model", &editor.Model),
-			taskRuntimeReasoningField(
-				"type-"+option.Key+"-reasoning-effort",
-				"Reasoning Effort",
-				"Override reasoning for this task type",
-				&editor.ReasoningEffort,
-			),
-		).Title("Type: "+option.Label).Description("Applies to every task with this type.").WithHideFunc(func() bool {
-			return !slices.Contains(f.selectedTypes, option.Key)
-		}))
-	}
-	for _, option := range f.taskOptions {
-		option := option
-		editor := f.taskEditors[option.Key]
-		groups = append(groups, huh.NewGroup(
-			taskRuntimeIDEField(
-				"task-"+option.Key+"-ide",
-				"IDE",
-				"Override the runtime for this task only",
-				&editor.IDE,
-			),
-			taskRuntimeModelField("task-"+option.Key+"-model", &editor.Model),
-			taskRuntimeReasoningField(
-				"task-"+option.Key+"-reasoning-effort",
-				"Reasoning Effort",
-				"Override reasoning for this task only",
-				&editor.ReasoningEffort,
-			),
-		).Title("Task: "+option.Label).Description("Task-specific overrides win over type rules.").WithHideFunc(func() bool {
-			return !slices.Contains(f.selectedTasks, option.Key)
-		}))
-	}
-	return huh.NewForm(groups...).WithTheme(darkHuhTheme())
-}
-
-func (f *taskRunRuntimeForm) selectorFields() []huh.Field {
-	fields := []huh.Field{
-		huh.NewNote().
-			Title("Task Runtime Overrides").
-			Description(taskRuntimeSelectionDescription(f.baseRuntime)),
-	}
-	if len(f.typeOptions) > 0 {
-		options := make([]huh.Option[string], 0, len(f.typeOptions))
-		for _, option := range f.typeOptions {
-			options = append(options, huh.NewOption(option.Label, option.Key))
-		}
-		fields = append(fields, huh.NewMultiSelect[string]().
-			Key("task-runtime-types").
-			Title("Task Types").
-			Description("Select task types to override in bulk.").
-			Options(options...).
-			Value(&f.selectedTypes))
-	}
-	if len(f.taskOptions) > 0 {
-		options := make([]huh.Option[string], 0, len(f.taskOptions))
-		for _, option := range f.taskOptions {
-			options = append(options, huh.NewOption(option.Label, option.Key))
-		}
-		fields = append(fields, huh.NewMultiSelect[string]().
-			Key("task-runtime-tasks").
-			Title("Specific Tasks").
-			Description("Select individual tasks for exceptions or one-off runtime choices.").
-			Filterable(true).
-			Options(options...).
-			Value(&f.selectedTasks))
-	}
-	return fields
 }
 
 func indexTaskRuntimeRules(
@@ -370,54 +258,6 @@ func taskRuntimeEditorFromRule(rule model.TaskRuntimeRule) *taskRuntimeEditor {
 	return editor
 }
 
-func taskRuntimeIDEField(key, title, description string, target *string) huh.Field {
-	return huh.NewSelect[string]().
-		Key(key).
-		Title(title).
-		Description(description).
-		Options(taskRuntimeIDEOptions()...).
-		Value(target)
-}
-
-func taskRuntimeModelField(key string, target *string) huh.Field {
-	return huh.NewInput().
-		Key(key).
-		Title("Model").
-		Placeholder("inherit default").
-		Description("Leave empty to inherit from the current default or type rule.").
-		Value(target)
-}
-
-func taskRuntimeReasoningField(key, title, description string, target *string) huh.Field {
-	return huh.NewSelect[string]().
-		Key(key).
-		Title(title).
-		Description(description).
-		Options(taskRuntimeReasoningOptions()...).
-		Value(target)
-}
-
-func taskRuntimeIDEOptions() []huh.Option[string] {
-	options := []huh.Option[string]{huh.NewOption("Inherit default", "")}
-	options = append(options, ideCatalogOptions()...)
-	return options
-}
-
-func taskRuntimeReasoningOptions() []huh.Option[string] {
-	return []huh.Option[string]{
-		huh.NewOption("Inherit default", ""),
-		huh.NewOption("Low", "low"),
-		huh.NewOption("Medium", "medium"),
-		huh.NewOption("High", "high"),
-		huh.NewOption("Extra High", "xhigh"),
-	}
-}
-
-func taskRuntimeSelectionDescription(baseRuntime string) string {
-	return "Base runtime: " + baseRuntime +
-		"\nType rules apply before task-specific rules. Leave fields as inherit/blank to keep the base runtime."
-}
-
 func taskRuntimeRuleWorkflow(rule model.TaskRuntimeRule) string {
 	if rule.Workflow == nil {
 		return ""
@@ -451,26 +291,6 @@ func selectTaskRuntimeRule(
 	}
 	rule, ok := rules[taskRuntimeSelectorKey("", selector)]
 	return rule, ok
-}
-
-func formatBaseTaskRuntime(state *commandState) string {
-	if state == nil {
-		return ""
-	}
-	label := strings.TrimSpace(state.ide)
-	modelName := strings.TrimSpace(state.model)
-	reasoning := strings.TrimSpace(state.reasoningEffort)
-	parts := make([]string, 0, 3)
-	if label != "" {
-		parts = append(parts, label)
-	}
-	if modelName != "" {
-		parts = append(parts, "model "+modelName)
-	}
-	if reasoning != "" {
-		parts = append(parts, "reasoning "+reasoning)
-	}
-	return strings.Join(parts, " · ")
 }
 
 func formatTaskRuntimeTypeLabel(workflow, taskType string) string {

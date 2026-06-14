@@ -29,6 +29,10 @@ const (
 	taskRunWizardKeyDown          = "down"
 	taskRunWizardKeyEnter         = "enter"
 	taskRunWizardKeyEsc           = "esc"
+	taskRunWizardKeyEnd           = "end"
+	taskRunWizardKeyHome          = "home"
+	taskRunWizardKeyLeft          = "left"
+	taskRunWizardKeyRight         = "right"
 	taskRunWizardKeySpace         = "space"
 	taskRunWizardKeyTab           = "tab"
 )
@@ -39,7 +43,15 @@ const (
 	taskRunWizardStepWorkflows taskRunWizardStep = iota
 	taskRunWizardStepRuntime
 	taskRunWizardStepExecution
+	taskRunWizardStepOverrides
 	taskRunWizardStepReview
+)
+
+type taskRunWizardWorkflowFocus int
+
+const (
+	taskRunWizardWorkflowFocusList taskRunWizardWorkflowFocus = iota
+	taskRunWizardWorkflowFocusOrder
 )
 
 type taskRunWizardField int
@@ -68,6 +80,42 @@ const (
 	taskRunWizardExecutionFieldCount
 )
 
+type taskRunWizardOverrideFocus int
+
+const (
+	taskRunWizardOverrideFocusTargets taskRunWizardOverrideFocus = iota
+	taskRunWizardOverrideFocusEditor
+)
+
+type taskRunWizardOverrideEditorField int
+
+const (
+	taskRunWizardOverrideFieldIDE taskRunWizardOverrideEditorField = iota
+	taskRunWizardOverrideFieldModel
+	taskRunWizardOverrideFieldReasoning
+	taskRunWizardOverrideFieldCount
+)
+
+type taskRunWizardOverrideTargetKind int
+
+const (
+	taskRunWizardOverrideTargetType taskRunWizardOverrideTargetKind = iota
+	taskRunWizardOverrideTargetTask
+)
+
+type taskRunWizardOverrideTarget struct {
+	Kind     taskRunWizardOverrideTargetKind
+	Key      string
+	Workflow string
+	Label    string
+}
+
+type taskRunWizardOverridesLoadedMsg struct {
+	Key  string
+	Form *taskRunRuntimeForm
+	Err  error
+}
+
 type taskRunFormInputs struct {
 	manualWorkflow         string
 	selectedWorkflows      []string
@@ -85,6 +133,7 @@ type taskRunFormInputs struct {
 	includeCompleted       bool
 	recursive              bool
 	defineTaskRuntime      bool
+	taskRuntimeRules       []model.TaskRuntimeRule
 }
 
 type taskRunWizardChoice struct {
@@ -103,24 +152,36 @@ type taskRunWizardTextInputs struct {
 }
 
 type taskRunWizardModel struct {
-	inputs          taskRunFormInputs
-	workflowOptions []string
-	ideOptions      []taskRunWizardChoice
-	reasoningOpts   []taskRunWizardChoice
-	accessModeOpts  []taskRunWizardChoice
-	textInputs      taskRunWizardTextInputs
-	step            taskRunWizardStep
-	workflowCursor  int
-	runtimeCursor   taskRunWizardField
-	execCursor      taskRunWizardExecutionField
-	searchActive    bool
-	searchQuery     string
-	showHelp        bool
-	width           int
-	height          int
-	message         string
-	submitted       bool
-	canceled        bool
+	state                  *commandState
+	inputs                 taskRunFormInputs
+	workflowOptions        []string
+	ideOptions             []taskRunWizardChoice
+	reasoningOpts          []taskRunWizardChoice
+	accessModeOpts         []taskRunWizardChoice
+	textInputs             taskRunWizardTextInputs
+	step                   taskRunWizardStep
+	workflowCursor         int
+	workflowFocus          taskRunWizardWorkflowFocus
+	orderCursor            int
+	runtimeCursor          taskRunWizardField
+	execCursor             taskRunWizardExecutionField
+	runtimeForm            *taskRunRuntimeForm
+	overridesLoading       bool
+	overridesLoadKey       string
+	overridesLoadErr       string
+	overrideFocus          taskRunWizardOverrideFocus
+	overrideWorkflowCursor int
+	overrideTargetCursor   int
+	overrideEditorCursor   taskRunWizardOverrideEditorField
+	overrideModelInput     textinput.Model
+	searchActive           bool
+	searchQuery            string
+	showHelp               bool
+	width                  int
+	height                 int
+	message                string
+	submitted              bool
+	canceled               bool
 }
 
 var runTaskRunWizardProgram = defaultRunTaskRunWizardProgram
@@ -135,16 +196,6 @@ func collectTaskRunFormParams(cmd *cobra.Command, state *commandState) error {
 	}
 	if err := inputs.apply(cmd, state); err != nil {
 		return err
-	}
-
-	selectedSlugs := selectedTaskRunSlugs(state)
-	if inputs.defineTaskRuntime {
-		if err := collectTaskRunRuntimeFormForSlugs(cmd, state, selectedSlugs); err != nil {
-			return err
-		}
-	} else {
-		clearTaskRunRuntimeRules(state)
-		markInputFlagChanged(cmd, "task-runtime")
 	}
 
 	fmt.Fprintln(cmd.OutOrStdout())
@@ -173,6 +224,7 @@ func defaultRunTaskRunWizardProgram(cmd *cobra.Command, state *commandState, inp
 	if typed.canceled || !typed.submitted {
 		return errors.New("form canceled")
 	}
+	typed.syncTaskRuntimeRulesFromForm()
 	*inputs = typed.inputs
 	return nil
 }
@@ -220,7 +272,8 @@ func newTaskRunFormInputsFromState(state *commandState) *taskRunFormInputs {
 	inputs.autoCommit = state.autoCommit
 	inputs.includeCompleted = state.includeCompleted
 	inputs.recursive = state.recursive
-	inputs.defineTaskRuntime = len(state.taskRuntimeRules()) > 0
+	inputs.taskRuntimeRules = model.CloneTaskRuntimeRules(state.taskRuntimeRules())
+	inputs.defineTaskRuntime = len(inputs.taskRuntimeRules) > 0
 	return inputs
 }
 
@@ -243,6 +296,7 @@ func newTaskRunWizardModel(state *commandState, inputs taskRunFormInputs) *taskR
 		baseDir = model.TasksBaseDirForWorkspace(state.workspaceRoot)
 	}
 	m := &taskRunWizardModel{
+		state:           state,
 		inputs:          inputs,
 		workflowOptions: listTaskSubdirs(baseDir),
 		ideOptions:      taskRunWizardIDEOptions(),
@@ -252,6 +306,7 @@ func newTaskRunWizardModel(state *commandState, inputs taskRunFormInputs) *taskR
 		height:          taskRunWizardMinHeight,
 	}
 	m.textInputs = newTaskRunWizardTextInputs(inputs)
+	m.overrideModelInput = newTaskRunWizardInput("inherit default", "")
 	m.ensureChoiceDefaults()
 	m.syncTextFocus()
 	return m
@@ -359,6 +414,8 @@ func (m *taskRunWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncTextWidths()
 	case tea.KeyPressMsg:
 		return m.handleKey(typed)
+	case taskRunWizardOverridesLoadedMsg:
+		m.handleOverridesLoaded(typed)
 	}
 	return m, nil
 }
@@ -376,13 +433,21 @@ func (m *taskRunWizardModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		return m.handleSearchKey(msg)
 	}
 
+	textInputFocused := m.textInputFocused()
 	switch key {
-	case "ctrl+c", "q":
+	case "ctrl+c":
 		m.canceled = true
 		return m, tea.Quit
+	case "q":
+		if !textInputFocused {
+			m.canceled = true
+			return m, tea.Quit
+		}
 	case "?":
-		m.showHelp = true
-		return m, nil
+		if !textInputFocused {
+			m.showHelp = true
+			return m, nil
+		}
 	case "shift+tab", taskRunWizardKeyEsc:
 		m.previousStep()
 		return m, nil
@@ -395,11 +460,24 @@ func (m *taskRunWizardModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		return m.handleRuntimeKey(msg)
 	case taskRunWizardStepExecution:
 		return m.handleExecutionKey(msg)
+	case taskRunWizardStepOverrides:
+		return m.handleOverridesKey(msg)
 	case taskRunWizardStepReview:
 		return m.handleReviewKey(msg)
 	default:
 		return m, nil
 	}
+}
+
+func (m *taskRunWizardModel) textInputFocused() bool {
+	return m.textInputs.manualWorkflow.Focused() ||
+		m.textInputs.model.Focused() ||
+		m.textInputs.addDirs.Focused() ||
+		m.textInputs.timeout.Focused() ||
+		m.textInputs.tailLines.Focused() ||
+		m.textInputs.maxRetries.Focused() ||
+		m.textInputs.retryBackoff.Focused() ||
+		m.overrideModelInput.Focused()
 }
 
 func (m *taskRunWizardModel) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -430,7 +508,58 @@ func (m *taskRunWizardModel) handleWorkflowKey(msg tea.KeyPressMsg) (tea.Model, 
 		return m.updateManualWorkflowInput(msg)
 	}
 	filtered := m.filteredWorkflowOptions()
-	switch strings.ToLower(msg.String()) {
+	key := strings.ToLower(msg.String())
+	originalKey := msg.String()
+	if key == taskRunWizardKeyRight || key == "l" {
+		if len(m.inputs.selectedWorkflows) > 0 {
+			m.workflowFocus = taskRunWizardWorkflowFocusOrder
+			m.clampOrderCursor()
+		}
+		return m, nil
+	}
+	if key == taskRunWizardKeyLeft || key == "h" {
+		m.workflowFocus = taskRunWizardWorkflowFocusList
+		return m, nil
+	}
+	if m.workflowFocus == taskRunWizardWorkflowFocusOrder {
+		return m.handleWorkflowOrderKey(key, originalKey)
+	}
+	return m.handleWorkflowListKey(filtered, key, originalKey)
+}
+
+func (m *taskRunWizardModel) handleWorkflowOrderKey(key string, originalKey string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "up", "k":
+		if m.orderCursor > 0 {
+			m.orderCursor--
+		}
+	case taskRunWizardKeyDown, "j":
+		if m.orderCursor < len(m.inputs.selectedWorkflows)-1 {
+			m.orderCursor++
+		}
+	case taskRunWizardKeyHome, "g":
+		m.orderCursor = 0
+	case taskRunWizardKeyEnd:
+		m.orderCursor = max(len(m.inputs.selectedWorkflows)-1, 0)
+	case "u":
+		m.moveSelectedWorkflow(-1)
+	case "d":
+		m.moveSelectedWorkflow(1)
+	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
+		return m, m.nextStep()
+	}
+	if originalKey == "G" {
+		m.orderCursor = max(len(m.inputs.selectedWorkflows)-1, 0)
+	}
+	return m, nil
+}
+
+func (m *taskRunWizardModel) handleWorkflowListKey(
+	filtered []string,
+	key string,
+	originalKey string,
+) (tea.Model, tea.Cmd) {
+	switch key {
 	case "/":
 		m.searchActive = true
 		m.searchQuery = ""
@@ -443,9 +572,9 @@ func (m *taskRunWizardModel) handleWorkflowKey(msg tea.KeyPressMsg) (tea.Model, 
 		if m.workflowCursor < len(filtered)-1 {
 			m.workflowCursor++
 		}
-	case "home", "g":
+	case taskRunWizardKeyHome, "g":
 		m.workflowCursor = 0
-	case "end":
+	case taskRunWizardKeyEnd:
 		m.workflowCursor = max(len(filtered)-1, 0)
 	case " ", taskRunWizardKeySpace:
 		if len(filtered) > 0 {
@@ -454,7 +583,10 @@ func (m *taskRunWizardModel) handleWorkflowKey(msg tea.KeyPressMsg) (tea.Model, 
 	case "a":
 		m.toggleAllFilteredWorkflows(filtered)
 	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
-		m.nextStep()
+		return m, m.nextStep()
+	}
+	if originalKey == "G" {
+		m.workflowCursor = max(len(filtered)-1, 0)
 	}
 	return m, nil
 }
@@ -463,8 +595,7 @@ func (m *taskRunWizardModel) updateManualWorkflowInput(msg tea.KeyPressMsg) (tea
 	switch strings.ToLower(msg.String()) {
 	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
 		m.inputs.manualWorkflow = strings.TrimSpace(m.textInputs.manualWorkflow.Value())
-		m.nextStep()
-		return m, nil
+		return m, m.nextStep()
 	}
 	var cmd tea.Cmd
 	m.textInputs.manualWorkflow, cmd = m.textInputs.manualWorkflow.Update(msg)
@@ -473,7 +604,11 @@ func (m *taskRunWizardModel) updateManualWorkflowInput(msg tea.KeyPressMsg) (tea
 }
 
 func (m *taskRunWizardModel) handleRuntimeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch strings.ToLower(msg.String()) {
+	key := strings.ToLower(msg.String())
+	if m.runtimeTextFieldFocused() && !taskRunWizardTextFieldNavigationKey(key) {
+		return m.updateRuntimeText(msg)
+	}
+	switch key {
 	case "up", "k":
 		if m.runtimeCursor > 0 {
 			m.runtimeCursor--
@@ -486,16 +621,15 @@ func (m *taskRunWizardModel) handleRuntimeKey(msg tea.KeyPressMsg) (tea.Model, t
 		m.syncTextFocus()
 	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
 		if m.runtimeCursor == taskRunWizardRuntimeFieldCount-1 {
-			m.nextStep()
-		} else {
-			m.runtimeCursor++
-			m.syncTextFocus()
+			return m, m.nextStep()
 		}
+		m.runtimeCursor++
+		m.syncTextFocus()
 	case " ", taskRunWizardKeySpace:
 		m.cycleRuntimeChoice(1)
-	case "left", "h":
+	case taskRunWizardKeyLeft, "h":
 		m.cycleRuntimeChoice(-1)
-	case "right", "l":
+	case taskRunWizardKeyRight, "l":
 		m.cycleRuntimeChoice(1)
 	default:
 		return m.updateRuntimeText(msg)
@@ -504,7 +638,11 @@ func (m *taskRunWizardModel) handleRuntimeKey(msg tea.KeyPressMsg) (tea.Model, t
 }
 
 func (m *taskRunWizardModel) handleExecutionKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch strings.ToLower(msg.String()) {
+	key := strings.ToLower(msg.String())
+	if m.executionTextFieldFocused() && !taskRunWizardTextFieldNavigationKey(key) {
+		return m.updateExecutionText(msg)
+	}
+	switch key {
 	case "up", "k":
 		if m.execCursor > 0 {
 			m.execCursor--
@@ -517,17 +655,162 @@ func (m *taskRunWizardModel) handleExecutionKey(msg tea.KeyPressMsg) (tea.Model,
 		m.syncTextFocus()
 	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
 		if m.execCursor == taskRunWizardExecutionFieldCount-1 {
-			m.nextStep()
-		} else {
-			m.execCursor++
-			m.syncTextFocus()
+			return m, m.nextStep()
 		}
+		m.execCursor++
+		m.syncTextFocus()
 	case " ", taskRunWizardKeySpace:
 		m.toggleExecutionBool()
 	default:
 		return m.updateExecutionText(msg)
 	}
 	return m, nil
+}
+
+func (m *taskRunWizardModel) handleOverridesKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	key := strings.ToLower(msg.String())
+	if m.overridesLoading {
+		return m, nil
+	}
+	if m.runtimeForm == nil {
+		if m.overridesLoadErr != "" {
+			return m, nil
+		}
+		switch key {
+		case taskRunWizardKeyEnter, taskRunWizardKeyTab:
+			return m, m.nextStep()
+		}
+		return m, nil
+	}
+	if m.overrideTextFieldFocused() && !taskRunWizardTextFieldNavigationKey(key) {
+		return m.handleOverrideEditorKey(msg)
+	}
+	switch key {
+	case "[":
+		m.cycleOverrideWorkflow(-1)
+		return m, nil
+	case "]":
+		m.cycleOverrideWorkflow(1)
+		return m, nil
+	case taskRunWizardKeyLeft, "h":
+		m.overrideFocus = taskRunWizardOverrideFocusTargets
+		m.syncTextFocus()
+		return m, nil
+	case taskRunWizardKeyRight, "l":
+		if m.overrideFocus == taskRunWizardOverrideFocusTargets {
+			if target, ok := m.currentOverrideTarget(); ok {
+				if !m.overrideTargetSelected(target) {
+					m.toggleOverrideTarget(target)
+				}
+				m.overrideFocus = taskRunWizardOverrideFocusEditor
+				m.syncOverrideModelInputFromEditor()
+				m.syncTextFocus()
+			}
+			return m, nil
+		}
+	}
+	if m.overrideFocus == taskRunWizardOverrideFocusEditor {
+		return m.handleOverrideEditorKey(msg)
+	}
+	return m.handleOverrideTargetKey(msg)
+}
+
+func (m *taskRunWizardModel) handleOverrideTargetKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	targets := m.overrideTargets()
+	if len(targets) == 0 {
+		return m, nil
+	}
+	switch strings.ToLower(msg.String()) {
+	case "up", "k":
+		if m.overrideTargetCursor > 0 {
+			m.overrideTargetCursor--
+			m.syncOverrideModelInputFromEditor()
+		}
+	case taskRunWizardKeyDown, "j":
+		if m.overrideTargetCursor < len(targets)-1 {
+			m.overrideTargetCursor++
+			m.syncOverrideModelInputFromEditor()
+		}
+	case taskRunWizardKeyHome, "g":
+		m.overrideTargetCursor = 0
+		m.syncOverrideModelInputFromEditor()
+	case taskRunWizardKeyEnd:
+		m.overrideTargetCursor = len(targets) - 1
+		m.syncOverrideModelInputFromEditor()
+	case " ", taskRunWizardKeySpace:
+		m.toggleOverrideTarget(targets[m.overrideTargetCursor])
+		m.syncOverrideModelInputFromEditor()
+	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
+		return m, m.nextStep()
+	}
+	return m, nil
+}
+
+func (m *taskRunWizardModel) handleOverrideEditorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	key := strings.ToLower(msg.String())
+	if m.overrideTextFieldFocused() && !taskRunWizardTextFieldNavigationKey(key) {
+		return m.updateOverrideText(msg)
+	}
+	switch key {
+	case "up", "k":
+		if m.overrideEditorCursor > 0 {
+			m.overrideEditorCursor--
+		}
+		m.syncTextFocus()
+	case taskRunWizardKeyDown, "j":
+		if m.overrideEditorCursor < taskRunWizardOverrideFieldCount-1 {
+			m.overrideEditorCursor++
+		}
+		m.syncTextFocus()
+	case " ", taskRunWizardKeySpace, taskRunWizardKeyRight, "l":
+		m.cycleOverrideChoice(1)
+	case taskRunWizardKeyLeft, "h":
+		m.cycleOverrideChoice(-1)
+	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
+		if m.overrideEditorCursor == taskRunWizardOverrideFieldCount-1 {
+			return m, m.nextStep()
+		}
+		m.overrideEditorCursor++
+		m.syncTextFocus()
+	default:
+		return m.updateOverrideText(msg)
+	}
+	return m, nil
+}
+
+func taskRunWizardTextFieldNavigationKey(key string) bool {
+	switch key {
+	case "up", "down", "enter", "tab":
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *taskRunWizardModel) runtimeTextFieldFocused() bool {
+	return m.step == taskRunWizardStepRuntime &&
+		(m.runtimeCursor == taskRunWizardFieldModel || m.runtimeCursor == taskRunWizardFieldAddDirs)
+}
+
+func (m *taskRunWizardModel) executionTextFieldFocused() bool {
+	if m.step != taskRunWizardStepExecution {
+		return false
+	}
+	switch m.execCursor {
+	case taskRunWizardFieldTimeout,
+		taskRunWizardFieldTailLines,
+		taskRunWizardFieldMaxRetries,
+		taskRunWizardFieldRetryBackoff:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *taskRunWizardModel) overrideTextFieldFocused() bool {
+	return m.step == taskRunWizardStepOverrides &&
+		m.overrideFocus == taskRunWizardOverrideFocusEditor &&
+		m.overrideEditorCursor == taskRunWizardOverrideFieldModel
 }
 
 func (m *taskRunWizardModel) handleReviewKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -537,6 +820,7 @@ func (m *taskRunWizardModel) handleReviewKey(msg tea.KeyPressMsg) (tea.Model, te
 			m.message = err.Error()
 			return m, nil
 		}
+		m.syncTaskRuntimeRulesFromForm()
 		m.submitted = true
 		return m, tea.Quit
 	case taskRunWizardKeyTab:
@@ -578,24 +862,322 @@ func (m *taskRunWizardModel) updateExecutionText(msg tea.KeyPressMsg) (tea.Model
 	return m, cmd
 }
 
+func (m *taskRunWizardModel) updateOverrideText(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.overrideEditorCursor != taskRunWizardOverrideFieldModel {
+		return m, nil
+	}
+	editor := m.currentOverrideEditor()
+	if editor == nil {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.overrideModelInput, cmd = m.overrideModelInput.Update(msg)
+	editor.Model = m.overrideModelInput.Value()
+	return m, cmd
+}
+
+func (m *taskRunWizardModel) loadOverridesCmd() tea.Cmd {
+	slugs := selectedTaskRunWizardWorkflows(m.inputs)
+	key := m.overrideLoadKey(slugs)
+	if m.runtimeForm != nil && m.overridesLoadKey == key && m.overridesLoadErr == "" {
+		m.overridesLoading = false
+		m.syncOverrideModelInputFromEditor()
+		return nil
+	}
+	m.overridesLoading = true
+	m.overridesLoadKey = key
+	m.overridesLoadErr = ""
+	m.runtimeForm = nil
+	state := m.runtimeFormState()
+	return func() tea.Msg {
+		form, err := newTaskRunRuntimeFormForSlugs(state, slugs)
+		return taskRunWizardOverridesLoadedMsg{Key: key, Form: form, Err: err}
+	}
+}
+
+func (m *taskRunWizardModel) handleOverridesLoaded(msg taskRunWizardOverridesLoadedMsg) {
+	if msg.Key != m.overridesLoadKey {
+		return
+	}
+	m.overridesLoading = false
+	if msg.Err != nil {
+		m.overridesLoadErr = msg.Err.Error()
+		m.runtimeForm = nil
+		return
+	}
+	m.runtimeForm = msg.Form
+	m.overrideFocus = taskRunWizardOverrideFocusTargets
+	m.overrideWorkflowCursor = 0
+	m.overrideTargetCursor = 0
+	m.overrideEditorCursor = taskRunWizardOverrideFieldIDE
+	m.clampOverrideCursors()
+	m.syncOverrideModelInputFromEditor()
+	m.syncTextFocus()
+}
+
+func (m *taskRunWizardModel) overrideLoadKey(slugs []string) string {
+	parts := []string{
+		strings.Join(slugs, "\x00"),
+		strconv.FormatBool(m.inputs.includeCompleted),
+		strconv.FormatBool(m.inputs.recursive),
+		strings.TrimSpace(m.inputs.ide),
+		strings.TrimSpace(m.inputs.model),
+		strings.TrimSpace(m.inputs.reasoningEffort),
+	}
+	return strings.Join(parts, "|")
+}
+
+func (m *taskRunWizardModel) runtimeFormState() *commandState {
+	state := &commandState{kind: commandKindTasksRun, mode: core.ModePRDTasks}
+	if m.state != nil {
+		state.workspaceRoot = m.state.workspaceRoot
+		state.tasksDir = m.state.tasksDir
+		state.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(m.state.configuredTaskRuntimeRules)
+	}
+	state.ide = m.inputs.ide
+	state.model = m.inputs.model
+	state.reasoningEffort = m.inputs.reasoningEffort
+	state.includeCompleted = m.inputs.includeCompleted
+	state.recursive = m.inputs.recursive
+	state.executionTaskRuntimeRules = model.CloneTaskRuntimeRules(m.inputs.taskRuntimeRules)
+	state.replaceConfiguredTaskRunRules = true
+	return state
+}
+
+func (m *taskRunWizardModel) syncTaskRuntimeRulesFromForm() {
+	if !m.inputs.defineTaskRuntime {
+		m.inputs.taskRuntimeRules = nil
+		return
+	}
+	if m.runtimeForm == nil {
+		if len(m.inputs.taskRuntimeRules) == 0 {
+			m.inputs.taskRuntimeRules = nil
+		}
+		return
+	}
+	state := m.runtimeFormState()
+	state.executionTaskRuntimeRules = nil
+	m.runtimeForm.apply(state)
+	m.inputs.taskRuntimeRules = model.CloneTaskRuntimeRules(state.executionTaskRuntimeRules)
+}
+
+func (m *taskRunWizardModel) overrideTargets() []taskRunWizardOverrideTarget {
+	if m.runtimeForm == nil {
+		return nil
+	}
+	workflow := m.activeOverrideWorkflow()
+	targets := make([]taskRunWizardOverrideTarget, 0, len(m.runtimeForm.typeOptions)+len(m.runtimeForm.taskOptions))
+	for _, option := range m.runtimeForm.typeOptions {
+		if !taskRunWizardOverrideMatchesWorkflow(option.Workflow, workflow) {
+			continue
+		}
+		targets = append(targets, taskRunWizardOverrideTarget{
+			Kind:     taskRunWizardOverrideTargetType,
+			Key:      option.Key,
+			Workflow: option.Workflow,
+			Label:    option.Label,
+		})
+	}
+	for _, option := range m.runtimeForm.taskOptions {
+		if !taskRunWizardOverrideMatchesWorkflow(option.Workflow, workflow) {
+			continue
+		}
+		targets = append(targets, taskRunWizardOverrideTarget{
+			Kind:     taskRunWizardOverrideTargetTask,
+			Key:      option.Key,
+			Workflow: option.Workflow,
+			Label:    option.Label,
+		})
+	}
+	return targets
+}
+
+func taskRunWizardOverrideMatchesWorkflow(optionWorkflow, activeWorkflow string) bool {
+	trimmedOption := strings.TrimSpace(optionWorkflow)
+	if trimmedOption == "" {
+		return true
+	}
+	return trimmedOption == strings.TrimSpace(activeWorkflow)
+}
+
+func (m *taskRunWizardModel) activeOverrideWorkflow() string {
+	slugs := selectedTaskRunWizardWorkflows(m.inputs)
+	if len(slugs) == 0 {
+		return ""
+	}
+	idx := min(max(m.overrideWorkflowCursor, 0), len(slugs)-1)
+	return slugs[idx]
+}
+
+func (m *taskRunWizardModel) cycleOverrideWorkflow(delta int) {
+	slugs := selectedTaskRunWizardWorkflows(m.inputs)
+	if len(slugs) == 0 {
+		return
+	}
+	m.overrideWorkflowCursor = (m.overrideWorkflowCursor + delta + len(slugs)) % len(slugs)
+	m.overrideTargetCursor = 0
+	m.overrideFocus = taskRunWizardOverrideFocusTargets
+	m.clampOverrideCursors()
+	m.syncOverrideModelInputFromEditor()
+	m.syncTextFocus()
+}
+
+func (m *taskRunWizardModel) currentOverrideTarget() (taskRunWizardOverrideTarget, bool) {
+	targets := m.overrideTargets()
+	if len(targets) == 0 {
+		return taskRunWizardOverrideTarget{}, false
+	}
+	idx := min(max(m.overrideTargetCursor, 0), len(targets)-1)
+	return targets[idx], true
+}
+
+func (m *taskRunWizardModel) clampOverrideCursors() {
+	slugs := selectedTaskRunWizardWorkflows(m.inputs)
+	if len(slugs) == 0 {
+		m.overrideWorkflowCursor = 0
+		m.overrideTargetCursor = 0
+		return
+	}
+	m.overrideWorkflowCursor = min(max(m.overrideWorkflowCursor, 0), len(slugs)-1)
+	targets := m.overrideTargets()
+	if len(targets) == 0 {
+		m.overrideTargetCursor = 0
+		return
+	}
+	m.overrideTargetCursor = min(max(m.overrideTargetCursor, 0), len(targets)-1)
+}
+
+func (m *taskRunWizardModel) overrideTargetSelected(target taskRunWizardOverrideTarget) bool {
+	if m.runtimeForm == nil {
+		return false
+	}
+	switch target.Kind {
+	case taskRunWizardOverrideTargetType:
+		return slices.Contains(m.runtimeForm.selectedTypes, target.Key)
+	case taskRunWizardOverrideTargetTask:
+		return slices.Contains(m.runtimeForm.selectedTasks, target.Key)
+	default:
+		return false
+	}
+}
+
+func (m *taskRunWizardModel) toggleOverrideTarget(target taskRunWizardOverrideTarget) {
+	if m.runtimeForm == nil {
+		return
+	}
+	switch target.Kind {
+	case taskRunWizardOverrideTargetType:
+		m.runtimeForm.selectedTypes = taskRunWizardToggleString(m.runtimeForm.selectedTypes, target.Key)
+		if _, ok := m.runtimeForm.typeEditors[target.Key]; !ok {
+			m.runtimeForm.typeEditors[target.Key] = &taskRuntimeEditor{}
+		}
+	case taskRunWizardOverrideTargetTask:
+		m.runtimeForm.selectedTasks = taskRunWizardToggleString(m.runtimeForm.selectedTasks, target.Key)
+		if _, ok := m.runtimeForm.taskEditors[target.Key]; !ok {
+			m.runtimeForm.taskEditors[target.Key] = &taskRuntimeEditor{}
+		}
+	}
+}
+
+func taskRunWizardToggleString(values []string, value string) []string {
+	idx := slices.Index(values, value)
+	if idx >= 0 {
+		return slices.Delete(values, idx, idx+1)
+	}
+	return append(values, value)
+}
+
+func (m *taskRunWizardModel) currentOverrideEditor() *taskRuntimeEditor {
+	target, ok := m.currentOverrideTarget()
+	if !ok || !m.overrideTargetSelected(target) || m.runtimeForm == nil {
+		return nil
+	}
+	switch target.Kind {
+	case taskRunWizardOverrideTargetType:
+		return m.runtimeForm.typeEditors[target.Key]
+	case taskRunWizardOverrideTargetTask:
+		return m.runtimeForm.taskEditors[target.Key]
+	default:
+		return nil
+	}
+}
+
+func (m *taskRunWizardModel) syncOverrideModelInputFromEditor() {
+	editor := m.currentOverrideEditor()
+	if editor == nil {
+		m.overrideModelInput.SetValue("")
+		return
+	}
+	m.overrideModelInput.SetValue(editor.Model)
+}
+
+func (m *taskRunWizardModel) cycleOverrideChoice(delta int) {
+	editor := m.currentOverrideEditor()
+	if editor == nil {
+		return
+	}
+	switch m.overrideEditorCursor {
+	case taskRunWizardOverrideFieldIDE:
+		editor.IDE = cycleTaskRunWizardChoice(m.overrideIDEOptions(), editor.IDE, delta)
+	case taskRunWizardOverrideFieldReasoning:
+		editor.ReasoningEffort = cycleTaskRunWizardChoice(m.overrideReasoningOptions(), editor.ReasoningEffort, delta)
+	}
+	m.syncOverrideModelInputFromEditor()
+}
+
+func (m *taskRunWizardModel) overrideIDEOptions() []taskRunWizardChoice {
+	options := []taskRunWizardChoice{{Label: "Inherit default", Value: ""}}
+	options = append(options, m.ideOptions...)
+	return options
+}
+
+func (m *taskRunWizardModel) overrideReasoningOptions() []taskRunWizardChoice {
+	options := []taskRunWizardChoice{{Label: "Inherit default", Value: ""}}
+	options = append(options, m.reasoningOpts...)
+	return options
+}
+
 func (m *taskRunWizardModel) previousStep() {
 	if m.step > taskRunWizardStepWorkflows {
+		if m.step == taskRunWizardStepOverrides {
+			m.syncTaskRuntimeRulesFromForm()
+		}
+		if m.step == taskRunWizardStepReview && !m.inputs.defineTaskRuntime {
+			m.step = taskRunWizardStepExecution
+			m.message = ""
+			m.syncTextFocus()
+			return
+		}
 		m.step--
 	}
 	m.message = ""
 	m.syncTextFocus()
 }
 
-func (m *taskRunWizardModel) nextStep() {
+func (m *taskRunWizardModel) nextStep() tea.Cmd {
 	if err := m.validateCurrentStep(); err != nil {
 		m.message = err.Error()
-		return
+		return nil
 	}
-	if m.step < taskRunWizardStepReview {
+	switch m.step {
+	case taskRunWizardStepExecution:
+		if m.inputs.defineTaskRuntime {
+			m.step = taskRunWizardStepOverrides
+			m.message = ""
+			m.syncTextFocus()
+			return m.loadOverridesCmd()
+		}
+		m.syncTaskRuntimeRulesFromForm()
+		m.step = taskRunWizardStepReview
+	case taskRunWizardStepOverrides:
+		m.syncTaskRuntimeRulesFromForm()
+		m.step = taskRunWizardStepReview
+	default:
 		m.step++
 	}
 	m.message = ""
 	m.syncTextFocus()
+	return nil
 }
 
 func (m *taskRunWizardModel) validateCurrentStep() error {
@@ -654,10 +1236,11 @@ func (m *taskRunWizardModel) toggleWorkflow(slug string) {
 	idx := slices.Index(m.inputs.selectedWorkflows, trimmed)
 	if idx >= 0 {
 		m.inputs.selectedWorkflows = slices.Delete(m.inputs.selectedWorkflows, idx, idx+1)
+		m.clampOrderCursor()
 		return
 	}
 	m.inputs.selectedWorkflows = append(m.inputs.selectedWorkflows, trimmed)
-	slices.Sort(m.inputs.selectedWorkflows)
+	m.clampOrderCursor()
 }
 
 func (m *taskRunWizardModel) toggleAllFilteredWorkflows(filtered []string) {
@@ -679,7 +1262,30 @@ func (m *taskRunWizardModel) toggleAllFilteredWorkflows(filtered []string) {
 			m.inputs.selectedWorkflows = append(m.inputs.selectedWorkflows, option)
 		}
 	}
-	slices.Sort(m.inputs.selectedWorkflows)
+	m.clampOrderCursor()
+}
+
+func (m *taskRunWizardModel) clampOrderCursor() {
+	if len(m.inputs.selectedWorkflows) == 0 {
+		m.orderCursor = 0
+		m.workflowFocus = taskRunWizardWorkflowFocusList
+		return
+	}
+	m.orderCursor = min(max(m.orderCursor, 0), len(m.inputs.selectedWorkflows)-1)
+}
+
+func (m *taskRunWizardModel) moveSelectedWorkflow(delta int) {
+	if len(m.inputs.selectedWorkflows) < 2 {
+		return
+	}
+	from := m.orderCursor
+	to := from + delta
+	if to < 0 || to >= len(m.inputs.selectedWorkflows) {
+		return
+	}
+	m.inputs.selectedWorkflows[from], m.inputs.selectedWorkflows[to] =
+		m.inputs.selectedWorkflows[to], m.inputs.selectedWorkflows[from]
+	m.orderCursor = to
 }
 
 func (m *taskRunWizardModel) cycleRuntimeChoice(delta int) {
@@ -720,6 +1326,12 @@ func (m *taskRunWizardModel) toggleExecutionBool() {
 		m.inputs.recursive = !m.inputs.recursive
 	case taskRunWizardFieldDefineRuntime:
 		m.inputs.defineTaskRuntime = !m.inputs.defineTaskRuntime
+		if !m.inputs.defineTaskRuntime {
+			m.runtimeForm = nil
+			m.overridesLoading = false
+			m.overridesLoadErr = ""
+			m.inputs.taskRuntimeRules = nil
+		}
 	}
 }
 
@@ -732,6 +1344,7 @@ func (m *taskRunWizardModel) syncTextWidths() {
 	m.textInputs.tailLines.SetWidth(width)
 	m.textInputs.maxRetries.SetWidth(width)
 	m.textInputs.retryBackoff.SetWidth(width)
+	m.overrideModelInput.SetWidth(width)
 }
 
 func (m *taskRunWizardModel) syncTextFocus() {
@@ -742,6 +1355,7 @@ func (m *taskRunWizardModel) syncTextFocus() {
 	m.textInputs.tailLines.Blur()
 	m.textInputs.maxRetries.Blur()
 	m.textInputs.retryBackoff.Blur()
+	m.overrideModelInput.Blur()
 	if m.step == taskRunWizardStepWorkflows && len(m.workflowOptions) == 0 {
 		m.textInputs.manualWorkflow.Focus()
 		return
@@ -765,6 +1379,11 @@ func (m *taskRunWizardModel) syncTextFocus() {
 		case taskRunWizardFieldRetryBackoff:
 			m.textInputs.retryBackoff.Focus()
 		}
+	}
+	if m.step == taskRunWizardStepOverrides &&
+		m.overrideFocus == taskRunWizardOverrideFocusEditor &&
+		m.overrideEditorCursor == taskRunWizardOverrideFieldModel {
+		m.overrideModelInput.Focus()
 	}
 }
 
@@ -790,7 +1409,7 @@ func (m *taskRunWizardModel) View() tea.View {
 }
 
 func (m *taskRunWizardModel) renderHeader(width int) string {
-	crumbs := []string{"Workflows", "Runtime", "Execution", "Review"}
+	crumbs := []string{"Workflows", "Runtime", "Execution", "Overrides", "Review"}
 	for i := range crumbs {
 		if taskRunWizardStep(i) == m.step {
 			crumbs[i] = taskRunWizardActiveStyle().Render(crumbs[i])
@@ -815,6 +1434,8 @@ func (m *taskRunWizardModel) renderBody(width int, height int) string {
 		body = m.renderRuntimeStep(width)
 	case taskRunWizardStepExecution:
 		body = m.renderExecutionStep()
+	case taskRunWizardStepOverrides:
+		body = m.renderOverridesStep(width, height)
 	case taskRunWizardStepReview:
 		body = m.renderReviewStep(width)
 	}
@@ -830,13 +1451,54 @@ func (m *taskRunWizardModel) renderWorkflowStep(width int, height int) string {
 		}, "\n")
 	}
 	filtered := m.filteredWorkflowOptions()
+	if width >= 96 {
+		return m.renderWorkflowDualPane(filtered, width, height)
+	}
+	return m.renderWorkflowCompact(filtered, width, height)
+}
+
+func (m *taskRunWizardModel) renderWorkflowDualPane(filtered []string, width int, height int) string {
+	leftWidth := max(28, (width-8)*3/5)
+	rightWidth := max(24, width-8-leftWidth)
+	rows := max(4, height-6)
+	leftLines := m.workflowListLines(filtered, leftWidth, rows)
+	rightLines := m.workflowOrderLines(rightWidth, rows)
+	return strings.Join([]string{
+		taskRunWizardSubtitleStyle().Render("Select workflows and shape the run queue before execution."),
+		"",
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			taskRunWizardColumn(leftLines, leftWidth),
+			"  ",
+			taskRunWizardColumn(rightLines, rightWidth),
+		),
+	}, "\n")
+}
+
+func (m *taskRunWizardModel) renderWorkflowCompact(filtered []string, width int, height int) string {
+	rows := max(3, (height-8)/2)
 	lines := []string{
-		taskRunWizardSubtitleStyle().Render("Select one or more workflows. Press / to filter and Space to toggle."),
+		taskRunWizardSubtitleStyle().Render("Select workflows, then use the Run Order section to reorder."),
 	}
 	if m.searchActive || m.searchQuery != "" {
 		lines = append(lines, taskRunWizardMutedStyle().Render("Filter: ")+m.searchQuery)
 	}
-	visibleRows := max(3, height-5)
+	lines = append(lines, m.workflowListLines(filtered, width-4, rows)...)
+	lines = append(lines, "")
+	lines = append(lines, m.workflowOrderLines(width-4, rows)...)
+	return strings.Join(lines, "\n")
+}
+
+func (m *taskRunWizardModel) workflowListLines(filtered []string, width int, visibleRows int) []string {
+	title := "Workflows"
+	if m.workflowFocus == taskRunWizardWorkflowFocusList {
+		title = taskRunWizardActiveStyle().Render(title)
+	} else {
+		title = taskRunWizardMutedStyle().Render(title)
+	}
+	lines := []string{title}
+	if m.searchActive || m.searchQuery != "" {
+		lines = append(lines, taskRunWizardMutedStyle().Render("Filter: ")+m.searchQuery)
+	}
 	start := 0
 	if m.workflowCursor >= visibleRows {
 		start = m.workflowCursor - visibleRows + 1
@@ -845,20 +1507,52 @@ func (m *taskRunWizardModel) renderWorkflowStep(width int, height int) string {
 	for idx := start; idx < end; idx++ {
 		option := filtered[idx]
 		cursor := "  "
-		if idx == m.workflowCursor {
+		if idx == m.workflowCursor && m.workflowFocus == taskRunWizardWorkflowFocusList {
 			cursor = taskRunWizardActiveStyle().Render("▸ ")
 		}
 		mark := "[ ]"
 		if slices.Contains(m.inputs.selectedWorkflows, option) {
 			mark = taskRunWizardActiveStyle().Render("[x]")
 		}
-		lines = append(lines, taskRunWizardTruncate(cursor+mark+" "+option, width-6))
+		lines = append(lines, taskRunWizardTruncate(cursor+mark+" "+option, width))
 	}
 	if len(filtered) == 0 {
 		lines = append(lines, taskRunWizardMutedStyle().Render("No workflows match the filter."))
 	}
-	selection := fmt.Sprintf("Selected: %s", formatTaskRunWizardSelection(m.inputs.selectedWorkflows))
-	lines = append(lines, "", taskRunWizardMutedStyle().Render(selection))
+	return lines
+}
+
+func (m *taskRunWizardModel) workflowOrderLines(width int, visibleRows int) []string {
+	title := "Run Order"
+	if m.workflowFocus == taskRunWizardWorkflowFocusOrder {
+		title = taskRunWizardActiveStyle().Render(title)
+	} else {
+		title = taskRunWizardMutedStyle().Render(title)
+	}
+	lines := []string{title}
+	if len(m.inputs.selectedWorkflows) == 0 {
+		return append(lines, taskRunWizardMutedStyle().Render("No workflows selected."))
+	}
+	start := 0
+	if m.orderCursor >= visibleRows {
+		start = m.orderCursor - visibleRows + 1
+	}
+	end := min(start+visibleRows, len(m.inputs.selectedWorkflows))
+	for idx := start; idx < end; idx++ {
+		cursor := "  "
+		if idx == m.orderCursor && m.workflowFocus == taskRunWizardWorkflowFocusOrder {
+			cursor = taskRunWizardActiveStyle().Render("▸ ")
+		}
+		row := fmt.Sprintf("%s%02d %s", cursor, idx+1, m.inputs.selectedWorkflows[idx])
+		lines = append(lines, taskRunWizardTruncate(row, width))
+	}
+	return lines
+}
+
+func taskRunWizardColumn(lines []string, width int) string {
+	for i := range lines {
+		lines[i] = taskRunWizardTruncate(lines[i], width)
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -919,11 +1613,165 @@ func (m *taskRunWizardModel) renderExecutionStep() string {
 	}, "\n")
 }
 
+func (m *taskRunWizardModel) renderOverridesStep(width int, height int) string {
+	if m.overridesLoading {
+		return strings.Join([]string{
+			taskRunWizardSubtitleStyle().Render("Loading task runtime targets..."),
+			"",
+			taskRunWizardMutedStyle().Render("Reading task files for the selected workflows."),
+		}, "\n")
+	}
+	if m.overridesLoadErr != "" {
+		return strings.Join([]string{
+			taskRunWizardErrorStyle().Render("Could not load task runtime targets."),
+			"",
+			taskRunWizardTruncate(m.overridesLoadErr, width-6),
+		}, "\n")
+	}
+	if m.runtimeForm == nil {
+		return strings.Join([]string{
+			taskRunWizardSubtitleStyle().Render("No pending task targets were found for runtime overrides."),
+			"",
+			taskRunWizardMutedStyle().Render("Press Enter to continue to review."),
+		}, "\n")
+	}
+	targets := m.overrideTargets()
+	rows := max(4, height-7)
+	lines := []string{
+		taskRunWizardSubtitleStyle().Render("Select task types or individual tasks, scoped by workflow."),
+		taskRunWizardMutedStyle().Render("Workflow: ") + m.renderOverrideWorkflowTabs(width-16),
+		"",
+	}
+	if width >= 104 {
+		leftWidth := max(36, (width-8)/2)
+		rightWidth := max(32, width-8-leftWidth)
+		return strings.Join(append(lines,
+			lipgloss.JoinHorizontal(lipgloss.Top,
+				taskRunWizardColumn(m.overrideTargetLines(targets, leftWidth, rows), leftWidth),
+				"  ",
+				taskRunWizardColumn(m.overrideEditorLines(rightWidth), rightWidth),
+			),
+		), "\n")
+	}
+	lines = append(lines, m.overrideTargetLines(targets, width-4, rows)...)
+	lines = append(lines, "")
+	lines = append(lines, m.overrideEditorLines(width-4)...)
+	return strings.Join(lines, "\n")
+}
+
+func (m *taskRunWizardModel) renderOverrideWorkflowTabs(width int) string {
+	slugs := selectedTaskRunWizardWorkflows(m.inputs)
+	parts := make([]string, 0, len(slugs))
+	for i, slug := range slugs {
+		label := slug
+		if i == m.overrideWorkflowCursor {
+			label = taskRunWizardActiveStyle().Render(label)
+		} else {
+			label = taskRunWizardMutedStyle().Render(label)
+		}
+		parts = append(parts, label)
+	}
+	if len(parts) == 0 {
+		return noneValue
+	}
+	return taskRunWizardTruncate(strings.Join(parts, taskRunWizardMutedStyle().Render(" / ")), width)
+}
+
+func (m *taskRunWizardModel) overrideTargetLines(
+	targets []taskRunWizardOverrideTarget,
+	width int,
+	visibleRows int,
+) []string {
+	title := "Targets"
+	if m.overrideFocus == taskRunWizardOverrideFocusTargets {
+		title = taskRunWizardActiveStyle().Render(title)
+	} else {
+		title = taskRunWizardMutedStyle().Render(title)
+	}
+	lines := []string{title}
+	if len(targets) == 0 {
+		return append(lines, taskRunWizardMutedStyle().Render("No targets in this workflow."))
+	}
+	start := 0
+	if m.overrideTargetCursor >= visibleRows {
+		start = m.overrideTargetCursor - visibleRows + 1
+	}
+	end := min(start+visibleRows, len(targets))
+	for idx := start; idx < end; idx++ {
+		target := targets[idx]
+		cursor := "  "
+		if idx == m.overrideTargetCursor && m.overrideFocus == taskRunWizardOverrideFocusTargets {
+			cursor = taskRunWizardActiveStyle().Render("▸ ")
+		}
+		mark := "[ ]"
+		if m.overrideTargetSelected(target) {
+			mark = taskRunWizardActiveStyle().Render("[x]")
+		}
+		kind := "type"
+		if target.Kind == taskRunWizardOverrideTargetTask {
+			kind = "task"
+		}
+		lines = append(lines, taskRunWizardTruncate(cursor+mark+" "+kind+"  "+target.Label, width))
+	}
+	return lines
+}
+
+func (m *taskRunWizardModel) overrideEditorLines(width int) []string {
+	title := "Runtime Override"
+	if m.overrideFocus == taskRunWizardOverrideFocusEditor {
+		title = taskRunWizardActiveStyle().Render(title)
+	} else {
+		title = taskRunWizardMutedStyle().Render(title)
+	}
+	target, ok := m.currentOverrideTarget()
+	if !ok {
+		return []string{title, taskRunWizardMutedStyle().Render("Select a target to edit.")}
+	}
+	if !m.overrideTargetSelected(target) {
+		return []string{
+			title,
+			taskRunWizardMutedStyle().Render("Select this target with Space before editing."),
+			taskRunWizardTruncate(target.Label, width),
+		}
+	}
+	editor := m.currentOverrideEditor()
+	if editor == nil {
+		return []string{title, taskRunWizardMutedStyle().Render("No editor is available for this target.")}
+	}
+	return []string{
+		title,
+		taskRunWizardTruncate(target.Label, width),
+		m.renderOverrideField(
+			"IDE",
+			taskRunWizardChoiceLabel(m.overrideIDEOptions(), editor.IDE),
+			m.overrideEditorCursor == taskRunWizardOverrideFieldIDE,
+		),
+		m.renderOverrideField(
+			"Model",
+			m.overrideModelInput.View(),
+			m.overrideEditorCursor == taskRunWizardOverrideFieldModel,
+		),
+		m.renderOverrideField(
+			"Reasoning",
+			taskRunWizardChoiceLabel(m.overrideReasoningOptions(), editor.ReasoningEffort),
+			m.overrideEditorCursor == taskRunWizardOverrideFieldReasoning,
+		),
+		taskRunWizardMutedStyle().Render(taskRunWizardTruncate("Blank fields inherit the runtime defaults.", width)),
+	}
+}
+
+func (m *taskRunWizardModel) renderOverrideField(label string, value string, active bool) string {
+	if m.overrideFocus != taskRunWizardOverrideFocusEditor {
+		active = false
+	}
+	return m.renderField(label, value, active)
+}
+
 func (m *taskRunWizardModel) renderReviewStep(width int) string {
 	selected := selectedTaskRunWizardWorkflows(m.inputs)
 	lines := []string{
 		taskRunWizardSubtitleStyle().Render("Review selections before starting the daemon run."),
-		m.renderSummary("Workflows", formatTaskRunWizardSelection(selected), width),
+		m.renderSummary("Run order", formatTaskRunWizardOrder(selected), width),
 		m.renderSummary("Runtime", strings.Join([]string{
 			taskRunWizardChoiceLabel(m.ideOptions, m.inputs.ide),
 			"model=" + taskRunWizardBlank(m.inputs.model),
@@ -935,6 +1783,7 @@ func (m *taskRunWizardModel) renderReviewStep(width int) string {
 			"auto-commit=" + strconv.FormatBool(m.inputs.autoCommit),
 			"per-task=" + strconv.FormatBool(m.inputs.defineTaskRuntime),
 		}, "  "), width),
+		m.renderSummary("Overrides", formatTaskRunWizardRuntimeRules(m.inputs.taskRuntimeRules), width),
 		"",
 		taskRunWizardActiveStyle().Render("Press Enter to continue."),
 	}
@@ -958,7 +1807,10 @@ func (m *taskRunWizardModel) renderField(label string, value string, active bool
 func (m *taskRunWizardModel) renderFooter(width int) string {
 	msg := "[q]uit [?]help [Tab/Enter]next [Shift+Tab/Esc]back"
 	if m.step == taskRunWizardStepWorkflows && len(m.workflowOptions) > 0 {
-		msg = "[Space]toggle [a]all [/]filter [Enter]next [q]uit"
+		msg = "[Space]toggle [a]all [/]filter [h/l]focus [u/d]reorder [Enter]next"
+	}
+	if m.step == taskRunWizardStepOverrides {
+		msg = "[[]prev workflow []]next workflow [Space]select [h/l]focus [Enter]review"
 	}
 	if m.message != "" {
 		msg = taskRunWizardErrorStyle().Render(m.message) + "  " + msg
@@ -971,6 +1823,9 @@ func (m *taskRunWizardModel) renderHelp(width int) string {
 		"Keyboard",
 		"  j/k or arrows: move",
 		"  Space: toggle workflow or boolean/cycle select",
+		"  h/l: move focus between panes",
+		"  u/d: move workflow up or down in Run Order",
+		"  [ and ]: switch workflow in runtime overrides",
 		"  /: filter workflows",
 		"  Enter/Tab: advance",
 		"  Shift+Tab/Esc: back",
@@ -1014,11 +1869,22 @@ func selectedTaskRunWizardWorkflows(inputs taskRunFormInputs) []string {
 	return []string{manual}
 }
 
-func formatTaskRunWizardSelection(slugs []string) string {
+func formatTaskRunWizardOrder(slugs []string) string {
 	if len(slugs) == 0 {
-		return "none"
+		return noneValue
 	}
-	return strings.Join(slugs, ", ")
+	parts := make([]string, 0, len(slugs))
+	for i, slug := range slugs {
+		parts = append(parts, fmt.Sprintf("%02d %s", i+1, slug))
+	}
+	return strings.Join(parts, "  ")
+}
+
+func formatTaskRunWizardRuntimeRules(rules []model.TaskRuntimeRule) string {
+	if len(rules) == 0 {
+		return noneValue
+	}
+	return fmt.Sprintf("%d selected", len(rules))
 }
 
 func taskRunWizardClampLines(value string, height int, width int) string {
@@ -1109,6 +1975,9 @@ func (inputs *taskRunFormInputs) apply(cmd *cobra.Command, state *commandState) 
 		state.includeCompleted = value
 	})
 	applyInput(cmd, "recursive", inputs.recursive, passThroughInput[bool], func(value bool) { state.recursive = value })
+	state.replaceConfiguredTaskRunRules = true
+	state.executionTaskRuntimeRules = model.CloneTaskRuntimeRules(inputs.taskRuntimeRules)
+	markInputFlagChanged(cmd, "task-runtime")
 	return nil
 }
 

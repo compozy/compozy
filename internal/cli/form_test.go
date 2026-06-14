@@ -398,9 +398,9 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 			ReasoningEffort: stringPointer("high"),
 		}}
 
-		form, err := newTaskRunRuntimeForm(state)
+		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
 		if err != nil {
-			t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 		}
 		if form == nil {
 			t.Fatal("expected task runtime form")
@@ -443,9 +443,9 @@ func TestTaskRuntimeFormUsesRecursiveWalkerWhenEnabled(t *testing.T) {
 	state.name = "demo"
 	state.recursive = true
 
-	form, err := newTaskRunRuntimeForm(state)
+	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
 	if err != nil {
-		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
@@ -480,9 +480,9 @@ func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
 	state.name = "demo"
 	state.recursive = false
 
-	form, err := newTaskRunRuntimeForm(state)
+	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
 	if err != nil {
-		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
@@ -534,6 +534,7 @@ func TestTaskRunFormInputsApplyMultipleWorkflowSelection(t *testing.T) {
 		"auto-commit",
 		"include-completed",
 		"recursive",
+		"task-runtime",
 	} {
 		if !cmd.Flags().Changed(flag) {
 			t.Fatalf("expected %s to be marked explicit", flag)
@@ -548,6 +549,9 @@ func TestTaskRunFormInputsApplyMultipleWorkflowSelection(t *testing.T) {
 			state.maxRetries,
 			state.retryBackoffMultiplier,
 		)
+	}
+	if !state.replaceConfiguredTaskRunRules {
+		t.Fatal("expected task runtime rules to replace configured rules")
 	}
 }
 
@@ -604,27 +608,6 @@ func TestTaskRunRuntimeFormScopesDuplicateTaskIDsByWorkflow(t *testing.T) {
 		taskRule.Model == nil || *taskRule.Model != "alpha-model" {
 		t.Fatalf("unexpected task rule: %#v", taskRule)
 	}
-}
-
-func TestClearTaskRunRuntimeRulesRemovesConfiguredAndExecutionRules(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should remove configured and execution task runtime rules", func(t *testing.T) {
-		t.Parallel()
-
-		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
-		state.configuredTaskRuntimeRules = []model.TaskRuntimeRule{{Type: stringPointer("backend")}}
-		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{{ID: stringPointer("task-1")}}
-
-		clearTaskRunRuntimeRules(state)
-
-		if rules := state.taskRuntimeRules(); len(rules) != 0 {
-			t.Fatalf("taskRuntimeRules() = %#v, want none", rules)
-		}
-		if !state.replaceConfiguredTaskRunRules {
-			t.Fatal("expected configured task runtime rules to be replaced")
-		}
-	})
 }
 
 func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
