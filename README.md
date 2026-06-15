@@ -118,7 +118,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 - `compozy daemon start|status|stop` manages the home-scoped daemon lifecycle. `daemon start` is idempotent, and task/review/exec commands auto-start the daemon when needed.
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
 - `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
-- `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation.
+- `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation. Add `--parallel` to run the batch concurrently — each child runs in its own isolated git worktree, bounded by `--parallel-limit` (default `2`).
 - Independent `compozy tasks run` invocations from different workspaces run concurrently on the shared home-scoped daemon. When another workspace already has an active run, the CLI prints a warning with the busy workspace and run ID before starting the new run.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
 - `compozy reviews fetch|list|show|fix` is the canonical review command family.
@@ -176,6 +176,7 @@ types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "b
 [tasks.run]
 include_completed = false
 run_multiple_mode = "enqueued"
+run_multiple_parallel_limit = 2
 
 [exec]
 output_format = "text"
@@ -195,7 +196,7 @@ Supported sections:
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
-- `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed` and `run_multiple_mode`
+- `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[sound]` for optional run-completion audio presets or absolute file paths
@@ -206,8 +207,9 @@ Notes:
 - `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
 - Unknown keys and invalid value types are rejected during config loading.
 - Relative `add_dirs` are resolved against the owning config scope: the user home directory for `~/.compozy/config.toml` and the workspace root for `.compozy/config.toml`.
-- `[tasks.run] run_multiple_mode` controls `tasks run --multiple` scheduling. When unset, the built-in default is `"enqueued"`.
-- `run_multiple_mode = "parallel"` is accepted in V1 for forward-compatible config, but Compozy prints a V2 worktree-isolation fallback message and runs the queue in enqueued order. Real parallel multi-run execution waits for git worktree isolation.
+- `[tasks.run] run_multiple_mode` controls `tasks run --multiple` scheduling. Valid values are `"enqueued"` and `"parallel"`; when unset, the built-in default is `"enqueued"`.
+- `run_multiple_mode = "parallel"` runs the batch concurrently, with each child in its own isolated git worktree. The CLI `--parallel` flag overrides this config value for a single invocation.
+- `[tasks.run] run_multiple_parallel_limit` caps how many children run at once in parallel mode. It must be a positive integer and defaults to `2`. The CLI `--parallel-limit <n>` flag overrides it for a single invocation. The limit has no effect in enqueued mode, which always runs one child at a time.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
@@ -400,11 +402,12 @@ Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`
 ```bash
 compozy tasks run user-auth --ide claude
 compozy tasks run --multiple user-auth,cleanup --ide claude
+compozy tasks run --multiple user-auth,cleanup --parallel --parallel-limit 2
 ```
 
 Each pending task is processed sequentially through the shared daemon — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
 `compozy tasks run` validates task metadata before execution. Use `--skip-validation` when validation already ran elsewhere, or `--force` to continue after validation failures in non-interactive environments.
-Use `compozy tasks run --multiple <slug-a>,<slug-b>` when you want one command to enqueue several workflows with the same runtime flags. The input is one comma-separated slug list; `compozy tasks run <slug>` remains the single-workflow command.
+Use `compozy tasks run --multiple <slug-a>,<slug-b>` when you want one command to enqueue several workflows with the same runtime flags. The input is one comma-separated slug list; `compozy tasks run <slug>` remains the single-workflow command. Add `--parallel` to run independent workflows concurrently in isolated git worktrees instead of one at a time.
 
 ### 7. Review
 
@@ -611,19 +614,21 @@ compozy tasks run <slug> [flags]
 
 The CLI resolves workspace defaults locally, validates the task metadata, auto-starts the daemon when needed, and then starts the workflow through the daemon transport.
 
-| Flag                  | Default | Description                                                                         |
-| --------------------- | ------- | ----------------------------------------------------------------------------------- |
-| `--name`              |         | Workflow slug (defaults to the positional slug)                                     |
-| `--multiple`          |         | Comma-separated workflow slugs to run through one daemon-owned parent queue         |
-| `--include-completed` | `false` | Re-run completed tasks                                                              |
-| `--recursive`, `-r`   | `false` | Discover `task_NNN.md` files in nested subdirectories of the workflow root          |
-| `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere        |
-| `--force`             | `false` | Continue after task metadata validation fails in non-interactive mode               |
-| `--attach`            | `auto`  | Attach mode: `auto`, `ui`, `stream`, or `detach`                                    |
-| `--ui`                | `false` | Force interactive TUI attach mode                                                   |
-| `--stream`            | `false` | Force textual stream attach mode                                                    |
-| `--detach`            | `false` | Start the run without attaching a client                                            |
-| `--task-runtime`      |         | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.) |
+| Flag                  | Default | Description                                                                                      |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `--name`              |         | Workflow slug (defaults to the positional slug)                                                  |
+| `--multiple`          |         | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
+| `--parallel`          | `false` | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
+| `--parallel-limit`    | `2`     | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
+| `--include-completed` | `false` | Re-run completed tasks                                                                           |
+| `--recursive`, `-r`   | `false` | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
+| `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere                     |
+| `--force`             | `false` | Continue after task metadata validation fails in non-interactive mode                            |
+| `--attach`            | `auto`  | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
+| `--ui`                | `false` | Force interactive TUI attach mode                                                                |
+| `--stream`            | `false` | Force textual stream attach mode                                                                 |
+| `--detach`            | `false` | Start the run without attaching a client                                                         |
+| `--task-runtime`      |         | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
 
 When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
@@ -637,14 +642,43 @@ compozy tasks run --multiple alpha,beta --stream
 compozy tasks run --multiple alpha,beta --detach
 ```
 
-Scheduling is controlled by `.compozy/config.toml` or `~/.compozy/config.toml`:
+Scheduling is controlled by the `--parallel`/`--parallel-limit` flags or by `.compozy/config.toml` / `~/.compozy/config.toml`:
 
 ```toml
 [tasks.run]
-run_multiple_mode = "enqueued"
+run_multiple_mode = "enqueued"        # "enqueued" (default) or "parallel"
+run_multiple_parallel_limit = 2       # max concurrent children in parallel mode
 ```
 
-`"enqueued"` is the default and runs one child workflow at a time in the requested order. `"parallel"` is also accepted in V1, but Compozy prints a fallback message and still runs the queue as `"enqueued"` until V2 adds git worktree-backed isolation for concurrent agents.
+`"enqueued"` (the default) runs one child workflow at a time in the requested order. `"parallel"` runs independent children concurrently, each in its own isolated git worktree, bounded by the parallel limit:
+
+```bash
+compozy tasks run --multiple alpha,beta --parallel
+compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3
+```
+
+Resolution precedence:
+
+- Mode: `--parallel` flag > `run_multiple_mode` config > `enqueued` default.
+- Limit: `--parallel-limit <n>` flag > `run_multiple_parallel_limit` config > `2` default.
+
+`--parallel` and `--parallel-limit` are valid only with `--multiple`, and the limit must be a positive integer; invalid combinations are rejected before the daemon is contacted.
+
+**Worktree isolation.** In parallel mode the parent workspace must be on a named git branch. Compozy resolves the current branch and `HEAD` once, then creates one detached git worktree per child under `~/.compozy/state/worktrees/`. Each child runs with its workspace root and task directory remapped into that worktree, so concurrent agents get isolated working trees, indexes, and `HEAD`s while sharing the repository object store. Worktrees do **not** isolate shared runtime resources such as ports, credentials, provider rate limits, caches, or external services — treat parallel batches as genuinely independent tasks.
+
+**Preservation and V1 non-goals.** Every child worktree is preserved for manual review regardless of child status. Compozy does not auto-merge, auto-push, branch, or delete worktrees, and it does not predict semantic conflicts; recombining results is a manual step. Each detached worktree records its base branch and commit so you can branch or merge from it yourself.
+
+**Fail-late aggregation.** A child failure does not cancel its siblings. The parent reaches a terminal status only after every started child settles: `completed` when all children complete, or `failed` when any child fails, crashes, or cannot start (the parent error names the failed slugs). Canceling the parent cancels running children and marks not-started children canceled. In non-TUI runs the parent command exits non-zero when the aggregate status is failed, canceled, or crashed.
+
+**Handoff output.** After the queue settles, `--stream` runs (and the UI-settled fallback) print a final handoff that lists each child in requested order so every preserved worktree is locatable:
+
+```text
+task multi-run handoff:
+  alpha completed | run=child-alpha | worktree=~/.compozy/state/worktrees/<ws>/<parent>/01-alpha | branch=main
+  beta failed | run=child-beta | worktree=~/.compozy/state/worktrees/<ws>/<parent>/02-beta | boom
+```
+
+Missing run ids or worktree paths render as `-`. Streamed child events also carry `worktree=<path>`, and the TUI shows a worktree status line for the selected child.
 
 Cross-workspace runs are different from `--multiple` scheduling: the home-scoped daemon accepts separate `compozy tasks run` invocations from different workspaces concurrently and does not queue or reject the second run. Before starting a non-dry-run task workflow, the CLI checks daemon status; if active runs belong to another registered workspace, it warns with the busy workspace name/path and run ID, then proceeds. The warning is skipped when the daemon is idle, when the active run belongs to the same workspace, or when `--dry-run` is set.
 
