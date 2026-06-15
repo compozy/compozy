@@ -1599,3 +1599,49 @@ func TestRunManagerTaskRunMultipleParallelEmitsResolvedLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestRunManagerTaskRunMultipleParallelEmitsSingleItemQueuedPerChild(t *testing.T) {
+	t.Parallel()
+	t.Run("Should emit exactly one item_queued event per child in parallel mode", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-single-queued"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				return nil
+			},
+		})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "pending")
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		parent := startTaskMultiParallelRunWithLimit(
+			t, env, "task-multi-parallel-single-queued", []string{"alpha", "beta"}, 2,
+		)
+		waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		counts := map[string]int{}
+		for _, event := range allRunEvents(t, parent.RunID) {
+			if event.Kind != eventspkg.EventKindTaskRunMultipleItemQueued {
+				continue
+			}
+			payload, err := decodeTaskMultiPayload(event)
+			if err != nil {
+				t.Fatalf("decode item_queued payload: %v", err)
+			}
+			counts[payload.Slug]++
+		}
+		for _, slug := range []string{"alpha", "beta"} {
+			if counts[slug] != 1 {
+				t.Fatalf(
+					"slug %q item_queued count = %d, want exactly 1 (no duplicate queued events)",
+					slug,
+					counts[slug],
+				)
+			}
+		}
+	})
+}

@@ -697,6 +697,13 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err != nil {
 		return withExitCode(1, err)
 	}
+	// An explicit --parallel-limit has no effect in enqueued mode; reject it
+	// instead of silently discarding the value when mode resolves to enqueued.
+	if commandFlagChanged(cmd, "parallel-limit") && mode != workspacecfg.TaskRunMultipleModeParallel {
+		return withExitCode(2, errors.New(
+			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
+		))
+	}
 	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
 		return withExitCode(2, err)
@@ -1101,6 +1108,12 @@ func streamTaskRunMultipleToTerminal(
 	runID string,
 ) error {
 	watchErr := watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, runID)
+	// A canceled context (e.g. Ctrl+C) makes the watch return nil; skip the
+	// handoff fetch, which would otherwise fail with a context-canceled error and
+	// turn a clean interrupt into a reported failure.
+	if ctx.Err() != nil {
+		return nil
+	}
 	handoffErr := writeTaskRunMultipleHandoff(ctx, cmd.OutOrStdout(), client, runID)
 	if watchErr != nil {
 		return mapDaemonCommandError(watchErr)

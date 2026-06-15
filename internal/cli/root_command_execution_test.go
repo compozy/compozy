@@ -1409,6 +1409,49 @@ run_multiple_mode = "parallel"
 	})
 }
 
+func TestTasksRunMultipleCommandRejectsParallelLimitWithoutParallelMode(t *testing.T) {
+	t.Run("Should reject --parallel-limit when the resolved mode is enqueued", func(t *testing.T) {
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t, cmd, nil,
+			"tasks", "run", "--multiple", "alpha,beta", "--detach", "--parallel-limit", "5",
+		)
+		if err == nil {
+			t.Fatalf("expected error, got nil\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		if !strings.Contains(err.Error(), "--parallel-limit requires parallel mode") {
+			t.Fatalf("error = %v, want a --parallel-limit-requires-parallel-mode rejection", err)
+		}
+		if readyClient.startMultipleCalls != 0 {
+			t.Fatalf(
+				"StartTaskRunMultiple calls = %d, want 0 (rejected before daemon contact)",
+				readyClient.startMultipleCalls,
+			)
+		}
+	})
+}
+
 const taskRunMultipleStreamRunID = "run-task-multi-stream"
 
 func taskMultiStreamEvent(

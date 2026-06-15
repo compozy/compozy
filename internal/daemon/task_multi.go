@@ -359,13 +359,17 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 	if err := m.emitTaskMultiQueueStarted(active, prepared, total); err != nil {
 		return err
 	}
-	if err := m.emitTaskMultiItemsQueued(active, prepared, total); err != nil {
-		return err
-	}
 	switch prepared.mode {
 	case workspacecfg.TaskRunMultipleModeParallel:
+		// Parallel mode re-emits item_queued with worktree metadata per child as it
+		// is allocated, so the shared upfront seeding is skipped to avoid a second
+		// item_queued event per child (which doubled --stream output). The started
+		// event already seeds every item into the snapshot.
 		return m.runTaskMultiParallelQueue(active, prepared, total)
 	default:
+		if err := m.emitTaskMultiItemsQueued(active, prepared, total); err != nil {
+			return err
+		}
 		return m.runTaskMultiEnqueuedQueue(active, prepared, total)
 	}
 }
@@ -384,8 +388,10 @@ func (m *RunManager) emitTaskMultiQueueStarted(active *activeRun, prepared *prep
 }
 
 // emitTaskMultiItemsQueued emits one ordered "item queued" event per prepared
-// child. Every scheduler branch queues all items before any child starts so
-// snapshots seed items in requested order regardless of mode.
+// child. The enqueued branch uses it to seed all items before any child starts;
+// the parallel branch skips it and instead re-emits item_queued with worktree
+// metadata per child as it is allocated, relying on the started event for upfront
+// snapshot seeding.
 func (m *RunManager) emitTaskMultiItemsQueued(active *activeRun, prepared *preparedTaskMulti, total int) error {
 	for idx, item := range prepared.items {
 		if err := m.emitTaskMultiItemEvent(

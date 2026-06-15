@@ -3897,3 +3897,22 @@ func TestArchiveCommandWorkspaceWideUsesFilesystemWhenDaemonCatalogIsEmpty(t *te
 		t.Fatalf("expected skip reason for beta, got %#v", payload.SkippedReasons)
 	}
 }
+
+func TestStreamTaskRunMultipleToTerminalSkipsHandoffOnCanceledContext(t *testing.T) {
+	t.Run("Should exit cleanly without fetching the handoff when the context is canceled", func(t *testing.T) {
+		client := &stubDaemonCommandClient{
+			stream:           newStaticClientRunStream(),
+			multiSnapshotErr: errors.New("handoff snapshot must not be fetched after cancel"),
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // simulate Ctrl+C before the queue settles
+
+		cmd := &cobra.Command{}
+		cmd.SetOut(io.Discard)
+		cmd.SetErr(io.Discard)
+
+		if err := streamTaskRunMultipleToTerminal(ctx, cmd, client, "run-task-multi-cancel"); err != nil {
+			t.Fatalf("streamTaskRunMultipleToTerminal() = %v, want nil (clean Ctrl+C exit, handoff skipped)", err)
+		}
+	})
+}
