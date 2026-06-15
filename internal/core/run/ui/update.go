@@ -77,6 +77,8 @@ func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
 		return m.applyUIMsg(v), true
 	case usageUpdateMsg:
 		return m.applyUIMsg(v), true
+	case runStatusMsg:
+		return m.applyUIMsg(v), true
 	case shutdownStatusMsg:
 		return m.applyUIMsg(v), true
 	case jobFailureMsg:

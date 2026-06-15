@@ -306,6 +306,21 @@ func TestJobControlCommandsUseModelContext(t *testing.T) {
 	})
 }
 
+func TestUpdateDispatchesSingleRunStatusMsg(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(0)
+
+	_, cmd := m.Update(runStatusMsg{Status: " completed "})
+
+	if cmd != nil {
+		t.Fatalf("expected run status update to stay local, got command %T", cmd)
+	}
+	if got := m.runStatus; got != remoteRunStatusCompleted {
+		t.Fatalf("runStatus after single message update = %q, want %q", got, remoteRunStatusCompleted)
+	}
+}
+
 func TestHandleKeyQuitsOnceRunCompletes(t *testing.T) {
 	t.Parallel()
 
