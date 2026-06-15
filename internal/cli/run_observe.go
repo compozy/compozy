@@ -625,19 +625,82 @@ func renderObservedTaskMultiItem(event eventspkg.Event, fallbackStatus string) (
 		return fmt.Sprintf("task %s\n", fallbackStatus), true
 	}
 	status := firstNonEmpty(payload.Status, fallbackStatus)
-	label := observedTaskMultiLabel(payload)
-	childRunID := strings.TrimSpace(payload.ChildRunID)
-	message := strings.TrimSpace(payload.Error)
-	switch {
-	case childRunID != "" && message != "":
-		return fmt.Sprintf("%s %s | run=%s | %s\n", label, status, childRunID, message), true
-	case childRunID != "":
-		return fmt.Sprintf("%s %s | run=%s\n", label, status, childRunID), true
-	case message != "":
-		return fmt.Sprintf("%s %s | %s\n", label, status, message), true
-	default:
-		return fmt.Sprintf("%s %s\n", label, status), true
+	segments := []string{fmt.Sprintf("%s %s", observedTaskMultiLabel(payload), status)}
+	if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
+		segments = append(segments, "run="+childRunID)
 	}
+	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
+		segments = append(segments, "worktree="+worktreePath)
+	}
+	if message := strings.TrimSpace(payload.Error); message != "" {
+		segments = append(segments, message)
+	}
+	return strings.Join(segments, " | ") + "\n", true
+}
+
+// writeTaskRunMultipleHandoff fetches the terminal parent snapshot and writes a
+// per-child handoff summary so non-UI callers can locate every preserved
+// worktree after the queue settles.
+func writeTaskRunMultipleHandoff(
+	ctx context.Context,
+	dst io.Writer,
+	client daemonCommandClient,
+	runID string,
+) error {
+	snapshot, err := client.GetTaskRunMultipleSnapshot(ctx, runID)
+	if err != nil {
+		return mapDaemonCommandError(err)
+	}
+	return renderTaskRunMultipleHandoff(dst, snapshot)
+}
+
+func renderTaskRunMultipleHandoff(dst io.Writer, snapshot apicore.TaskRunMultipleSnapshot) error {
+	if dst == nil {
+		return nil
+	}
+	for _, line := range formatTaskRunMultipleHandoff(snapshot) {
+		if _, err := io.WriteString(dst, line); err != nil {
+			return withExitCode(2, fmt.Errorf("write task multi-run handoff: %w", err))
+		}
+	}
+	return nil
+}
+
+// formatTaskRunMultipleHandoff renders the children in requested (snapshot) order.
+func formatTaskRunMultipleHandoff(snapshot apicore.TaskRunMultipleSnapshot) []string {
+	if len(snapshot.Items) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(snapshot.Items)+1)
+	lines = append(lines, "task multi-run handoff:\n")
+	for i := range snapshot.Items {
+		lines = append(lines, formatTaskRunMultipleHandoffItem(&snapshot.Items[i]))
+	}
+	return lines
+}
+
+func formatTaskRunMultipleHandoffItem(item *apicore.TaskRunMultipleItem) string {
+	segments := []string{
+		fmt.Sprintf("  %s %s", firstNonEmpty(item.Slug, "(unknown)"), firstNonEmpty(item.Status, "unknown")),
+		"run=" + handoffValueOrDash(item.RunID),
+		"worktree=" + handoffValueOrDash(item.WorktreePath),
+	}
+	if branch := strings.TrimSpace(item.BaseBranch); branch != "" {
+		segments = append(segments, "branch="+branch)
+	}
+	if message := strings.TrimSpace(item.ErrorText); message != "" {
+		segments = append(segments, message)
+	}
+	return strings.Join(segments, " | ") + "\n"
+}
+
+// handoffValueOrDash renders an empty/unknown field as "-" for backward
+// compatibility with snapshots that predate worktree metadata.
+func handoffValueOrDash(value string) string {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
+	}
+	return "-"
 }
 
 func observedTaskMultiLabel(payload kinds.TaskRunMultiplePayload) string {

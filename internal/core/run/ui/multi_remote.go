@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	multiRunTabsHeight = 2
+	// multiRunTabsHeight reserves rows for the tab strip: the tab line, the
+	// active-tab worktree status line, and the separator.
+	multiRunTabsHeight = 3
 
 	taskMultiStatusQueued    = "queued"
 	taskMultiStatusRunning   = "running"
@@ -46,13 +48,17 @@ type RemoteMultiRunAttachOptions struct {
 }
 
 type multiRunTab struct {
-	slug       string
-	status     string
-	runID      string
-	errorText  string
-	child      *uiModel
-	translator *uiEventTranslator
-	terminal   bool
+	slug           string
+	status         string
+	runID          string
+	errorText      string
+	worktreePath   string
+	baseBranch     string
+	baseCommit     string
+	worktreeStatus string
+	child          *uiModel
+	translator     *uiEventTranslator
+	terminal       bool
 }
 
 type multiRunModel struct {
@@ -205,12 +211,16 @@ func newMultiRunTab(item *apicore.TaskRunMultipleItem) multiRunTab {
 		status = taskMultiStatusQueued
 	}
 	return multiRunTab{
-		slug:       strings.TrimSpace(item.Slug),
-		status:     status,
-		runID:      strings.TrimSpace(item.RunID),
-		errorText:  strings.TrimSpace(item.ErrorText),
-		translator: newUIEventTranslator(),
-		terminal:   isTerminalTaskMultiStatus(status),
+		slug:           strings.TrimSpace(item.Slug),
+		status:         status,
+		runID:          strings.TrimSpace(item.RunID),
+		errorText:      strings.TrimSpace(item.ErrorText),
+		worktreePath:   strings.TrimSpace(item.WorktreePath),
+		baseBranch:     strings.TrimSpace(item.BaseBranch),
+		baseCommit:     strings.TrimSpace(item.BaseCommit),
+		worktreeStatus: strings.TrimSpace(item.WorktreeStatus),
+		translator:     newUIEventTranslator(),
+		terminal:       isTerminalTaskMultiStatus(status),
 	}
 }
 
@@ -683,9 +693,29 @@ func (m *multiRunModel) applyTaskMultiItem(ev events.Event) {
 	if errorText := strings.TrimSpace(payload.Error); errorText != "" {
 		tab.errorText = errorText
 	}
+	applyTaskMultiWorktreeMetadata(tab, payload)
 	tab.terminal = isTerminalTaskMultiStatus(tab.status)
 	if idx == m.activeTab && tab.terminal {
 		m.advanceActiveTabAfterTerminal()
+	}
+}
+
+// applyTaskMultiWorktreeMetadata merges non-empty worktree fields from a parent
+// payload into the tab. Empty fields are ignored so a later event without
+// worktree metadata never erases a previously observed value (idempotent refine,
+// mirroring the daemon snapshot builder).
+func applyTaskMultiWorktreeMetadata(tab *multiRunTab, payload kinds.TaskRunMultiplePayload) {
+	if path := strings.TrimSpace(payload.WorktreePath); path != "" {
+		tab.worktreePath = path
+	}
+	if branch := strings.TrimSpace(payload.BaseBranch); branch != "" {
+		tab.baseBranch = branch
+	}
+	if commit := strings.TrimSpace(payload.BaseCommit); commit != "" {
+		tab.baseCommit = commit
+	}
+	if status := strings.TrimSpace(payload.WorktreeStatus); status != "" {
+		tab.worktreeStatus = status
 	}
 }
 
@@ -794,7 +824,56 @@ func (m *multiRunModel) renderTabs() string {
 		bg,
 		renderStyledOnBackground(styleSeparator, bg, strings.Repeat("─", m.width)),
 	)
-	return line + "\n" + separator
+	return line + "\n" + m.renderActiveTabWorktreeLine() + "\n" + separator
+}
+
+// renderActiveTabWorktreeLine renders the worktree handoff status for the active
+// tab below the tab strip. It always renders one owned line so the worktree path
+// and preservation status stay visible while a child transcript fills the body.
+func (m *multiRunModel) renderActiveTabWorktreeLine() string {
+	bg := colorBgBase
+	summary := formatMultiRunWorktreeSummary(m.activeTabState())
+	body := renderGap(bg, 1) + renderStyledOnBackground(
+		styleMutedText,
+		bg,
+		truncateString(summary, max(m.width-2, 1)),
+	)
+	return renderOwnedLineKnownOwned(m.width, bg, body)
+}
+
+// formatMultiRunWorktreeSummary builds a single-line worktree handoff summary for
+// a tab. Missing metadata renders as an em dash so older snapshots without
+// worktree fields stay backward compatible.
+func formatMultiRunWorktreeSummary(tab *multiRunTab) string {
+	if tab == nil {
+		return "worktree —"
+	}
+	segments := make([]string, 0, 3)
+	segments = append(segments, "worktree "+multiRunWorktreeLabel(tab))
+	if branch := strings.TrimSpace(tab.baseBranch); branch != "" {
+		segments = append(segments, "branch "+branch)
+	}
+	if runID := strings.TrimSpace(tab.runID); runID != "" {
+		segments = append(segments, "run "+runID)
+	}
+	return strings.Join(segments, "   ")
+}
+
+// multiRunWorktreeLabel composes the preservation status and worktree path,
+// falling back to an em dash when neither is known.
+func multiRunWorktreeLabel(tab *multiRunTab) string {
+	status := strings.TrimSpace(tab.worktreeStatus)
+	path := strings.TrimSpace(tab.worktreePath)
+	switch {
+	case path != "" && status != "":
+		return status + " " + path
+	case path != "":
+		return path
+	case status != "":
+		return status
+	default:
+		return "—"
+	}
 }
 
 func (m *multiRunModel) renderActiveTabContent() string {

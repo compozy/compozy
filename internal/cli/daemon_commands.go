@@ -1075,15 +1075,7 @@ func handleStartedTaskRunMultiple(
 	if run.PresentationMode == attachModeUI {
 		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
 			if errors.Is(err, errRunSettledBeforeUIAttach) {
-				if watchErr := watchCLIRunUntilTerminalSuccess(
-					ctx,
-					cmd.OutOrStdout(),
-					client,
-					run.RunID,
-				); watchErr != nil {
-					return mapDaemonCommandError(watchErr)
-				}
-				return nil
+				return streamTaskRunMultipleToTerminal(ctx, cmd, client, run.RunID)
 			}
 			return mapDaemonCommandError(err)
 		}
@@ -1095,10 +1087,25 @@ func handleStartedTaskRunMultiple(
 	if run.PresentationMode != attachModeStream {
 		return nil
 	}
-	if err := watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
-		return mapDaemonCommandError(err)
+	return streamTaskRunMultipleToTerminal(ctx, cmd, client, run.RunID)
+}
+
+// streamTaskRunMultipleToTerminal streams the parent queue until it settles, then
+// always writes the final per-child worktree handoff. The aggregate watch error
+// (failed/canceled/crashed -> exit 1) takes precedence so the command still exits
+// non-zero, while the handoff is printed best-effort even on failure.
+func streamTaskRunMultipleToTerminal(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+	runID string,
+) error {
+	watchErr := watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, runID)
+	handoffErr := writeTaskRunMultipleHandoff(ctx, cmd.OutOrStdout(), client, runID)
+	if watchErr != nil {
+		return mapDaemonCommandError(watchErr)
 	}
-	return nil
+	return handoffErr
 }
 
 func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {

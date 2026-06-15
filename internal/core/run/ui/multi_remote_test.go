@@ -1024,3 +1024,187 @@ func (s *recordingMultiRunSession) withModel(fn func(*multiRunModel)) {
 	defer s.mu.Unlock()
 	fn(s.model)
 }
+
+func TestMultiRunInitialSnapshotRendersWorktreeForSelectedChild(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render worktree path and preservation status from the snapshot", func(t *testing.T) {
+		worktreePath := "/home/dev/.compozy/state/worktrees/abc123/parent01/01-alpha"
+		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+			Snapshot: apicore.TaskRunMultipleSnapshot{
+				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+				Items: []apicore.TaskRunMultipleItem{
+					{
+						Slug:           "alpha",
+						Status:         taskMultiStatusRunning,
+						RunID:          "run-alpha",
+						WorktreePath:   worktreePath,
+						BaseBranch:     "main",
+						BaseCommit:     "deadbeef",
+						WorktreeStatus: "preserved",
+					},
+					{Slug: "beta", Status: taskMultiStatusQueued},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+		}
+		mdl.handleWindowSize(tea.WindowSizeMsg{Width: 200, Height: 40})
+
+		if got := mdl.tabs[0].worktreePath; got != worktreePath {
+			t.Fatalf("tab worktree path = %q, want %q", got, worktreePath)
+		}
+		view := mdl.View().Content
+		for _, want := range []string{worktreePath, "preserved", "branch main", "run run-alpha"} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("expected view to contain %q, got %q", want, view)
+			}
+		}
+	})
+}
+
+func TestMultiRunChildStartedEventAppliesWorktreeMetadataToTab(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply worktree metadata from a child-started event to an existing tab", func(t *testing.T) {
+		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+			Snapshot: apicore.TaskRunMultipleSnapshot{
+				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+				Items: []apicore.TaskRunMultipleItem{
+					{Slug: "alpha", Status: taskMultiStatusQueued},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+		}
+		mdl.handleWindowSize(tea.WindowSizeMsg{Width: 200, Height: 40})
+
+		worktreePath := "/home/dev/.compozy/state/worktrees/abc123/parent01/01-alpha"
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug:           "alpha",
+				Index:          0,
+				Status:         taskMultiStatusRunning,
+				ChildRunID:     "run-alpha",
+				WorktreePath:   worktreePath,
+				BaseBranch:     "main",
+				BaseCommit:     "deadbeef",
+				WorktreeStatus: "preserved",
+			},
+		))
+
+		tab := mdl.tabs[0]
+		if tab.worktreePath != worktreePath || tab.baseBranch != "main" || tab.worktreeStatus != "preserved" {
+			t.Fatalf("worktree metadata not applied to tab: %#v", tab)
+		}
+		if tab.runID != "run-alpha" {
+			t.Fatalf("tab run id = %q, want run-alpha", tab.runID)
+		}
+		if view := mdl.View().Content; !strings.Contains(view, worktreePath) {
+			t.Fatalf("expected view to contain worktree path %q, got %q", worktreePath, view)
+		}
+	})
+
+	t.Run("Should preserve worktree metadata when a later event omits it", func(t *testing.T) {
+		mdl := &multiRunModel{
+			parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			width:      200,
+			height:     40,
+			cfg:        &config{},
+			quitDialog: newQuitDialogState(),
+			tabs: []multiRunTab{{
+				slug:           "alpha",
+				status:         taskMultiStatusRunning,
+				runID:          "run-alpha",
+				worktreePath:   "/wt/01-alpha",
+				worktreeStatus: "preserved",
+				translator:     newUIEventTranslator(),
+			}},
+		}
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				Slug:       "alpha",
+				Index:      0,
+				Status:     taskMultiStatusCompleted,
+				ChildRunID: "run-alpha",
+			},
+		))
+		if got := mdl.tabs[0].worktreePath; got != "/wt/01-alpha" {
+			t.Fatalf("worktree path overwritten by metadata-free event: %q", got)
+		}
+		if got := mdl.tabs[0].status; got != taskMultiStatusCompleted {
+			t.Fatalf("status = %q, want completed", got)
+		}
+	})
+}
+
+func TestMultiRunSnapshotWithoutWorktreeMetadataRendersDash(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render an em dash and not panic when metadata is absent", func(t *testing.T) {
+		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+			Snapshot: apicore.TaskRunMultipleSnapshot{
+				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+				Items: []apicore.TaskRunMultipleItem{
+					{Slug: "alpha", Status: taskMultiStatusQueued},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+		}
+		mdl.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
+
+		if view := mdl.View().Content; !strings.Contains(view, "worktree —") {
+			t.Fatalf("expected empty worktree to render as em dash, got %q", view)
+		}
+	})
+}
+
+func TestFormatMultiRunWorktreeSummary(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		tab  *multiRunTab
+		want string
+	}{
+		{name: "Should render dash for nil tab", tab: nil, want: "worktree —"},
+		{name: "Should render dash when no metadata", tab: &multiRunTab{slug: "alpha"}, want: "worktree —"},
+		{
+			name: "Should render status and path",
+			tab:  &multiRunTab{worktreePath: "/wt/01", worktreeStatus: "preserved"},
+			want: "worktree preserved /wt/01",
+		},
+		{
+			name: "Should render path only",
+			tab:  &multiRunTab{worktreePath: "/wt/01"},
+			want: "worktree /wt/01",
+		},
+		{
+			name: "Should render status only",
+			tab:  &multiRunTab{worktreeStatus: "preserved"},
+			want: "worktree preserved",
+		},
+		{
+			name: "Should append branch and run id",
+			tab:  &multiRunTab{worktreePath: "/wt/01", worktreeStatus: "preserved", baseBranch: "main", runID: "run-1"},
+			want: "worktree preserved /wt/01   branch main   run run-1",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := formatMultiRunWorktreeSummary(tc.tab); got != tc.want {
+				t.Fatalf("formatMultiRunWorktreeSummary() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

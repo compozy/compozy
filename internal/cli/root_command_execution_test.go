@@ -1409,6 +1409,225 @@ run_multiple_mode = "parallel"
 	})
 }
 
+const taskRunMultipleStreamRunID = "run-task-multi-stream"
+
+func taskMultiStreamEvent(
+	t *testing.T,
+	seq uint64,
+	kind eventspkg.EventKind,
+	payload kinds.TaskRunMultiplePayload,
+) apiclient.RunStreamItem {
+	t.Helper()
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal multi payload: %v", err)
+	}
+	return apiclient.RunStreamItem{Event: &eventspkg.Event{
+		SchemaVersion: eventspkg.SchemaVersion,
+		RunID:         taskRunMultipleStreamRunID,
+		Seq:           seq,
+		Kind:          kind,
+		Timestamp:     time.Date(2026, 4, 17, 13, 9, int(seq), 0, time.UTC),
+		Payload:       raw,
+	}}
+}
+
+func taskMultiStreamTerminalEvent(
+	t *testing.T,
+	seq uint64,
+	kind eventspkg.EventKind,
+	payload any,
+) apiclient.RunStreamItem {
+	t.Helper()
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal terminal payload: %v", err)
+	}
+	return apiclient.RunStreamItem{Event: &eventspkg.Event{
+		SchemaVersion: eventspkg.SchemaVersion,
+		RunID:         taskRunMultipleStreamRunID,
+		Seq:           seq,
+		Kind:          kind,
+		Timestamp:     time.Date(2026, 4, 17, 13, 9, int(seq), 0, time.UTC),
+		Payload:       raw,
+	}}
+}
+
+func runTasksRunMultipleStreamScenario(
+	t *testing.T,
+	stream *staticClientRunStream,
+	parentRun apicore.Run,
+	multiSnapshot apicore.TaskRunMultipleSnapshot,
+) (string, string, error) {
+	t.Helper()
+
+	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Alpha Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Alpha Task",
+	))
+	writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+	withWorkingDir(t, workspaceRoot)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startMultipleRun: apicore.Run{
+			RunID:            taskRunMultipleStreamRunID,
+			Mode:             "task_multi",
+			Status:           "running",
+			PresentationMode: attachModeStream,
+			StartedAt:        time.Date(2026, 4, 17, 13, 9, 0, 0, time.UTC),
+		},
+		stream:        stream,
+		snapshot:      apicore.RunSnapshot{Run: parentRun},
+		multiSnapshot: multiSnapshot,
+	}
+	installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	return executeCommandCapturingProcessIO(
+		t, cmd, nil,
+		"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream",
+	)
+}
+
+func TestTasksRunMultipleStreamPrintsWorktreeHandoff(t *testing.T) {
+	t.Run("Should print final status and worktree paths for every child", func(t *testing.T) {
+		stream := newStaticClientRunStream()
+		stream.items <- taskMultiStreamEvent(t, 1, eventspkg.EventKindTaskRunMultipleStarted,
+			kinds.TaskRunMultiplePayload{Mode: "parallel", Slugs: []string{"alpha", "beta"}, Total: 2, ParallelLimit: 2})
+		stream.items <- taskMultiStreamEvent(t, 2, eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "running",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			})
+		stream.items <- taskMultiStreamEvent(t, 3, eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "beta", Index: 1, Total: 2, Status: "running",
+				ChildRunID: "child-beta", WorktreePath: "/wt/02-beta",
+			})
+		stream.items <- taskMultiStreamEvent(t, 4, eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "completed",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			})
+		stream.items <- taskMultiStreamEvent(t, 5, eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "beta", Index: 1, Total: 2, Status: "completed",
+				ChildRunID: "child-beta", WorktreePath: "/wt/02-beta",
+			})
+		stream.items <- taskMultiStreamEvent(t, 6, eventspkg.EventKindTaskRunMultipleQueueCompleted,
+			kinds.TaskRunMultiplePayload{Total: 2})
+		stream.items <- taskMultiStreamTerminalEvent(t, 7, eventspkg.EventKindRunCompleted, kinds.RunCompletedPayload{})
+		close(stream.items)
+
+		parentRun := apicore.Run{RunID: taskRunMultipleStreamRunID, Mode: "task_multi", Status: "completed"}
+		multiSnapshot := apicore.TaskRunMultipleSnapshot{
+			Run: parentRun,
+			Items: []apicore.TaskRunMultipleItem{
+				{
+					Slug: "alpha", Status: "completed", RunID: "child-alpha",
+					WorktreePath: "/wt/01-alpha", WorktreeStatus: "preserved",
+				},
+				{
+					Slug: "beta", Status: "completed", RunID: "child-beta",
+					WorktreePath: "/wt/02-beta", WorktreeStatus: "preserved",
+				},
+			},
+		}
+		stdout, stderr, err := runTasksRunMultipleStreamScenario(t, stream, parentRun, multiSnapshot)
+		if err != nil {
+			t.Fatalf("execute stream: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		for _, want := range []string{
+			"task multi-run started: " + taskRunMultipleStreamRunID + " (mode=stream)",
+			"task[1/2] alpha running | run=child-alpha | worktree=/wt/01-alpha",
+			"task[2/2] beta running | run=child-beta | worktree=/wt/02-beta",
+			"task multi-run handoff:",
+			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha",
+			"  beta completed | run=child-beta | worktree=/wt/02-beta",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("stdout missing %q\nstdout:\n%s", want, stdout)
+			}
+		}
+	})
+}
+
+func TestTasksRunMultipleStreamReportsAggregateFailureWithPaths(t *testing.T) {
+	t.Run("Should print aggregate failure and each child path with non-zero exit", func(t *testing.T) {
+		stream := newStaticClientRunStream()
+		stream.items <- taskMultiStreamEvent(t, 1, eventspkg.EventKindTaskRunMultipleStarted,
+			kinds.TaskRunMultiplePayload{Mode: "parallel", Slugs: []string{"alpha", "beta"}, Total: 2, ParallelLimit: 2})
+		stream.items <- taskMultiStreamEvent(t, 2, eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "running",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			})
+		stream.items <- taskMultiStreamEvent(t, 3, eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "beta", Index: 1, Total: 2, Status: "running",
+				ChildRunID: "child-beta", WorktreePath: "/wt/02-beta",
+			})
+		stream.items <- taskMultiStreamEvent(t, 4, eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "completed",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			})
+		stream.items <- taskMultiStreamEvent(t, 5, eventspkg.EventKindTaskRunMultipleChildFailed,
+			kinds.TaskRunMultiplePayload{
+				Slug: "beta", Index: 1, Total: 2, Status: "failed",
+				ChildRunID: "child-beta", WorktreePath: "/wt/02-beta", Error: "boom",
+			})
+		stream.items <- taskMultiStreamEvent(t, 6, eventspkg.EventKindTaskRunMultipleQueueCompleted,
+			kinds.TaskRunMultiplePayload{Total: 2})
+		stream.items <- taskMultiStreamTerminalEvent(t, 7, eventspkg.EventKindRunFailed,
+			kinds.RunFailedPayload{Error: "1 task failed: beta"})
+		close(stream.items)
+
+		parentRun := apicore.Run{
+			RunID: taskRunMultipleStreamRunID, Mode: "task_multi",
+			Status: "failed", ErrorText: "1 task failed: beta",
+		}
+		multiSnapshot := apicore.TaskRunMultipleSnapshot{
+			Run: parentRun,
+			Items: []apicore.TaskRunMultipleItem{
+				{
+					Slug: "alpha", Status: "completed", RunID: "child-alpha",
+					WorktreePath: "/wt/01-alpha", WorktreeStatus: "preserved",
+				},
+				{
+					Slug: "beta", Status: "failed", RunID: "child-beta",
+					WorktreePath: "/wt/02-beta", WorktreeStatus: "preserved", ErrorText: "boom",
+				},
+			},
+		}
+		stdout, stderr, err := runTasksRunMultipleStreamScenario(t, stream, parentRun, multiSnapshot)
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			t.Fatalf("expected exit code 1, got %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		for _, want := range []string{
+			"run failed | 1 task failed: beta",
+			"task multi-run handoff:",
+			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha",
+			"  beta failed | run=child-beta | worktree=/wt/02-beta | boom",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("stdout missing %q\nstdout:\n%s", want, stdout)
+			}
+		}
+	})
+}
+
 func TestTasksRunCommandRejectsParallelFlagsWithoutMultiple(t *testing.T) {
 	cases := []struct {
 		name string

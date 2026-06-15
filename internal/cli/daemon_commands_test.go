@@ -1465,6 +1465,107 @@ func TestRenderObservedTaskMultiLifecycleFallbacks(t *testing.T) {
 	}
 }
 
+func TestRenderObservedTaskMultiItemIncludesWorktreePath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		kind    eventspkg.EventKind
+		payload kinds.TaskRunMultiplePayload
+		want    string
+	}{
+		{
+			name: "Should include worktree path on child started",
+			kind: eventspkg.EventKindTaskRunMultipleChildStarted,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "running",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			},
+			want: "task[1/2] alpha running | run=child-alpha | worktree=/wt/01-alpha\n",
+		},
+		{
+			name: "Should include worktree path on child completed",
+			kind: eventspkg.EventKindTaskRunMultipleChildCompleted,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "completed",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			},
+			want: "task[1/2] alpha completed | run=child-alpha | worktree=/wt/01-alpha\n",
+		},
+		{
+			name: "Should include worktree path and error on child failed",
+			kind: eventspkg.EventKindTaskRunMultipleChildFailed,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug: "beta", Index: 1, Total: 2, Status: "failed",
+				ChildRunID: "child-beta", WorktreePath: "/wt/02-beta", Error: "boom",
+			},
+			want: "task[2/2] beta failed | run=child-beta | worktree=/wt/02-beta | boom\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+			got := renderObservedRunEvent(eventspkg.Event{Kind: tc.kind, Payload: raw})
+			if got != tc.want {
+				t.Fatalf("renderObservedRunEvent() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFormatTaskRunMultipleHandoff(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should format children in requested order", func(t *testing.T) {
+		t.Parallel()
+		snapshot := apicore.TaskRunMultipleSnapshot{
+			Items: []apicore.TaskRunMultipleItem{
+				{
+					Slug: "alpha", Status: "completed", RunID: "child-alpha",
+					WorktreePath: "/wt/01-alpha", BaseBranch: "main",
+				},
+				{
+					Slug: "beta", Status: "failed", RunID: "child-beta",
+					WorktreePath: "/wt/02-beta", ErrorText: "boom",
+				},
+			},
+		}
+		lines := formatTaskRunMultipleHandoff(snapshot)
+		want := []string{
+			"task multi-run handoff:\n",
+			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha | branch=main\n",
+			"  beta failed | run=child-beta | worktree=/wt/02-beta | boom\n",
+		}
+		if !slices.Equal(lines, want) {
+			t.Fatalf("formatTaskRunMultipleHandoff() = %#v, want %#v", lines, want)
+		}
+	})
+
+	t.Run("Should render dash for missing worktree metadata", func(t *testing.T) {
+		t.Parallel()
+		snapshot := apicore.TaskRunMultipleSnapshot{
+			Items: []apicore.TaskRunMultipleItem{{Slug: "alpha", Status: "completed"}},
+		}
+		lines := formatTaskRunMultipleHandoff(snapshot)
+		if len(lines) != 2 || lines[1] != "  alpha completed | run=- | worktree=-\n" {
+			t.Fatalf("unexpected handoff lines: %#v", lines)
+		}
+	})
+
+	t.Run("Should return nil when no items", func(t *testing.T) {
+		t.Parallel()
+		if lines := formatTaskRunMultipleHandoff(apicore.TaskRunMultipleSnapshot{}); lines != nil {
+			t.Fatalf("expected nil handoff, got %#v", lines)
+		}
+	})
+}
+
 func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
 	acquireCLITestGlobalOverride(t)
 
