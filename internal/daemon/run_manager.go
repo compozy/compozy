@@ -141,6 +141,11 @@ type activeRun struct {
 	stateMu         sync.RWMutex
 	cancelRequested bool
 	closeTimeout    time.Duration
+
+	// emitMu serializes parent multi-run event emission. Parallel-mode child
+	// workers emit item lifecycle events concurrently; serializing the emit path
+	// keeps each event atomic and preserves per-item ordering on the journal.
+	emitMu sync.Mutex
 }
 
 type runtimeOverrideInput struct {

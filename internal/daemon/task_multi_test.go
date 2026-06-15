@@ -18,6 +18,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -1275,4 +1276,323 @@ func assertTaskMultiWorktreeMetadataBeforeChildStart(t *testing.T, parentRunID s
 		t.Fatalf("worktree metadata event index %d for %s must precede child-started index %d",
 			metadataIdx, slug, startedIdx)
 	}
+}
+
+func startTaskMultiParallelRunWithLimit(
+	t *testing.T,
+	env *runManagerTestEnv,
+	runID string,
+	slugs []string,
+	limit int,
+) apicore.Run {
+	t.Helper()
+	run, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Slugs:            slugs,
+			Mode:             "parallel",
+			ParallelLimit:    limit,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple(parallel limit=%d %v) error = %v", limit, slugs, err)
+	}
+	return run
+}
+
+func TestResolveTaskMultiParallelLimit(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name       string
+		request    int
+		configured int
+		want       int
+	}{
+		{name: "Should prefer a positive request limit over config", request: 3, configured: 2, want: 3},
+		{name: "Should use the configured limit when the request is zero", request: 0, configured: 5, want: 5},
+		{
+			name:       "Should default when both request and config are unset",
+			request:    0,
+			configured: 0,
+			want:       workspacecfg.DefaultRunMultipleParallelLimit,
+		},
+		{name: "Should use the configured limit when the request is negative", request: -1, configured: 4, want: 4},
+		{
+			name:       "Should clamp a non-positive configured limit to the default",
+			request:    0,
+			configured: -2,
+			want:       workspacecfg.DefaultRunMultipleParallelLimit,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := resolveTaskMultiParallelLimit(tc.request, tc.configured); got != tc.want {
+				t.Fatalf("resolveTaskMultiParallelLimit(%d, %d) = %d, want %d", tc.request, tc.configured, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAggregateTaskMultiParallelResult(t *testing.T) {
+	t.Parallel()
+	items := []preparedTaskMultiItem{{slug: "alpha"}, {slug: "beta"}, {slug: "gamma"}}
+	t.Run("Should return nil when every child succeeds", func(t *testing.T) {
+		t.Parallel()
+		if err := aggregateTaskMultiParallelResult(items, []error{nil, nil, nil}); err != nil {
+			t.Fatalf("aggregateTaskMultiParallelResult() = %v, want nil", err)
+		}
+	})
+	t.Run("Should name the single failed slug and count", func(t *testing.T) {
+		t.Parallel()
+		err := aggregateTaskMultiParallelResult(items, []error{nil, errors.New("boom"), nil})
+		if err == nil {
+			t.Fatal("aggregateTaskMultiParallelResult() = nil, want error")
+		}
+		if !strings.Contains(err.Error(), "beta") {
+			t.Fatalf("error %q must name the failed slug beta", err)
+		}
+		if !strings.Contains(err.Error(), "1 of 3") {
+			t.Fatalf("error %q must report 1 of 3 children failed", err)
+		}
+		if !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("error %q must wrap the underlying child error", err)
+		}
+	})
+	t.Run("Should name every failed slug in queue order", func(t *testing.T) {
+		t.Parallel()
+		err := aggregateTaskMultiParallelResult(items, []error{errors.New("a"), nil, errors.New("c")})
+		if err == nil {
+			t.Fatal("aggregateTaskMultiParallelResult() = nil, want error")
+		}
+		alphaIdx := strings.Index(err.Error(), "alpha")
+		gammaIdx := strings.Index(err.Error(), "gamma")
+		if alphaIdx == -1 || gammaIdx == -1 || alphaIdx > gammaIdx {
+			t.Fatalf("error %q must name alpha before gamma", err)
+		}
+		if !strings.Contains(err.Error(), "2 of 3") {
+			t.Fatalf("error %q must report 2 of 3 children failed", err)
+		}
+	})
+}
+
+func TestRunManagerTaskRunMultipleParallelBoundsConcurrency(t *testing.T) {
+	t.Parallel()
+	t.Run("Should never run more children concurrently than the resolved limit", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		var (
+			mu          sync.Mutex
+			inFlight    int
+			maxInFlight int
+		)
+		entered := make(chan string, 3)
+		release := make(chan struct{})
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-bound"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				mu.Lock()
+				inFlight++
+				if inFlight > maxInFlight {
+					maxInFlight = inFlight
+				}
+				mu.Unlock()
+				entered <- cfg.Name
+				select {
+				case <-release:
+				case <-ctx.Done():
+				}
+				mu.Lock()
+				inFlight--
+				mu.Unlock()
+				return nil
+			},
+		})
+		for _, slug := range []string{"alpha", "beta", "gamma"} {
+			writeTaskMultiWorkflow(t, env, slug, "pending")
+		}
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		parent := startTaskMultiParallelRunWithLimit(
+			t, env, "task-multi-parallel-bound", []string{"alpha", "beta", "gamma"}, 2,
+		)
+		// Exactly two children may enter execution; the third must wait for a slot.
+		<-entered
+		<-entered
+		select {
+		case third := <-entered:
+			close(release)
+			t.Fatalf("third child %q entered execution before a slot freed; limit not enforced", third)
+		default:
+		}
+		close(release)
+		<-entered // the third child proceeds only after a slot frees
+		waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		mu.Lock()
+		got := maxInFlight
+		mu.Unlock()
+		if got != 2 {
+			t.Fatalf("max concurrent children = %d, want 2", got)
+		}
+	})
+}
+
+func TestRunManagerTaskRunMultipleParallelFailLate(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep siblings running after a child fails and fail the parent naming the slug", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		var (
+			mu       sync.Mutex
+			executed []string
+		)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-faillate"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				mu.Lock()
+				executed = append(executed, cfg.Name)
+				mu.Unlock()
+				if cfg.Name == "alpha" {
+					return errors.New("alpha execution boom")
+				}
+				return nil
+			},
+		})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "pending")
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		parent := startTaskMultiParallelRunWithLimit(
+			t, env, "task-multi-parallel-faillate", []string{"alpha", "beta"}, 2,
+		)
+		parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if parentRow.Status != runStatusFailed {
+			t.Fatalf("parent status = %q, want %q", parentRow.Status, runStatusFailed)
+		}
+		if !strings.Contains(parentRow.ErrorText, "alpha") {
+			t.Fatalf("parent error %q must name the failed slug alpha", parentRow.ErrorText)
+		}
+		requireTaskMultiChildRow(t, env, "child-alpha", parent.RunID, runStatusFailed)
+		requireTaskMultiChildRow(t, env, "child-beta", parent.RunID, runStatusCompleted)
+		mu.Lock()
+		ran := append([]string(nil), executed...)
+		mu.Unlock()
+		if !slices.Contains(ran, "beta") {
+			t.Fatalf("beta did not execute; fail-late must keep siblings running, executed=%v", ran)
+		}
+		snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+		if err != nil {
+			t.Fatalf("RunMultipleSnapshot() error = %v", err)
+		}
+		assertTaskMultiItems(t, snapshot.Items, []apicore.TaskRunMultipleItem{
+			{Slug: "alpha", Status: taskMultiItemStatusFailed, RunID: "child-alpha"},
+			{Slug: "beta", Status: taskMultiItemStatusCompleted, RunID: "child-beta"},
+		})
+	})
+}
+
+func TestRunManagerTaskRunMultipleParallelCancellation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should cancel running children and mark not-started items canceled", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		entered := make(chan string, 2)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-cancel"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				entered <- cfg.Name
+				<-ctx.Done()
+				return ctx.Err()
+			},
+		})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "pending")
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		// Limit 1 keeps beta queued (not started) while alpha runs.
+		parent := startTaskMultiParallelRunWithLimit(
+			t, env, "task-multi-parallel-cancel", []string{"alpha", "beta"}, 1,
+		)
+		<-entered // alpha has entered execution; beta is still queued
+		if err := env.manager.Cancel(context.Background(), parent.RunID); err != nil {
+			t.Fatalf("Cancel() error = %v", err)
+		}
+		// Repeated cancellation must not corrupt item state.
+		_ = env.manager.Cancel(context.Background(), parent.RunID)
+
+		waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCancelled
+		})
+		// The running child is canceled; the not-started child never creates a run row.
+		requireTaskMultiChildRow(t, env, "child-alpha", parent.RunID, runStatusCancelled)
+		if _, err := env.globalDB.GetRun(context.Background(), "child-beta"); err == nil {
+			t.Fatal("child-beta run row exists; a not-started item must not create a child run")
+		}
+		snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+		if err != nil {
+			t.Fatalf("RunMultipleSnapshot() error = %v", err)
+		}
+		assertTaskMultiItems(t, snapshot.Items, []apicore.TaskRunMultipleItem{
+			{Slug: "alpha", Status: taskMultiItemStatusCanceled, RunID: "child-alpha"},
+			{Slug: "beta", Status: taskMultiItemStatusCanceled},
+		})
+	})
+}
+
+func TestRunManagerTaskRunMultipleParallelEmitsResolvedLimit(t *testing.T) {
+	t.Parallel()
+	t.Run("Should emit the resolved parallel limit on the queue-started event", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-limitevent"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				return nil
+			},
+		})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "pending")
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		parent := startTaskMultiParallelRunWithLimit(
+			t, env, "task-multi-parallel-limitevent", []string{"alpha", "beta"}, 2,
+		)
+		waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		events := allRunEvents(t, parent.RunID)
+		found := false
+		for idx := range events {
+			if events[idx].Kind != eventspkg.EventKindTaskRunMultipleStarted {
+				continue
+			}
+			payload, err := decodeTaskMultiPayload(events[idx])
+			if err != nil {
+				t.Fatalf("decode started event: %v", err)
+			}
+			found = true
+			if payload.ParallelLimit != 2 {
+				t.Fatalf("started event parallel_limit = %d, want 2", payload.ParallelLimit)
+			}
+		}
+		if !found {
+			t.Fatal("no task.multi.started event found")
+		}
+	})
 }

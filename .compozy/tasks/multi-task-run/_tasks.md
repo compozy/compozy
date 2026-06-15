@@ -11,6 +11,6 @@
 | 05 | Add Git Worktree Allocation and Path Planning | completed | high | task_04 |
 | 06 | Refactor `task_multi` Into a Mode-Aware Scheduler | completed | high | task_03, task_04 |
 | 07 | Register and Remap Parallel Children to Worktree Workspaces | completed | high | task_05, task_06 |
-| 08 | Implement Bounded Parallel Fanout and Fail-Late Aggregation | pending | critical | task_07 |
+| 08 | Implement Bounded Parallel Fanout and Fail-Late Aggregation | completed | critical | task_07 |
 | 09 | Render Parallel Worktree Handoff in TUI and CLI Output | pending | high | task_04, task_08 |
 | 10 | Update Documentation and End-to-End Coverage | pending | medium | task_08, task_09 |
