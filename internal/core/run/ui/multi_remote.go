@@ -12,6 +12,7 @@ import (
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/charmtheme"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
@@ -38,11 +39,19 @@ var (
 type RemoteMultiRunAttachOptions struct {
 	Snapshot          apicore.TaskRunMultipleSnapshot
 	Config            *config
+	WorkspaceRoot     string
 	OwnerSession      bool
 	LoadSnapshot      func(context.Context) (apicore.TaskRunMultipleSnapshot, error)
 	LoadChildSnapshot func(context.Context, string) (apicore.RunSnapshot, error)
 	OpenParentStream  func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error)
 	OpenChildStream   func(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
+	PauseRunJob       func(context.Context, string, string) (apicore.RunJobControlResponse, error)
+	SendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error)
 }
 
 type multiRunTab struct {
@@ -56,16 +65,24 @@ type multiRunTab struct {
 }
 
 type multiRunModel struct {
-	parentRun  apicore.Run
-	tabs       []multiRunTab
-	activeTab  int
-	width      int
-	height     int
-	cfg        *config
-	quitDialog quitDialogState
-	shutdown   shutdownState
-	onQuit     func(uiQuitRequest)
-	now        time.Time
+	parentRun         apicore.Run
+	tabs              []multiRunTab
+	activeTab         int
+	width             int
+	height            int
+	cfg               *config
+	quitDialog        quitDialogState
+	shutdown          shutdownState
+	onQuit            func(uiQuitRequest)
+	now               time.Time
+	spinnerRunning    bool
+	pauseRunJob       func(context.Context, string, string) (apicore.RunJobControlResponse, error)
+	sendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error)
 }
 
 type multiRunController struct {
@@ -159,14 +176,19 @@ func newRemoteMultiRunModel(
 	localCfg := *cfg
 	localCfg.DetachOnly = !opts.OwnerSession
 	localCfg.DaemonOwned = true
+	if workspaceRoot := strings.TrimSpace(opts.WorkspaceRoot); workspaceRoot != "" {
+		localCfg.WorkspaceRoot = workspaceRoot
+	}
 
 	mdl := &multiRunModel{
-		parentRun:  opts.Snapshot.Run,
-		width:      120,
-		height:     40,
-		cfg:        &localCfg,
-		quitDialog: newQuitDialogState(),
-		now:        time.Now(),
+		parentRun:         opts.Snapshot.Run,
+		width:             120,
+		height:            40,
+		cfg:               &localCfg,
+		quitDialog:        newQuitDialogState(),
+		now:               time.Now(),
+		pauseRunJob:       opts.PauseRunJob,
+		sendRunJobMessage: opts.SendRunJobMessage,
 	}
 	children := make([]initialMultiRunChild, 0, len(opts.Snapshot.Items))
 	for _, item := range opts.Snapshot.Items {
@@ -176,7 +198,14 @@ func newRemoteMultiRunModel(
 			if err != nil {
 				return nil, nil, fmt.Errorf("load child run snapshot %s: %w", tab.runID, err)
 			}
-			tab.applyChildSnapshot(snapshot, mdl.cfg, mdl.childWidth(), mdl.childHeight())
+			tab.applyChildSnapshot(
+				snapshot,
+				mdl.cfg,
+				mdl.childWidth(),
+				mdl.childHeight(),
+				mdl.pauseRunJob,
+				mdl.sendRunJobMessage,
+			)
 			children = append(children, initialMultiRunChild{
 				runID:    tab.runID,
 				cursor:   streamCursorOrZero(snapshot.NextCursor),
@@ -266,6 +295,13 @@ func (c *multiRunController) SetQuitHandler(fn func(uiQuitRequest)) {
 	c.quitHandler = fn
 }
 
+func (c *multiRunController) SetJobControlHandler(
+	func(context.Context, uiJobControlRequest) (jobControlResponse, error),
+) {
+	// Multi-run controls are bound directly to each child uiModel because each tab
+	// targets a distinct daemon run ID.
+}
+
 func (c *multiRunController) requestQuit(req uiQuitRequest) {
 	c.quitHandlerMu.RLock()
 	fn := c.quitHandler
@@ -346,7 +382,9 @@ func followRemoteMultiRunParent(
 			}
 			return apicore.RunSnapshot{Run: snapshot.Run}, nil
 		},
-		OpenStream: opts.OpenParentStream,
+		OpenStream:        opts.OpenParentStream,
+		PauseRunJob:       opts.PauseRunJob,
+		SendRunJobMessage: opts.SendRunJobMessage,
 	}
 	followRemoteRun(ctx, parentSession, followOpts, stream, apicore.StreamCursor{})
 }
@@ -400,6 +438,8 @@ func followRemoteMultiRunChild(
 		OpenStream: func(streamCtx context.Context, after apicore.StreamCursor) (apiclient.RunStream, error) {
 			return opts.OpenChildStream(streamCtx, runID, after)
 		},
+		PauseRunJob:       opts.PauseRunJob,
+		SendRunJobMessage: opts.SendRunJobMessage,
 	}, stream, cursor)
 }
 
@@ -433,7 +473,7 @@ func childRunIDFromTaskMultiEvent(ev events.Event) string {
 }
 
 func (m *multiRunModel) Init() tea.Cmd {
-	return m.clockTick()
+	return tea.Batch(m.clockTick(), m.ensureSpinnerTick())
 }
 
 func (m *multiRunModel) clockTick() tea.Cmd {
@@ -458,7 +498,7 @@ func (m *multiRunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case multiRunChildBootstrapMsg:
 		m.handleChildBootstrap(value)
-		return m, nil
+		return m, m.ensureSpinnerTick()
 	case multiRunChildEventMsg:
 		return m, m.handleChildEvent(value)
 	default:
@@ -479,10 +519,10 @@ func (m *multiRunModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 		return m.handleQuitKey()
 	case keyLeft, "h":
 		m.moveActiveTab(-1)
-		return nil
+		return m.ensureSpinnerTick()
 	case keyRight, "l":
 		m.moveActiveTab(1)
-		return nil
+		return m.ensureSpinnerTick()
 	default:
 		if child := m.activeChild(); child != nil {
 			_, cmd := child.Update(v)
@@ -609,11 +649,52 @@ func (m *multiRunModel) handleClockTick(v clockTickMsg) tea.Cmd {
 	return m.clockTick()
 }
 
+// handleSpinnerTick owns the spinner animation loop at the queue level. It
+// advances only the visible tab's frame (the other tabs are off-screen) but
+// re-schedules the tick whenever ANY tab is still running. This is the fix for
+// the freeze: previously the loop's continuation was delegated to the active
+// child, so switching to a queued/finished tab returned nil and killed the
+// self-perpetuating tea.Tick — and it never restarted when switching back.
 func (m *multiRunModel) handleSpinnerTick(v spinnerTickMsg) tea.Cmd {
-	if child := m.activeChild(); child != nil {
-		return child.handleSpinnerTick(v)
+	m.spinnerRunning = false
+	if !v.at.IsZero() && v.at.After(m.now) {
+		m.now = v.at
 	}
-	return nil
+	if child := m.activeChild(); child != nil {
+		// Advance the visible child's frame; its own reschedule cmd is discarded
+		// because the loop is owned here.
+		child.handleSpinnerTick(v)
+	}
+	return m.ensureSpinnerTick()
+}
+
+func (m *multiRunModel) spinnerTick() tea.Cmd {
+	return tea.Tick(uiSpinnerTickInterval, func(at time.Time) tea.Msg {
+		return spinnerTickMsg{at: at}
+	})
+}
+
+// ensureSpinnerTick (re)starts the spinner loop when any tab is still running and
+// the loop is not already scheduled. Restarting on tab switch and on child job
+// events keeps the visible spinner animating even after the loop has gone idle.
+func (m *multiRunModel) ensureSpinnerTick() tea.Cmd {
+	if m.spinnerRunning || !m.hasAnyActiveTab() {
+		return nil
+	}
+	m.spinnerRunning = true
+	return m.spinnerTick()
+}
+
+func (m *multiRunModel) hasAnyActiveTab() bool {
+	for idx := range m.tabs {
+		if m.tabs[idx].status == taskMultiStatusRunning {
+			return true
+		}
+		if child := m.tabs[idx].child; child != nil && child.hasActiveJobs() {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *multiRunModel) handleParentEvent(ev events.Event) {
@@ -711,7 +792,14 @@ func (m *multiRunModel) handleChildBootstrap(msg multiRunChildBootstrapMsg) {
 	if idx < 0 {
 		return
 	}
-	m.tabs[idx].applyChildSnapshot(msg.Snapshot, m.cfg, m.childWidth(), m.childHeight())
+	m.tabs[idx].applyChildSnapshot(
+		msg.Snapshot,
+		m.cfg,
+		m.childWidth(),
+		m.childHeight(),
+		m.pauseRunJob,
+		m.sendRunJobMessage,
+	)
 	if status := taskMultiStatusFromRunStatus(msg.Snapshot.Run.Status); status != "" {
 		m.tabs[idx].status = status
 		m.tabs[idx].terminal = isTerminalTaskMultiStatus(status)
@@ -725,16 +813,24 @@ func (m *multiRunModel) handleChildEvent(msg multiRunChildEventMsg) tea.Cmd {
 	}
 	tab := &m.tabs[idx]
 	if tab.child == nil {
-		tab.child = newPlaceholderChildModel(tab.slug, m.cfg, m.childWidth(), m.childHeight())
+		tab.child = newPlaceholderChildModelWithControls(
+			tab.slug,
+			firstNonEmpty(tab.runID, msg.RunID),
+			m.cfg,
+			m.childWidth(),
+			m.childHeight(),
+			m.pauseRunJob,
+			m.sendRunJobMessage,
+		)
 	}
 	if tab.translator == nil {
 		tab.translator = newUIEventTranslator()
 	}
-	var cmd tea.Cmd
 	for _, uiMsg := range tab.translator.translateMessages(msg.Event) {
-		if nextCmd := applyChildUIMsg(tab, uiMsg); nextCmd != nil && idx == m.activeTab {
-			cmd = nextCmd
-		}
+		// The child's own command is intentionally discarded: it would only ever
+		// be a spinner tick, and the spinner loop is owned by the queue model via
+		// ensureSpinnerTick below so a single tick drives whichever tab is visible.
+		applyChildUIMsg(tab, uiMsg)
 	}
 	if status := taskMultiStatusFromChildRunEvent(msg.Event.Kind); status != "" {
 		tab.status = status
@@ -743,7 +839,9 @@ func (m *multiRunModel) handleChildEvent(msg multiRunChildEventMsg) tea.Cmd {
 	if idx == m.activeTab && tab.terminal {
 		m.advanceActiveTabAfterTerminal()
 	}
-	return cmd
+	// Start the spinner loop when a child begins work on ANY tab — not only the
+	// visible one — so it is already running when the user switches to it.
+	return m.ensureSpinnerTick()
 }
 
 func (m *multiRunModel) View() tea.View {
@@ -766,34 +864,27 @@ func (m *multiRunModel) renderRoot(content string) tea.View {
 }
 
 func (m *multiRunModel) renderTabs() string {
-	bg := colorBgBase
 	chunks := make([]string, 0, len(m.tabs))
 	for idx := range m.tabs {
 		tab := m.tabs[idx]
 		label := fmt.Sprintf(
-			"%d %s %s",
+			"%s %d %s %s",
+			multiRunStatusGlyph(tab.status),
 			idx+1,
 			firstNonEmpty(tab.slug, tab.runID, "workflow"),
 			strings.ToUpper(tab.status),
 		)
 		style := lipgloss.NewStyle().
 			Padding(0, 1).
-			Background(colorBgSurface).
 			Foreground(multiRunStatusColor(tab.status))
 		if idx == m.activeTab {
 			style = style.Bold(true).Background(colorAccent).Foreground(colorBgBase)
 		}
-		chunks = append(chunks, style.Render(truncateString(label, 32)))
+		chunks = append(chunks, style.Render(truncateString(label, 36)))
 	}
-	left := renderGap(bg, 1) + strings.Join(chunks, renderGap(bg, 1))
-	hint := renderKeycap("←→/hl", bg) + renderGap(bg, 1) + renderStyledOnBackground(styleMutedText, bg, "TABS")
-	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(hint)-1, 1)
-	line := renderOwnedLineKnownOwned(m.width, bg, left+renderGap(bg, gap)+hint)
-	separator := renderOwnedLineKnownOwned(
-		m.width,
-		bg,
-		renderStyledOnBackground(styleSeparator, bg, strings.Repeat("─", m.width)),
-	)
+	hint := charmtheme.Keycap("←→/hl") + renderGap(1) + styleMutedText.Render("TABS")
+	line := renderBrandTabsRow(m.width, chunks, hint)
+	separator := renderOwnedLineKnownOwned(m.width, styleSeparator.Render(strings.Repeat("─", m.width)))
 	return line + "\n" + separator
 }
 
@@ -824,39 +915,22 @@ func (m *multiRunModel) renderQueuedTabContent(tab *multiRunTab) string {
 		errText = strings.TrimSpace(tab.errorText)
 	}
 	lines := []string{
-		renderOwnedLineKnownOwned(innerWidth, colorBgSurface, renderTechLabel("queue."+status, colorBgSurface)),
-		renderOwnedLineKnownOwned(innerWidth, colorBgSurface, ""),
+		renderOwnedLineKnownOwned(innerWidth, renderTechLabel("queue."+status)),
+		renderOwnedLineKnownOwned(innerWidth, ""),
+		renderOwnedLineKnownOwned(innerWidth, styleBodyText.Render(truncateString(slug, innerWidth))),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			colorBgSurface,
-			renderStyledOnBackground(styleBodyText, colorBgSurface, truncateString(slug, innerWidth)),
-		),
-		renderOwnedLineKnownOwned(
-			innerWidth,
-			colorBgSurface,
-			renderStyledOnBackground(
-				styleMutedText,
-				colorBgSurface,
-				truncateString("Child run has not started yet.", innerWidth),
-			),
+			styleMutedText.Render(truncateString("Child run has not started yet.", innerWidth)),
 		),
 	}
 	if errText != "" {
 		lines = append(lines, renderOwnedLineKnownOwned(
 			innerWidth,
-			colorBgSurface,
-			renderStyledOnBackground(styleMutedText, colorBgSurface, truncateString(errText, innerWidth)),
+			styleMutedText.Render(truncateString(errText, innerWidth)),
 		))
 	}
 	panel := innerStyle.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(
-		width,
-		height,
-		lipgloss.Center,
-		lipgloss.Center,
-		panel,
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
-	)
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 func (m *multiRunModel) renderQuitDialogView() tea.View {
@@ -867,7 +941,6 @@ func (m *multiRunModel) renderQuitDialogView() tea.View {
 		lipgloss.Center,
 		lipgloss.Center,
 		panel,
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
 	)
 	return m.renderRoot(content)
 }
@@ -877,50 +950,32 @@ func (m *multiRunModel) renderQuitDialogPanel() string {
 	panelWidth := min(availableWidth, quitDialogMaxWidth)
 	panelStyle := techPanelStyle(panelWidth, colorBorderFocus).Padding(1, 2)
 	innerWidth := max(panelWidth-panelStyle.GetHorizontalFrameSize(), 1)
-	bg := colorBgSurface
 	lines := []string{
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep),
-				bg,
+			lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep).Render(
 				truncateString("Leave Active Queue?", innerWidth),
 			),
 		),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedLineKnownOwned(innerWidth, ""),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(styleBodyText, bg, truncateString("This queue is still active.", innerWidth)),
+			styleBodyText.Render(truncateString("This queue is still active.", innerWidth)),
 		),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleMutedText,
-				bg,
-				truncateString("Close the TUI and keep queued work running.", innerWidth),
-			),
+			styleMutedText.Render(truncateString("Close the TUI and keep queued work running.", innerWidth)),
 		),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleMutedText,
-				bg,
-				truncateString("Choose Stop Run to cancel active and queued work.", innerWidth),
-			),
+			styleMutedText.Render(truncateString("Choose Stop Run to cancel active and queued work.", innerWidth)),
 		),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
-		renderOwnedBlock(innerWidth, bg, m.renderQuitDialogActions(innerWidth, bg)),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedLineKnownOwned(innerWidth, ""),
+		renderOwnedBlock(innerWidth, m.renderQuitDialogActions(innerWidth)),
+		renderOwnedLineKnownOwned(innerWidth, ""),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleDimText,
-				bg,
+			styleDimText.Render(
 				truncateString("[enter/q] confirm  [tab/left/right] choice  [esc] back", innerWidth),
 			),
 		),
@@ -928,7 +983,7 @@ func (m *multiRunModel) renderQuitDialogPanel() string {
 	return panelStyle.Render(strings.Join(lines, "\n"))
 }
 
-func (m *multiRunModel) renderQuitDialogActions(width int, bg color.Color) string {
+func (m *multiRunModel) renderQuitDialogActions(width int) string {
 	actions := []string{
 		m.renderQuitDialogAction("Close TUI", quitDialogActionClose),
 		m.renderQuitDialogAction("Stop Run", quitDialogActionStop),
@@ -937,7 +992,7 @@ func (m *multiRunModel) renderQuitDialogActions(width int, bg color.Color) strin
 	if width < 44 {
 		return strings.Join(actions, "\n")
 	}
-	return strings.Join(actions, renderGap(bg, 1))
+	return strings.Join(actions, renderGap(1))
 }
 
 func (m *multiRunModel) renderQuitDialogAction(label string, action quitDialogAction) string {
@@ -945,7 +1000,7 @@ func (m *multiRunModel) renderQuitDialogAction(label string, action quitDialogAc
 	if m.quitDialog.Selected == action {
 		return baseStyle.Foreground(colorBgSurface).Background(colorAccent).Render(label)
 	}
-	return baseStyle.Foreground(colorFgBright).Background(colorBgBase).Render(label)
+	return baseStyle.Foreground(colorFgBright).Render(label)
 }
 
 func (m *multiRunModel) activeChild() *uiModel {
@@ -1086,9 +1141,24 @@ func (m *multiRunModel) childHeight() int {
 	return max(m.height-multiRunTabsHeight, 1)
 }
 
-func (t *multiRunTab) applyChildSnapshot(snapshot apicore.RunSnapshot, cfg *config, width int, height int) {
+func (t *multiRunTab) applyChildSnapshot(
+	snapshot apicore.RunSnapshot,
+	cfg *config,
+	width int,
+	height int,
+	pauseRunJob func(context.Context, string, string) (apicore.RunJobControlResponse, error),
+	sendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error),
+) {
 	t.runID = firstNonEmpty(t.runID, snapshot.Run.RunID)
 	t.child = childModelFromRunSnapshot(snapshot, cfg, width, height)
+	if t.child != nil {
+		t.child.onJobControl = newRemoteJobControlHandler(t.runID, pauseRunJob, sendRunJobMessage)
+	}
 	t.translator = newUIEventTranslator()
 	for idx := range t.child.jobs {
 		t.translator.hydrateSessionView(idx, t.child.jobs[idx].snapshot)
@@ -1104,7 +1174,17 @@ func childModelFromRunSnapshot(snapshot apicore.RunSnapshot, cfg *config, width 
 		}}
 	}
 	mdl := newUIModel(len(jobs))
-	mdl.cfg = cfg
+	localCfg := &config{}
+	if cfg != nil {
+		copied := *cfg
+		localCfg = &copied
+	}
+	localCfg.RunID = firstNonEmpty(snapshot.Run.RunID, localCfg.RunID)
+	mdl.cfg = localCfg
+	// The tabbed shell owns the brand+tabs row and its divider, so the child must not
+	// draw its own header. Set this before sizing so computeLayout reserves the
+	// embedded chrome height.
+	mdl.headerHidden = true
 	mdl.handleWindowSize(tea.WindowSizeMsg{Width: width, Height: height})
 	applyBootstrapJobsToModel(mdl, jobs)
 	for _, msg := range msgs {
@@ -1114,13 +1194,33 @@ func childModelFromRunSnapshot(snapshot apicore.RunSnapshot, cfg *config, width 
 }
 
 func newPlaceholderChildModel(slug string, cfg *config, width int, height int) *uiModel {
-	return childModelFromRunSnapshot(apicore.RunSnapshot{
+	return newPlaceholderChildModelWithControls(slug, "", cfg, width, height, nil, nil)
+}
+
+func newPlaceholderChildModelWithControls(
+	slug string,
+	runID string,
+	cfg *config,
+	width int,
+	height int,
+	pauseRunJob func(context.Context, string, string) (apicore.RunJobControlResponse, error),
+	sendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error),
+) *uiModel {
+	childRunID := firstNonEmpty(runID, slug)
+	mdl := childModelFromRunSnapshot(apicore.RunSnapshot{
 		Run: apicore.Run{
-			RunID:        slug,
+			RunID:        childRunID,
 			WorkflowSlug: slug,
 			Status:       remoteRunStatusRunning,
 		},
 	}, cfg, width, height)
+	mdl.onJobControl = newRemoteJobControlHandler(childRunID, pauseRunJob, sendRunJobMessage)
+	return mdl
 }
 
 func applyBootstrapJobsToModel(mdl *uiModel, jobs []job) {
@@ -1139,6 +1239,7 @@ func applyBootstrapJobsToModel(mdl *uiModel, jobs []job) {
 			CodeFile:        codeFileLabel,
 			CodeFiles:       append([]string(nil), jb.CodeFiles...),
 			Issues:          totalIssues,
+			TaskNumber:      jb.TaskNumber,
 			TaskTitle:       jb.TaskTitle,
 			TaskType:        jb.TaskType,
 			SafeName:        jb.SafeName,
@@ -1187,7 +1288,7 @@ func isTerminalTaskMultiStatus(status string) bool {
 
 func taskMultiStatusFromRunStatus(status string) string {
 	switch strings.TrimSpace(status) {
-	case remoteRunStatusRunning, remoteRunStatusRetrying:
+	case remoteRunStatusRunning, remoteRunStatusPausing, remoteRunStatusPaused, remoteRunStatusRetrying:
 		return taskMultiStatusRunning
 	case remoteRunStatusCompleted:
 		return taskMultiStatusCompleted
@@ -1225,6 +1326,23 @@ func multiRunStatusColor(status string) color.Color {
 		return colorWarning
 	default:
 		return colorMuted
+	}
+}
+
+// multiRunStatusGlyph maps a tab status to a state glyph. The status word is also
+// shown as text, so failed/canceled can share a glyph without losing meaning.
+func multiRunStatusGlyph(status string) string {
+	switch strings.TrimSpace(status) {
+	case taskMultiStatusRunning:
+		return glyphActiveDot
+	case taskMultiStatusCompleted:
+		return jobIconSuccess
+	case taskMultiStatusFailed, taskMultiStatusCanceled:
+		return jobIconFailed
+	case taskMultiStatusQueued:
+		return jobIconPending
+	default:
+		return jobIconUnknown
 	}
 }
 

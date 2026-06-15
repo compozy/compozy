@@ -1,10 +1,8 @@
 package ui
 
 import (
-	"fmt"
 	"image/color"
 	"strings"
-	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/internal/charmtheme"
@@ -17,6 +15,11 @@ const (
 
 // Semantic color palette — all UI colors defined here, nowhere else.
 var (
+	// colorBgBase / colorBgSurface are retained ONLY as foreground colors for the
+	// few accent *chips* that intentionally invert (text drawn on an accent fill).
+	// The cockpit no longer paints a frame or surface background of its own — it is
+	// foreground-only so the terminal's native background shows through, matching
+	// the wizard.
 	colorBgBase    = charmtheme.ColorBgBase
 	colorBgSurface = charmtheme.ColorBgSurface
 
@@ -40,21 +43,19 @@ var (
 
 var techBorder = charmtheme.TechBorder
 
-// Pre-built styles reused across the UI.
+// Pre-built styles reused across the UI. Every style here is foreground/border
+// only: no Background()/BorderBackground() calls, so the terminal background is
+// preserved end to end.
 var (
-	styleRootScreenBase = lipgloss.NewStyle().
-				Background(colorBgBase).
-				Foreground(colorFgBright)
-	styleTechPanelBase = lipgloss.NewStyle().
+	styleRootScreenBase = lipgloss.NewStyle().Foreground(colorFgBright)
+	styleTechPanelBase  = lipgloss.NewStyle().
 				BorderStyle(techBorder).
-				BorderBackground(colorBgSurface).
-				Background(colorBgSurface).
 				Foreground(colorFgBright).
 				Padding(0, 1)
+	// styleTechSidebarBase frames the JOBS panel with a single column of inner
+	// padding; the job cards stack inside it with no margin between them.
 	styleTechSidebarBase = lipgloss.NewStyle().
 				BorderStyle(techBorder).
-				BorderBackground(colorBgSurface).
-				Background(colorBgSurface).
 				Foreground(colorFgBright).
 				Padding(0, 1)
 	styleSeparator     = lipgloss.NewStyle().Foreground(colorBorder)
@@ -66,7 +67,6 @@ var (
 	stylePanelLabel    = lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep)
 	styleTimelineTitle = lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep)
 	styleTimelineBadge = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
-	styleKeycap        = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
 	panelFrameWidth    = styleTechPanelBase.GetHorizontalFrameSize()
 	sidebarFrameWidth  = styleTechSidebarBase.GetHorizontalFrameSize()
 	sidebarFrameHeight = styleTechSidebarBase.GetVerticalFrameSize()
@@ -86,8 +86,39 @@ func techSidebarStyle(width int, borderColor color.Color) lipgloss.Style {
 	return styleTechSidebarBase.Width(width).BorderForeground(borderColor)
 }
 
-func selectedSidebarRowStyle(width int) lipgloss.Style {
-	return lipgloss.NewStyle().Width(max(width, 1))
+// styleSidebarCardBase frames one job as a bordered card. The JOBS column has no
+// outer panel border — the cards themselves are the structure — so the card is
+// foreground/border only (no fill). Width is the full footprint, so the inner
+// content area is width - GetHorizontalFrameSize().
+var styleSidebarCardBase = lipgloss.NewStyle().
+	BorderStyle(techBorder).
+	Foreground(colorFgBright).
+	Padding(0, 1)
+
+var sidebarCardFrameWidth = styleSidebarCardBase.GetHorizontalFrameSize()
+
+func sidebarCardStyle(width int, borderColor color.Color) lipgloss.Style {
+	return styleSidebarCardBase.Width(max(width, 1)).BorderForeground(borderColor)
+}
+
+func sidebarCardSeparator(width int, borderColor color.Color) string {
+	left := "├"
+	right := "┤"
+	fill := techBorder.Top
+	if fill == "" {
+		fill = "─"
+	}
+	width = max(width, 1)
+	if width == 1 {
+		return lipgloss.NewStyle().Foreground(borderColor).Render(fill)
+	}
+	innerWidth := max(width-lipgloss.Width(left)-lipgloss.Width(right), 0)
+	line := left + strings.Repeat(fill, innerWidth) + right
+	return lipgloss.NewStyle().Foreground(borderColor).Render(line)
+}
+
+func sidebarCardContentWidth(width int) int {
+	return max(width-sidebarCardFrameWidth, 1)
 }
 
 func panelContentWidth(width int) int {
@@ -102,128 +133,33 @@ func sidebarContentHeight(height int) int {
 	return max(height-sidebarFrameHeight, 1)
 }
 
-func renderStyledOnBackground(style lipgloss.Style, bg color.Color, text string) string {
-	return style.Background(bg).Render(text)
-}
-
-func renderGap(bg color.Color, width int) string {
+// renderGap returns n blank columns. With no owned background these are plain
+// spaces that render with the terminal's background.
+func renderGap(width int) string {
 	if width <= 0 {
 		return ""
 	}
-	return lipgloss.NewStyle().
-		Background(bg).
-		Render(strings.Repeat(" ", width))
+	return strings.Repeat(" ", width)
 }
 
-func renderOwnedLine(width int, bg color.Color, content string) string {
-	return renderOwnedLineWithOwnership(width, bg, content, false)
-}
-
-func renderOwnedLineKnownOwned(width int, bg color.Color, content string) string {
-	return renderOwnedLineWithOwnership(width, bg, content, true)
-}
-
-func renderOwnedLineWithOwnership(width int, bg color.Color, content string, owned bool) string {
-	if !owned {
-		content = reapplyOwnedBackground(content, bg)
-	}
+// renderOwnedLineKnownOwned pads content to a full-width line. Callers pre-truncate
+// content to width, so this only adds trailing padding (the terminal background).
+func renderOwnedLineKnownOwned(width int, content string) string {
 	return lipgloss.NewStyle().
 		Width(max(width, 1)).
 		Foreground(colorFgBright).
-		Background(bg).
 		Render(content)
 }
 
-func renderStyledOwnedLine(width int, style lipgloss.Style, bg color.Color, text string) string {
-	return renderOwnedLineKnownOwned(width, bg, renderStyledOnBackground(style, bg, text))
-}
-
-func renderOwnedBlock(width int, bg color.Color, content string) string {
+// renderOwnedBlock pads every line of a multi-line block to width.
+func renderOwnedBlock(width int, content string) string {
 	lines := strings.Split(content, "\n")
 	for i := range lines {
-		lines[i] = renderOwnedLine(width, bg, lines[i])
+		lines[i] = renderOwnedLineKnownOwned(width, lines[i])
 	}
 	return strings.Join(lines, "\n")
 }
 
-func renderTechLabel(text string, bg color.Color) string {
-	return renderStyledOnBackground(stylePanelLabel, bg, strings.ToUpper(text))
-}
-
-func renderKeycap(key string, bg color.Color) string {
-	return renderStyledOnBackground(styleMutedText, bg, "[") +
-		renderStyledOnBackground(styleKeycap, bg, strings.ToUpper(key)) +
-		renderStyledOnBackground(styleMutedText, bg, "]")
-}
-
-func reapplyOwnedBackground(content string, bg color.Color) string {
-	if content == "" || !strings.Contains(content, "\x1b[") {
-		return content
-	}
-
-	bgSeq := ansiBackgroundSequence(bg)
-	var builder strings.Builder
-	builder.Grow(len(content) + len(bgSeq)*4)
-
-	for idx := 0; idx < len(content); idx++ {
-		if content[idx] != '\x1b' || idx+1 >= len(content) || content[idx+1] != '[' {
-			builder.WriteByte(content[idx])
-			continue
-		}
-
-		end := idx + 2
-		for end < len(content) && content[end] != 'm' {
-			end++
-		}
-		if end >= len(content) || content[end] != 'm' {
-			builder.WriteByte(content[idx])
-			continue
-		}
-
-		params := content[idx+2 : end]
-		builder.WriteString(content[idx : end+1])
-		if sgrClearsBackground(params) {
-			builder.WriteString(bgSeq)
-		}
-		idx = end
-	}
-
-	return builder.String()
-}
-
-var ansiBackgroundSequenceCache sync.Map
-
-func ansiBackgroundSequence(bg color.Color) string {
-	r, g, b, _ := bg.RGBA()
-	key := r>>8<<16 | g>>8<<8 | b>>8
-	if cached, ok := ansiBackgroundSequenceCache.Load(key); ok {
-		if sequence, ok := cached.(string); ok {
-			return sequence
-		}
-	}
-	sequence := fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r>>8, g>>8, b>>8)
-	actual, _ := ansiBackgroundSequenceCache.LoadOrStore(key, sequence)
-	if cached, ok := actual.(string); ok {
-		return cached
-	}
-	return sequence
-}
-
-func sgrClearsBackground(params string) bool {
-	if params == "" {
-		return true
-	}
-	start := 0
-	for start <= len(params) {
-		end := start
-		for end < len(params) && params[end] != ';' {
-			end++
-		}
-		part := params[start:end]
-		if part == "" || part == "0" || part == "49" {
-			return true
-		}
-		start = end + 1
-	}
-	return false
+func renderTechLabel(text string) string {
+	return stylePanelLabel.Render(strings.ToUpper(text))
 }

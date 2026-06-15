@@ -11,6 +11,7 @@ import (
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/charmtheme"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
@@ -41,11 +42,19 @@ var (
 type RemoteReviewWatchAttachOptions struct {
 	Snapshot          apicore.RunSnapshot
 	Config            *config
+	WorkspaceRoot     string
 	OwnerSession      bool
 	LoadSnapshot      func(context.Context) (apicore.RunSnapshot, error)
 	LoadChildSnapshot func(context.Context, string) (apicore.RunSnapshot, error)
 	OpenParentStream  func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error)
 	OpenChildStream   func(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
+	PauseRunJob       func(context.Context, string, string) (apicore.RunJobControlResponse, error)
+	SendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error)
 }
 
 type reviewWatchOverview struct {
@@ -70,17 +79,24 @@ type reviewWatchOverview struct {
 }
 
 type reviewWatchModel struct {
-	parentRun  apicore.Run
-	overview   reviewWatchOverview
-	children   []multiRunTab
-	activeTab  int
-	width      int
-	height     int
-	cfg        *config
-	quitDialog quitDialogState
-	shutdown   shutdownState
-	onQuit     func(uiQuitRequest)
-	now        time.Time
+	parentRun         apicore.Run
+	overview          reviewWatchOverview
+	children          []multiRunTab
+	activeTab         int
+	width             int
+	height            int
+	cfg               *config
+	quitDialog        quitDialogState
+	shutdown          shutdownState
+	onQuit            func(uiQuitRequest)
+	now               time.Time
+	pauseRunJob       func(context.Context, string, string) (apicore.RunJobControlResponse, error)
+	sendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error)
 }
 
 type reviewWatchController struct {
@@ -144,6 +160,9 @@ func newRemoteReviewWatchModel(opts RemoteReviewWatchAttachOptions) *reviewWatch
 	localCfg := *cfg
 	localCfg.DetachOnly = !opts.OwnerSession
 	localCfg.DaemonOwned = true
+	if workspaceRoot := strings.TrimSpace(opts.WorkspaceRoot); workspaceRoot != "" {
+		localCfg.WorkspaceRoot = workspaceRoot
+	}
 
 	workflow := strings.TrimSpace(opts.Snapshot.Run.WorkflowSlug)
 	mdl := &reviewWatchModel{
@@ -153,11 +172,13 @@ func newRemoteReviewWatchModel(opts RemoteReviewWatchAttachOptions) *reviewWatch
 			phase:    reviewWatchStatusWatching,
 			status:   strings.TrimSpace(opts.Snapshot.Run.Status),
 		},
-		width:      120,
-		height:     40,
-		cfg:        &localCfg,
-		quitDialog: newQuitDialogState(),
-		now:        time.Now(),
+		width:             120,
+		height:            40,
+		cfg:               &localCfg,
+		quitDialog:        newQuitDialogState(),
+		now:               time.Now(),
+		pauseRunJob:       opts.PauseRunJob,
+		sendRunJobMessage: opts.SendRunJobMessage,
 	}
 	return mdl
 }
@@ -206,6 +227,13 @@ func (c *reviewWatchController) SetQuitHandler(fn func(uiQuitRequest)) {
 	c.quitHandlerMu.Lock()
 	defer c.quitHandlerMu.Unlock()
 	c.quitHandler = fn
+}
+
+func (c *reviewWatchController) SetJobControlHandler(
+	func(context.Context, uiJobControlRequest) (jobControlResponse, error),
+) {
+	// Review-watch controls are bound to child fix-run uiModels because parent
+	// events only discover and route those child runs.
 }
 
 func (c *reviewWatchController) requestQuit(req uiQuitRequest) {
@@ -277,7 +305,9 @@ func followRemoteReviewWatchParent(
 			}
 			return opts.LoadSnapshot(loadCtx)
 		},
-		OpenStream: opts.OpenParentStream,
+		OpenStream:        opts.OpenParentStream,
+		PauseRunJob:       opts.PauseRunJob,
+		SendRunJobMessage: opts.SendRunJobMessage,
 	}
 	followRemoteRun(ctx, parentSession, followOpts, stream, apicore.StreamCursor{})
 }
@@ -331,6 +361,8 @@ func followRemoteReviewWatchChild(
 		OpenStream: func(streamCtx context.Context, after apicore.StreamCursor) (apiclient.RunStream, error) {
 			return opts.OpenChildStream(streamCtx, runID, after)
 		},
+		PauseRunJob:       opts.PauseRunJob,
+		SendRunJobMessage: opts.SendRunJobMessage,
 	}, stream, cursor)
 }
 
@@ -775,7 +807,14 @@ func (m *reviewWatchModel) handleChildBootstrap(msg multiRunChildBootstrapMsg) {
 	if idx < 0 {
 		return
 	}
-	m.children[idx].applyChildSnapshot(msg.Snapshot, m.cfg, m.childWidth(), m.childHeight())
+	m.children[idx].applyChildSnapshot(
+		msg.Snapshot,
+		m.cfg,
+		m.childWidth(),
+		m.childHeight(),
+		m.pauseRunJob,
+		m.sendRunJobMessage,
+	)
 	if status := taskMultiStatusFromRunStatus(msg.Snapshot.Run.Status); status != "" {
 		m.children[idx].status = status
 		m.children[idx].terminal = isTerminalTaskMultiStatus(status)
@@ -827,7 +866,6 @@ func (m *reviewWatchModel) renderRoot(content string) tea.View {
 }
 
 func (m *reviewWatchModel) renderTabs() string {
-	bg := colorBgBase
 	chunks := make([]string, 0, len(m.children)+1)
 	watchLabel := fmt.Sprintf("1 Watch %s", strings.ToUpper(firstNonEmpty(m.overview.phase, reviewWatchStatusWatching)))
 	watchStyle := lipgloss.NewStyle().
@@ -855,14 +893,11 @@ func (m *reviewWatchModel) renderTabs() string {
 		}
 		chunks = append(chunks, style.Render(truncateString(label, 32)))
 	}
-	left := renderGap(bg, 1) + strings.Join(chunks, renderGap(bg, 1))
-	hint := renderKeycap("left/right", bg) + renderGap(bg, 1) + renderStyledOnBackground(styleMutedText, bg, "TABS")
-	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(hint)-1, 1)
-	line := renderOwnedLineKnownOwned(m.width, bg, left+renderGap(bg, gap)+hint)
+	hint := charmtheme.Keycap("left/right") + renderGap(1) + styleMutedText.Render("TABS")
+	line := renderBrandTabsRow(m.width, chunks, hint)
 	separator := renderOwnedLineKnownOwned(
 		m.width,
-		bg,
-		renderStyledOnBackground(styleSeparator, bg, strings.Repeat("─", m.width)),
+		styleSeparator.Render(strings.Repeat("─", m.width)),
 	)
 	return line + "\n" + separator
 }
@@ -889,41 +924,32 @@ func (m *reviewWatchModel) renderWatchTabContent() string {
 	panelWidth := max(width-4, 20)
 	innerStyle := techPanelStyle(panelWidth, reviewWatchStatusColor(m.overview.phase)).Padding(1, 2)
 	innerWidth := max(panelWidth-innerStyle.GetHorizontalFrameSize(), 1)
-	bg := colorBgSurface
 	lines := []string{
-		renderOwnedLineKnownOwned(innerWidth, bg, renderTechLabel("review.watch", bg)),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
-		renderOwnedLineKnownOwned(innerWidth, bg, renderStyledOnBackground(
-			styleBodyText,
-			bg,
+		renderOwnedLineKnownOwned(innerWidth, renderTechLabel("review.watch")),
+		renderOwnedLineKnownOwned(innerWidth, ""),
+		renderOwnedLineKnownOwned(innerWidth, styleBodyText.Render(
 			truncateString(m.watchTitle(innerWidth), innerWidth),
 		)),
-		renderOwnedLineKnownOwned(innerWidth, bg, renderStyledOnBackground(
-			styleMutedText,
-			bg,
+		renderOwnedLineKnownOwned(innerWidth, styleMutedText.Render(
 			truncateString(m.watchMetaLine(), innerWidth),
 		)),
-		renderOwnedLineKnownOwned(innerWidth, bg, renderStyledOnBackground(
-			styleMutedText,
-			bg,
+		renderOwnedLineKnownOwned(innerWidth, styleMutedText.Render(
 			truncateString(m.watchReviewLine(), innerWidth),
 		)),
 	}
 	if pushLine := m.watchPushLine(); pushLine != "" {
 		lines = append(lines, renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(styleMutedText, bg, truncateString(pushLine, innerWidth)),
+			styleMutedText.Render(truncateString(pushLine, innerWidth)),
 		))
 	}
 	if errText := strings.TrimSpace(m.overview.lastError); errText != "" {
 		lines = append(lines, renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(styleMutedText.Foreground(colorError), bg, truncateString(errText, innerWidth)),
+			styleMutedText.Foreground(colorError).Render(truncateString(errText, innerWidth)),
 		))
 	}
-	lines = append(lines, renderOwnedLineKnownOwned(innerWidth, bg, ""))
+	lines = append(lines, renderOwnedLineKnownOwned(innerWidth, ""))
 	lines = append(lines, m.renderTimelineLines(innerWidth, max(height-len(lines)-3, 1))...)
 	panel := innerStyle.Render(strings.Join(lines, "\n"))
 	return lipgloss.Place(
@@ -932,7 +958,6 @@ func (m *reviewWatchModel) renderWatchTabContent() string {
 		lipgloss.Center,
 		lipgloss.Center,
 		panel,
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
 	)
 }
 
@@ -994,12 +1019,9 @@ func (m *reviewWatchModel) watchPushLine() string {
 }
 
 func (m *reviewWatchModel) renderTimelineLines(width int, maxLines int) []string {
-	bg := colorBgSurface
 	if len(m.overview.lines) == 0 {
 		return []string{
-			renderOwnedLineKnownOwned(width, bg, renderStyledOnBackground(
-				styleMutedText,
-				bg,
+			renderOwnedLineKnownOwned(width, styleMutedText.Render(
 				truncateString("Waiting for review-watch events...", width),
 			)),
 		}
@@ -1009,8 +1031,7 @@ func (m *reviewWatchModel) renderTimelineLines(width int, maxLines int) []string
 	for _, line := range m.overview.lines[start:] {
 		lines = append(lines, renderOwnedLineKnownOwned(
 			width,
-			bg,
-			renderStyledOnBackground(styleMutedText, bg, truncateString(line, width)),
+			styleMutedText.Render(truncateString(line, width)),
 		))
 	}
 	return lines
@@ -1028,18 +1049,13 @@ func (m *reviewWatchModel) renderQueuedChildContent(tab *multiRunTab) string {
 		name = firstNonEmpty(tab.slug, tab.runID, name)
 		status = tabStatus(tab)
 	}
-	bg := colorBgSurface
 	lines := []string{
-		renderOwnedLineKnownOwned(innerWidth, bg, renderTechLabel("review.fix."+status, bg)),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
-		renderOwnedLineKnownOwned(innerWidth, bg, renderStyledOnBackground(
-			styleBodyText,
-			bg,
+		renderOwnedLineKnownOwned(innerWidth, renderTechLabel("review.fix."+status)),
+		renderOwnedLineKnownOwned(innerWidth, ""),
+		renderOwnedLineKnownOwned(innerWidth, styleBodyText.Render(
 			truncateString(name, innerWidth),
 		)),
-		renderOwnedLineKnownOwned(innerWidth, bg, renderStyledOnBackground(
-			styleMutedText,
-			bg,
+		renderOwnedLineKnownOwned(innerWidth, styleMutedText.Render(
 			truncateString("Fix run has not emitted a snapshot yet.", innerWidth),
 		)),
 	}
@@ -1050,7 +1066,6 @@ func (m *reviewWatchModel) renderQueuedChildContent(tab *multiRunTab) string {
 		lipgloss.Center,
 		lipgloss.Center,
 		panel,
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
 	)
 }
 
@@ -1062,7 +1077,6 @@ func (m *reviewWatchModel) renderQuitDialogView() tea.View {
 		lipgloss.Center,
 		lipgloss.Center,
 		panel,
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
 	)
 	return m.renderRoot(content)
 }
@@ -1072,54 +1086,38 @@ func (m *reviewWatchModel) renderQuitDialogPanel() string {
 	panelWidth := min(availableWidth, quitDialogMaxWidth)
 	panelStyle := techPanelStyle(panelWidth, colorBorderFocus).Padding(1, 2)
 	innerWidth := max(panelWidth-panelStyle.GetHorizontalFrameSize(), 1)
-	bg := colorBgSurface
 	lines := []string{
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep),
-				bg,
+			lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep).Render(
 				truncateString("Leave Active Watch?", innerWidth),
 			),
 		),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedLineKnownOwned(innerWidth, ""),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleBodyText,
-				bg,
+			styleBodyText.Render(
 				truncateString("This review watch is still active.", innerWidth),
 			),
 		),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleMutedText,
-				bg,
+			styleMutedText.Render(
 				truncateString("Close the TUI and keep watching in the daemon.", innerWidth),
 			),
 		),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleMutedText,
-				bg,
+			styleMutedText.Render(
 				truncateString("Choose Stop Run to cancel this watch and its active fix run.", innerWidth),
 			),
 		),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
-		renderOwnedBlock(innerWidth, bg, m.renderQuitDialogActions(innerWidth, bg)),
-		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedLineKnownOwned(innerWidth, ""),
+		renderOwnedBlock(innerWidth, m.renderQuitDialogActions(innerWidth)),
+		renderOwnedLineKnownOwned(innerWidth, ""),
 		renderOwnedLineKnownOwned(
 			innerWidth,
-			bg,
-			renderStyledOnBackground(
-				styleDimText,
-				bg,
+			styleDimText.Render(
 				truncateString("[enter/q] confirm  [tab/left/right] choice  [esc] back", innerWidth),
 			),
 		),
@@ -1127,7 +1125,7 @@ func (m *reviewWatchModel) renderQuitDialogPanel() string {
 	return panelStyle.Render(strings.Join(lines, "\n"))
 }
 
-func (m *reviewWatchModel) renderQuitDialogActions(width int, bg color.Color) string {
+func (m *reviewWatchModel) renderQuitDialogActions(width int) string {
 	actions := []string{
 		m.renderQuitDialogAction("Close TUI", quitDialogActionClose),
 		m.renderQuitDialogAction("Stop Run", quitDialogActionStop),
@@ -1136,7 +1134,7 @@ func (m *reviewWatchModel) renderQuitDialogActions(width int, bg color.Color) st
 	if width < 44 {
 		return strings.Join(actions, "\n")
 	}
-	return strings.Join(actions, renderGap(bg, 1))
+	return strings.Join(actions, renderGap(1))
 }
 
 func (m *reviewWatchModel) renderQuitDialogAction(label string, action quitDialogAction) string {
@@ -1144,7 +1142,7 @@ func (m *reviewWatchModel) renderQuitDialogAction(label string, action quitDialo
 	if m.quitDialog.Selected == action {
 		return baseStyle.Foreground(colorBgSurface).Background(colorAccent).Render(label)
 	}
-	return baseStyle.Foreground(colorFgBright).Background(colorBgBase).Render(label)
+	return baseStyle.Foreground(colorFgBright).Render(label)
 }
 
 func (m *reviewWatchModel) activeChild() *uiModel {

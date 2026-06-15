@@ -187,6 +187,59 @@ func (c *Client) CancelRun(ctx context.Context, runID string) error {
 	return err
 }
 
+// PauseRunJob requests pause for one active daemon-backed run job.
+func (c *Client) PauseRunJob(
+	ctx context.Context,
+	runID string,
+	jobID string,
+) (apicore.RunJobControlResponse, error) {
+	if c == nil {
+		return apicore.RunJobControlResponse{}, ErrDaemonClientRequired
+	}
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return apicore.RunJobControlResponse{}, ErrRunIDRequired
+	}
+	trimmedJobID := strings.TrimSpace(jobID)
+	if trimmedJobID == "" {
+		return apicore.RunJobControlResponse{}, ErrJobIDRequired
+	}
+
+	var response contract.RunJobControlResponse
+	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/jobs/" + url.PathEscape(trimmedJobID) + "/pause"
+	if _, err := c.doJSON(ctx, http.MethodPost, path, nil, &response); err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	return response, nil
+}
+
+// SendRunJobMessage sends a user message into one paused daemon-backed run job.
+func (c *Client) SendRunJobMessage(
+	ctx context.Context,
+	runID string,
+	jobID string,
+	req apicore.RunJobMessageRequest,
+) (apicore.RunJobControlResponse, error) {
+	if c == nil {
+		return apicore.RunJobControlResponse{}, ErrDaemonClientRequired
+	}
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return apicore.RunJobControlResponse{}, ErrRunIDRequired
+	}
+	trimmedJobID := strings.TrimSpace(jobID)
+	if trimmedJobID == "" {
+		return apicore.RunJobControlResponse{}, ErrJobIDRequired
+	}
+
+	var response contract.RunJobControlResponse
+	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/jobs/" + url.PathEscape(trimmedJobID) + "/messages"
+	if _, err := c.doJSON(ctx, http.MethodPost, path, req, &response); err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	return response, nil
+}
+
 // GetRunSnapshot loads the dense attach snapshot for one run.
 func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunSnapshot, error) {
 	if c == nil {

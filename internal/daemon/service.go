@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -80,13 +81,14 @@ func (s *Service) Status(ctx context.Context) (apicore.DaemonStatus, error) {
 	}
 
 	status := apicore.DaemonStatus{
-		PID:            info.PID,
-		Version:        info.Version,
-		StartedAt:      info.StartedAt,
-		SocketPath:     info.SocketPath,
-		HTTPPort:       info.HTTPPort,
-		ActiveRunCount: s.activeRunCount(),
-		WorkspaceCount: workspaceCount,
+		PID:             info.PID,
+		Version:         info.Version,
+		ContractVersion: contract.DaemonContractVersion,
+		StartedAt:       info.StartedAt,
+		SocketPath:      info.SocketPath,
+		HTTPPort:        info.HTTPPort,
+		ActiveRunCount:  s.activeRunCount(),
+		WorkspaceCount:  workspaceCount,
 	}
 	return status, nil
 }
@@ -107,6 +109,7 @@ func (s *Service) Health(ctx context.Context) (apicore.DaemonHealth, error) {
 	activeRunCount := s.activeRunCount()
 	health := apicore.DaemonHealth{
 		Ready:            strings.EqualFold(string(info.State), string(ReadyStateReady)),
+		ContractVersion:  contract.DaemonContractVersion,
 		StartedAt:        info.StartedAt,
 		UptimeSeconds:    uptimeSeconds(info.StartedAt, s.now()),
 		ActiveRunCount:   activeRunCount,

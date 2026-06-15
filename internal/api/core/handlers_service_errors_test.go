@@ -820,6 +820,23 @@ func (s *errorRunService) Cancel(context.Context, string) error {
 	return s.err
 }
 
+func (s *errorRunService) PauseRunJob(
+	context.Context,
+	string,
+	string,
+) (core.RunJobControlResponse, error) {
+	return core.RunJobControlResponse{}, s.err
+}
+
+func (s *errorRunService) SendRunJobMessage(
+	context.Context,
+	string,
+	string,
+	core.RunJobMessageRequest,
+) (core.RunJobControlResponse, error) {
+	return core.RunJobControlResponse{}, s.err
+}
+
 type errorSyncService struct {
 	err error
 }

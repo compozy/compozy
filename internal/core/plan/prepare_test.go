@@ -277,9 +277,21 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	if len(jobs) != 2 {
 		t.Fatalf("expected one batch per task in prd mode, got %d", len(jobs))
 	}
+	wantTaskNumbers := map[string]int{
+		"task_1": 1,
+		"task_2": 2,
+	}
 	for _, job := range jobs {
 		if len(job.CodeFiles) != 1 {
 			t.Fatalf("expected single-file jobs in prd mode, got %#v", job.CodeFiles)
+		}
+		taskID := job.CodeFiles[0]
+		want, ok := wantTaskNumbers[taskID]
+		if !ok {
+			t.Fatalf("unexpected task id %q in prepared jobs", taskID)
+		}
+		if got := job.TaskNumber; got != want {
+			t.Fatalf("expected task number %d for %s, got %d", want, taskID, got)
 		}
 		if job.TaskTitle == "" {
 			t.Fatalf("expected prd job to carry task title, got %#v", job)
@@ -343,6 +355,16 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 				ReasoningEffort: testStringPointer("high"),
 			},
 			{
+				Workflow: testStringPointer("other"),
+				Type:     testStringPointer("backend"),
+				IDE:      testStringPointer(model.IDECursor),
+			},
+			{
+				Workflow: testStringPointer("demo"),
+				Type:     testStringPointer("backend"),
+				IDE:      testStringPointer(model.IDEClaude),
+			},
+			{
 				ID:    testStringPointer("task_02"),
 				Model: testStringPointer("codex-fast"),
 			},
@@ -357,7 +379,7 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
 		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
 	}
-	if jobs[1].IDE != model.IDECodex || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "medium" {
+	if jobs[1].IDE != model.IDEClaude || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "medium" {
 		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
 	}
 }
@@ -743,6 +765,12 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 	}
 	if got, want := prep.Jobs[1].CodeFiles, []string{"task_10"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected second job order\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if got, want := prep.Jobs[0].TaskNumber, 2; got != want {
+		t.Fatalf("expected first prepared job to carry task number %d, got %d", want, got)
+	}
+	if got, want := prep.Jobs[1].TaskNumber, 10; got != want {
+		t.Fatalf("expected second prepared job to carry task number %d, got %d", want, got)
 	}
 
 	runArtifacts := prep.RunArtifacts

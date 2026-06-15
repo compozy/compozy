@@ -27,6 +27,12 @@ const (
 
 type uiQuitRequest = runshared.UIQuitRequest
 type QuitRequest = runshared.UIQuitRequest
+type uiJobControlRequest = runshared.UIJobControlRequest
+type JobControlRequest = runshared.UIJobControlRequest
+type uiJobControlAction = runshared.UIJobControlAction
+type JobControlAction = runshared.UIJobControlAction
+type jobControlResponse = model.JobControlResponse
+type JobControlResponse = model.JobControlResponse
 
 const (
 	uiQuitRequestDrain = runshared.UIQuitRequestDrain
@@ -34,6 +40,12 @@ const (
 
 	QuitRequestDrain = runshared.UIQuitRequestDrain
 	QuitRequestForce = runshared.UIQuitRequestForce
+
+	uiJobControlPause   = runshared.UIJobControlPause
+	uiJobControlMessage = runshared.UIJobControlMessage
+
+	JobControlPause   = runshared.UIJobControlPause
+	JobControlMessage = runshared.UIJobControlMessage
 )
 
 type uiSession = runshared.UISession
@@ -49,6 +61,7 @@ type TranscriptEntry = transcript.Entry
 type transcriptEntryKind = transcript.EntryKind
 
 const (
+	transcriptEntryUserMessage       = transcript.EntryKindUserMessage
 	transcriptEntryAssistantMessage  = transcript.EntryKindAssistantMessage
 	transcriptEntryAssistantThinking = transcript.EntryKindAssistantThinking
 	transcriptEntryToolCall          = transcript.EntryKindToolCall

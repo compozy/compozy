@@ -58,6 +58,7 @@ type RuntimeConfig struct {
 	SoundEnabled               bool
 	SoundOnCompleted           string
 	SoundOnFailed              string
+	JobControls                *JobControlRegistry `json:"-"`
 }
 
 func (cfg *RuntimeConfig) ApplyDefaults() {

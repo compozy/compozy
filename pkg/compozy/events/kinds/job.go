@@ -6,6 +6,7 @@ type JobQueuedPayload struct {
 	CodeFile        string   `json:"code_file,omitempty"`
 	CodeFiles       []string `json:"code_files,omitempty"`
 	Issues          int      `json:"issues,omitempty"`
+	TaskNumber      int      `json:"task_number,omitempty"`
 	TaskTitle       string   `json:"task_title,omitempty"`
 	TaskType        string   `json:"task_type,omitempty"`
 	SafeName        string   `json:"safe_name,omitempty"`
@@ -51,6 +52,25 @@ type JobAttemptFinishedPayload struct {
 type JobRetryScheduledPayload struct {
 	JobAttemptInfo
 	Reason string `json:"reason,omitempty"`
+}
+
+// JobPausingPayload describes a job whose active prompt turn is being paused.
+type JobPausingPayload struct {
+	JobAttemptInfo
+	SessionID string `json:"session_id,omitempty"`
+}
+
+// JobPausedPayload describes a job paused between ACP prompt turns.
+type JobPausedPayload struct {
+	JobAttemptInfo
+	SessionID string `json:"session_id,omitempty"`
+}
+
+// JobResumedPayload describes a paused job resumed with a user message.
+type JobResumedPayload struct {
+	JobAttemptInfo
+	SessionID string `json:"session_id,omitempty"`
+	MessageID string `json:"message_id,omitempty"`
 }
 
 // JobCompletedPayload describes a completed job.

@@ -13,6 +13,7 @@ import (
 type EntryKind string
 
 const (
+	EntryKindUserMessage       EntryKind = "user_message"
 	EntryKindAssistantMessage  EntryKind = "assistant_message"
 	EntryKindAssistantThinking EntryKind = "assistant_thinking"
 	EntryKindToolCall          EntryKind = "tool_call"
@@ -114,6 +115,8 @@ func (m *ViewModel) applyStatus(status model.SessionStatus) bool {
 
 func (m *ViewModel) applyKind(update model.SessionUpdate) bool {
 	switch update.Kind {
+	case model.UpdateKindUserMessageChunk:
+		return m.applyUserMessage(update)
 	case model.UpdateKindAgentMessageChunk:
 		return m.applyMergedEntry(EntryKindAssistantMessage, update.Blocks)
 	case model.UpdateKindAgentThoughtChunk:
@@ -131,6 +134,25 @@ func (m *ViewModel) applyKind(update model.SessionUpdate) bool {
 	default:
 		return m.appendRuntimeNotice(update.Blocks)
 	}
+}
+
+func (m *ViewModel) applyUserMessage(update model.SessionUpdate) bool {
+	if len(update.Blocks) == 0 {
+		return false
+	}
+	messageID := strings.TrimSpace(update.MessageID)
+	if messageID == "" {
+		return m.applyMergedEntry(EntryKindUserMessage, update.Blocks)
+	}
+	if idx := m.findEntryID(EntryKindUserMessage, messageID); idx >= 0 {
+		return m.mergeIntoEntry(idx, update.Blocks)
+	}
+	m.entries = append(m.entries, sessionViewEntry{
+		ID:     messageID,
+		Kind:   EntryKindUserMessage,
+		Blocks: cloneContentBlocks(update.Blocks),
+	})
+	return true
 }
 
 func (m *ViewModel) applyPlanEntries(entries []model.SessionPlanEntry) bool {
@@ -154,6 +176,31 @@ func (m *ViewModel) applyCurrentMode(currentModeID string) bool {
 		return false
 	}
 	m.currentModeID = currentModeID
+	return true
+}
+
+func (m *ViewModel) mergeIntoEntry(index int, blocks []model.ContentBlock) bool {
+	if index < 0 || index >= len(m.entries) || len(blocks) == 0 {
+		return false
+	}
+	entry := &m.entries[index]
+	if contentBlocksEqual(entry.Blocks, blocks) {
+		return false
+	}
+	if len(entry.Blocks) == 1 && len(blocks) == 1 {
+		merged, ok := mergeTextContentBlocks(entry.Blocks[0], blocks[0])
+		if ok {
+			if bytes.Equal(entry.Blocks[0].Data, merged.Data) {
+				return false
+			}
+			entry.Blocks[0] = merged
+			return true
+		}
+	}
+	next := make([]model.ContentBlock, 0, len(entry.Blocks)+len(blocks))
+	next = append(next, cloneContentBlocks(entry.Blocks)...)
+	next = append(next, cloneContentBlocks(blocks)...)
+	entry.Blocks = next
 	return true
 }
 
@@ -295,6 +342,19 @@ func (m *ViewModel) appendStatusNotice(text string) bool {
 	return true
 }
 
+func (m *ViewModel) findEntryID(kind EntryKind, id string) int {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return -1
+	}
+	for i := range m.entries {
+		if m.entries[i].Kind == kind && m.entries[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
 func (m *ViewModel) findToolEntry(toolCallID string) int {
 	if toolCallID == "" {
 		return -1
@@ -386,6 +446,9 @@ func buildVisibleEntry(entry sessionViewEntry) Entry {
 	}
 
 	switch entry.Kind {
+	case EntryKindUserMessage:
+		result.Title = "You"
+		result.Preview = buildBlocksPreview(entry.Blocks)
 	case EntryKindAssistantMessage:
 		result.Title = "Assistant"
 		result.Preview = buildBlocksPreview(entry.Blocks)

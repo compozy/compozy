@@ -72,6 +72,8 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 		"GET /api/workspaces/{id}/ws",
 		"POST /api/reviews/{slug}/rounds/{round}/runs",
 		"POST /api/runs/{run_id}/cancel",
+		"POST /api/runs/{run_id}/jobs/{job_id}/messages",
+		"POST /api/runs/{run_id}/jobs/{job_id}/pause",
 		"POST /api/sync",
 		"POST /api/task-runs/multiple",
 		"POST /api/tasks/{slug}/archive",
@@ -150,13 +152,14 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	}
 
 	postBodies := map[string]string{
-		"POST /api/tasks/{slug}/runs":                  "#/components/schemas/TaskRunRequest",
-		"POST /api/task-runs/multiple":                 "#/components/schemas/TaskRunMultipleRequest",
-		"POST /api/tasks/{slug}/archive":               "#/components/schemas/WorkflowArchiveRequest",
-		"POST /api/reviews/{slug}/watch":               "#/components/schemas/ReviewWatchRequest",
-		"POST /api/reviews/{slug}/rounds/{round}/runs": "#/components/schemas/ReviewRunRequest",
-		"POST /api/sync":                               "#/components/schemas/SyncRequest",
-		"POST /api/workspaces/resolve":                 "#/components/schemas/WorkspaceResolveRequest",
+		"POST /api/tasks/{slug}/runs":                    "#/components/schemas/TaskRunRequest",
+		"POST /api/task-runs/multiple":                   "#/components/schemas/TaskRunMultipleRequest",
+		"POST /api/tasks/{slug}/archive":                 "#/components/schemas/WorkflowArchiveRequest",
+		"POST /api/reviews/{slug}/watch":                 "#/components/schemas/ReviewWatchRequest",
+		"POST /api/reviews/{slug}/rounds/{round}/runs":   "#/components/schemas/ReviewRunRequest",
+		"POST /api/runs/{run_id}/jobs/{job_id}/messages": "#/components/schemas/RunJobMessageRequest",
+		"POST /api/sync":                                 "#/components/schemas/SyncRequest",
+		"POST /api/workspaces/resolve":                   "#/components/schemas/WorkspaceResolveRequest",
 	}
 	for routeKey, wantRef := range postBodies {
 		routeKey := routeKey
@@ -248,6 +251,8 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/task-runs/multiple",
 		"POST /api/sync",
 		"POST /api/runs/{run_id}/cancel",
+		"POST /api/runs/{run_id}/jobs/{job_id}/messages",
+		"POST /api/runs/{run_id}/jobs/{job_id}/pause",
 		"POST /api/workspaces/resolve",
 		"POST /api/workspaces/sync",
 	} {

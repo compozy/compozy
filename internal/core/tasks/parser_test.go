@@ -254,6 +254,32 @@ func TestTaskMetadataHelpers(t *testing.T) {
 	}
 }
 
+func TestExtractTaskIdentityNumber(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want int
+	}{
+		{name: "canonical filename", in: "task_042.md", want: 42},
+		{name: "extensionless identity", in: "task_15", want: 15},
+		{name: "nested extensionless identity", in: "features/auth/task_07", want: 7},
+		{name: "hashed safe name is not canonical", in: "task_15-daad11", want: 0},
+		{name: "prompt artifact is not canonical", in: "task_15.prompt.md", want: 0},
+		{name: "non task file", in: "internal/app/service.go", want: 0},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ExtractTaskIdentityNumber(tt.in); got != tt.want {
+				t.Fatalf("ExtractTaskIdentityNumber(%q) = %d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHasTaskV1FrontMatterKeys(t *testing.T) {
 	t.Parallel()
 

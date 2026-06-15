@@ -95,6 +95,8 @@ type RunService interface {
 	Events(context.Context, string, RunEventPageQuery) (RunEventPage, error)
 	OpenStream(context.Context, string, StreamCursor) (RunStream, error)
 	Cancel(context.Context, string) error
+	PauseRunJob(context.Context, string, string) (RunJobControlResponse, error)
+	SendRunJobMessage(context.Context, string, string, RunJobMessageRequest) (RunJobControlResponse, error)
 }
 
 // SyncService exposes explicit workflow reconciliation.
@@ -352,6 +354,8 @@ type RunTranscriptMessage = contract.RunTranscriptMessage
 type RunUIMessage = contract.RunUIMessage
 type RunUIMessagePart = contract.RunUIMessagePart
 type RunTranscript = contract.RunTranscript
+type RunJobMessageRequest = contract.RunJobMessageRequest
+type RunJobControlResponse = contract.RunJobControlResponse
 type RunShutdownState = contract.RunShutdownState
 type RunSnapshot = contract.RunSnapshot
 

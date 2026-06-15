@@ -71,6 +71,45 @@ func TestRemoteSnapshotBootstrapHydratesUIStateBeforeLiveEvents(t *testing.T) {
 	}
 }
 
+func TestRemoteSnapshotBootstrapRestoresPausedJobComposerState(t *testing.T) {
+	t.Parallel()
+
+	snapshot := apicore.RunSnapshot{
+		Run: apicore.Run{RunID: "run-paused", Status: remoteRunStatusRunning},
+		Jobs: []apicore.RunJobState{{
+			Index:  0,
+			JobID:  "task_01",
+			Status: remoteRunStatusPaused,
+			Summary: &apicore.RunJobSummary{
+				SafeName:    "task_01",
+				TaskTitle:   "Paused task",
+				Attempt:     1,
+				MaxAttempts: 1,
+			},
+		}},
+	}
+
+	jobs, msgs := remoteSnapshotBootstrap(snapshot)
+	mdl := newUIModel(len(jobs))
+	mdl.cfg = &config{RunID: snapshot.Run.RunID}
+	applyRemoteQueuedJobs(mdl, jobs)
+	applyUIMsgs(mdl, msgs...)
+
+	if len(mdl.jobs) != 1 {
+		t.Fatalf("jobs = %#v, want one paused job", mdl.jobs)
+	}
+	if got := mdl.jobs[0].state; got != jobPaused {
+		t.Fatalf("job state = %v, want paused", got)
+	}
+	if mdl.focusedPane != uiPaneComposer || !mdl.composerEnabled(&mdl.jobs[0]) {
+		t.Fatalf(
+			"composer focus/enabled = %s/%v, want focused enabled",
+			mdl.focusedPane,
+			mdl.composerEnabled(&mdl.jobs[0]),
+		)
+	}
+}
+
 func apiSessionSnapshot(snapshot SessionViewSnapshot) apicore.SessionViewSnapshot {
 	result := apicore.SessionViewSnapshot{
 		Revision: snapshot.Revision,
@@ -289,6 +328,41 @@ func TestAttachRemoteKeepsOwnerSessionsCancelableFromLocalQuit(t *testing.T) {
 	}
 }
 
+func TestAttachRemoteAppliesWorkspaceRootToConfig(t *testing.T) {
+	originalSetup := setupRemoteUISession
+	defer func() {
+		setupRemoteUISession = originalSetup
+	}()
+
+	var workspaceRoot string
+	setupRemoteUISession = func(
+		_ context.Context,
+		_ []job,
+		cfg *config,
+		_ *eventspkg.Bus[eventspkg.Event],
+		_ bool,
+	) Session {
+		if cfg == nil {
+			t.Fatal("expected remote attach config")
+		}
+		workspaceRoot = cfg.WorkspaceRoot
+		return &recordingUISession{}
+	}
+
+	_, err := AttachRemote(context.Background(), RemoteAttachOptions{
+		Snapshot: apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-workdir", Status: remoteRunStatusCompleted},
+		},
+		WorkspaceRoot: "  /tmp/compozy-workspace  ",
+	})
+	if err != nil {
+		t.Fatalf("AttachRemote() error = %v", err)
+	}
+	if workspaceRoot != "/tmp/compozy-workspace" {
+		t.Fatalf("workspace root = %q, want trimmed remote workspace root", workspaceRoot)
+	}
+}
+
 func TestAttachRemoteOpensStreamFromSnapshotCursorForRunningRun(t *testing.T) {
 	originalSetup := setupRemoteUISession
 	setupRemoteUISession = func(context.Context, []job, *config, *eventspkg.Bus[eventspkg.Event], bool) Session {
@@ -361,25 +435,36 @@ func TestShouldStopAfterRemoteEOFUsesTerminalSnapshotCursor(t *testing.T) {
 func TestRemoteSnapshotBootstrapIncludesShutdownState(t *testing.T) {
 	t.Parallel()
 
-	_, msgs := remoteSnapshotBootstrap(apicore.RunSnapshot{
-		Run: apicore.Run{RunID: "run-shutdown", Status: "running"},
-		Shutdown: &apicore.RunShutdownState{
-			Phase:       string(shutdownPhaseDraining),
-			Source:      string(shutdownSourceSignal),
-			RequestedAt: time.Unix(10, 0).UTC(),
-			DeadlineAt:  time.Unix(20, 0).UTC(),
-		},
+	t.Run("Should include shutdown state alongside run status", func(t *testing.T) {
+		t.Parallel()
+
+		_, msgs := remoteSnapshotBootstrap(apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-shutdown", Status: "running"},
+			Shutdown: &apicore.RunShutdownState{
+				Phase:       string(shutdownPhaseDraining),
+				Source:      string(shutdownSourceSignal),
+				RequestedAt: time.Unix(10, 0).UTC(),
+				DeadlineAt:  time.Unix(20, 0).UTC(),
+			},
+		})
+		if len(msgs) != 2 {
+			t.Fatalf("expected run status and shutdown bootstrap messages, got %#v", msgs)
+		}
+		runStatus, ok := msgs[0].(runStatusMsg)
+		if !ok {
+			t.Fatalf("expected runStatusMsg, got %T", msgs[0])
+		}
+		if runStatus.Status != remoteRunStatusRunning {
+			t.Fatalf("runStatusMsg.Status = %q, want %q", runStatus.Status, remoteRunStatusRunning)
+		}
+		status, ok := msgs[1].(shutdownStatusMsg)
+		if !ok {
+			t.Fatalf("expected shutdownStatusMsg, got %T", msgs[1])
+		}
+		if status.State.Phase != shutdownPhaseDraining || status.State.Source != shutdownSourceSignal {
+			t.Fatalf("unexpected shutdown bootstrap state: %#v", status.State)
+		}
 	})
-	if len(msgs) != 1 {
-		t.Fatalf("expected one shutdown bootstrap message, got %#v", msgs)
-	}
-	status, ok := msgs[0].(shutdownStatusMsg)
-	if !ok {
-		t.Fatalf("expected shutdownStatusMsg, got %T", msgs[0])
-	}
-	if status.State.Phase != shutdownPhaseDraining || status.State.Source != shutdownSourceSignal {
-		t.Fatalf("unexpected shutdown bootstrap state: %#v", status.State)
-	}
 }
 
 func applyRemoteQueuedJobs(mdl *uiModel, jobs []job) {
@@ -420,9 +505,13 @@ func (s *recordingUISession) Enqueue(msg any) {
 }
 
 func (s *recordingUISession) SetQuitHandler(func(uiQuitRequest)) {}
-func (s *recordingUISession) CloseEvents()                       {}
-func (s *recordingUISession) Shutdown()                          {}
-func (s *recordingUISession) Wait() error                        { return nil }
+func (s *recordingUISession) SetJobControlHandler(
+	func(context.Context, uiJobControlRequest) (jobControlResponse, error),
+) {
+}
+func (s *recordingUISession) CloseEvents() {}
+func (s *recordingUISession) Shutdown()    {}
+func (s *recordingUISession) Wait() error  { return nil }
 
 func (s *recordingUISession) messageTypes() []string {
 	s.mu.Lock()

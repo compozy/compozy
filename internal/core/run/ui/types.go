@@ -19,11 +19,30 @@ const (
 	minContentHeight       = 10
 	mainHorizontalPadding  = 2
 	logViewportMinHeight   = 6
-	sidebarViewportMinRows = 5
-	headerSectionHeight    = 3
-	helpSectionHeight      = 2
+	sidebarViewportMinRows = 6
+	headerSectionHeight    = 1
+	helpSectionHeight      = 1
 	separatorSectionHeight = 1
-	chromeHeight           = headerSectionHeight + helpSectionHeight + separatorSectionHeight
+	// chromeHeightStandalone reserves the single-row brand+tabs header, the single-row
+	// footer, and the two horizontal dividers that bracket the body (one under the
+	// header, one above the footer) — mirroring the wizard's header / HR / body / HR /
+	// footer rhythm.
+	chromeHeightStandalone = headerSectionHeight + helpSectionHeight + 2*separatorSectionHeight
+	// chromeHeightEmbedded applies when the cockpit is rendered as a child of the
+	// tabbed multi-run/review-watch shells: the parent owns the brand+tabs row and the
+	// divider beneath it, so the child only reserves its footer and the divider above
+	// it.
+	chromeHeightEmbedded = helpSectionHeight + separatorSectionHeight
+	// sidebarRowLines is the rendered height of one job card: a bordered box of
+	// top border + title + meta + bottom border.
+	sidebarRowLines = 4
+	// sidebarRowStride is the distance from one stacked card's top border to the
+	// next. Adjacent cards share one separator border row, so each card after the
+	// first adds one fewer line than a standalone card.
+	sidebarRowStride = sidebarRowLines - 1
+	// sidebarHeaderRows is the number of rows reserved at the top of the sidebar
+	// panel for the JOB status line and progress meter (kept in sync with renderSidebar).
+	sidebarHeaderRows = 2
 )
 
 type jobState int
@@ -31,15 +50,26 @@ type jobState int
 const (
 	jobPending jobState = iota
 	jobRunning
+	jobPausing
+	jobPaused
 	jobRetrying
 	jobSuccess
 	jobFailed
+)
+
+const (
+	statusLabelRunning  = "RUNNING"
+	statusLabelFailed   = "FAILED"
+	statusLabelCrashed  = "CRASHED"
+	statusLabelCanceled = "CANCELED"
+	statusLabelDone     = "DONE"
 )
 
 type uiJob struct {
 	codeFile             string
 	codeFiles            []string
 	issues               int
+	taskNumber           int
 	taskTitle            string
 	taskType             string
 	safeName             string
@@ -90,15 +120,18 @@ type timelineMountState struct {
 type sidebarRowCacheKey struct {
 	selected       bool
 	width          int
+	index          int
+	taskNumber     int
 	state          jobState
 	safeName       string
-	issues         int
-	fileCount      int
+	taskTitle      string
+	taskType       string
 	attempt        int
 	maxAttempts    int
-	retrying       bool
-	retryReason    string
 	elapsedSeconds int64
+	inputTokens    int
+	outputTokens   int
+	totalTokens    int
 	spinnerFrame   int
 }
 
@@ -115,6 +148,7 @@ type jobQueuedMsg struct {
 	CodeFile        string
 	CodeFiles       []string
 	Issues          int
+	TaskNumber      int
 	TaskTitle       string
 	TaskType        string
 	SafeName        string
@@ -143,6 +177,19 @@ type jobRetryMsg struct {
 	Reason      string
 }
 
+type jobPausingMsg struct {
+	Index int
+}
+
+type jobPausedMsg struct {
+	Index int
+}
+
+type jobResumedMsg struct {
+	Index     int
+	MessageID string
+}
+
 type jobFinishedMsg struct {
 	Index    int
 	Success  bool
@@ -166,12 +213,23 @@ type usageUpdateMsg struct {
 	Usage model.Usage
 }
 
+type runStatusMsg struct {
+	Status string
+}
+
 type shutdownStatusMsg struct {
 	State shutdownState
 }
 
 type jobFailureMsg struct {
 	Failure failInfo
+}
+
+type jobControlResultMsg struct {
+	Index    int
+	Action   uiJobControlAction
+	Response model.JobControlResponse
+	Err      error
 }
 
 type dispatchBatchMsg struct {
@@ -193,6 +251,7 @@ type uiPane string
 const (
 	uiPaneJobs     uiPane = "jobs"
 	uiPaneTimeline uiPane = "timeline"
+	uiPaneComposer uiPane = "composer"
 )
 
 type uiLayoutMode string

@@ -44,6 +44,24 @@ func TestParseTaskRuntimeRule(t *testing.T) {
 		}
 	})
 
+	t.Run("Should parse and format workflow-scoped rules", func(t *testing.T) {
+		t.Parallel()
+
+		rule, err := parseTaskRuntimeRule("workflow=alpha,id=task_01,ide=codex,model=gpt-5.5")
+		if err != nil {
+			t.Fatalf("parseTaskRuntimeRule() error = %v", err)
+		}
+		if rule.Workflow == nil || *rule.Workflow != "alpha" {
+			t.Fatalf("unexpected workflow qualifier: %#v", rule.Workflow)
+		}
+		if rule.ID == nil || *rule.ID != "task_01" {
+			t.Fatalf("unexpected id selector: %#v", rule.ID)
+		}
+		if got := formatTaskRuntimeRule(rule); got != "workflow=alpha,id=task_01,ide=codex,model=gpt-5.5" {
+			t.Fatalf("unexpected formatted rule: %q", got)
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		input   string

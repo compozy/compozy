@@ -27,6 +27,8 @@ var (
 	ErrWorkflowSlugRequired = errors.New("workflow slug is required")
 	// ErrRunIDRequired reports that a run identifier argument was blank.
 	ErrRunIDRequired = errors.New("run id is required")
+	// ErrJobIDRequired reports that a run job identifier argument was blank.
+	ErrJobIDRequired = errors.New("job id is required")
 )
 
 // Target identifies one daemon transport endpoint.

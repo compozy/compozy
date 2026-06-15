@@ -1527,6 +1527,45 @@ func (h *Handlers) CancelRun(c *gin.Context) {
 	c.JSON(http.StatusAccepted, contract.MutationAcceptedResponse{Accepted: true})
 }
 
+// PauseRunJob requests a pause for one active job in a run.
+func (h *Handlers) PauseRunJob(c *gin.Context) {
+	if h.Runs == nil {
+		h.respondError(c, serviceUnavailableProblem("run service"))
+		return
+	}
+
+	response, err := h.Runs.PauseRunJob(c.Request.Context(), c.Param("run_id"), c.Param("job_id"))
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, response)
+}
+
+// SendRunJobMessage sends a user message into a paused job's current ACP session.
+func (h *Handlers) SendRunJobMessage(c *gin.Context) {
+	if h.Runs == nil {
+		h.respondError(c, serviceUnavailableProblem("run service"))
+		return
+	}
+
+	var body contract.RunJobMessageRequest
+	if !h.bindJSON(c, "decode run job message request", &body) {
+		return
+	}
+	response, err := h.Runs.SendRunJobMessage(
+		c.Request.Context(),
+		c.Param("run_id"),
+		c.Param("job_id"),
+		body,
+	)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, response)
+}
+
 // SyncWorkflow runs explicit daemon reconciliation for a workspace or workflow.
 func (h *Handlers) SyncWorkflow(c *gin.Context) {
 	if h.Sync == nil {

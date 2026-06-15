@@ -10,6 +10,9 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+// DaemonContractVersion identifies the CLI/daemon transport contract version.
+const DaemonContractVersion = "1"
+
 type MutationAcceptedResponse struct {
 	Accepted bool `json:"accepted"`
 }
@@ -106,19 +109,34 @@ type ExecRequest struct {
 	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
 }
 
+type RunJobMessageRequest struct {
+	Message string `json:"message"`
+}
+
+type RunJobControlResponse struct {
+	RunID     string `json:"run_id"`
+	JobID     string `json:"job_id"`
+	Index     int    `json:"index"`
+	Status    string `json:"status"`
+	SessionID string `json:"session_id,omitempty"`
+	MessageID string `json:"message_id,omitempty"`
+}
+
 type DaemonStatus struct {
-	PID            int       `json:"pid"`
-	Version        string    `json:"version,omitempty"`
-	StartedAt      time.Time `json:"started_at"`
-	SocketPath     string    `json:"socket_path,omitempty"`
-	HTTPPort       int       `json:"http_port,omitempty"`
-	ActiveRunCount int       `json:"active_run_count"`
-	WorkspaceCount int       `json:"workspace_count"`
+	PID             int       `json:"pid"`
+	Version         string    `json:"version,omitempty"`
+	ContractVersion string    `json:"contract_version,omitempty"`
+	StartedAt       time.Time `json:"started_at"`
+	SocketPath      string    `json:"socket_path,omitempty"`
+	HTTPPort        int       `json:"http_port,omitempty"`
+	ActiveRunCount  int       `json:"active_run_count"`
+	WorkspaceCount  int       `json:"workspace_count"`
 }
 
 type DaemonHealth struct {
 	Ready               bool                       `json:"ready"`
 	Degraded            bool                       `json:"degraded,omitempty"`
+	ContractVersion     string                     `json:"contract_version,omitempty"`
 	StartedAt           time.Time                  `json:"started_at,omitempty"`
 	UptimeSeconds       int64                      `json:"uptime_seconds,omitempty"`
 	ActiveRunCount      int                        `json:"active_run_count,omitempty"`
@@ -369,6 +387,7 @@ type RunJobSummary struct {
 	CodeFile        string              `json:"code_file,omitempty"`
 	CodeFiles       []string            `json:"code_files,omitempty"`
 	Issues          int                 `json:"issues,omitempty"`
+	TaskNumber      int                 `json:"task_number,omitempty"`
 	TaskTitle       string              `json:"task_title,omitempty"`
 	TaskType        string              `json:"task_type,omitempty"`
 	SafeName        string              `json:"safe_name,omitempty"`

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -67,6 +68,9 @@ func TestServiceStatusHealthAndMetricsReflectRuntimeState(t *testing.T) {
 	if status.Version != host.info.Version {
 		t.Fatalf("status.Version = %q, want %q", status.Version, host.info.Version)
 	}
+	if status.ContractVersion != contract.DaemonContractVersion {
+		t.Fatalf("status.ContractVersion = %q, want %q", status.ContractVersion, contract.DaemonContractVersion)
+	}
 	if status.HTTPPort != host.info.HTTPPort {
 		t.Fatalf("status.HTTPPort = %d, want %d", status.HTTPPort, host.info.HTTPPort)
 	}
@@ -86,6 +90,9 @@ func TestServiceStatusHealthAndMetricsReflectRuntimeState(t *testing.T) {
 	}
 	if !health.Degraded {
 		t.Fatalf("health.Degraded = false, want true")
+	}
+	if health.ContractVersion != contract.DaemonContractVersion {
+		t.Fatalf("health.ContractVersion = %q, want %q", health.ContractVersion, contract.DaemonContractVersion)
 	}
 	if !health.StartedAt.Equal(now) {
 		t.Fatalf("health.StartedAt = %v, want %v", health.StartedAt, now)

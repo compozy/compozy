@@ -579,7 +579,7 @@ func TestDecorateReusableAgentErrorAndHelperFormatting(t *testing.T) {
 	if got := formatEnvKeys(map[string]string{"B": "2", "A": "1"}); got != "A,B" {
 		t.Fatalf("unexpected env keys ordering: %q", got)
 	}
-	if got := formatMCPSummary(nil); got != "none" {
+	if got := formatMCPSummary(nil); got != noneValue {
 		t.Fatalf("unexpected empty mcp summary: %q", got)
 	}
 	if got := formatMCPSummary(

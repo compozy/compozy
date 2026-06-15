@@ -137,6 +137,12 @@ func (*fakeRunAgentACPClient) ResumeSession(context.Context, agent.ResumeSession
 	return nil, nil
 }
 
+func (*fakeRunAgentACPClient) CancelSession(context.Context, string) error { return nil }
+
+func (*fakeRunAgentACPClient) PromptSession(context.Context, agent.PromptSessionRequest) (agent.Session, error) {
+	return nil, nil
+}
+
 func (*fakeRunAgentACPClient) SupportsLoadSession() bool { return false }
 func (*fakeRunAgentACPClient) Close() error              { return nil }
 func (*fakeRunAgentACPClient) Kill() error               { return nil }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,10 @@ type Client interface {
 	CreateSession(ctx context.Context, req SessionRequest) (Session, error)
 	// ResumeSession attaches to an existing ACP session and sends a new prompt into it.
 	ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error)
+	// CancelSession requests cancellation of the active prompt turn for a session.
+	CancelSession(ctx context.Context, sessionID string) error
+	// PromptSession sends a new prompt turn into an already active ACP session.
+	PromptSession(ctx context.Context, req PromptSessionRequest) (Session, error)
 	// SupportsLoadSession reports whether the connected ACP agent advertised session/load support.
 	SupportsLoadSession() bool
 	// Close terminates the agent subprocess.
@@ -69,6 +74,13 @@ type ResumeSessionRequest struct {
 	RunID      string               `json:"-"`
 	JobID      string               `json:"-"`
 	RuntimeMgr model.RuntimeManager `json:"-"`
+}
+
+// PromptSessionRequest contains the parameters for a follow-up prompt in an active ACP session.
+type PromptSessionRequest struct {
+	SessionID string `json:"session_id,omitempty"`
+	Prompt    []byte `json:"prompt,omitempty"`
+	MessageID string `json:"message_id,omitempty"`
 }
 
 type sessionRequestJSON struct {
@@ -162,6 +174,24 @@ type SessionError struct {
 // AuthenticationRequiredError marks ACP protocol authentication failures.
 type AuthenticationRequiredError struct {
 	Err error
+}
+
+// PromptCancelledError marks an ACP prompt turn canceled while the session stays reusable.
+type PromptCancelledError struct {
+	SessionID string
+}
+
+func (e *PromptCancelledError) Error() string {
+	if e == nil || strings.TrimSpace(e.SessionID) == "" {
+		return "ACP prompt turn canceled"
+	}
+	return fmt.Sprintf("ACP prompt turn canceled for session %s", e.SessionID)
+}
+
+// IsPromptCancelled reports whether err is a prompt-turn cancellation, not process shutdown.
+func IsPromptCancelled(err error) bool {
+	var promptErr *PromptCancelledError
+	return errors.As(err, &promptErr)
 }
 
 // Error implements the error interface.
@@ -463,6 +493,72 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 		Prompt:    []acp.ContentBlock{acp.TextBlock(string(req.Prompt))},
 	})
 
+	return session, nil
+}
+
+// CancelSession requests cancellation of the active prompt turn without closing the ACP session.
+func (c *clientImpl) CancelSession(ctx context.Context, sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("cancel ACP session: missing session id")
+	}
+	c.mu.Lock()
+	closed := c.closed
+	conn := c.conn
+	c.mu.Unlock()
+	if closed {
+		return errors.New("ACP client is already closed")
+	}
+	if conn == nil {
+		return errors.New("ACP client is not started")
+	}
+	if err := conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(sessionID)}); err != nil {
+		return wrapACPError(err)
+	}
+	return nil
+}
+
+// PromptSession sends a follow-up prompt into an already active ACP session.
+func (c *clientImpl) PromptSession(ctx context.Context, req PromptSessionRequest) (Session, error) {
+	sessionID := strings.TrimSpace(req.SessionID)
+	if sessionID == "" {
+		return nil, errors.New("prompt ACP session: missing session id")
+	}
+	if strings.TrimSpace(string(req.Prompt)) == "" {
+		return nil, errors.New("prompt ACP session: prompt is required")
+	}
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, errors.New("ACP client is already closed")
+	}
+	if !c.started || c.conn == nil {
+		c.mu.Unlock()
+		return nil, errors.New("ACP client is not started")
+	}
+	previous := c.sessions[sessionID]
+	if previous == nil {
+		c.mu.Unlock()
+		return nil, fmt.Errorf("prompt ACP session: unknown session %q", sessionID)
+	}
+	workingDir := previous.workingDir
+	allowedRoots := append([]string(nil), previous.allowedRoots...)
+	identity := previous.Identity()
+	c.mu.Unlock()
+
+	session := newSessionWithAccess(sessionID, workingDir, allowedRoots)
+	session.identity = identity
+	c.storeSession(ctx, session)
+
+	promptReq := acp.PromptRequest{
+		SessionId: acp.SessionId(sessionID),
+		Prompt:    []acp.ContentBlock{acp.TextBlock(string(req.Prompt))},
+	}
+	if messageID := strings.TrimSpace(req.MessageID); messageID != "" {
+		promptReq.MessageId = &messageID
+	}
+	c.wg.Add(1)
+	go c.runPrompt(ctx, session, promptReq)
 	return session, nil
 }
 
@@ -848,6 +944,10 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 	if resp.StopReason == acp.StopReasonCancelled {
 		cancelErr := context.Cause(ctx)
 		if cancelErr == nil {
+			if ctx.Err() == nil {
+				session.finish(model.StatusCompleted, &PromptCancelledError{SessionID: string(prompt.SessionId)})
+				return
+			}
 			cancelErr = context.Canceled
 		}
 		session.finish(model.StatusFailed, cancelErr)
@@ -862,6 +962,24 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.finish(model.StatusCompleted, nil)
+}
+
+// NewPromptMessageID returns an ACP-compatible UUIDv4 message id.
+func NewPromptMessageID() (string, error) {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return "", fmt.Errorf("generate ACP message id: %w", err)
+	}
+	random[6] = (random[6] & 0x0f) | 0x40
+	random[8] = (random[8] & 0x3f) | 0x80
+	return fmt.Sprintf(
+		"%x-%x-%x-%x-%x",
+		random[0:4],
+		random[4:6],
+		random[6:8],
+		random[8:10],
+		random[10:16],
+	), nil
 }
 
 func shouldDowngradePromptErrorAfterToolFailure(session *sessionImpl, err error) bool {

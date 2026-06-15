@@ -474,6 +474,65 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 			t.Fatalf("expected resolved runtime to clear task rules, got %#v", resolved.TaskRuntimeRules)
 		}
 	})
+
+	t.Run("Should scope matching rules to workflow when qualifier is set", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			IDE:   model.IDECodex,
+			Model: "base",
+			TaskRuntimeRules: []model.TaskRuntimeRule{
+				{
+					Workflow: testStringPointer("alpha"),
+					ID:       testStringPointer("task_01"),
+					Model:    testStringPointer("alpha-model"),
+				},
+				{
+					ID:    testStringPointer("task_02"),
+					Model: testStringPointer("global-model"),
+				},
+				{
+					Workflow: testStringPointer("beta"),
+					Type:     testStringPointer("frontend"),
+					IDE:      testStringPointer(model.IDEClaude),
+				},
+			},
+		}
+
+		alpha := cfg.RuntimeForTask(model.TaskRuntimeTarget{Workflow: "alpha", ID: "task_01", Type: "frontend"})
+		if alpha.Model != "alpha-model" || alpha.IDE != model.IDECodex {
+			t.Fatalf("unexpected alpha runtime: %#v", alpha)
+		}
+
+		beta := cfg.RuntimeForTask(model.TaskRuntimeTarget{Workflow: "beta", ID: "task_02", Type: "frontend"})
+		if beta.IDE != model.IDEClaude || beta.Model != "global-model" {
+			t.Fatalf("unexpected beta runtime: %#v", beta)
+		}
+
+		gamma := cfg.RuntimeForTask(model.TaskRuntimeTarget{Workflow: "gamma", ID: "task_01", Type: "frontend"})
+		if gamma.Model != "base" || gamma.IDE != model.IDECodex {
+			t.Fatalf("unexpected gamma runtime: %#v", gamma)
+		}
+	})
+
+	t.Run("Should treat blank workflow qualifiers as unscoped", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			IDE:   model.IDECodex,
+			Model: "base",
+			TaskRuntimeRules: []model.TaskRuntimeRule{{
+				Workflow: testStringPointer(" \t "),
+				Type:     testStringPointer("backend"),
+				Model:    testStringPointer("blank-workflow-model"),
+			}},
+		}
+
+		resolved := cfg.RuntimeForTask(model.TaskRuntimeTarget{Workflow: "alpha", ID: "task_01", Type: "backend"})
+		if resolved.Model != "blank-workflow-model" {
+			t.Fatalf("blank workflow qualifier should match any workflow, got %#v", resolved)
+		}
+	})
 }
 
 func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {

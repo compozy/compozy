@@ -204,6 +204,18 @@ var RouteInventory = []RouteSpec{
 		ResponseType: "MutationAcceptedResponse",
 		TimeoutClass: TimeoutMutate,
 	},
+	{
+		Method:       http.MethodPost,
+		Path:         "/api/runs/:run_id/jobs/:job_id/pause",
+		ResponseType: "RunJobControlResponse",
+		TimeoutClass: TimeoutMutate,
+	},
+	{
+		Method:       http.MethodPost,
+		Path:         "/api/runs/:run_id/jobs/:job_id/messages",
+		ResponseType: "RunJobControlResponse",
+		TimeoutClass: TimeoutMutate,
+	},
 	{Method: http.MethodPost, Path: "/api/sync", ResponseType: "SyncResponse", TimeoutClass: TimeoutLongMutate},
 	{Method: http.MethodPost, Path: "/api/exec", ResponseType: "RunResponse", TimeoutClass: TimeoutLongMutate},
 }

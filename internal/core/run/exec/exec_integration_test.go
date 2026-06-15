@@ -695,6 +695,14 @@ func (*capturingExecACPClient) ResumeSession(context.Context, agent.ResumeSessio
 	return nil, nil
 }
 
+func (*capturingExecACPClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (*capturingExecACPClient) PromptSession(context.Context, agent.PromptSessionRequest) (agent.Session, error) {
+	return nil, nil
+}
+
 func (*capturingExecACPClient) SupportsLoadSession() bool {
 	return false
 }

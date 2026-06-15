@@ -441,6 +441,9 @@ func newJobExecutionContext(
 	if err != nil {
 		return nil, err
 	}
+	if cfg.JobControls == nil {
+		cfg.JobControls = model.NewJobControlRegistry()
+	}
 	execCtx := &jobExecutionContext{
 		ctx:           ctx,
 		cfg:           cfg,

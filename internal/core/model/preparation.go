@@ -75,6 +75,7 @@ func (p *SolvePreparation) CloseJournal(ctx context.Context) error {
 type Job struct {
 	CodeFiles       []string
 	Groups          map[string][]IssueEntry
+	TaskNumber      int
 	TaskTitle       string
 	TaskType        string
 	SafeName        string

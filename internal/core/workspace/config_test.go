@@ -795,6 +795,27 @@ ide = "codex"
 	}
 }
 
+func TestLoadConfigRejectsUnsupportedStartTaskRuntimeRuleWorkflow(t *testing.T) {
+	isolateWorkspaceConfigHome(t)
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
+workflow = "alpha"
+type = "frontend"
+ide = "codex"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected unsupported tasks.run.task_runtime_rules workflow error")
+	}
+	if !strings.Contains(err.Error(), "tasks.run.task_runtime_rules[0].workflow is not supported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadConfigRejectsInvalidStartTaskRuntimeRuleReasoningEffort(t *testing.T) {
 	isolateWorkspaceConfigHome(t)
 

@@ -807,8 +807,9 @@ func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 	if !strings.Contains(view.Content, "hello from ACP") {
 		t.Fatalf("expected rendered view to include transcript text, got %q", view.Content)
 	}
-	if !strings.Contains(view.Content, "SUCCESS") {
-		t.Fatalf("expected rendered view to include success state, got %q", view.Content)
+	row := mdl.renderSidebarItem(0, &mdl.jobs[0], mdl.selectedJob == 0)
+	if !strings.Contains(row, jobIconSuccess) {
+		t.Fatalf("expected success state icon on the sidebar row, got %q", row)
 	}
 }
 

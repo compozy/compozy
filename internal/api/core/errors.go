@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 )
@@ -40,8 +41,13 @@ func statusForError(err error) int {
 	case errors.Is(err, os.ErrNotExist),
 		errors.Is(err, globaldb.ErrWorkspaceNotFound),
 		errors.Is(err, globaldb.ErrWorkflowNotFound),
-		errors.Is(err, globaldb.ErrRunNotFound):
+		errors.Is(err, globaldb.ErrRunNotFound),
+		errors.Is(err, model.ErrJobControlNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, model.ErrJobControlMessageRequired):
+		return http.StatusBadRequest
+	case errors.Is(err, model.ErrJobControlMessageTooLarge):
+		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, tasks.ErrLegacyTaskMetadata),
 		errors.Is(err, tasks.ErrV1TaskMetadata),
 		errors.Is(err, reviews.ErrLegacyReviewMetadata):
@@ -59,6 +65,7 @@ func statusForError(err error) int {
 
 	switch {
 	case errors.Is(err, globaldb.ErrWorkspaceHasActiveRuns),
+		errors.Is(err, model.ErrJobControlConflict),
 		errors.Is(err, globaldb.ErrWorkflowArchived),
 		errors.Is(err, globaldb.ErrWorkflowHasActiveRuns),
 		errors.Is(err, globaldb.ErrWorkflowNotArchivable),

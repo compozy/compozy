@@ -24,7 +24,9 @@ type jobAttemptResult = runshared.JobAttemptResult
 type shutdownSource = runshared.ShutdownSource
 type shutdownState = runshared.ShutdownState
 type uiQuitRequest = runshared.UIQuitRequest
+type uiJobControlRequest = runshared.UIJobControlRequest
 type uiSession = runshared.UISession
+type jobControlResponse = model.JobControlResponse
 
 const (
 	exitCodeCanceled = runshared.ExitCodeCanceled

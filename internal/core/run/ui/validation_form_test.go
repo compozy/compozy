@@ -116,7 +116,7 @@ func TestValidationFormBodyOwnsSurfaceBackground(t *testing.T) {
 	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{}, nil)
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	assertRenderedCellsUseBackground(t, model.renderBody(model.contentWidth()), colorBgSurface)
+	assertNoForcedBackground(t, model.renderBody(model.contentWidth()))
 }
 
 func TestValidationFormScrollKeysMoveIssueViewport(t *testing.T) {
