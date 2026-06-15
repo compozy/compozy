@@ -90,16 +90,27 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 
 	m := newUIModel(1)
 
-	for _, state := range []jobState{jobPending, jobRunning, jobRetrying, jobSuccess, jobFailed} {
-		if got := m.jobStateIcon(state); got == "" {
-			t.Fatalf("expected icon for state %v", state)
-		}
-		if m.jobStateColor(state) == nil {
-			t.Fatalf("expected color for state %v", state)
-		}
-		if m.jobBorderColor(&uiJob{state: state}) == nil {
-			t.Fatalf("expected border color for state %v", state)
-		}
+	for _, tc := range []struct {
+		name  string
+		state jobState
+	}{
+		{"Should render helpers for pending jobs", jobPending},
+		{"Should render helpers for running jobs", jobRunning},
+		{"Should render helpers for retrying jobs", jobRetrying},
+		{"Should render helpers for successful jobs", jobSuccess},
+		{"Should render helpers for failed jobs", jobFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := m.jobStateIcon(tc.state); got == "" {
+				t.Fatalf("expected icon for state %v", tc.state)
+			}
+			if m.jobStateColor(tc.state) == nil {
+				t.Fatalf("expected color for state %v", tc.state)
+			}
+			if m.jobBorderColor(&uiJob{state: tc.state}) == nil {
+				t.Fatalf("expected border color for state %v", tc.state)
+			}
+		})
 	}
 
 	m.jobs = []uiJob{{tokenUsage: &model.Usage{InputTokens: 1, OutputTokens: 2}}}

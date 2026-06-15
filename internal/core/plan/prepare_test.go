@@ -285,8 +285,13 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		if len(job.CodeFiles) != 1 {
 			t.Fatalf("expected single-file jobs in prd mode, got %#v", job.CodeFiles)
 		}
-		if got, want := job.TaskNumber, wantTaskNumbers[job.CodeFiles[0]]; got != want {
-			t.Fatalf("expected task number %d for %s, got %d", want, job.CodeFiles[0], got)
+		taskID := job.CodeFiles[0]
+		want, ok := wantTaskNumbers[taskID]
+		if !ok {
+			t.Fatalf("unexpected task id %q in prepared jobs", taskID)
+		}
+		if got := job.TaskNumber; got != want {
+			t.Fatalf("expected task number %d for %s, got %d", want, taskID, got)
 		}
 		if job.TaskTitle == "" {
 			t.Fatalf("expected prd job to carry task title, got %#v", job)

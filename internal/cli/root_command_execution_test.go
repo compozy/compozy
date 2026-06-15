@@ -1264,81 +1264,85 @@ func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
 func TestTasksRunInteractiveFormCanStartMultipleWorkflows(t *testing.T) {
 	t.Parallel()
 
-	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
-	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
-		[]string{
-			"status: pending",
-			"title: Alpha Task",
-			"type: backend",
-			"complexity: low",
-		},
-		"# Task 1: Alpha Task",
-	))
-	writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
-	withWorkingDir(t, workspaceRoot)
+	t.Run("Should start multiple workflows from interactive form", func(t *testing.T) {
+		t.Parallel()
 
-	readyClient := &stubDaemonCommandClient{
-		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
-		health: apicore.DaemonHealth{Ready: true},
-		startMultipleRun: apicore.Run{
-			RunID:            "run-task-form-multi-001",
-			Mode:             "task_multi",
-			Status:           "running",
-			PresentationMode: attachModeDetach,
-			StartedAt:        time.Date(2026, 4, 17, 13, 5, 50, 0, time.UTC),
-		},
-	}
-	installTestCLIReadyDaemonBootstrap(t, readyClient)
+		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Alpha Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Alpha Task",
+		))
+		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+		withWorkingDir(t, workspaceRoot)
 
-	defaults := allowBundledSkillsForExecutionTests()
-	defaults.isInteractive = func() bool { return true }
-	defaults.collectForm = func(cmd *cobra.Command, state *commandState) error {
-		state.multiple = "alpha,beta"
-		state.attachMode = attachModeDetach
-		state.model = "gpt-5.5"
-		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{{
-			Workflow: stringPointer("alpha"),
-			ID:       stringPointer("task_01"),
-			Model:    stringPointer("alpha-model"),
-		}}
-		state.replaceConfiguredTaskRunRules = true
-		markInputFlagChanged(cmd, "multiple")
-		markInputFlagChanged(cmd, "attach")
-		markInputFlagChanged(cmd, "model")
-		markInputFlagChanged(cmd, "task-runtime")
-		return nil
-	}
-	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
-	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "tasks", "run")
-	if err != nil {
-		t.Fatalf("execute interactive tasks run multi: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
-	}
-	if readyClient.startCalls != 0 {
-		t.Fatalf("StartTaskRun calls = %d, want 0", readyClient.startCalls)
-	}
-	if readyClient.startMultipleCalls != 1 {
-		t.Fatalf("StartTaskRunMultiple calls = %d, want 1", readyClient.startMultipleCalls)
-	}
-	if !slices.Equal(readyClient.startMultipleRequest.Slugs, []string{"alpha", "beta"}) {
-		t.Fatalf("unexpected multi-run slugs: %#v", readyClient.startMultipleRequest.Slugs)
-	}
-	overrides := decodeTaskRunOverrides(t, readyClient.startMultipleRequest.RuntimeOverrides)
-	if overrides.Model == nil || *overrides.Model != "gpt-5.5" {
-		t.Fatalf("expected model runtime override, got %#v", overrides)
-	}
-	if overrides.TaskRuntimeRules == nil || len(*overrides.TaskRuntimeRules) != 1 {
-		t.Fatalf("expected workflow-scoped task runtime override, got %#v", overrides)
-	}
-	rule := (*overrides.TaskRuntimeRules)[0]
-	if rule.Workflow == nil || *rule.Workflow != "alpha" || rule.ID == nil || *rule.ID != "task_01" {
-		t.Fatalf("unexpected task runtime rule: %#v", rule)
-	}
-	if got := stdout; got != "task multi-run started: run-task-form-multi-001 (mode=detach)\n" {
-		t.Fatalf("unexpected stdout: %q", got)
-	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
-	}
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startMultipleRun: apicore.Run{
+				RunID:            "run-task-form-multi-001",
+				Mode:             "task_multi",
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 5, 50, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return true }
+		defaults.collectForm = func(cmd *cobra.Command, state *commandState) error {
+			state.multiple = "alpha,beta"
+			state.attachMode = attachModeDetach
+			state.model = "gpt-5.5"
+			state.executionTaskRuntimeRules = []model.TaskRuntimeRule{{
+				Workflow: stringPointer("alpha"),
+				ID:       stringPointer("task_01"),
+				Model:    stringPointer("alpha-model"),
+			}}
+			state.replaceConfiguredTaskRunRules = true
+			markInputFlagChanged(cmd, "multiple")
+			markInputFlagChanged(cmd, "attach")
+			markInputFlagChanged(cmd, "model")
+			markInputFlagChanged(cmd, "task-runtime")
+			return nil
+		}
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "tasks", "run")
+		if err != nil {
+			t.Fatalf("execute interactive tasks run multi: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if readyClient.startCalls != 0 {
+			t.Fatalf("StartTaskRun calls = %d, want 0", readyClient.startCalls)
+		}
+		if readyClient.startMultipleCalls != 1 {
+			t.Fatalf("StartTaskRunMultiple calls = %d, want 1", readyClient.startMultipleCalls)
+		}
+		if !slices.Equal(readyClient.startMultipleRequest.Slugs, []string{"alpha", "beta"}) {
+			t.Fatalf("unexpected multi-run slugs: %#v", readyClient.startMultipleRequest.Slugs)
+		}
+		overrides := decodeTaskRunOverrides(t, readyClient.startMultipleRequest.RuntimeOverrides)
+		if overrides.Model == nil || *overrides.Model != "gpt-5.5" {
+			t.Fatalf("expected model runtime override, got %#v", overrides)
+		}
+		if overrides.TaskRuntimeRules == nil || len(*overrides.TaskRuntimeRules) != 1 {
+			t.Fatalf("expected workflow-scoped task runtime override, got %#v", overrides)
+		}
+		rule := (*overrides.TaskRuntimeRules)[0]
+		if rule.Workflow == nil || *rule.Workflow != "alpha" || rule.ID == nil || *rule.ID != "task_01" {
+			t.Fatalf("unexpected task runtime rule: %#v", rule)
+		}
+		if got := stdout; got != "task multi-run started: run-task-form-multi-001 (mode=detach)\n" {
+			t.Fatalf("unexpected stdout: %q", got)
+		}
+		if !strings.Contains(stderr, "preflight=ok") {
+			t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+		}
+	})
 }
 
 func TestTasksRunMultipleCommandRejectsInvalidSlugListsBeforeDaemon(t *testing.T) {

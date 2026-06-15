@@ -498,7 +498,7 @@ func (m *multiRunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case multiRunChildBootstrapMsg:
 		m.handleChildBootstrap(value)
-		return m, nil
+		return m, m.ensureSpinnerTick()
 	case multiRunChildEventMsg:
 		return m, m.handleChildEvent(value)
 	default:
@@ -813,7 +813,15 @@ func (m *multiRunModel) handleChildEvent(msg multiRunChildEventMsg) tea.Cmd {
 	}
 	tab := &m.tabs[idx]
 	if tab.child == nil {
-		tab.child = newPlaceholderChildModel(tab.slug, m.cfg, m.childWidth(), m.childHeight())
+		tab.child = newPlaceholderChildModelWithControls(
+			tab.slug,
+			firstNonEmpty(tab.runID, msg.RunID),
+			m.cfg,
+			m.childWidth(),
+			m.childHeight(),
+			m.pauseRunJob,
+			m.sendRunJobMessage,
+		)
 	}
 	if tab.translator == nil {
 		tab.translator = newUIEventTranslator()
@@ -1186,13 +1194,33 @@ func childModelFromRunSnapshot(snapshot apicore.RunSnapshot, cfg *config, width 
 }
 
 func newPlaceholderChildModel(slug string, cfg *config, width int, height int) *uiModel {
-	return childModelFromRunSnapshot(apicore.RunSnapshot{
+	return newPlaceholderChildModelWithControls(slug, "", cfg, width, height, nil, nil)
+}
+
+func newPlaceholderChildModelWithControls(
+	slug string,
+	runID string,
+	cfg *config,
+	width int,
+	height int,
+	pauseRunJob func(context.Context, string, string) (apicore.RunJobControlResponse, error),
+	sendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error),
+) *uiModel {
+	childRunID := firstNonEmpty(runID, slug)
+	mdl := childModelFromRunSnapshot(apicore.RunSnapshot{
 		Run: apicore.Run{
-			RunID:        slug,
+			RunID:        childRunID,
 			WorkflowSlug: slug,
 			Status:       remoteRunStatusRunning,
 		},
 	}, cfg, width, height)
+	mdl.onJobControl = newRemoteJobControlHandler(childRunID, pauseRunJob, sendRunJobMessage)
+	return mdl
 }
 
 func applyBootstrapJobsToModel(mdl *uiModel, jobs []job) {

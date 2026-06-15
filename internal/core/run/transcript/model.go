@@ -144,7 +144,7 @@ func (m *ViewModel) applyUserMessage(update model.SessionUpdate) bool {
 	if messageID == "" {
 		return m.applyMergedEntry(EntryKindUserMessage, update.Blocks)
 	}
-	if idx := m.findEntryID(messageID); idx >= 0 {
+	if idx := m.findEntryID(EntryKindUserMessage, messageID); idx >= 0 {
 		return m.mergeIntoEntry(idx, update.Blocks)
 	}
 	m.entries = append(m.entries, sessionViewEntry{
@@ -342,13 +342,13 @@ func (m *ViewModel) appendStatusNotice(text string) bool {
 	return true
 }
 
-func (m *ViewModel) findEntryID(id string) int {
+func (m *ViewModel) findEntryID(kind EntryKind, id string) int {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return -1
 	}
 	for i := range m.entries {
-		if m.entries[i].ID == id {
+		if m.entries[i].Kind == kind && m.entries[i].ID == id {
 			return i
 		}
 	}

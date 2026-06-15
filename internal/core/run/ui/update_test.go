@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -136,105 +137,173 @@ func TestHandleKeyQuitDialogExplicitlyStopsRun(t *testing.T) {
 func TestPauseSelectedJobEnablesComposerAndMessageResumes(t *testing.T) {
 	t.Parallel()
 
-	m := newUIModel(1)
-	m.cfg = &config{RunID: "run-1"}
-	m.handleJobQueued(&jobQueuedMsg{Index: 0, SafeName: "task_01"})
-	m.handleJobStarted(jobStartedMsg{Index: 0, Attempt: 1, MaxAttempts: 1})
+	t.Run("Should enable composer and send resume message", func(t *testing.T) {
+		t.Parallel()
 
-	var requests []uiJobControlRequest
-	m.onJobControl = func(_ context.Context, req uiJobControlRequest) (model.JobControlResponse, error) {
-		requests = append(requests, req)
-		switch req.Action {
-		case uiJobControlPause:
-			return model.JobControlResponse{
-				RunID:     req.RunID,
-				JobID:     req.JobID,
-				Index:     0,
-				Status:    model.JobControlStatusPausing,
-				SessionID: "sess-1",
-			}, nil
-		case uiJobControlMessage:
-			return model.JobControlResponse{
-				RunID:     req.RunID,
-				JobID:     req.JobID,
-				Index:     0,
-				Status:    model.JobControlStatusResumed,
-				SessionID: "sess-1",
-				MessageID: "msg-1",
-			}, nil
-		default:
-			return model.JobControlResponse{}, model.ErrJobControlConflict
+		m := newUIModel(1)
+		m.cfg = &config{RunID: "run-1"}
+		m.handleJobQueued(&jobQueuedMsg{Index: 0, SafeName: "task_01"})
+		m.handleJobStarted(jobStartedMsg{Index: 0, Attempt: 1, MaxAttempts: 1})
+
+		var requests []uiJobControlRequest
+		m.onJobControl = func(_ context.Context, req uiJobControlRequest) (model.JobControlResponse, error) {
+			requests = append(requests, req)
+			switch req.Action {
+			case uiJobControlPause:
+				return model.JobControlResponse{
+					RunID:     req.RunID,
+					JobID:     req.JobID,
+					Index:     0,
+					Status:    model.JobControlStatusPausing,
+					SessionID: "sess-1",
+				}, nil
+			case uiJobControlMessage:
+				return model.JobControlResponse{
+					RunID:     req.RunID,
+					JobID:     req.JobID,
+					Index:     0,
+					Status:    model.JobControlStatusResumed,
+					SessionID: "sess-1",
+					MessageID: "msg-1",
+				}, nil
+			default:
+				return model.JobControlResponse{}, model.ErrJobControlConflict
+			}
 		}
-	}
 
-	pauseCmd := m.handleKey(keyText("p"))
-	if pauseCmd == nil {
-		t.Fatal("expected p to request pause")
-	}
-	if got := m.jobs[0].state; got != jobPausing {
-		t.Fatalf("job state after p = %v, want pausing", got)
-	}
-	pauseMsg, ok := pauseCmd().(jobControlResultMsg)
-	if !ok {
-		t.Fatalf("pause command message = %T, want jobControlResultMsg", pauseMsg)
-	}
-	m.applyUIMsg(pauseMsg)
-	if len(requests) != 1 || requests[0].Action != uiJobControlPause ||
-		requests[0].RunID != "run-1" || requests[0].JobID != "task_01" {
-		t.Fatalf("pause request = %#v, want run/job pause", requests)
-	}
-	if got := m.jobs[0].state; got != jobPausing {
-		t.Fatalf("job state after pause response = %v, want pausing", got)
-	}
-	m.applyUIMsg(jobPausedMsg{Index: 0})
-	if got := m.jobs[0].state; got != jobPaused {
-		t.Fatalf("job state after paused event = %v, want paused", got)
-	}
-	if m.focusedPane != uiPaneComposer || !m.composerEnabled(&m.jobs[0]) {
-		t.Fatalf("composer focus/enabled = %s/%v, want focused enabled", m.focusedPane, m.composerEnabled(&m.jobs[0]))
-	}
-	m.focusedPane = uiPaneTimeline
-	m.composer.Blur()
-	if cmd := m.handleKey(keyText(keyTab)); cmd != nil {
-		cmd()
-	}
-	if m.focusedPane != uiPaneComposer {
-		t.Fatalf("focus after tab = %s, want composer", m.focusedPane)
-	}
-	m.handleKey(keyText("x"))
-	if got := m.composer.Value(); got != "x" {
-		t.Fatalf("composer value after tab focus typing = %q, want x", got)
-	}
+		pauseCmd := m.handleKey(keyText("p"))
+		if pauseCmd == nil {
+			t.Fatal("expected p to request pause")
+		}
+		if got := m.jobs[0].state; got != jobPausing {
+			t.Fatalf("job state after p = %v, want pausing", got)
+		}
+		pauseMsg, ok := pauseCmd().(jobControlResultMsg)
+		if !ok {
+			t.Fatalf("pause command message = %T, want jobControlResultMsg", pauseMsg)
+		}
+		m.applyUIMsg(pauseMsg)
+		if len(requests) != 1 || requests[0].Action != uiJobControlPause ||
+			requests[0].RunID != "run-1" || requests[0].JobID != "task_01" {
+			t.Fatalf("pause request = %#v, want run/job pause", requests)
+		}
+		if got := m.jobs[0].state; got != jobPausing {
+			t.Fatalf("job state after pause response = %v, want pausing", got)
+		}
+		m.applyUIMsg(jobPausedMsg{Index: 0})
+		if got := m.jobs[0].state; got != jobPaused {
+			t.Fatalf("job state after paused event = %v, want paused", got)
+		}
+		if m.focusedPane != uiPaneComposer || !m.composerEnabled(&m.jobs[0]) {
+			t.Fatalf(
+				"composer focus/enabled = %s/%v, want focused enabled",
+				m.focusedPane,
+				m.composerEnabled(&m.jobs[0]),
+			)
+		}
+		m.focusedPane = uiPaneTimeline
+		m.composer.Blur()
+		if cmd := m.handleKey(keyText(keyTab)); cmd != nil {
+			cmd()
+		}
+		if m.focusedPane != uiPaneComposer {
+			t.Fatalf("focus after tab = %s, want composer", m.focusedPane)
+		}
+		m.handleKey(keyText("x"))
+		if got := m.composer.Value(); got != "x" {
+			t.Fatalf("composer value after tab focus typing = %q, want x", got)
+		}
 
-	m.composer.SetValue(" please continue ")
-	sendCmd := m.handleComposerKey(keyText(keyEnter))
-	if sendCmd == nil {
-		t.Fatal("expected enter to send composer message")
-	}
-	if !m.composerBusy {
-		t.Fatal("expected composer to be busy while message request is in flight")
-	}
-	sendMsg, ok := sendCmd().(jobControlResultMsg)
-	if !ok {
-		t.Fatalf("send command message = %T, want jobControlResultMsg", sendMsg)
-	}
-	m.applyUIMsg(sendMsg)
-	if len(requests) != 2 || requests[1].Action != uiJobControlMessage ||
-		requests[1].Message != "please continue" || requests[1].RunID != "run-1" ||
-		requests[1].JobID != "task_01" {
-		t.Fatalf("message request = %#v, want trimmed same-run message", requests)
-	}
-	if got := m.jobs[0].state; got != jobRunning {
-		t.Fatalf("job state after resumed response = %v, want running", got)
-	}
-	if m.composerBusy || strings.TrimSpace(m.composer.Value()) != "" || m.focusedPane != uiPaneTimeline {
-		t.Fatalf(
-			"composer after resume busy/value/focus = %v/%q/%s, want idle empty timeline",
-			m.composerBusy,
-			m.composer.Value(),
-			m.focusedPane,
-		)
-	}
+		m.composer.SetValue(" please continue ")
+		sendCmd := m.handleComposerKey(keyText(keyEnter))
+		if sendCmd == nil {
+			t.Fatal("expected enter to send composer message")
+		}
+		if !m.composerBusy {
+			t.Fatal("expected composer to be busy while message request is in flight")
+		}
+		sendMsg, ok := sendCmd().(jobControlResultMsg)
+		if !ok {
+			t.Fatalf("send command message = %T, want jobControlResultMsg", sendMsg)
+		}
+		m.applyUIMsg(sendMsg)
+		if len(requests) != 2 || requests[1].Action != uiJobControlMessage ||
+			requests[1].Message != "please continue" || requests[1].RunID != "run-1" ||
+			requests[1].JobID != "task_01" {
+			t.Fatalf("message request = %#v, want trimmed same-run message", requests)
+		}
+		if got := m.jobs[0].state; got != jobRunning {
+			t.Fatalf("job state after resumed response = %v, want running", got)
+		}
+		if m.composerBusy || strings.TrimSpace(m.composer.Value()) != "" || m.focusedPane != uiPaneTimeline {
+			t.Fatalf(
+				"composer after resume busy/value/focus = %v/%q/%s, want idle empty timeline",
+				m.composerBusy,
+				m.composer.Value(),
+				m.focusedPane,
+			)
+		}
+	})
+}
+
+func TestJobControlCommandsUseModelContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should cancel pause requests with the model context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		m := newUIModel(1)
+		m.ctx = ctx
+		m.cfg = &config{RunID: "run-1"}
+		m.handleJobQueued(&jobQueuedMsg{Index: 0, SafeName: "task_01"})
+		m.handleJobStarted(jobStartedMsg{Index: 0, Attempt: 1, MaxAttempts: 1})
+		m.onJobControl = func(ctx context.Context, _ uiJobControlRequest) (model.JobControlResponse, error) {
+			return model.JobControlResponse{}, ctx.Err()
+		}
+
+		cmd := m.handleKey(keyText("p"))
+		if cmd == nil {
+			t.Fatal("expected p to request pause")
+		}
+		msg, ok := cmd().(jobControlResultMsg)
+		if !ok {
+			t.Fatalf("pause command message = %T, want jobControlResultMsg", msg)
+		}
+		if !errors.Is(msg.Err, context.Canceled) {
+			t.Fatalf("pause command error = %v, want context.Canceled", msg.Err)
+		}
+	})
+
+	t.Run("Should cancel message requests with the model context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		m := newUIModel(1)
+		m.ctx = ctx
+		m.cfg = &config{RunID: "run-1"}
+		m.handleJobQueued(&jobQueuedMsg{Index: 0, SafeName: "task_01"})
+		m.handleJobStarted(jobStartedMsg{Index: 0, Attempt: 1, MaxAttempts: 1})
+		m.handleJobPaused(jobPausedMsg{Index: 0})
+		m.composer.SetValue("continue")
+		m.onJobControl = func(ctx context.Context, _ uiJobControlRequest) (model.JobControlResponse, error) {
+			return model.JobControlResponse{}, ctx.Err()
+		}
+
+		cmd := m.submitComposerMessage()
+		if cmd == nil {
+			t.Fatal("expected composer message to request job control")
+		}
+		msg, ok := cmd().(jobControlResultMsg)
+		if !ok {
+			t.Fatalf("message command message = %T, want jobControlResultMsg", msg)
+		}
+		if !errors.Is(msg.Err, context.Canceled) {
+			t.Fatalf("message command error = %v, want context.Canceled", msg.Err)
+		}
+	})
 }
 
 func TestHandleKeyQuitsOnceRunCompletes(t *testing.T) {
@@ -341,34 +410,38 @@ func TestHandleUsageUpdateAggregatesUsage(t *testing.T) {
 func TestHandleUsageUpdateRefreshesSidebarProviderTotal(t *testing.T) {
 	t.Parallel()
 
-	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
-	m.jobs[0].taskTitle = "Wire ACP token usage"
-	m.jobs[0].taskType = "backend"
-	m.sidebarDirty = true
-	m.refreshSidebarContent()
-	before := m.sidebarContent
+	t.Run("Should refresh sidebar with provider total tokens", func(t *testing.T) {
+		t.Parallel()
 
-	m.handleUsageUpdate(usageUpdateMsg{
-		Index: 0,
-		Usage: model.Usage{
-			InputTokens:  22139,
-			OutputTokens: 190016,
-			TotalTokens:  32490537,
-			CacheReads:   31873174,
-			CacheWrites:  405208,
-		},
+		m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+		m.jobs[0].taskTitle = "Wire ACP token usage"
+		m.jobs[0].taskType = "backend"
+		m.sidebarDirty = true
+		m.refreshSidebarContent()
+		before := m.sidebarContent
+
+		m.handleUsageUpdate(usageUpdateMsg{
+			Index: 0,
+			Usage: model.Usage{
+				InputTokens:  22139,
+				OutputTokens: 190016,
+				TotalTokens:  32490537,
+				CacheReads:   31873174,
+				CacheWrites:  405208,
+			},
+		})
+
+		stripped := xansi.Strip(m.sidebarContent)
+		if before == m.sidebarContent {
+			t.Fatal("expected usage update to refresh cached sidebar content")
+		}
+		if !strings.Contains(stripped, "32.5M tok") {
+			t.Fatalf("expected provider total token label, got %q", stripped)
+		}
+		if strings.Contains(stripped, "↑") || strings.Contains(stripped, "↓") {
+			t.Fatalf("expected sidebar to omit input/output split arrows, got %q", stripped)
+		}
 	})
-
-	stripped := xansi.Strip(m.sidebarContent)
-	if before == m.sidebarContent {
-		t.Fatal("expected usage update to refresh cached sidebar content")
-	}
-	if !strings.Contains(stripped, "32.5M tok") {
-		t.Fatalf("expected provider total token label, got %q", stripped)
-	}
-	if strings.Contains(stripped, "↑") || strings.Contains(stripped, "↓") {
-		t.Fatalf("expected sidebar to omit input/output split arrows, got %q", stripped)
-	}
 }
 
 func TestHandleJobUpdateStoresSnapshotAndSelectsLatestEntry(t *testing.T) {
@@ -461,33 +534,37 @@ func TestPaneNavigationCyclesVisiblePanes(t *testing.T) {
 func TestPaneNavigationCyclesWhenComposerFocused(t *testing.T) {
 	t.Parallel()
 
-	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 160, Height: 40})
-	m.jobs[0].state = jobPaused
-	m.focusedPane = uiPaneComposer
-	m.composer.SetValue("draft")
-	_ = m.composer.Focus()
+	t.Run("Should cycle pane focus while preserving composer draft", func(t *testing.T) {
+		t.Parallel()
 
-	if cmd := m.handleKey(keyCode(tea.KeyTab)); cmd != nil {
-		cmd()
-	}
-	if got := m.focusedPane; got != uiPaneJobs {
-		t.Fatalf("expected tab from composer to wrap focus to jobs, got %s", got)
-	}
-	if got := m.composer.Value(); got != "draft" {
-		t.Fatalf("composer value after tab = %q, want unchanged draft", got)
-	}
+		m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 160, Height: 40})
+		m.jobs[0].state = jobPaused
+		m.focusedPane = uiPaneComposer
+		m.composer.SetValue("draft")
+		_ = m.composer.Focus()
 
-	m.focusedPane = uiPaneComposer
-	_ = m.composer.Focus()
-	if cmd := m.handleKey(keyText(keyShiftTab)); cmd != nil {
-		cmd()
-	}
-	if got := m.focusedPane; got != uiPaneTimeline {
-		t.Fatalf("expected shift+tab from composer to move focus to timeline, got %s", got)
-	}
-	if got := m.composer.Value(); got != "draft" {
-		t.Fatalf("composer value after shift+tab = %q, want unchanged draft", got)
-	}
+		if cmd := m.handleKey(keyCode(tea.KeyTab)); cmd != nil {
+			cmd()
+		}
+		if got := m.focusedPane; got != uiPaneJobs {
+			t.Fatalf("expected tab from composer to wrap focus to jobs, got %s", got)
+		}
+		if got := m.composer.Value(); got != "draft" {
+			t.Fatalf("composer value after tab = %q, want unchanged draft", got)
+		}
+
+		m.focusedPane = uiPaneComposer
+		_ = m.composer.Focus()
+		if cmd := m.handleKey(keyText(keyShiftTab)); cmd != nil {
+			cmd()
+		}
+		if got := m.focusedPane; got != uiPaneTimeline {
+			t.Fatalf("expected shift+tab from composer to move focus to timeline, got %s", got)
+		}
+		if got := m.composer.Value(); got != "draft" {
+			t.Fatalf("composer value after shift+tab = %q, want unchanged draft", got)
+		}
+	})
 }
 
 func TestEnterTogglesSelectedEntryExpansion(t *testing.T) {
@@ -870,65 +947,77 @@ func TestHandleJobFinishedUpdatesCountsAndViewState(t *testing.T) {
 func TestHandleJobQueuedStoresTaskMetadata(t *testing.T) {
 	t.Parallel()
 
-	m := newUIModel(1)
-	m.handleJobQueued(&jobQueuedMsg{
-		Index:      0,
-		CodeFile:   "task_15",
-		CodeFiles:  []string{"task_15"},
-		Issues:     1,
-		TaskNumber: 15,
-		TaskTitle:  "acp agent layer",
-		TaskType:   "backend",
-		SafeName:   "task_15-safe",
-		OutLog:     "task_15.out.log",
-		ErrLog:     "task_15.err.log",
-		OutBuffer:  runshared.NewLineBuffer(0),
-		ErrBuffer:  runshared.NewLineBuffer(0),
-	})
+	t.Run("Should store task metadata", func(t *testing.T) {
+		t.Parallel()
 
-	if got, want := m.jobs[0].taskNumber, 15; got != want {
-		t.Fatalf("expected task number %d, got %d", want, got)
-	}
-	if got, want := m.jobs[0].taskTitle, "acp agent layer"; got != want {
-		t.Fatalf("expected task title %q, got %q", want, got)
-	}
-	if got, want := m.jobs[0].taskType, "backend"; got != want {
-		t.Fatalf("expected task type %q, got %q", want, got)
-	}
+		m := newUIModel(1)
+		m.handleJobQueued(&jobQueuedMsg{
+			Index:      0,
+			CodeFile:   "task_15",
+			CodeFiles:  []string{"task_15"},
+			Issues:     1,
+			TaskNumber: 15,
+			TaskTitle:  "acp agent layer",
+			TaskType:   "backend",
+			SafeName:   "task_15-safe",
+			OutLog:     "task_15.out.log",
+			ErrLog:     "task_15.err.log",
+			OutBuffer:  runshared.NewLineBuffer(0),
+			ErrBuffer:  runshared.NewLineBuffer(0),
+		})
+
+		if got, want := m.jobs[0].taskNumber, 15; got != want {
+			t.Fatalf("expected task number %d, got %d", want, got)
+		}
+		if got, want := m.jobs[0].taskTitle, "acp agent layer"; got != want {
+			t.Fatalf("expected task title %q, got %q", want, got)
+		}
+		if got, want := m.jobs[0].taskType, "backend"; got != want {
+			t.Fatalf("expected task type %q, got %q", want, got)
+		}
+	})
 }
 
 func TestHandleJobQueuedBackfillsLegacyTaskNumber(t *testing.T) {
 	t.Parallel()
 
-	m := newUIModel(1)
-	m.handleJobQueued(&jobQueuedMsg{
-		Index:     0,
-		CodeFile:  "task_15",
-		CodeFiles: []string{"task_15"},
-		TaskTitle: "Legacy queued task",
-		TaskType:  "frontend",
-		SafeName:  "task_15-daad11",
-	})
+	t.Run("Should backfill legacy task number", func(t *testing.T) {
+		t.Parallel()
 
-	if got, want := m.jobs[0].taskNumber, 15; got != want {
-		t.Fatalf("expected backfilled task number %d, got %d", want, got)
-	}
+		m := newUIModel(1)
+		m.handleJobQueued(&jobQueuedMsg{
+			Index:     0,
+			CodeFile:  "task_15",
+			CodeFiles: []string{"task_15"},
+			TaskTitle: "Legacy queued task",
+			TaskType:  "frontend",
+			SafeName:  "task_15-daad11",
+		})
+
+		if got, want := m.jobs[0].taskNumber, 15; got != want {
+			t.Fatalf("expected backfilled task number %d, got %d", want, got)
+		}
+	})
 }
 
 func TestHandleJobQueuedDoesNotBackfillWithoutTaskMetadata(t *testing.T) {
 	t.Parallel()
 
-	m := newUIModel(1)
-	m.handleJobQueued(&jobQueuedMsg{
-		Index:     0,
-		CodeFile:  "task_15",
-		CodeFiles: []string{"task_15"},
-		SafeName:  "review-batch",
-	})
+	t.Run("Should not backfill without task metadata", func(t *testing.T) {
+		t.Parallel()
 
-	if got := m.jobs[0].taskNumber; got != 0 {
-		t.Fatalf("expected no task number backfill without task metadata, got %d", got)
-	}
+		m := newUIModel(1)
+		m.handleJobQueued(&jobQueuedMsg{
+			Index:     0,
+			CodeFile:  "task_15",
+			CodeFiles: []string{"task_15"},
+			SafeName:  "review-batch",
+		})
+
+		if got := m.jobs[0].taskNumber; got != 0 {
+			t.Fatalf("expected no task number backfill without task metadata, got %d", got)
+		}
+	})
 }
 
 func TestHandleJobQueuedExpandsTotalForRemoteAttach(t *testing.T) {

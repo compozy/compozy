@@ -56,15 +56,19 @@ func TestReviewWatchModelAddsChildTabFromFixStartedEvent(t *testing.T) {
 func TestReviewWatchModelAppliesWorkspaceRootToConfig(t *testing.T) {
 	t.Parallel()
 
-	mdl := newRemoteReviewWatchModel(RemoteReviewWatchAttachOptions{
-		Snapshot: apicore.RunSnapshot{
-			Run: apicore.Run{RunID: "review-watch-1", Status: remoteRunStatusRunning},
-		},
-		WorkspaceRoot: "  /tmp/compozy-review  ",
+	t.Run("Should apply workspace root to config", func(t *testing.T) {
+		t.Parallel()
+
+		mdl := newRemoteReviewWatchModel(RemoteReviewWatchAttachOptions{
+			Snapshot: apicore.RunSnapshot{
+				Run: apicore.Run{RunID: "review-watch-1", Status: remoteRunStatusRunning},
+			},
+			WorkspaceRoot: "  /tmp/compozy-review  ",
+		})
+		if mdl.cfg.WorkspaceRoot != "/tmp/compozy-review" {
+			t.Fatalf("workspace root = %q, want trimmed workspace root", mdl.cfg.WorkspaceRoot)
+		}
 	})
-	if mdl.cfg.WorkspaceRoot != "/tmp/compozy-review" {
-		t.Fatalf("workspace root = %q, want trimmed workspace root", mdl.cfg.WorkspaceRoot)
-	}
 }
 
 func TestReviewWatchModelUpdatesChildStatusFromFixCompletedEvent(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 )
 
 type uiModel struct {
+	ctx                          context.Context
 	jobs                         []uiJob
 	total                        int
 	completed                    int
@@ -104,6 +105,7 @@ func newUIModel(total int) *uiModel {
 	composer.ShowLineNumbers = false
 	composer.EndOfBufferCharacter = ' '
 	composer.CharLimit = model.MaxJobControlMessageBytes
+	composer.SetVirtualCursor(false)
 	configureComposerStyles(&composer)
 	composer.SetWidth(80)
 	composer.SetHeight(1)
@@ -126,6 +128,7 @@ func newUIModel(total int) *uiModel {
 		initialContentHeight = minContentHeight
 	}
 	mdl := &uiModel{
+		ctx:                          context.Background(),
 		total:                        total,
 		transcriptViewport:           transcriptVp,
 		sidebarViewport:              sidebarVp,
@@ -236,6 +239,7 @@ func newUIController(ctx context.Context, total int, cfg *config, bus *events.Bu
 	}
 	dispatchCtx, cancelDispatch := context.WithCancel(ctx)
 	mdl := newUIModel(total)
+	mdl.ctx = dispatchCtx
 	mdl.cfg = cfg
 	ctrl := &uiController{
 		model:          mdl,

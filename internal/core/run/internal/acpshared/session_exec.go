@@ -16,6 +16,8 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+var errJobControlContextRequired = errors.New("job control context is required")
+
 func ExecuteJobWithTimeout(
 	ctx context.Context,
 	cfg *config,
@@ -313,7 +315,7 @@ func (c *sessionTurnController) Pause(
 	_ model.JobControlRequest,
 ) (model.JobControlResponse, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return model.JobControlResponse{}, errJobControlContextRequired
 	}
 	c.mu.Lock()
 	sessionID := c.sessionIDLocked()
@@ -359,7 +361,7 @@ func (c *sessionTurnController) SendMessage(
 	req model.JobControlRequest,
 ) (model.JobControlResponse, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return model.JobControlResponse{}, errJobControlContextRequired
 	}
 	message := strings.TrimSpace(req.Message)
 	if message == "" {

@@ -514,6 +514,25 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 			t.Fatalf("unexpected gamma runtime: %#v", gamma)
 		}
 	})
+
+	t.Run("Should treat blank workflow qualifiers as unscoped", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			IDE:   model.IDECodex,
+			Model: "base",
+			TaskRuntimeRules: []model.TaskRuntimeRule{{
+				Workflow: testStringPointer(" \t "),
+				Type:     testStringPointer("backend"),
+				Model:    testStringPointer("blank-workflow-model"),
+			}},
+		}
+
+		resolved := cfg.RuntimeForTask(model.TaskRuntimeTarget{Workflow: "alpha", ID: "task_01", Type: "backend"})
+		if resolved.Model != "blank-workflow-model" {
+			t.Fatalf("blank workflow qualifier should match any workflow, got %#v", resolved)
+		}
+	})
 }
 
 func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {

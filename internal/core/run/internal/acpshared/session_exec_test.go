@@ -129,6 +129,32 @@ func TestSessionTurnControllerPauseAndMessageResumeSameACPSession(t *testing.T) 
 	assertPauseResumeRuntimeEvents(t, submitter.snapshot(), sendResp.MessageID, message)
 }
 
+func TestSessionTurnControllerRejectsNilJobControlContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject nil context for pause and message controls", func(t *testing.T) {
+		t.Parallel()
+
+		controller := &sessionTurnController{}
+		var nilCtx context.Context
+		if _, err := controller.Pause(
+			nilCtx,
+			model.JobControlRequest{},
+		); !errors.Is(
+			err,
+			errJobControlContextRequired,
+		) {
+			t.Fatalf("Pause(nil) error = %v, want errJobControlContextRequired", err)
+		}
+		if _, err := controller.SendMessage(nilCtx, model.JobControlRequest{Message: "continue"}); !errors.Is(
+			err,
+			errJobControlContextRequired,
+		) {
+			t.Fatalf("SendMessage(nil) error = %v, want errJobControlContextRequired", err)
+		}
+	})
+}
+
 func TestSessionTurnControllerUnexpectedPromptCancelFailsJob(t *testing.T) {
 	t.Parallel()
 

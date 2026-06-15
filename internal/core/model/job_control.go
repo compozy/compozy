@@ -155,12 +155,8 @@ func (r *JobControlRegistry) lookup(runID string, jobID string) (JobController, 
 }
 
 func completeJobControlResponse(resp JobControlResponse, req JobControlRequest) JobControlResponse {
-	if resp.RunID == "" {
-		resp.RunID = req.RunID
-	}
-	if resp.JobID == "" {
-		resp.JobID = req.JobID
-	}
+	resp.RunID = req.RunID
+	resp.JobID = req.JobID
 	if req.Index >= 0 {
 		resp.Index = req.Index
 	} else if resp.Index < 0 {

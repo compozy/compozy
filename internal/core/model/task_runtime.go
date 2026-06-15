@@ -78,8 +78,11 @@ func (r TaskRuntimeRule) IsTypeRule() bool {
 }
 
 func (r TaskRuntimeRule) Matches(target TaskRuntimeTarget) bool {
-	if r.Workflow != nil && strings.TrimSpace(*r.Workflow) != strings.TrimSpace(target.Workflow) {
-		return false
+	if r.Workflow != nil {
+		workflow := strings.TrimSpace(*r.Workflow)
+		if workflow != "" && workflow != strings.TrimSpace(target.Workflow) {
+			return false
+		}
 	}
 	switch {
 	case r.ID != nil:

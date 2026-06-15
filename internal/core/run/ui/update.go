@@ -221,7 +221,7 @@ func (m *uiModel) requestPauseSelectedJob() tea.Cmd {
 	m.composerError = ""
 	m.refreshViewportContent()
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(m.jobControlContext(), 30*time.Second)
 		defer cancel()
 		resp, err := m.onJobControl(ctx, uiJobControlRequest{
 			Action: uiJobControlPause,
@@ -248,7 +248,7 @@ func (m *uiModel) submitComposerMessage() tea.Cmd {
 	m.composerError = ""
 	m.composer.Blur()
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(m.jobControlContext(), 30*time.Second)
 		defer cancel()
 		resp, err := m.onJobControl(ctx, uiJobControlRequest{
 			Action:  uiJobControlMessage,
@@ -258,6 +258,13 @@ func (m *uiModel) submitComposerMessage() tea.Cmd {
 		})
 		return jobControlResultMsg{Index: index, Action: uiJobControlMessage, Response: resp, Err: err}
 	}
+}
+
+func (m *uiModel) jobControlContext() context.Context {
+	if m == nil || m.ctx == nil {
+		return context.Background()
+	}
+	return m.ctx
 }
 
 func (m *uiModel) runID() string {

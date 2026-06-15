@@ -16,7 +16,43 @@ func (m *uiModel) renderRoot(content string) tea.View {
 	v := tea.NewView(rootScreenStyle(m.width, m.height).Render(content))
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
+	v.Cursor = m.composerTerminalCursor()
 	return v
+}
+
+func (m *uiModel) composerTerminalCursor() *tea.Cursor {
+	if m == nil ||
+		m.currentView != uiViewJobs ||
+		m.layoutMode != uiLayoutSplit ||
+		m.focusedPane != uiPaneComposer ||
+		!m.composerEnabled(m.currentJob()) {
+		return nil
+	}
+	cursor := m.composer.Cursor()
+	if cursor == nil {
+		return nil
+	}
+	cursor.X += m.sidebarWidth + styleTechPanelBase.GetBorderLeftSize() + styleTechPanelBase.GetPaddingLeft()
+	cursor.Y += m.jobsBodyTopOffset() + timelineHeaderBoxHeight() + timelineMessagesBoxHeight(
+		m.contentHeight,
+	) +
+		styleTechPanelBase.GetBorderTopSize() + styleTechPanelBase.GetPaddingTop()
+	return cursor
+}
+
+func (m *uiModel) jobsBodyTopOffset() int {
+	if m == nil || m.headerHidden {
+		return 0
+	}
+	return headerSectionHeight + separatorSectionHeight
+}
+
+func timelineHeaderBoxHeight() int {
+	return 2 + styleTechPanelBase.GetVerticalFrameSize()
+}
+
+func timelineMessagesBoxHeight(contentHeight int) int {
+	return max(contentHeight-timelineChromeRows, logViewportMinHeight) + styleTechPanelBase.GetVerticalFrameSize()
 }
 
 func (m *uiModel) View() tea.View {

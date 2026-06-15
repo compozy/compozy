@@ -50,7 +50,7 @@ func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRu
 	if state == nil {
 		return nil, nil
 	}
-	scopeWorkflow := len(slugs) > 1
+	displayWorkflow := len(slugs) > 1
 	form := &taskRunRuntimeForm{
 		typeEditors: make(map[string]*taskRuntimeEditor),
 		taskEditors: make(map[string]*taskRuntimeEditor),
@@ -69,7 +69,7 @@ func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRu
 		if err != nil {
 			return nil, fmt.Errorf("read task entries for runtime overrides in %s: %w", workflow, err)
 		}
-		if err := form.populate(workflow, entries, typeRuleByValue, taskRuleByID, scopeWorkflow); err != nil {
+		if err := form.populate(workflow, entries, typeRuleByValue, taskRuleByID, displayWorkflow); err != nil {
 			return nil, err
 		}
 	}
@@ -102,11 +102,11 @@ func (f *taskRunRuntimeForm) populate(
 	entries []model.IssueEntry,
 	typeRuleByValue map[string]model.TaskRuntimeRule,
 	taskRuleByID map[string]model.TaskRuntimeRule,
-	scopeWorkflow bool,
+	displayWorkflow bool,
 ) error {
 	seenTypes := make(map[string]struct{})
 	for _, entry := range entries {
-		if err := f.addEntry(workflow, entry, seenTypes, typeRuleByValue, taskRuleByID, scopeWorkflow); err != nil {
+		if err := f.addEntry(workflow, entry, seenTypes, typeRuleByValue, taskRuleByID, displayWorkflow); err != nil {
 			return err
 		}
 	}
@@ -119,7 +119,7 @@ func (f *taskRunRuntimeForm) addEntry(
 	seenTypes map[string]struct{},
 	typeRuleByValue map[string]model.TaskRuntimeRule,
 	taskRuleByID map[string]model.TaskRuntimeRule,
-	scopeWorkflow bool,
+	displayWorkflow bool,
 ) error {
 	taskData, err := tasks.ParseTaskFile(entry.Content)
 	if err != nil {
@@ -127,19 +127,20 @@ func (f *taskRunRuntimeForm) addEntry(
 	}
 
 	taskType := strings.TrimSpace(taskData.TaskType)
-	f.addTypeOption(workflow, taskType, seenTypes, typeRuleByValue, scopeWorkflow)
+	f.addTypeOption(workflow, taskType, seenTypes, typeRuleByValue, displayWorkflow)
 
 	id := strings.TrimSpace(entry.CodeFile)
-	optionWorkflow := taskRuntimeOptionWorkflow(workflow, scopeWorkflow)
-	key := taskRuntimeSelectorKey(optionWorkflow, id)
+	ruleWorkflow := strings.TrimSpace(workflow)
+	displayWorkflowName := taskRuntimeOptionWorkflow(workflow, displayWorkflow)
+	key := taskRuntimeSelectorKey(ruleWorkflow, id)
 	f.taskOptions = append(f.taskOptions, taskRuntimeTaskOption{
 		Key:      key,
-		Workflow: optionWorkflow,
+		Workflow: ruleWorkflow,
 		ID:       id,
 		Type:     taskType,
-		Label:    formatTaskRuntimeTaskLabel(optionWorkflow, entry.CodeFile, taskData.Title, taskType),
+		Label:    formatTaskRuntimeTaskLabel(displayWorkflowName, entry.CodeFile, taskData.Title, taskType),
 	})
-	if rule, ok := selectTaskRuntimeRule(taskRuleByID, optionWorkflow, id); ok {
+	if rule, ok := selectTaskRuntimeRule(taskRuleByID, ruleWorkflow, id); ok {
 		f.selectedTasks = append(f.selectedTasks, key)
 		f.taskEditors[key] = taskRuntimeEditorFromRule(rule)
 	}
@@ -151,23 +152,24 @@ func (f *taskRunRuntimeForm) addTypeOption(
 	taskType string,
 	seenTypes map[string]struct{},
 	typeRuleByValue map[string]model.TaskRuntimeRule,
-	scopeWorkflow bool,
+	displayWorkflow bool,
 ) {
 	if taskType == "" {
 		return
 	}
-	optionWorkflow := taskRuntimeOptionWorkflow(workflow, scopeWorkflow)
-	key := taskRuntimeSelectorKey(optionWorkflow, taskType)
+	ruleWorkflow := strings.TrimSpace(workflow)
+	displayWorkflowName := taskRuntimeOptionWorkflow(workflow, displayWorkflow)
+	key := taskRuntimeSelectorKey(ruleWorkflow, taskType)
 	if _, ok := seenTypes[key]; !ok {
 		f.typeOptions = append(f.typeOptions, taskRuntimeTypeOption{
 			Key:      key,
-			Workflow: optionWorkflow,
+			Workflow: ruleWorkflow,
 			Value:    taskType,
-			Label:    formatTaskRuntimeTypeLabel(optionWorkflow, taskType),
+			Label:    formatTaskRuntimeTypeLabel(displayWorkflowName, taskType),
 		})
 		seenTypes[key] = struct{}{}
 	}
-	if rule, ok := selectTaskRuntimeRule(typeRuleByValue, optionWorkflow, taskType); ok &&
+	if rule, ok := selectTaskRuntimeRule(typeRuleByValue, ruleWorkflow, taskType); ok &&
 		!slices.Contains(f.selectedTypes, key) {
 		f.selectedTypes = append(f.selectedTypes, key)
 		f.typeEditors[key] = taskRuntimeEditorFromRule(rule)

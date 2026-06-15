@@ -477,51 +477,60 @@ func TestRunJobControlHandlersForwardPauseAndMessageRequests(t *testing.T) {
 	engine.Use(core.ErrorMiddleware())
 	core.RegisterRoutes(engine, handlers)
 
-	pauseReq := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		"/api/runs/run-1/jobs/task_01/pause",
-		http.NoBody,
-	)
-	pauseResp := httptest.NewRecorder()
-	engine.ServeHTTP(pauseResp, pauseReq)
-	if pauseResp.Code != http.StatusAccepted {
-		t.Fatalf("pause status = %d, want %d; body=%s", pauseResp.Code, http.StatusAccepted, pauseResp.Body.String())
-	}
-	if pausedRunID != "run-1" || pausedJobID != "task_01" {
-		t.Fatalf("pause forwarded run/job = %q/%q", pausedRunID, pausedJobID)
-	}
-	var pausePayload core.RunJobControlResponse
-	decodeJSON(t, pauseResp.Body.Bytes(), &pausePayload)
-	if pausePayload.Status != "pausing" || pausePayload.SessionID != "sess-1" {
-		t.Fatalf("pause payload = %#v, want pausing session response", pausePayload)
-	}
-
-	messageReqHTTP := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		"/api/runs/run-1/jobs/task_01/messages",
-		strings.NewReader("{\"message\":\"please continue\"}"),
-	)
-	messageReqHTTP.Header.Set("Content-Type", "application/json")
-	messageResp := httptest.NewRecorder()
-	engine.ServeHTTP(messageResp, messageReqHTTP)
-	if messageResp.Code != http.StatusAccepted {
-		t.Fatalf(
-			"message status = %d, want %d; body=%s",
-			messageResp.Code,
-			http.StatusAccepted,
-			messageResp.Body.String(),
+	t.Run("Should pause run job", func(t *testing.T) {
+		pauseReq := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/runs/run-1/jobs/task_01/pause",
+			http.NoBody,
 		)
-	}
-	if messageRunID != "run-1" || messageJobID != "task_01" || messageReq.Message != "please continue" {
-		t.Fatalf("message forwarded run/job/body = %q/%q/%#v", messageRunID, messageJobID, messageReq)
-	}
-	var messagePayload core.RunJobControlResponse
-	decodeJSON(t, messageResp.Body.Bytes(), &messagePayload)
-	if messagePayload.Status != "resumed" || messagePayload.MessageID != "msg-1" {
-		t.Fatalf("message payload = %#v, want resumed response", messagePayload)
-	}
+		pauseResp := httptest.NewRecorder()
+		engine.ServeHTTP(pauseResp, pauseReq)
+		if pauseResp.Code != http.StatusAccepted {
+			t.Fatalf(
+				"pause status = %d, want %d; body=%s",
+				pauseResp.Code,
+				http.StatusAccepted,
+				pauseResp.Body.String(),
+			)
+		}
+		if pausedRunID != "run-1" || pausedJobID != "task_01" {
+			t.Fatalf("pause forwarded run/job = %q/%q", pausedRunID, pausedJobID)
+		}
+		var pausePayload core.RunJobControlResponse
+		decodeJSON(t, pauseResp.Body.Bytes(), &pausePayload)
+		if pausePayload.Status != "pausing" || pausePayload.SessionID != "sess-1" {
+			t.Fatalf("pause payload = %#v, want pausing session response", pausePayload)
+		}
+	})
+
+	t.Run("Should send message to run job", func(t *testing.T) {
+		messageReqHTTP := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/runs/run-1/jobs/task_01/messages",
+			strings.NewReader("{\"message\":\"please continue\"}"),
+		)
+		messageReqHTTP.Header.Set("Content-Type", "application/json")
+		messageResp := httptest.NewRecorder()
+		engine.ServeHTTP(messageResp, messageReqHTTP)
+		if messageResp.Code != http.StatusAccepted {
+			t.Fatalf(
+				"message status = %d, want %d; body=%s",
+				messageResp.Code,
+				http.StatusAccepted,
+				messageResp.Body.String(),
+			)
+		}
+		if messageRunID != "run-1" || messageJobID != "task_01" || messageReq.Message != "please continue" {
+			t.Fatalf("message forwarded run/job/body = %q/%q/%#v", messageRunID, messageJobID, messageReq)
+		}
+		var messagePayload core.RunJobControlResponse
+		decodeJSON(t, messageResp.Body.Bytes(), &messagePayload)
+		if messagePayload.Status != "resumed" || messagePayload.MessageID != "msg-1" {
+			t.Fatalf("message payload = %#v, want resumed response", messagePayload)
+		}
+	})
 }
 
 type fakeRunService struct {
