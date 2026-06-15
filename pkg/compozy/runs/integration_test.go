@@ -488,6 +488,31 @@ func (*integrationRunService) Cancel(context.Context, string) error {
 	return nil
 }
 
+func (*integrationRunService) PauseRunJob(
+	_ context.Context,
+	runID string,
+	jobID string,
+) (apicore.RunJobControlResponse, error) {
+	return apicore.RunJobControlResponse{
+		RunID:  runID,
+		JobID:  jobID,
+		Status: "pausing",
+	}, nil
+}
+
+func (*integrationRunService) SendRunJobMessage(
+	_ context.Context,
+	runID string,
+	jobID string,
+	_ apicore.RunJobMessageRequest,
+) (apicore.RunJobControlResponse, error) {
+	return apicore.RunJobControlResponse{
+		RunID:  runID,
+		JobID:  jobID,
+		Status: "resumed",
+	}, nil
+}
+
 type integrationRunStream struct {
 	events chan apicore.RunStreamItem
 	errs   chan error

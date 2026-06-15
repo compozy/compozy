@@ -71,6 +71,43 @@ func TestSessionViewModelMergesOverlappingAgentTextWithoutDuplicatingBoundary(t 
 	}
 }
 
+func TestSessionViewModelAppendsUserMessagesAsDistinctEntries(t *testing.T) {
+	t.Parallel()
+
+	viewModel := newSessionViewModel()
+	assistantBlock := mustContentBlockTranscriptTest(t, model.TextBlock{Text: "assistant reply"})
+	userBlock := mustContentBlockTranscriptTest(t, model.TextBlock{Text: "please continue"})
+
+	if _, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{assistantBlock},
+	}); !changed {
+		t.Fatal("expected assistant update to change transcript")
+	}
+	snapshot, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:      model.UpdateKindUserMessageChunk,
+		MessageID: "msg-1",
+		Blocks:    []model.ContentBlock{userBlock},
+	})
+	if !changed {
+		t.Fatal("expected user message update to change transcript")
+	}
+	if len(snapshot.Entries) != 2 {
+		t.Fatalf("entries = %#v, want assistant and user entries", snapshot.Entries)
+	}
+	if snapshot.Entries[1].Kind != EntryKindUserMessage || snapshot.Entries[1].Title != "You" ||
+		snapshot.Entries[1].ID != "msg-1" {
+		t.Fatalf("user entry = %#v, want explicit user message", snapshot.Entries[1])
+	}
+	block, err := snapshot.Entries[1].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode user text block: %v", err)
+	}
+	if block.Text != "please continue" {
+		t.Fatalf("user text = %q, want please continue", block.Text)
+	}
+}
+
 func TestSessionViewModelReplacesDivergingNonDeltaAgentSnapshot(t *testing.T) {
 	t.Parallel()
 

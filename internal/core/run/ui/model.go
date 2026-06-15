@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
 	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -29,8 +30,12 @@ type uiModel struct {
 	frame                        int
 	now                          time.Time
 	onQuit                       func(uiQuitRequest)
+	onJobControl                 func(context.Context, uiJobControlRequest) (model.JobControlResponse, error)
 	transcriptViewport           viewport.Model
 	sidebarViewport              viewport.Model
+	composer                     textarea.Model
+	composerBusy                 bool
+	composerError                string
 	progressBar                  progress.Model
 	selectedJob                  int
 	width                        int
@@ -41,6 +46,7 @@ type uiModel struct {
 	layoutMode                   uiLayoutMode
 	currentView                  uiViewState
 	focusedPane                  uiPane
+	headerHidden                 bool
 	quitDialog                   quitDialogState
 	shutdown                     shutdownState
 	failures                     []failInfo
@@ -55,23 +61,25 @@ type uiModel struct {
 }
 
 type uiController struct {
-	model           *uiModel
-	prog            *tea.Program
-	done            chan error
-	quitHandler     func(uiQuitRequest)
-	quitHandlerMu   sync.RWMutex
-	stopEvents      func()
-	adapterDone     <-chan struct{}
-	closeEventsOnce sync.Once
-	shutdownOnce    sync.Once
-	dispatchWake    chan struct{}
-	dispatchDone    chan struct{}
-	dispatchCtx     context.Context
-	cancelDispatch  context.CancelFunc
-	pendingMu       sync.Mutex
-	pendingInputs   []any
-	pendingUrgent   bool
-	translator      *uiEventTranslator
+	model               *uiModel
+	prog                *tea.Program
+	done                chan error
+	quitHandler         func(uiQuitRequest)
+	quitHandlerMu       sync.RWMutex
+	jobControlHandler   func(context.Context, uiJobControlRequest) (model.JobControlResponse, error)
+	jobControlHandlerMu sync.RWMutex
+	stopEvents          func()
+	adapterDone         <-chan struct{}
+	closeEventsOnce     sync.Once
+	shutdownOnce        sync.Once
+	dispatchWake        chan struct{}
+	dispatchDone        chan struct{}
+	dispatchCtx         context.Context
+	cancelDispatch      context.CancelFunc
+	pendingMu           sync.Mutex
+	pendingInputs       []any
+	pendingUrgent       bool
+	translator          *uiEventTranslator
 }
 
 func newUIModel(total int) *uiModel {
@@ -90,6 +98,16 @@ func newUIModel(total int) *uiModel {
 	)
 	pb.Empty = progress.DefaultFullCharFullBlock
 	pb.EmptyColor = colorBorder
+	composer := textarea.New()
+	composer.Prompt = composerPromptGlyph
+	composer.Placeholder = composerPausedTaskPrompt
+	composer.ShowLineNumbers = false
+	composer.EndOfBufferCharacter = ' '
+	composer.CharLimit = model.MaxJobControlMessageBytes
+	configureComposerStyles(&composer)
+	composer.SetWidth(80)
+	composer.SetHeight(1)
+	composer.Blur()
 	defaultWidth := 120
 	defaultHeight := 40
 	initialSidebarWidth := int(float64(defaultWidth) * sidebarWidthRatio)
@@ -103,7 +121,7 @@ func newUIModel(total int) *uiModel {
 	if initialMainWidth < mainMinWidth {
 		initialMainWidth = mainMinWidth
 	}
-	initialContentHeight := defaultHeight - chromeHeight
+	initialContentHeight := defaultHeight - chromeHeightStandalone
 	if initialContentHeight < minContentHeight {
 		initialContentHeight = minContentHeight
 	}
@@ -111,6 +129,7 @@ func newUIModel(total int) *uiModel {
 		total:                        total,
 		transcriptViewport:           transcriptVp,
 		sidebarViewport:              sidebarVp,
+		composer:                     composer,
 		progressBar:                  pb,
 		selectedJob:                  0,
 		width:                        defaultWidth,
@@ -137,6 +156,40 @@ func newUIModel(total int) *uiModel {
 	mdl.contentHeight = layout.contentHeight
 	mdl.configureViewports(layout)
 	return mdl
+}
+
+func (m *uiModel) configureComposerAppearance() {
+	if m == nil {
+		return
+	}
+	m.composer.Prompt = composerPromptGlyph
+}
+
+func configureComposerStyles(composer *textarea.Model) {
+	if composer == nil {
+		return
+	}
+	focused := lipgloss.NewStyle().Foreground(colorFgBright)
+	muted := lipgloss.NewStyle().Foreground(colorMuted)
+	styles := composer.Styles()
+	styles.Focused.Base = lipgloss.NewStyle()
+	styles.Focused.Text = focused
+	styles.Focused.CursorLine = focused
+	styles.Focused.LineNumber = muted
+	styles.Focused.CursorLineNumber = muted
+	styles.Focused.EndOfBuffer = muted
+	styles.Focused.Placeholder = muted
+	styles.Focused.Prompt = muted
+	styles.Blurred.Base = lipgloss.NewStyle()
+	styles.Blurred.Text = muted
+	styles.Blurred.CursorLine = muted
+	styles.Blurred.LineNumber = muted
+	styles.Blurred.CursorLineNumber = muted
+	styles.Blurred.EndOfBuffer = muted
+	styles.Blurred.Placeholder = muted
+	styles.Blurred.Prompt = muted
+	styles.Cursor.Color = colorFgBright
+	composer.SetStyles(styles)
 }
 
 func (m *uiModel) applyTranscriptViewportContent(content string) {
@@ -194,6 +247,7 @@ func newUIController(ctx context.Context, total int, cfg *config, bus *events.Bu
 		translator:     newUIEventTranslator(),
 	}
 	mdl.onQuit = ctrl.requestQuit
+	mdl.onJobControl = ctrl.requestJobControl
 	ctrl.prog = tea.NewProgram(mdl, tea.WithoutSignalHandler())
 	stopEvents, adapterDone := startUIEventAdapter(ctx, bus, ctrl.EnqueueEvent)
 	ctrl.stopEvents = stopEvents
@@ -248,6 +302,27 @@ func (c *uiController) SetQuitHandler(fn func(uiQuitRequest)) {
 	c.quitHandlerMu.Lock()
 	defer c.quitHandlerMu.Unlock()
 	c.quitHandler = fn
+}
+
+func (c *uiController) SetJobControlHandler(
+	fn func(context.Context, uiJobControlRequest) (model.JobControlResponse, error),
+) {
+	c.jobControlHandlerMu.Lock()
+	defer c.jobControlHandlerMu.Unlock()
+	c.jobControlHandler = fn
+}
+
+func (c *uiController) requestJobControl(
+	ctx context.Context,
+	req uiJobControlRequest,
+) (model.JobControlResponse, error) {
+	c.jobControlHandlerMu.RLock()
+	fn := c.jobControlHandler
+	c.jobControlHandlerMu.RUnlock()
+	if fn == nil {
+		return model.JobControlResponse{}, model.ErrJobControlNotFound
+	}
+	return fn(ctx, req)
 }
 
 func (c *uiController) setQuitHandler(fn func(uiQuitRequest)) {
@@ -322,6 +397,19 @@ func Setup(ctx context.Context, jobs []job, cfg *config, bus *events.Bus[events.
 		return nil
 	}
 	ctrl := newUIController(ctx, len(jobs), cfg, bus)
+	if cfg != nil && cfg.JobControls != nil {
+		ctrl.SetJobControlHandler(func(ctx context.Context, req uiJobControlRequest) (model.JobControlResponse, error) {
+			runID := firstNonEmpty(strings.TrimSpace(req.RunID), strings.TrimSpace(cfg.RunID))
+			switch req.Action {
+			case uiJobControlPause:
+				return cfg.JobControls.Pause(ctx, runID, req.JobID)
+			case uiJobControlMessage:
+				return cfg.JobControls.SendMessage(ctx, runID, req.JobID, req.Message)
+			default:
+				return model.JobControlResponse{}, model.ErrJobControlConflict
+			}
+		})
+	}
 	for idx := range jobs {
 		jb := &jobs[idx]
 		totalIssues := 0
@@ -337,6 +425,7 @@ func Setup(ctx context.Context, jobs []job, cfg *config, bus *events.Bus[events.
 			CodeFile:        codeFileLabel,
 			CodeFiles:       jb.CodeFiles,
 			Issues:          totalIssues,
+			TaskNumber:      jb.TaskNumber,
 			TaskTitle:       jb.TaskTitle,
 			TaskType:        jb.TaskType,
 			SafeName:        jb.SafeName,
@@ -581,10 +670,15 @@ func inputRequiresImmediateDispatch(msg any) bool {
 	switch value := msg.(type) {
 	case jobQueuedMsg, jobStartedMsg, jobRetryMsg, jobFinishedMsg, jobUpdateMsg, shutdownStatusMsg, jobFailureMsg:
 		return true
+	case jobPausingMsg, jobPausedMsg, jobResumedMsg, jobControlResultMsg:
+		return true
 	case events.Event:
 		switch value.Kind {
 		case events.EventKindJobQueued,
 			events.EventKindJobStarted,
+			events.EventKindJobPausing,
+			events.EventKindJobPaused,
+			events.EventKindJobResumed,
 			events.EventKindJobCompleted,
 			events.EventKindJobRetryScheduled,
 			events.EventKindJobFailed,
@@ -695,83 +789,136 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {
 	switch ev.Kind {
 	case events.EventKindJobQueued:
-		payload, ok := decodeUIEventPayload[kinds.JobQueuedPayload](ev)
-		if !ok {
-			return nil, false
-		}
-		codeFile := strings.TrimSpace(payload.CodeFile)
-		if codeFile == "" && len(payload.CodeFiles) > 0 {
-			codeFile = payload.CodeFiles[0]
-		}
-		return jobQueuedMsg{
-			Index:           payload.Index,
-			CodeFile:        codeFile,
-			CodeFiles:       append([]string(nil), payload.CodeFiles...),
-			Issues:          payload.Issues,
-			TaskTitle:       payload.TaskTitle,
-			TaskType:        payload.TaskType,
-			SafeName:        payload.SafeName,
-			IDE:             payload.IDE,
-			Model:           payload.Model,
-			ReasoningEffort: payload.ReasoningEffort,
-			OutLog:          payload.OutLog,
-			ErrLog:          payload.ErrLog,
-		}, true
+		return translateJobQueuedEvent(ev)
 	case events.EventKindJobStarted:
-		payload, ok := decodeUIEventPayload[kinds.JobStartedPayload](ev)
-		if !ok {
-			return nil, false
-		}
-		return jobStartedMsg{
-			Index:           payload.Index,
-			Attempt:         payload.Attempt,
-			MaxAttempts:     payload.MaxAttempts,
-			IDE:             payload.IDE,
-			Model:           payload.Model,
-			ReasoningEffort: payload.ReasoningEffort,
-		}, true
+		return translateJobStartedEvent(ev)
 	case events.EventKindJobCompleted:
-		payload, ok := decodeUIEventPayload[kinds.JobCompletedPayload](ev)
-		if !ok {
-			return nil, false
-		}
-		return jobFinishedMsg{
-			Index:    payload.Index,
-			Success:  true,
-			ExitCode: payload.ExitCode,
-		}, true
+		return translateJobCompletedEvent(ev)
 	case events.EventKindJobRetryScheduled:
-		payload, ok := decodeUIEventPayload[kinds.JobRetryScheduledPayload](ev)
-		if !ok {
-			return nil, false
-		}
-		return jobRetryMsg{
-			Index:       payload.Index,
-			Attempt:     payload.Attempt,
-			MaxAttempts: payload.MaxAttempts,
-			Reason:      payload.Reason,
-		}, true
+		return translateJobRetryScheduledEvent(ev)
+	case events.EventKindJobPausing:
+		return translateJobPausingEvent(ev)
+	case events.EventKindJobPaused:
+		return translateJobPausedEvent(ev)
+	case events.EventKindJobResumed:
+		return translateJobResumedEvent(ev)
 	case events.EventKindJobFailed:
-		payload, ok := decodeUIEventPayload[kinds.JobFailedPayload](ev)
-		if !ok {
-			return nil, false
-		}
-		return jobFailureMsg{
-			Failure: jobFailureFromPayload(payload),
-		}, true
+		return translateJobFailedEvent(ev)
 	case events.EventKindJobCancelled:
-		payload, ok := decodeUIEventPayload[kinds.JobCancelledPayload](ev)
-		if !ok {
-			return nil, false
-		}
-		return jobFinishedMsg{
-			Index:    payload.Index,
-			Success:  false,
-			ExitCode: exitCodeCanceled,
-		}, true
+		return translateJobCancelledEvent(ev)
 	default:
 		return nil, false
 	}
+}
+
+func translateJobQueuedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobQueuedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	codeFile := strings.TrimSpace(payload.CodeFile)
+	if codeFile == "" && len(payload.CodeFiles) > 0 {
+		codeFile = payload.CodeFiles[0]
+	}
+	return jobQueuedMsg{
+		Index:           payload.Index,
+		CodeFile:        codeFile,
+		CodeFiles:       append([]string(nil), payload.CodeFiles...),
+		Issues:          payload.Issues,
+		TaskNumber:      payload.TaskNumber,
+		TaskTitle:       payload.TaskTitle,
+		TaskType:        payload.TaskType,
+		SafeName:        payload.SafeName,
+		IDE:             payload.IDE,
+		Model:           payload.Model,
+		ReasoningEffort: payload.ReasoningEffort,
+		OutLog:          payload.OutLog,
+		ErrLog:          payload.ErrLog,
+	}, true
+}
+
+func translateJobStartedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobStartedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobStartedMsg{
+		Index:           payload.Index,
+		Attempt:         payload.Attempt,
+		MaxAttempts:     payload.MaxAttempts,
+		IDE:             payload.IDE,
+		Model:           payload.Model,
+		ReasoningEffort: payload.ReasoningEffort,
+	}, true
+}
+
+func translateJobCompletedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobCompletedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobFinishedMsg{
+		Index:    payload.Index,
+		Success:  true,
+		ExitCode: payload.ExitCode,
+	}, true
+}
+
+func translateJobRetryScheduledEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobRetryScheduledPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobRetryMsg{
+		Index:       payload.Index,
+		Attempt:     payload.Attempt,
+		MaxAttempts: payload.MaxAttempts,
+		Reason:      payload.Reason,
+	}, true
+}
+
+func translateJobPausingEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobPausingPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobPausingMsg{Index: payload.Index}, true
+}
+
+func translateJobPausedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobPausedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobPausedMsg{Index: payload.Index}, true
+}
+
+func translateJobResumedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobResumedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobResumedMsg{Index: payload.Index, MessageID: payload.MessageID}, true
+}
+
+func translateJobFailedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobFailedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobFailureMsg{Failure: jobFailureFromPayload(payload)}, true
+}
+
+func translateJobCancelledEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobCancelledPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobFinishedMsg{
+		Index:    payload.Index,
+		Success:  false,
+		ExitCode: exitCodeCanceled,
+	}, true
 }
 
 func (t *uiEventTranslator) translateSessionEvent(ev events.Event) (uiMsg, bool) {

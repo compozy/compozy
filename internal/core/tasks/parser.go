@@ -112,6 +112,20 @@ func ExtractTaskNumber(filename string) int {
 	return extractFileNumber(filename, taskFileNumberRe)
 }
 
+// ExtractTaskIdentityNumber accepts either a canonical task filename
+// (task_N.md) or the extensionless task identity used by prepared jobs
+// (task_N). Other artifact names, including hashed safe names, return 0.
+func ExtractTaskIdentityNumber(name string) int {
+	base := filepath.Base(filepath.FromSlash(strings.TrimSpace(name)))
+	if number := ExtractTaskNumber(base); number > 0 {
+		return number
+	}
+	if filepath.Ext(base) != "" {
+		return 0
+	}
+	return ExtractTaskNumber(base + ".md")
+}
+
 func LooksLikeLegacyTaskFile(content string) bool {
 	return strings.Contains(content, "<task_context>") ||
 		legacyTaskStatusHeadingRe.MatchString(content)

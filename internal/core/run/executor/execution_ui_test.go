@@ -523,6 +523,11 @@ func (f *fakeUISession) Enqueue(msg any) {
 
 func (f *fakeUISession) SetQuitHandler(func(uiQuitRequest)) {}
 
+func (f *fakeUISession) SetJobControlHandler(
+	func(context.Context, uiJobControlRequest) (jobControlResponse, error),
+) {
+}
+
 func (f *fakeUISession) CloseEvents() {
 	f.mu.Lock()
 	defer f.mu.Unlock()

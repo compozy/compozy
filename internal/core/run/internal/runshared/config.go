@@ -44,11 +44,13 @@ type Config struct {
 	SoundEnabled           bool
 	SoundOnCompleted       string
 	SoundOnFailed          string
+	JobControls            *model.JobControlRegistry
 }
 
 type Job struct {
 	CodeFiles       []string
 	Groups          map[string][]model.IssueEntry
+	TaskNumber      int
 	TaskTitle       string
 	TaskType        string
 	SafeName        string
@@ -146,6 +148,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		SoundEnabled:           src.SoundEnabled,
 		SoundOnCompleted:       src.SoundOnCompleted,
 		SoundOnFailed:          src.SoundOnFailed,
+		JobControls:            src.JobControls,
 	}
 }
 
@@ -156,6 +159,7 @@ func NewJobs(src []model.Job) []Job {
 		jobs = append(jobs, Job{
 			CodeFiles:       append([]string(nil), item.CodeFiles...),
 			Groups:          CloneGroups(item.Groups),
+			TaskNumber:      item.TaskNumber,
 			TaskTitle:       item.TaskTitle,
 			TaskType:        item.TaskType,
 			SafeName:        item.SafeName,

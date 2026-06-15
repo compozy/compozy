@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/atotto/clipboard"
+	"github.com/compozy/compozy/internal/charmtheme"
 	"github.com/compozy/compozy/internal/core/tasks"
 
 	"charm.land/bubbles/v2/viewport"
@@ -150,7 +151,6 @@ func (m *validationFormModel) View() tea.View {
 		lipgloss.Center,
 		lipgloss.Center,
 		m.renderPanel(),
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
 	))
 }
 
@@ -187,31 +187,28 @@ func (m *validationFormModel) renderPanel() string {
 }
 
 func (m *validationFormModel) renderBody(contentWidth int) string {
-	bg := colorBgSurface
-	spacer := renderOwnedLine(contentWidth, bg, "")
+	spacer := renderOwnedLineKnownOwned(contentWidth, "")
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		renderOwnedLine(contentWidth, bg, m.renderTitle()),
+		renderOwnedLineKnownOwned(contentWidth, m.renderTitle()),
 		spacer,
-		renderOwnedBlock(contentWidth, bg, m.renderSummary(contentWidth)),
+		renderOwnedBlock(contentWidth, m.renderSummary(contentWidth)),
 		spacer,
-		renderOwnedBlock(contentWidth, bg, m.issueViewport.View()),
+		renderOwnedBlock(contentWidth, m.issueViewport.View()),
 		spacer,
-		renderOwnedBlock(contentWidth, bg, m.renderHelp(contentWidth)),
+		renderOwnedBlock(contentWidth, m.renderHelp(contentWidth)),
 	)
 }
 
 func (m *validationFormModel) renderTitle() string {
-	return renderStyledOnBackground(
-		lipgloss.NewStyle().Bold(true).Foreground(colorWarning),
-		colorBgSurface,
+	return lipgloss.NewStyle().Bold(true).Foreground(colorWarning).Render(
 		"Task Metadata Validation Required",
 	)
 }
 
 func (m *validationFormModel) renderSummary(contentWidth int) string {
-	return styleBodyText.Background(colorBgSurface).Width(contentWidth).Render(
+	return styleBodyText.Width(contentWidth).Render(
 		fmt.Sprintf(
 			"%d issue(s) across %d file(s) were found before task execution. Choose how to proceed.",
 			len(m.report.Issues),
@@ -221,21 +218,21 @@ func (m *validationFormModel) renderSummary(contentWidth int) string {
 }
 
 func (m *validationFormModel) renderHelp(contentWidth int) string {
-	return styleMutedText.Background(colorBgSurface).Width(contentWidth).Render(
+	return styleMutedText.Width(contentWidth).Render(
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
-			renderKeycap("c", colorBgSurface)+" Continue anyway",
+			charmtheme.Keycap("c")+" Continue anyway",
 			"   ",
-			renderKeycap("a", colorBgSurface)+" Abort",
+			charmtheme.Keycap("a")+" Abort",
 			"   ",
-			renderKeycap("p", colorBgSurface)+" Copy fix prompt",
+			charmtheme.Keycap("p")+" Copy fix prompt",
 		),
 	)
 }
 
 func renderValidationIssueList(issues []tasks.Issue, width int) string {
 	if len(issues) == 0 {
-		return styleMutedText.Background(colorBgSurface).Width(width).Render("No validation issues.")
+		return styleMutedText.Width(width).Render("No validation issues.")
 	}
 
 	lines := make([]string, 0, len(issues)*2)
@@ -245,12 +242,12 @@ func renderValidationIssueList(issues []tasks.Issue, width int) string {
 			currentPath = issue.Path
 			lines = append(
 				lines,
-				styleTitleMeta.Background(colorBgSurface).Width(width).Render(filepath.Clean(currentPath)),
+				styleTitleMeta.Width(width).Render(filepath.Clean(currentPath)),
 			)
 		}
 		lines = append(
 			lines,
-			styleBodyText.Background(colorBgSurface).Width(width).Render(
+			styleBodyText.Width(width).Render(
 				fmt.Sprintf("- %s: %s", issue.Field, issue.Message),
 			),
 		)

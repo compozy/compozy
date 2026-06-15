@@ -149,6 +149,70 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 	})
 }
 
+func TestClientRunJobControlPostsPauseAndMessageRequests(t *testing.T) {
+	t.Parallel()
+
+	seen := make(map[string]bool)
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodPost {
+					t.Fatalf("method = %s, want POST", req.Method)
+				}
+				switch req.URL.Path {
+				case "/api/runs/run-1/jobs/task_01/pause":
+					seen["pause"] = true
+					return jsonResponse(
+						http.StatusAccepted,
+						"{\"run_id\":\"run-1\",\"job_id\":\"task_01\",\"index\":0,\"status\":\"pausing\",\"session_id\":\"sess-1\"}",
+					), nil
+				case "/api/runs/run-1/jobs/task_01/messages":
+					seen["message"] = true
+					var body contract.RunJobMessageRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode message request body: %v", err)
+					}
+					if body.Message != "please continue" {
+						t.Fatalf("message body = %#v, want please continue", body)
+					}
+					return jsonResponse(
+						http.StatusAccepted,
+						"{\"run_id\":\"run-1\",\"job_id\":\"task_01\",\"index\":0,\"status\":\"resumed\",\"session_id\":\"sess-1\",\"message_id\":\"msg-1\"}",
+					), nil
+				default:
+					t.Fatalf("unexpected path: %s", req.URL.Path)
+					return nil, nil
+				}
+			}),
+		},
+	}
+
+	pause, err := client.PauseRunJob(context.Background(), " run-1 ", " task_01 ")
+	if err != nil {
+		t.Fatalf("PauseRunJob() error = %v", err)
+	}
+	if pause.Status != "pausing" || pause.SessionID != "sess-1" {
+		t.Fatalf("PauseRunJob() = %#v, want pausing response", pause)
+	}
+	message, err := client.SendRunJobMessage(
+		context.Background(),
+		"run-1",
+		"task_01",
+		apicore.RunJobMessageRequest{Message: "please continue"},
+	)
+	if err != nil {
+		t.Fatalf("SendRunJobMessage() error = %v", err)
+	}
+	if message.Status != "resumed" || message.MessageID != "msg-1" {
+		t.Fatalf("SendRunJobMessage() = %#v, want resumed response", message)
+	}
+	if !seen["pause"] || !seen["message"] {
+		t.Fatalf("seen paths = %#v, want pause and message", seen)
+	}
+}
+
 func TestClientGetTaskRunMultipleSnapshotUsesDedicatedRouteAndDecodes(t *testing.T) {
 	t.Run("Should return decoded multiple snapshot", func(t *testing.T) {
 		t.Parallel()

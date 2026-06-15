@@ -621,6 +621,12 @@ func (s *stubRuntimeEventSubmitter) countKind(kind eventspkg.EventKind) int {
 	return total
 }
 
+func (s *stubRuntimeEventSubmitter) snapshot() []eventspkg.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]eventspkg.Event(nil), s.events...)
+}
+
 func (c *capturingCommandIOClient) CreateSession(
 	_ context.Context,
 	req agent.SessionRequest,
@@ -649,6 +655,21 @@ func (*capturingCommandIOClient) SupportsLoadSession() bool { return true }
 func (*capturingCommandIOClient) Close() error              { return nil }
 func (*capturingCommandIOClient) Kill() error               { return nil }
 
+func (*capturingCommandIOClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (*capturingCommandIOClient) PromptSession(
+	_ context.Context,
+	req agent.PromptSessionRequest,
+) (agent.Session, error) {
+	return fakeSessionExecutionSession{
+		id:      req.SessionID,
+		updates: make(chan model.SessionUpdate),
+		done:    make(chan struct{}),
+	}, nil
+}
+
 func (c *lifecycleCommandIOClient) CreateSession(
 	context.Context,
 	agent.SessionRequest,
@@ -667,6 +688,17 @@ func (*lifecycleCommandIOClient) SupportsLoadSession() bool { return true }
 func (*lifecycleCommandIOClient) Close() error              { return nil }
 func (*lifecycleCommandIOClient) Kill() error               { return nil }
 
+func (*lifecycleCommandIOClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (c *lifecycleCommandIOClient) PromptSession(
+	context.Context,
+	agent.PromptSessionRequest,
+) (agent.Session, error) {
+	return c.session, nil
+}
+
 func (c *failingCommandIOClient) CreateSession(
 	context.Context,
 	agent.SessionRequest,
@@ -684,3 +716,14 @@ func (c *failingCommandIOClient) ResumeSession(
 func (*failingCommandIOClient) SupportsLoadSession() bool { return true }
 func (*failingCommandIOClient) Close() error              { return nil }
 func (*failingCommandIOClient) Kill() error               { return nil }
+
+func (*failingCommandIOClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (c *failingCommandIOClient) PromptSession(
+	context.Context,
+	agent.PromptSessionRequest,
+) (agent.Session, error) {
+	return nil, c.createErr
+}

@@ -21,7 +21,7 @@ Key decisions:
 
 State:
 
-- Primary task-run pre-run wizard has been replaced with a direct Bubble Tea model. Focused tests and full `make verify` pass. External cy-impl peer review remains.
+- User accepted a replacement plan for a stepped Bubble Tea wizard: workflow selection/order, runtime, execution, nested per-workflow overrides, and review in one pre-run experience. Core implementation is in place; post-peer-review validation is in progress.
 
 Done:
 
@@ -42,22 +42,36 @@ Done:
 - Added focused tests for parser, model matching, config validation, prepare runtime targets, wizard apply, multi-runtime form, and interactive multi-run dispatch.
 - Presented and received approval for the implementation plan.
 - Persisted accepted plan under .codex/plans/2026-06-14-task-run-multiple-tui.md.
+- Integrated workflow Run Order into the Bubble Tea wizard without alphabetical resorting, with focusable ordering controls.
+- Added an Overrides step inside the wizard that loads workflow-scoped type/task targets and materializes TaskRuntimeRule values without invoking the old Huh form after the wizard.
+- Changed task-run interactive apply to set executionTaskRuntimeRules, replace configured rules, and mark task-runtime explicit directly from wizard inputs.
+- Added focused tests for workflow order preservation/reordering and workflow-scoped override generation.
+- rtk go test ./internal/cli -count=1 passed with 488 tests.
+- Peer review round 2 returned FIX_BEFORE_SHIP with blocker B-001: override selections were lost after Overrides -> back -> forward navigation.
+- Fixed B-001 by syncing override rules when leaving Overrides and reusing the loaded form when the override load key is unchanged; added regression coverage.
+- Fixed additional peer review risks/nits: text inputs now accept q/? without triggering global shortcuts, removed unreachable Huh runtime-form path, removed dead replaceTaskRuntime field, made override target accessors read-only during View, and handled G in workflow list.
+- Post-remediation validation passed: rtk go test ./internal/cli -count=1 passed with 490 tests; changed-package tests passed with 683 tests; rtk make lint reported 0 issues; rtk make verify exited 0.
+- Peer review round 4 returned FIX_BEFORE_SHIP with blocker B-001: focused text inputs still lost h/j/k/l/space to runtime/override navigation.
+- Fixed round 4 B-001 by routing non-navigation keys to focused text inputs before step-level shortcuts, including the override editor parent focus switch; added regressions for runtime and override model fields accepting "haiku".
+- Removed the orphaned clearTaskRunRuntimeRules helper/test after the wizard became the only tasks-run runtime override collection path.
+- Focused post-fix validation passed: rtk go test ./internal/cli -run 'Test(TaskRunWizard|TaskRunFormInputsApplyMultipleWorkflowSelection|TaskRunRuntimeForm)' -count=1; full internal/cli passed with 490 tests.
 
 Now:
 
-- Preparing and running cy-impl-peer-review against the verified diff.
+- Run changed-package validation, full make verify, and cy-impl-peer-review again after fixing round 4 blocker.
 
 Next:
 
-- Capture peer-review verdict and either remediate blockers or finish if SHIP.
+- Run cy-impl-peer-review round 5 against the remediated diff until SHIP, then final report.
 
 Open questions (UNCONFIRMED if needed):
 
-- UNCONFIRMED: whether the external cy-impl peer-review runtime will complete this time; two earlier attempts hung and were canceled.
+- None for implementation scope. User confirmed task selection means runtime overrides, not execution filtering.
 
 Working set (files/ids/commands):
 
 - .codex/plans/2026-06-14-task-run-multiple-tui.md
+- .codex/plans/2026-06-14-stepped-task-run-wizard.md
 - .codex/ledger/2026-06-14-MEMORY-task-run-multiple-tui.md
 - internal/core/model/task_runtime.go
 - internal/core/model/model_test.go

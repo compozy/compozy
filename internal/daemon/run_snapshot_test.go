@@ -32,14 +32,15 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 			timestamp: baseTime,
 			payload: kinds.JobQueuedPayload{
 				Index:           1,
-				SafeName:        "job-001",
+				CodeFile:        "task_15",
+				SafeName:        "task_15-daad11",
 				TaskTitle:       "Task One",
 				TaskType:        "backend",
 				IDE:             "codex",
 				Model:           "gpt-5.5",
 				ReasoningEffort: "high",
 				AccessMode:      "workspace-write",
-				CodeFiles:       []string{"a.go"},
+				CodeFiles:       []string{"task_15"},
 			},
 		},
 		{
@@ -180,6 +181,9 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 	if states[0].Summary.RetryReason != "rate limited" || states[0].Summary.ErrorText != "boom" {
 		t.Fatalf("job 1 summary = %#v, want retry reason and error text", states[0].Summary)
 	}
+	if states[0].Summary.TaskNumber != 15 {
+		t.Fatalf("job 1 task number = %d, want 15", states[0].Summary.TaskNumber)
+	}
 	if states[0].Summary.Session.Revision == 0 {
 		t.Fatalf("job 1 session snapshot = %#v, want populated revision", states[0].Summary.Session)
 	}
@@ -248,4 +252,92 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 			t.Fatalf("shutdownStateFromPayload() = %#v, want trimmed phase/source", state)
 		}
 	})
+}
+
+func TestRunSnapshotBuilderTracksJobPauseAndResumeStates(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name       string
+		eventKind  eventspkg.EventKind
+		payload    any
+		wantStatus string
+	}{
+		{
+			name:      "pausing",
+			eventKind: eventspkg.EventKindJobPausing,
+			payload: kinds.JobPausingPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
+				SessionID:      "sess-1",
+			},
+			wantStatus: "pausing",
+		},
+		{
+			name:      "paused",
+			eventKind: eventspkg.EventKindJobPaused,
+			payload: kinds.JobPausedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
+				SessionID:      "sess-1",
+			},
+			wantStatus: "paused",
+		},
+		{
+			name:      "resumed",
+			eventKind: eventspkg.EventKindJobResumed,
+			payload: kinds.JobResumedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
+				SessionID:      "sess-1",
+				MessageID:      "msg-1",
+			},
+			wantStatus: runStatusRunning,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			builder := newRunSnapshotBuilder()
+			for _, item := range []struct {
+				kind    eventspkg.EventKind
+				payload any
+			}{
+				{
+					kind: eventspkg.EventKindJobQueued,
+					payload: kinds.JobQueuedPayload{
+						Index:     0,
+						SafeName:  "task_01",
+						TaskTitle: "Pause me",
+					},
+				},
+				{
+					kind: eventspkg.EventKindJobStarted,
+					payload: kinds.JobStartedPayload{
+						JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+					},
+				},
+				{kind: tc.eventKind, payload: tc.payload},
+			} {
+				rawPayload, err := json.Marshal(item.payload)
+				if err != nil {
+					t.Fatalf("json.Marshal(%T) error = %v", item.payload, err)
+				}
+				if err := builder.applyEvent(eventspkg.Event{
+					RunID:     "run-pause-snapshot",
+					Kind:      item.kind,
+					Timestamp: baseTime,
+					Payload:   rawPayload,
+				}); err != nil {
+					t.Fatalf("applyEvent(%s) error = %v", item.kind, err)
+				}
+			}
+
+			states := builder.jobStates()
+			if len(states) != 1 {
+				t.Fatalf("job states = %#v, want one state", states)
+			}
+			if states[0].Status != tc.wantStatus {
+				t.Fatalf("job status = %q, want %q", states[0].Status, tc.wantStatus)
+			}
+		})
+	}
 }

@@ -36,6 +36,18 @@
             "sourceType": "github",
             "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
         },
+        "grill-me": {
+            "source": "mattpocock/skills",
+            "sourceType": "github",
+            "skillPath": "skills/productivity/grill-me/SKILL.md",
+            "computedHash": "784f0dbb7403b0f00324bce9a112f715342777a0daee7bbb7385f9c6f0a170ea"
+        },
+        "handoff": {
+            "source": "mattpocock/skills",
+            "sourceType": "github",
+            "skillPath": "skills/productivity/handoff/SKILL.md",
+            "computedHash": "1a78d774f8a59db5daa6e65e20a6596872fa8cde769f9a6e3a09b678dd5ae8cc"
+        },
         "qa-execution": {
             "source": "pedronauck/skills",
             "sourceType": "github",

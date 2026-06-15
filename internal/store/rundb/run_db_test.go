@@ -241,6 +241,65 @@ func TestRunDBRoundTripsEventsAndProjectionRowsAfterReopen(t *testing.T) {
 	}
 }
 
+func TestRunDBProjectsUserMessageTranscriptRows(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-store-user-message"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	event := mustEvent(
+		t,
+		runID,
+		1,
+		time.Date(2026, 6, 15, 12, 30, 0, 0, time.UTC),
+		events.EventKindSessionUpdate,
+		kinds.SessionUpdatePayload{
+			Index: 0,
+			Update: kinds.SessionUpdate{
+				Kind:      kinds.UpdateKindUserMessageChunk,
+				MessageID: "msg-1",
+				Status:    kinds.StatusRunning,
+				Blocks:    []kinds.ContentBlock{mustTextBlock(t, "please continue")},
+			},
+		},
+	)
+	echo := mustEvent(
+		t,
+		runID,
+		2,
+		time.Date(2026, 6, 15, 12, 30, 1, 0, time.UTC),
+		events.EventKindSessionUpdate,
+		kinds.SessionUpdatePayload{
+			Index: 0,
+			Update: kinds.SessionUpdate{
+				Kind:      kinds.UpdateKindUserMessageChunk,
+				MessageID: "msg-1",
+				Status:    kinds.StatusRunning,
+				Blocks:    []kinds.ContentBlock{mustTextBlock(t, "please continue")},
+			},
+		},
+	)
+	if err := db.StoreEventBatch(context.Background(), []events.Event{event, echo}); err != nil {
+		t.Fatalf("StoreEventBatch(): %v", err)
+	}
+
+	rows, err := db.ListTranscriptMessages(context.Background())
+	if err != nil {
+		t.Fatalf("ListTranscriptMessages(): %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("transcript rows = %#v, want one user row", rows)
+	}
+	if rows[0].Role != "user" || rows[0].Content != "please continue" {
+		t.Fatalf("transcript row = %#v, want user message", rows[0])
+	}
+}
+
 func TestRunDBRecordHookRunValidatesRequiredFields(t *testing.T) {
 	t.Parallel()
 

@@ -53,6 +53,7 @@ type SessionExecution struct {
 	OutFile       *os.File
 	ErrFile       *os.File
 	Logger        *slog.Logger
+	Activity      *activityMonitor
 }
 
 type SessionSetupRequest struct {
@@ -241,6 +242,7 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 		OutFile:       resources.outFile,
 		ErrFile:       resources.errFile,
 		Logger:        resources.logger,
+		Activity:      req.Activity,
 	}
 }
 

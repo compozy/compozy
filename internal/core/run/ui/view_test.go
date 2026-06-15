@@ -3,11 +3,9 @@ package ui
 import (
 	"fmt"
 	"image/color"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/compozy/compozy/internal/core/model"
@@ -37,12 +35,36 @@ func TestJobsViewFitsWindowHeightsAcrossBreakpoints(t *testing.T) {
 	}
 }
 
+func TestJobsBodyFitsWindowWidthAcrossBreakpoints(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range []tea.WindowSizeMsg{
+		{Width: 80, Height: 24},
+		{Width: 120, Height: 30},
+		{Width: 160, Height: 40},
+	} {
+		size := size
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			t.Parallel()
+
+			m := newPopulatedUIModelForTest(t, size)
+			body := m.renderJobsBody()
+			if got, want := lipgloss.Width(body), m.width; got != want {
+				t.Fatalf("expected jobs body width %d, got %d", want, got)
+			}
+			if got, want := lipgloss.Height(body), m.contentHeight; got != want {
+				t.Fatalf("expected jobs body height %d, got %d", want, got)
+			}
+		})
+	}
+}
+
 func TestResizeGateAppearsBelowMinimumTerminalSize(t *testing.T) {
 	t.Parallel()
 
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 79, Height: 23})
 	view := m.View().Content
-	if !strings.Contains(view, "ACP cockpit needs at least 80x24") {
+	if !strings.Contains(view, "Compozy needs at least 80x24") {
 		t.Fatalf("expected resize gate, got %q", view)
 	}
 }
@@ -53,12 +75,21 @@ func TestJobsViewUsesACPChromeWithoutInspectorPane(t *testing.T) {
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 40})
 	view := m.View().Content
 
-	for _, want := range []string{"ACP COCKPIT", "SESSION.TIMELINE"} {
+	for _, want := range []string{"COMPOZY", "SESSION.TIMELINE"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected jobs view to contain %q", want)
 		}
 	}
-	for _, reject := range []string{"SESSION.INSPECTOR", "Selection", "Plan", "Edits", "Session", "INSPECT"} {
+	for _, reject := range []string{
+		"ACP COCKPIT",
+		"SYS.PIPELINE",
+		"SESSION.INSPECTOR",
+		"Selection",
+		"Plan",
+		"Edits",
+		"Session",
+		"INSPECT",
+	} {
 		if strings.Contains(view, reject) {
 			t.Fatalf("expected jobs view to omit %q, got %q", reject, view)
 		}
@@ -151,11 +182,12 @@ func TestRetryingJobRendersAttemptMetadata(t *testing.T) {
 		Reason:      "temporary setup failure",
 	})
 
-	row := m.renderSidebarItem(&m.jobs[0], true)
-	for _, want := range []string{"RETRY", "ATTEMPT 2/3"} {
-		if !strings.Contains(row, want) {
-			t.Fatalf("expected retry sidebar row to contain %q, got %q", want, row)
-		}
+	row := xansi.Strip(m.renderSidebarItem(0, &m.jobs[0], true))
+	if strings.Contains(row, "FILES") || strings.Contains(row, "ISSUES") {
+		t.Fatalf("sidebar card must drop files/issues meta, got %q", row)
+	}
+	if !strings.Contains(row, "2/3") {
+		t.Fatalf("expected retrying card to surface attempt 2/3, got %q", row)
 	}
 
 	meta := m.timelineMetaForWidth(&m.jobs[0], 80)
@@ -294,6 +326,16 @@ func TestTimelineRuntimeMetaFallbacks(t *testing.T) {
 	if got := m.timelineRuntimeMeta(); got != "Codex · gpt-5.5" {
 		t.Fatalf("expected current job runtime meta to override cfg, got %q", got)
 	}
+
+	m.jobs = []uiJob{{
+		ide:             model.IDECodex,
+		model:           "gpt-5.5",
+		reasoningEffort: "xhigh",
+		tokenUsage:      &model.Usage{InputTokens: 8123, OutputTokens: 4200},
+	}}
+	if got := m.timelineRuntimeMeta(); got != "Codex · gpt-5.5 · xhigh · 12.3k tok" {
+		t.Fatalf("expected reasoning effort and provider token total in runtime meta, got %q", got)
+	}
 }
 
 func TestRenderTimelinePanelKeepsFallbackHeaderWithoutTaskTitle(t *testing.T) {
@@ -313,7 +355,7 @@ func TestRenderTimelinePanelKeepsFallbackHeaderWithoutTaskTitle(t *testing.T) {
 	}
 }
 
-func TestRenderTimelinePanelDynamicHeaderGoldenWidth80(t *testing.T) {
+func TestRenderTimelinePanelSplitsIntoThreeBorderedBoxes(t *testing.T) {
 	t.Parallel()
 
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -348,35 +390,180 @@ func TestRenderTimelinePanelDynamicHeaderGoldenWidth80(t *testing.T) {
 		),
 	})
 
-	got := normalizedStrippedPanelText(m.renderTimelinePanel(&m.jobs[0], 80))
-	want := strings.Join([]string{
-		"┌──────────────────────────────────────────────────────────────────────────────┐",
-		"│ ACP AGENT LAYER  [backend]                                                   │",
-		"│ 3 entries · selected 3/3                                 Claude · sonnet-4.5 │",
-		"│                                                                              │",
-		"│   Assistant                                                                  │",
-		"│    hello from ACP                                                            │",
-		"│                                                                              │",
-		"│   ✓ read_file                                                                │",
-		"│                                                                              │",
-		"│ ▌ Assistant                                                                  │",
-		"│    task complete                                                             │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"│                                                                              │",
-		"└──────────────────────────────────────────────────────────────────────────────┘",
-	}, "\n")
-	if got != want {
-		t.Fatalf("unexpected width-80 timeline panel\nwant:\n%s\n\ngot:\n%s", want, got)
+	panel := m.renderTimelinePanel(&m.jobs[0], 80)
+	stripped := xansi.Strip(panel)
+
+	// The page content is three bordered boxes: header, streaming messages, and
+	// composer textbox stay visually distinct with their own divider rows.
+	topBorders := 0
+	bottomBorders := 0
+	for _, line := range strings.Split(stripped, "\n") {
+		if strings.HasPrefix(line, "┌") {
+			topBorders++
+		}
+		if strings.HasPrefix(line, "└") {
+			bottomBorders++
+		}
+	}
+	if topBorders != 3 {
+		t.Fatalf("expected three box top borders, got %d in:\n%s", topBorders, stripped)
+	}
+	if bottomBorders != 3 {
+		t.Fatalf("expected three box bottom borders, got %d in:\n%s", bottomBorders, stripped)
+	}
+	if dividers := strings.Count(stripped, "┘\n┌"); dividers != 2 {
+		t.Fatalf("expected two divider boundaries between boxes, got %d in:\n%s", dividers, stripped)
+	}
+	if strings.ContainsAny(stripped, "╭╮╰╯") {
+		t.Fatalf("expected square borders only, got %q", stripped)
+	}
+
+	// Header box: task title + type badge and the right-aligned runtime meta.
+	if !strings.Contains(stripped, "ACP AGENT LAYER  [backend]") {
+		t.Fatalf("expected header box to show title and badge, got:\n%s", stripped)
+	}
+	if !strings.Contains(stripped, "Claude · sonnet-4.5") {
+		t.Fatalf("expected header box to show runtime meta, got:\n%s", stripped)
+	}
+	// Messages box: the streamed transcript entries.
+	for _, want := range []string{"Assistant", "hello from ACP", "✓ read_file", "task complete"} {
+		if !strings.Contains(stripped, want) {
+			t.Fatalf("expected messages box to contain %q, got:\n%s", want, stripped)
+		}
+	}
+	// Composer box: the prompt glyph stays visible even while disabled.
+	if !strings.Contains(stripped, composerPromptGlyph+"Task running") {
+		t.Fatalf("expected composer box to show the disabled label, got:\n%s", stripped)
+	}
+
+	// Every rendered line spans the full panel width so the boxes align exactly.
+	for i, line := range strings.Split(panel, "\n") {
+		if got := xansi.StringWidth(line); got != 80 {
+			t.Fatalf("expected panel line %d width 80, got %d: %q", i, got, xansi.Strip(line))
+		}
+	}
+}
+
+func TestComposerPanelRendersPromptGlyphForAllStates(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.composer.SetValue("draft")
+	baseValue := m.composer.Value()
+
+	cases := []struct {
+		name       string
+		job        *uiJob
+		busy       bool
+		errorText  string
+		wantSuffix string
+	}{
+		{name: "no task", job: nil, wantSuffix: "No task selected"},
+		{name: "pending", job: composerStateJob(m.jobs[0], jobPending), wantSuffix: "Task pending"},
+		{name: "running", job: composerStateJob(m.jobs[0], jobRunning), wantSuffix: "Task running"},
+		{name: "pausing", job: composerStateJob(m.jobs[0], jobPausing), wantSuffix: "Pausing task..."},
+		{name: "paused input", job: composerStateJob(m.jobs[0], jobPaused), wantSuffix: "draft"},
+		{name: "sending", job: composerStateJob(m.jobs[0], jobPaused), busy: true, wantSuffix: "Sending message..."},
+		{
+			name:       "error",
+			job:        composerStateJob(m.jobs[0], jobRunning),
+			errorText:  "pause failed",
+			wantSuffix: "pause failed",
+		},
+		{name: "completed", job: composerStateJob(m.jobs[0], jobSuccess), wantSuffix: "Task completed"},
+		{name: "failed", job: composerStateJob(m.jobs[0], jobFailed), wantSuffix: "Task failed"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			m.composerBusy = tc.busy
+			m.composerError = tc.errorText
+			m.composer.SetValue(baseValue)
+
+			panel := renderComposerForTest(m, tc.job, 80)
+			stripped := xansi.Strip(panel)
+			if !strings.Contains(stripped, composerPromptGlyph+tc.wantSuffix) {
+				t.Fatalf("expected composer prompt before %q, got:\n%s", tc.wantSuffix, stripped)
+			}
+			if got := m.composer.Value(); got != baseValue {
+				t.Fatalf("composer value = %q, want unchanged %q", got, baseValue)
+			}
+		})
+	}
+}
+
+func composerStateJob(job uiJob, state jobState) *uiJob {
+	job.state = state
+	return &job
+}
+
+func renderComposerForTest(m *uiModel, job *uiJob, panelWidth int) string {
+	return m.renderComposerContent(job, panelContentWidth(panelWidth))
+}
+
+func TestComposerPanelRendersPromptGlyphOutsideInputValue(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobPaused(jobPausedMsg{Index: 0})
+	m.focusedPane = uiPaneTimeline
+	m.composer.Blur()
+	m.composer.SetValue("")
+
+	panel := renderComposerForTest(m, &m.jobs[0], 80)
+	stripped := xansi.Strip(panel)
+	if !strings.Contains(stripped, composerPromptGlyph+composerPausedTaskPrompt) {
+		t.Fatalf("expected composer prompt before placeholder, got:\n%s", stripped)
+	}
+	if got := m.composer.Value(); got != "" {
+		t.Fatalf("composer value = %q, want prompt glyph outside input value", got)
+	}
+
+	m.composer.SetValue("send details")
+	panel = renderComposerForTest(m, &m.jobs[0], 80)
+	stripped = xansi.Strip(panel)
+	if !strings.Contains(stripped, composerPromptGlyph+"send details") {
+		t.Fatalf("expected composer prompt before input value, got:\n%s", stripped)
+	}
+	if got := m.composer.Value(); got != "send details" {
+		t.Fatalf("composer value = %q, want unchanged input value", got)
+	}
+}
+
+func TestComposerPanelFocusChangesTextForegroundOnly(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobPaused(jobPausedMsg{Index: 0})
+	m.focusedPane = uiPaneComposer
+	m.composer.SetValue("send details")
+	m.composer.CursorEnd()
+	_ = m.composer.Focus()
+
+	panel := renderComposerForTest(m, &m.jobs[0], 80)
+	assertNoForcedBackground(t, panel)
+	styles := m.composer.Styles()
+	for name, style := range map[string]lipgloss.Style{
+		"focused base":        styles.Focused.Base,
+		"focused text":        styles.Focused.Text,
+		"focused cursor line": styles.Focused.CursorLine,
+		"blurred base":        styles.Blurred.Base,
+		"blurred text":        styles.Blurred.Text,
+		"blurred cursor line": styles.Blurred.CursorLine,
+	} {
+		if !sameColor(style.GetBackground(), lipgloss.NoColor{}) {
+			t.Fatalf("expected %s to inherit terminal background, got %v", name, style.GetBackground())
+		}
+	}
+	if !sameColor(styles.Focused.Text.GetForeground(), colorFgBright) {
+		t.Fatalf("focused text foreground = %v, want %v", styles.Focused.Text.GetForeground(), colorFgBright)
+	}
+	if !sameColor(styles.Blurred.Text.GetForeground(), colorMuted) {
+		t.Fatalf("blurred text foreground = %v, want %v", styles.Blurred.Text.GetForeground(), colorMuted)
+	}
+	if !sameColor(styles.Focused.Prompt.GetForeground(), colorMuted) {
+		t.Fatalf("focused prompt foreground = %v, want muted prompt", styles.Focused.Prompt.GetForeground())
 	}
 }
 
@@ -394,10 +581,11 @@ func TestRenderTimelinePanelMinWidthPreservesRuntimeLabel(t *testing.T) {
 	}
 }
 
-func TestRenderTimelinePanelTaskTitleConsumesTranscriptViewportRow(t *testing.T) {
+func TestRenderTimelinePanelTranscriptHeightAccountsForThreeBoxes(t *testing.T) {
 	t.Parallel()
 
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+
 	m.jobs[0].taskTitle = ""
 	m.renderTimelinePanel(&m.jobs[0], 80)
 	withoutTitle := m.transcriptViewport.Height()
@@ -406,13 +594,14 @@ func TestRenderTimelinePanelTaskTitleConsumesTranscriptViewportRow(t *testing.T)
 	m.renderTimelinePanel(&m.jobs[0], 80)
 	withTitle := m.transcriptViewport.Height()
 
-	if want := withoutTitle - 1; withTitle != want {
-		t.Fatalf(
-			"expected task-title timeline spacer to reduce transcript height from %d to %d, got %d",
-			withoutTitle,
-			want,
-			withTitle,
-		)
+	// The header now lives in its own box, so the task title no longer steals a
+	// transcript row. The messages region keeps a stable height regardless of title.
+	if withTitle != withoutTitle {
+		t.Fatalf("expected transcript height to be title-independent, got %d with title vs %d without",
+			withTitle, withoutTitle)
+	}
+	if want := max(m.contentHeight-timelineChromeRows, logViewportMinHeight); withTitle != want {
+		t.Fatalf("expected transcript height %d (contentHeight - timelineChromeRows), got %d", want, withTitle)
 	}
 }
 
@@ -429,27 +618,26 @@ func TestRenderMainPanelsReturnsBlankWithoutCurrentJob(t *testing.T) {
 	}
 }
 
-func TestHeaderStatusAndShutdownLabels(t *testing.T) {
+func TestSidebarStatusAndShutdownLabels(t *testing.T) {
 	t.Parallel()
 
 	m := newUIModel(3)
-	bg := colorBgBase
 
-	if got := xansi.Strip(m.headerStatusText(bg)); got != "RUN 0/3" {
-		t.Fatalf("expected running status text, got %q", got)
+	if got := xansi.Strip(m.renderSidebarTitle(40)); !strings.Contains(got, "JOB 0/3") {
+		t.Fatalf("expected running sidebar status text, got %q", got)
 	}
 
 	m.failed = 1
-	if got := xansi.Strip(m.headerStatusText(bg)); got != "RUN 1/3 · 1 FAIL" {
-		t.Fatalf("expected partial failure status text, got %q", got)
+	if got := xansi.Strip(m.renderSidebarTitle(40)); !strings.Contains(got, "JOB 1/3 · 1 FAIL") {
+		t.Fatalf("expected partial failure sidebar status text, got %q", got)
 	}
 
 	m.shutdown = shutdownState{
 		Phase:      shutdownPhaseDraining,
 		DeadlineAt: time.Now().Add(1500 * time.Millisecond),
 	}
-	draining := xansi.Strip(m.headerStatusText(bg))
-	if !strings.Contains(draining, "DRAINING 1/3") || !strings.Contains(draining, "s") {
+	draining := xansi.Strip(m.renderSidebarTitle(40))
+	if !strings.Contains(draining, "JOB DRAINING 1/3") || !strings.Contains(draining, "s") {
 		t.Fatalf("expected draining status with countdown, got %q", draining)
 	}
 
@@ -475,15 +663,81 @@ func TestHeaderStatusAndShutdownLabels(t *testing.T) {
 
 	m.completed = 2
 	m.failed = 1
-	if got := xansi.Strip(m.headerStatusText(bg)); got != "2 OK · 1 FAIL" {
-		t.Fatalf("expected completed failure summary, got %q", got)
+	if got := xansi.Strip(m.renderSidebarTitle(40)); !strings.Contains(got, "JOB 3/3 · 1 FAIL") {
+		t.Fatalf("expected completed failure sidebar summary, got %q", got)
 	}
 
 	m.shutdown = shutdownState{}
 	m.completed = 3
 	m.failed = 0
-	if got := xansi.Strip(m.headerStatusText(bg)); got != "ALL 3 OK" {
-		t.Fatalf("expected success summary, got %q", got)
+	if got := xansi.Strip(m.renderSidebarTitle(40)); !strings.Contains(got, "JOB 3/3") {
+		t.Fatalf("expected success sidebar summary, got %q", got)
+	}
+}
+
+func TestSidebarStatusLinePreservesSemanticColors(t *testing.T) {
+	forceTrueColorForTest(t)
+
+	m := newUIModel(3)
+	warningStyle := lipgloss.NewStyle().Bold(true).Foreground(colorWarning)
+	successStyle := lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
+
+	m.failed = 1
+	if got := m.renderSidebarTitle(40); !strings.Contains(got, warningStyle.Render("1/3 · 1 FAIL")) {
+		t.Fatalf("expected failed status to use warning color, got %q", got)
+	}
+
+	m.completed = 1
+	m.failed = 0
+	m.shutdown = shutdownState{Phase: shutdownPhaseDraining}
+	if got := m.renderSidebarTitle(40); !strings.Contains(got, warningStyle.Render("DRAINING 1/3")) {
+		t.Fatalf("expected draining status to use warning color, got %q", got)
+	}
+
+	m.shutdown = shutdownState{}
+	m.completed = 3
+	if got := m.renderSidebarTitle(40); !strings.Contains(got, successStyle.Render("3/3")) {
+		t.Fatalf("expected successful status to use success color, got %q", got)
+	}
+}
+
+func TestSidebarStatusLinePrioritizesStatusWhenTokenLabelDoesNotFit(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(3)
+	m.completed = 1
+	m.shutdown = shutdownState{Phase: shutdownPhaseDraining}
+	m.aggregateUsage.Add(model.Usage{TotalTokens: 32490537})
+
+	rendered := m.renderSidebarTitle(24)
+	firstLine := strings.Split(rendered, "\n")[0]
+	stripped := xansi.Strip(firstLine)
+	if !strings.Contains(stripped, "JOB DRAINING 1/3") {
+		t.Fatalf("expected narrow status line to preserve status, got %q", stripped)
+	}
+	if strings.Contains(stripped, "tok") {
+		t.Fatalf("expected narrow status line to drop token label, got %q", stripped)
+	}
+	if got, want := xansi.StringWidth(firstLine), 24; got != want {
+		t.Fatalf("expected narrow status line width %d, got %d: %q", want, got, stripped)
+	}
+}
+
+func TestRenderSidebarStackNormalizesMalformedCards(t *testing.T) {
+	t.Parallel()
+
+	content := renderSidebarStack([]string{
+		"top\nmid",
+		"a\nb\nc\nd\ne",
+	}, 12)
+	lines := strings.Split(content, "\n")
+	if got, want := len(lines), sidebarRowLines+sidebarRowStride; got != want {
+		t.Fatalf("expected normalized stack height %d, got %d: %q", want, got, content)
+	}
+	for i, line := range lines {
+		if got, want := xansi.StringWidth(line), 12; got != want {
+			t.Fatalf("expected normalized line %d width %d, got %d: %q", i, want, got, xansi.Strip(line))
+		}
 	}
 }
 
@@ -786,7 +1040,7 @@ func TestHelpOwnsBaseBackground(t *testing.T) {
 
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 
-	assertRenderedCellsUseBackground(t, m.renderHelp(), colorBgBase)
+	assertNoForcedBackground(t, m.renderHelp())
 }
 
 func TestActiveRunHelpUsesExitLabel(t *testing.T) {
@@ -818,6 +1072,88 @@ func TestJobPaneHelpUsesVerticalNavigation(t *testing.T) {
 			t.Fatalf("expected job help not to advertise horizontal navigation, got %q", help)
 		}
 	})
+}
+
+func TestTitleBarShowsBrandAndWorkflowChip(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.cfg.Name = "my-workflow"
+
+	bar := xansi.Strip(m.renderTitleBar())
+	for _, want := range []string{"COMPOZY", "my-workflow", "RUNNING"} {
+		if !strings.Contains(bar, want) {
+			t.Fatalf("expected single-run title row to contain %q, got %q", want, bar)
+		}
+	}
+	if got := strings.Count(bar, "COMPOZY"); got != 1 {
+		t.Fatalf("expected the brand exactly once on the title row, got %d in %q", got, bar)
+	}
+}
+
+func TestEmbeddedChildOmitsBrandHeaderRow(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	m.headerHidden = true
+	m.cfg = &config{IDE: model.IDEClaude, Model: "sonnet-4.5"}
+	m.handleJobQueued(&jobQueuedMsg{Index: 0, CodeFile: "task_01", SafeName: "task_01-safe"})
+	m.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	view := m.View().Content
+	if strings.Contains(view, "COMPOZY") {
+		t.Fatalf("expected embedded child to omit the brand row, got:\n%s", view)
+	}
+	if !strings.Contains(view, "FOCUS") {
+		t.Fatalf("expected embedded child to keep its footer, got:\n%s", view)
+	}
+	if got, want := lipgloss.Height(view), m.height; got != want {
+		t.Fatalf("expected embedded child view height %d, got %d", want, got)
+	}
+}
+
+func TestHelpShowsWorkdirOnRight(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	m.cfg.WorkspaceRoot = "/tmp/compozy-workspace-xyz"
+
+	help := xansi.Strip(m.renderHelp())
+	if !strings.Contains(help, "compozy-workspace-xyz") {
+		t.Fatalf("expected the working directory tail on the right of the help row, got %q", help)
+	}
+}
+
+func TestTimelinePaneHelpAdvertisesPauseWhilePausable(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	m.focusedPane = uiPaneTimeline
+	if !m.jobCanPause(m.currentJob()) {
+		t.Fatalf("precondition: expected the running job to be pausable")
+	}
+
+	help := m.renderHelp()
+	if !strings.Contains(help, "PAUSE") {
+		t.Fatalf("expected timeline help to advertise the pause shortcut, got %q", help)
+	}
+}
+
+func TestComposerPaneHelpAdvertisesSendAndCancel(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	m.handleJobPaused(jobPausedMsg{Index: 0})
+	if m.focusedPane != uiPaneComposer {
+		t.Fatalf("precondition: expected pause to focus the composer, got %q", m.focusedPane)
+	}
+
+	help := m.renderHelp()
+	for _, want := range []string{"SEND", "CANCEL"} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("expected composer help to advertise %q, got %q", want, help)
+		}
+	}
 }
 
 func TestQuitDialogViewContainsChoices(t *testing.T) {
@@ -873,7 +1209,7 @@ func TestTimelineContentOwnsSurfaceBackgroundAcrossWrappedRows(t *testing.T) {
 
 	const width = 72
 	rendered := m.buildTimelineContent(&m.jobs[0], width)
-	assertRenderedCellsUseBackground(t, rendered.content, colorBgSurface)
+	assertNoForcedBackground(t, rendered.content)
 	assertRenderedLinesFitWidth(t, rendered.content, width)
 	if !strings.Contains(xansi.Strip(rendered.content), "tail-marker") {
 		t.Fatalf("expected wrapped narrative tail to remain visible, got %q", xansi.Strip(rendered.content))
@@ -1086,26 +1422,60 @@ func TestDrainingStateRendersImmediatelyInChrome(t *testing.T) {
 	}
 }
 
-func TestSelectedSidebarItemBackgroundFillsRowWidth(t *testing.T) {
+func TestSelectedSidebarCardLinesFillWidth(t *testing.T) {
 	t.Parallel()
 
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
-	row := m.renderSidebarItem(&m.jobs[m.selectedJob], true)
+	row := m.renderSidebarItem(m.selectedJob, &m.jobs[m.selectedJob], true)
 	lines := strings.Split(row, "\n")
 
+	if len(lines) != 4 {
+		t.Fatalf("expected a four-line bordered card, got %d: %q", len(lines), row)
+	}
 	for i, line := range lines {
 		if got, want := lipgloss.Width(line), m.sidebarViewport.Width(); got != want {
-			t.Fatalf("expected selected sidebar line %d width %d, got %d", i, want, got)
+			t.Fatalf("expected card line %d width %d, got %d", i, want, got)
 		}
+	}
+}
+
+func TestSidebarContentSharesBordersBetweenTaskCards(t *testing.T) {
+	forceTrueColorForTest(t)
+	m := newUIModel(3)
+	m.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
+	for i := 0; i < 3; i++ {
+		m.handleJobQueued(&jobQueuedMsg{
+			Index:    i,
+			CodeFile: fmt.Sprintf("task_%02d.md", i+1),
+			SafeName: fmt.Sprintf("task_%02d-safe", i+1),
+		})
+	}
+
+	for selected := range m.jobs {
+		m.selectedJob = selected
+		m.sidebarDirty = true
+		m.refreshSidebarContent()
+		assertSidebarStackHasNoGapOrAccentLeak(t, m.sidebarContent, m.sidebarViewport.Width(), len(m.jobs))
 	}
 }
 
 func TestSelectedSidebarItemAvoidsBackgroundFill(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := selectedSidebarRowStyle(10).GetBackground().(lipgloss.NoColor); !ok {
-		bg := selectedSidebarRowStyle(10).GetBackground()
-		t.Fatalf("expected selected sidebar row style to avoid background fill, got %v", bg)
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	selected := m.renderSidebarItem(m.selectedJob, &m.jobs[m.selectedJob], true)
+	unselected := m.renderSidebarItem(m.selectedJob, &m.jobs[m.selectedJob], false)
+	// The cockpit is foreground-only: a job is a bordered card, never a bg fill,
+	// and selection is conveyed by text treatment so card borders can stack
+	// without leaking accent color into neighboring cards.
+	assertNoForcedBackground(t, selected)
+	assertNoAccentBorderGlyphs(t, strings.Split(selected, "\n"))
+	stripped := xansi.Strip(selected)
+	if !strings.Contains(stripped, "┌") || !strings.Contains(stripped, "└") {
+		t.Fatalf("expected a bordered card with all four sides, got %q", stripped)
+	}
+	if selected == unselected {
+		t.Fatal("expected the selected card border to differ from the unselected card")
 	}
 }
 
@@ -1114,47 +1484,16 @@ func newPopulatedUIModelForTest(t *testing.T, size tea.WindowSizeMsg) *uiModel {
 	return newTestUIModelWithSnapshot(t, size)
 }
 
-func assertRenderedCellsUseBackground(t *testing.T, content string, want color.Color) {
+// assertNoForcedBackground verifies the cockpit renders foreground-only: it must
+// not emit a truecolor/256 background SGR, so the terminal's native background
+// shows through (matching the wizard). Accent chips are tested separately.
+func assertNoForcedBackground(t *testing.T, content string) {
 	t.Helper()
 	if strings.TrimSpace(xansi.Strip(content)) == "" {
 		t.Fatal("expected rendered content")
 	}
-
-	wantColor := normalizedColor(want)
-	var current *color.RGBA
-
-	for i := 0; i < len(content); {
-		switch content[i] {
-		case '\x1b':
-			if next, bg, ok := parseANSIBackground(content, i); ok {
-				i = next
-				current = bg
-				continue
-			}
-		case '\n', '\r':
-			i++
-			continue
-		}
-
-		r, size := utf8.DecodeRuneInString(content[i:])
-		if r == utf8.RuneError && size == 0 {
-			t.Fatalf("failed to decode content at byte %d", i)
-		}
-		if xansi.StringWidth(string(r)) > 0 && runeNeedsBackgroundCheck(r) {
-			if current == nil {
-				t.Fatalf("expected background %s on visible rune %q in %q", colorLabel(wantColor), r, content)
-			}
-			if !sameColor(*current, wantColor) {
-				t.Fatalf(
-					"expected background %s on visible rune %q, got %s in %q",
-					colorLabel(wantColor),
-					r,
-					colorLabel(*current),
-					content,
-				)
-			}
-		}
-		i += size
+	if strings.Contains(content, "48;2;") || strings.Contains(content, "48;5;") {
+		t.Fatalf("expected foreground-only content with no forced background, got %q", content)
 	}
 }
 
@@ -1172,97 +1511,6 @@ func sameColor(left, right color.Color) bool {
 	lr, lg, lb, la := left.RGBA()
 	rr, rg, rb, ra := right.RGBA()
 	return lr == rr && lg == rg && lb == rb && la == ra
-}
-
-func normalizedColor(c color.Color) color.RGBA {
-	r, g, b, a := c.RGBA()
-	return color.RGBA{
-		R: uint8(r >> 8),
-		G: uint8(g >> 8),
-		B: uint8(b >> 8),
-		A: uint8(a >> 8),
-	}
-}
-
-func parseANSIBackground(content string, start int) (next int, bg *color.RGBA, ok bool) {
-	if start+1 >= len(content) || content[start] != '\x1b' || content[start+1] != '[' {
-		return start, nil, false
-	}
-
-	end := start + 2
-	for end < len(content) && content[end] != 'm' {
-		end++
-	}
-	if end >= len(content) || content[end] != 'm' {
-		return start, nil, false
-	}
-
-	params := []int{0}
-	if raw := content[start+2 : end]; raw != "" {
-		parts := strings.Split(raw, ";")
-		params = make([]int, 0, len(parts))
-		for _, part := range parts {
-			if part == "" {
-				params = append(params, 0)
-				continue
-			}
-			value, err := strconv.Atoi(part)
-			if err != nil {
-				return end + 1, bg, true
-			}
-			params = append(params, value)
-		}
-	}
-
-	var current *color.RGBA
-	for idx := 0; idx < len(params); idx++ {
-		switch params[idx] {
-		case 0, 49:
-			current = nil
-		case 48:
-			if idx+1 >= len(params) {
-				continue
-			}
-			switch params[idx+1] {
-			case 2:
-				if idx+4 >= len(params) {
-					idx = len(params)
-					continue
-				}
-				current = &color.RGBA{
-					R: uint8(params[idx+2]),
-					G: uint8(params[idx+3]),
-					B: uint8(params[idx+4]),
-					A: 0xff,
-				}
-				idx += 4
-			case 5:
-				// Indexed colors are not used in these regressions; treat them as "set but unknown".
-				current = nil
-				idx += 2
-			}
-		case 38:
-			if idx+1 >= len(params) {
-				continue
-			}
-			switch params[idx+1] {
-			case 2:
-				idx += 4
-			case 5:
-				idx += 2
-			}
-		}
-	}
-
-	return end + 1, current, true
-}
-
-func colorLabel(c color.RGBA) string {
-	return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
-}
-
-func runeNeedsBackgroundCheck(r rune) bool {
-	return r == ' ' || r == '░'
 }
 
 func narrativeWrapText(kind string) string {
@@ -1291,4 +1539,169 @@ func containsString(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestFormatTokens(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		in   int
+		want string
+	}{
+		{-5, "0"},
+		{0, "0"},
+		{850, "850"},
+		{999, "999"},
+		{1000, "1k"},
+		{8123, "8.1k"},
+		{12345, "12.3k"},
+		{48600, "48.6k"},
+		{999_000, "999k"},
+		{999_999, "1M"},
+		{1_000_000, "1M"},
+		{1_200_000, "1.2M"},
+	} {
+		if got := formatTokens(tc.in); got != tc.want {
+			t.Fatalf("formatTokens(%d) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestFormatUsageTotalLabel(t *testing.T) {
+	t.Parallel()
+
+	if got := formatUsageTotalLabel(nil); got != "" {
+		t.Fatalf("expected empty label for nil usage, got %q", got)
+	}
+	if got := formatUsageTotalLabel(&model.Usage{}); got != "" {
+		t.Fatalf("expected empty label for zero usage, got %q", got)
+	}
+	if got := formatUsageTotalLabel(&model.Usage{InputTokens: 8123, OutputTokens: 4200}); got != "12.3k tok" {
+		t.Fatalf("unexpected derived total label, got %q", got)
+	}
+	usage := &model.Usage{
+		InputTokens:  22139,
+		OutputTokens: 190016,
+		TotalTokens:  32490537,
+		CacheReads:   31873174,
+		CacheWrites:  405208,
+	}
+	if got := formatUsageTotalLabel(usage); got != "32.5M tok" {
+		t.Fatalf("expected provider total label from real ACP usage payload, got %q", got)
+	}
+}
+
+func TestSidebarCardShowsNumberedTitle(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	job := &m.jobs[0]
+	job.taskTitle = "Wire ACP token usage"
+	job.taskType = "backend"
+	job.safeName = "task_01-8824d9"
+
+	row := m.renderSidebarItem(0, job, false)
+	if got := strings.Count(row, "\n"); got != 3 {
+		t.Fatalf("expected a four-line bordered card, got %d newlines: %q", got, row)
+	}
+	stripped := xansi.Strip(row)
+	if !strings.Contains(stripped, "01") {
+		t.Fatalf("expected zero-padded task number, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "Wire ACP token usage") {
+		t.Fatalf("expected human task title, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "backend") {
+		t.Fatalf("expected task type on the card meta line, got %q", stripped)
+	}
+	if strings.Contains(stripped, "task_01-8824d9") {
+		t.Fatalf("safe name should be hidden when a title exists, got %q", stripped)
+	}
+	if strings.Contains(stripped, "FILES") || strings.Contains(stripped, "ISSUES") {
+		t.Fatalf("files/issues meta must be gone, got %q", stripped)
+	}
+}
+
+func TestSidebarCardUsesOfficialTaskNumber(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	job := &m.jobs[0]
+	job.taskTitle = "Twentieth task"
+	job.taskNumber = 20
+
+	// The official task number must win over the 1-based slice position so a run
+	// of task_01/task_04/task_20 reads as 01/04/20 rather than 01/02/03.
+	stripped := xansi.Strip(m.renderSidebarItem(2, job, false))
+	if !strings.Contains(stripped, "20") {
+		t.Fatalf("expected official task number 20, got %q", stripped)
+	}
+	if strings.Contains(stripped, "03") {
+		t.Fatalf("slice-position number 03 must not appear, got %q", stripped)
+	}
+}
+
+func TestSidebarRowFallsBackToSafeNameWithoutTitle(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	job := &m.jobs[0]
+	job.taskTitle = ""
+	job.safeName = "job-007"
+
+	row := xansi.Strip(m.renderSidebarItem(6, job, false))
+	if !strings.Contains(row, "07") {
+		t.Fatalf("expected zero-padded number 07, got %q", row)
+	}
+	if !strings.Contains(row, "job-007") {
+		t.Fatalf("expected safe-name fallback, got %q", row)
+	}
+}
+
+func TestSidebarRowHandlesThreeDigitJobNumber(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 160, Height: 30})
+	job := &m.jobs[0]
+	job.taskTitle = "Hundredth task"
+
+	row := m.renderSidebarItem(149, job, false)
+	lines := strings.Split(row, "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected a four-line bordered card for 3-digit number, got %d lines: %q", len(lines), row)
+	}
+	for i, line := range lines {
+		if got, want := lipgloss.Width(line), m.sidebarViewport.Width(); got != want {
+			t.Fatalf("expected card line %d width %d, got %d", i, want, got)
+		}
+	}
+	if !strings.Contains(xansi.Strip(row), "150") {
+		t.Fatalf("expected 1-based number 150, got %q", xansi.Strip(row))
+	}
+}
+
+func TestSidebarTitleShowsProgressAndAggregateTokens(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(3)
+	m.completed = 1
+	m.failed = 1
+	m.aggregateUsage.Add(model.Usage{TotalTokens: 48600})
+
+	title := xansi.Strip(m.renderSidebarTitle(40))
+	if !strings.Contains(title, "JOB") {
+		t.Fatalf("expected sidebar title label, got %q", title)
+	}
+	if !strings.Contains(title, "2/3") {
+		t.Fatalf("expected completed/total count, got %q", title)
+	}
+	if !strings.Contains(title, "48.6k tok") {
+		t.Fatalf("expected aggregate provider token total, got %q", title)
+	}
+	if got := len(strings.Split(title, "\n")); got != sidebarHeaderRows {
+		t.Fatalf("expected sidebar header to reserve %d rows, got %d: %q", sidebarHeaderRows, got, title)
+	}
+	if strings.Contains(title, "SYS.PIPELINE") {
+		t.Fatalf("pipeline label moved out of global chrome and must not appear in sidebar title, got %q", title)
+	}
 }

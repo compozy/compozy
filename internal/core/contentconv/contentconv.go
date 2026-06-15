@@ -58,6 +58,7 @@ func PublicSessionUpdate(update model.SessionUpdate) (kinds.SessionUpdate, error
 
 	return kinds.SessionUpdate{
 		Kind:              kinds.SessionUpdateKind(update.Kind),
+		MessageID:         update.MessageID,
 		ToolCallID:        update.ToolCallID,
 		ToolCallState:     kinds.ToolCallState(update.ToolCallState),
 		Blocks:            blocks,
@@ -100,6 +101,7 @@ func InternalSessionUpdate(update kinds.SessionUpdate) (model.SessionUpdate, err
 
 	return model.SessionUpdate{
 		Kind:              model.SessionUpdateKind(update.Kind),
+		MessageID:         update.MessageID,
 		ToolCallID:        update.ToolCallID,
 		ToolCallState:     model.ToolCallState(update.ToolCallState),
 		Blocks:            blocks,

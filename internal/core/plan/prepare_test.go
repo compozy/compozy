@@ -277,9 +277,16 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	if len(jobs) != 2 {
 		t.Fatalf("expected one batch per task in prd mode, got %d", len(jobs))
 	}
+	wantTaskNumbers := map[string]int{
+		"task_1": 1,
+		"task_2": 2,
+	}
 	for _, job := range jobs {
 		if len(job.CodeFiles) != 1 {
 			t.Fatalf("expected single-file jobs in prd mode, got %#v", job.CodeFiles)
+		}
+		if got, want := job.TaskNumber, wantTaskNumbers[job.CodeFiles[0]]; got != want {
+			t.Fatalf("expected task number %d for %s, got %d", want, job.CodeFiles[0], got)
 		}
 		if job.TaskTitle == "" {
 			t.Fatalf("expected prd job to carry task title, got %#v", job)
@@ -753,6 +760,12 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 	}
 	if got, want := prep.Jobs[1].CodeFiles, []string{"task_10"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected second job order\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if got, want := prep.Jobs[0].TaskNumber, 2; got != want {
+		t.Fatalf("expected first prepared job to carry task number %d, got %d", want, got)
+	}
+	if got, want := prep.Jobs[1].TaskNumber, 10; got != want {
+		t.Fatalf("expected second prepared job to carry task number %d, got %d", want, got)
 	}
 
 	runArtifacts := prep.RunArtifacts

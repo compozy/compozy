@@ -1169,9 +1169,12 @@ func TestRecordFailureWithContextAddsFailure(t *testing.T) {
 type fakeACPClient struct {
 	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
 	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
+	promptSessionFn func(context.Context, agent.PromptSessionRequest) (agent.Session, error)
 	supportsLoad    bool
 	createCalls     atomic.Int32
 	resumeCalls     atomic.Int32
+	promptCalls     atomic.Int32
+	cancelCalls     atomic.Int32
 	closeCalls      atomic.Int32
 	killCalls       atomic.Int32
 }
@@ -1196,6 +1199,19 @@ func (c *fakeACPClient) ResumeSession(ctx context.Context, req agent.ResumeSessi
 		return nil, errors.New("missing fake resume session factory")
 	}
 	return c.resumeSessionFn(ctx, req)
+}
+
+func (c *fakeACPClient) CancelSession(context.Context, string) error {
+	c.cancelCalls.Add(1)
+	return nil
+}
+
+func (c *fakeACPClient) PromptSession(ctx context.Context, req agent.PromptSessionRequest) (agent.Session, error) {
+	c.promptCalls.Add(1)
+	if c.promptSessionFn == nil {
+		return nil, errors.New("missing fake prompt session factory")
+	}
+	return c.promptSessionFn(ctx, req)
 }
 
 func (c *fakeACPClient) SupportsLoadSession() bool {
@@ -1245,6 +1261,11 @@ func (f *fakeLifecycleUISession) Enqueue(msg any) {
 }
 
 func (f *fakeLifecycleUISession) SetQuitHandler(func(uiQuitRequest)) {}
+
+func (f *fakeLifecycleUISession) SetJobControlHandler(
+	func(context.Context, uiJobControlRequest) (jobControlResponse, error),
+) {
+}
 
 func (f *fakeLifecycleUISession) CloseEvents() {
 	f.closeEventsCalls++

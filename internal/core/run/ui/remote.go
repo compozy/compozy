@@ -18,6 +18,8 @@ import (
 const (
 	remoteReconnectDelay     = 100 * time.Millisecond
 	remoteRunStatusRunning   = "running"
+	remoteRunStatusPausing   = "pausing"
+	remoteRunStatusPaused    = "paused"
 	remoteRunStatusRetrying  = "retrying"
 	remoteRunStatusCompleted = "completed"
 	remoteRunStatusFailed    = "failed"
@@ -36,11 +38,19 @@ type remoteFollowState struct {
 
 // RemoteAttachOptions configures a daemon-backed UI attach session.
 type RemoteAttachOptions struct {
-	Snapshot     apicore.RunSnapshot
-	Config       *config
-	OwnerSession bool
-	LoadSnapshot func(context.Context) (apicore.RunSnapshot, error)
-	OpenStream   func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error)
+	Snapshot          apicore.RunSnapshot
+	Config            *config
+	WorkspaceRoot     string
+	OwnerSession      bool
+	LoadSnapshot      func(context.Context) (apicore.RunSnapshot, error)
+	OpenStream        func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error)
+	PauseRunJob       func(context.Context, string, string) (apicore.RunJobControlResponse, error)
+	SendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error)
 }
 
 // AttachRemote boots the Bubble Tea cockpit from a daemon snapshot and then follows the daemon stream.
@@ -54,11 +64,16 @@ func AttachRemote(ctx context.Context, opts RemoteAttachOptions) (Session, error
 	localCfg := *cfg
 	localCfg.DetachOnly = !opts.OwnerSession
 	localCfg.DaemonOwned = true
+	localCfg.RunID = firstNonEmpty(strings.TrimSpace(localCfg.RunID), strings.TrimSpace(opts.Snapshot.Run.RunID))
+	if workspaceRoot := strings.TrimSpace(opts.WorkspaceRoot); workspaceRoot != "" {
+		localCfg.WorkspaceRoot = workspaceRoot
+	}
 
 	session := setupRemoteUISession(ctx, jobs, &localCfg, nil, true)
 	if session == nil {
 		return nil, errors.New("remote attach ui session is required")
 	}
+	installRemoteJobControlHandler(session, opts, localCfg.RunID)
 	for _, msg := range initialMsgs {
 		session.Enqueue(msg)
 	}
@@ -72,6 +87,56 @@ func AttachRemote(ctx context.Context, opts RemoteAttachOptions) (Session, error
 		return nil, err
 	}
 	return session, nil
+}
+
+func installRemoteJobControlHandler(session Session, opts RemoteAttachOptions, runID string) {
+	if session == nil {
+		return
+	}
+	if handler := newRemoteJobControlHandler(runID, opts.PauseRunJob, opts.SendRunJobMessage); handler != nil {
+		session.SetJobControlHandler(handler)
+	}
+}
+
+func newRemoteJobControlHandler(
+	runID string,
+	pauseRunJob func(context.Context, string, string) (apicore.RunJobControlResponse, error),
+	sendRunJobMessage func(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error),
+) func(context.Context, uiJobControlRequest) (model.JobControlResponse, error) {
+	if pauseRunJob == nil || sendRunJobMessage == nil {
+		return nil
+	}
+	return func(ctx context.Context, req uiJobControlRequest) (model.JobControlResponse, error) {
+		resolvedRunID := firstNonEmpty(strings.TrimSpace(req.RunID), strings.TrimSpace(runID))
+		switch req.Action {
+		case uiJobControlPause:
+			resp, err := pauseRunJob(ctx, resolvedRunID, req.JobID)
+			return modelJobControlResponse(resp), err
+		case uiJobControlMessage:
+			resp, err := sendRunJobMessage(ctx, resolvedRunID, req.JobID, apicore.RunJobMessageRequest{
+				Message: req.Message,
+			})
+			return modelJobControlResponse(resp), err
+		default:
+			return model.JobControlResponse{}, model.ErrJobControlConflict
+		}
+	}
+}
+
+func modelJobControlResponse(resp apicore.RunJobControlResponse) model.JobControlResponse {
+	return model.JobControlResponse{
+		RunID:     resp.RunID,
+		JobID:     resp.JobID,
+		Index:     resp.Index,
+		Status:    model.JobControlStatus(resp.Status),
+		SessionID: resp.SessionID,
+		MessageID: resp.MessageID,
+	}
 }
 
 func ensureInitialRemoteStream(ctx context.Context, opts RemoteAttachOptions, session Session) error {
@@ -341,6 +406,7 @@ func remoteBootstrapJob(state apicore.RunJobState, summary *apicore.RunJobSummar
 	if len(jb.CodeFiles) == 0 && summary.CodeFile != "" {
 		jb.CodeFiles = []string{summary.CodeFile}
 	}
+	jb.TaskNumber = summary.TaskNumber
 	jb.TaskTitle = summary.TaskTitle
 	jb.TaskType = summary.TaskType
 	jb.SafeName = firstNonEmpty(summary.SafeName, jb.SafeName)
@@ -357,6 +423,10 @@ func remoteBootstrapLifecycleMsgs(index int, status string, summary *apicore.Run
 	switch status {
 	case remoteRunStatusRunning, remoteRunStatusCompleted, remoteRunStatusFailed, remoteRunStatusCanceled:
 		return []uiMsg{remoteStartedMsg(index, summary)}
+	case remoteRunStatusPausing:
+		return []uiMsg{remoteStartedMsg(index, summary), jobPausingMsg{Index: index}}
+	case remoteRunStatusPaused:
+		return []uiMsg{remoteStartedMsg(index, summary), jobPausedMsg{Index: index}}
 	case remoteRunStatusRetrying:
 		return []uiMsg{remoteRetryScheduledMsg(index, summary)}
 	default:

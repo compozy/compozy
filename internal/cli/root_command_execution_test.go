@@ -34,6 +34,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// cliProcessIOMu serializes command executions that capture process IO. The
+// helper no longer swaps the global os.Stdout/os.Stderr, but the commands under
+// test can still touch process-level state (cobra completion init, env, chdir),
+// so serialization is kept as a conservative isolation boundary across the
+// package's parallel tests.
 var cliProcessIOMu sync.Mutex
 var originalCLIHome = os.Getenv("HOME")
 
@@ -2994,15 +2999,6 @@ func executeCommandCapturingProcessIO(
 		t.Fatalf("create stderr pipe: %v", err)
 	}
 
-	originalStdout := os.Stdout
-	originalStderr := os.Stderr
-	os.Stdout = stdoutWrite
-	os.Stderr = stderrWrite
-	defer func() {
-		os.Stdout = originalStdout
-		os.Stderr = originalStderr
-	}()
-
 	cmd.SetOut(stdoutWrite)
 	cmd.SetErr(stderrWrite)
 	if in != nil {
@@ -3493,6 +3489,21 @@ func (c *cliCapturingACPClient) ResumeSession(
 func (*cliCapturingACPClient) SupportsLoadSession() bool { return true }
 func (*cliCapturingACPClient) Close() error              { return nil }
 func (*cliCapturingACPClient) Kill() error               { return nil }
+
+func (*cliCapturingACPClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (*cliCapturingACPClient) PromptSession(
+	_ context.Context,
+	req agent.PromptSessionRequest,
+) (agent.Session, error) {
+	return &cliACPTestSession{
+		id:      req.SessionID,
+		updates: make(chan model.SessionUpdate),
+		done:    make(chan struct{}),
+	}, nil
+}
 
 type cliACPTestSession struct {
 	id       string

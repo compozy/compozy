@@ -142,16 +142,23 @@ func attachRemoteCLIRunUI(
 	if runSnapshotSettledBeforeUIAttach(snapshot) {
 		return errRunSettledBeforeUIAttach
 	}
+	workspaceRoot, err := remoteUIWorkspaceRoot(ctx, client, snapshot.Run)
+	if err != nil {
+		return err
+	}
 
 	session, err := openCLIRemoteUISession(ctx, uipkg.RemoteAttachOptions{
-		Snapshot:     snapshot,
-		OwnerSession: cancelOwnedRunOnExit,
+		Snapshot:      snapshot,
+		WorkspaceRoot: workspaceRoot,
+		OwnerSession:  cancelOwnedRunOnExit,
 		LoadSnapshot: func(loadCtx context.Context) (apicore.RunSnapshot, error) {
 			return client.GetRunSnapshot(loadCtx, trimmedRunID)
 		},
 		OpenStream: func(streamCtx context.Context, after apicore.StreamCursor) (apiclient.RunStream, error) {
 			return client.OpenRunStream(streamCtx, trimmedRunID, after)
 		},
+		PauseRunJob:       remotePauseRunJob(client),
+		SendRunJobMessage: remoteSendRunJobMessage(client),
 	})
 	if err != nil {
 		return err
@@ -170,12 +177,53 @@ func normalizeRemoteRunRequest(client daemonCommandClient, runID string) (string
 	return trimmedRunID, nil
 }
 
+func remotePauseRunJob(client daemonCommandClient) func(
+	context.Context,
+	string,
+	string,
+) (apicore.RunJobControlResponse, error) {
+	return func(controlCtx context.Context, controlRunID string, jobID string) (apicore.RunJobControlResponse, error) {
+		return client.PauseRunJob(controlCtx, controlRunID, jobID)
+	}
+}
+
+func remoteSendRunJobMessage(client daemonCommandClient) func(
+	context.Context,
+	string,
+	string,
+	apicore.RunJobMessageRequest,
+) (apicore.RunJobControlResponse, error) {
+	return func(
+		controlCtx context.Context,
+		controlRunID string,
+		jobID string,
+		req apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error) {
+		return client.SendRunJobMessage(controlCtx, controlRunID, jobID, req)
+	}
+}
+
 func isTaskMultiRunSnapshot(snapshot apicore.RunSnapshot) bool {
 	return snapshot.Run.Mode == daemonRunModeTaskMulti
 }
 
 func isReviewWatchRunSnapshot(snapshot apicore.RunSnapshot) bool {
 	return snapshot.Run.Mode == daemonRunModeReviewWatch
+}
+
+func remoteUIWorkspaceRoot(ctx context.Context, client daemonCommandClient, run apicore.Run) (string, error) {
+	workspaceID := strings.TrimSpace(run.WorkspaceID)
+	if workspaceID == "" {
+		return "", nil
+	}
+	if client == nil {
+		return "", errors.New("daemon client is required")
+	}
+	workspace, err := client.GetWorkspace(ctx, workspaceID)
+	if err != nil {
+		return "", fmt.Errorf("load workspace %s for remote ui: %w", workspaceID, err)
+	}
+	return strings.TrimSpace(workspace.RootDir), nil
 }
 
 func attachRemoteCLIMultiRunUI(
@@ -195,9 +243,14 @@ func attachRemoteCLIMultiRunUI(
 	if err != nil {
 		return err
 	}
+	workspaceRoot, err := remoteUIWorkspaceRoot(ctx, client, parentSnapshot.Run)
+	if err != nil {
+		return err
+	}
 	session, err := openCLIRemoteMultiRunUISession(ctx, uipkg.RemoteMultiRunAttachOptions{
-		Snapshot:     parentSnapshot,
-		OwnerSession: cancelOwnedRunOnExit,
+		Snapshot:      parentSnapshot,
+		WorkspaceRoot: workspaceRoot,
+		OwnerSession:  cancelOwnedRunOnExit,
 		LoadSnapshot: func(loadCtx context.Context) (apicore.TaskRunMultipleSnapshot, error) {
 			return client.GetTaskRunMultipleSnapshot(loadCtx, runID)
 		},
@@ -214,6 +267,8 @@ func attachRemoteCLIMultiRunUI(
 		) (apiclient.RunStream, error) {
 			return client.OpenRunStream(streamCtx, childRunID, after)
 		},
+		PauseRunJob:       remotePauseRunJob(client),
+		SendRunJobMessage: remoteSendRunJobMessage(client),
 	})
 	if err != nil {
 		return err
@@ -229,9 +284,14 @@ func attachRemoteCLIReviewWatchUI(
 	cancelOwnedRunOnExit bool,
 	cfg cliRunObserveConfig,
 ) error {
+	workspaceRoot, err := remoteUIWorkspaceRoot(ctx, client, snapshot.Run)
+	if err != nil {
+		return err
+	}
 	session, err := openCLIRemoteReviewWatchUI(ctx, uipkg.RemoteReviewWatchAttachOptions{
-		Snapshot:     snapshot,
-		OwnerSession: cancelOwnedRunOnExit,
+		Snapshot:      snapshot,
+		WorkspaceRoot: workspaceRoot,
+		OwnerSession:  cancelOwnedRunOnExit,
 		LoadSnapshot: func(loadCtx context.Context) (apicore.RunSnapshot, error) {
 			return client.GetRunSnapshot(loadCtx, runID)
 		},
@@ -248,6 +308,8 @@ func attachRemoteCLIReviewWatchUI(
 		) (apiclient.RunStream, error) {
 			return client.OpenRunStream(streamCtx, childRunID, after)
 		},
+		PauseRunJob:       remotePauseRunJob(client),
+		SendRunJobMessage: remoteSendRunJobMessage(client),
 	})
 	if err != nil {
 		return err

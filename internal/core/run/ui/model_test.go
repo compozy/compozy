@@ -89,43 +89,16 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 	}
 
 	m := newUIModel(1)
-	running := &uiJob{state: jobRunning, startedAt: time.Now().Add(-2 * time.Minute)}
-	retrying := &uiJob{state: jobRetrying, attempt: 2, maxAttempts: 3}
-	success := &uiJob{state: jobSuccess, duration: 42 * time.Second}
-	failed := &uiJob{state: jobFailed, duration: 15 * time.Second}
 
-	for _, tc := range []struct {
-		state jobState
-		label string
-	}{
-		{jobPending, "PENDING"},
-		{jobRunning, "RUNNING"},
-		{jobRetrying, "RETRY"},
-		{jobSuccess, "SUCCESS"},
-		{jobFailed, "FAILED"},
-	} {
-		if got := m.getStateLabel(tc.state); got != tc.label {
-			t.Fatalf("unexpected state label for %v: %q", tc.state, got)
+	for _, state := range []jobState{jobPending, jobRunning, jobRetrying, jobSuccess, jobFailed} {
+		if got := m.jobStateIcon(state); got == "" {
+			t.Fatalf("expected icon for state %v", state)
 		}
-		if got := m.jobStateIcon(tc.state); got == "" {
-			t.Fatalf("expected icon for state %v", tc.state)
+		if m.jobStateColor(state) == nil {
+			t.Fatalf("expected color for state %v", state)
 		}
-		if m.jobStateColor(tc.state) == nil {
-			t.Fatalf("expected color for state %v", tc.state)
-		}
-		if m.jobBorderColor(&uiJob{state: tc.state}) == nil {
-			t.Fatalf("expected border color for state %v", tc.state)
-		}
-	}
-
-	for _, rendered := range []string{
-		m.elapsedStr(running, colorBgBase),
-		m.elapsedStr(retrying, colorBgBase),
-		m.elapsedStr(success, colorBgBase),
-		m.elapsedStr(failed, colorBgBase),
-	} {
-		if rendered == "" {
-			t.Fatal("expected elapsedStr to render for running/success/failed states")
+		if m.jobBorderColor(&uiJob{state: state}) == nil {
+			t.Fatalf("expected border color for state %v", state)
 		}
 	}
 
