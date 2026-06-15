@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -392,101 +395,254 @@ func TestResolveTaskMultiMode(t *testing.T) {
 	}
 }
 
-func TestRunManagerRunTaskMultiParallelQueueIsGuarded(t *testing.T) {
+func TestRemapTaskMultiChildRuntime(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return the not-implemented sentinel without starting children", func(t *testing.T) {
-		t.Parallel()
-
-		m := &RunManager{}
-		prepared := &preparedTaskMulti{
-			mode:  "parallel",
-			items: []preparedTaskMultiItem{{slug: "alpha"}, {slug: "beta"}},
+	newBase := func() *model.RuntimeConfig {
+		return &model.RuntimeConfig{
+			WorkspaceRoot: "/original/workspace",
+			Name:          "alpha",
+			TasksDir:      model.TaskDirectoryForWorkspace("/original/workspace", "alpha"),
+			Model:         "custom-model",
+			AutoCommit:    true,
+			Concurrent:    4,
+			AddDirs:       []string{"docs", "scripts"},
+			ParentRunID:   "stale-parent",
 		}
-		active := &activeRun{runID: "task-multi-parallel-guard", taskMulti: prepared}
+	}
 
-		err := m.runTaskMultiParallelQueue(active, prepared, len(prepared.items))
-		if !errors.Is(err, errTaskMultiParallelNotImplemented) {
-			t.Fatalf("runTaskMultiParallelQueue() error = %v, want errTaskMultiParallelNotImplemented", err)
+	t.Run("Should set WorkspaceRoot to the worktree path", func(t *testing.T) {
+		t.Parallel()
+		got, err := remapTaskMultiChildRuntime(newBase(), "/wt/01-alpha", "alpha", "parent-1")
+		if err != nil {
+			t.Fatalf("remapTaskMultiChildRuntime() error = %v", err)
+		}
+		if got.WorkspaceRoot != "/wt/01-alpha" {
+			t.Fatalf("WorkspaceRoot = %q, want /wt/01-alpha", got.WorkspaceRoot)
+		}
+	})
+
+	t.Run("Should set TasksDir to the slug task directory inside the worktree", func(t *testing.T) {
+		t.Parallel()
+		got, err := remapTaskMultiChildRuntime(newBase(), "/wt/01-alpha", "alpha", "parent-1")
+		if err != nil {
+			t.Fatalf("remapTaskMultiChildRuntime() error = %v", err)
+		}
+		want := model.TaskDirectoryForWorkspace("/wt/01-alpha", "alpha")
+		if got.TasksDir != want {
+			t.Fatalf("TasksDir = %q, want %q", got.TasksDir, want)
+		}
+	})
+
+	t.Run("Should set ParentRunID and preserve unrelated runtime overrides", func(t *testing.T) {
+		t.Parallel()
+		base := newBase()
+		got, err := remapTaskMultiChildRuntime(base, "/wt/01-alpha", "alpha", "parent-1")
+		if err != nil {
+			t.Fatalf("remapTaskMultiChildRuntime() error = %v", err)
+		}
+		if got.ParentRunID != "parent-1" {
+			t.Fatalf("ParentRunID = %q, want parent-1", got.ParentRunID)
+		}
+		if got.Model != "custom-model" || !got.AutoCommit || got.Concurrent != 4 {
+			t.Fatalf("unrelated overrides not preserved: %#v", got)
+		}
+		if len(got.AddDirs) != 2 || got.AddDirs[0] != "docs" || got.AddDirs[1] != "scripts" {
+			t.Fatalf("AddDirs = %#v, want [docs scripts]", got.AddDirs)
+		}
+		if base.WorkspaceRoot != "/original/workspace" || base.ParentRunID != "stale-parent" {
+			t.Fatalf("base config mutated by remap: %#v", base)
+		}
+	})
+
+	t.Run("Should reject invalid inputs", func(t *testing.T) {
+		t.Parallel()
+		if _, err := remapTaskMultiChildRuntime(nil, "/wt", "alpha", "p"); err == nil {
+			t.Fatal("nil base error = nil, want error")
+		}
+		if _, err := remapTaskMultiChildRuntime(newBase(), "  ", "alpha", "p"); err == nil {
+			t.Fatal("empty worktree path error = nil, want error")
+		}
+		if _, err := remapTaskMultiChildRuntime(newBase(), "/wt", "  ", "p"); err == nil {
+			t.Fatal("empty slug error = nil, want error")
 		}
 	})
 }
 
-func TestRunManagerTaskRunMultipleParallelModeAcceptedButDefersExecution(t *testing.T) {
+func TestRequireTaskMultiWorktreeTaskDir(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should accept parallel mode, create the parent, and defer child execution", func(t *testing.T) {
-		var childStarted atomic.Bool
+	t.Run("Should return the slug task directory when present", func(t *testing.T) {
+		t.Parallel()
+		worktree := t.TempDir()
+		want := model.TaskDirectoryForWorkspace(worktree, "alpha")
+		if err := os.MkdirAll(want, 0o755); err != nil {
+			t.Fatalf("mkdir worktree task dir: %v", err)
+		}
+		got, err := requireTaskMultiWorktreeTaskDir(worktree, "alpha")
+		if err != nil {
+			t.Fatalf("requireTaskMultiWorktreeTaskDir() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("task dir = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should return a slug-specific error when the task directory is missing", func(t *testing.T) {
+		t.Parallel()
+		worktree := t.TempDir()
+		_, err := requireTaskMultiWorktreeTaskDir(worktree, "beta")
+		if err == nil {
+			t.Fatal("requireTaskMultiWorktreeTaskDir() error = nil, want missing task dir error")
+		}
+		if !strings.Contains(err.Error(), "beta") || !strings.Contains(err.Error(), "missing task directory") {
+			t.Fatalf("error = %v, want slug-specific missing task directory error", err)
+		}
+	})
+}
+
+func TestRunManagerRunTaskMultiParallelQueueResolvesBaseBeforeChildren(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail without allocating worktrees when the parent base cannot resolve", func(t *testing.T) {
+		t.Parallel()
+
+		allocatorCalls := 0
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, _ string, args ...string) (string, error) {
+				allocatorCalls++
+				if strings.Join(args, " ") == "rev-parse --abbrev-ref HEAD" {
+					return taskMultiWorktreeHeadRef, nil
+				}
+				t.Fatalf("unexpected git command after detached base: %v", args)
+				return "", nil
+			},
+		}
+		m := &RunManager{worktreeAllocator: allocator}
+		prepared := &preparedTaskMulti{
+			mode:      "parallel",
+			workspace: globaldb.Workspace{RootDir: "/repo"},
+			items:     []preparedTaskMultiItem{{slug: "alpha"}, {slug: "beta"}},
+		}
+		active := &activeRun{runID: "task-multi-parallel-base", taskMulti: prepared}
+
+		err := m.runTaskMultiParallelQueue(active, prepared, len(prepared.items))
+		if err == nil || !strings.Contains(err.Error(), "detached HEAD") {
+			t.Fatalf("runTaskMultiParallelQueue() error = %v, want detached HEAD failure", err)
+		}
+		if allocatorCalls != 1 {
+			t.Fatalf("allocator git calls = %d, want exactly 1 base read before failing", allocatorCalls)
+		}
+	})
+}
+
+func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should register and remap parallel children onto isolated worktree workspaces", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+
+		var (
+			mu       sync.Mutex
+			captured = map[string]*model.RuntimeConfig{}
+		)
 		env := newRunManagerTestEnv(t, runManagerTestDeps{
-			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-deferred"),
+			buildRunID: taskMultiRunIDBuilder("task-multi-parallel-register"),
 			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
 				return &model.SolvePreparation{}, nil
 			},
-			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
-				childStarted.Store(true)
+			execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				mu.Lock()
+				captured[cfg.Name] = cfg.Clone()
+				mu.Unlock()
 				return nil
 			},
 		})
 		writeTaskMultiWorkflow(t, env, "alpha", "pending")
 		writeTaskMultiWorkflow(t, env, "beta", "pending")
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
 
-		parent, err := env.manager.StartTaskRunMultiple(
-			context.Background(),
-			env.workspaceRoot,
-			apicore.TaskRunMultipleRequest{
-				Workspace:        env.workspaceRoot,
-				Slugs:            []string{"alpha", "beta"},
-				Mode:             "parallel",
-				PresentationMode: defaultPresentationMode,
-				RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-parallel-deferred"}`),
-			},
-		)
-		if err != nil {
-			t.Fatalf("StartTaskRunMultiple(parallel) error = %v, want parallel mode accepted", err)
-		}
-		if parent.Mode != runModeTaskMulti {
-			t.Fatalf("parent mode = %q, want %q", parent.Mode, runModeTaskMulti)
-		}
-
+		parent := startTaskMultiParallelRun(t, env, "task-multi-parallel-register", []string{"alpha", "beta"})
 		parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
-			return row.Status == runStatusFailed
+			return row.Status == runStatusCompleted
 		})
-		if !strings.Contains(parentRow.ErrorText, "parallel multi-run execution is not yet available") {
-			t.Fatalf("parent error = %q, want deferred parallel execution message", parentRow.ErrorText)
+
+		originalWorkspace, err := env.globalDB.Get(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("Get(original workspace) error = %v", err)
 		}
-		if childStarted.Load() {
-			t.Fatal("parallel scaffold started a child run; fanout must be deferred to a later task")
+		if parentRow.WorkspaceID != originalWorkspace.ID {
+			t.Fatalf("parent WorkspaceID = %q, want original workspace %q", parentRow.WorkspaceID, originalWorkspace.ID)
 		}
-		for _, runID := range []string{"child-alpha", "child-beta"} {
-			if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
-				t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+
+		for _, slug := range []string{"alpha", "beta"} {
+			childRunID := "child-" + slug
+			childRow := requireTaskMultiChildRow(t, env, childRunID, parent.RunID, runStatusCompleted)
+			if childRow.WorkspaceID == originalWorkspace.ID {
+				t.Fatalf(
+					"%s WorkspaceID = original %q, want a distinct worktree workspace",
+					childRunID,
+					childRow.WorkspaceID,
+				)
+			}
+			childWorkspace, err := env.globalDB.Get(context.Background(), childRow.WorkspaceID)
+			if err != nil {
+				t.Fatalf("Get(child workspace %s) error = %v", childRunID, err)
+			}
+			if !strings.Contains(childWorkspace.RootDir, filepath.Join("state", "worktrees")) {
+				t.Fatalf(
+					"%s workspace root = %q, want under the worktrees state dir",
+					childRunID,
+					childWorkspace.RootDir,
+				)
+			}
+			mu.Lock()
+			cfg := captured[slug]
+			mu.Unlock()
+			if cfg == nil {
+				t.Fatalf("no captured runtime config for %s", slug)
+			}
+			if cfg.WorkspaceRoot != childWorkspace.RootDir {
+				t.Fatalf("%s runtime WorkspaceRoot = %q, want worktree workspace root %q",
+					slug, cfg.WorkspaceRoot, childWorkspace.RootDir)
+			}
+			if want := model.TaskDirectoryForWorkspace(childWorkspace.RootDir, slug); cfg.TasksDir != want {
+				t.Fatalf("%s runtime TasksDir = %q, want %q", slug, cfg.TasksDir, want)
+			}
+			if cfg.ParentRunID != parent.RunID {
+				t.Fatalf("%s runtime ParentRunID = %q, want %q", slug, cfg.ParentRunID, parent.RunID)
 			}
 		}
 
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleStarted)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemQueued)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
-		if _, ok := findRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildStarted); ok {
-			t.Fatal("parallel scaffold emitted a child-started event; fanout must be deferred to a later task")
-		}
-
+		wantCommit := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
 		snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
 		if err != nil {
 			t.Fatalf("RunMultipleSnapshot() error = %v", err)
 		}
-		wantItems := []apicore.TaskRunMultipleItem{
-			{
-				Slug:      "alpha",
-				Status:    taskMultiItemStatusCanceled,
-				ErrorText: "parallel multi-run execution is not yet available",
-			},
-			{
-				Slug:      "beta",
-				Status:    taskMultiItemStatusCanceled,
-				ErrorText: "parallel multi-run execution is not yet available",
-			},
+		if len(snapshot.Items) != 2 {
+			t.Fatalf("snapshot items = %d, want 2", len(snapshot.Items))
 		}
-		assertTaskMultiItems(t, snapshot.Items, wantItems)
+		for idx := range snapshot.Items {
+			item := snapshot.Items[idx]
+			if item.Status != taskMultiItemStatusCompleted {
+				t.Fatalf("item %s status = %q, want completed", item.Slug, item.Status)
+			}
+			if !strings.Contains(item.WorktreePath, filepath.Join("state", "worktrees")) {
+				t.Fatalf("item %s WorktreePath = %q, want under the worktrees state dir", item.Slug, item.WorktreePath)
+			}
+			if item.BaseBranch != "main" {
+				t.Fatalf("item %s BaseBranch = %q, want main", item.Slug, item.BaseBranch)
+			}
+			if item.BaseCommit != wantCommit {
+				t.Fatalf("item %s BaseCommit = %q, want %q", item.Slug, item.BaseCommit, wantCommit)
+			}
+			if item.WorktreeStatus != taskMultiWorktreeStatusPreserved {
+				t.Fatalf("item %s WorktreeStatus = %q, want %q",
+					item.Slug, item.WorktreeStatus, taskMultiWorktreeStatusPreserved)
+			}
+		}
+
+		assertTaskMultiWorktreeMetadataBeforeChildStart(t, parent.RunID, "alpha")
 	})
 }
 
@@ -1037,5 +1193,86 @@ func assertTaskMultiItems(t *testing.T, got []apicore.TaskRunMultipleItem, want 
 			!strings.Contains(got[idx].ErrorText, want[idx].ErrorText) {
 			t.Fatalf("item[%d] = %#v, want %#v", idx, got[idx], want[idx])
 		}
+	}
+}
+
+func requireGitForTaskMulti(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+}
+
+// commitTaskMultiGitWorkspace turns a prepared workspace into a single-commit git
+// repository on branch main so parallel multi-run can resolve a named base branch
+// and HEAD commit and create detached worktrees that contain the task files.
+func commitTaskMultiGitWorkspace(t *testing.T, root string) {
+	t.Helper()
+	runGitOutput(t, root, "init", "-q", "-b", "main")
+	runGitOutput(t, root, "config", "user.email", "task-multi@example.com")
+	runGitOutput(t, root, "config", "user.name", "Task Multi Tester")
+	runGitOutput(t, root, "config", "commit.gpgsign", "false")
+	runGitOutput(t, root, "add", "-A")
+	runGitOutput(t, root, "commit", "-q", "-m", "seed parallel multi-run workspace")
+}
+
+func startTaskMultiParallelRun(t *testing.T, env *runManagerTestEnv, runID string, slugs []string) apicore.Run {
+	t.Helper()
+	run, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Slugs:            slugs,
+			Mode:             "parallel",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple(parallel %v) error = %v", slugs, err)
+	}
+	return run
+}
+
+// assertTaskMultiWorktreeMetadataBeforeChildStart verifies that a worktree-aware
+// item-queued event (carrying a worktree path) is recorded before the
+// child-started event for the same slug, matching the "emit metadata before child
+// launch" recovery invariant.
+func assertTaskMultiWorktreeMetadataBeforeChildStart(t *testing.T, parentRunID string, slug string) {
+	t.Helper()
+	events := allRunEvents(t, parentRunID)
+	metadataIdx := -1
+	startedIdx := -1
+	for idx := range events {
+		event := events[idx]
+		switch event.Kind {
+		case eventspkg.EventKindTaskRunMultipleItemQueued:
+			payload, err := decodeTaskMultiPayload(event)
+			if err != nil {
+				t.Fatalf("decode item-queued event %d: %v", idx, err)
+			}
+			if payload.Slug == slug && metadataIdx == -1 && strings.TrimSpace(payload.WorktreePath) != "" {
+				metadataIdx = idx
+			}
+		case eventspkg.EventKindTaskRunMultipleChildStarted:
+			payload, err := decodeTaskMultiPayload(event)
+			if err != nil {
+				t.Fatalf("decode child-started event %d: %v", idx, err)
+			}
+			if payload.Slug == slug && startedIdx == -1 {
+				startedIdx = idx
+			}
+		}
+	}
+	if metadataIdx == -1 {
+		t.Fatalf("no worktree metadata item-queued event for %s", slug)
+	}
+	if startedIdx == -1 {
+		t.Fatalf("no child-started event for %s", slug)
+	}
+	if metadataIdx >= startedIdx {
+		t.Fatalf("worktree metadata event index %d for %s must precede child-started index %d",
+			metadataIdx, slug, startedIdx)
 	}
 }

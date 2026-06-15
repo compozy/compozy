@@ -1572,8 +1572,8 @@ func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *t
 	})
 }
 
-func TestTasksRunMultipleCommandInProcessParallelModeAcceptedButExecutionDeferred(t *testing.T) {
-	t.Run("Should accept parallel mode but defer execution at the daemon", func(t *testing.T) {
+func TestTasksRunMultipleCommandInProcessParallelModeRequiresGitWorkspace(t *testing.T) {
+	t.Run("Should attempt worktree-backed parallel execution and fail outside a git repo", func(t *testing.T) {
 		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
 		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
 			[]string{
@@ -1607,12 +1607,14 @@ run_multiple_mode = "parallel"
 			"--stream",
 			"--dry-run",
 		)
-		// task_06 makes the daemon accept the parallel mode and record the queue,
-		// but worktree-backed parallel fanout lands in a later task. The parent run
-		// therefore fails at execution instead of being rejected at validation.
+		// task_07 wires worktree-backed parallel execution: the daemon accepts the
+		// parallel mode, queues the items, and resolves the parent base branch before
+		// launching children. This workspace is not a git repository, so base
+		// resolution fails and the parent run fails cleanly instead of starting
+		// children in an ambiguous tree.
 		if err == nil {
 			t.Fatalf(
-				"expected parent run to fail with deferred parallel execution\nstdout:\n%s\nstderr:\n%s",
+				"expected parent run to fail without a git workspace\nstdout:\n%s\nstderr:\n%s",
 				stdout,
 				stderr,
 			)
@@ -1625,10 +1627,10 @@ run_multiple_mode = "parallel"
 			stdout,
 			"task multi-run started:",
 			"task queue started | mode=parallel total=2",
-			"parallel multi-run execution is not yet available",
+			"resolve parent branch",
 			"run failed",
 		) {
-			t.Fatalf("expected parallel deferral stream output, got %q\nstderr:\n%s", stdout, stderr)
+			t.Fatalf("expected parallel base-resolution failure output, got %q\nstderr:\n%s", stdout, stderr)
 		}
 	})
 }

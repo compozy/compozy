@@ -2474,6 +2474,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 	manager, err := NewRunManager(RunManagerConfig{
 		GlobalDB:               globalDB,
 		LifecycleContext:       context.Background(),
+		WorktreesRoot:          paths.WorktreesDir,
 		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
 		Now:                    deps.now,
 		BuildRunID:             deps.buildRunID,

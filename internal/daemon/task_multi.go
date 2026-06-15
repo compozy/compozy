@@ -29,15 +29,6 @@ const (
 	taskMultiChildPollInterval = 100 * time.Millisecond
 )
 
-// errTaskMultiParallelNotImplemented guards the parallel scheduler branch until
-// worktree allocation (task_07) and bounded fanout with fail-late aggregation
-// (task_08) land. The daemon accepts the parallel mode and records the queue, but
-// the parent run fails with this error instead of running children in the shared
-// working tree.
-var errTaskMultiParallelNotImplemented = errors.New(
-	"parallel multi-run execution is not yet available; worktree-backed parallel fanout lands in a later task",
-)
-
 type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
 	mode             string
@@ -400,20 +391,48 @@ func (m *RunManager) runTaskMultiEnqueuedQueue(active *activeRun, prepared *prep
 	return m.emitTaskMultiQueueCompleted(active, prepared, total)
 }
 
-// runTaskMultiParallelQueue is the guarded scaffold for the parallel scheduler
-// branch. Worktree allocation (task_07) and bounded fanout with fail-late
-// aggregation (task_08) are not implemented yet, so this branch deliberately
-// starts no children: executing children without git worktree isolation would
-// reintroduce the same-working-tree hazard that worktree-backed parallel mode
-// exists to prevent. It cancels the queued items through the shared cancellation
-// helper so the snapshot reaches a consistent terminal state, then fails the
-// parent run with a clear error.
+// runTaskMultiParallelQueue runs each child task in an isolated git worktree.
+// It resolves the parent workspace base branch and HEAD once, then registers and
+// remaps every child onto its own detached worktree workspace before launch
+// (task_07). The current execution model starts children one at a time and stops
+// the queue on the first failure; bounded concurrent fanout and fail-late
+// aggregation land in task_08, which replaces this loop while keeping the
+// worktree registration/remap helpers below. Both modes reuse the shared queue
+// lifecycle, item-event, and cancellation helpers so they stay one state machine.
 func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *preparedTaskMulti, total int) error {
-	err := errTaskMultiParallelNotImplemented
-	if cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, 0, total, err); cancelErr != nil {
-		return errors.Join(err, cancelErr)
+	base, err := m.resolveTaskMultiParallelBase(active, prepared)
+	if err != nil {
+		if cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, 0, total, err); cancelErr != nil {
+			return errors.Join(err, cancelErr)
+		}
+		return err
 	}
-	return err
+	for idx, item := range prepared.items {
+		if err := context.Cause(active.ctx); err != nil {
+			if emitErr := m.cancelTaskMultiQueuedItems(active, prepared.items, idx, total, err); emitErr != nil {
+				return errors.Join(err, emitErr)
+			}
+			return err
+		}
+		if err := m.runTaskMultiWorktreeChildAt(active, prepared, item, idx, total, base); err != nil {
+			return err
+		}
+	}
+	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+}
+
+// resolveTaskMultiParallelBase resolves the parent workspace branch and HEAD
+// commit once per parallel parent run via the worktree allocator. A detached
+// parent checkout (or a workspace outside a git repository) surfaces as the
+// parent run failure so no child worktrees are created from an ambiguous base.
+func (m *RunManager) resolveTaskMultiParallelBase(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+) (taskMultiWorktreeBase, error) {
+	if m.worktreeAllocator == nil {
+		return taskMultiWorktreeBase{}, errors.New("daemon: task multi worktree allocator is not configured")
+	}
+	return m.worktreeAllocator.ResolveBase(active.ctx, prepared.workspace.RootDir)
 }
 
 func (m *RunManager) runTaskMultiChildAt(
@@ -425,19 +444,66 @@ func (m *RunManager) runTaskMultiChildAt(
 ) error {
 	childRun, err := m.startTaskMultiChild(active, prepared, item, index, total)
 	if err != nil {
-		emitErr := m.emitTaskMultiItemEvent(
-			active,
-			eventspkg.EventKindTaskRunMultipleChildFailed,
-			item,
-			index,
-			total,
-			taskMultiItemStatusFailed,
-			"",
-			err.Error(),
-		)
-		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, err)
-		return errors.Join(err, emitErr, cancelErr)
+		return m.handleTaskMultiChildStartFailure(active, prepared, item, index, total, err)
 	}
+	return m.awaitTaskMultiChild(active, prepared, item, index, total, childRun)
+}
+
+// runTaskMultiWorktreeChildAt is the parallel-mode counterpart to
+// runTaskMultiChildAt: it allocates an isolated worktree, registers and remaps
+// the child onto it, then reuses the shared start-failure and await helpers so
+// both scheduler branches share terminal handling and queue cancellation.
+func (m *RunManager) runTaskMultiWorktreeChildAt(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	base taskMultiWorktreeBase,
+) error {
+	childRun, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
+	if err != nil {
+		return m.handleTaskMultiChildStartFailure(active, prepared, item, index, total, err)
+	}
+	return m.awaitTaskMultiChild(active, prepared, item, index, total, childRun)
+}
+
+// handleTaskMultiChildStartFailure marks a child that never started as failed and
+// cancels the remaining queued siblings. It is shared by the enqueued and
+// parallel branches so a start failure produces one consistent terminal shape.
+func (m *RunManager) handleTaskMultiChildStartFailure(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	startErr error,
+) error {
+	emitErr := m.emitTaskMultiItemEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleChildFailed,
+		item,
+		index,
+		total,
+		taskMultiItemStatusFailed,
+		"",
+		startErr.Error(),
+	)
+	cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, startErr)
+	return errors.Join(startErr, emitErr, cancelErr)
+}
+
+// awaitTaskMultiChild waits for one started child to reach a terminal status and
+// records the matching item event. A child failure or cancellation cancels the
+// remaining queued siblings. It is shared by the enqueued and parallel branches.
+func (m *RunManager) awaitTaskMultiChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRun apicore.Run,
+) error {
 	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
 	if err != nil {
 		var childCancelErr error
@@ -525,6 +591,153 @@ func (m *RunManager) startTaskMultiChild(
 		return apicore.Run{}, errors.Join(err, cancelErr)
 	}
 	return childRun, nil
+}
+
+// startTaskMultiWorktreeChild allocates an isolated git worktree for a parallel
+// child, registers the worktree as its own workspace, remaps the child runtime
+// onto that workspace, and launches the child task run under the parent run id.
+// Worktree metadata is emitted before the child launches so snapshots and manual
+// cleanup survive a crash between allocation and child start. The original parent
+// stays registered under its own workspace; children are linked only by
+// parent_run_id and the multi-run snapshot, not by a shared workspace id.
+func (m *RunManager) startTaskMultiWorktreeChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	base taskMultiWorktreeBase,
+) (apicore.Run, error) {
+	if m.worktreeAllocator == nil {
+		return apicore.Run{}, errors.New("daemon: task multi worktree allocator is not configured")
+	}
+	allocation, err := m.worktreeAllocator.Allocate(active.ctx, taskMultiWorktreeSpec{
+		WorkspaceRoot: prepared.workspace.RootDir,
+		ParentRunID:   active.runID,
+		Slug:          item.slug,
+		Index:         index,
+		Base:          base,
+	})
+	if err != nil {
+		return apicore.Run{}, fmt.Errorf("allocate worktree for %s: %w", item.slug, err)
+	}
+	if err := m.emitTaskMultiEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleItemQueued,
+		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusQueued, "", "", allocation),
+	); err != nil {
+		return apicore.Run{}, err
+	}
+	workspaceRow, workflowID, _, err := m.resolveWorkflowContext(detachContext(active.ctx), allocation.Path, item.slug)
+	if err != nil {
+		return apicore.Run{}, fmt.Errorf("register worktree workspace for %s: %w", item.slug, err)
+	}
+	// Align the runtime workspace root with the registered worktree workspace row
+	// so database identity and runtime filesystem paths match (ADR-007).
+	tasksDir, err := requireTaskMultiWorktreeTaskDir(workspaceRow.RootDir, item.slug)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	runtimeCfg, err := remapTaskMultiChildRuntime(item.runtimeCfg, workspaceRow.RootDir, item.slug, active.runID)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	childRun, err := m.startRun(active.ctx, startRunSpec{
+		workspace:        workspaceRow,
+		workflowID:       workflowID,
+		workflowSlug:     item.slug,
+		workflowRoot:     tasksDir,
+		mode:             runModeTask,
+		presentationMode: prepared.presentationMode,
+		parentRunID:      active.runID,
+		runtimeCfg:       runtimeCfg,
+	})
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	if err := m.emitTaskMultiEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleChildStarted,
+		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusRunning, childRun.RunID, "", allocation),
+	); err != nil {
+		cancelErr := m.Cancel(detachContext(active.ctx), childRun.RunID)
+		return apicore.Run{}, errors.Join(err, cancelErr)
+	}
+	return childRun, nil
+}
+
+// remapTaskMultiChildRuntime clones base and repoints it at the worktree: the
+// workspace root becomes the worktree path, the task directory becomes the slug
+// directory inside the worktree, and ParentRunID links the child to the parent
+// multi-run. All other runtime overrides are preserved.
+func remapTaskMultiChildRuntime(
+	base *model.RuntimeConfig,
+	worktreePath string,
+	slug string,
+	parentRunID string,
+) (*model.RuntimeConfig, error) {
+	if base == nil {
+		return nil, errors.New("daemon: task multi child runtime config is required")
+	}
+	trimmedPath := strings.TrimSpace(worktreePath)
+	if trimmedPath == "" {
+		return nil, errors.New("daemon: task multi worktree path is required")
+	}
+	trimmedSlug := strings.TrimSpace(slug)
+	if trimmedSlug == "" {
+		return nil, errors.New("daemon: task multi child slug is required")
+	}
+	remapped := base.Clone()
+	if remapped == nil {
+		return nil, errors.New("daemon: task multi child runtime config is required")
+	}
+	remapped.WorkspaceRoot = trimmedPath
+	remapped.TasksDir = model.TaskDirectoryForWorkspace(trimmedPath, trimmedSlug)
+	remapped.ParentRunID = strings.TrimSpace(parentRunID)
+	return remapped, nil
+}
+
+// requireTaskMultiWorktreeTaskDir resolves and validates the slug task directory
+// inside an allocated worktree, returning a slug-specific error when the worktree
+// base commit does not contain the task directory.
+func requireTaskMultiWorktreeTaskDir(worktreePath string, slug string) (string, error) {
+	tasksDir := model.TaskDirectoryForWorkspace(strings.TrimSpace(worktreePath), strings.TrimSpace(slug))
+	if err := requireDirectory(tasksDir); err != nil {
+		return "", fmt.Errorf(
+			"task multi worktree %s is missing task directory for slug %q: %w",
+			strings.TrimSpace(worktreePath),
+			strings.TrimSpace(slug),
+			err,
+		)
+	}
+	return tasksDir, nil
+}
+
+// taskMultiWorktreeItemPayload builds a parent item event payload that carries
+// worktree metadata alongside the standard item fields. The snapshot builder
+// merges these additively, so emitting worktree fields before child launch keeps
+// metadata recoverable even if the child run id does not exist yet.
+func taskMultiWorktreeItemPayload(
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	status string,
+	childRunID string,
+	errorText string,
+	allocation taskMultiWorktreeAllocation,
+) kinds.TaskRunMultiplePayload {
+	return kinds.TaskRunMultiplePayload{
+		Slug:           item.slug,
+		Index:          index,
+		Total:          total,
+		Status:         status,
+		ChildRunID:     strings.TrimSpace(childRunID),
+		Error:          strings.TrimSpace(errorText),
+		WorktreePath:   allocation.Path,
+		BaseBranch:     allocation.BaseBranch,
+		BaseCommit:     allocation.BaseCommit,
+		WorktreeStatus: allocation.WorktreeStatus,
+	}
 }
 
 func (m *RunManager) finishTaskMultiChild(
