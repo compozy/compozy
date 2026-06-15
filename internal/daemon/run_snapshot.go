@@ -176,9 +176,6 @@ func jobQueuedTaskNumber(payload kinds.JobQueuedPayload) int {
 	if payload.TaskNumber > 0 {
 		return payload.TaskNumber
 	}
-	if strings.TrimSpace(payload.TaskTitle) == "" && strings.TrimSpace(payload.TaskType) == "" {
-		return 0
-	}
 	if number := tasks.ExtractTaskIdentityNumber(payload.CodeFile); number > 0 {
 		return number
 	}

@@ -1725,7 +1725,7 @@ func jobIDFromIndex(index int, safeName string) string {
 	if trimmed := strings.TrimSpace(safeName); trimmed != "" {
 		return trimmed
 	}
-	if index > 0 {
+	if index >= 0 {
 		return fmt.Sprintf("job-%03d", index)
 	}
 	return ""

@@ -341,3 +341,32 @@ func TestRunSnapshotBuilderTracksJobPauseAndResumeStates(t *testing.T) {
 		})
 	}
 }
+
+func TestRunSnapshotBuilderInfersSparseQueuedTaskNumber(t *testing.T) {
+	t.Parallel()
+
+	builder := newRunSnapshotBuilder()
+	rawPayload, err := json.Marshal(kinds.JobQueuedPayload{
+		Index:     0,
+		CodeFiles: []string{"notes.md", ".compozy/tasks/demo/task_15.md"},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(JobQueuedPayload) error = %v", err)
+	}
+	if err := builder.applyEvent(eventspkg.Event{
+		RunID:     "run-sparse-task-number",
+		Kind:      eventspkg.EventKindJobQueued,
+		Timestamp: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC),
+		Payload:   rawPayload,
+	}); err != nil {
+		t.Fatalf("applyEvent(job.queued) error = %v", err)
+	}
+
+	states := builder.jobStates()
+	if len(states) != 1 {
+		t.Fatalf("job states = %#v, want one state", states)
+	}
+	if got, want := states[0].Summary.TaskNumber, 15; got != want {
+		t.Fatalf("task number = %d, want %d", got, want)
+	}
+}

@@ -300,6 +300,69 @@ func TestRunDBProjectsUserMessageTranscriptRows(t *testing.T) {
 	}
 }
 
+func TestRunDBProjectsIndexZeroLifecycleToCanonicalJobID(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-index-zero-lifecycle"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	startedAt := time.Date(2026, 6, 15, 18, 30, 0, 0, time.UTC)
+	items := []events.Event{
+		mustEvent(
+			t,
+			runID,
+			1,
+			startedAt,
+			events.EventKindJobQueued,
+			kinds.JobQueuedPayload{Index: 0, SafeName: "job-000", TaskTitle: "Pause me"},
+		),
+		mustEvent(
+			t,
+			runID,
+			2,
+			startedAt.Add(time.Second),
+			events.EventKindJobPausing,
+			kinds.JobPausingPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		),
+		mustEvent(
+			t,
+			runID,
+			3,
+			startedAt.Add(2*time.Second),
+			events.EventKindJobPaused,
+			kinds.JobPausedPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		),
+		mustEvent(
+			t,
+			runID,
+			4,
+			startedAt.Add(3*time.Second),
+			events.EventKindJobResumed,
+			kinds.JobResumedPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		),
+	}
+	if err := db.StoreEventBatch(context.Background(), items); err != nil {
+		t.Fatalf("StoreEventBatch() error = %v", err)
+	}
+
+	rows, err := db.ListJobState(context.Background())
+	if err != nil {
+		t.Fatalf("ListJobState() error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("job rows = %#v, want one canonical row", rows)
+	}
+	if got, want := rows[0].JobID, "job-000"; got != want {
+		t.Fatalf("job id = %q, want %q", got, want)
+	}
+	if got, want := rows[0].Status, "running"; got != want {
+		t.Fatalf("job status = %q, want %q", got, want)
+	}
+}
+
 func TestRunDBRecordHookRunValidatesRequiredFields(t *testing.T) {
 	t.Parallel()
 
