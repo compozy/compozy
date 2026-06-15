@@ -1508,6 +1508,12 @@
             },
             "TaskRunMultipleItem": {
                 "properties": {
+                    "base_branch": {
+                        "type": "string"
+                    },
+                    "base_commit": {
+                        "type": "string"
+                    },
                     "error_text": {
                         "type": "string"
                     },
@@ -1520,6 +1526,12 @@
                     "status": {
                         "enum": ["queued", "active", "completed", "failed", "canceled"],
                         "type": "string"
+                    },
+                    "worktree_path": {
+                        "type": "string"
+                    },
+                    "worktree_status": {
+                        "type": "string"
                     }
                 },
                 "required": ["slug", "status"],
@@ -1530,6 +1542,10 @@
                     "mode": {
                         "enum": ["enqueued", "parallel"],
                         "type": "string"
+                    },
+                    "parallel_limit": {
+                        "minimum": 1,
+                        "type": "integer"
                     },
                     "presentation_mode": {
                         "type": "string"

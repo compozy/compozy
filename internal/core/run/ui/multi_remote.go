@@ -169,8 +169,8 @@ func newRemoteMultiRunModel(
 		now:        time.Now(),
 	}
 	children := make([]initialMultiRunChild, 0, len(opts.Snapshot.Items))
-	for _, item := range opts.Snapshot.Items {
-		tab := newMultiRunTab(item)
+	for i := range opts.Snapshot.Items {
+		tab := newMultiRunTab(&opts.Snapshot.Items[i])
 		if tab.runID != "" && opts.LoadChildSnapshot != nil {
 			snapshot, err := opts.LoadChildSnapshot(ctx, tab.runID)
 			if err != nil {
@@ -199,7 +199,7 @@ func nonTerminalInitialChildren(children []initialMultiRunChild) []initialMultiR
 	return result
 }
 
-func newMultiRunTab(item apicore.TaskRunMultipleItem) multiRunTab {
+func newMultiRunTab(item *apicore.TaskRunMultipleItem) multiRunTab {
 	status := strings.TrimSpace(item.Status)
 	if status == "" {
 		status = taskMultiStatusQueued

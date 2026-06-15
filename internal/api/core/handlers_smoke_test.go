@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
@@ -709,4 +710,66 @@ func (s *smokeExecService) Start(context.Context, core.ExecRequest) (core.Run, e
 
 func ptrTime(value time.Time) *time.Time {
 	return &value
+}
+
+// capturingTaskService records the multi-run request forwarded by the handler
+// while delegating every other call to the embedded smoke task service.
+type capturingTaskService struct {
+	*smokeTaskService
+	gotRequest core.TaskRunMultipleRequest
+}
+
+func (s *capturingTaskService) StartRunMultiple(
+	ctx context.Context,
+	ws string,
+	req core.TaskRunMultipleRequest,
+) (core.Run, error) {
+	s.gotRequest = req
+	return s.smokeTaskService.StartRunMultiple(ctx, ws, req)
+}
+
+func TestStartTaskRunMultipleForwardsParallelLimitAndMode(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)
+	tasks := &capturingTaskService{
+		smokeTaskService: &smokeTaskService{
+			multiRun: core.Run{
+				RunID:       "multi-run-1",
+				WorkspaceID: "ws-1",
+				Mode:        "task_multi",
+				Status:      "running",
+				StartedAt:   now,
+			},
+		},
+	}
+	handlers := core.NewHandlers(&core.HandlerConfig{TransportName: "test", Tasks: tasks})
+	engine := gin.New()
+	engine.Use(core.RequestIDMiddleware())
+	engine.Use(core.ErrorMiddleware())
+	core.RegisterRoutes(engine, handlers)
+
+	body := `{"workspace":"/tmp/workspace","slugs":["task_01","task_02"],` +
+		`"mode":"parallel","parallel_limit":3,"presentation_mode":"stream"}`
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/task-runs/multiple",
+		strings.NewReader(body),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	engine.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
+	}
+	if tasks.gotRequest.ParallelLimit != 3 {
+		t.Fatalf("forwarded ParallelLimit = %d, want 3", tasks.gotRequest.ParallelLimit)
+	}
+	if tasks.gotRequest.Mode != workspace.TaskRunMultipleModeParallel {
+		t.Fatalf("forwarded Mode = %q, want %q", tasks.gotRequest.Mode, workspace.TaskRunMultipleModeParallel)
+	}
 }

@@ -1,17 +1,17 @@
 ---
 status: completed
-title: Add Multi-Run Daemon API Contracts and Client Surface
+title: Extend Multi-Run API and Client Contracts
 type: backend
-complexity: medium
+complexity: high
 dependencies:
   - task_01
 ---
 
-# Task 2: Add Multi-Run Daemon API Contracts and Client Surface
+# Task 2: Extend Multi-Run API and Client Contracts
 
 ## Overview
 
-This task adds the daemon transport contract for starting and inspecting a daemon-owned multi-run parent. It establishes typed request, response, handler, client, and OpenAPI surfaces before the run manager implements the coordinator.
+This task extends the daemon API contract so callers can pass the resolved parallel limit and receive worktree metadata in snapshots. It keeps the existing multi-run routes stable while updating Go and generated TypeScript contract surfaces.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -22,72 +22,71 @@ This task adds the daemon transport contract for starting and inspecting a daemo
 </critical>
 
 <requirements>
-- The implementation MUST add a typed request for starting a multi-run parent with workspace, ordered slugs, mode, presentation mode, and runtime overrides.
-- The implementation MUST add a typed item/snapshot shape for reconstructing queued, active, completed, failed, and canceled child state.
-- The implementation MUST add daemon routes that do not conflict with `/api/tasks/:slug`.
-- The implementation MUST add client methods for starting and loading a multi-run parent snapshot.
-- The implementation MUST preserve all existing `StartTaskRun` request and route behavior.
-- The implementation MUST update contract/OpenAPI tests for the new request schema and route.
+- `TaskRunMultipleRequest` MUST carry the resolved parallel limit.
+- `TaskRunMultipleItem` MUST expose optional worktree path, base branch, base commit, and worktree status fields.
+- Existing `POST /api/task-runs/multiple` and snapshot routes MUST remain unchanged.
+- API client start and snapshot methods MUST preserve the new fields.
+- OpenAPI and generated TypeScript types MUST include the new fields.
+- Existing clients that omit the new fields MUST remain compatible.
 </requirements>
 
 ## Subtasks
 
-- [x] 2.1 Add contract types for multi-run start and snapshot payloads.
-- [x] 2.2 Extend the shared API interfaces with multi-run start and snapshot methods.
-- [x] 2.3 Register non-conflicting daemon routes for multi-run start and snapshot reads.
-- [x] 2.4 Add client methods that call the new routes and decode typed responses.
-- [x] 2.5 Add contract, client, handler, and OpenAPI tests for the new API surface.
+- [x] 2.1 Add parallel limit and worktree metadata fields to contract/core types.
+- [x] 2.2 Update daemon client request and snapshot mapping.
+- [x] 2.3 Update API handler/service forwarding for the new request field.
+- [x] 2.4 Regenerate OpenAPI and TypeScript schema artifacts.
+- [x] 2.5 Add request, response, client, and OpenAPI contract tests.
 
 ## Implementation Details
 
-Use `/api/task-runs/multiple` for the start route and `/api/task-runs/multiple/:run_id/snapshot` for the multi-run snapshot route, as described in the TechSpec "API Endpoints" section. Keep child run observation on the existing `/api/runs/:run_id/...` routes.
+Use the TechSpec "API And Data Model" section for field names and compatibility expectations. This task should only update transport and schema surfaces; event persistence and scheduler behavior are handled by later tasks.
 
 ### Relevant Files
 
-- `internal/api/contract/types.go` — home for transport request and response structs.
-- `internal/api/contract/routes.go` — canonical route metadata and timeout classes.
-- `internal/api/core/interfaces.go` — shared service interfaces used by HTTP handlers.
-- `internal/api/core/routes.go` — route registration for daemon HTTP transport.
-- `internal/api/core/handlers.go` — request decoding and service delegation.
-- `internal/api/client/client.go` and `internal/api/client/runs.go` — existing client request patterns.
-- `internal/api/client/client_contract_test.go` — timeout and request routing expectations.
-- `internal/api/httpapi/openapi_contract_test.go` — OpenAPI schema and route contract assertions.
+- `internal/api/contract/types.go` — defines request and snapshot item contract types.
+- `internal/api/core` — carries API-level request and snapshot structures.
+- `internal/api/client/client.go` — maps start requests into HTTP payloads.
+- `internal/api/client/runs.go` — decodes multi-run snapshots.
+- `internal/api/core/handlers.go` — forwards request data into daemon services.
+- `openapi/compozy-daemon.json` — daemon OpenAPI schema.
+- `web/src/generated/compozy-openapi.d.ts` — generated TypeScript schema.
 
 ### Dependent Files
 
-- `internal/daemon/task_transport_service.go` — later task will implement the new service methods with `RunManager`.
-- `internal/cli/daemon_commands.go` — later task will call the new client methods.
-- `internal/core/run/ui/remote.go` — later task will use snapshots to attach the multi-run TUI.
+- `internal/cli/daemon_commands.go` — later task passes the resolved CLI limit through this request.
+- `pkg/compozy/events/kinds/task.go` — later task adds matching event payload metadata.
+- `internal/core/run/ui/multi_remote.go` — later task renders snapshot item metadata.
 
 ### Related ADRs
 
-- [ADR-004: Use a Daemon-Owned Sequential Multi-Run Coordinator](adrs/adr-004.md) — Requires a parent run API instead of a CLI-only queue.
+- [ADR-007: Use One Task-Multi Scheduler with Worktree-Owned Child Runs](adrs/adr-007.md) — Requires snapshot items to expose worktree-owned child metadata.
+- [ADR-008: Make the Parallel Multi-Run Limit Configurable](adrs/adr-008.md) — Requires daemon requests to carry the resolved limit.
 
 ## Deliverables
 
-- Typed daemon contract for multi-run start and snapshot.
-- Registered API routes that avoid `/api/tasks/:slug` conflicts.
-- Client methods for multi-run start and snapshot reads.
-- Unit tests with 80%+ coverage for request encoding, route timeout class, and response decoding **(REQUIRED)**.
-- Handler/OpenAPI integration tests for the new route and schema **(REQUIRED)**.
+- Additive API/core/client fields for `parallel_limit` and worktree metadata.
+- Regenerated OpenAPI and TypeScript schema output.
+- Backward-compatible contract tests for old and new payload shapes.
+- Unit tests with 80%+ coverage for changed mapping code **(REQUIRED)**.
+- Integration tests for daemon client request and snapshot round trips **(REQUIRED)**.
 
 ## Tests
 
 - Unit tests:
-  - [x] Client start method posts to `/api/task-runs/multiple` with ordered slugs.
-  - [x] Client snapshot method gets `/api/task-runs/multiple/<run_id>/snapshot`.
-  - [x] Client rejects a nil context consistently with existing daemon client methods.
-  - [x] Contract route metadata classifies multi-run start as long mutating work.
-  - [x] Contract route metadata classifies multi-run snapshot as read work.
+  - [x] Encoding `TaskRunMultipleRequest` includes `parallel_limit` when provided.
+  - [x] Decoding a snapshot item with worktree metadata preserves all fields.
+  - [x] Decoding a snapshot item without worktree metadata still succeeds.
+  - [x] API contract conversion preserves ordered child items.
 - Integration tests:
-  - [x] Shared handler smoke test starts a multi-run parent through the new route and returns `201`.
-  - [x] OpenAPI contract exposes `TaskRunMultipleRequest` and the new route request body.
+  - [x] `StartTaskRunMultiple` posts slugs, mode, presentation mode, runtime overrides, and parallel limit.
+  - [x] `GetTaskRunMultipleSnapshot` decodes worktree metadata from a daemon response.
+  - [x] OpenAPI contract tests assert the new fields are present.
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
 
-- All tests passing.
-- Test coverage >=80%.
-- API contracts compile without changing `TaskRunRequest`.
-- Existing daemon task-run client and handler tests remain unchanged except for shared interface stubs.
+- All tests passing
+- Test coverage >=80%
+- The daemon API can carry the resolved parallel limit and return worktree metadata without route changes.

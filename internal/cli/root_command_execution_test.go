@@ -2813,7 +2813,8 @@ func assertTaskMultiSnapshotItemsForCLI(
 		t.Fatalf("snapshot item count = %d, want %d: %#v", len(snapshot.Items), len(wantSlugs), snapshot.Items)
 	}
 	gotSlugs := make([]string, 0, len(snapshot.Items))
-	for _, item := range snapshot.Items {
+	for i := range snapshot.Items {
+		item := &snapshot.Items[i]
 		gotSlugs = append(gotSlugs, item.Slug)
 		if item.Status != "completed" {
 			t.Fatalf("snapshot item %q status = %q, want completed", item.Slug, item.Status)

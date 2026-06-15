@@ -46,15 +46,20 @@ type TaskRunMultipleRequest struct {
 	Workspace        string          `json:"workspace"`
 	Slugs            []string        `json:"slugs"`
 	Mode             string          `json:"mode,omitempty"`
+	ParallelLimit    int             `json:"parallel_limit,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
 }
 
 type TaskRunMultipleItem struct {
-	Slug      string `json:"slug"`
-	Status    string `json:"status"`
-	RunID     string `json:"run_id,omitempty"`
-	ErrorText string `json:"error_text,omitempty"`
+	Slug           string `json:"slug"`
+	Status         string `json:"status"`
+	RunID          string `json:"run_id,omitempty"`
+	ErrorText      string `json:"error_text,omitempty"`
+	WorktreePath   string `json:"worktree_path,omitempty"`
+	BaseBranch     string `json:"base_branch,omitempty"`
+	BaseCommit     string `json:"base_commit,omitempty"`
+	WorktreeStatus string `json:"worktree_status,omitempty"`
 }
 
 type TaskRunMultipleSnapshot struct {

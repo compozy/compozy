@@ -183,7 +183,14 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		t.Fatal("TaskRunMultipleRequest must require slugs")
 	}
 	taskRunMultipleProperties := getMap(t, taskRunMultipleSchema, "properties")
-	for _, field := range []string{"slugs", "mode", "presentation_mode", "runtime_overrides", "workspace"} {
+	for _, field := range []string{
+		"slugs",
+		"mode",
+		"parallel_limit",
+		"presentation_mode",
+		"runtime_overrides",
+		"workspace",
+	} {
 		if _, ok := taskRunMultipleProperties[field]; !ok {
 			t.Fatalf("TaskRunMultipleRequest must expose %s", field)
 		}
@@ -196,8 +203,20 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	if _, ok := multiRunSnapshotProperties["items"]; !ok {
 		t.Fatal("TaskRunMultipleSnapshotResponse must expose items")
 	}
-	if _, ok := getSchema(t, spec, "TaskRunMultipleItem")["properties"]; !ok {
-		t.Fatal("TaskRunMultipleItem must expose properties")
+	multiRunItemProperties := getMap(t, getSchema(t, spec, "TaskRunMultipleItem"), "properties")
+	for _, field := range []string{
+		"slug",
+		"status",
+		"run_id",
+		"error_text",
+		"worktree_path",
+		"base_branch",
+		"base_commit",
+		"worktree_status",
+	} {
+		if _, ok := multiRunItemProperties[field]; !ok {
+			t.Fatalf("TaskRunMultipleItem must expose %s", field)
+		}
 	}
 	reviewRunSchema := getSchema(t, spec, "ReviewRunRequest")
 	if schemaRequires(reviewRunSchema, "workspace") {
