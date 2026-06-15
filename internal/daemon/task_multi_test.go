@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
@@ -604,6 +606,286 @@ func TestRunManagerTaskRunMultipleParentRuntimeStartFailureDoesNotStartChildren(
 			t.Fatalf("GetRun(child-alpha) error = %v, want ErrRunNotFound", err)
 		}
 	})
+}
+
+func TestTaskMultiSnapshotBuilderReconstructsWorktreeMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply worktree path before child run id exists", func(t *testing.T) {
+		t.Parallel()
+
+		builder := newTaskMultiSnapshotBuilder()
+		mustApplyTaskMultiEvent(t, builder, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
+			Mode:  "parallel",
+			Slugs: []string{"alpha", "beta"},
+			Total: 2,
+		})
+		mustApplyTaskMultiEvent(t, builder, eventspkg.EventKindTaskRunMultipleItemQueued, kinds.TaskRunMultiplePayload{
+			Slug:           "alpha",
+			Status:         taskMultiItemStatusQueued,
+			WorktreePath:   "/wt/01-alpha",
+			BaseBranch:     "main",
+			BaseCommit:     "abc123",
+			WorktreeStatus: "preserved",
+		})
+
+		items := builder.snapshotItems()
+		want := apicore.TaskRunMultipleItem{
+			Slug:           "alpha",
+			Status:         taskMultiItemStatusQueued,
+			WorktreePath:   "/wt/01-alpha",
+			BaseBranch:     "main",
+			BaseCommit:     "abc123",
+			WorktreeStatus: "preserved",
+		}
+		if items[0] != want {
+			t.Fatalf("alpha item = %#v, want %#v", items[0], want)
+		}
+		if items[0].RunID != "" {
+			t.Fatalf("alpha RunID = %q, want empty before child start", items[0].RunID)
+		}
+	})
+
+	t.Run("Should preserve child run id and error text alongside metadata", func(t *testing.T) {
+		t.Parallel()
+
+		builder := newTaskMultiSnapshotBuilder()
+		mustApplyTaskMultiEvent(t, builder, eventspkg.EventKindTaskRunMultipleItemQueued, kinds.TaskRunMultiplePayload{
+			Slug:           "alpha",
+			Status:         taskMultiItemStatusQueued,
+			WorktreePath:   "/wt/01-alpha",
+			BaseBranch:     "main",
+			BaseCommit:     "abc123",
+			WorktreeStatus: "preserved",
+		})
+		mustApplyTaskMultiEvent(
+			t,
+			builder,
+			eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug:         "alpha",
+				Status:       taskMultiItemStatusRunning,
+				ChildRunID:   "child-alpha",
+				WorktreePath: "/wt/01-alpha",
+			},
+		)
+		mustApplyTaskMultiEvent(t, builder, eventspkg.EventKindTaskRunMultipleChildFailed, kinds.TaskRunMultiplePayload{
+			Slug:       "alpha",
+			Status:     taskMultiItemStatusFailed,
+			ChildRunID: "child-alpha",
+			Error:      "alpha failed",
+		})
+
+		items := builder.snapshotItems()
+		want := apicore.TaskRunMultipleItem{
+			Slug:           "alpha",
+			Status:         taskMultiItemStatusFailed,
+			RunID:          "child-alpha",
+			ErrorText:      "alpha failed",
+			WorktreePath:   "/wt/01-alpha",
+			BaseBranch:     "main",
+			BaseCommit:     "abc123",
+			WorktreeStatus: "preserved",
+		}
+		if items[0] != want {
+			t.Fatalf("alpha item = %#v, want %#v", items[0], want)
+		}
+	})
+
+	t.Run("Should keep requested item order after metadata events", func(t *testing.T) {
+		t.Parallel()
+
+		builder := newTaskMultiSnapshotBuilder()
+		mustApplyTaskMultiEvent(t, builder, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
+			Mode:  "parallel",
+			Slugs: []string{"alpha", "beta", "gamma"},
+			Total: 3,
+		})
+		for _, slug := range []string{"gamma", "alpha", "beta"} {
+			mustApplyTaskMultiEvent(
+				t,
+				builder,
+				eventspkg.EventKindTaskRunMultipleChildStarted,
+				kinds.TaskRunMultiplePayload{
+					Slug:         slug,
+					Status:       taskMultiItemStatusRunning,
+					ChildRunID:   "child-" + slug,
+					WorktreePath: "/wt/" + slug,
+				},
+			)
+		}
+
+		items := builder.snapshotItems()
+		wantOrder := []string{"alpha", "beta", "gamma"}
+		if len(items) != len(wantOrder) {
+			t.Fatalf("item count = %d, want %d", len(items), len(wantOrder))
+		}
+		for idx, slug := range wantOrder {
+			if items[idx].Slug != slug {
+				t.Fatalf("item[%d].Slug = %q, want %q", idx, items[idx].Slug, slug)
+			}
+			if items[idx].WorktreePath != "/wt/"+slug {
+				t.Fatalf("item[%d].WorktreePath = %q, want %q", idx, items[idx].WorktreePath, "/wt/"+slug)
+			}
+		}
+	})
+
+	t.Run("Should leave worktree metadata empty for events without it", func(t *testing.T) {
+		t.Parallel()
+
+		builder := newTaskMultiSnapshotBuilder()
+		mustApplyTaskMultiEvent(t, builder, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
+			Mode:  "enqueued",
+			Slugs: []string{"alpha"},
+			Total: 1,
+		})
+		mustApplyTaskMultiEvent(
+			t,
+			builder,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				Slug:       "alpha",
+				Status:     taskMultiItemStatusCompleted,
+				ChildRunID: "child-alpha",
+			},
+		)
+
+		items := builder.snapshotItems()
+		want := apicore.TaskRunMultipleItem{
+			Slug:   "alpha",
+			Status: taskMultiItemStatusCompleted,
+			RunID:  "child-alpha",
+		}
+		if items[0] != want {
+			t.Fatalf("alpha item = %#v, want %#v (no worktree metadata)", items[0], want)
+		}
+	})
+}
+
+func TestRunManagerTaskRunMultipleSnapshotReconstructsWorktreeMetadataFromEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reconstruct worktree-aware snapshot from parent events", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder("task-multi-worktree"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				return nil
+			},
+		})
+		writeTaskMultiWorkflow(t, env, "alpha", "pending")
+		writeTaskMultiWorkflow(t, env, "beta", "pending")
+
+		parent := startTaskMultiRun(t, env, "task-multi-worktree", []string{"alpha", "beta"})
+		waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+
+		before, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+		if err != nil {
+			t.Fatalf("RunMultipleSnapshot() before metadata error = %v", err)
+		}
+		assertTaskMultiItems(t, before.Items, []apicore.TaskRunMultipleItem{
+			{Slug: "alpha", Status: taskMultiItemStatusCompleted, RunID: "child-alpha"},
+			{Slug: "beta", Status: taskMultiItemStatusCompleted, RunID: "child-beta"},
+		})
+		for idx := range before.Items {
+			if before.Items[idx].WorktreePath != "" ||
+				before.Items[idx].BaseBranch != "" ||
+				before.Items[idx].BaseCommit != "" ||
+				before.Items[idx].WorktreeStatus != "" {
+				t.Fatalf("pre-metadata item %#v, want empty worktree fields", before.Items[idx])
+			}
+		}
+
+		appendTaskMultiWorktreeEvent(t, parent.RunID, "alpha", "child-alpha", "/wt/01-alpha", "abc123")
+		appendTaskMultiWorktreeEvent(t, parent.RunID, "beta", "child-beta", "/wt/02-beta", "def456")
+
+		after, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+		if err != nil {
+			t.Fatalf("RunMultipleSnapshot() after metadata error = %v", err)
+		}
+		want := []apicore.TaskRunMultipleItem{
+			{
+				Slug:           "alpha",
+				Status:         taskMultiItemStatusCompleted,
+				RunID:          "child-alpha",
+				WorktreePath:   "/wt/01-alpha",
+				BaseBranch:     "main",
+				BaseCommit:     "abc123",
+				WorktreeStatus: "preserved",
+			},
+			{
+				Slug:           "beta",
+				Status:         taskMultiItemStatusCompleted,
+				RunID:          "child-beta",
+				WorktreePath:   "/wt/02-beta",
+				BaseBranch:     "main",
+				BaseCommit:     "def456",
+				WorktreeStatus: "preserved",
+			},
+		}
+		if len(after.Items) != len(want) {
+			t.Fatalf("after item count = %d, want %d", len(after.Items), len(want))
+		}
+		for idx := range want {
+			if after.Items[idx] != want[idx] {
+				t.Fatalf("after item[%d] = %#v, want %#v", idx, after.Items[idx], want[idx])
+			}
+		}
+	})
+}
+
+func mustApplyTaskMultiEvent(
+	t *testing.T,
+	builder *taskMultiSnapshotBuilder,
+	kind eventspkg.EventKind,
+	payload kinds.TaskRunMultiplePayload,
+) {
+	t.Helper()
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal %s payload: %v", kind, err)
+	}
+	if err := builder.applyEvent(eventspkg.Event{Kind: kind, Payload: raw}); err != nil {
+		t.Fatalf("applyEvent(%s) error = %v", kind, err)
+	}
+}
+
+func appendTaskMultiWorktreeEvent(
+	t *testing.T,
+	parentRunID string,
+	slug string,
+	childRunID string,
+	worktreePath string,
+	baseCommit string,
+) {
+	t.Helper()
+	runDB, err := openRunDBForRunID(context.Background(), parentRunID)
+	if err != nil {
+		t.Fatalf("openRunDBForRunID(%q) error = %v", parentRunID, err)
+	}
+	defer func() {
+		_ = runDB.Close()
+	}()
+	if _, err := runDB.AppendSyntheticEvent(
+		context.Background(),
+		eventspkg.EventKindTaskRunMultipleChildCompleted,
+		kinds.TaskRunMultiplePayload{
+			RunID:          parentRunID,
+			Slug:           slug,
+			Status:         taskMultiItemStatusCompleted,
+			ChildRunID:     childRunID,
+			WorktreePath:   worktreePath,
+			BaseBranch:     "main",
+			BaseCommit:     baseCommit,
+			WorktreeStatus: "preserved",
+		},
+	); err != nil {
+		t.Fatalf("AppendSyntheticEvent(%q) error = %v", slug, err)
+	}
 }
 
 func writeTaskMultiWorkflow(t *testing.T, env *runManagerTestEnv, slug string, status string) {

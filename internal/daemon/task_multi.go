@@ -649,16 +649,38 @@ func (b *taskMultiSnapshotBuilder) applyEvent(event eventspkg.Event) error {
 		if err != nil {
 			return err
 		}
-		item := b.ensureItem(payload.Slug)
-		item.Status = strings.TrimSpace(payload.Status)
-		if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
-			item.RunID = childRunID
-		}
-		if errorText := strings.TrimSpace(payload.Error); errorText != "" {
-			item.ErrorText = errorText
-		}
+		applyTaskMultiItemMetadata(b.ensureItem(payload.Slug), payload)
 	}
 	return nil
+}
+
+// applyTaskMultiItemMetadata merges one parent-event payload into a snapshot
+// item. Non-empty fields overwrite prior values so later events refine earlier
+// state, while empty fields are ignored. This lets worktree metadata be recorded
+// before a child run id exists (metadata-only updates emitted before child
+// launch) and keeps older parent events without worktree fields compatible.
+func applyTaskMultiItemMetadata(item *apicore.TaskRunMultipleItem, payload kinds.TaskRunMultiplePayload) {
+	if status := strings.TrimSpace(payload.Status); status != "" {
+		item.Status = status
+	}
+	if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
+		item.RunID = childRunID
+	}
+	if errorText := strings.TrimSpace(payload.Error); errorText != "" {
+		item.ErrorText = errorText
+	}
+	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
+		item.WorktreePath = worktreePath
+	}
+	if baseBranch := strings.TrimSpace(payload.BaseBranch); baseBranch != "" {
+		item.BaseBranch = baseBranch
+	}
+	if baseCommit := strings.TrimSpace(payload.BaseCommit); baseCommit != "" {
+		item.BaseCommit = baseCommit
+	}
+	if worktreeStatus := strings.TrimSpace(payload.WorktreeStatus); worktreeStatus != "" {
+		item.WorktreeStatus = worktreeStatus
+	}
 }
 
 func decodeTaskMultiPayload(event eventspkg.Event) (kinds.TaskRunMultiplePayload, error) {

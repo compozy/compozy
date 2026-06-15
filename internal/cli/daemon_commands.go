@@ -402,7 +402,7 @@ func parseDaemonBuildIdentity(value string) (daemonBuildIdentity, bool) {
 
 func isStableDaemonBuildCommit(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
-	return normalized != "" && normalized != "none"
+	return normalized != "" && normalized != version.UnstampedCommit
 }
 
 func isDevBuildVersion(value string) bool {

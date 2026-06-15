@@ -1,19 +1,17 @@
 ---
 status: completed
-title: Wire tasks run-multiple CLI Command and Non-UI Modes
+title: Add Multi-Run Event and Snapshot Worktree Metadata
 type: backend
 complexity: high
 dependencies:
-  - task_01
   - task_02
-  - task_03
 ---
 
-# Task 4: Wire tasks run-multiple CLI Command and Non-UI Modes
+# Task 4: Add Multi-Run Event and Snapshot Worktree Metadata
 
 ## Overview
 
-This task exposes the daemon-backed multi-run parent through `compozy tasks run-multiple`. It applies shared task-run flags and runtime overrides, handles `parallel` fallback messaging, and supports detach and stream modes before the tabbed TUI is layered on top.
+This task makes parent multi-run events durable enough to reconstruct worktree-aware snapshots. It extends `task.multi.*` payloads and snapshot rebuilding while remaining compatible with older parent events that lack worktree metadata.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -24,78 +22,69 @@ This task exposes the daemon-backed multi-run parent through `compozy tasks run-
 </critical>
 
 <requirements>
-- The implementation MUST add `compozy tasks run-multiple [slugs]`.
-- The command MUST accept one comma-separated positional slug list.
-- The command MUST reject missing, empty, or duplicate slugs before contacting the daemon.
-- The command MUST apply the same shared runtime flags that are valid for task runs.
-- The command MUST read `[tasks.run] run_multiple_mode` and default to `enqueued`.
-- If the configured mode is `parallel`, the command MUST print a clear V2/worktree fallback message and send enqueued execution.
-- The command MUST preserve existing `tasks run` flags and behavior.
-- Non-UI attach modes MUST provide useful parent run output without requiring the tabbed TUI.
+- `TaskRunMultiplePayload` MUST include optional `parallel_limit`, `worktree_path`, `base_branch`, `base_commit`, and `worktree_status` fields.
+- Snapshot reconstruction MUST copy worktree metadata from parent events into `TaskRunMultipleItem`.
+- Snapshot reconstruction MUST handle old events with missing metadata.
+- Worktree metadata MUST be representable before child launch.
+- Existing event kind names MUST remain unchanged.
+- Payload compatibility tests MUST cover both old and new JSON shapes.
 </requirements>
 
 ## Subtasks
 
-- [x] 4.1 Add a new Cobra subcommand under `tasks`.
-- [x] 4.2 Add command state and defaults for task-run shared flags, runtime overrides, and config application.
-- [x] 4.3 Resolve mode and print the `parallel` fallback message when needed.
-- [x] 4.4 Start the daemon parent multi-run through the client method from task 02.
-- [x] 4.5 Support detach and stream output for parent multi-runs.
-- [x] 4.6 Add CLI tests for command registration, parser failures, fallback messaging, daemon request shape, and existing `tasks run` stability.
+- [x] 4.1 Add worktree and parallel limit fields to the multi-run event payload.
+- [x] 4.2 Update snapshot reconstruction to copy optional metadata fields.
+- [x] 4.3 Add helper behavior for metadata-only item updates before child start.
+- [x] 4.4 Preserve old event compatibility.
+- [x] 4.5 Add payload compatibility and daemon snapshot tests.
 
 ## Implementation Details
 
-Keep the new command beside `newTasksRunCommandWithDefaults` rather than modifying the single-run command's argument contract. Use the parser and config behavior from task 01 and the client/API surface from task 02. See TechSpec "Component Overview" and "Known Risks" for command boundaries and fallback behavior.
+Use the TechSpec "Events And Snapshot Reconstruction" section. This task adds persistence and snapshot behavior only; worktree allocation and scheduler production of the metadata happen later.
 
 ### Relevant Files
 
-- `internal/cli/daemon_commands.go` — current `tasks` command registration, single-run command, daemon client interface, and start handling.
-- `internal/cli/root.go` — command kind constants and workflow execution classification.
-- `internal/cli/state.go` — runtime config and executable extension enablement by command kind.
-- `internal/cli/workspace_config.go` — project config defaults applied to command state.
-- `internal/cli/run_observe.go` — current attach/watch helpers for daemon-backed runs.
-- `internal/cli/commands_test.go` — command flag registration and default behavior tests.
-- `internal/cli/daemon_commands_test.go` and `internal/cli/root_command_execution_test.go` — daemon-backed CLI tests.
+- `pkg/compozy/events/kinds/task.go` — defines `TaskRunMultiplePayload`.
+- `pkg/compozy/events/kinds/payload_compat_test.go` — protects public event JSON compatibility.
+- `internal/daemon/task_multi.go` — contains the snapshot builder and event decode helpers.
+- `internal/daemon/task_multi_test.go` — parent event and snapshot reconstruction tests.
+- `pkg/compozy/events/event.go` — declares current multi-run event kinds, which should remain stable.
 
 ### Dependent Files
 
-- `internal/api/client/client.go` — must expose multi-run methods added in task 02.
-- `internal/daemon/run_manager.go` — must implement parent behavior from task 03.
-- `README.md` — later docs task will describe the final command examples.
+- `internal/core/run/ui/multi_remote.go` — later task renders metadata from snapshots/events.
+- `internal/cli/run_observe.go` — later task streams metadata from parent events.
+- `docs/events.md` — later task documents the additive payload fields.
 
 ### Related ADRs
 
-- [ADR-002: Introduce a Dedicated Multi-Run Command for V1](adrs/adr-002.md) — Requires a new command instead of overloading `tasks run`.
-- [ADR-003: Fix V1 Command Name and Config Behavior](adrs/adr-003.md) — Defines `run-multiple`, `run_multiple_mode`, and fallback messaging.
-- [ADR-004: Use a Daemon-Owned Sequential Multi-Run Coordinator](adrs/adr-004.md) — Requires the CLI to start a daemon parent run.
+- [ADR-005: Ship Worktree-Backed Parallel Multi-Run as an Opt-In Mode](adrs/adr-005.md) — Requires durable child worktree metadata.
+- [ADR-007: Use One Task-Multi Scheduler with Worktree-Owned Child Runs](adrs/adr-007.md) — Chooses parent events as the metadata persistence surface.
 
 ## Deliverables
 
-- `compozy tasks run-multiple` command registered under `tasks`.
-- Config-driven mode resolution and `parallel` fallback messaging.
-- Detach and stream output for parent multi-runs.
-- Unit tests with 80%+ coverage for command parsing and config behavior **(REQUIRED)**.
-- CLI integration tests that verify daemon request shape and single-run stability **(REQUIRED)**.
+- Additive multi-run event payload fields.
+- Snapshot reconstruction for optional worktree metadata.
+- Backward compatibility for existing parent event streams.
+- Unit tests with 80%+ coverage for payload and snapshot metadata behavior **(REQUIRED)**.
+- Integration tests for reconstructing worktree-aware snapshots from parent events **(REQUIRED)**.
 
 ## Tests
 
 - Unit tests:
-  - [x] `tasks run-multiple alpha,beta --detach` sends ordered slugs `alpha`, `beta` to the multi-run client method.
-  - [x] Missing slug input returns a user-facing workflow slug error.
-  - [x] `alpha,,beta` returns an empty-slug validation error without contacting the daemon.
-  - [x] `alpha,beta,alpha` returns a duplicate-slug validation error without contacting the daemon.
-  - [x] Configured `parallel` prints a fallback message that mentions V2 and worktree isolation.
-  - [x] `tasks run` still accepts exactly one slug and still calls `StartTaskRun`.
+  - [x] New `TaskRunMultiplePayload` JSON includes worktree metadata when set.
+  - [x] Old `TaskRunMultiplePayload` JSON without metadata still decodes.
+  - [x] Snapshot builder applies `worktree_path` before child run id exists.
+  - [x] Snapshot builder preserves child run id and error text alongside metadata.
+  - [x] Snapshot builder keeps requested item order after metadata events.
 - Integration tests:
-  - [x] In-process CLI daemon test starts a parent multi-run in detach mode and prints the parent run ID.
-  - [x] Stream mode follows parent queue events and exits with a non-zero code on parent failure.
+  - [x] Parent event replay reconstructs path, base branch, base commit, and worktree status for each child.
+  - [x] Old enqueued parent event replay still reconstructs slug/status/run id correctly.
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
 
-- All tests passing.
-- Test coverage >=80%.
-- Users can start a daemon-owned multi-run parent from one command.
-- Parallel fallback is explicit and deterministic.
-- Existing single-run command output and attach behavior are unchanged.
+- All tests passing
+- Test coverage >=80%
+- Parent events can durably reconstruct worktree-aware multi-run snapshots.
