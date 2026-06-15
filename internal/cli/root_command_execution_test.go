@@ -1572,8 +1572,8 @@ func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *t
 	})
 }
 
-func TestTasksRunMultipleCommandInProcessParallelModeRejectedByDaemon(t *testing.T) {
-	t.Run("Should surface daemon rejection when forwarding parallel mode", func(t *testing.T) {
+func TestTasksRunMultipleCommandInProcessParallelModeAcceptedButExecutionDeferred(t *testing.T) {
+	t.Run("Should accept parallel mode but defer execution at the daemon", func(t *testing.T) {
 		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
 		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
 			[]string{
@@ -1607,17 +1607,28 @@ run_multiple_mode = "parallel"
 			"--stream",
 			"--dry-run",
 		)
-		// task_03 forwards parallel mode to the daemon; the daemon scheduler does
-		// not accept parallel until task_06, so it must reject the request here.
+		// task_06 makes the daemon accept the parallel mode and record the queue,
+		// but worktree-backed parallel fanout lands in a later task. The parent run
+		// therefore fails at execution instead of being rejected at validation.
 		if err == nil {
-			t.Fatalf("expected daemon to reject parallel mode\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+			t.Fatalf(
+				"expected parent run to fail with deferred parallel execution\nstdout:\n%s\nstderr:\n%s",
+				stdout,
+				stderr,
+			)
 		}
 		var exitErr *commandExitError
-		if !errors.As(err, &exitErr) || exitErr.ExitCode() == 0 {
-			t.Fatalf("expected non-zero command exit error, got %v", err)
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			t.Fatalf("expected exit code 1 for failed parent, got %v", err)
 		}
-		if !strings.Contains(stderr, "parallel run_multiple mode is not supported by the daemon") {
-			t.Fatalf("expected daemon parallel rejection message, got stderr %q", stderr)
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=parallel total=2",
+			"parallel multi-run execution is not yet available",
+			"run failed",
+		) {
+			t.Fatalf("expected parallel deferral stream output, got %q\nstderr:\n%s", stdout, stderr)
 		}
 	})
 }

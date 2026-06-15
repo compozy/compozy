@@ -29,6 +29,15 @@ const (
 	taskMultiChildPollInterval = 100 * time.Millisecond
 )
 
+// errTaskMultiParallelNotImplemented guards the parallel scheduler branch until
+// worktree allocation (task_07) and bounded fanout with fail-late aggregation
+// (task_08) land. The daemon accepts the parallel mode and records the queue, but
+// the parent run fails with this error instead of running children in the shared
+// working tree.
+var errTaskMultiParallelNotImplemented = errors.New(
+	"parallel multi-run execution is not yet available; worktree-backed parallel fanout lands in a later task",
+)
+
 type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
 	mode             string
@@ -248,15 +257,11 @@ func resolveTaskMultiMode(raw string) (string, error) {
 	case "", workspacecfg.TaskRunMultipleModeEnqueued:
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
 	case workspacecfg.TaskRunMultipleModeParallel:
-		return "", taskMultiValidationProblem(
-			"unsupported_run_multiple_mode",
-			"parallel run_multiple mode is not supported by the daemon; use enqueued",
-			"mode",
-		)
+		return workspacecfg.TaskRunMultipleModeParallel, nil
 	default:
 		return "", taskMultiValidationProblem(
 			"invalid_run_multiple_mode",
-			"run_multiple mode must be enqueued",
+			"run_multiple mode must be enqueued or parallel",
 			"mode",
 		)
 	}
@@ -305,20 +310,47 @@ func (m *RunManager) executeTaskMultiRun(active *activeRun, row globaldb.Run) {
 	m.finishRun(active, row, fallback)
 }
 
+// runTaskMultiCoordinator is the mode-aware scheduler entrypoint. It emits the
+// shared queue-start and item-queued lifecycle events, then dispatches to the
+// branch for the resolved multi-run mode. Both branches reuse the shared event,
+// cancellation, and terminal helpers so enqueued and parallel execution stay one
+// state machine instead of two divergent coordinators.
 func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 	if active == nil || active.taskMulti == nil {
 		return errors.New("task multi run is not configured")
 	}
 	prepared := active.taskMulti
 	total := len(prepared.items)
-	if err := m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
+	if err := m.emitTaskMultiQueueStarted(active, prepared, total); err != nil {
+		return err
+	}
+	if err := m.emitTaskMultiItemsQueued(active, prepared, total); err != nil {
+		return err
+	}
+	switch prepared.mode {
+	case workspacecfg.TaskRunMultipleModeParallel:
+		return m.runTaskMultiParallelQueue(active, prepared, total)
+	default:
+		return m.runTaskMultiEnqueuedQueue(active, prepared, total)
+	}
+}
+
+// emitTaskMultiQueueStarted emits the parent "queue started" lifecycle event
+// shared by every scheduler branch. It records the resolved mode, requested
+// slugs, and total item count.
+func (m *RunManager) emitTaskMultiQueueStarted(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
 		Mode:   prepared.mode,
 		Status: runStatusRunning,
 		Slugs:  preparedTaskMultiSlugs(prepared.items),
 		Total:  total,
-	}); err != nil {
-		return err
-	}
+	})
+}
+
+// emitTaskMultiItemsQueued emits one ordered "item queued" event per prepared
+// child. Every scheduler branch queues all items before any child starts so
+// snapshots seed items in requested order regardless of mode.
+func (m *RunManager) emitTaskMultiItemsQueued(active *activeRun, prepared *preparedTaskMulti, total int) error {
 	for idx, item := range prepared.items {
 		if err := m.emitTaskMultiItemEvent(
 			active,
@@ -333,6 +365,27 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// emitTaskMultiQueueCompleted emits the terminal "queue completed" event for a
+// fully successful queue. It is the shared queue-terminal helper for branches
+// that complete every child.
+func (m *RunManager) emitTaskMultiQueueCompleted(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleQueueCompleted, kinds.TaskRunMultiplePayload{
+		Mode:   prepared.mode,
+		Status: runStatusCompleted,
+		Slugs:  preparedTaskMultiSlugs(prepared.items),
+		Total:  total,
+	})
+}
+
+// runTaskMultiEnqueuedQueue preserves the V1 sequential coordinator behavior: it
+// starts one child at a time and waits for each child to reach a terminal status
+// before starting the next. A canceled parent context or a failed child stops the
+// queue and cancels the remaining queued siblings via the shared cancellation
+// helper.
+func (m *RunManager) runTaskMultiEnqueuedQueue(active *activeRun, prepared *preparedTaskMulti, total int) error {
 	for idx, item := range prepared.items {
 		if err := context.Cause(active.ctx); err != nil {
 			if emitErr := m.cancelTaskMultiQueuedItems(active, prepared.items, idx, total, err); emitErr != nil {
@@ -344,12 +397,23 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 			return err
 		}
 	}
-	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleQueueCompleted, kinds.TaskRunMultiplePayload{
-		Mode:   prepared.mode,
-		Status: runStatusCompleted,
-		Slugs:  preparedTaskMultiSlugs(prepared.items),
-		Total:  total,
-	})
+	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+}
+
+// runTaskMultiParallelQueue is the guarded scaffold for the parallel scheduler
+// branch. Worktree allocation (task_07) and bounded fanout with fail-late
+// aggregation (task_08) are not implemented yet, so this branch deliberately
+// starts no children: executing children without git worktree isolation would
+// reintroduce the same-working-tree hazard that worktree-backed parallel mode
+// exists to prevent. It cancels the queued items through the shared cancellation
+// helper so the snapshot reaches a consistent terminal state, then fails the
+// parent run with a clear error.
+func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	err := errTaskMultiParallelNotImplemented
+	if cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, 0, total, err); cancelErr != nil {
+		return errors.Join(err, cancelErr)
+	}
+	return err
 }
 
 func (m *RunManager) runTaskMultiChildAt(
