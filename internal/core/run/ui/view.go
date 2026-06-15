@@ -124,15 +124,27 @@ func (m *uiModel) workflowChip() string {
 // runChipStatus maps the aggregate run state to a glyph, status word, and color for
 // the single-run workflow chip.
 func (m *uiModel) runChipStatus() (string, string, color.Color) {
+	switch strings.TrimSpace(m.runStatus) {
+	case remoteRunStatusRunning, remoteRunStatusPausing, remoteRunStatusPaused, remoteRunStatusRetrying:
+		return glyphActiveDot, statusLabelRunning, colorAccentAlt
+	case remoteRunStatusFailed:
+		return jobIconFailed, statusLabelFailed, colorError
+	case remoteRunStatusCrashed:
+		return jobIconFailed, statusLabelCrashed, colorError
+	case remoteRunStatusCanceled:
+		return jobIconFailed, statusLabelCanceled, colorWarning
+	case remoteRunStatusCompleted:
+		return jobIconSuccess, statusLabelDone, colorSuccess
+	}
 	switch {
 	case m.shutdown.Active():
 		return glyphActiveDot, "STOPPING", colorWarning
 	case m.isRunComplete() && m.failed > 0:
-		return jobIconFailed, "FAILED", colorError
+		return jobIconFailed, statusLabelFailed, colorError
 	case m.isRunComplete():
-		return jobIconSuccess, "DONE", colorSuccess
+		return jobIconSuccess, statusLabelDone, colorSuccess
 	default:
-		return glyphActiveDot, "RUNNING", colorAccentAlt
+		return glyphActiveDot, statusLabelRunning, colorAccentAlt
 	}
 }
 

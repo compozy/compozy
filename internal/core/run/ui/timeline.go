@@ -538,11 +538,11 @@ func toolCallStateLabel(state model.ToolCallState) string {
 	case model.ToolCallStatePending:
 		return "PENDING"
 	case model.ToolCallStateInProgress:
-		return "RUNNING"
+		return statusLabelRunning
 	case model.ToolCallStateCompleted:
 		return ""
 	case model.ToolCallStateFailed:
-		return "FAILED"
+		return statusLabelFailed
 	case model.ToolCallStateWaitingForConfirmation:
 		return "CONFIRM"
 	default:

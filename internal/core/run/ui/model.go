@@ -28,6 +28,7 @@ type uiModel struct {
 	total                        int
 	completed                    int
 	failed                       int
+	runStatus                    string
 	frame                        int
 	now                          time.Time
 	onQuit                       func(uiQuitRequest)
@@ -672,7 +673,14 @@ func snapshotTailEntry(snapshot SessionViewSnapshot) (TranscriptEntry, bool) {
 
 func inputRequiresImmediateDispatch(msg any) bool {
 	switch value := msg.(type) {
-	case jobQueuedMsg, jobStartedMsg, jobRetryMsg, jobFinishedMsg, jobUpdateMsg, shutdownStatusMsg, jobFailureMsg:
+	case jobQueuedMsg,
+		jobStartedMsg,
+		jobRetryMsg,
+		jobFinishedMsg,
+		jobUpdateMsg,
+		runStatusMsg,
+		shutdownStatusMsg,
+		jobFailureMsg:
 		return true
 	case jobPausingMsg, jobPausedMsg, jobResumedMsg, jobControlResultMsg:
 		return true
@@ -687,6 +695,10 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindJobRetryScheduled,
 			events.EventKindJobFailed,
 			events.EventKindJobCancelled,
+			events.EventKindRunCompleted,
+			events.EventKindRunFailed,
+			events.EventKindRunCancelled,
+			events.EventKindRunCrashed,
 			events.EventKindSessionUpdate,
 			events.EventKindShutdownRequested,
 			events.EventKindShutdownDraining,
@@ -778,6 +790,9 @@ func (t *uiEventTranslator) translateMessages(ev events.Event) []uiMsg {
 }
 
 func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
+	if msg, ok := translateRunEvent(ev); ok {
+		return msg, true
+	}
 	if msg, ok := t.translateJobEvent(ev); ok {
 		return msg, true
 	}
@@ -788,6 +803,23 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 		return msg, true
 	}
 	return translateShutdownEvent(ev)
+}
+
+func translateRunEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
+	case events.EventKindRunStarted:
+		return runStatusMsg{Status: remoteRunStatusRunning}, true
+	case events.EventKindRunCompleted:
+		return runStatusMsg{Status: remoteRunStatusCompleted}, true
+	case events.EventKindRunFailed:
+		return runStatusMsg{Status: remoteRunStatusFailed}, true
+	case events.EventKindRunCancelled:
+		return runStatusMsg{Status: remoteRunStatusCanceled}, true
+	case events.EventKindRunCrashed:
+		return runStatusMsg{Status: remoteRunStatusCrashed}, true
+	default:
+		return nil, false
+	}
 }
 
 func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {

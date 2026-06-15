@@ -57,6 +57,14 @@ const (
 	jobFailed
 )
 
+const (
+	statusLabelRunning  = "RUNNING"
+	statusLabelFailed   = "FAILED"
+	statusLabelCrashed  = "CRASHED"
+	statusLabelCanceled = "CANCELED"
+	statusLabelDone     = "DONE"
+)
+
 type uiJob struct {
 	codeFile             string
 	codeFiles            []string
@@ -203,6 +211,10 @@ type drainMsg struct{}
 type usageUpdateMsg struct {
 	Index int
 	Usage model.Usage
+}
+
+type runStatusMsg struct {
+	Status string
 }
 
 type shutdownStatusMsg struct {

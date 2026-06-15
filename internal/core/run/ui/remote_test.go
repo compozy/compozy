@@ -435,25 +435,36 @@ func TestShouldStopAfterRemoteEOFUsesTerminalSnapshotCursor(t *testing.T) {
 func TestRemoteSnapshotBootstrapIncludesShutdownState(t *testing.T) {
 	t.Parallel()
 
-	_, msgs := remoteSnapshotBootstrap(apicore.RunSnapshot{
-		Run: apicore.Run{RunID: "run-shutdown", Status: "running"},
-		Shutdown: &apicore.RunShutdownState{
-			Phase:       string(shutdownPhaseDraining),
-			Source:      string(shutdownSourceSignal),
-			RequestedAt: time.Unix(10, 0).UTC(),
-			DeadlineAt:  time.Unix(20, 0).UTC(),
-		},
+	t.Run("Should include shutdown state alongside run status", func(t *testing.T) {
+		t.Parallel()
+
+		_, msgs := remoteSnapshotBootstrap(apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-shutdown", Status: "running"},
+			Shutdown: &apicore.RunShutdownState{
+				Phase:       string(shutdownPhaseDraining),
+				Source:      string(shutdownSourceSignal),
+				RequestedAt: time.Unix(10, 0).UTC(),
+				DeadlineAt:  time.Unix(20, 0).UTC(),
+			},
+		})
+		if len(msgs) != 2 {
+			t.Fatalf("expected run status and shutdown bootstrap messages, got %#v", msgs)
+		}
+		runStatus, ok := msgs[0].(runStatusMsg)
+		if !ok {
+			t.Fatalf("expected runStatusMsg, got %T", msgs[0])
+		}
+		if runStatus.Status != remoteRunStatusRunning {
+			t.Fatalf("runStatusMsg.Status = %q, want %q", runStatus.Status, remoteRunStatusRunning)
+		}
+		status, ok := msgs[1].(shutdownStatusMsg)
+		if !ok {
+			t.Fatalf("expected shutdownStatusMsg, got %T", msgs[1])
+		}
+		if status.State.Phase != shutdownPhaseDraining || status.State.Source != shutdownSourceSignal {
+			t.Fatalf("unexpected shutdown bootstrap state: %#v", status.State)
+		}
 	})
-	if len(msgs) != 1 {
-		t.Fatalf("expected one shutdown bootstrap message, got %#v", msgs)
-	}
-	status, ok := msgs[0].(shutdownStatusMsg)
-	if !ok {
-		t.Fatalf("expected shutdownStatusMsg, got %T", msgs[0])
-	}
-	if status.State.Phase != shutdownPhaseDraining || status.State.Source != shutdownSourceSignal {
-		t.Fatalf("unexpected shutdown bootstrap state: %#v", status.State)
-	}
 }
 
 func applyRemoteQueuedJobs(mdl *uiModel, jobs []job) {

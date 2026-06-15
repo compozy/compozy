@@ -9,7 +9,9 @@ import (
 	"time"
 
 	xansi "github.com/charmbracelet/x/ansi"
+	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -1125,6 +1127,72 @@ func TestTitleBarShowsBrandAndWorkflowChip(t *testing.T) {
 	})
 }
 
+func TestRunChipStatusUsesAggregateRunStatus(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		status    string
+		wantLabel string
+		wantColor color.Color
+	}{
+		{name: "Should render failed run status", status: remoteRunStatusFailed, wantLabel: "FAILED", wantColor: colorError},
+		{name: "Should render crashed run status", status: remoteRunStatusCrashed, wantLabel: "CRASHED", wantColor: colorError},
+		{name: "Should render canceled run status", status: remoteRunStatusCanceled, wantLabel: "CANCELED", wantColor: colorWarning},
+		{name: "Should render completed run status", status: remoteRunStatusCompleted, wantLabel: "DONE", wantColor: colorSuccess},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := newUIModel(0)
+			m.runStatus = tc.status
+			m.shutdown = shutdownState{Phase: shutdownPhaseDraining}
+
+			_, label, gotColor := m.runChipStatus()
+			if label != tc.wantLabel {
+				t.Fatalf("runChipStatus() label = %q, want %q", label, tc.wantLabel)
+			}
+			if !sameColor(gotColor, tc.wantColor) {
+				t.Fatalf("runChipStatus() color = %#v, want %#v", gotColor, tc.wantColor)
+			}
+		})
+	}
+
+	t.Run("Should preserve canceled snapshot status for empty remote runs", func(t *testing.T) {
+		t.Parallel()
+
+		_, msgs := remoteSnapshotBootstrap(apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-canceled-empty", Status: remoteRunStatusCanceled},
+		})
+		m := newUIModel(0)
+		for _, msg := range msgs {
+			m.applyUIMsg(msg)
+		}
+
+		_, label, _ := m.runChipStatus()
+		if label != "CANCELED" {
+			t.Fatalf("runChipStatus() label = %q, want CANCELED", label)
+		}
+	})
+
+	t.Run("Should preserve crashed stream event status", func(t *testing.T) {
+		t.Parallel()
+
+		msg, ok := translateRunEvent(eventspkg.Event{Kind: eventspkg.EventKindRunCrashed})
+		if !ok {
+			t.Fatal("translateRunEvent(run.crashed) did not produce a message")
+		}
+		m := newUIModel(0)
+		m.applyUIMsg(msg)
+
+		_, label, _ := m.runChipStatus()
+		if label != "CRASHED" {
+			t.Fatalf("runChipStatus() label = %q, want CRASHED", label)
+		}
+	})
+}
+
 func TestEmbeddedChildOmitsBrandHeaderRow(t *testing.T) {
 	t.Parallel()
 
@@ -1548,6 +1616,7 @@ func TestHasForcedBackgroundSGR(t *testing.T) {
 		want bool
 	}{
 		{"Should ignore foreground only styling", "\x1b[38;2;255;255;255mtext\x1b[0m", false},
+		{"Should ignore foreground 256 color index matching background selector", "\x1b[38;5;48mtext\x1b[0m", false},
 		{"Should detect truecolor backgrounds", "\x1b[48;2;1;2;3mtext\x1b[0m", true},
 		{"Should detect 256 color backgrounds", "\x1b[48;5;12mtext\x1b[0m", true},
 		{"Should detect standard 16 color backgrounds", "\x1b[44mtext\x1b[0m", true},
@@ -1605,13 +1674,45 @@ func sgrParamsHaveForcedBackground(params string) bool {
 	if params == "" {
 		return false
 	}
-	for _, raw := range strings.Split(params, ";") {
+	parts := strings.Split(params, ";")
+	for i := 0; i < len(parts); i++ {
+		raw := parts[i]
 		value, err := strconv.Atoi(raw)
 		if err != nil {
 			continue
 		}
-		if value == 7 || value == 48 || (value >= 40 && value <= 47) || (value >= 100 && value <= 107) {
+		if value == 7 || (value >= 40 && value <= 47) || (value >= 100 && value <= 107) {
 			return true
+		}
+		if value != 38 && value != 48 {
+			continue
+		}
+		if i+1 >= len(parts) {
+			continue
+		}
+		mode, err := strconv.Atoi(parts[i+1])
+		if err != nil {
+			continue
+		}
+		switch mode {
+		case 5:
+			if value == 48 {
+				return true
+			}
+			if i+2 < len(parts) {
+				i += 2
+			} else {
+				i++
+			}
+		case 2:
+			if value == 48 {
+				return true
+			}
+			if i+4 < len(parts) {
+				i += 4
+			} else {
+				i = len(parts)
+			}
 		}
 	}
 	return false

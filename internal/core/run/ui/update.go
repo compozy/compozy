@@ -124,6 +124,8 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		return m.handleJobUpdate(value)
 	case usageUpdateMsg:
 		return m.handleUsageUpdate(value)
+	case runStatusMsg:
+		return m.handleRunStatus(value)
 	case shutdownStatusMsg:
 		return m.handleShutdownStatus(value)
 	case jobFailureMsg:
@@ -134,6 +136,11 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 	default:
 		return nil
 	}
+}
+
+func (m *uiModel) handleRunStatus(v runStatusMsg) tea.Cmd {
+	m.runStatus = strings.TrimSpace(v.Status)
+	return nil
 }
 
 func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {

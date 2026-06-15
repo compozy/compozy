@@ -368,6 +368,9 @@ func remoteSnapshotBootstrap(snapshot apicore.RunSnapshot) ([]job, []uiMsg) {
 
 	resultJobs := make([]job, 0, len(states))
 	resultMsgs := make([]uiMsg, 0, len(states)*4+1)
+	if status := strings.TrimSpace(snapshot.Run.Status); status != "" {
+		resultMsgs = append(resultMsgs, runStatusMsg{Status: status})
+	}
 	for _, state := range states {
 		jb, msgs := remoteJobBootstrap(state)
 		resultJobs = append(resultJobs, jb)
@@ -657,7 +660,10 @@ func isTerminalRunStatus(status string) bool {
 
 func isTerminalRunEvent(kind events.EventKind) bool {
 	switch kind {
-	case events.EventKindRunCompleted, events.EventKindRunFailed, events.EventKindRunCancelled:
+	case events.EventKindRunCompleted,
+		events.EventKindRunFailed,
+		events.EventKindRunCancelled,
+		events.EventKindRunCrashed:
 		return true
 	default:
 		return false
