@@ -2,54 +2,71 @@
 
 ## Overview
 
-Allow `compozy tasks run` to accept a comma-separated list of workflow slugs, such as
-`compozy tasks run task_a,task_b --ide codex`, so a solo developer can start multiple
-independent task workflows with one command. V1 keeps each slug as its own daemon task
-run and adds `[tasks.run]` config to choose enqueued or parallel scheduling.
+Extend `compozy tasks run --multiple <slug-a>,<slug-b>` with true opt-in
+parallel execution for independent task workflows. V1 adds `--parallel` and
+honors `[tasks.run] run_multiple_mode = "parallel"` by running child task runs
+concurrently in isolated git worktrees. The feature is for solo developers who
+want faster batches without agents editing the same checkout.
 
 ## Problem
 
-Today, running more than one task workflow requires repeated commands:
+Today, `--multiple` reduces repeated commands but still runs task workflows
+sequentially. Config already accepts `parallel`, but Compozy downgrades it to
+enqueued execution, which makes the configuration less trustworthy and leaves
+the fastest independent-task workflow unsolved.
 
-```bash
-compozy tasks run task_a --ide codex
-compozy tasks run task_b --ide codex
-```
-
-That is unnecessary friction for solo developers working through independent task
-bundles. The user must repeat flags, manually track which commands were started, and
-coordinate ordering or parallelism outside Compozy.
-
-The feature should reduce repeated CLI work without weakening Compozy's run accounting.
-A comma-separated invocation should still make it clear which slug produced which run,
-which runs started, which failed, and how to resume or inspect each child run.
+Parallel AI coding agents need filesystem isolation. Git worktrees provide
+separate working directories, `HEAD`, and indexes while sharing repository
+objects. They prevent same-checkout file and git-index collisions, but they do
+not isolate ports, credentials, caches, provider limits, databases, or merge
+conflicts.
 
 ### Market Data
 
-Task runners such as Nx and Turborepo support multi-target execution with configurable
-parallelism. Tools like `concurrently` exist because repeated terminals and shell
-backgrounding make status and failure tracking hard. AI coding workflows are also moving
-toward parallel agent sessions, usually with explicit isolation or worktree guidance.
+Nx exposes task parallelism through CLI/config (`--parallel` and `nx.json`
+defaults). Turborepo supports running one or many tasks through a single command.
+AI coding workflows increasingly use one worktree per agent because shared
+checkouts create overwrites, stale context, and git lock contention. Recent
+worktree tooling comparisons also warn that worktrees are necessary but not
+sufficient: recombination, shared runtime state, and review still need explicit
+boundaries.
+
+## Summary / Differentiator
+
+Compozy can combine task-run accounting with worktree-backed agent isolation:
+one parent run, many child runs, clear tabs/status, and explicit manual
+integration instead of an opaque shell fan-out.
 
 ## Core Features
 
-| #   | Feature                       | Priority | Description                                                                 |
-| --- | ----------------------------- | -------- | --------------------------------------------------------------------------- |
-| F1  | Comma-separated task slugs    | Critical | Accept `task_a,task_b` as one positional input while preserving current single-slug behavior. |
-| F2  | Config scheduling mode        | Critical | Add `[tasks.run]` config for enqueued vs parallel execution.                 |
-| F3  | Independent daemon runs       | Critical | Start one existing daemon task run per slug instead of creating a merged execution model. |
-| F4  | Shared runtime flags          | High     | Apply shared CLI flags such as `--ide`, `--model`, and `--include-completed` consistently to every child run. |
-| F5  | Aggregate reporting           | High     | Print each slug, run ID, startup/result status, and final aggregate outcome. |
+| #   | Feature                    | Priority | Description |
+| --- | -------------------------- | -------- | ----------- |
+| F1  | `--parallel` CLI override  | Critical | Add `compozy tasks run --multiple a,b --parallel` as an explicit per-invocation mode. |
+| F2  | Config-backed parallel mode | Critical | Honor `[tasks.run] run_multiple_mode = "parallel"` instead of downgrading it. |
+| F3  | Per-child git worktrees    | Critical | Allocate one worktree per child task run and remap child workspace/task paths into it. |
+| F4  | Bounded concurrency        | Critical | Run children concurrently up to a conservative cap to avoid local/provider overload. |
+| F5  | Fail-late aggregation      | Critical | Let siblings continue after one child fails; fail the parent if any child fails or is canceled. |
+| F6  | Durable worktree metadata  | High     | Persist branch/path/base/cleanup status for snapshots, recovery, and manual review. |
+| F7  | Existing tab/status reuse  | High     | Keep parent `task_multi`, child runs, snapshots, events, and TUI tabs as the user surface. |
+
+## Integration with Existing Features
+
+| Integration Point              | How |
+| ------------------------------ | --- |
+| `tasks run --multiple`         | Adds true parallel scheduling to the existing multi-run path. |
+| `[tasks.run] run_multiple_mode` | Keeps `enqueued` as default and makes `parallel` truthful. |
+| `task_multi` parent runs       | Reuses parent/child accounting while adding a distinct parallel coordinator. |
+| Multi-run TUI                  | Reuses tabs and per-child status; no new dashboard in V1. |
 
 ## KPIs
 
-| KPI                    | Target                                | How to Measure                         |
-| ---------------------- | ------------------------------------- | -------------------------------------- |
-| Command reduction      | 3 workflows start with 1 command instead of 3 | CLI invocation comparison in docs/tests |
-| Slug accounting        | 100% of requested slugs appear in output | CLI integration tests                  |
-| Backward compatibility | 100% existing single-slug tests pass unchanged | Regression suite                       |
-| Queued determinism     | 100% queued runs start in input order | Integration test with stub daemon client |
-| Parallel support       | At least 2 runs can be started concurrently | Integration test proving overlapping start calls |
+| KPI                          | Target                                             | How to Measure |
+| ---------------------------- | -------------------------------------------------- | -------------- |
+| Wall-clock reduction         | >= 40% faster for 3 independent tasks vs enqueued mode | Integration benchmark with stub or real child runtimes |
+| Isolation correctness        | 100% child runs use distinct worktree paths and branches | Daemon/API tests and snapshot assertions |
+| Status attribution           | 100% requested slugs have final child status and run ID | Multi-run snapshot and TUI tests |
+| Failure semantics            | 100% sibling runs continue after one child failure | Coordinator test with one failing child |
+| Changed worktree preservation | 100% changed child worktrees are preserved for manual integration | Cleanup-policy tests |
 
 ## Feature Assessment
 
@@ -58,7 +75,7 @@ toward parallel agent sessions, usually with explicit isolation or worktree guid
 | **Impact**          | How much more valuable does this make the product?  | Strong |
 | **Reach**           | What % of users would this affect?                  | Strong |
 | **Frequency**       | How often would users encounter this value?         | Strong |
-| **Differentiation** | Does this set us apart or just match competitors?   | Maybe  |
+| **Differentiation** | Does this set us apart or just match competitors?   | Strong |
 | **Defensibility**   | Is this easy to copy or does it compound over time? | Maybe  |
 | **Feasibility**     | Can we actually build this?                         | Strong |
 
@@ -66,35 +83,49 @@ Leverage type: Quick Win.
 
 ## Council Insights
 
-- **Recommended approach:** Ship a thin orchestration layer over existing single-task daemon runs.
-- **Key trade-offs:** Fewer commands vs clearer run semantics; parallel speed vs shared-workspace conflict risk; simple CLI output vs richer batch UI.
-- **Risks identified:** Ambiguous partial failures, cancellation surprises, and parallel agents editing the same checkout.
-- **Stretch goal (V2+):** Add isolated worktree-backed parallel execution or a richer multi-run dashboard.
+- **Recommended approach:** Ship true parallel mode as an explicit, bounded,
+  worktree-backed child execution mode under the existing `task_multi` parent.
+- **Key trade-offs:** Faster batches vs manual merge burden; minimal scope vs
+  lifecycle discipline; worktree isolation vs remaining shared runtime
+  resources.
+- **Risks identified:** False task independence, orphaned worktrees, shared
+  ports/caches/provider limits, confusing mixed success/failure states.
+- **Stretch goal (V2+):** Add conflict prediction, guided integration, and
+  richer review/cleanup flows.
 
 ## Out of Scope (V1)
 
-- **Dependency graph scheduling** — V1 does not infer relationships between task workflows.
-- **One aggregate "super run"** — each slug remains its own daemon run.
-- **Worktree isolation** — parallel mode shares the current workspace unless a later feature changes that.
-- **Multi-run TUI dashboard** — V1 should use conservative output and attachment behavior.
-- **Named task groups** — useful later, but not required for comma-separated execution.
+- **Auto-merge or auto-push** — V1 preserves changed worktrees for manual review.
+- **Dependency-aware scheduling** — V1 assumes the user selected independent
+  tasks.
+- **Full sandboxing** — Worktrees isolate git working state, not ports,
+  databases, credentials, or provider limits.
+- **Conflict prediction** — Useful later, but not required to prove parallel
+  batch value.
+- **New multi-agent dashboard** — Existing snapshots and tabs are enough for V1.
 
 ## Architecture Decision Records
 
-- [ADR-001: Model Multi-Task Run as Explicit Run Orchestration](adrs/adr-001.md) — Treat comma-separated slugs as orchestration over independent daemon runs.
+- [ADR-001: Model Multi-Task Run as Explicit Run Orchestration](adrs/adr-001.md)
+- [ADR-002: Introduce a Dedicated Multi-Run Command for V1](adrs/adr-002.md)
+- [ADR-003: Fix V1 Command Name and Config Behavior](adrs/adr-003.md)
+- [ADR-004: Use a Daemon-Owned Sequential Multi-Run Coordinator](adrs/adr-004.md)
+- [ADR-005: Ship Worktree-Backed Parallel Multi-Run as an Opt-In Mode](adrs/adr-005.md)
 
 ## Open Questions
 
-- What exact config key should represent scheduling mode: `schedule`, `execution_mode`, or `multi_run_mode`?
-- Should parallel mode have a numeric concurrency cap in V1?
-- For `--stream` or UI attach, should V1 disallow multi-slug attach or stream aggregate text output only?
-- Should `--name` accept comma-separated slugs or remain single-slug only?
+- What should the initial concurrency cap be: fixed `2`, fixed `3`, or
+  configurable in V1?
+- What exact branch/path naming pattern should child worktrees use?
+- Should unchanged successful worktrees be removed automatically, or should V1
+  preserve all child worktrees?
+- How should Compozy surface manual integration instructions at the end of a
+  mixed-success run?
 
 ## References
 
-- [Nx run tasks](https://nx.dev/docs/features/run-tasks)
-- [Nx commands](https://nx.dev/docs/reference/nx-commands)
-- [Turborepo task configuration](https://turborepo.ai/docs/crafting-your-repository/configuring-tasks)
-- [concurrently](https://www.npmjs.com/package/concurrently?activeTab=readme)
-- [Claude Code worktrees](https://code.claude.com/docs/en/worktrees)
-- [Cursor CLI](https://cursor.com/blog/cli)
+- Git worktree docs: https://git-scm.com/docs/git-worktree
+- Nx parallel tasks: https://nx.dev/docs/guides/tasks--caching/run-tasks-in-parallel
+- Turborepo run docs: https://turborepo.dev/docs/reference/run
+- Augment guide on worktrees for parallel agents: https://www.augmentcode.com/guides/git-worktrees-parallel-ai-agent-execution
+- Nimbalyst 2026 worktree tooling comparison: https://nimbalyst.com/blog/best-git-worktree-tools-ai-coding-2026/
