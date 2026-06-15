@@ -1539,8 +1539,11 @@ func TestRunManagerTaskRunMultipleParallelCancellation(t *testing.T) {
 		})
 		// The running child is canceled; the not-started child never creates a run row.
 		requireTaskMultiChildRow(t, env, "child-alpha", parent.RunID, runStatusCancelled)
-		if _, err := env.globalDB.GetRun(context.Background(), "child-beta"); err == nil {
-			t.Fatal("child-beta run row exists; a not-started item must not create a child run")
+		if _, err := env.globalDB.GetRun(context.Background(), "child-beta"); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf(
+				"GetRun(child-beta) error = %v, want ErrRunNotFound (a not-started item must not create a child run)",
+				err,
+			)
 		}
 		snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
 		if err != nil {

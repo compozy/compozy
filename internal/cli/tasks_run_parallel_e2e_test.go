@@ -97,64 +97,68 @@ func TestREADMETasksRunSnippetsMatchCLIHelp(t *testing.T) {
 // asserts the parent starts in parallel mode and the final handoff reports each
 // child's preserved worktree.
 func TestTasksRunMultipleParallelEndToEndReportsWorktreePaths(t *testing.T) {
-	requireGitForCLITests(t)
+	t.Run("Should report each child's preserved worktree in the parallel handoff", func(t *testing.T) {
+		requireGitForCLITests(t)
 
-	client, paths := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+		client, paths := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
 
-	stdout, stderr, err := runParallelMultiRunCLI(
-		t,
-		"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream", "--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("execute parallel multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
-	}
-	if !containsAll(
-		stdout,
-		"task multi-run started:",
-		"task queue started | mode=parallel total=2",
-		"task multi-run handoff:",
-		"branch=main",
-	) {
-		t.Fatalf("expected parallel start + worktree handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
-	}
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream", "--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute parallel multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=parallel total=2",
+			"task multi-run handoff:",
+			"branch=main",
+		) {
+			t.Fatalf("expected parallel start + worktree handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
 
-	runID := taskMultiRunIDFromCLIOutput(t, stdout)
-	snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
-	if err != nil {
-		t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
-	}
-	assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+	})
 }
 
 // TestTasksRunMultipleParallelLimitOneEndToEnd verifies that --parallel-limit 1
 // flows through to the daemon (the resolved limit is emitted) and that the run
 // still completes every child with a final handoff.
 func TestTasksRunMultipleParallelLimitOneEndToEnd(t *testing.T) {
-	requireGitForCLITests(t)
+	t.Run("Should flow --parallel-limit through to the daemon and complete every child", func(t *testing.T) {
+		requireGitForCLITests(t)
 
-	client, paths := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+		client, paths := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
 
-	stdout, stderr, err := runParallelMultiRunCLI(
-		t,
-		"tasks", "run", "--multiple", "alpha,beta",
-		"--parallel", "--parallel-limit", "1", "--stream", "--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("execute parallel-limit run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
-	}
-	if !containsAll(stdout, "task queue started | mode=parallel total=2", "task multi-run handoff:") {
-		t.Fatalf("expected bounded parallel handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
-	}
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", "--multiple", "alpha,beta",
+			"--parallel", "--parallel-limit", "1", "--stream", "--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute parallel-limit run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(stdout, "task queue started | mode=parallel total=2", "task multi-run handoff:") {
+			t.Fatalf("expected bounded parallel handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
 
-	runID := taskMultiRunIDFromCLIOutput(t, stdout)
-	if limit := taskMultiStartedParallelLimit(t, client, runID); limit != 1 {
-		t.Fatalf("resolved parallel limit on started event = %d, want 1", limit)
-	}
-	snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
-	if err != nil {
-		t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
-	}
-	assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		if limit := taskMultiStartedParallelLimit(t, client, runID); limit != 1 {
+			t.Fatalf("resolved parallel limit on started event = %d, want 1", limit)
+		}
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+	})
 }
 
 func assertParallelWorktreeSnapshot(

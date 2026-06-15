@@ -25,8 +25,12 @@ const (
 	// taskMultiWorktreeHashLen bounds the workspace-root hash segment so paths
 	// stay short enough for local daemon/socket path constraints.
 	taskMultiWorktreeHashLen = 12
-	// taskMultiWorktreeParentShortLen bounds the parent-run path segment.
+	// taskMultiWorktreeParentShortLen bounds the readable parent-run path segment.
 	taskMultiWorktreeParentShortLen = 12
+	// taskMultiWorktreeParentHashLen sizes the digest suffix appended to the
+	// parent-run segment. Generated run ids share a long common prefix, so a
+	// digest of the full id keeps distinct parent runs in distinct directories.
+	taskMultiWorktreeParentHashLen = 8
 	// taskMultiWorktreeSlugMaxLen bounds the sanitized slug path segment.
 	taskMultiWorktreeSlugMaxLen = 40
 	// taskMultiWorktreeIndexPadWidth zero-pads the child index for stable sort
@@ -178,6 +182,11 @@ func planTaskMultiWorktreePath(worktreesRoot string, spec taskMultiWorktreeSpec)
 	if parent == "" {
 		return "", errors.New("daemon: worktree parent run id is required")
 	}
+	// Generated run ids share a long "task-multi-<date>-..." prefix, so the
+	// truncated readable segment alone is not unique. Append a digest of the full
+	// run id so distinct parent runs never resolve to the same preserved worktree
+	// directory, which would otherwise surface as a "target already exists" error.
+	parent += "-" + taskMultiShortHash(strings.TrimSpace(spec.ParentRunID), taskMultiWorktreeParentHashLen)
 	slug := sanitizeTaskMultiWorktreeSegment(spec.Slug, taskMultiWorktreeSlugMaxLen)
 	if slug == "" {
 		return "", fmt.Errorf("daemon: worktree slug %q is not a valid path segment", spec.Slug)
@@ -217,8 +226,14 @@ func sanitizeTaskMultiWorktreeSegment(value string, maxLen int) string {
 // taskMultiWorkspaceHash derives a short stable digest of the original workspace
 // root so worktrees from different checkouts never share a parent directory.
 func taskMultiWorkspaceHash(workspaceRoot string) string {
-	sum := sha256.Sum256([]byte(filepath.Clean(workspaceRoot)))
-	return hex.EncodeToString(sum[:])[:taskMultiWorktreeHashLen]
+	return taskMultiShortHash(filepath.Clean(workspaceRoot), taskMultiWorktreeHashLen)
+}
+
+// taskMultiShortHash returns the first n hex characters of the SHA-256 digest of
+// value, used for short, stable, collision-resistant path segments.
+func taskMultiShortHash(value string, n int) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])[:n]
 }
 
 func ensureTaskMultiWorktreeTargetFree(path string) error {

@@ -730,46 +730,49 @@ func (s *capturingTaskService) StartRunMultiple(
 
 func TestStartTaskRunMultipleForwardsParallelLimitAndMode(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
+	t.Run("Should forward the parallel limit and mode to the task service", func(t *testing.T) {
+		t.Parallel()
+		gin.SetMode(gin.TestMode)
 
-	now := time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)
-	tasks := &capturingTaskService{
-		smokeTaskService: &smokeTaskService{
-			multiRun: core.Run{
-				RunID:       "multi-run-1",
-				WorkspaceID: "ws-1",
-				Mode:        "task_multi",
-				Status:      "running",
-				StartedAt:   now,
+		now := time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)
+		tasks := &capturingTaskService{
+			smokeTaskService: &smokeTaskService{
+				multiRun: core.Run{
+					RunID:       "multi-run-1",
+					WorkspaceID: "ws-1",
+					Mode:        "task_multi",
+					Status:      "running",
+					StartedAt:   now,
+				},
 			},
-		},
-	}
-	handlers := core.NewHandlers(&core.HandlerConfig{TransportName: "test", Tasks: tasks})
-	engine := gin.New()
-	engine.Use(core.RequestIDMiddleware())
-	engine.Use(core.ErrorMiddleware())
-	core.RegisterRoutes(engine, handlers)
+		}
+		handlers := core.NewHandlers(&core.HandlerConfig{TransportName: "test", Tasks: tasks})
+		engine := gin.New()
+		engine.Use(core.RequestIDMiddleware())
+		engine.Use(core.ErrorMiddleware())
+		core.RegisterRoutes(engine, handlers)
 
-	body := `{"workspace":"/tmp/workspace","slugs":["task_01","task_02"],` +
-		`"mode":"parallel","parallel_limit":3,"presentation_mode":"stream"}`
-	request := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		"/api/task-runs/multiple",
-		strings.NewReader(body),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	response := httptest.NewRecorder()
+		body := `{"workspace":"/tmp/workspace","slugs":["task_01","task_02"],` +
+			`"mode":"parallel","parallel_limit":3,"presentation_mode":"stream"}`
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/task-runs/multiple",
+			strings.NewReader(body),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
 
-	engine.ServeHTTP(response, request)
+		engine.ServeHTTP(response, request)
 
-	if response.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
-	}
-	if tasks.gotRequest.ParallelLimit != 3 {
-		t.Fatalf("forwarded ParallelLimit = %d, want 3", tasks.gotRequest.ParallelLimit)
-	}
-	if tasks.gotRequest.Mode != workspace.TaskRunMultipleModeParallel {
-		t.Fatalf("forwarded Mode = %q, want %q", tasks.gotRequest.Mode, workspace.TaskRunMultipleModeParallel)
-	}
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
+		}
+		if tasks.gotRequest.ParallelLimit != 3 {
+			t.Fatalf("forwarded ParallelLimit = %d, want 3", tasks.gotRequest.ParallelLimit)
+		}
+		if tasks.gotRequest.Mode != workspace.TaskRunMultipleModeParallel {
+			t.Fatalf("forwarded Mode = %q, want %q", tasks.gotRequest.Mode, workspace.TaskRunMultipleModeParallel)
+		}
+	})
 }

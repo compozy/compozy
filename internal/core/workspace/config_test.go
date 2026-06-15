@@ -501,7 +501,7 @@ func TestLoadConfigParsesTaskRunMultipleParallelLimit(t *testing.T) {
 		want    int
 	}{
 		{
-			name: "one",
+			name: "Should parse a configured limit of one",
 			content: `
 [tasks.run]
 run_multiple_parallel_limit = 1
@@ -509,7 +509,7 @@ run_multiple_parallel_limit = 1
 			want: 1,
 		},
 		{
-			name: "two",
+			name: "Should parse a configured limit of two",
 			content: `
 [tasks.run]
 run_multiple_parallel_limit = 2
@@ -517,7 +517,7 @@ run_multiple_parallel_limit = 2
 			want: 2,
 		},
 		{
-			name: "five",
+			name: "Should parse a configured limit of five",
 			content: `
 [tasks.run]
 run_multiple_parallel_limit = 5

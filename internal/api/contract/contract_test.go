@@ -508,8 +508,12 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 			parallelLimit int
 			wantField     bool
 		}{
-			{name: "resolved limit", parallelLimit: workspace.DefaultRunMultipleParallelLimit, wantField: true},
-			{name: "unset limit", parallelLimit: 0, wantField: false},
+			{
+				name:          "Should include a resolved limit in the payload",
+				parallelLimit: workspace.DefaultRunMultipleParallelLimit,
+				wantField:     true,
+			},
+			{name: "Should omit an unset limit from the payload", parallelLimit: 0, wantField: false},
 		}
 		for _, tc := range cases {
 			tc := tc

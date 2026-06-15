@@ -15,19 +15,22 @@ import (
 // including the additive parallel_limit and worktree_* metadata fields.
 func TestTaskRunMultiplePayloadFieldsDocumented(t *testing.T) {
 	t.Parallel()
+	t.Run("Should document every TaskRunMultiplePayload field", func(t *testing.T) {
+		t.Parallel()
 
-	content := readEventsDocumentation(t)
-	payloadType := reflect.TypeOf(TaskRunMultiplePayload{})
-	for i := range payloadType.NumField() {
-		tag := jsonFieldName(payloadType.Field(i).Tag.Get("json"))
-		if tag == "" || tag == "-" {
-			continue
+		content := readEventsDocumentation(t)
+		payloadType := reflect.TypeOf(TaskRunMultiplePayload{})
+		for i := range payloadType.NumField() {
+			tag := jsonFieldName(payloadType.Field(i).Tag.Get("json"))
+			if tag == "" || tag == "-" {
+				continue
+			}
+			want := "`" + tag + "`"
+			if !strings.Contains(content, want) {
+				t.Fatalf("expected docs/events.md to document TaskRunMultiplePayload field %s", want)
+			}
 		}
-		want := "`" + tag + "`"
-		if !strings.Contains(content, want) {
-			t.Fatalf("expected docs/events.md to document TaskRunMultiplePayload field %s", want)
-		}
-	}
+	})
 }
 
 func jsonFieldName(tag string) string {

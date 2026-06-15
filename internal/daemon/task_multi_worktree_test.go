@@ -73,6 +73,27 @@ func TestPlanTaskMultiWorktreePath(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate worktrees for parent runs that share a truncated prefix", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		base := taskMultiWorktreeSpec{WorkspaceRoot: "/home/dev/project", Slug: "task_01", Index: 0}
+		// Generated run ids share a long "task-multi-<date>-..." prefix; the first
+		// 12 characters are identical here, so only the full-id digest disambiguates.
+		base.ParentRunID = "task-multi-20260101-000000-000000001-aaaa"
+		pathA, err := planTaskMultiWorktreePath(root, base)
+		if err != nil {
+			t.Fatalf("path A error = %v", err)
+		}
+		base.ParentRunID = "task-multi-20260101-000000-000000002-bbbb"
+		pathB, err := planTaskMultiWorktreePath(root, base)
+		if err != nil {
+			t.Fatalf("path B error = %v", err)
+		}
+		if pathA == pathB {
+			t.Fatal("parent runs sharing a truncated id prefix must not share a worktree path")
+		}
+	})
+
 	t.Run("Should sanitize slugs containing spaces and path separators", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -137,8 +158,9 @@ func TestPlanTaskMultiWorktreePath(t *testing.T) {
 				taskMultiWorktreeHashLen,
 			)
 		}
-		if len(segments[1]) > taskMultiWorktreeParentShortLen {
-			t.Fatalf("parent segment %q exceeds %d", segments[1], taskMultiWorktreeParentShortLen)
+		maxParent := taskMultiWorktreeParentShortLen + 1 + taskMultiWorktreeParentHashLen
+		if len(segments[1]) > maxParent {
+			t.Fatalf("parent segment %q exceeds %d", segments[1], maxParent)
 		}
 	})
 
@@ -196,13 +218,13 @@ func TestSanitizeTaskMultiWorktreeSegment(t *testing.T) {
 		maxLen int
 		want   string
 	}{
-		{name: "lowercases and preserves underscores", value: "Task_01", maxLen: 40, want: "task_01"},
-		{name: "collapses spaces to single dash", value: "fix   bug", maxLen: 40, want: "fix-bug"},
-		{name: "maps path separators to dash", value: "a/b\\c", maxLen: 40, want: "a-b-c"},
-		{name: "strips traversal dots", value: "../etc", maxLen: 40, want: "etc"},
-		{name: "trims leading and trailing dashes", value: "  -hello-  ", maxLen: 40, want: "hello"},
-		{name: "caps to max length", value: strings.Repeat("a", 50), maxLen: 8, want: "aaaaaaaa"},
-		{name: "empty when only separators", value: "///", maxLen: 40, want: ""},
+		{name: "Should lowercase and preserve underscores", value: "Task_01", maxLen: 40, want: "task_01"},
+		{name: "Should collapse spaces to a single dash", value: "fix   bug", maxLen: 40, want: "fix-bug"},
+		{name: "Should map path separators to a dash", value: "a/b\\c", maxLen: 40, want: "a-b-c"},
+		{name: "Should strip traversal dots", value: "../etc", maxLen: 40, want: "etc"},
+		{name: "Should trim leading and trailing dashes", value: "  -hello-  ", maxLen: 40, want: "hello"},
+		{name: "Should cap to the max length", value: strings.Repeat("a", 50), maxLen: 8, want: "aaaaaaaa"},
+		{name: "Should be empty when only separators", value: "///", maxLen: 40, want: ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
