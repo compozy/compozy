@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -1084,10 +1085,11 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 	return payload
 }
 
-type failingCLIWriter struct{}
-
-func (failingCLIWriter) Write([]byte) (int, error) {
-	return 0, errors.New("write failed")
+func newTaskRunFlagCommandForTest(t *testing.T, state *commandState) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{Use: "run"}
+	addTaskRunFlags(cmd, state, taskRunFlagOptions{includeName: true})
+	return cmd
 }
 
 func TestResolveTaskRunMultipleMode(t *testing.T) {
@@ -1102,12 +1104,12 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
 		}
-		if mode != "enqueued" {
+		if mode != workspacecfg.TaskRunMultipleModeEnqueued {
 			t.Fatalf("mode = %q, want enqueued", mode)
 		}
 	})
 
-	t.Run("Should fallback to enqueued with warning", func(t *testing.T) {
+	t.Run("Should honor configured parallel mode without fallback message", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
@@ -1119,11 +1121,64 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
 		}
-		if mode != "enqueued" {
-			t.Fatalf("mode = %q, want enqueued", mode)
+		if mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", mode)
 		}
-		if !containsAll(stderr.String(), "V2", "worktree isolation", "enqueued") {
-			t.Fatalf("fallback stderr = %q", stderr.String())
+		if stderr.Len() != 0 {
+			t.Fatalf("expected no fallback message, got %q", stderr.String())
+		}
+	})
+
+	t.Run("Should resolve --parallel to parallel when config is unset", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", mode)
+		}
+	})
+
+	t.Run("Should let --parallel override configured enqueued mode", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("enqueued")
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", mode)
+		}
+	})
+
+	t.Run("Should let explicit --parallel=false override configured parallel mode", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "false"); err != nil {
+			t.Fatalf("set --parallel=false: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeEnqueued {
+			t.Fatalf("mode = %q, want enqueued", mode)
 		}
 	})
 
@@ -1137,17 +1192,125 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 			t.Fatalf("expected invalid mode error, got %v", err)
 		}
 	})
+}
 
-	t.Run("Should surface write failure when fallback message cannot be written", func(t *testing.T) {
+func TestResolveTaskRunMultipleParallelLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default to workspace default when unset", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
-		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
-		cmd := &cobra.Command{}
-		cmd.SetErr(failingCLIWriter{})
-		_, err := state.resolveTaskRunMultipleMode(cmd)
-		if err == nil || !strings.Contains(err.Error(), "write multi-run fallback message") {
-			t.Fatalf("expected fallback write error, got %v", err)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != workspacecfg.DefaultRunMultipleParallelLimit {
+			t.Fatalf("limit = %d, want %d", limit, workspacecfg.DefaultRunMultipleParallelLimit)
+		}
+	})
+
+	t.Run("Should use configured limit when flag is unset", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleParallelLimit = intPointer(5)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != 5 {
+			t.Fatalf("limit = %d, want 5", limit)
+		}
+	})
+
+	t.Run("Should let --parallel-limit override config and default", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleParallelLimit = intPointer(5)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "3"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != 3 {
+			t.Fatalf("limit = %d, want 3", limit)
+		}
+	})
+
+	t.Run("Should reject zero limit", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "0"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		_, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err == nil || !strings.Contains(err.Error(), "must be greater than 0") {
+			t.Fatalf("expected zero-limit error, got %v", err)
+		}
+	})
+
+	t.Run("Should reject negative limit", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "-1"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		_, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err == nil || !strings.Contains(err.Error(), "must be greater than 0") {
+			t.Fatalf("expected negative-limit error, got %v", err)
+		}
+	})
+}
+
+func TestRejectMultipleOnlyParallelFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow run without parallel flags", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+			t.Fatalf("rejectMultipleOnlyParallelFlags() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject --parallel without --multiple", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		err := rejectMultipleOnlyParallelFlags(cmd)
+		if err == nil || !strings.Contains(err.Error(), "--parallel is only valid with --multiple") {
+			t.Fatalf("expected --parallel rejection, got %v", err)
+		}
+	})
+
+	t.Run("Should reject --parallel-limit without --multiple", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "3"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		err := rejectMultipleOnlyParallelFlags(cmd)
+		if err == nil || !strings.Contains(err.Error(), "--parallel-limit is only valid with --multiple") {
+			t.Fatalf("expected --parallel-limit rejection, got %v", err)
 		}
 	})
 }

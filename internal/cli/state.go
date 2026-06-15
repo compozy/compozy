@@ -33,6 +33,8 @@ type runtimeConfig struct {
 	dryRun                        bool
 	autoCommit                    bool
 	concurrent                    int
+	parallel                      bool
+	parallelLimit                 int
 	batchSize                     int
 	attachMode                    string
 	untilClean                    bool

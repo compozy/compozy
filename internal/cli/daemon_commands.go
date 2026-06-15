@@ -515,12 +515,15 @@ The CLI resolves the workspace root and attach mode locally, ensures the daemon
 is running, and then sends the workflow request over the daemon transport.
 
 Use --multiple with one comma-separated slug list to start several task workflows
-through one daemon-owned parent run. V1 runs the queue in enqueued order;
-configured parallel mode prints a V2 worktree-isolation fallback message before
-sending enqueued execution to the daemon.`,
+through one daemon-owned parent run. The queue runs in enqueued order by default.
+Pass --parallel (or set run_multiple_mode = "parallel") to run children in
+parallel with git worktree isolation, and --parallel-limit to bound the
+concurrent child fanout.`,
 		Example: `  compozy tasks run my-feature
   compozy tasks run --multiple alpha,beta --stream
   compozy tasks run --multiple alpha,beta --detach
+  compozy tasks run --multiple alpha,beta --parallel
+  compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3
   compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
   compozy tasks run my-feature --stream
   compozy tasks run my-feature --detach
@@ -548,6 +551,20 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"multiple",
 		"",
 		"Comma-separated task workflow slugs to run through one daemon-owned parent queue",
+	)
+	cmd.Flags().BoolVar(
+		&state.parallel,
+		"parallel",
+		false,
+		"Run --multiple task workflows in parallel with git worktree isolation "+
+			"(overrides run_multiple_mode; valid only with --multiple)",
+	)
+	cmd.Flags().IntVar(
+		&state.parallelLimit,
+		"parallel-limit",
+		workspacecfg.DefaultRunMultipleParallelLimit,
+		"Maximum number of child runs started at once in --parallel mode "+
+			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
 	)
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVarP(
@@ -590,6 +607,9 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
 	if commandFlagChanged(cmd, "multiple") {
 		return s.runTaskWorkflowsMultiple(cmd, args)
+	}
+	if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+		return withExitCode(1, err)
 	}
 
 	ctx, stop := signalCommandContext(cmd)
@@ -673,6 +693,10 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
+	if err != nil {
+		return withExitCode(1, err)
+	}
 	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
 		return withExitCode(2, err)
@@ -684,13 +708,17 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	}
 	s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client)
 
-	run, err := client.StartTaskRunMultiple(ctx, apicore.TaskRunMultipleRequest{
+	request := apicore.TaskRunMultipleRequest{
 		Workspace:        s.workspaceRoot,
 		Slugs:            slugs,
 		Mode:             mode,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
-	})
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		request.ParallelLimit = parallelLimit
+	}
+	run, err := client.StartTaskRunMultiple(ctx, request)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -740,19 +768,31 @@ func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobr
 	return nil
 }
 
+// rejectMultipleOnlyParallelFlags rejects --parallel and --parallel-limit when
+// they are used without --multiple, before any daemon contact.
+func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") {
+		return errors.New("--parallel is only valid with --multiple")
+	}
+	if commandFlagChanged(cmd, "parallel-limit") {
+		return errors.New("--parallel-limit is only valid with --multiple")
+	}
+	return nil
+}
+
+// resolveTaskRunMultipleMode resolves the multi-run scheduling mode with
+// precedence: --parallel, then configured run_multiple_mode, then enqueued.
 func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, error) {
-	mode := s.projectConfig.Tasks.Run.EffectiveRunMultipleMode()
-	switch mode {
-	case workspacecfg.TaskRunMultipleModeEnqueued:
-		return mode, nil
-	case workspacecfg.TaskRunMultipleModeParallel:
-		if _, err := fmt.Fprintln(
-			cmd.ErrOrStderr(),
-			"parallel multi-task execution is planned for V2 with git worktree isolation; running this queue in enqueued mode.",
-		); err != nil {
-			return "", fmt.Errorf("write multi-run fallback message: %w", err)
+	if commandFlagChanged(cmd, "parallel") {
+		if s.parallel {
+			return workspacecfg.TaskRunMultipleModeParallel, nil
 		}
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
+	}
+	mode := s.projectConfig.Tasks.Run.EffectiveRunMultipleMode()
+	switch mode {
+	case workspacecfg.TaskRunMultipleModeEnqueued, workspacecfg.TaskRunMultipleModeParallel:
+		return mode, nil
 	default:
 		return "", fmt.Errorf("tasks.run.run_multiple_mode must be %q or %q (got %q)",
 			workspacecfg.TaskRunMultipleModeEnqueued,
@@ -760,6 +800,20 @@ func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, e
 			mode,
 		)
 	}
+}
+
+// resolveTaskRunMultipleParallelLimit resolves the parallel fanout limit with
+// precedence: --parallel-limit, then configured run_multiple_parallel_limit,
+// then the default. It rejects zero and negative limits before daemon contact.
+func (s *commandState) resolveTaskRunMultipleParallelLimit(cmd *cobra.Command) (int, error) {
+	limit := s.projectConfig.Tasks.Run.EffectiveRunMultipleParallelLimit()
+	if commandFlagChanged(cmd, "parallel-limit") {
+		limit = s.parallelLimit
+	}
+	if limit <= 0 {
+		return 0, fmt.Errorf("--parallel-limit must be greater than 0 (got %d)", limit)
+	}
+	return limit, nil
 }
 
 type taskRunBusyWorkspace struct {

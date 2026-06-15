@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1313,71 +1314,147 @@ func TestTasksRunMultipleCommandRejectsInvalidSlugListsBeforeDaemon(t *testing.T
 	})
 }
 
-func TestTasksRunMultipleCommandParallelConfigFallsBackToEnqueued(t *testing.T) {
-	t.Run("Should fall back parallel config to enqueued", func(t *testing.T) {
-		t.Parallel()
+func runTasksRunMultipleParallelStubScenario(
+	t *testing.T,
+	config string,
+	extraArgs ...string,
+) (apicore.TaskRunMultipleRequest, string, string) {
+	t.Helper()
 
-		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
-		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
-			[]string{
-				"status: pending",
-				"title: Alpha Task",
-				"type: backend",
-				"complexity: low",
-			},
-			"# Task 1: Alpha Task",
-		))
-		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
-		writeCLIWorkspaceConfig(t, workspaceRoot, `
+	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Alpha Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Alpha Task",
+	))
+	writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+	if strings.TrimSpace(config) != "" {
+		writeCLIWorkspaceConfig(t, workspaceRoot, config)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startMultipleRun: apicore.Run{
+			RunID:            "run-task-multi-parallel",
+			Mode:             "task_multi",
+			Status:           "running",
+			PresentationMode: attachModeDetach,
+			StartedAt:        time.Date(2026, 4, 17, 13, 7, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	args := append([]string{"tasks", "run", "--multiple", "alpha,beta", "--detach"}, extraArgs...)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, args...)
+	if err != nil {
+		t.Fatalf("execute tasks run --multiple parallel: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if readyClient.startMultipleCalls != 1 {
+		t.Fatalf("StartTaskRunMultiple calls = %d, want 1", readyClient.startMultipleCalls)
+	}
+	return readyClient.startMultipleRequest, stdout, stderr
+}
+
+func TestTasksRunMultipleCommandForwardsParallelModeAndLimit(t *testing.T) {
+	t.Run("Should forward parallel mode from --parallel flag", func(t *testing.T) {
+		request, _, stderr := runTasksRunMultipleParallelStubScenario(t, "", "--parallel")
+		if request.Mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", request.Mode)
+		}
+		if request.ParallelLimit != workspacecfg.DefaultRunMultipleParallelLimit {
+			t.Fatalf(
+				"parallel limit = %d, want %d",
+				request.ParallelLimit,
+				workspacecfg.DefaultRunMultipleParallelLimit,
+			)
+		}
+		if strings.Contains(stderr, "enqueued mode") {
+			t.Fatalf("expected no enqueued fallback message, got stderr %q", stderr)
+		}
+	})
+
+	t.Run("Should forward parallel limit from --parallel-limit flag", func(t *testing.T) {
+		request, _, _ := runTasksRunMultipleParallelStubScenario(t, "", "--parallel", "--parallel-limit", "3")
+		if request.Mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", request.Mode)
+		}
+		if request.ParallelLimit != 3 {
+			t.Fatalf("parallel limit = %d, want 3", request.ParallelLimit)
+		}
+	})
+
+	t.Run("Should forward configured parallel mode without fallback message", func(t *testing.T) {
+		request, stdout, stderr := runTasksRunMultipleParallelStubScenario(t, `
 [tasks.run]
 run_multiple_mode = "parallel"
 `)
-		withWorkingDir(t, workspaceRoot)
-
-		readyClient := &stubDaemonCommandClient{
-			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
-			health: apicore.DaemonHealth{Ready: true},
-			startMultipleRun: apicore.Run{
-				RunID:            "run-task-multi-parallel",
-				Mode:             "task_multi",
-				Status:           "running",
-				PresentationMode: attachModeDetach,
-				StartedAt:        time.Date(2026, 4, 17, 13, 7, 0, 0, time.UTC),
-			},
+		if request.Mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", request.Mode)
 		}
-		installTestCLIReadyDaemonBootstrap(t, readyClient)
-
-		defaults := allowBundledSkillsForExecutionTests()
-		defaults.isInteractive = func() bool { return false }
-		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
-		stdout, stderr, err := executeCommandCapturingProcessIO(
-			t,
-			cmd,
-			nil,
-			"tasks",
-			"run",
-			"--multiple",
-			"alpha,beta",
-			"--detach",
-		)
-		if err != nil {
-			t.Fatalf(
-				"execute tasks run --multiple parallel fallback: %v\nstdout:\n%s\nstderr:\n%s",
-				err,
-				stdout,
-				stderr,
-			)
-		}
-		if readyClient.startMultipleRequest.Mode != "enqueued" {
-			t.Fatalf("mode = %q, want enqueued fallback", readyClient.startMultipleRequest.Mode)
-		}
-		if !containsAll(stderr, "V2", "worktree isolation", "enqueued") {
-			t.Fatalf("expected fallback message mentioning V2 and worktree isolation, got %q", stderr)
+		if strings.Contains(stderr, "enqueued mode") || strings.Contains(stderr, "worktree isolation") {
+			t.Fatalf("expected no enqueued fallback message, got stderr %q", stderr)
 		}
 		if !strings.Contains(stdout, "task multi-run started: run-task-multi-parallel") {
 			t.Fatalf("unexpected stdout: %q", stdout)
 		}
 	})
+}
+
+func TestTasksRunCommandRejectsParallelFlagsWithoutMultiple(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "Should reject --parallel without --multiple",
+			args: []string{"tasks", "run", "demo", "--parallel"},
+			want: "--parallel is only valid with --multiple",
+		},
+		{
+			name: "Should reject --parallel-limit without --multiple",
+			args: []string{"tasks", "run", "demo", "--parallel-limit", "3"},
+			want: "--parallel-limit is only valid with --multiple",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+				resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+					t.Fatal("daemon bootstrap should not run for invalid parallel flag usage")
+					return compozyconfig.HomePaths{}, nil
+				},
+			})
+
+			defaults := allowBundledSkillsForExecutionTests()
+			defaults.isInteractive = func() bool { return false }
+			cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+			stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, tc.args...)
+			if err == nil {
+				t.Fatalf("expected parallel flag rejection\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+			}
+			var exitErr *commandExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+				t.Fatalf("expected exit code 1, got %v", err)
+			}
+			if stdout != "" {
+				t.Fatalf("expected no stdout, got %q", stdout)
+			}
+			if !strings.Contains(stderr, tc.want) {
+				t.Fatalf("stderr = %q, want %q", stderr, tc.want)
+			}
+		})
+	}
 }
 
 func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
@@ -1495,8 +1572,8 @@ func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *t
 	})
 }
 
-func TestTasksRunMultipleCommandInProcessParallelConfigStreamsEnqueuedQueue(t *testing.T) {
-	t.Run("Should stream enqueued queue for in-process parallel config fallback", func(t *testing.T) {
+func TestTasksRunMultipleCommandInProcessParallelModeRejectedByDaemon(t *testing.T) {
+	t.Run("Should surface daemon rejection when forwarding parallel mode", func(t *testing.T) {
 		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
 		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
 			[]string{
@@ -1514,7 +1591,7 @@ run_multiple_mode = "parallel"
 `)
 		withWorkingDir(t, workspaceRoot)
 
-		client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{})
+		installInProcessCLIDaemonBootstrapWithConfig(t, daemon.RunManagerConfig{})
 
 		defaults := allowBundledSkillsForExecutionTests()
 		defaults.isInteractive = func() bool { return false }
@@ -1530,36 +1607,17 @@ run_multiple_mode = "parallel"
 			"--stream",
 			"--dry-run",
 		)
-		if err != nil {
-			t.Fatalf(
-				"execute in-process tasks run --multiple parallel stream: %v\nstdout:\n%s\nstderr:\n%s",
-				err,
-				stdout,
-				stderr,
-			)
+		// task_03 forwards parallel mode to the daemon; the daemon scheduler does
+		// not accept parallel until task_06, so it must reject the request here.
+		if err == nil {
+			t.Fatalf("expected daemon to reject parallel mode\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 		}
-		if !containsAll(stderr, "V2", "worktree isolation", "enqueued") {
-			t.Fatalf("expected fallback message mentioning V2 and worktree isolation, got %q", stderr)
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() == 0 {
+			t.Fatalf("expected non-zero command exit error, got %v", err)
 		}
-		if !containsAll(
-			stdout,
-			"task queue started | mode=enqueued total=2",
-			"task[1/2] alpha completed",
-			"task[2/2] beta completed",
-		) {
-			t.Fatalf("expected enqueued parent queue stream output, got %q\nstderr:\n%s", stdout, stderr)
-		}
-
-		runID := taskMultiRunIDFromCLIOutput(t, stdout)
-		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
-		if err != nil {
-			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
-		}
-		assertTaskMultiSnapshotItemsForCLI(t, snapshot, []string{"alpha", "beta"})
-
-		started := taskMultiStartedPayloadForCLI(t, client, runID)
-		if started.Mode != "enqueued" {
-			t.Fatalf("task.multi.started mode = %q, want enqueued", started.Mode)
+		if !strings.Contains(stderr, "parallel run_multiple mode is not supported by the daemon") {
+			t.Fatalf("expected daemon parallel rejection message, got stderr %q", stderr)
 		}
 	})
 }
@@ -2826,31 +2884,6 @@ func assertTaskMultiSnapshotItemsForCLI(
 	if !slices.Equal(gotSlugs, wantSlugs) {
 		t.Fatalf("snapshot slugs = %#v, want %#v", gotSlugs, wantSlugs)
 	}
-}
-
-func taskMultiStartedPayloadForCLI(
-	t *testing.T,
-	client *inProcessDaemonCommandClient,
-	runID string,
-) kinds.TaskRunMultiplePayload {
-	t.Helper()
-
-	page, err := client.ListRunEvents(context.Background(), runID, apicore.StreamCursor{}, 100)
-	if err != nil {
-		t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
-	}
-	for _, event := range page.Events {
-		if event.Kind != eventspkg.EventKindTaskRunMultipleStarted {
-			continue
-		}
-		var payload kinds.TaskRunMultiplePayload
-		if err := json.Unmarshal(event.Payload, &payload); err != nil {
-			t.Fatalf("decode %s payload: %v", event.Kind, err)
-		}
-		return payload
-	}
-	t.Fatalf("%s event not found for run %q", eventspkg.EventKindTaskRunMultipleStarted, runID)
-	return kinds.TaskRunMultiplePayload{}
 }
 
 func withWorkingDir(t *testing.T, dir string) {

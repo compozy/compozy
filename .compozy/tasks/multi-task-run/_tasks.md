@@ -6,7 +6,7 @@
 |---|-------|--------|------------|--------------|
 | 01 | Add Parallel Limit Workspace Configuration | completed | medium | — |
 | 02 | Extend Multi-Run API and Client Contracts | completed | high | task_01 |
-| 03 | Add Parallel CLI Controls and Request Wiring | pending | medium | task_01, task_02 |
+| 03 | Add Parallel CLI Controls and Request Wiring | completed | medium | task_01, task_02 |
 | 04 | Add Multi-Run Event and Snapshot Worktree Metadata | pending | high | task_02 |
 | 05 | Add Git Worktree Allocation and Path Planning | pending | high | task_04 |
 | 06 | Refactor `task_multi` Into a Mode-Aware Scheduler | pending | high | task_03, task_04 |
