@@ -425,7 +425,7 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			},
 			Items: []contract.TaskRunMultipleItem{
 				{Slug: "queued", Status: "queued"},
-				{Slug: "active", Status: "active", RunID: "run-active"},
+				{Slug: "running", Status: "running", RunID: "run-running"},
 				{Slug: "completed", Status: "completed", RunID: "run-completed"},
 				{Slug: "failed", Status: "failed", RunID: "run-failed", ErrorText: "boom"},
 				{Slug: "canceled", Status: "canceled"},
@@ -443,11 +443,11 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			t.Fatalf("decoded multi-run item count = %d, want 5", len(snapshot.Items))
 		}
 		if snapshot.Items[0].Status != "queued" ||
-			snapshot.Items[1].Status != "active" ||
+			snapshot.Items[1].Status != "running" ||
 			snapshot.Items[2].Status != "completed" ||
 			snapshot.Items[3].Status != "failed" ||
 			snapshot.Items[4].Status != "canceled" {
-			t.Fatalf("decoded multi-run items = %#v, want queued/active/completed/failed/canceled", snapshot.Items)
+			t.Fatalf("decoded multi-run items = %#v, want queued/running/completed/failed/canceled", snapshot.Items)
 		}
 	})
 
@@ -560,7 +560,7 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 			Items: []contract.TaskRunMultipleItem{
 				{
 					Slug:           "task_01",
-					Status:         "active",
+					Status:         "running",
 					RunID:          "run-01",
 					WorktreePath:   "/home/user/.compozy/state/worktrees/ws/parent/01-task_01",
 					BaseBranch:     "main",

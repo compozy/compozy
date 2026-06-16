@@ -1588,7 +1588,7 @@
                         "type": "string"
                     },
                     "status": {
-                        "enum": ["queued", "active", "completed", "failed", "canceled"],
+                        "enum": ["queued", "running", "completed", "failed", "canceled"],
                         "type": "string"
                     },
                     "worktree_path": {

@@ -1033,7 +1033,7 @@ export interface components {
             run_id?: string;
             slug: string;
             /** @enum {string} */
-            status: "queued" | "active" | "completed" | "failed" | "canceled";
+            status: "queued" | "running" | "completed" | "failed" | "canceled";
             worktree_path?: string;
             worktree_status?: string;
         };

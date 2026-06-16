@@ -1645,3 +1645,62 @@ func TestRunManagerTaskRunMultipleParallelEmitsSingleItemQueuedPerChild(t *testi
 		}
 	})
 }
+
+// TestTaskRunMultipleItemStatusesMatchOpenAPIEnum guards the public daemon
+// contract: every status the daemon emits and snapshots for a multi-run child
+// item must appear in the published OpenAPI enum for TaskRunMultipleItem.status.
+// Without this guard, the runtime can emit a value (e.g. "running") that the
+// generated TypeScript union in web/src/generated/compozy-openapi.d.ts rejects,
+// which is the live-snapshot regression flagged in the PR #200 review.
+func TestTaskRunMultipleItemStatusesMatchOpenAPIEnum(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should match runtime statuses to the OpenAPI enum", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeStatuses := []string{
+			taskMultiItemStatusQueued,
+			taskMultiItemStatusRunning,
+			taskMultiItemStatusCompleted,
+			taskMultiItemStatusFailed,
+			taskMultiItemStatusCanceled,
+		}
+
+		specPath := filepath.Join("..", "..", "openapi", "compozy-daemon.json")
+		raw, err := os.ReadFile(specPath)
+		if err != nil {
+			t.Fatalf("read OpenAPI spec %s: %v", specPath, err)
+		}
+		var spec struct {
+			Components struct {
+				Schemas struct {
+					TaskRunMultipleItem struct {
+						Properties struct {
+							Status struct {
+								Enum []string `json:"enum"`
+							} `json:"status"`
+						} `json:"properties"`
+					} `json:"TaskRunMultipleItem"`
+				} `json:"schemas"`
+			} `json:"components"`
+		}
+		if err := json.Unmarshal(raw, &spec); err != nil {
+			t.Fatalf("decode OpenAPI spec: %v", err)
+		}
+
+		schemaEnum := spec.Components.Schemas.TaskRunMultipleItem.Properties.Status.Enum
+		if len(schemaEnum) == 0 {
+			t.Fatalf("OpenAPI TaskRunMultipleItem.status enum is empty in %s", specPath)
+		}
+
+		wantRuntime := slices.Sorted(slices.Values(runtimeStatuses))
+		gotSchema := slices.Sorted(slices.Values(schemaEnum))
+		if !slices.Equal(wantRuntime, gotSchema) {
+			t.Fatalf(
+				"OpenAPI status enum %v does not match runtime statuses %v",
+				schemaEnum,
+				runtimeStatuses,
+			)
+		}
+	})
+}
