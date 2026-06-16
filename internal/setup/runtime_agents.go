@@ -8,6 +8,7 @@ import (
 var runtimeIDEAgentNames = map[string]string{
 	"claude":       "claude-code",
 	"codex":        "codex",
+	"copilot":      "github-copilot",
 	"cursor-agent": "cursor",
 	"droid":        "droid",
 	"gemini":       "gemini-cli",

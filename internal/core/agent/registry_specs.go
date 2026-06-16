@@ -282,6 +282,7 @@ var (
 			ProbeArgs:      []string{"acp", "--help"},
 			DocsURL:        "https://devin.ai/cli",
 			InstallHint:    "Install Devin CLI and expose `devin` on PATH so `devin acp` works.",
+			// devin acp resolves its own defaults; do not pass model, reasoning, or access flags.
 			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
