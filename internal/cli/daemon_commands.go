@@ -483,7 +483,7 @@ func parseDaemonBuildIdentity(value string) (daemonBuildIdentity, bool) {
 
 func isStableDaemonBuildCommit(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
-	return normalized != "" && normalized != noneValue
+	return normalized != "" && normalized != version.UnstampedCommit
 }
 
 func isDevBuildVersion(value string) bool {
@@ -596,12 +596,15 @@ The CLI resolves the workspace root and attach mode locally, ensures the daemon
 is running, and then sends the workflow request over the daemon transport.
 
 Use --multiple with one comma-separated slug list to start several task workflows
-through one daemon-owned parent run. V1 runs the queue in enqueued order;
-configured parallel mode prints a V2 worktree-isolation fallback message before
-sending enqueued execution to the daemon.`,
+through one daemon-owned parent run. The queue runs in enqueued order by default.
+Pass --parallel (or set run_multiple_mode = "parallel") to run children in
+parallel with git worktree isolation, and --parallel-limit to bound the
+concurrent child fanout.`,
 		Example: `  compozy tasks run my-feature
   compozy tasks run --multiple alpha,beta --stream
   compozy tasks run --multiple alpha,beta --detach
+  compozy tasks run --multiple alpha,beta --parallel
+  compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3
   compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
   compozy tasks run my-feature --stream
   compozy tasks run my-feature --detach
@@ -629,6 +632,20 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"multiple",
 		"",
 		"Comma-separated task workflow slugs to run through one daemon-owned parent queue",
+	)
+	cmd.Flags().BoolVar(
+		&state.parallel,
+		"parallel",
+		false,
+		"Run --multiple task workflows in parallel with git worktree isolation "+
+			"(overrides run_multiple_mode; valid only with --multiple)",
+	)
+	cmd.Flags().IntVar(
+		&state.parallelLimit,
+		"parallel-limit",
+		workspacecfg.DefaultRunMultipleParallelLimit,
+		"Maximum number of child runs started at once in --parallel mode "+
+			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
 	)
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVarP(
@@ -671,6 +688,9 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
 	if commandFlagChanged(cmd, "multiple") {
 		return s.runTaskWorkflowsMultiple(cmd, args)
+	}
+	if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+		return withExitCode(1, err)
 	}
 
 	ctx, stop := signalCommandContext(cmd)
@@ -773,6 +793,17 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	// An explicit --parallel-limit has no effect in enqueued mode; reject it
+	// instead of silently discarding the value when mode resolves to enqueued.
+	if commandFlagChanged(cmd, "parallel-limit") && mode != workspacecfg.TaskRunMultipleModeParallel {
+		return withExitCode(2, errors.New(
+			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
+		))
+	}
 	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
 		return withExitCode(2, err)
@@ -784,13 +815,17 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	}
 	s.warnIfOtherWorkspaceTaskRunsActive(ctx, cmd, client)
 
-	run, err := client.StartTaskRunMultiple(ctx, apicore.TaskRunMultipleRequest{
+	request := apicore.TaskRunMultipleRequest{
 		Workspace:        s.workspaceRoot,
 		Slugs:            slugs,
 		Mode:             mode,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
-	})
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		request.ParallelLimit = parallelLimit
+	}
+	run, err := client.StartTaskRunMultiple(ctx, request)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -840,19 +875,31 @@ func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobr
 	return nil
 }
 
+// rejectMultipleOnlyParallelFlags rejects --parallel and --parallel-limit when
+// they are used without --multiple, before any daemon contact.
+func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") {
+		return errors.New("--parallel is only valid with --multiple")
+	}
+	if commandFlagChanged(cmd, "parallel-limit") {
+		return errors.New("--parallel-limit is only valid with --multiple")
+	}
+	return nil
+}
+
+// resolveTaskRunMultipleMode resolves the multi-run scheduling mode with
+// precedence: --parallel, then configured run_multiple_mode, then enqueued.
 func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, error) {
-	mode := s.projectConfig.Tasks.Run.EffectiveRunMultipleMode()
-	switch mode {
-	case workspacecfg.TaskRunMultipleModeEnqueued:
-		return mode, nil
-	case workspacecfg.TaskRunMultipleModeParallel:
-		if _, err := fmt.Fprintln(
-			cmd.ErrOrStderr(),
-			"parallel multi-task execution is planned for V2 with git worktree isolation; running this queue in enqueued mode.",
-		); err != nil {
-			return "", fmt.Errorf("write multi-run fallback message: %w", err)
+	if commandFlagChanged(cmd, "parallel") {
+		if s.parallel {
+			return workspacecfg.TaskRunMultipleModeParallel, nil
 		}
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
+	}
+	mode := s.projectConfig.Tasks.Run.EffectiveRunMultipleMode()
+	switch mode {
+	case workspacecfg.TaskRunMultipleModeEnqueued, workspacecfg.TaskRunMultipleModeParallel:
+		return mode, nil
 	default:
 		return "", fmt.Errorf("tasks.run.run_multiple_mode must be %q or %q (got %q)",
 			workspacecfg.TaskRunMultipleModeEnqueued,
@@ -860,6 +907,20 @@ func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, e
 			mode,
 		)
 	}
+}
+
+// resolveTaskRunMultipleParallelLimit resolves the parallel fanout limit with
+// precedence: --parallel-limit, then configured run_multiple_parallel_limit,
+// then the default. It rejects zero and negative limits before daemon contact.
+func (s *commandState) resolveTaskRunMultipleParallelLimit(cmd *cobra.Command) (int, error) {
+	limit := s.projectConfig.Tasks.Run.EffectiveRunMultipleParallelLimit()
+	if commandFlagChanged(cmd, "parallel-limit") {
+		limit = s.parallelLimit
+	}
+	if limit <= 0 {
+		return 0, fmt.Errorf("--parallel-limit must be greater than 0 (got %d)", limit)
+	}
+	return limit, nil
 }
 
 type taskRunBusyWorkspace struct {
@@ -1121,15 +1182,7 @@ func handleStartedTaskRunMultiple(
 	if run.PresentationMode == attachModeUI {
 		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
 			if errors.Is(err, errRunSettledBeforeUIAttach) {
-				if watchErr := watchCLIRunUntilTerminalSuccess(
-					ctx,
-					cmd.OutOrStdout(),
-					client,
-					run.RunID,
-				); watchErr != nil {
-					return mapDaemonCommandError(watchErr)
-				}
-				return nil
+				return streamTaskRunMultipleToTerminal(ctx, cmd, client, run.RunID)
 			}
 			return mapDaemonCommandError(err)
 		}
@@ -1141,10 +1194,31 @@ func handleStartedTaskRunMultiple(
 	if run.PresentationMode != attachModeStream {
 		return nil
 	}
-	if err := watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
-		return mapDaemonCommandError(err)
+	return streamTaskRunMultipleToTerminal(ctx, cmd, client, run.RunID)
+}
+
+// streamTaskRunMultipleToTerminal streams the parent queue until it settles, then
+// always writes the final per-child worktree handoff. The aggregate watch error
+// (failed/canceled/crashed -> exit 1) takes precedence so the command still exits
+// non-zero, while the handoff is printed best-effort even on failure.
+func streamTaskRunMultipleToTerminal(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+	runID string,
+) error {
+	watchErr := watchCLIRunUntilTerminalSuccess(ctx, cmd.OutOrStdout(), client, runID)
+	// A canceled context (e.g. Ctrl+C) makes the watch return nil; skip the
+	// handoff fetch, which would otherwise fail with a context-canceled error and
+	// turn a clean interrupt into a reported failure.
+	if ctx.Err() != nil {
+		return nil
 	}
-	return nil
+	handoffErr := writeTaskRunMultipleHandoff(ctx, cmd.OutOrStdout(), client, runID)
+	if watchErr != nil {
+		return mapDaemonCommandError(watchErr)
+	}
+	return handoffErr
 }
 
 func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {

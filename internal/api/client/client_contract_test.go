@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/workspace"
 )
 
 type idleSSEBody struct {
@@ -147,6 +148,64 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 			t.Fatalf("run = %#v, want multi-run parent", run)
 		}
 	})
+
+	t.Run("Should forward the resolved parallel mode and limit", func(t *testing.T) {
+		t.Parallel()
+
+		client := &Client{
+			target:  Target{SocketPath: "/tmp/compozy.sock"},
+			baseURL: "http://daemon",
+			httpClient: &http.Client{
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					if req.URL.Path != "/api/task-runs/multiple" {
+						t.Fatalf("path = %s, want /api/task-runs/multiple", req.URL.Path)
+					}
+					var body contract.TaskRunMultipleRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode request body: %v", err)
+					}
+					if want := []string{"task_01", "task_02"}; !reflect.DeepEqual(body.Slugs, want) {
+						t.Fatalf("slugs = %#v, want %#v", body.Slugs, want)
+					}
+					if body.Mode != workspace.TaskRunMultipleModeParallel {
+						t.Fatalf("mode = %q, want %q", body.Mode, workspace.TaskRunMultipleModeParallel)
+					}
+					if body.ParallelLimit != workspace.DefaultRunMultipleParallelLimit {
+						t.Fatalf(
+							"parallel_limit = %d, want %d",
+							body.ParallelLimit,
+							workspace.DefaultRunMultipleParallelLimit,
+						)
+					}
+					if body.PresentationMode != "stream" {
+						t.Fatalf("presentation_mode = %q, want stream", body.PresentationMode)
+					}
+					if string(body.RuntimeOverrides) != `{"persist":true}` {
+						t.Fatalf("runtime_overrides = %s, want persist override", body.RuntimeOverrides)
+					}
+					return jsonResponse(
+						http.StatusCreated,
+						`{"run":{"run_id":"multi-run-1","mode":"task_multi"}}`,
+					), nil
+				}),
+			},
+		}
+
+		run, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
+			Workspace:        "/tmp/workspace",
+			Slugs:            []string{"task_01", "task_02"},
+			Mode:             workspace.TaskRunMultipleModeParallel,
+			ParallelLimit:    workspace.DefaultRunMultipleParallelLimit,
+			PresentationMode: "stream",
+			RuntimeOverrides: json.RawMessage(`{"persist":true}`),
+		})
+		if err != nil {
+			t.Fatalf("StartTaskRunMultiple() error = %v", err)
+		}
+		if run.RunID != "multi-run-1" {
+			t.Fatalf("run = %#v, want multi-run parent", run)
+		}
+	})
 }
 
 func TestClientRunJobControlPostsPauseAndMessageRequests(t *testing.T) {
@@ -223,7 +282,15 @@ func TestClientGetTaskRunMultipleSnapshotUsesDedicatedRouteAndDecodes(t *testing
 				Mode:  "task_multi",
 			},
 			Items: []contract.TaskRunMultipleItem{
-				{Slug: "alpha", Status: "completed", RunID: "run-alpha"},
+				{
+					Slug:           "alpha",
+					Status:         "completed",
+					RunID:          "run-alpha",
+					WorktreePath:   "/home/user/.compozy/state/worktrees/ws/parent/01-alpha",
+					BaseBranch:     "main",
+					BaseCommit:     "abc123def456",
+					WorktreeStatus: "preserved",
+				},
 				{Slug: "beta", Status: "failed", RunID: "run-beta", ErrorText: "boom"},
 				{Slug: "gamma", Status: "canceled"},
 			},

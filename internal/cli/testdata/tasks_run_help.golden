@@ -4,9 +4,10 @@ The CLI resolves the workspace root and attach mode locally, ensures the daemon
 is running, and then sends the workflow request over the daemon transport.
 
 Use --multiple with one comma-separated slug list to start several task workflows
-through one daemon-owned parent run. V1 runs the queue in enqueued order;
-configured parallel mode prints a V2 worktree-isolation fallback message before
-sending enqueued execution to the daemon.
+through one daemon-owned parent run. The queue runs in enqueued order by default.
+Pass --parallel (or set run_multiple_mode = "parallel") to run children in
+parallel with git worktree isolation, and --parallel-limit to bound the
+concurrent child fanout.
 
 Usage:
   compozy tasks run [slug] [flags]
@@ -15,6 +16,8 @@ Examples:
   compozy tasks run my-feature
   compozy tasks run --multiple alpha,beta --stream
   compozy tasks run --multiple alpha,beta --detach
+  compozy tasks run --multiple alpha,beta --parallel
+  compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3
   compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
   compozy tasks run my-feature --stream
   compozy tasks run my-feature --detach
@@ -35,6 +38,8 @@ Flags:
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --multiple string                  Comma-separated task workflow slugs to run through one daemon-owned parent queue
       --name string                      Task workflow slug (defaults to the positional slug)
+      --parallel                         Run --multiple task workflows in parallel with git worktree isolation (overrides run_multiple_mode; valid only with --multiple)
+      --parallel-limit int               Maximum number of child runs started at once in --parallel mode (overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple) (default 2)
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
   -r, --recursive                        Recursively discover task_NNN.md files in subdirectories. Skips dot-, underscore-prefixed, reviews-*, adrs, and memory directories. Note: DB sync and extension Host API still operate on the slug root only.
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)

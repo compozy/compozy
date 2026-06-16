@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -33,6 +34,7 @@ type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
 	mode             string
 	presentationMode string
+	parallelLimit    int
 	items            []preparedTaskMultiItem
 }
 
@@ -173,12 +175,54 @@ func (m *RunManager) prepareTaskMultiStart(
 			return nil, err
 		}
 	}
+	parallelLimit := 0
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		limit, err := m.parallelLimitForRequest(ctx, workspaceRow.RootDir, req.ParallelLimit)
+		if err != nil {
+			return nil, err
+		}
+		parallelLimit = limit
+	}
 	return &preparedTaskMulti{
 		workspace:        workspaceRow,
 		mode:             mode,
 		presentationMode: presentationMode,
+		parallelLimit:    parallelLimit,
 		items:            items,
 	}, nil
+}
+
+// parallelLimitForRequest resolves the bounded-fanout limit for a parallel parent
+// run. An explicit positive request limit wins; otherwise the workspace
+// [tasks.run] configuration supplies the effective limit. The CLI only populates
+// the request limit for parallel runs, so a missing or zero value must fall back
+// to the configured/default limit rather than fail.
+func (m *RunManager) parallelLimitForRequest(
+	ctx context.Context,
+	workspaceRoot string,
+	requestLimit int,
+) (int, error) {
+	if requestLimit > 0 {
+		return requestLimit, nil
+	}
+	projectCfg, err := m.loadProjectConfig(ctx, workspaceRoot)
+	if err != nil {
+		return 0, fmt.Errorf("load workspace config for parallel limit: %w", err)
+	}
+	return resolveTaskMultiParallelLimit(requestLimit, projectCfg.Tasks.Run.EffectiveRunMultipleParallelLimit()), nil
+}
+
+// resolveTaskMultiParallelLimit applies the parallel-limit precedence: a positive
+// request limit wins, otherwise the configured effective limit is used, clamped to
+// a minimum of one so the fanout limiter always has at least one slot.
+func resolveTaskMultiParallelLimit(requestLimit, configuredLimit int) int {
+	if requestLimit > 0 {
+		return requestLimit
+	}
+	if configuredLimit < 1 {
+		return workspacecfg.DefaultRunMultipleParallelLimit
+	}
+	return configuredLimit
 }
 
 func taskMultiParentRuntimeConfig(raw json.RawMessage, workspaceRoot string) (*model.RuntimeConfig, error) {
@@ -248,15 +292,11 @@ func resolveTaskMultiMode(raw string) (string, error) {
 	case "", workspacecfg.TaskRunMultipleModeEnqueued:
 		return workspacecfg.TaskRunMultipleModeEnqueued, nil
 	case workspacecfg.TaskRunMultipleModeParallel:
-		return "", taskMultiValidationProblem(
-			"unsupported_run_multiple_mode",
-			"parallel run_multiple mode is not supported by the daemon; use enqueued",
-			"mode",
-		)
+		return workspacecfg.TaskRunMultipleModeParallel, nil
 	default:
 		return "", taskMultiValidationProblem(
 			"invalid_run_multiple_mode",
-			"run_multiple mode must be enqueued",
+			"run_multiple mode must be enqueued or parallel",
 			"mode",
 		)
 	}
@@ -305,20 +345,54 @@ func (m *RunManager) executeTaskMultiRun(active *activeRun, row globaldb.Run) {
 	m.finishRun(active, row, fallback)
 }
 
+// runTaskMultiCoordinator is the mode-aware scheduler entrypoint. It emits the
+// shared queue-start and item-queued lifecycle events, then dispatches to the
+// branch for the resolved multi-run mode. Both branches reuse the shared event,
+// cancellation, and terminal helpers so enqueued and parallel execution stay one
+// state machine instead of two divergent coordinators.
 func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 	if active == nil || active.taskMulti == nil {
 		return errors.New("task multi run is not configured")
 	}
 	prepared := active.taskMulti
 	total := len(prepared.items)
-	if err := m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
-		Mode:   prepared.mode,
-		Status: runStatusRunning,
-		Slugs:  preparedTaskMultiSlugs(prepared.items),
-		Total:  total,
-	}); err != nil {
+	if err := m.emitTaskMultiQueueStarted(active, prepared, total); err != nil {
 		return err
 	}
+	switch prepared.mode {
+	case workspacecfg.TaskRunMultipleModeParallel:
+		// Parallel mode re-emits item_queued with worktree metadata per child as it
+		// is allocated, so the shared upfront seeding is skipped to avoid a second
+		// item_queued event per child (which doubled --stream output). The started
+		// event already seeds every item into the snapshot.
+		return m.runTaskMultiParallelQueue(active, prepared, total)
+	default:
+		if err := m.emitTaskMultiItemsQueued(active, prepared, total); err != nil {
+			return err
+		}
+		return m.runTaskMultiEnqueuedQueue(active, prepared, total)
+	}
+}
+
+// emitTaskMultiQueueStarted emits the parent "queue started" lifecycle event
+// shared by every scheduler branch. It records the resolved mode, requested
+// slugs, and total item count.
+func (m *RunManager) emitTaskMultiQueueStarted(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
+		Mode:          prepared.mode,
+		Status:        runStatusRunning,
+		Slugs:         preparedTaskMultiSlugs(prepared.items),
+		Total:         total,
+		ParallelLimit: prepared.parallelLimit,
+	})
+}
+
+// emitTaskMultiItemsQueued emits one ordered "item queued" event per prepared
+// child. The enqueued branch uses it to seed all items before any child starts;
+// the parallel branch skips it and instead re-emits item_queued with worktree
+// metadata per child as it is allocated, relying on the started event for upfront
+// snapshot seeding.
+func (m *RunManager) emitTaskMultiItemsQueued(active *activeRun, prepared *preparedTaskMulti, total int) error {
 	for idx, item := range prepared.items {
 		if err := m.emitTaskMultiItemEvent(
 			active,
@@ -333,6 +407,27 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// emitTaskMultiQueueCompleted emits the terminal "queue completed" event for a
+// fully successful queue. It is the shared queue-terminal helper for branches
+// that complete every child.
+func (m *RunManager) emitTaskMultiQueueCompleted(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleQueueCompleted, kinds.TaskRunMultiplePayload{
+		Mode:   prepared.mode,
+		Status: runStatusCompleted,
+		Slugs:  preparedTaskMultiSlugs(prepared.items),
+		Total:  total,
+	})
+}
+
+// runTaskMultiEnqueuedQueue preserves the V1 sequential coordinator behavior: it
+// starts one child at a time and waits for each child to reach a terminal status
+// before starting the next. A canceled parent context or a failed child stops the
+// queue and cancels the remaining queued siblings via the shared cancellation
+// helper.
+func (m *RunManager) runTaskMultiEnqueuedQueue(active *activeRun, prepared *preparedTaskMulti, total int) error {
 	for idx, item := range prepared.items {
 		if err := context.Cause(active.ctx); err != nil {
 			if emitErr := m.cancelTaskMultiQueuedItems(active, prepared.items, idx, total, err); emitErr != nil {
@@ -344,22 +439,84 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 			return err
 		}
 	}
-	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleQueueCompleted, kinds.TaskRunMultiplePayload{
-		Mode:   prepared.mode,
-		Status: runStatusCompleted,
-		Slugs:  preparedTaskMultiSlugs(prepared.items),
-		Total:  total,
-	})
+	return m.emitTaskMultiQueueCompleted(active, prepared, total)
 }
 
-func (m *RunManager) runTaskMultiChildAt(
+// runTaskMultiParallelQueue runs the queued children concurrently, each in its
+// own isolated git worktree, bounded by the resolved parallel limit. It resolves
+// the parent workspace base branch and HEAD once, then fans out child workers up
+// to the limit using a counting semaphore. Every worker goroutine is owned by the
+// parent coordinator and joined via the WaitGroup before the parent reaches a
+// terminal status. Execution is fail-late: a child that cannot start, fails, or
+// crashes is recorded but does NOT cancel healthy siblings; the aggregate parent
+// result is computed only after every active child settles. Parent cancellation
+// stops launching new children, cancels in-flight children through the shared wait
+// helper, and marks the not-started items canceled. Both modes reuse the shared
+// queue lifecycle, item-event, and cancellation helpers so they stay one state
+// machine.
+func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	base, err := m.resolveTaskMultiParallelBase(active, prepared)
+	if err != nil {
+		if cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, 0, total, err); cancelErr != nil {
+			return errors.Join(err, cancelErr)
+		}
+		return err
+	}
+	limit := prepared.parallelLimit
+	if limit < 1 {
+		limit = 1
+	}
+	sem := make(chan struct{}, limit)
+	childErrs := make([]error, len(prepared.items))
+	var wg sync.WaitGroup
+	launched := 0
+	var cancelCause error
+	for idx := range prepared.items {
+		if cause := context.Cause(active.ctx); cause != nil {
+			cancelCause = cause
+			break
+		}
+		select {
+		case sem <- struct{}{}:
+		case <-active.ctx.Done():
+			cancelCause = context.Cause(active.ctx)
+		}
+		if cancelCause != nil {
+			break
+		}
+		index := idx
+		item := prepared.items[idx]
+		wg.Add(1)
+		launched++
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			childErrs[index] = m.runTaskMultiParallelChild(active, prepared, item, index, total, base)
+		}()
+	}
+	wg.Wait()
+	if cancelCause == nil {
+		if cause := context.Cause(active.ctx); cause != nil {
+			cancelCause = cause
+		}
+	}
+	return m.finalizeTaskMultiParallel(active, prepared, total, childErrs, launched, cancelCause)
+}
+
+// runTaskMultiParallelChild starts one parallel child in its allocated worktree
+// and waits for it to settle WITHOUT canceling siblings. Unlike the enqueued
+// path, a start failure or non-completed terminal status is recorded and returned
+// for aggregation while healthy siblings keep running (fail-late). Parent
+// cancellation still cancels the in-flight child via the shared wait helper.
+func (m *RunManager) runTaskMultiParallelChild(
 	active *activeRun,
 	prepared *preparedTaskMulti,
 	item preparedTaskMultiItem,
 	index int,
 	total int,
+	base taskMultiWorktreeBase,
 ) error {
-	childRun, err := m.startTaskMultiChild(active, prepared, item, index, total)
+	childRun, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
 	if err != nil {
 		emitErr := m.emitTaskMultiItemEvent(
 			active,
@@ -371,9 +528,159 @@ func (m *RunManager) runTaskMultiChildAt(
 			"",
 			err.Error(),
 		)
-		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, err)
-		return errors.Join(err, emitErr, cancelErr)
+		return errors.Join(fmt.Errorf("start child %s: %w", item.slug, err), emitErr)
 	}
+	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
+	if err != nil {
+		var childCancelErr error
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			childCancelErr = m.Cancel(detachContext(active.ctx), childRun.RunID)
+		}
+		emitErr := m.emitTaskMultiItemEvent(
+			active,
+			eventspkg.EventKindTaskRunMultipleItemCanceled,
+			item,
+			index,
+			total,
+			taskMultiItemStatusCanceled,
+			childRun.RunID,
+			err.Error(),
+		)
+		return errors.Join(fmt.Errorf("await child %s: %w", item.slug, err), childCancelErr, emitErr)
+	}
+	if emitErr := m.finishTaskMultiChild(active, item, index, total, childRow); emitErr != nil {
+		return emitErr
+	}
+	if childRow.Status == runStatusCompleted {
+		return nil
+	}
+	if childRow.Status == runStatusCancelled {
+		return fmt.Errorf("task multi child run %s for %s was canceled", childRow.RunID, item.slug)
+	}
+	return fmt.Errorf(
+		"task multi child run %s for %s ended with status %s: %s",
+		childRow.RunID,
+		item.slug,
+		childRow.Status,
+		childRow.ErrorText,
+	)
+}
+
+// finalizeTaskMultiParallel computes the terminal parent result after every
+// launched child has settled. When the parent was canceled it marks the
+// not-started items canceled and returns the cancellation cause; otherwise it
+// returns the aggregate child failure (if any) or emits the queue-completed event.
+func (m *RunManager) finalizeTaskMultiParallel(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	total int,
+	childErrs []error,
+	launched int,
+	cancelCause error,
+) error {
+	if cancelCause != nil {
+		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, launched, total, cancelCause)
+		return errors.Join(cancelCause, errors.Join(childErrs...), cancelErr)
+	}
+	if aggErr := aggregateTaskMultiParallelResult(prepared.items, childErrs); aggErr != nil {
+		return aggErr
+	}
+	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+}
+
+// aggregateTaskMultiParallelResult returns nil when every child completed
+// successfully; otherwise it returns a single error naming the failed child slugs
+// in queue order and wrapping the underlying child errors.
+func aggregateTaskMultiParallelResult(items []preparedTaskMultiItem, childErrs []error) error {
+	failedSlugs := make([]string, 0, len(childErrs))
+	errs := make([]error, 0, len(childErrs))
+	for idx, childErr := range childErrs {
+		if childErr == nil {
+			continue
+		}
+		slug := ""
+		if idx < len(items) {
+			slug = items[idx].slug
+		}
+		failedSlugs = append(failedSlugs, slug)
+		errs = append(errs, childErr)
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"parallel multi-run failed for %d of %d children (%s): %w",
+		len(errs),
+		len(childErrs),
+		strings.Join(failedSlugs, ", "),
+		errors.Join(errs...),
+	)
+}
+
+// resolveTaskMultiParallelBase resolves the parent workspace branch and HEAD
+// commit once per parallel parent run via the worktree allocator. A detached
+// parent checkout (or a workspace outside a git repository) surfaces as the
+// parent run failure so no child worktrees are created from an ambiguous base.
+func (m *RunManager) resolveTaskMultiParallelBase(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+) (taskMultiWorktreeBase, error) {
+	if m.worktreeAllocator == nil {
+		return taskMultiWorktreeBase{}, errors.New("daemon: task multi worktree allocator is not configured")
+	}
+	return m.worktreeAllocator.ResolveBase(active.ctx, prepared.workspace.RootDir)
+}
+
+func (m *RunManager) runTaskMultiChildAt(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+) error {
+	childRun, err := m.startTaskMultiChild(active, prepared, item, index, total)
+	if err != nil {
+		return m.handleTaskMultiChildStartFailure(active, prepared, item, index, total, err)
+	}
+	return m.awaitTaskMultiChild(active, prepared, item, index, total, childRun)
+}
+
+// handleTaskMultiChildStartFailure marks a child that never started as failed and
+// cancels the remaining queued siblings. It is shared by the enqueued and
+// parallel branches so a start failure produces one consistent terminal shape.
+func (m *RunManager) handleTaskMultiChildStartFailure(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	startErr error,
+) error {
+	emitErr := m.emitTaskMultiItemEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleChildFailed,
+		item,
+		index,
+		total,
+		taskMultiItemStatusFailed,
+		"",
+		startErr.Error(),
+	)
+	cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, index+1, total, startErr)
+	return errors.Join(startErr, emitErr, cancelErr)
+}
+
+// awaitTaskMultiChild waits for one started child to reach a terminal status and
+// records the matching item event. A child failure or cancellation cancels the
+// remaining queued siblings. It is shared by the enqueued and parallel branches.
+func (m *RunManager) awaitTaskMultiChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRun apicore.Run,
+) error {
 	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
 	if err != nil {
 		var childCancelErr error
@@ -461,6 +768,153 @@ func (m *RunManager) startTaskMultiChild(
 		return apicore.Run{}, errors.Join(err, cancelErr)
 	}
 	return childRun, nil
+}
+
+// startTaskMultiWorktreeChild allocates an isolated git worktree for a parallel
+// child, registers the worktree as its own workspace, remaps the child runtime
+// onto that workspace, and launches the child task run under the parent run id.
+// Worktree metadata is emitted before the child launches so snapshots and manual
+// cleanup survive a crash between allocation and child start. The original parent
+// stays registered under its own workspace; children are linked only by
+// parent_run_id and the multi-run snapshot, not by a shared workspace id.
+func (m *RunManager) startTaskMultiWorktreeChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	base taskMultiWorktreeBase,
+) (apicore.Run, error) {
+	if m.worktreeAllocator == nil {
+		return apicore.Run{}, errors.New("daemon: task multi worktree allocator is not configured")
+	}
+	allocation, err := m.worktreeAllocator.Allocate(active.ctx, taskMultiWorktreeSpec{
+		WorkspaceRoot: prepared.workspace.RootDir,
+		ParentRunID:   active.runID,
+		Slug:          item.slug,
+		Index:         index,
+		Base:          base,
+	})
+	if err != nil {
+		return apicore.Run{}, fmt.Errorf("allocate worktree for %s: %w", item.slug, err)
+	}
+	if err := m.emitTaskMultiEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleItemQueued,
+		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusQueued, "", "", allocation),
+	); err != nil {
+		return apicore.Run{}, err
+	}
+	workspaceRow, workflowID, _, err := m.resolveWorkflowContext(detachContext(active.ctx), allocation.Path, item.slug)
+	if err != nil {
+		return apicore.Run{}, fmt.Errorf("register worktree workspace for %s: %w", item.slug, err)
+	}
+	// Align the runtime workspace root with the registered worktree workspace row
+	// so database identity and runtime filesystem paths match (ADR-007).
+	tasksDir, err := requireTaskMultiWorktreeTaskDir(workspaceRow.RootDir, item.slug)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	runtimeCfg, err := remapTaskMultiChildRuntime(item.runtimeCfg, workspaceRow.RootDir, item.slug, active.runID)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	childRun, err := m.startRun(active.ctx, startRunSpec{
+		workspace:        workspaceRow,
+		workflowID:       workflowID,
+		workflowSlug:     item.slug,
+		workflowRoot:     tasksDir,
+		mode:             runModeTask,
+		presentationMode: prepared.presentationMode,
+		parentRunID:      active.runID,
+		runtimeCfg:       runtimeCfg,
+	})
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	if err := m.emitTaskMultiEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleChildStarted,
+		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusRunning, childRun.RunID, "", allocation),
+	); err != nil {
+		cancelErr := m.Cancel(detachContext(active.ctx), childRun.RunID)
+		return apicore.Run{}, errors.Join(err, cancelErr)
+	}
+	return childRun, nil
+}
+
+// remapTaskMultiChildRuntime clones base and repoints it at the worktree: the
+// workspace root becomes the worktree path, the task directory becomes the slug
+// directory inside the worktree, and ParentRunID links the child to the parent
+// multi-run. All other runtime overrides are preserved.
+func remapTaskMultiChildRuntime(
+	base *model.RuntimeConfig,
+	worktreePath string,
+	slug string,
+	parentRunID string,
+) (*model.RuntimeConfig, error) {
+	if base == nil {
+		return nil, errors.New("daemon: task multi child runtime config is required")
+	}
+	trimmedPath := strings.TrimSpace(worktreePath)
+	if trimmedPath == "" {
+		return nil, errors.New("daemon: task multi worktree path is required")
+	}
+	trimmedSlug := strings.TrimSpace(slug)
+	if trimmedSlug == "" {
+		return nil, errors.New("daemon: task multi child slug is required")
+	}
+	remapped := base.Clone()
+	if remapped == nil {
+		return nil, errors.New("daemon: task multi child runtime config is required")
+	}
+	remapped.WorkspaceRoot = trimmedPath
+	remapped.TasksDir = model.TaskDirectoryForWorkspace(trimmedPath, trimmedSlug)
+	remapped.ParentRunID = strings.TrimSpace(parentRunID)
+	return remapped, nil
+}
+
+// requireTaskMultiWorktreeTaskDir resolves and validates the slug task directory
+// inside an allocated worktree, returning a slug-specific error when the worktree
+// base commit does not contain the task directory.
+func requireTaskMultiWorktreeTaskDir(worktreePath string, slug string) (string, error) {
+	tasksDir := model.TaskDirectoryForWorkspace(strings.TrimSpace(worktreePath), strings.TrimSpace(slug))
+	if err := requireDirectory(tasksDir); err != nil {
+		return "", fmt.Errorf(
+			"task multi worktree %s is missing task directory for slug %q: %w",
+			strings.TrimSpace(worktreePath),
+			strings.TrimSpace(slug),
+			err,
+		)
+	}
+	return tasksDir, nil
+}
+
+// taskMultiWorktreeItemPayload builds a parent item event payload that carries
+// worktree metadata alongside the standard item fields. The snapshot builder
+// merges these additively, so emitting worktree fields before child launch keeps
+// metadata recoverable even if the child run id does not exist yet.
+func taskMultiWorktreeItemPayload(
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	status string,
+	childRunID string,
+	errorText string,
+	allocation taskMultiWorktreeAllocation,
+) kinds.TaskRunMultiplePayload {
+	return kinds.TaskRunMultiplePayload{
+		Slug:           item.slug,
+		Index:          index,
+		Total:          total,
+		Status:         status,
+		ChildRunID:     strings.TrimSpace(childRunID),
+		Error:          strings.TrimSpace(errorText),
+		WorktreePath:   allocation.Path,
+		BaseBranch:     allocation.BaseBranch,
+		BaseCommit:     allocation.BaseCommit,
+		WorktreeStatus: allocation.WorktreeStatus,
+	}
 }
 
 func (m *RunManager) finishTaskMultiChild(
@@ -593,6 +1047,10 @@ func (m *RunManager) emitTaskMultiEvent(
 	if active == nil || active.scope == nil || active.scope.RunJournal() == nil {
 		return nil
 	}
+	// Serialize emission so concurrent parallel-mode child workers append item
+	// events atomically and in per-item order.
+	active.emitMu.Lock()
+	defer active.emitMu.Unlock()
 	payload.RunID = active.runID
 	if payload.Mode == "" && active.taskMulti != nil {
 		payload.Mode = active.taskMulti.mode
@@ -649,16 +1107,38 @@ func (b *taskMultiSnapshotBuilder) applyEvent(event eventspkg.Event) error {
 		if err != nil {
 			return err
 		}
-		item := b.ensureItem(payload.Slug)
-		item.Status = strings.TrimSpace(payload.Status)
-		if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
-			item.RunID = childRunID
-		}
-		if errorText := strings.TrimSpace(payload.Error); errorText != "" {
-			item.ErrorText = errorText
-		}
+		applyTaskMultiItemMetadata(b.ensureItem(payload.Slug), payload)
 	}
 	return nil
+}
+
+// applyTaskMultiItemMetadata merges one parent-event payload into a snapshot
+// item. Non-empty fields overwrite prior values so later events refine earlier
+// state, while empty fields are ignored. This lets worktree metadata be recorded
+// before a child run id exists (metadata-only updates emitted before child
+// launch) and keeps older parent events without worktree fields compatible.
+func applyTaskMultiItemMetadata(item *apicore.TaskRunMultipleItem, payload kinds.TaskRunMultiplePayload) {
+	if status := strings.TrimSpace(payload.Status); status != "" {
+		item.Status = status
+	}
+	if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
+		item.RunID = childRunID
+	}
+	if errorText := strings.TrimSpace(payload.Error); errorText != "" {
+		item.ErrorText = errorText
+	}
+	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
+		item.WorktreePath = worktreePath
+	}
+	if baseBranch := strings.TrimSpace(payload.BaseBranch); baseBranch != "" {
+		item.BaseBranch = baseBranch
+	}
+	if baseCommit := strings.TrimSpace(payload.BaseCommit); baseCommit != "" {
+		item.BaseCommit = baseCommit
+	}
+	if worktreeStatus := strings.TrimSpace(payload.WorktreeStatus); worktreeStatus != "" {
+		item.WorktreeStatus = worktreeStatus
+	}
 }
 
 func decodeTaskMultiPayload(event eventspkg.Event) (kinds.TaskRunMultiplePayload, error) {

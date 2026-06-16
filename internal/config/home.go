@@ -14,6 +14,7 @@ const (
 	AgentsDirName     = "agents"
 	ExtensionsDirName = "extensions"
 	StateDirName      = "state"
+	WorktreesDirName  = "worktrees"
 	DaemonDirName     = "daemon"
 	DBDirName         = "db"
 	RunsDirName       = "runs"
@@ -36,6 +37,7 @@ type HomePaths struct {
 	AgentsDir     string
 	ExtensionsDir string
 	StateDir      string
+	WorktreesDir  string
 	DaemonDir     string
 	SocketPath    string
 	LockPath      string
@@ -79,6 +81,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		AgentsDir:     filepath.Join(root, AgentsDirName),
 		ExtensionsDir: filepath.Join(root, ExtensionsDirName),
 		StateDir:      filepath.Join(root, StateDirName),
+		WorktreesDir:  filepath.Join(root, StateDirName, WorktreesDirName),
 		DaemonDir:     filepath.Join(root, DaemonDirName),
 		SocketPath:    filepath.Join(root, DaemonDirName, DaemonSocketName),
 		LockPath:      filepath.Join(root, DaemonDirName, DaemonLockName),
@@ -102,6 +105,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 		{paths.AgentsDir, 0o755},
 		{paths.ExtensionsDir, 0o755},
 		{paths.StateDir, 0o755},
+		{paths.WorktreesDir, 0o755},
 		{paths.DaemonDir, 0o700},
 		{paths.DBDir, 0o755},
 		{paths.RunsDir, 0o755},

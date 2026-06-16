@@ -205,6 +205,7 @@ func prepareHostRuntime(
 	runManager, err := NewRunManager(RunManagerConfig{
 		GlobalDB:             persistence.db,
 		LifecycleContext:     runCtx,
+		WorktreesRoot:        currentHost.Paths().WorktreesDir,
 		ShutdownDrainTimeout: persistence.settings.ShutdownDrainTimeout,
 	})
 	if err != nil {

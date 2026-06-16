@@ -1027,15 +1027,20 @@ export interface components {
             workspace?: string;
         };
         TaskRunMultipleItem: {
+            base_branch?: string;
+            base_commit?: string;
             error_text?: string;
             run_id?: string;
             slug: string;
             /** @enum {string} */
-            status: "queued" | "active" | "completed" | "failed" | "canceled";
+            status: "queued" | "running" | "completed" | "failed" | "canceled";
+            worktree_path?: string;
+            worktree_status?: string;
         };
         TaskRunMultipleRequest: {
             /** @enum {string} */
             mode?: "enqueued" | "parallel";
+            parallel_limit?: number;
             presentation_mode?: string;
             runtime_overrides?: {
                 [key: string]: unknown;

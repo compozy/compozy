@@ -30,3 +30,30 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Ready for Next Run
 - Clean verification command used for final gate: `env -u GOROOT -u NO_COLOR TURBO_FORCE=true make verify`.
+
+---
+
+## V2 (Worktree-Backed Parallel) — Extend Multi-Run API and Client Contracts
+
+> The notes above are the OLD V1 task_02 (daemon transport bring-up). The notes below are the CURRENT V2 task_02 from `_tasks.md` (extend the existing contracts for parallel + worktree metadata). Different scope; same file number.
+
+### Objective Snapshot
+- Additively extend the existing multi-run request/snapshot contracts so callers pass the resolved parallel limit and snapshots carry per-child worktree metadata. Routes unchanged; old payloads stay compatible. Event payload + scheduler-built snapshot reconstruction are out of scope (task_04).
+
+### Implemented
+- `internal/api/contract/types.go`: `TaskRunMultipleRequest.ParallelLimit int` (`parallel_limit,omitempty`, after `Mode`); `TaskRunMultipleItem` gained `WorktreePath`/`BaseBranch`/`BaseCommit`/`WorktreeStatus` strings (`*,omitempty`). `apicore.*` are type aliases, so no change in `interfaces.go`.
+- `internal/api/client/client.go` `StartTaskRunMultiple`: forwards `ParallelLimit`. `runs.go` `GetTaskRunMultipleSnapshot` needs no change — `TaskRunMultipleSnapshotResponse.Decode()` copies whole item structs.
+- `internal/api/core/handlers.go` `StartTaskRunMultiple`: forwards `body.ParallelLimit` into `Tasks.StartRunMultiple`.
+- `openapi/compozy-daemon.json`: `parallel_limit` (`type integer`, `minimum 1`) on request; four item string fields. Regenerated `web/src/generated/compozy-openapi.d.ts` via `node scripts/codegen.mjs`.
+
+### Tests Added
+- `internal/api/contract/contract_test.go`: `TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata` — encode includes/omits `parallel_limit`; snapshot item round-trips worktree metadata in order; legacy item without worktree fields decodes.
+- `internal/api/client/client_contract_test.go`: added "forward resolved parallel mode and limit" subtest; extended snapshot decode test with worktree metadata.
+- `internal/api/core/handlers_smoke_test.go`: `TestStartTaskRunMultipleForwardsParallelLimitAndMode` via a `capturingTaskService` embedding `smokeTaskService`.
+- `internal/api/httpapi/openapi_contract_test.go`: asserts `parallel_limit` on request schema and the four worktree fields on the item schema.
+
+### Errors / Corrections
+- `make lint` failed with gocritic `rangeValCopy` (item struct now exactly 128 bytes) at `internal/core/run/ui/multi_remote.go:172` and `internal/cli/root_command_execution_test.go:2816`. Root-cause fix: range by index; `newMultiRunTab` now takes `*apicore.TaskRunMultipleItem`; test loop uses `item := &snapshot.Items[i]`. No suppression.
+
+### Verification
+- `env -u GOROOT` for all Go/make commands. Passed: `make fmt`, `make lint` (0 issues), `make test` (3539 tests, 3 intentional skips), `make go-build`, `make frontend-typecheck` (codegen-check in sync).

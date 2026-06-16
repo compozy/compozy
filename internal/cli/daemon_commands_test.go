@@ -21,6 +21,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -1153,10 +1154,11 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 	return payload
 }
 
-type failingCLIWriter struct{}
-
-func (failingCLIWriter) Write([]byte) (int, error) {
-	return 0, errors.New("write failed")
+func newTaskRunFlagCommandForTest(t *testing.T, state *commandState) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{Use: "run"}
+	addTaskRunFlags(cmd, state, taskRunFlagOptions{includeName: true})
+	return cmd
 }
 
 func TestResolveTaskRunMultipleMode(t *testing.T) {
@@ -1171,12 +1173,12 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
 		}
-		if mode != "enqueued" {
+		if mode != workspacecfg.TaskRunMultipleModeEnqueued {
 			t.Fatalf("mode = %q, want enqueued", mode)
 		}
 	})
 
-	t.Run("Should fallback to enqueued with warning", func(t *testing.T) {
+	t.Run("Should honor configured parallel mode without fallback message", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
@@ -1188,11 +1190,64 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
 		}
-		if mode != "enqueued" {
-			t.Fatalf("mode = %q, want enqueued", mode)
+		if mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", mode)
 		}
-		if !containsAll(stderr.String(), "V2", "worktree isolation", "enqueued") {
-			t.Fatalf("fallback stderr = %q", stderr.String())
+		if stderr.Len() != 0 {
+			t.Fatalf("expected no fallback message, got %q", stderr.String())
+		}
+	})
+
+	t.Run("Should resolve --parallel to parallel when config is unset", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", mode)
+		}
+	})
+
+	t.Run("Should let --parallel override configured enqueued mode", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("enqueued")
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeParallel {
+			t.Fatalf("mode = %q, want parallel", mode)
+		}
+	})
+
+	t.Run("Should let explicit --parallel=false override configured parallel mode", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "false"); err != nil {
+			t.Fatalf("set --parallel=false: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeEnqueued {
+			t.Fatalf("mode = %q, want enqueued", mode)
 		}
 	})
 
@@ -1206,17 +1261,125 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 			t.Fatalf("expected invalid mode error, got %v", err)
 		}
 	})
+}
 
-	t.Run("Should surface write failure when fallback message cannot be written", func(t *testing.T) {
+func TestResolveTaskRunMultipleParallelLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default to workspace default when unset", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
-		state.projectConfig.Tasks.Run.RunMultipleMode = stringPointer("parallel")
-		cmd := &cobra.Command{}
-		cmd.SetErr(failingCLIWriter{})
-		_, err := state.resolveTaskRunMultipleMode(cmd)
-		if err == nil || !strings.Contains(err.Error(), "write multi-run fallback message") {
-			t.Fatalf("expected fallback write error, got %v", err)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != workspacecfg.DefaultRunMultipleParallelLimit {
+			t.Fatalf("limit = %d, want %d", limit, workspacecfg.DefaultRunMultipleParallelLimit)
+		}
+	})
+
+	t.Run("Should use configured limit when flag is unset", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleParallelLimit = intPointer(5)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != 5 {
+			t.Fatalf("limit = %d, want 5", limit)
+		}
+	})
+
+	t.Run("Should let --parallel-limit override config and default", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.projectConfig.Tasks.Run.RunMultipleParallelLimit = intPointer(5)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "3"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != 3 {
+			t.Fatalf("limit = %d, want 3", limit)
+		}
+	})
+
+	t.Run("Should reject zero limit", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "0"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		_, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err == nil || !strings.Contains(err.Error(), "must be greater than 0") {
+			t.Fatalf("expected zero-limit error, got %v", err)
+		}
+	})
+
+	t.Run("Should reject negative limit", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "-1"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		_, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err == nil || !strings.Contains(err.Error(), "must be greater than 0") {
+			t.Fatalf("expected negative-limit error, got %v", err)
+		}
+	})
+}
+
+func TestRejectMultipleOnlyParallelFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow run without parallel flags", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+			t.Fatalf("rejectMultipleOnlyParallelFlags() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject --parallel without --multiple", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		err := rejectMultipleOnlyParallelFlags(cmd)
+		if err == nil || !strings.Contains(err.Error(), "--parallel is only valid with --multiple") {
+			t.Fatalf("expected --parallel rejection, got %v", err)
+		}
+	})
+
+	t.Run("Should reject --parallel-limit without --multiple", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel-limit", "3"); err != nil {
+			t.Fatalf("set --parallel-limit: %v", err)
+		}
+		err := rejectMultipleOnlyParallelFlags(cmd)
+		if err == nil || !strings.Contains(err.Error(), "--parallel-limit is only valid with --multiple") {
+			t.Fatalf("expected --parallel-limit rejection, got %v", err)
 		}
 	})
 }
@@ -1369,6 +1532,107 @@ func TestRenderObservedTaskMultiLifecycleFallbacks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRenderObservedTaskMultiItemIncludesWorktreePath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		kind    eventspkg.EventKind
+		payload kinds.TaskRunMultiplePayload
+		want    string
+	}{
+		{
+			name: "Should include worktree path on child started",
+			kind: eventspkg.EventKindTaskRunMultipleChildStarted,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "running",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			},
+			want: "task[1/2] alpha running | run=child-alpha | worktree=/wt/01-alpha\n",
+		},
+		{
+			name: "Should include worktree path on child completed",
+			kind: eventspkg.EventKindTaskRunMultipleChildCompleted,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug: "alpha", Index: 0, Total: 2, Status: "completed",
+				ChildRunID: "child-alpha", WorktreePath: "/wt/01-alpha",
+			},
+			want: "task[1/2] alpha completed | run=child-alpha | worktree=/wt/01-alpha\n",
+		},
+		{
+			name: "Should include worktree path and error on child failed",
+			kind: eventspkg.EventKindTaskRunMultipleChildFailed,
+			payload: kinds.TaskRunMultiplePayload{
+				Slug: "beta", Index: 1, Total: 2, Status: "failed",
+				ChildRunID: "child-beta", WorktreePath: "/wt/02-beta", Error: "boom",
+			},
+			want: "task[2/2] beta failed | run=child-beta | worktree=/wt/02-beta | boom\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+			got := renderObservedRunEvent(eventspkg.Event{Kind: tc.kind, Payload: raw})
+			if got != tc.want {
+				t.Fatalf("renderObservedRunEvent() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFormatTaskRunMultipleHandoff(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should format children in requested order", func(t *testing.T) {
+		t.Parallel()
+		snapshot := apicore.TaskRunMultipleSnapshot{
+			Items: []apicore.TaskRunMultipleItem{
+				{
+					Slug: "alpha", Status: "completed", RunID: "child-alpha",
+					WorktreePath: "/wt/01-alpha", BaseBranch: "main",
+				},
+				{
+					Slug: "beta", Status: "failed", RunID: "child-beta",
+					WorktreePath: "/wt/02-beta", ErrorText: "boom",
+				},
+			},
+		}
+		lines := formatTaskRunMultipleHandoff(snapshot)
+		want := []string{
+			"task multi-run handoff:\n",
+			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha | branch=main\n",
+			"  beta failed | run=child-beta | worktree=/wt/02-beta | boom\n",
+		}
+		if !slices.Equal(lines, want) {
+			t.Fatalf("formatTaskRunMultipleHandoff() = %#v, want %#v", lines, want)
+		}
+	})
+
+	t.Run("Should render dash for missing worktree metadata", func(t *testing.T) {
+		t.Parallel()
+		snapshot := apicore.TaskRunMultipleSnapshot{
+			Items: []apicore.TaskRunMultipleItem{{Slug: "alpha", Status: "completed"}},
+		}
+		lines := formatTaskRunMultipleHandoff(snapshot)
+		if len(lines) != 2 || lines[1] != "  alpha completed | run=- | worktree=-\n" {
+			t.Fatalf("unexpected handoff lines: %#v", lines)
+		}
+	})
+
+	t.Run("Should return nil when no items", func(t *testing.T) {
+		t.Parallel()
+		if lines := formatTaskRunMultipleHandoff(apicore.TaskRunMultipleSnapshot{}); lines != nil {
+			t.Fatalf("expected nil handoff, got %#v", lines)
+		}
+	})
 }
 
 func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
@@ -3776,4 +4040,23 @@ func TestArchiveCommandWorkspaceWideUsesFilesystemWhenDaemonCatalogIsEmpty(t *te
 	if payload.SkippedReasons["beta"] == "" {
 		t.Fatalf("expected skip reason for beta, got %#v", payload.SkippedReasons)
 	}
+}
+
+func TestStreamTaskRunMultipleToTerminalSkipsHandoffOnCanceledContext(t *testing.T) {
+	t.Run("Should exit cleanly without fetching the handoff when the context is canceled", func(t *testing.T) {
+		client := &stubDaemonCommandClient{
+			stream:           newStaticClientRunStream(),
+			multiSnapshotErr: errors.New("handoff snapshot must not be fetched after cancel"),
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // simulate Ctrl+C before the queue settles
+
+		cmd := &cobra.Command{}
+		cmd.SetOut(io.Discard)
+		cmd.SetErr(io.Discard)
+
+		if err := streamTaskRunMultipleToTerminal(ctx, cmd, client, "run-task-multi-cancel"); err != nil {
+			t.Fatalf("streamTaskRunMultipleToTerminal() = %v, want nil (clean Ctrl+C exit, handoff skipped)", err)
+		}
+	})
 }

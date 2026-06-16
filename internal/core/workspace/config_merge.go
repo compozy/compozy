@@ -83,7 +83,10 @@ func buildEffectiveTaskRunConfig(
 			workspaceDefaults.OutputFormat,
 			workspace.OutputFormat,
 		),
-		RunMultipleMode:  cloneOptionalValue(preferOverlay(global.RunMultipleMode, workspace.RunMultipleMode)),
+		RunMultipleMode: cloneOptionalValue(preferOverlay(global.RunMultipleMode, workspace.RunMultipleMode)),
+		RunMultipleParallelLimit: cloneOptionalValue(
+			preferOverlay(global.RunMultipleParallelLimit, workspace.RunMultipleParallelLimit),
+		),
 		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		TaskRuntimeRules: mergeTaskRunRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}

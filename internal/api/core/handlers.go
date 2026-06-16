@@ -870,6 +870,7 @@ func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
 		Workspace:        workspace,
 		Slugs:            slugs,
 		Mode:             strings.TrimSpace(body.Mode),
+		ParallelLimit:    body.ParallelLimit,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
 	})

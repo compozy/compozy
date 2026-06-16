@@ -9,6 +9,10 @@ import (
 const (
 	TaskRunMultipleModeEnqueued = "enqueued"
 	TaskRunMultipleModeParallel = "parallel"
+
+	// DefaultRunMultipleParallelLimit is the effective parallel multi-run fanout
+	// limit applied when run_multiple_parallel_limit is unset.
+	DefaultRunMultipleParallelLimit = 2
 )
 
 type Context struct {
@@ -48,12 +52,13 @@ type RuntimeOverrides struct {
 type DefaultsConfig RuntimeOverrides
 
 type TaskRunConfig struct {
-	IncludeCompleted *bool                    `toml:"include_completed"`
-	Recursive        *bool                    `toml:"recursive"`
-	OutputFormat     *string                  `toml:"output_format"`
-	RunMultipleMode  *string                  `toml:"run_multiple_mode"`
-	TUI              *bool                    `toml:"tui"`
-	TaskRuntimeRules *[]model.TaskRuntimeRule `toml:"task_runtime_rules"`
+	IncludeCompleted         *bool                    `toml:"include_completed"`
+	Recursive                *bool                    `toml:"recursive"`
+	OutputFormat             *string                  `toml:"output_format"`
+	RunMultipleMode          *string                  `toml:"run_multiple_mode"`
+	RunMultipleParallelLimit *int                     `toml:"run_multiple_parallel_limit"`
+	TUI                      *bool                    `toml:"tui"`
+	TaskRuntimeRules         *[]model.TaskRuntimeRule `toml:"task_runtime_rules"`
 }
 
 func (cfg TaskRunConfig) EffectiveRunMultipleMode() string {
@@ -65,6 +70,15 @@ func (cfg TaskRunConfig) EffectiveRunMultipleMode() string {
 		return TaskRunMultipleModeEnqueued
 	}
 	return mode
+}
+
+// EffectiveRunMultipleParallelLimit returns the configured parallel multi-run
+// fanout limit, defaulting to DefaultRunMultipleParallelLimit when unset.
+func (cfg TaskRunConfig) EffectiveRunMultipleParallelLimit() int {
+	if cfg.RunMultipleParallelLimit == nil {
+		return DefaultRunMultipleParallelLimit
+	}
+	return *cfg.RunMultipleParallelLimit
 }
 
 type TasksConfig struct {

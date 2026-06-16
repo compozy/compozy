@@ -111,6 +111,11 @@ func sqliteDSN(path string) string {
 	query.Add("_pragma", "foreign_keys(ON)")
 	query.Add("_pragma", "journal_mode(WAL)")
 	query.Add("_pragma", "synchronous(NORMAL)")
+	// Begin write transactions with BEGIN IMMEDIATE so concurrent writers (e.g.
+	// parallel multi-run children) acquire the WAL write lock upfront and wait on
+	// busy_timeout instead of deadlocking on a read-to-write upgrade, which SQLite
+	// reports as an immediate SQLITE_BUSY that busy_timeout cannot retry.
+	query.Add("_txlock", "immediate")
 	u.RawQuery = query.Encode()
 	return u.String()
 }

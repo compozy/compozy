@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -424,7 +425,7 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			},
 			Items: []contract.TaskRunMultipleItem{
 				{Slug: "queued", Status: "queued"},
-				{Slug: "active", Status: "active", RunID: "run-active"},
+				{Slug: "running", Status: "running", RunID: "run-running"},
 				{Slug: "completed", Status: "completed", RunID: "run-completed"},
 				{Slug: "failed", Status: "failed", RunID: "run-failed", ErrorText: "boom"},
 				{Slug: "canceled", Status: "canceled"},
@@ -442,11 +443,11 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			t.Fatalf("decoded multi-run item count = %d, want 5", len(snapshot.Items))
 		}
 		if snapshot.Items[0].Status != "queued" ||
-			snapshot.Items[1].Status != "active" ||
+			snapshot.Items[1].Status != "running" ||
 			snapshot.Items[2].Status != "completed" ||
 			snapshot.Items[3].Status != "failed" ||
 			snapshot.Items[4].Status != "canceled" {
-			t.Fatalf("decoded multi-run items = %#v, want queued/active/completed/failed/canceled", snapshot.Items)
+			t.Fatalf("decoded multi-run items = %#v, want queued/running/completed/failed/canceled", snapshot.Items)
 		}
 	})
 
@@ -497,6 +498,111 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 		}).Decode()
 		if err == nil || !strings.Contains(err.Error(), "missing next_cursor") {
 			t.Fatalf("Decode() error = %v, want missing next_cursor", err)
+		}
+	})
+}
+
+func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should encode parallel_limit only when a positive limit is provided", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name          string
+			parallelLimit int
+			wantField     bool
+		}{
+			{
+				name:          "Should include a resolved limit in the payload",
+				parallelLimit: workspace.DefaultRunMultipleParallelLimit,
+				wantField:     true,
+			},
+			{name: "Should omit an unset limit from the payload", parallelLimit: 0, wantField: false},
+		}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				data, err := json.Marshal(contract.TaskRunMultipleRequest{
+					Workspace:     "/tmp/workspace",
+					Slugs:         []string{"task_01", "task_02"},
+					Mode:          workspace.TaskRunMultipleModeParallel,
+					ParallelLimit: tc.parallelLimit,
+				})
+				if err != nil {
+					t.Fatalf("json.Marshal() error = %v", err)
+				}
+				if got := strings.Contains(string(data), "parallel_limit"); got != tc.wantField {
+					t.Fatalf("parallel_limit present = %v, want %v (payload=%s)", got, tc.wantField, data)
+				}
+
+				var decoded contract.TaskRunMultipleRequest
+				if err := json.Unmarshal(data, &decoded); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if decoded.ParallelLimit != tc.parallelLimit {
+					t.Fatalf("decoded ParallelLimit = %d, want %d", decoded.ParallelLimit, tc.parallelLimit)
+				}
+				if decoded.Mode != workspace.TaskRunMultipleModeParallel {
+					t.Fatalf("decoded Mode = %q, want %q", decoded.Mode, workspace.TaskRunMultipleModeParallel)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve ordered worktree metadata across snapshot items", func(t *testing.T) {
+		t.Parallel()
+
+		want := contract.TaskRunMultipleSnapshot{
+			Run: contract.Run{RunID: "multi-run-1", Mode: "task_multi", Status: "running"},
+			Items: []contract.TaskRunMultipleItem{
+				{
+					Slug:           "task_01",
+					Status:         "running",
+					RunID:          "run-01",
+					WorktreePath:   "/home/user/.compozy/state/worktrees/ws/parent/01-task_01",
+					BaseBranch:     "main",
+					BaseCommit:     "abc123def456",
+					WorktreeStatus: "preserved",
+				},
+				{Slug: "task_02", Status: "queued"},
+			},
+		}
+
+		var decoded contract.TaskRunMultipleSnapshotResponse
+		roundTripJSON(t, contract.TaskRunMultipleSnapshotResponseFromSnapshot(want), &decoded)
+		snapshot := decoded.Decode()
+
+		if !reflect.DeepEqual(snapshot.Items, want.Items) {
+			t.Fatalf("decoded items = %#v, want %#v", snapshot.Items, want.Items)
+		}
+	})
+
+	t.Run("Should decode a snapshot item without worktree metadata", func(t *testing.T) {
+		t.Parallel()
+
+		const legacyResponse = `{"run":{"run_id":"multi-run-1","mode":"task_multi","status":"running"},` +
+			`"items":[{"slug":"task_01","status":"completed","run_id":"run-01"}]}`
+
+		var decoded contract.TaskRunMultipleSnapshotResponse
+		if err := json.Unmarshal([]byte(legacyResponse), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		snapshot := decoded.Decode()
+		if len(snapshot.Items) != 1 {
+			t.Fatalf("decoded item count = %d, want 1", len(snapshot.Items))
+		}
+		item := snapshot.Items[0]
+		if item.Slug != "task_01" || item.Status != "completed" || item.RunID != "run-01" {
+			t.Fatalf("decoded legacy item = %#v, want slug/status/run_id preserved", item)
+		}
+		if item.WorktreePath != "" ||
+			item.BaseBranch != "" ||
+			item.BaseCommit != "" ||
+			item.WorktreeStatus != "" {
+			t.Fatalf("decoded worktree metadata = %#v, want empty for legacy item", item)
 		}
 	})
 }

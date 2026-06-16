@@ -192,6 +192,7 @@ func (c *Client) StartTaskRunMultiple(
 		Workspace:        strings.TrimSpace(req.Workspace),
 		Slugs:            slugs,
 		Mode:             strings.TrimSpace(req.Mode),
+		ParallelLimit:    req.ParallelLimit,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
 	}

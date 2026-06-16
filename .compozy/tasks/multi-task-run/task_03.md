@@ -1,18 +1,18 @@
 ---
 status: completed
-title: Implement Daemon-Owned Sequential Multi-Run Coordinator
+title: Add Parallel CLI Controls and Request Wiring
 type: backend
-complexity: critical
+complexity: medium
 dependencies:
   - task_01
   - task_02
 ---
 
-# Task 3: Implement Daemon-Owned Sequential Multi-Run Coordinator
+# Task 3: Add Parallel CLI Controls and Request Wiring
 
 ## Overview
 
-This task implements the daemon-owned parent queue that makes `Close TUI` keep the whole multi-run running in the background. The coordinator preflights all slugs, starts one normal task child at a time, links child runs to the parent, emits parent lifecycle state, and stops on the first child failure.
+This task adds the user-facing CLI switches for true parallel multi-run execution. It resolves mode and limit precedence, rejects invalid flag combinations early, and passes the resolved values to the daemon request.
 
 <critical>
 - ALWAYS READ the PRD and TechSpec before starting
@@ -23,80 +23,77 @@ This task implements the daemon-owned parent queue that makes `Close TUI` keep t
 </critical>
 
 <requirements>
-- The implementation MUST add a parent daemon run mode for multi-task orchestration, such as `task_multi`.
-- The implementation MUST preflight every requested slug before creating the parent run.
-- The implementation MUST start child runs sequentially in the requested order.
-- Each child task run MUST remain a normal `task` run and MUST set `ParentRunID` to the parent run ID.
-- The coordinator MUST stop on the first failed child run and leave later queued items not started.
-- Parent cancellation MUST cancel the active child and mark queued items canceled.
-- The parent stream MUST expose enough append-only queue state for later TUI attach and reattach.
-- The implementation MUST NOT add parallel execution or worktree orchestration in V1.
+- `tasks run --multiple ... --parallel` MUST resolve multi-run mode to `parallel`.
+- `--parallel` MUST be valid only with `--multiple`.
+- `--parallel-limit <n>` MUST be valid only with `--multiple`.
+- `--parallel-limit <n>` MUST reject zero and negative values before daemon contact.
+- `--parallel` MUST override configured `run_multiple_mode`.
+- `--parallel-limit` MUST override configured `run_multiple_parallel_limit`.
+- The current configured-parallel fallback message MUST be removed.
+- Existing single-task `tasks run <slug>` behavior MUST remain unchanged.
 </requirements>
 
 ## Subtasks
 
-- [x] 3.1 Add parent run mode and active-run accounting for multi-run parents.
-- [x] 3.2 Add preflight logic that validates every slug before parent run creation.
-- [x] 3.3 Add coordinator state for ordered queued/running/completed/failed/canceled items.
-- [x] 3.4 Start child task runs through the existing task-run machinery with parent linkage.
-- [x] 3.5 Emit parent queue lifecycle events and reconstructable snapshot state.
-- [x] 3.6 Implement cancellation behavior for active and queued children.
-- [x] 3.7 Add run manager tests for success, child failure, duplicate/invalid slugs, and cancellation.
+- [x] 3.1 Add CLI state and flags for `--parallel` and `--parallel-limit`.
+- [x] 3.2 Resolve multi-run mode precedence from CLI, config, and default.
+- [x] 3.3 Resolve parallel limit precedence from CLI, config, and default.
+- [x] 3.4 Validate invalid flag combinations before daemon contact.
+- [x] 3.5 Pass mode and parallel limit to `StartTaskRunMultiple`.
+- [x] 3.6 Update command help and CLI tests.
 
 ## Implementation Details
 
-Model this after the existing review-watch parent/child run pattern, but keep task children as regular `task` runs. See TechSpec "System Architecture", "Data Models", and "Monitoring and Observability" for the parent mode, child linkage, queue states, and event requirements.
+Use the TechSpec "CLI And Configuration" section. This task should wire request data only; daemon acceptance and execution of parallel mode are handled in later scheduler tasks.
 
 ### Relevant Files
 
-- `internal/daemon/run_manager.go` — owns daemon run modes, active runs, parent/child linkage, cancellation, and execution dispatch.
-- `internal/daemon/review_watch.go` — existing daemon-owned parent/child coordinator pattern.
-- `internal/daemon/task_transport_service.go` — service bridge from API handlers to the run manager.
-- `internal/store/globaldb/registry.go` — durable run row shape already includes `ParentRunID`.
-- `pkg/compozy/events/event.go` — event kind registry for parent queue lifecycle events.
-- `pkg/compozy/events/kinds/task.go` or a new event payload file — typed payloads for multi-run queue events.
-- `internal/daemon/run_manager_test.go` and `internal/daemon/review_watch_test.go` — relevant test patterns.
+- `internal/cli/state.go` — command state for new flag values.
+- `internal/cli/daemon_commands.go` — task run flags, multiple-run request construction, and current fallback logic.
+- `internal/cli/daemon_commands_test.go` — mode resolution and multi-run stream tests.
+- `internal/cli/root_command_execution_test.go` — end-to-end CLI command execution with in-process daemon helpers.
+- `internal/cli/testdata/tasks_run_help.golden` — command help expectations.
 
 ### Dependent Files
 
-- `internal/api/core/handlers.go` — calls the service method added in task 02.
-- `internal/api/client/client.go` — later CLI task depends on the run manager behavior behind this client surface.
-- `internal/core/run/ui/remote.go` — later TUI task consumes parent snapshots and child run IDs.
-- `internal/daemon/service.go` and `internal/daemon/shutdown.go` — metrics and active-run counts must include the new parent mode.
+- `internal/core/workspace/config_types.go` — supplies effective mode and limit helpers.
+- `internal/api/core` — request type receives the resolved limit.
+- `internal/daemon/task_multi.go` — later task validates and executes the requested mode.
+- `README.md` — later task documents the new flags.
 
 ### Related ADRs
 
-- [ADR-001: Use Multi-Task Execution as Explicit Task-Run Orchestration](adrs/adr-001.md) — Treats each workflow as an independent child run.
-- [ADR-004: Use a Daemon-Owned Sequential Multi-Run Coordinator](adrs/adr-004.md) — Defines daemon ownership, stop-on-failure, child linkage, and queue-level quit behavior.
+- [ADR-005: Ship Worktree-Backed Parallel Multi-Run as an Opt-In Mode](adrs/adr-005.md) — Defines `--parallel` as the explicit user opt-in.
+- [ADR-008: Make the Parallel Multi-Run Limit Configurable](adrs/adr-008.md) — Defines CLI override behavior for the fanout limit.
 
 ## Deliverables
 
-- Daemon-owned sequential parent coordinator for multi-run task queues.
-- Child task runs linked with `ParentRunID`.
-- Parent queue events and snapshot reconstruction state.
-- Cancellation behavior that cancels active child work and queued items.
-- Unit tests with 80%+ coverage for coordinator state transitions **(REQUIRED)**.
-- Run manager integration tests for parent/child lifecycle and global DB linkage **(REQUIRED)**.
+- `--parallel` and `--parallel-limit` flags on `tasks run`.
+- Resolved mode and limit precedence implemented in CLI code.
+- Invalid flag combinations rejected before daemon calls.
+- CLI help updated.
+- Unit tests with 80%+ coverage for mode/limit resolution helpers **(REQUIRED)**.
+- Integration tests for daemon request wiring **(REQUIRED)**.
 
 ## Tests
 
 - Unit tests:
-  - [x] Starting `alpha,beta` creates one `task_multi` parent and later child task runs in order.
-  - [x] Child runs have `ParentRunID` equal to the parent run ID.
-  - [x] A failed first child marks the parent failed and does not start the second child.
-  - [x] A successful first child starts the second child only after the first reaches a terminal state.
-  - [x] Parent cancellation cancels the active child and marks queued items canceled.
-  - [x] Invalid or completed workflow preflight prevents parent run creation.
+  - [x] `--parallel` resolves mode to `parallel` when config is unset.
+  - [x] `--parallel` overrides config value `enqueued`.
+  - [x] `--parallel-limit 3` overrides config/default limit.
+  - [x] `--parallel-limit 0` returns a command error.
+  - [x] `--parallel` without `--multiple` returns a command error.
+  - [x] `--parallel-limit` without `--multiple` returns a command error.
 - Integration tests:
-  - [x] Run manager list/snapshot APIs expose the parent and child rows with correct modes and relationships.
-  - [x] Parent event log can reconstruct queued, running, completed, failed, and canceled item state.
+  - [x] `tasks run --multiple alpha,beta --parallel` sends daemon mode `parallel`.
+  - [x] `tasks run --multiple alpha,beta --parallel --parallel-limit 3` sends parallel limit `3`.
+  - [x] `tasks run alpha` behavior remains unchanged.
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
 
-- All tests passing.
-- Test coverage >=80%.
-- Multi-run queues continue under daemon ownership after client detach.
-- No V1 code path starts multiple child task runs concurrently.
-- Existing `StartTaskRun` behavior and tests remain stable.
+- All tests passing
+- Test coverage >=80%
+- Users can request true parallel mode and a per-invocation limit from the CLI.
+- No fallback-to-enqueued message remains in CLI mode resolution.

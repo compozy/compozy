@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id`         | `string`            | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq`            | `uint64`            | Monotonic sequence number within a run.                                |
 | `ts`             | `RFC3339 timestamp` | Event timestamp in UTC.                                                |
-| `kind`           | `string`            | One of the 51 public event kinds below.                                |
+| `kind`           | `string`            | One of the 60 public event kinds below.                                |
 | `payload`        | `object`            | Kind-specific payload from `pkg/compozy/events/kinds`.                 |
 
 ## Run Events
@@ -377,6 +377,89 @@ Payload type: `kinds.TaskMemoryUpdatedPayload`
 - `path`
 - `mode`
 - `bytes_written`
+
+## Multi-Run Events
+
+Multi-run events are emitted by the daemon-owned parent run created by
+`compozy tasks run --multiple`. They are persisted in the parent run journal,
+streamed through the regular run stream APIs, and reconstructed into the
+`TaskRunMultipleSnapshot` returned by the multi-run snapshot endpoint. All eight
+kinds share one payload type, `kinds.TaskRunMultiplePayload`.
+
+`kinds.TaskRunMultiplePayload` fields:
+
+- `run_id`: parent multi-run id
+- `mode`: scheduling mode, `enqueued` or `parallel`
+- `slug`: child workflow slug for item-scoped events
+- `slugs`: ordered child workflow slugs, emitted on the started event
+- `index`: zero-based child index within the queue
+- `total`: total number of queued children
+- `parallel_limit`: resolved concurrent-child cap, emitted on the started event in parallel mode
+- `status`: item status, one of `queued`, `running`, `completed`, `failed`, or `canceled`
+- `child_run_id`: child task run id once the child run exists
+- `error`: actionable error text for failed or canceled items and the queue summary
+- `worktree_path`: child git worktree path in parallel mode
+- `base_branch`: parent branch the child worktree was created from
+- `base_commit`: parent `HEAD` commit the child worktree was created from
+- `worktree_status`: worktree preservation status, currently always `preserved`
+
+`parallel_limit` and the `worktree_*` fields are additive and optional. They are
+populated only for parallel-mode runs once a child worktree is planned, and they
+stay empty for enqueued runs and for older parent events emitted before this
+metadata existed. Snapshot reconstruction treats any empty field as unknown so
+older event streams stay compatible.
+
+### `task.multi.started`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+Parent queue lifecycle start. Carries `mode`, `slugs`, `total`, and
+`parallel_limit` (parallel mode only).
+
+### `task.multi.item_queued`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+One ordered child item entered the queue. In parallel mode this is re-emitted
+with `worktree_path`, `base_branch`, `base_commit`, and `worktree_status` before
+the child launches so snapshots survive detach or daemon restart.
+
+### `task.multi.child_started`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+A child task run started. Carries `slug`, `child_run_id`, and `worktree_path`
+when allocated.
+
+### `task.multi.child_completed`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+A child task run completed successfully.
+
+### `task.multi.child_failed`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+A child task run failed. Carries `error`; siblings keep running (fail-late).
+
+### `task.multi.item_canceled`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+A queued or running child item was canceled, typically by parent cancellation.
+
+### `task.multi.queue_canceled`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+The parent queue was canceled. Carries the aggregate summary `error` when present.
+
+### `task.multi.queue_completed`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+The parent queue settled. Carries `total` and, on aggregate failure, the summary `error`.
 
 ## Artifact Events
 

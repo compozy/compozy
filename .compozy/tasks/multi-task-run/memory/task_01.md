@@ -25,3 +25,30 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 
 ## Ready for Next Run
 - Implementation and verification complete for task_01. `make verify` passed with `env -u GOROOT`: frontend lint/typecheck/tests/build, Go fmt/lint/test/build, and frontend e2e all completed successfully.
+
+---
+
+# V2 parallel-limit config (current task_01 in `_tasks.md`)
+
+> The notes above are from the SUPERSEDED V1 task_01 (run_multiple_mode + slug parsing). The section below covers the CURRENT V2 task_01: "Add Parallel Limit Workspace Configuration".
+
+## Objective Snapshot
+- Add `[tasks.run] run_multiple_parallel_limit` config foundation for bounded parallel multi-run; default effective limit `2`; reject zero/negative; workspace-over-global precedence mirroring `run_multiple_mode`. No CLI or daemon scheduling changes in this task.
+
+## Implementation
+- `config_types.go`: added `DefaultRunMultipleParallelLimit = 2`, field `RunMultipleParallelLimit *int` (`toml:"run_multiple_parallel_limit"`), and method `EffectiveRunMultipleParallelLimit()` (nil -> default, else value).
+- `config_merge.go`: merged the field in `buildEffectiveTaskRunConfig` via `cloneOptionalValue(preferOverlay(global, workspace))`, mirroring `RunMultipleMode`.
+- `config_validate.go`: added `validateTaskRunMultipleParallelLimit` (rejects `<= 0`, names `tasks.run.run_multiple_parallel_limit`), called from `validateTaskRun`.
+- `config_test.go`: parse/default/effective-helper/reject(0,-1)/workspace-over-global/global-fallthrough and a combined mode+limit precedence integration test.
+
+## Important Decisions
+- Extracted the positivity error template into package const `errMustBeGreaterThanZero` and reused it in the two existing `fix_reviews` checks plus the new limit check. Reason: a third identical literal would have tripped `goconst` (min-occurrences 3); this is the root-cause DRY fix, not a suppression. The `fix_reviews` error text is unchanged (tests assert on the field-name substring only).
+- Int assertions in tests use inline `nil || *p != want` checks (the dominant int convention in this file) rather than adding a helper.
+
+## Learnings
+- `goconst` is disabled for `_test.go` and `min-occurrences: 3`; only non-test duplicates count.
+- `loadConfigWithIsolatedHome` (mutex-guarded `osUserHomeDir` swap) is parallel-safe; global-config merge tests use `isolateWorkspaceConfigHome` (`t.Setenv`) and must NOT call `t.Parallel`.
+- Focused coverage for `internal/core/workspace` after the change: 82.0%.
+
+## Verification
+- `env -u GOROOT make fmt` ok; `make lint` 0 issues; `make test` 3531 passed / 3 skipped (env-gated); `make go-build` ok.

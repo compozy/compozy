@@ -174,6 +174,100 @@ func TestTaskRunMultiplePayloadJSONCompatibility(t *testing.T) {
 			t.Fatalf("task run multiple payload JSON mismatch: got %#v want %#v", got, want)
 		}
 	})
+
+	t.Run("Should include worktree metadata and parallel limit when set", func(t *testing.T) {
+		t.Parallel()
+
+		withWorktree := TaskRunMultiplePayload{
+			RunID:          "multi-run-1",
+			Mode:           "parallel",
+			Slug:           "alpha",
+			Slugs:          []string{"alpha", "beta"},
+			Index:          1,
+			Total:          2,
+			ParallelLimit:  3,
+			Status:         "running",
+			ChildRunID:     "task-run-alpha",
+			Error:          "boom",
+			WorktreePath:   "/home/user/.compozy/state/worktrees/ws/parent/01-alpha",
+			BaseBranch:     "main",
+			BaseCommit:     "abc123def456",
+			WorktreeStatus: "preserved",
+		}
+
+		got := mustMarshalMap(t, withWorktree)
+		want := map[string]any{
+			"run_id":          "multi-run-1",
+			"mode":            "parallel",
+			"slug":            "alpha",
+			"slugs":           []any{"alpha", "beta"},
+			"index":           float64(1),
+			"total":           float64(2),
+			"parallel_limit":  float64(3),
+			"status":          "running",
+			"child_run_id":    "task-run-alpha",
+			"error":           "boom",
+			"worktree_path":   "/home/user/.compozy/state/worktrees/ws/parent/01-alpha",
+			"base_branch":     "main",
+			"base_commit":     "abc123def456",
+			"worktree_status": "preserved",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("task run multiple worktree payload JSON mismatch: got %#v want %#v", got, want)
+		}
+	})
+
+	t.Run("Should decode old payload JSON without worktree metadata", func(t *testing.T) {
+		t.Parallel()
+
+		const legacyJSON = `{"run_id":"multi-run-1","mode":"enqueued","slug":"alpha",` +
+			`"slugs":["alpha","beta"],"index":1,"total":2,"status":"completed",` +
+			`"child_run_id":"task-run-alpha","error":"boom"}`
+
+		var decoded TaskRunMultiplePayload
+		if err := json.Unmarshal([]byte(legacyJSON), &decoded); err != nil {
+			t.Fatalf("unmarshal legacy payload: %v", err)
+		}
+		if decoded.Slug != "alpha" || decoded.Status != "completed" || decoded.ChildRunID != "task-run-alpha" {
+			t.Fatalf("legacy payload core fields = %#v, want slug/status/child_run_id preserved", decoded)
+		}
+		if decoded.ParallelLimit != 0 ||
+			decoded.WorktreePath != "" ||
+			decoded.BaseBranch != "" ||
+			decoded.BaseCommit != "" ||
+			decoded.WorktreeStatus != "" {
+			t.Fatalf("legacy payload worktree fields = %#v, want zero values", decoded)
+		}
+	})
+
+	t.Run("Should decode new payload JSON with worktree metadata", func(t *testing.T) {
+		t.Parallel()
+
+		const newJSON = `{"run_id":"multi-run-1","mode":"parallel","slug":"alpha","index":0,"total":2,` +
+			`"parallel_limit":2,"status":"running","child_run_id":"task-run-alpha",` +
+			`"worktree_path":"/wt/01-alpha","base_branch":"main","base_commit":"abc123","worktree_status":"preserved"}`
+
+		var decoded TaskRunMultiplePayload
+		if err := json.Unmarshal([]byte(newJSON), &decoded); err != nil {
+			t.Fatalf("unmarshal new payload: %v", err)
+		}
+		want := TaskRunMultiplePayload{
+			RunID:          "multi-run-1",
+			Mode:           "parallel",
+			Slug:           "alpha",
+			Total:          2,
+			ParallelLimit:  2,
+			Status:         "running",
+			ChildRunID:     "task-run-alpha",
+			WorktreePath:   "/wt/01-alpha",
+			BaseBranch:     "main",
+			BaseCommit:     "abc123",
+			WorktreeStatus: "preserved",
+		}
+		if !reflect.DeepEqual(decoded, want) {
+			t.Fatalf("decoded new payload = %#v, want %#v", decoded, want)
+		}
+	})
 }
 
 func mustMarshalMap(t *testing.T, payload any) map[string]any {

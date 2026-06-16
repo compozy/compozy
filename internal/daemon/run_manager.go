@@ -64,6 +64,7 @@ const (
 type RunManagerConfig struct {
 	GlobalDB               *globaldb.GlobalDB
 	LifecycleContext       context.Context
+	WorktreesRoot          string
 	ShutdownDrainTimeout   time.Duration
 	Now                    func() time.Time
 	BuildRunID             func(*model.RuntimeConfig) (string, error)
@@ -95,6 +96,7 @@ type RunManager struct {
 	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	reviewProviderRegistry reviewProviderRegistryFactory
 	reviewWatchGit         ReviewWatchGit
+	worktreeAllocator      *taskMultiWorktreeAllocator
 	lookupWorkflowSlugs    func(context.Context, []string) (map[string]string, error)
 	getWorkflow            func(context.Context, string) (globaldb.Workflow, error)
 	shutdownDrainTimeout   time.Duration
@@ -140,6 +142,11 @@ type activeRun struct {
 	stateMu         sync.RWMutex
 	cancelRequested bool
 	closeTimeout    time.Duration
+
+	// emitMu serializes parent multi-run event emission. Parallel-mode child
+	// workers emit item lifecycle events concurrently; serializing the emit path
+	// keeps each event atomic and preserves per-item ordering on the journal.
+	emitMu sync.Mutex
 }
 
 type runtimeOverrideInput struct {
@@ -245,6 +252,7 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		loadProjectConfig:      resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
 		reviewProviderRegistry: resolveReviewProviderRegistryFactory(cfg.ReviewProviderRegistry),
 		reviewWatchGit:         resolveReviewWatchGit(cfg.ReviewWatchGit),
+		worktreeAllocator:      newTaskMultiWorktreeAllocator(cfg.WorktreesRoot),
 		lookupWorkflowSlugs:    resolveRunManagerWorkflowSlugLookup(cfg.GlobalDB, cfg.LookupWorkflowSlugs),
 		getWorkflow:            resolveRunManagerGetWorkflow(cfg.GlobalDB, cfg.GetWorkflow),
 		shutdownDrainTimeout:   resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout),

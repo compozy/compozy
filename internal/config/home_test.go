@@ -22,6 +22,9 @@ func TestResolveHomePathsFrom(t *testing.T) {
 	if got, want := paths.DaemonDir, filepath.Join(root, "daemon"); got != want {
 		t.Fatalf("DaemonDir = %q, want %q", got, want)
 	}
+	if got, want := paths.WorktreesDir, filepath.Join(root, "state", "worktrees"); got != want {
+		t.Fatalf("WorktreesDir = %q, want %q", got, want)
+	}
 	if got, want := paths.SocketPath, filepath.Join(root, "daemon", "daemon.sock"); got != want {
 		t.Fatalf("SocketPath = %q, want %q", got, want)
 	}
@@ -127,6 +130,7 @@ func TestEnsureHomeLayoutCreatesDirectories(t *testing.T) {
 		paths.AgentsDir,
 		paths.ExtensionsDir,
 		paths.StateDir,
+		paths.WorktreesDir,
 		paths.DaemonDir,
 		paths.DBDir,
 		paths.RunsDir,
