@@ -137,6 +137,7 @@ type activeRun struct {
 	reviewWatch    *preparedReviewWatch
 	reviewWatchKey *reviewWatchKey
 	taskMulti      *preparedTaskMulti
+	jobControls    *model.JobControlRegistry
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
@@ -747,6 +748,81 @@ func (m *RunManager) Cancel(ctx context.Context, runID string) error {
 	return nil
 }
 
+func (m *RunManager) PauseRunJob(
+	ctx context.Context,
+	runID string,
+	jobID string,
+) (apicore.RunJobControlResponse, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	trimmedJobID := strings.TrimSpace(jobID)
+	if trimmedRunID == "" || trimmedJobID == "" {
+		return apicore.RunJobControlResponse{}, model.ErrJobControlNotFound
+	}
+	if err := m.requireControllableRun(ctx, trimmedRunID); err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	active := m.getActive(trimmedRunID)
+	if active == nil || active.jobControls == nil {
+		return apicore.RunJobControlResponse{}, model.ErrJobControlNotFound
+	}
+	response, err := active.jobControls.Pause(ctx, trimmedRunID, trimmedJobID)
+	if err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	return apiJobControlResponse(response), nil
+}
+
+func (m *RunManager) SendRunJobMessage(
+	ctx context.Context,
+	runID string,
+	jobID string,
+	req apicore.RunJobMessageRequest,
+) (apicore.RunJobControlResponse, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	trimmedJobID := strings.TrimSpace(jobID)
+	if trimmedRunID == "" || trimmedJobID == "" {
+		return apicore.RunJobControlResponse{}, model.ErrJobControlNotFound
+	}
+	message, err := model.ValidateJobControlMessage(req.Message)
+	if err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	if err := m.requireControllableRun(ctx, trimmedRunID); err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	active := m.getActive(trimmedRunID)
+	if active == nil || active.jobControls == nil {
+		return apicore.RunJobControlResponse{}, model.ErrJobControlNotFound
+	}
+	response, err := active.jobControls.SendMessage(ctx, trimmedRunID, trimmedJobID, message)
+	if err != nil {
+		return apicore.RunJobControlResponse{}, err
+	}
+	return apiJobControlResponse(response), nil
+}
+
+func (m *RunManager) requireControllableRun(ctx context.Context, runID string) error {
+	row, err := m.globalDB.GetRun(detachContext(ctx), strings.TrimSpace(runID))
+	if err != nil {
+		return err
+	}
+	if isTerminalRunStatus(row.Status) {
+		return fmt.Errorf("%w: run is %s", model.ErrJobControlConflict, row.Status)
+	}
+	return nil
+}
+
+func apiJobControlResponse(response model.JobControlResponse) apicore.RunJobControlResponse {
+	return apicore.RunJobControlResponse{
+		RunID:     response.RunID,
+		JobID:     response.JobID,
+		Index:     response.Index,
+		Status:    string(response.Status),
+		SessionID: response.SessionID,
+		MessageID: response.MessageID,
+	}
+}
+
 func (m *RunManager) cancelActiveRun(runID string) {
 	active := m.getActive(runID)
 	if active == nil {
@@ -1140,6 +1216,8 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	m.publishRunWorkspaceEvent(ctx, row, spec.workflowSlug, apicore.WorkspaceEventKindRunCreated)
 
 	runID := row.RunID
+	runtimeCfg.RunID = runID
+	runtimeCfg.JobControls = model.NewJobControlRegistry()
 	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
 	if err != nil {
 		if resumedRun {
@@ -1164,6 +1242,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		}
 	}()
 	active := newActiveRun(runCtx, cancel, row, spec, scope)
+	active.jobControls = runtimeCfg.JobControls
 	if err := m.syncWorkflowBeforeRun(runCtx, active); err != nil {
 		active.cancel()
 		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
@@ -2301,6 +2380,7 @@ func emitPreparedJobQueuedEvents(
 			CodeFile:        queuedJobCodeFileLabel(job),
 			CodeFiles:       append([]string(nil), job.CodeFiles...),
 			Issues:          job.IssueCount(),
+			TaskNumber:      job.TaskNumber,
 			TaskTitle:       strings.TrimSpace(job.TaskTitle),
 			TaskType:        strings.TrimSpace(job.TaskType),
 			SafeName:        strings.TrimSpace(job.SafeName),

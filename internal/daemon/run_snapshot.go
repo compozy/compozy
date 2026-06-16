@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/core/contentconv"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/transcript"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -46,6 +47,12 @@ func (b *runSnapshotBuilder) applyEvent(item events.Event) error {
 		return b.applyJobStarted(item)
 	case events.EventKindJobRetryScheduled:
 		return b.applyJobRetry(item)
+	case events.EventKindJobPausing:
+		return b.applyJobPausing(item)
+	case events.EventKindJobPaused:
+		return b.applyJobPaused(item)
+	case events.EventKindJobResumed:
+		return b.applyJobResumed(item)
 	case events.EventKindJobCompleted:
 		return b.applyJobCompleted(item)
 	case events.EventKindJobFailed:
@@ -152,6 +159,7 @@ func (b *runSnapshotBuilder) applyJobQueued(item events.Event) error {
 	job.summary.CodeFile = strings.TrimSpace(payload.CodeFile)
 	job.summary.CodeFiles = append([]string(nil), payload.CodeFiles...)
 	job.summary.Issues = payload.Issues
+	job.summary.TaskNumber = jobQueuedTaskNumber(payload)
 	job.summary.TaskTitle = strings.TrimSpace(payload.TaskTitle)
 	job.summary.TaskType = strings.TrimSpace(payload.TaskType)
 	job.summary.SafeName = firstNonEmpty(strings.TrimSpace(payload.SafeName), job.summary.SafeName)
@@ -162,6 +170,21 @@ func (b *runSnapshotBuilder) applyJobQueued(item events.Event) error {
 	job.summary.OutLog = strings.TrimSpace(payload.OutLog)
 	job.summary.ErrLog = strings.TrimSpace(payload.ErrLog)
 	return nil
+}
+
+func jobQueuedTaskNumber(payload kinds.JobQueuedPayload) int {
+	if payload.TaskNumber > 0 {
+		return payload.TaskNumber
+	}
+	if number := tasks.ExtractTaskIdentityNumber(payload.CodeFile); number > 0 {
+		return number
+	}
+	for _, codeFile := range payload.CodeFiles {
+		if number := tasks.ExtractTaskIdentityNumber(codeFile); number > 0 {
+			return number
+		}
+	}
+	return 0
 }
 
 func (b *runSnapshotBuilder) applyJobStarted(item events.Event) error {
@@ -197,6 +220,39 @@ func (b *runSnapshotBuilder) applyJobRetry(item events.Event) error {
 	job.summary.Attempt = payload.Attempt
 	job.summary.MaxAttempts = payload.MaxAttempts
 	job.summary.RetryReason = strings.TrimSpace(payload.Reason)
+	return nil
+}
+
+func (b *runSnapshotBuilder) applyJobPausing(item events.Event) error {
+	var payload kinds.JobPausingPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return fmt.Errorf("decode job pausing snapshot payload: %w", err)
+	}
+	job := b.ensureJob(payload.Index)
+	job.state.Status = "pausing"
+	job.state.UpdatedAt = item.Timestamp.UTC()
+	return nil
+}
+
+func (b *runSnapshotBuilder) applyJobPaused(item events.Event) error {
+	var payload kinds.JobPausedPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return fmt.Errorf("decode job paused snapshot payload: %w", err)
+	}
+	job := b.ensureJob(payload.Index)
+	job.state.Status = "paused"
+	job.state.UpdatedAt = item.Timestamp.UTC()
+	return nil
+}
+
+func (b *runSnapshotBuilder) applyJobResumed(item events.Event) error {
+	var payload kinds.JobResumedPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return fmt.Errorf("decode job resumed snapshot payload: %w", err)
+	}
+	job := b.ensureJob(payload.Index)
+	job.state.Status = runStatusRunning
+	job.state.UpdatedAt = item.Timestamp.UTC()
 	return nil
 }
 

@@ -540,6 +540,7 @@ func buildBatchJob(
 	return model.Job{
 		CodeFiles:       batchFiles,
 		Groups:          batchGroups,
+		TaskNumber:      batchTaskNumber(cfg.Mode, batchIssues),
 		TaskTitle:       taskData.Title,
 		TaskType:        taskData.TaskType,
 		SafeName:        safeName,
@@ -675,9 +676,14 @@ func resolveTaskRuntimeTarget(
 	taskData model.TaskEntry,
 	safeName string,
 ) model.TaskRuntimeTarget {
+	workflow := ""
+	if cfg != nil {
+		workflow = strings.TrimSpace(cfg.Name)
+	}
 	target := model.TaskRuntimeTarget{
-		ID:   safeName,
-		Type: taskData.TaskType,
+		Workflow: workflow,
+		ID:       safeName,
+		Type:     taskData.TaskType,
 	}
 	if cfg != nil && cfg.Mode != model.ExecutionModePRDTasks {
 		target.Type = ""
@@ -864,6 +870,17 @@ func buildExecJob(
 		OutLog:          outLog,
 		ErrLog:          errLog,
 	}, nil
+}
+
+// batchTaskNumber returns the task's official number parsed from the canonical
+// task_NN.md entry name for a single-file PRD-task batch, or 0 when the batch has
+// no single canonical task. CodeFile is intentionally extensionless, so it is not
+// a valid source for this number.
+func batchTaskNumber(mode model.ExecutionMode, batchIssues []model.IssueEntry) int {
+	if mode != model.ExecutionModePRDTasks || len(batchIssues) != 1 {
+		return 0
+	}
+	return tasks.ExtractTaskNumber(filepath.Base(batchIssues[0].Name))
 }
 
 func determineBatchName(batchIdx int, batchFiles []string, mode model.ExecutionMode) string {

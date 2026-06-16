@@ -17,13 +17,14 @@ func TestConvertACPUsage(t *testing.T) {
 		want  model.Usage
 	}{
 		{
-			// TotalTokens is the ACP "sum of all token types" (input+output+thought),
-			// so 100+50+10 = 160 and the result stays self-consistent after folding.
+			// TotalTokens is the ACP sum of all token types. It can include cache
+			// tokens, so 100+50+10+20+5 = 185 even after thought tokens are folded
+			// into OutputTokens for compact display.
 			name: "Should map all usage fields and fold thought tokens into output",
 			input: acp.Usage{
 				InputTokens:       100,
 				OutputTokens:      50,
-				TotalTokens:       160,
+				TotalTokens:       185,
 				CachedReadTokens:  acp.Ptr(20),
 				CachedWriteTokens: acp.Ptr(5),
 				ThoughtTokens:     acp.Ptr(10),
@@ -31,7 +32,7 @@ func TestConvertACPUsage(t *testing.T) {
 			want: model.Usage{
 				InputTokens:  100,
 				OutputTokens: 60,
-				TotalTokens:  160,
+				TotalTokens:  185,
 				CacheReads:   20,
 				CacheWrites:  5,
 			},

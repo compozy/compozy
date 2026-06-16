@@ -208,6 +208,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/jobs/{job_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a user message into a paused job and resume its session. */
+        post: operations["sendRunJobMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/jobs/{job_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request pause for one active job in a run. */
+        post: operations["pauseRunJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/snapshot": {
         parameters: {
             query?: never;
@@ -568,6 +602,7 @@ export interface components {
         };
         DaemonHealth: {
             degraded?: boolean;
+            contract_version?: string;
             details?: components["schemas"]["HealthDetail"][];
             ready: boolean;
         };
@@ -576,6 +611,7 @@ export interface components {
         };
         DaemonStatus: {
             active_run_count: number;
+            contract_version?: string;
             http_port?: number;
             pid: number;
             socket_path?: string;
@@ -753,6 +789,18 @@ export interface components {
             retrying: number;
             running: number;
         };
+        RunJobControlResponse: {
+            job_id: string;
+            index: number;
+            message_id?: string;
+            run_id: string;
+            session_id?: string;
+            /** @enum {string} */
+            status: "pausing" | "paused" | "resumed";
+        };
+        RunJobMessageRequest: {
+            message: string;
+        };
         RunJobState: {
             agent_name?: string;
             index: number;
@@ -783,6 +831,7 @@ export interface components {
             session?: {
                 [key: string]: unknown;
             };
+            task_number?: number;
             task_title?: string;
             task_type?: string;
             usage?: components["schemas"]["Usage"];
@@ -1199,6 +1248,15 @@ export interface components {
                 "application/json": components["schemas"]["TransportError"];
             };
         };
+        /** @description Request payload exceeded daemon limits. */
+        PayloadTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["TransportError"];
+            };
+        };
         /** @description Requested resource was not found. */
         NotFound: {
             headers: {
@@ -1240,6 +1298,8 @@ export interface components {
         Round: number;
         /** @description Run identifier. */
         RunID: string;
+        /** @description Run job identifier. */
+        JobID: string;
         /** @description Optional run mode filter. */
         RunMode: string;
         /** @description Optional run status filter. */
@@ -1624,6 +1684,70 @@ export interface operations {
             };
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    sendRunJobMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run identifier. */
+                run_id: components["parameters"]["RunID"];
+                /** @description Run job identifier. */
+                job_id: components["parameters"]["JobID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunJobMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunJobControlResponse"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    pauseRunJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run identifier. */
+                run_id: components["parameters"]["RunID"];
+                /** @description Run job identifier. */
+                job_id: components["parameters"]["JobID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunJobControlResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };

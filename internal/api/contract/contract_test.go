@@ -160,20 +160,23 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 
 		resp := contract.DaemonStatusResponse{
 			Daemon: contract.DaemonStatus{
-				PID:            1234,
-				Version:        "v1.2.3",
-				StartedAt:      now,
-				SocketPath:     "/tmp/compozy.sock",
-				HTTPPort:       4317,
-				ActiveRunCount: 3,
-				WorkspaceCount: 2,
+				PID:             1234,
+				Version:         "v1.2.3",
+				ContractVersion: contract.DaemonContractVersion,
+				StartedAt:       now,
+				SocketPath:      "/tmp/compozy.sock",
+				HTTPPort:        4317,
+				ActiveRunCount:  3,
+				WorkspaceCount:  2,
 			},
 		}
 
 		var decoded contract.DaemonStatusResponse
 		roundTripJSON(t, resp, &decoded)
 
-		if decoded.Daemon.PID != resp.Daemon.PID || decoded.Daemon.SocketPath != resp.Daemon.SocketPath {
+		if decoded.Daemon.PID != resp.Daemon.PID ||
+			decoded.Daemon.SocketPath != resp.Daemon.SocketPath ||
+			decoded.Daemon.ContractVersion != contract.DaemonContractVersion {
 			t.Fatalf("decoded daemon status = %#v, want %#v", decoded.Daemon, resp.Daemon)
 		}
 	})
@@ -185,6 +188,7 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			Health: contract.DaemonHealth{
 				Ready:               false,
 				Degraded:            true,
+				ContractVersion:     contract.DaemonContractVersion,
 				UptimeSeconds:       42,
 				ActiveRunCount:      2,
 				ActiveRunsByMode:    []contract.DaemonModeCount{{Mode: "exec", Count: 1}, {Mode: "task", Count: 1}},
@@ -212,6 +216,7 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 		roundTripJSON(t, resp, &decoded)
 
 		if decoded.Health.Ready != resp.Health.Ready ||
+			decoded.Health.ContractVersion != contract.DaemonContractVersion ||
 			decoded.Health.IntegrityIssueCount != 1 ||
 			len(decoded.Health.ActiveRunsByMode) != 2 ||
 			len(decoded.Health.Details) != 1 {

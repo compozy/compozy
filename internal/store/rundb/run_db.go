@@ -61,6 +61,7 @@ type TranscriptMessageRow struct {
 	Role         string
 	Content      string
 	MetadataJSON string
+	MessageID    string
 	Timestamp    time.Time
 }
 
@@ -1193,7 +1194,15 @@ func prepareEventBatchStatements(ctx context.Context, tx *sql.Tx) (eventBatchSta
 				content,
 				metadata_json,
 				timestamp
-			) VALUES (?, ?, ?, ?, ?, ?)`,
+			) SELECT ?, ?, ?, ?, ?, ?
+			WHERE ? = ''
+			   OR ? != 'user'
+			   OR NOT EXISTS (
+				SELECT 1
+				  FROM transcript_messages
+				 WHERE role = 'user'
+				   AND json_extract(metadata_json, '$.update.message_id') = ?
+			   )`,
 			assign: func(dst *eventBatchStatements, stmt *sql.Stmt) { dst.insertTranscript = stmt },
 		},
 		{
@@ -1341,6 +1350,9 @@ func insertTranscriptMessageWithStatement(ctx context.Context, stmt *sql.Stmt, i
 		item.Content,
 		item.MetadataJSON,
 		store.FormatTimestamp(item.Timestamp),
+		item.MessageID,
+		item.Role,
+		item.MessageID,
 	); err != nil {
 		return fmt.Errorf("rundb: insert transcript row %d: %w", item.Sequence, err)
 	}
@@ -1388,6 +1400,12 @@ func projectJobState(item events.Event) (JobStateRow, bool, error) {
 		return projectJobAttemptFinishedState(item)
 	case events.EventKindJobRetryScheduled:
 		return projectJobRetryScheduledState(item)
+	case events.EventKindJobPausing:
+		return projectJobPausingState(item)
+	case events.EventKindJobPaused:
+		return projectJobPausedState(item)
+	case events.EventKindJobResumed:
+		return projectJobResumedState(item)
 	case events.EventKindJobCompleted:
 		return projectJobCompletedState(item)
 	case events.EventKindJobFailed:
@@ -1414,6 +1432,8 @@ func ProjectTranscriptMessage(item events.Event) (TranscriptMessageRow, bool, er
 	var role string
 	blocks := payload.Update.Blocks
 	switch payload.Update.Kind {
+	case kinds.UpdateKindUserMessageChunk:
+		role = "user"
 	case kinds.UpdateKindAgentMessageChunk:
 		role = "assistant"
 	case kinds.UpdateKindAgentThoughtChunk:
@@ -1442,6 +1462,7 @@ func ProjectTranscriptMessage(item events.Event) (TranscriptMessageRow, bool, er
 		Role:         role,
 		Content:      content,
 		MetadataJSON: string(item.Payload),
+		MessageID:    strings.TrimSpace(payload.Update.MessageID),
 		Timestamp:    item.Timestamp.UTC(),
 	}, true, nil
 }
@@ -1567,6 +1588,30 @@ func projectJobRetryScheduledState(item events.Event) (JobStateRow, bool, error)
 	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "retry_scheduled", ""), true, nil
 }
 
+func projectJobPausingState(item events.Event) (JobStateRow, bool, error) {
+	var payload kinds.JobPausingPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return JobStateRow{}, false, fmt.Errorf("rundb: decode job pausing payload: %w", err)
+	}
+	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "pausing", ""), true, nil
+}
+
+func projectJobPausedState(item events.Event) (JobStateRow, bool, error) {
+	var payload kinds.JobPausedPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return JobStateRow{}, false, fmt.Errorf("rundb: decode job paused payload: %w", err)
+	}
+	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "paused", ""), true, nil
+}
+
+func projectJobResumedState(item events.Event) (JobStateRow, bool, error) {
+	var payload kinds.JobResumedPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return JobStateRow{}, false, fmt.Errorf("rundb: decode job resumed payload: %w", err)
+	}
+	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "running", ""), true, nil
+}
+
 func projectJobCompletedState(item events.Event) (JobStateRow, bool, error) {
 	var payload kinds.JobCompletedPayload
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
@@ -1647,6 +1692,9 @@ func eventJobID(item events.Event) string {
 		events.EventKindJobAttemptStarted,
 		events.EventKindJobAttemptFinished,
 		events.EventKindJobRetryScheduled,
+		events.EventKindJobPausing,
+		events.EventKindJobPaused,
+		events.EventKindJobResumed,
 		events.EventKindJobCompleted,
 		events.EventKindJobFailed,
 		events.EventKindJobCancelled,
@@ -1677,7 +1725,7 @@ func jobIDFromIndex(index int, safeName string) string {
 	if trimmed := strings.TrimSpace(safeName); trimmed != "" {
 		return trimmed
 	}
-	if index > 0 {
+	if index >= 0 {
 		return fmt.Sprintf("job-%03d", index)
 	}
 	return ""

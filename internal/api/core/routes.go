@@ -79,6 +79,8 @@ func registerRunRoutes(api gin.IRouter, handlers *Handlers) {
 	runs.GET("/:run_id/events", handlers.ListRunEvents)
 	runs.GET("/:run_id/stream", handlers.StreamRun)
 	runs.POST("/:run_id/cancel", handlers.CancelRun)
+	runs.POST("/:run_id/jobs/:job_id/pause", handlers.PauseRunJob)
+	runs.POST("/:run_id/jobs/:job_id/messages", handlers.SendRunJobMessage)
 }
 
 func registerUtilityRoutes(api gin.IRouter, handlers *Handlers) {

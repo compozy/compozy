@@ -27,9 +27,19 @@ func convertACPUpdate(driverID string, update acp.SessionUpdate) (model.SessionU
 func convertACPMessageUpdate(update acp.SessionUpdate) (model.SessionUpdate, bool, error) {
 	switch {
 	case update.UserMessageChunk != nil:
+		blocks, err := convertACPContentBlock(update.UserMessageChunk.Content)
+		if err != nil {
+			return model.SessionUpdate{}, true, err
+		}
+		messageID := ""
+		if update.UserMessageChunk.MessageId != nil {
+			messageID = strings.TrimSpace(*update.UserMessageChunk.MessageId)
+		}
 		return model.SessionUpdate{
-			Kind:   model.UpdateKindUserMessageChunk,
-			Status: model.StatusRunning,
+			Kind:      model.UpdateKindUserMessageChunk,
+			MessageID: messageID,
+			Blocks:    blocks,
+			Status:    model.StatusRunning,
 		}, true, nil
 	case update.AgentMessageChunk != nil:
 		blocks, err := convertACPContentBlock(update.AgentMessageChunk.Content)
@@ -510,10 +520,9 @@ func ensureTrailingNewline(text string) string {
 // model.Usage field is added in this release (deferred to Phase 3 per ADR-001).
 //
 // TotalTokens is passed through unchanged: the ACP spec defines acp.Usage.TotalTokens
-// as the "sum of all token types across session" (input + output + thought), so it
-// already accounts for the folded thought tokens. This preserves the invariant
-// InputTokens + OutputTokens == TotalTokens after folding, keeping model.Usage.Total
-// accurate as values accumulate across turns.
+// as the sum of all token types across the session. Providers may include cache
+// reads/writes and thought tokens in that total, so deriving it from input/output
+// would undercount real runs.
 func convertACPUsage(u acp.Usage) model.Usage {
 	return model.Usage{
 		InputTokens:  u.InputTokens,

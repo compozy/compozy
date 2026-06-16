@@ -137,6 +137,34 @@ Payload type: `kinds.JobRetryScheduledPayload`
 - `max_attempts`
 - `reason`
 
+### `job.pausing`
+
+Payload type: `kinds.JobPausingPayload`
+
+- `index`
+- `attempt`
+- `max_attempts`
+- `session_id`
+
+### `job.paused`
+
+Payload type: `kinds.JobPausedPayload`
+
+- `index`
+- `attempt`
+- `max_attempts`
+- `session_id`
+
+### `job.resumed`
+
+Payload type: `kinds.JobResumedPayload`
+
+- `index`
+- `attempt`
+- `max_attempts`
+- `session_id`
+- `message_id`
+
 ### `job.completed`
 
 Payload type: `kinds.JobCompletedPayload`
@@ -737,7 +765,7 @@ Lean mode streams only lifecycle and interactive events to keep output concise f
 **Included event kinds:**
 
 - `run.started`, `run.completed`, `run.failed`, `run.cancelled`
-- `job.started`, `job.retry_scheduled`, `job.completed`, `job.failed`, `job.cancelled`
+- `job.started`, `job.retry_scheduled`, `job.pausing`, `job.paused`, `job.resumed`, `job.completed`, `job.failed`, `job.cancelled`
 - `session.started`, `session.completed`, `session.failed`
 - `session.update` — only when the update kind is `user_message_chunk`, `agent_message_chunk`, `tool_call_started`, or `tool_call_updated`
 

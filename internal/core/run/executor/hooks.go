@@ -81,6 +81,7 @@ func hookModelJob(src *job) model.Job {
 	return model.Job{
 		CodeFiles:       append([]string(nil), src.CodeFiles...),
 		Groups:          cloneIssueGroups(src.Groups),
+		TaskNumber:      src.TaskNumber,
 		TaskTitle:       src.TaskTitle,
 		TaskType:        src.TaskType,
 		SafeName:        src.SafeName,
@@ -101,6 +102,7 @@ func applyHookModelJob(dst *job, updated model.Job) {
 	}
 	dst.CodeFiles = append([]string(nil), updated.CodeFiles...)
 	dst.Groups = cloneIssueGroups(updated.Groups)
+	dst.TaskNumber = updated.TaskNumber
 	dst.TaskTitle = updated.TaskTitle
 	dst.TaskType = updated.TaskType
 	dst.SafeName = updated.SafeName

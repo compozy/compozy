@@ -16,6 +16,7 @@ import (
 	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
@@ -165,6 +166,29 @@ func (c *stubDaemonCommandClient) CancelRun(ctx context.Context, runID string) e
 		return c.cancelErr
 	}
 	return nil
+}
+
+func (c *stubDaemonCommandClient) PauseRunJob(
+	context.Context,
+	string,
+	string,
+) (apicore.RunJobControlResponse, error) {
+	if c == nil {
+		return apicore.RunJobControlResponse{}, errors.New("stub daemon client is required")
+	}
+	return apicore.RunJobControlResponse{}, nil
+}
+
+func (c *stubDaemonCommandClient) SendRunJobMessage(
+	context.Context,
+	string,
+	string,
+	apicore.RunJobMessageRequest,
+) (apicore.RunJobControlResponse, error) {
+	if c == nil {
+		return apicore.RunJobControlResponse{}, errors.New("stub daemon client is required")
+	}
+	return apicore.RunJobControlResponse{}, nil
 }
 
 func (c *stubDaemonCommandClient) RegisterWorkspace(
@@ -571,6 +595,11 @@ func (s *fakeCLIUISession) SetQuitHandler(fn func(uipkg.QuitRequest)) {
 	s.quitHandler = fn
 }
 
+func (*fakeCLIUISession) SetJobControlHandler(
+	func(context.Context, uipkg.JobControlRequest) (uipkg.JobControlResponse, error),
+) {
+}
+
 func (*fakeCLIUISession) CloseEvents() {}
 
 func (s *fakeCLIUISession) Shutdown() {
@@ -745,6 +774,46 @@ func TestDefaultAttachStartedCLIRunUIDoesNotCancelOwnedRunWhenUICloseDoesNotRequ
 	}
 	if client.cancelCalls != 0 {
 		t.Fatalf("cancel calls = %d, want 0 when the UI closes without an explicit stop request", client.cancelCalls)
+	}
+}
+
+func TestDefaultAttachCLIRunUIPassesWorkspaceRootToRemoteUI(t *testing.T) {
+	t.Parallel()
+
+	acquireCLITestGlobalOverride(t)
+
+	client := &stubDaemonCommandClient{
+		snapshot: apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-ui-workdir", WorkspaceID: "workspace-1", Status: "running"},
+			Jobs: []apicore.RunJobState{
+				{Index: 0, Status: "running"},
+			},
+		},
+		workspace: apicore.Workspace{ID: "workspace-1", RootDir: "/tmp/compozy-workspace"},
+	}
+	session := newFakeCLIUISession()
+	session.waitFn = func(*fakeCLIUISession) error {
+		return nil
+	}
+	var workspaceRoot string
+
+	originalOpenRemoteUI := openCLIRemoteUISession
+	t.Cleanup(func() {
+		openCLIRemoteUISession = originalOpenRemoteUI
+	})
+	openCLIRemoteUISession = func(
+		_ context.Context,
+		opts uipkg.RemoteAttachOptions,
+	) (uipkg.Session, error) {
+		workspaceRoot = opts.WorkspaceRoot
+		return session, nil
+	}
+
+	if err := defaultAttachCLIRunUI(context.Background(), client, "run-ui-workdir"); err != nil {
+		t.Fatalf("defaultAttachCLIRunUI() error = %v", err)
+	}
+	if workspaceRoot != "/tmp/compozy-workspace" {
+		t.Fatalf("workspace root = %q, want daemon workspace root", workspaceRoot)
 	}
 }
 
@@ -2078,20 +2147,14 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			wantClient: "initial",
 		},
 		{
-			name:           "Should fail without stopping busy daemon when commit differs",
+			name:           "Should reuse busy legacy daemon when commit differs",
 			cliVersion:     currentVersionDifferentCommit,
 			initialVersion: currentVersion,
 			initialStatus: apicore.DaemonStatus{
 				Version:        currentVersion,
 				ActiveRunCount: 2,
 			},
-			wantErr: []string{
-				currentVersion,
-				currentVersionDifferentCommit,
-				"2 active runs",
-				"retry after",
-				"compozy daemon stop --force",
-			},
+			wantClient: "initial",
 		},
 		{
 			name:           "Should restart and reconnect idle daemon when release versions differ",
@@ -2113,19 +2176,52 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 			},
 		},
 		{
-			name:           "Should fail without stopping busy daemon when release versions differ",
+			name:           "Should reuse busy daemon when release versions differ and contract matches",
 			cliVersion:     currentVersion,
 			initialVersion: oldVersion,
 			initialStatus: apicore.DaemonStatus{
-				Version:        oldVersion,
-				ActiveRunCount: 2,
+				Version:         oldVersion,
+				ContractVersion: contract.DaemonContractVersion,
+				ActiveRunCount:  2,
+			},
+			wantClient: "initial",
+		},
+		{
+			name:           "Should fail without stopping busy daemon when contract differs",
+			cliVersion:     currentVersion,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:         currentVersion,
+				ContractVersion: "99",
+				ActiveRunCount:  2,
 			},
 			wantErr: []string{
-				oldVersion,
-				currentVersion,
+				"contract version",
+				"99",
+				contract.DaemonContractVersion,
 				"2 active runs",
 				"retry after",
 				"compozy daemon stop --force",
+			},
+		},
+		{
+			name:           "Should restart and reconnect idle daemon when contract differs",
+			cliVersion:     currentVersion,
+			initialVersion: currentVersion,
+			initialStatus: apicore.DaemonStatus{
+				Version:         currentVersion,
+				ContractVersion: "99",
+				ActiveRunCount:  0,
+			},
+			restartedVersion:  currentVersion,
+			readInfoErrOnStop: true,
+			wantClient:        "restarted",
+			wantLaunchCalls:   1,
+			wantStopCalls:     1,
+			wantNotice: []string{
+				"Restarting incompatible compozy daemon",
+				"99",
+				contract.DaemonContractVersion,
 			},
 		},
 		{
@@ -2187,7 +2283,8 @@ func TestCLIDaemonBootstrapEnsureChecksDaemonVersion(t *testing.T) {
 					Ready: true,
 				},
 				status: apicore.DaemonStatus{
-					Version: tt.restartedVersion,
+					Version:         tt.restartedVersion,
+					ContractVersion: contract.DaemonContractVersion,
 				},
 			}
 
@@ -2360,6 +2457,53 @@ func TestDaemonBuildVersionsCompatible(t *testing.T) {
 
 			if got := daemonBuildVersionsCompatible(tt.daemon, tt.cli); got != tt.want {
 				t.Fatalf("daemonBuildVersionsCompatible(%q, %q) = %t, want %t", tt.daemon, tt.cli, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDaemonContractVersionsCompatible(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		daemon string
+		cli    string
+		want   bool
+	}{
+		{
+			name:   "Should accept legacy daemon without contract version",
+			daemon: "",
+			cli:    contract.DaemonContractVersion,
+			want:   true,
+		},
+		{
+			name:   "Should accept matching contract versions",
+			daemon: contract.DaemonContractVersion,
+			cli:    contract.DaemonContractVersion,
+			want:   true,
+		},
+		{
+			name:   "Should reject different contract versions",
+			daemon: "99",
+			cli:    contract.DaemonContractVersion,
+			want:   false,
+		},
+		{
+			name:   "Should reject declared daemon contract when CLI contract is unknown",
+			daemon: contract.DaemonContractVersion,
+			cli:    "",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := daemonContractVersionsCompatible(tt.daemon, tt.cli); got != tt.want {
+				t.Fatalf("daemonContractVersionsCompatible(%q, %q) = %t, want %t", tt.daemon, tt.cli, got, tt.want)
 			}
 		})
 	}

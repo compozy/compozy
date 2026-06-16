@@ -439,6 +439,7 @@ type SessionOutcome struct {
 type Job struct {
 	CodeFiles       []string
 	Groups          map[string][]IssueEntry
+	TaskNumber      int
 	TaskTitle       string
 	TaskType        string
 	SafeName        string

@@ -57,6 +57,15 @@
                     "type": "string"
                 }
             },
+            "JobID": {
+                "description": "Run job identifier.",
+                "in": "path",
+                "name": "job_id",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
             "RunMode": {
                 "description": "Optional run mode filter.",
                 "in": "query",
@@ -159,6 +168,16 @@
                 },
                 "description": "Request body or parameters were malformed."
             },
+            "PayloadTooLarge": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Request payload exceeded daemon limits."
+            },
             "NotFound": {
                 "content": {
                     "application/json": {
@@ -236,6 +255,9 @@
                     "degraded": {
                         "type": "boolean"
                     },
+                    "contract_version": {
+                        "type": "string"
+                    },
                     "details": {
                         "items": {
                             "$ref": "#/components/schemas/HealthDetail"
@@ -262,6 +284,9 @@
                 "properties": {
                     "active_run_count": {
                         "type": "integer"
+                    },
+                    "contract_version": {
+                        "type": "string"
                     },
                     "http_port": {
                         "type": "integer"
@@ -804,6 +829,42 @@
                 "required": ["canceled", "completed", "failed", "queued", "retrying", "running"],
                 "type": "object"
             },
+            "RunJobControlResponse": {
+                "properties": {
+                    "job_id": {
+                        "type": "string"
+                    },
+                    "index": {
+                        "type": "integer"
+                    },
+                    "message_id": {
+                        "type": "string"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "enum": ["pausing", "paused", "resumed"],
+                        "type": "string"
+                    }
+                },
+                "required": ["run_id", "job_id", "index", "status"],
+                "type": "object"
+            },
+            "RunJobMessageRequest": {
+                "properties": {
+                    "message": {
+                        "maxLength": 65536,
+                        "minLength": 1,
+                        "type": "string"
+                    }
+                },
+                "required": ["message"],
+                "type": "object"
+            },
             "RunJobState": {
                 "properties": {
                     "agent_name": {
@@ -888,6 +949,9 @@
                     "session": {
                         "additionalProperties": true,
                         "type": "object"
+                    },
+                    "task_number": {
+                        "type": "integer"
                     },
                     "task_title": {
                         "type": "string"
@@ -2550,6 +2614,100 @@
                     }
                 },
                 "summary": "Request cancellation for one run.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}/jobs/{job_id}/messages": {
+            "post": {
+                "operationId": "sendRunJobMessage",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/JobID"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RunJobMessageRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunJobControlResponse"
+                                }
+                            }
+                        },
+                        "description": "Accepted"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "413": {
+                        "$ref": "#/components/responses/PayloadTooLarge"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Send a user message into a paused job and resume its session.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}/jobs/{job_id}/pause": {
+            "post": {
+                "operationId": "pauseRunJob",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/JobID"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunJobControlResponse"
+                                }
+                            }
+                        },
+                        "description": "Accepted"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Request pause for one active job in a run.",
                 "tags": ["runs"]
             }
         },

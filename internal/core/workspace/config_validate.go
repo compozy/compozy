@@ -527,6 +527,12 @@ func validateTaskRunRuntimeRules(scope string, rules *[]model.TaskRuntimeRule) e
 	}
 	for idx, rule := range *rules {
 		fieldPrefix := fmt.Sprintf("%s[%d]", configFieldName(scope, "tasks.run.task_runtime_rules"), idx)
+		if rule.Workflow != nil {
+			return fmt.Errorf(
+				"%s.workflow is not supported; use CLI --task-runtime for workflow-scoped overrides",
+				fieldPrefix,
+			)
+		}
 		if rule.ID != nil {
 			return fmt.Errorf("%s.id is not supported; use CLI --task-runtime for per-task ids", fieldPrefix)
 		}

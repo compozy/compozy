@@ -241,6 +241,128 @@ func TestRunDBRoundTripsEventsAndProjectionRowsAfterReopen(t *testing.T) {
 	}
 }
 
+func TestRunDBProjectsUserMessageTranscriptRows(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-store-user-message"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	event := mustEvent(
+		t,
+		runID,
+		1,
+		time.Date(2026, 6, 15, 12, 30, 0, 0, time.UTC),
+		events.EventKindSessionUpdate,
+		kinds.SessionUpdatePayload{
+			Index: 0,
+			Update: kinds.SessionUpdate{
+				Kind:      kinds.UpdateKindUserMessageChunk,
+				MessageID: "msg-1",
+				Status:    kinds.StatusRunning,
+				Blocks:    []kinds.ContentBlock{mustTextBlock(t, "please continue")},
+			},
+		},
+	)
+	echo := mustEvent(
+		t,
+		runID,
+		2,
+		time.Date(2026, 6, 15, 12, 30, 1, 0, time.UTC),
+		events.EventKindSessionUpdate,
+		kinds.SessionUpdatePayload{
+			Index: 0,
+			Update: kinds.SessionUpdate{
+				Kind:      kinds.UpdateKindUserMessageChunk,
+				MessageID: "msg-1",
+				Status:    kinds.StatusRunning,
+				Blocks:    []kinds.ContentBlock{mustTextBlock(t, "please continue")},
+			},
+		},
+	)
+	if err := db.StoreEventBatch(context.Background(), []events.Event{event, echo}); err != nil {
+		t.Fatalf("StoreEventBatch(): %v", err)
+	}
+
+	rows, err := db.ListTranscriptMessages(context.Background())
+	if err != nil {
+		t.Fatalf("ListTranscriptMessages(): %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("transcript rows = %#v, want one user row", rows)
+	}
+	if rows[0].Role != "user" || rows[0].Content != "please continue" {
+		t.Fatalf("transcript row = %#v, want user message", rows[0])
+	}
+}
+
+func TestRunDBProjectsIndexZeroLifecycleToCanonicalJobID(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-index-zero-lifecycle"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	startedAt := time.Date(2026, 6, 15, 18, 30, 0, 0, time.UTC)
+	items := []events.Event{
+		mustEvent(
+			t,
+			runID,
+			1,
+			startedAt,
+			events.EventKindJobQueued,
+			kinds.JobQueuedPayload{Index: 0, SafeName: "job-000", TaskTitle: "Pause me"},
+		),
+		mustEvent(
+			t,
+			runID,
+			2,
+			startedAt.Add(time.Second),
+			events.EventKindJobPausing,
+			kinds.JobPausingPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		),
+		mustEvent(
+			t,
+			runID,
+			3,
+			startedAt.Add(2*time.Second),
+			events.EventKindJobPaused,
+			kinds.JobPausedPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		),
+		mustEvent(
+			t,
+			runID,
+			4,
+			startedAt.Add(3*time.Second),
+			events.EventKindJobResumed,
+			kinds.JobResumedPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		),
+	}
+	if err := db.StoreEventBatch(context.Background(), items); err != nil {
+		t.Fatalf("StoreEventBatch() error = %v", err)
+	}
+
+	rows, err := db.ListJobState(context.Background())
+	if err != nil {
+		t.Fatalf("ListJobState() error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("job rows = %#v, want one canonical row", rows)
+	}
+	if got, want := rows[0].JobID, "job-000"; got != want {
+		t.Fatalf("job id = %q, want %q", got, want)
+	}
+	if got, want := rows[0].Status, "running"; got != want {
+		t.Fatalf("job status = %q, want %q", got, want)
+	}
+}
+
 func TestRunDBRecordHookRunValidatesRequiredFields(t *testing.T) {
 	t.Parallel()
 

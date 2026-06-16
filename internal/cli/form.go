@@ -23,6 +23,10 @@ import (
 const workflowNameTitle = "Workflow Name"
 
 func collectFormParams(cmd *cobra.Command, state *commandState) error {
+	if state != nil && state.kind == commandKindTasksRun {
+		return collectTaskRunFormParams(cmd, state)
+	}
+
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormIntro())
 	inputs := newFormInputsFromState(state)
@@ -32,26 +36,9 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
 	inputs.apply(cmd, state)
-	if state.kind == commandKindTasksRun && inputs.defineTaskRuntime {
-		if err := collectTaskRunRuntimeForm(cmd, state); err != nil {
-			return err
-		}
-	} else if state.kind == commandKindTasksRun {
-		clearTaskRunRuntimeRules(state)
-		markInputFlagChanged(cmd, "task-runtime")
-	}
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormSuccess())
 	return nil
-}
-
-func clearTaskRunRuntimeRules(state *commandState) {
-	if state == nil {
-		return
-	}
-	state.configuredTaskRuntimeRules = nil
-	state.executionTaskRuntimeRules = nil
-	state.replaceConfiguredTaskRunRules = true
 }
 
 type formInputs struct {

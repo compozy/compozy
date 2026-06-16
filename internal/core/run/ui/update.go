@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/tasks"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -63,15 +65,25 @@ func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
 		return m.applyUIMsg(v), true
 	case jobRetryMsg:
 		return m.applyUIMsg(v), true
+	case jobPausingMsg:
+		return m.applyUIMsg(v), true
+	case jobPausedMsg:
+		return m.applyUIMsg(v), true
+	case jobResumedMsg:
+		return m.applyUIMsg(v), true
 	case jobFinishedMsg:
 		return m.applyUIMsg(v), true
 	case jobUpdateMsg:
 		return m.applyUIMsg(v), true
 	case usageUpdateMsg:
 		return m.applyUIMsg(v), true
+	case runStatusMsg:
+		return m.applyUIMsg(v), true
 	case shutdownStatusMsg:
 		return m.applyUIMsg(v), true
 	case jobFailureMsg:
+		return m.applyUIMsg(v), true
+	case jobControlResultMsg:
 		return m.applyUIMsg(v), true
 	default:
 		return nil, false
@@ -102,25 +114,43 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		return m.handleJobStarted(value)
 	case jobRetryMsg:
 		return m.handleJobRetry(value)
+	case jobPausingMsg:
+		return m.handleJobPausing(value)
+	case jobPausedMsg:
+		return m.handleJobPaused(value)
+	case jobResumedMsg:
+		return m.handleJobResumed(value)
 	case jobFinishedMsg:
 		return m.handleJobFinished(value)
 	case jobUpdateMsg:
 		return m.handleJobUpdate(value)
 	case usageUpdateMsg:
 		return m.handleUsageUpdate(value)
+	case runStatusMsg:
+		return m.handleRunStatus(value)
 	case shutdownStatusMsg:
 		return m.handleShutdownStatus(value)
 	case jobFailureMsg:
 		m.failures = append(m.failures, value.Failure)
 		return nil
+	case jobControlResultMsg:
+		return m.handleJobControlResult(value)
 	default:
 		return nil
 	}
 }
 
+func (m *uiModel) handleRunStatus(v runStatusMsg) tea.Cmd {
+	m.runStatus = strings.TrimSpace(v.Status)
+	return nil
+}
+
 func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 	if m.quitDialog.Active {
 		return m.handleQuitDialogKey(v)
+	}
+	if cmd, handled := m.handleFocusedComposerKey(v); handled {
+		return cmd
 	}
 	key := v.String()
 	switch key {
@@ -131,14 +161,14 @@ func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 	case keyEscape:
 		return m.handleEscape()
 	case keyTab:
-		m.cycleFocusedPane(1)
-		return nil
+		return m.cycleFocusedPane(1)
 	case keyShiftTab:
-		m.cycleFocusedPane(-1)
-		return nil
+		return m.cycleFocusedPane(-1)
 	case keyEnter:
 		m.toggleSelectedEntryExpansion()
 		return nil
+	case "p":
+		return m.requestPauseSelectedJob()
 	case "up", "k":
 		m.moveFocusedSelection(-1)
 		return nil
@@ -151,6 +181,122 @@ func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 	default:
 		return nil
 	}
+}
+
+func (m *uiModel) handleFocusedComposerKey(v tea.KeyPressMsg) (tea.Cmd, bool) {
+	if m.focusedPane != uiPaneComposer {
+		return nil, false
+	}
+	switch v.String() {
+	case keyCtrlC:
+		return m.handleQuitKey(), true
+	case keyTab:
+		return m.cycleFocusedPane(1), true
+	case keyShiftTab:
+		return m.cycleFocusedPane(-1), true
+	default:
+		return m.handleComposerKey(v), true
+	}
+}
+
+func (m *uiModel) handleComposerKey(v tea.KeyPressMsg) tea.Cmd {
+	switch v.String() {
+	case keyEscape:
+		m.composer.Blur()
+		m.focusedPane = uiPaneTimeline
+		return nil
+	case keyEnter:
+		return m.submitComposerMessage()
+	default:
+		if !m.composerEnabled(m.currentJob()) {
+			return nil
+		}
+		var cmd tea.Cmd
+		m.composer, cmd = m.composer.Update(v)
+		return cmd
+	}
+}
+
+func (m *uiModel) requestPauseSelectedJob() tea.Cmd {
+	job := m.currentJob()
+	if job == nil || !m.jobCanPause(job) || m.onJobControl == nil {
+		return nil
+	}
+	index := m.selectedJob
+	jobID := job.safeName
+	job.state = jobPausing
+	job.sidebarCacheValid = false
+	m.sidebarDirty = true
+	m.composerError = ""
+	m.refreshViewportContent()
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(m.jobControlContext(), 30*time.Second)
+		defer cancel()
+		resp, err := m.onJobControl(ctx, uiJobControlRequest{
+			Action: uiJobControlPause,
+			RunID:  m.runID(),
+			JobID:  jobID,
+		})
+		return jobControlResultMsg{Index: index, Action: uiJobControlPause, Response: resp, Err: err}
+	}
+}
+
+func (m *uiModel) submitComposerMessage() tea.Cmd {
+	job := m.currentJob()
+	if job == nil || !m.composerEnabled(job) || m.onJobControl == nil {
+		return nil
+	}
+	message := strings.TrimSpace(m.composer.Value())
+	if message == "" {
+		m.composerError = "Message required"
+		return nil
+	}
+	index := m.selectedJob
+	jobID := job.safeName
+	m.composerBusy = true
+	m.composerError = ""
+	m.composer.Blur()
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(m.jobControlContext(), 30*time.Second)
+		defer cancel()
+		resp, err := m.onJobControl(ctx, uiJobControlRequest{
+			Action:  uiJobControlMessage,
+			RunID:   m.runID(),
+			JobID:   jobID,
+			Message: message,
+		})
+		return jobControlResultMsg{Index: index, Action: uiJobControlMessage, Response: resp, Err: err}
+	}
+}
+
+func (m *uiModel) jobControlContext() context.Context {
+	if m == nil || m.ctx == nil {
+		return context.Background()
+	}
+	return m.ctx
+}
+
+func (m *uiModel) runID() string {
+	if m == nil || m.cfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(m.cfg.RunID)
+}
+
+func (m *uiModel) jobCanPause(job *uiJob) bool {
+	if job == nil || m.shutdown.Active() {
+		return false
+	}
+	switch job.state {
+	case jobRunning, jobRetrying:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *uiModel) composerEnabled(job *uiJob) bool {
+	return job != nil && job.state == jobPaused && !m.composerBusy
 }
 
 func (m *uiModel) handleQuitKey() tea.Cmd {
@@ -283,13 +429,13 @@ func (m *uiModel) showSummaryView() {
 	m.currentView = uiViewSummary
 }
 
-func (m *uiModel) cycleFocusedPane(direction int) {
+func (m *uiModel) cycleFocusedPane(direction int) tea.Cmd {
 	if m.currentView != uiViewJobs {
-		return
+		return nil
 	}
 	order := m.visiblePanes()
 	if len(order) == 0 {
-		return
+		return nil
 	}
 
 	currentIdx := 0
@@ -301,12 +447,21 @@ func (m *uiModel) cycleFocusedPane(direction int) {
 	}
 
 	nextIdx := (currentIdx + direction + len(order)) % len(order)
-	m.focusedPane = order[nextIdx]
+	nextPane := order[nextIdx]
+	m.focusedPane = nextPane
+	if nextPane == uiPaneComposer && m.composerEnabled(m.currentJob()) {
+		return m.composer.Focus()
+	}
+	m.composer.Blur()
+	return nil
 }
 
 func (m *uiModel) visiblePanes() []uiPane {
 	if m.layoutMode == uiLayoutResizeBlocked {
 		return nil
+	}
+	if m.composerEnabled(m.currentJob()) || m.focusedPane == uiPaneComposer {
+		return []uiPane{uiPaneJobs, uiPaneTimeline, uiPaneComposer}
 	}
 	return []uiPane{uiPaneJobs, uiPaneTimeline}
 }
@@ -468,20 +623,22 @@ func (m *uiModel) refreshViewportContent() {
 func (m *uiModel) refreshSidebarContent() {
 	items := make([]string, 0, len(m.jobs))
 	for i := range m.jobs {
-		items = append(items, m.renderSidebarItem(&m.jobs[i], i == m.selectedJob))
+		items = append(items, m.renderSidebarItem(i, &m.jobs[i], i == m.selectedJob))
 	}
-	content := strings.Join(items, "\n")
+	// Each item is a bordered card; adjacent cards share one separator border row
+	// so there is no blank gap or duplicated top/bottom border in the viewport.
+	content := renderSidebarStack(items, m.sidebarViewport.Width())
 	if content != m.sidebarContent {
 		m.applySidebarViewportContent(content)
 		m.sidebarContent = content
 	}
 	m.sidebarDirty = false
 
-	lineOffset := m.selectedJob * 3
+	lineOffset := m.selectedJob * sidebarRowStride
 	sidebarOffset := m.sidebarViewport.YOffset()
 	sidebarHeight := m.sidebarViewport.Height()
-	if lineOffset > sidebarOffset+sidebarHeight-3 {
-		m.sidebarViewport.SetYOffset(lineOffset - sidebarHeight + 3)
+	if lineOffset > sidebarOffset+sidebarHeight-sidebarRowLines {
+		m.sidebarViewport.SetYOffset(lineOffset - sidebarHeight + sidebarRowLines)
 	} else if lineOffset < sidebarOffset {
 		m.sidebarViewport.SetYOffset(lineOffset)
 	}
@@ -564,6 +721,7 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		codeFile:             v.CodeFile,
 		codeFiles:            v.CodeFiles,
 		issues:               v.Issues,
+		taskNumber:           queuedTaskNumber(v),
 		taskTitle:            v.TaskTitle,
 		taskType:             v.TaskType,
 		safeName:             firstNonEmpty(v.SafeName, placeholderJobSafeName(v.Index)),
@@ -582,6 +740,27 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 	m.sidebarDirty = true
 	m.refreshViewportContent()
 	return nil
+}
+
+func queuedTaskNumber(v *jobQueuedMsg) int {
+	if v == nil {
+		return 0
+	}
+	if v.TaskNumber > 0 {
+		return v.TaskNumber
+	}
+	if strings.TrimSpace(v.TaskTitle) == "" && strings.TrimSpace(v.TaskType) == "" {
+		return 0
+	}
+	if number := tasks.ExtractTaskIdentityNumber(v.CodeFile); number > 0 {
+		return number
+	}
+	for _, codeFile := range v.CodeFiles {
+		if number := tasks.ExtractTaskIdentityNumber(codeFile); number > 0 {
+			return number
+		}
+	}
+	return 0
 }
 
 func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
@@ -633,6 +812,77 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 	}
 	m.refreshViewportContent()
 	return nil
+}
+
+func (m *uiModel) handleJobPausing(v jobPausingMsg) tea.Cmd {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
+		m.persistSelectedViewportState()
+		job.state = jobPausing
+		job.retrying = false
+		job.retryReason = ""
+		m.selectedJob = v.Index
+		m.sidebarDirty = true
+	}
+	m.refreshViewportContent()
+	return m.ensureSpinnerTick()
+}
+
+func (m *uiModel) handleJobPaused(v jobPausedMsg) tea.Cmd {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
+		m.persistSelectedViewportState()
+		job.state = jobPaused
+		job.retrying = false
+		job.retryReason = ""
+		m.selectedJob = v.Index
+		m.focusedPane = uiPaneComposer
+		m.composerBusy = false
+		m.composerError = ""
+		m.sidebarDirty = true
+	}
+	m.refreshViewportContent()
+	return m.composer.Focus()
+}
+
+func (m *uiModel) handleJobResumed(v jobResumedMsg) tea.Cmd {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
+		job.state = jobRunning
+		job.retrying = false
+		job.retryReason = ""
+		m.selectedJob = v.Index
+		m.focusedPane = uiPaneTimeline
+		m.composerBusy = false
+		m.composerError = ""
+		m.sidebarDirty = true
+	}
+	m.refreshViewportContent()
+	return m.ensureSpinnerTick()
+}
+
+func (m *uiModel) handleJobControlResult(v jobControlResultMsg) tea.Cmd {
+	if v.Err != nil {
+		m.composerBusy = false
+		m.composerError = v.Err.Error()
+		if job, _ := m.ensureJobSlot(v.Index); job != nil && v.Action == uiJobControlPause && job.state == jobPausing {
+			job.state = jobRunning
+			m.sidebarDirty = true
+		}
+		if m.focusedPane == uiPaneComposer {
+			return m.composer.Focus()
+		}
+		m.refreshViewportContent()
+		return nil
+	}
+	switch v.Response.Status {
+	case model.JobControlStatusPausing:
+		return m.handleJobPausing(jobPausingMsg{Index: v.Index})
+	case model.JobControlStatusPaused:
+		return m.handleJobPaused(jobPausedMsg{Index: v.Index})
+	case model.JobControlStatusResumed:
+		m.composer.Reset()
+		return m.handleJobResumed(jobResumedMsg{Index: v.Index, MessageID: v.Response.MessageID})
+	default:
+		return nil
+	}
 }
 
 func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
@@ -706,14 +956,13 @@ func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
-	if job, created := m.ensureJobSlot(v.Index); job != nil {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		if job.tokenUsage == nil {
 			job.tokenUsage = &model.Usage{}
 		}
 		job.tokenUsage.Add(v.Usage)
-		if created {
-			m.sidebarDirty = true
-		}
+		job.sidebarCacheValid = false
+		m.sidebarDirty = true
 	}
 	if m.aggregateUsage != nil {
 		m.aggregateUsage.Add(v.Usage)
@@ -754,7 +1003,7 @@ func (m *uiModel) sidebarNeedsClockRefresh() bool {
 func (m *uiModel) hasActiveJobs() bool {
 	for i := range m.jobs {
 		switch m.jobs[i].state {
-		case jobRunning, jobRetrying:
+		case jobRunning, jobPausing, jobRetrying:
 			return true
 		}
 	}

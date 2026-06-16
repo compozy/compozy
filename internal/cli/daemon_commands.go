@@ -14,6 +14,7 @@ import (
 	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
@@ -73,6 +74,13 @@ type daemonCommandClient interface {
 	StartReviewWatch(context.Context, string, string, apicore.ReviewWatchRequest) (apicore.Run, error)
 	StartExecRun(context.Context, apicore.ExecRequest) (apicore.Run, error)
 	CancelRun(context.Context, string) error
+	PauseRunJob(context.Context, string, string) (apicore.RunJobControlResponse, error)
+	SendRunJobMessage(
+		context.Context,
+		string,
+		string,
+		apicore.RunJobMessageRequest,
+	) (apicore.RunJobControlResponse, error)
 	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)
 	ListRunEvents(context.Context, string, apicore.StreamCursor, int) (apicore.RunEventPage, error)
 	OpenRunStream(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
@@ -212,9 +220,26 @@ func (b cliDaemonBootstrap) probe(ctx context.Context, infoPath string) (daemonC
 	if err != nil {
 		return nil, fmt.Errorf("probe daemon status via %s: %w", client.Target().String(), err)
 	}
+	daemonContractVersion := firstNonEmptyDaemonContractVersion(status.ContractVersion, health.ContractVersion)
+	cliContractVersion := contract.DaemonContractVersion
+	if !daemonContractVersionsCompatible(daemonContractVersion, cliContractVersion) {
+		return nil, &cliDaemonVersionMismatchError{
+			info:                  info,
+			client:                client,
+			daemonVersion:         firstNonEmptyDaemonBuildVersion(status.Version, info.Version),
+			cliVersion:            b.currentCLIVersion(),
+			daemonContractVersion: daemonContractVersion,
+			cliContractVersion:    cliContractVersion,
+			activeRunCount:        status.ActiveRunCount,
+			contractMismatch:      true,
+		}
+	}
 	daemonVersion := firstNonEmptyDaemonBuildVersion(status.Version, info.Version)
 	cliVersion := b.currentCLIVersion()
 	if !daemonBuildVersionsCompatible(daemonVersion, cliVersion) {
+		if status.ActiveRunCount > 0 {
+			return client, nil
+		}
 		return nil, &cliDaemonVersionMismatchError{
 			info:           info,
 			client:         client,
@@ -254,6 +279,16 @@ func (b cliDaemonBootstrap) handleVersionMismatch(
 
 func (b cliDaemonBootstrap) notifyVersionMismatchRestart(mismatch *cliDaemonVersionMismatchError) error {
 	if b.notify == nil {
+		return nil
+	}
+	if mismatch.contractMismatch {
+		if err := b.notify(fmt.Sprintf(
+			"Restarting incompatible compozy daemon (daemon contract %s, CLI contract %s).",
+			displayDaemonContractVersion(mismatch.daemonContractVersion),
+			displayDaemonContractVersion(mismatch.cliContractVersion),
+		)); err != nil {
+			return fmt.Errorf("write daemon restart notice: %w", err)
+		}
 		return nil
 	}
 	if err := b.notify(fmt.Sprintf(
@@ -306,16 +341,36 @@ func (b cliDaemonBootstrap) currentCLIVersion() string {
 }
 
 type cliDaemonVersionMismatchError struct {
-	info           daemon.Info
-	client         daemonCommandClient
-	daemonVersion  string
-	cliVersion     string
-	activeRunCount int
+	info                  daemon.Info
+	client                daemonCommandClient
+	daemonVersion         string
+	cliVersion            string
+	daemonContractVersion string
+	cliContractVersion    string
+	activeRunCount        int
+	contractMismatch      bool
 }
 
 func (e *cliDaemonVersionMismatchError) Error() string {
 	if e == nil {
 		return "daemon version mismatch"
+	}
+	if e.contractMismatch {
+		if e.activeRunCount > 0 {
+			return fmt.Sprintf(
+				"running compozy daemon contract version %q does not match CLI contract version %q and has %d active runs; "+
+					"retry after the active runs finish or, when it is safe to cancel them, run "+
+					"`compozy daemon stop --force` and retry so the CLI starts the current daemon",
+				displayDaemonContractVersion(e.daemonContractVersion),
+				displayDaemonContractVersion(e.cliContractVersion),
+				e.activeRunCount,
+			)
+		}
+		return fmt.Sprintf(
+			"running compozy daemon contract version %q does not match CLI contract version %q",
+			displayDaemonContractVersion(e.daemonContractVersion),
+			displayDaemonContractVersion(e.cliContractVersion),
+		)
 	}
 	if e.activeRunCount > 0 {
 		return fmt.Sprintf(
@@ -341,6 +396,32 @@ func firstNonEmptyDaemonBuildVersion(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonEmptyDaemonContractVersion(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func daemonContractVersionsCompatible(daemonVersion string, cliVersion string) bool {
+	daemonVersion = strings.TrimSpace(daemonVersion)
+	cliVersion = strings.TrimSpace(cliVersion)
+	if daemonVersion == "" {
+		return true
+	}
+	return cliVersion != "" && daemonVersion == cliVersion
+}
+
+func displayDaemonContractVersion(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "legacy"
+	}
+	return trimmed
 }
 
 func daemonBuildVersionsCompatible(daemonVersion string, cliVersion string) bool {
@@ -618,11 +699,23 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if len(args) == 0 && strings.TrimSpace(s.name) == "" {
+	if len(args) == 0 && strings.TrimSpace(s.name) == "" && strings.TrimSpace(s.multiple) == "" {
 		if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 			return err
 		}
 	}
+	if strings.TrimSpace(s.multiple) != "" {
+		slugs, err := s.resolveTaskWorkflowSlugList(args)
+		if err != nil {
+			return withExitCode(1, err)
+		}
+		s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+		return s.runTaskWorkflowsMultiplePrepared(ctx, cmd, slugs)
+	}
+	return s.runTaskWorkflowPrepared(ctx, cmd, args)
+}
+
+func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.Command, args []string) error {
 	if err := s.resolveTaskWorkflowName(args); err != nil {
 		return withExitCode(1, err)
 	}
@@ -679,8 +772,15 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+	return s.runTaskWorkflowsMultiplePrepared(ctx, cmd, slugs)
+}
+
+func (s *commandState) runTaskWorkflowsMultiplePrepared(
+	ctx context.Context,
+	cmd *cobra.Command,
+	slugs []string,
+) error {
 	if err := s.preflightTaskWorkflowSlugs(ctx, cmd, slugs); err != nil {
 		return err
 	}

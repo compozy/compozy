@@ -89,44 +89,28 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 	}
 
 	m := newUIModel(1)
-	running := &uiJob{state: jobRunning, startedAt: time.Now().Add(-2 * time.Minute)}
-	retrying := &uiJob{state: jobRetrying, attempt: 2, maxAttempts: 3}
-	success := &uiJob{state: jobSuccess, duration: 42 * time.Second}
-	failed := &uiJob{state: jobFailed, duration: 15 * time.Second}
 
 	for _, tc := range []struct {
+		name  string
 		state jobState
-		label string
 	}{
-		{jobPending, "PENDING"},
-		{jobRunning, "RUNNING"},
-		{jobRetrying, "RETRY"},
-		{jobSuccess, "SUCCESS"},
-		{jobFailed, "FAILED"},
+		{"Should render helpers for pending jobs", jobPending},
+		{"Should render helpers for running jobs", jobRunning},
+		{"Should render helpers for retrying jobs", jobRetrying},
+		{"Should render helpers for successful jobs", jobSuccess},
+		{"Should render helpers for failed jobs", jobFailed},
 	} {
-		if got := m.getStateLabel(tc.state); got != tc.label {
-			t.Fatalf("unexpected state label for %v: %q", tc.state, got)
-		}
-		if got := m.jobStateIcon(tc.state); got == "" {
-			t.Fatalf("expected icon for state %v", tc.state)
-		}
-		if m.jobStateColor(tc.state) == nil {
-			t.Fatalf("expected color for state %v", tc.state)
-		}
-		if m.jobBorderColor(&uiJob{state: tc.state}) == nil {
-			t.Fatalf("expected border color for state %v", tc.state)
-		}
-	}
-
-	for _, rendered := range []string{
-		m.elapsedStr(running, colorBgBase),
-		m.elapsedStr(retrying, colorBgBase),
-		m.elapsedStr(success, colorBgBase),
-		m.elapsedStr(failed, colorBgBase),
-	} {
-		if rendered == "" {
-			t.Fatal("expected elapsedStr to render for running/success/failed states")
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if got := m.jobStateIcon(tc.state); got == "" {
+				t.Fatalf("expected icon for state %v", tc.state)
+			}
+			if m.jobStateColor(tc.state) == nil {
+				t.Fatalf("expected color for state %v", tc.state)
+			}
+			if m.jobBorderColor(&uiJob{state: tc.state}) == nil {
+				t.Fatalf("expected border color for state %v", tc.state)
+			}
+		})
 	}
 
 	m.jobs = []uiJob{{tokenUsage: &model.Usage{InputTokens: 1, OutputTokens: 2}}}

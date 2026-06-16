@@ -53,6 +53,35 @@ func TestMultiRunInitialSnapshotRendersQueuedTabsInOrder(t *testing.T) {
 	})
 }
 
+func TestRemoteMultiRunModelAppliesWorkspaceRootToParentAndChildren(t *testing.T) {
+	t.Parallel()
+
+	mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+		Snapshot: apicore.TaskRunMultipleSnapshot{
+			Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			Items: []apicore.TaskRunMultipleItem{
+				{Slug: "alpha", Status: taskMultiStatusRunning, RunID: "run-alpha"},
+			},
+		},
+		WorkspaceRoot: "  /tmp/compozy-parent  ",
+		LoadChildSnapshot: func(_ context.Context, runID string) (apicore.RunSnapshot, error) {
+			return childSnapshotForTest(t, runID, "alpha", remoteRunStatusRunning, "alpha transcript"), nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+	}
+	if mdl.cfg.WorkspaceRoot != "/tmp/compozy-parent" {
+		t.Fatalf("parent workspace root = %q, want trimmed workspace root", mdl.cfg.WorkspaceRoot)
+	}
+	if len(mdl.tabs) != 1 || mdl.tabs[0].child == nil {
+		t.Fatalf("expected hydrated child tab, got %#v", mdl.tabs)
+	}
+	if got := mdl.tabs[0].child.cfg.WorkspaceRoot; got != "/tmp/compozy-parent" {
+		t.Fatalf("child workspace root = %q, want inherited workspace root", got)
+	}
+}
+
 func TestMultiRunChildStartUpdatesOnlyTargetTabState(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +195,41 @@ func TestMultiRunInitStartsClockWhenActiveTabHasNoChild(t *testing.T) {
 	}
 }
 
+func TestMultiRunChildBootstrapRestartsSpinnerLoop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restart spinner loop after child bootstrap", func(t *testing.T) {
+		t.Parallel()
+
+		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+			Snapshot: apicore.TaskRunMultipleSnapshot{
+				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+				Items: []apicore.TaskRunMultipleItem{{
+					Slug:   "alpha",
+					RunID:  "run-alpha",
+					Status: taskMultiStatusRunning,
+				}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+		}
+
+		_, cmd := mdl.Update(multiRunChildBootstrapMsg{
+			RunID: "run-alpha",
+			Snapshot: apicore.RunSnapshot{
+				Run: apicore.Run{RunID: "run-alpha", Status: remoteRunStatusRunning},
+			},
+		})
+		if cmd == nil {
+			t.Fatal("expected child bootstrap to restart spinner loop")
+		}
+		if !mdl.spinnerRunning {
+			t.Fatal("expected spinner loop to be marked running")
+		}
+	})
+}
+
 func TestMultiRunClockTickContinuesAfterAdvancingToQueuedTab(t *testing.T) {
 	t.Parallel()
 
@@ -214,10 +278,9 @@ func TestMultiRunTabNavigationDoesNotCycleChildPaneFocus(t *testing.T) {
 		}
 		mdl.tabs[0].child.focusedPane = uiPaneTimeline
 
-		cmd := mdl.handleKey(keyCode(tea.KeyRight))
-		if cmd != nil {
-			t.Fatalf("expected tab navigation to stay local, got command %T", cmd())
-		}
+		// Tab navigation may (re)start the queue-owned spinner loop, but it must
+		// not drive the child models or cycle their pane focus.
+		mdl.handleKey(keyCode(tea.KeyRight))
 		if got := mdl.activeTab; got != 1 {
 			t.Fatalf("expected active tab beta, got %d", got)
 		}
@@ -228,6 +291,62 @@ func TestMultiRunTabNavigationDoesNotCycleChildPaneFocus(t *testing.T) {
 			t.Fatalf("expected beta child focus to remain jobs, got %s", got)
 		}
 	})
+}
+
+func TestMultiRunSpinnerSurvivesIdleActiveTab(t *testing.T) {
+	t.Parallel()
+
+	mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+		Snapshot: apicore.TaskRunMultipleSnapshot{
+			Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			Items: []apicore.TaskRunMultipleItem{
+				{Slug: "alpha", Status: taskMultiStatusRunning, RunID: "run-alpha"},
+				{Slug: "beta", Status: taskMultiStatusQueued},
+			},
+		},
+		LoadChildSnapshot: func(_ context.Context, runID string) (apicore.RunSnapshot, error) {
+			return childSnapshotForTest(
+				t,
+				runID,
+				strings.TrimPrefix(runID, "run-"),
+				remoteRunStatusRunning,
+				runID+" transcript",
+			), nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+	}
+
+	// Switch to the queued tab, which has no active jobs of its own. A tick
+	// handled here must still re-arm the loop because alpha is still running.
+	// Previously the loop's continuation was delegated to the active child, so
+	// this returned nil and the spinner froze permanently.
+	mdl.activeTab = 1
+	mdl.spinnerRunning = true
+	if cmd := mdl.handleSpinnerTick(spinnerTickMsg{}); cmd == nil {
+		t.Fatal("spinner must keep ticking while any tab runs, even on an idle active tab")
+	}
+}
+
+func TestMultiRunSpinnerStopsWhenNoTabActive(t *testing.T) {
+	t.Parallel()
+
+	mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+		Snapshot: apicore.TaskRunMultipleSnapshot{
+			Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			Items: []apicore.TaskRunMultipleItem{
+				{Slug: "alpha", Status: taskMultiStatusQueued},
+				{Slug: "beta", Status: taskMultiStatusQueued},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+	}
+	if cmd := mdl.ensureSpinnerTick(); cmd != nil {
+		t.Fatal("spinner loop must not start while every tab is queued/idle")
+	}
 }
 
 func TestMultiRunTabNavigationUsesHorizontalKeys(t *testing.T) {
@@ -268,6 +387,56 @@ func TestMultiRunTabNavigationUsesHorizontalKeys(t *testing.T) {
 		view := mdl.renderTabs()
 		if !strings.Contains(view, "←→/HL") || !strings.Contains(view, "TABS") {
 			t.Fatalf("expected tab help to advertise horizontal navigation, got %q", view)
+		}
+	})
+}
+
+func TestMultiRunTabsShowBrandOnce(t *testing.T) {
+	t.Parallel()
+
+	mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+		Snapshot: apicore.TaskRunMultipleSnapshot{
+			Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			Items: []apicore.TaskRunMultipleItem{
+				{Slug: "alpha", Status: taskMultiStatusRunning},
+				{Slug: "beta", Status: taskMultiStatusQueued},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+	}
+
+	tabs := mdl.renderTabs()
+	if got := strings.Count(tabs, "COMPOZY"); got != 1 {
+		t.Fatalf("expected the brand to share the tabs row exactly once, got %d in %q", got, tabs)
+	}
+}
+
+func TestMultiRunTabsRenderStatusGlyphs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefix each tab with its status glyph", func(t *testing.T) {
+		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
+			Snapshot: apicore.TaskRunMultipleSnapshot{
+				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+				Items: []apicore.TaskRunMultipleItem{
+					{Slug: "alpha", Status: taskMultiStatusRunning},
+					{Slug: "beta", Status: taskMultiStatusQueued},
+					{Slug: "gamma", Status: taskMultiStatusCompleted},
+					{Slug: "delta", Status: taskMultiStatusFailed},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("newRemoteMultiRunModel() error = %v", err)
+		}
+
+		view := mdl.renderTabs()
+		for _, want := range []string{glyphActiveDot, jobIconPending, jobIconSuccess, jobIconFailed} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("expected tab strip to contain status glyph %q, got %q", want, view)
+			}
 		}
 	})
 }
@@ -704,46 +873,106 @@ func TestMultiRunParentStartedAndQueueCanceledEvents(t *testing.T) {
 func TestMultiRunChildEventCreatesPlaceholderAndMapsTerminalRunStatus(t *testing.T) {
 	t.Parallel()
 
-	mdl := &multiRunModel{
-		parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
-		width:      120,
-		height:     30,
-		cfg:        &config{},
-		quitDialog: newQuitDialogState(),
-		tabs: []multiRunTab{{
-			slug:       "alpha",
-			status:     taskMultiStatusRunning,
-			runID:      "run-alpha",
-			translator: newUIEventTranslator(),
-		}},
-	}
+	t.Run("Should create placeholder with job-control callbacks and map terminal status", func(t *testing.T) {
+		t.Parallel()
 
-	mdl.handleChildEvent(multiRunChildEventMsg{
-		RunID: "run-alpha",
-		Event: mustRuntimeEventUITest(
-			t,
-			eventspkg.EventKindJobQueued,
-			kinds.JobQueuedPayload{Index: 0, SafeName: "alpha-job", TaskTitle: "Alpha"},
-		),
-	})
-	if mdl.tabs[0].child == nil {
-		t.Fatal("expected child event to create placeholder child model")
-	}
-	if got := mdl.tabs[0].child.jobs[0].taskTitle; got != "Alpha" {
-		t.Fatalf("child task title = %q, want Alpha", got)
-	}
+		var pausedRunID, pausedJobID string
+		var messageRunID, messageJobID, messageBody string
+		mdl := &multiRunModel{
+			parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			width:      120,
+			height:     30,
+			cfg:        &config{},
+			quitDialog: newQuitDialogState(),
+			pauseRunJob: func(
+				_ context.Context,
+				runID string,
+				jobID string,
+			) (apicore.RunJobControlResponse, error) {
+				pausedRunID = runID
+				pausedJobID = jobID
+				return apicore.RunJobControlResponse{
+					RunID:  runID,
+					JobID:  jobID,
+					Status: string(model.JobControlStatusPausing),
+				}, nil
+			},
+			sendRunJobMessage: func(
+				_ context.Context,
+				runID string,
+				jobID string,
+				req apicore.RunJobMessageRequest,
+			) (apicore.RunJobControlResponse, error) {
+				messageRunID = runID
+				messageJobID = jobID
+				messageBody = req.Message
+				return apicore.RunJobControlResponse{
+					RunID:  runID,
+					JobID:  jobID,
+					Status: string(model.JobControlStatusResumed),
+				}, nil
+			},
+			tabs: []multiRunTab{{
+				slug:       "alpha",
+				status:     taskMultiStatusRunning,
+				runID:      "run-alpha",
+				translator: newUIEventTranslator(),
+			}},
+		}
 
-	mdl.handleChildEvent(multiRunChildEventMsg{
-		RunID: "run-alpha",
-		Event: mustRuntimeEventUITest(
-			t,
-			eventspkg.EventKindRunFailed,
-			kinds.RunFailedPayload{Error: "child failed"},
-		),
+		mdl.handleChildEvent(multiRunChildEventMsg{
+			RunID: "run-alpha",
+			Event: mustRuntimeEventUITest(
+				t,
+				eventspkg.EventKindJobQueued,
+				kinds.JobQueuedPayload{Index: 0, SafeName: "alpha-job", TaskTitle: "Alpha"},
+			),
+		})
+		if mdl.tabs[0].child == nil {
+			t.Fatal("expected child event to create placeholder child model")
+		}
+		if got := mdl.tabs[0].child.jobs[0].taskTitle; got != "Alpha" {
+			t.Fatalf("child task title = %q, want Alpha", got)
+		}
+		if mdl.tabs[0].child.onJobControl == nil {
+			t.Fatal("expected placeholder child to wire job-control callback")
+		}
+		if _, err := mdl.tabs[0].child.onJobControl(context.Background(), uiJobControlRequest{
+			Action: uiJobControlPause,
+			JobID:  "alpha-job",
+		}); err != nil {
+			t.Fatalf("placeholder pause control error = %v", err)
+		}
+		if pausedRunID != "run-alpha" || pausedJobID != "alpha-job" {
+			t.Fatalf("pause callback = %q/%q, want run-alpha/alpha-job", pausedRunID, pausedJobID)
+		}
+		if _, err := mdl.tabs[0].child.onJobControl(context.Background(), uiJobControlRequest{
+			Action:  uiJobControlMessage,
+			JobID:   "alpha-job",
+			Message: "continue",
+		}); err != nil {
+			t.Fatalf("placeholder message control error = %v", err)
+		}
+		if messageRunID != "run-alpha" || messageJobID != "alpha-job" || messageBody != "continue" {
+			t.Fatalf("message callback = %q/%q/%q, want run-alpha/alpha-job/continue",
+				messageRunID,
+				messageJobID,
+				messageBody,
+			)
+		}
+
+		mdl.handleChildEvent(multiRunChildEventMsg{
+			RunID: "run-alpha",
+			Event: mustRuntimeEventUITest(
+				t,
+				eventspkg.EventKindRunFailed,
+				kinds.RunFailedPayload{Error: "child failed"},
+			),
+		})
+		if got := mdl.tabs[0].status; got != taskMultiStatusFailed {
+			t.Fatalf("child terminal status = %q, want failed", got)
+		}
 	})
-	if got := mdl.tabs[0].status; got != taskMultiStatusFailed {
-		t.Fatalf("child terminal status = %q, want failed", got)
-	}
 }
 
 func TestFollowRemoteMultiRunChildFallsBackToStreamWhenBootstrapSnapshotFails(t *testing.T) {
@@ -864,6 +1093,8 @@ func TestMultiRunStatusHelpersCoverAllStatuses(t *testing.T) {
 		want  string
 	}{
 		{input: remoteRunStatusRunning, want: taskMultiStatusRunning},
+		{input: remoteRunStatusPausing, want: taskMultiStatusRunning},
+		{input: remoteRunStatusPaused, want: taskMultiStatusRunning},
 		{input: remoteRunStatusRetrying, want: taskMultiStatusRunning},
 		{input: remoteRunStatusCompleted, want: taskMultiStatusCompleted},
 		{input: remoteRunStatusFailed, want: taskMultiStatusFailed},
@@ -915,7 +1146,7 @@ func TestMultiRunNilAndNarrowHelperBranches(t *testing.T) {
 	if got := tabStatus(nil); got != taskMultiStatusQueued {
 		t.Fatalf("nil tab status = %q, want queued", got)
 	}
-	if actions := mdl.renderQuitDialogActions(20, colorBgSurface); !strings.Contains(actions, "\n") {
+	if actions := mdl.renderQuitDialogActions(20); !strings.Contains(actions, "\n") {
 		t.Fatalf("expected narrow quit actions to stack vertically, got %q", actions)
 	}
 	mdl.activeTab = -1
@@ -998,6 +1229,11 @@ func (s *recordingMultiRunSession) SetQuitHandler(fn func(uiQuitRequest)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.quitHandler = fn
+}
+
+func (s *recordingMultiRunSession) SetJobControlHandler(
+	func(context.Context, uiJobControlRequest) (jobControlResponse, error),
+) {
 }
 
 func (s *recordingMultiRunSession) CloseEvents() {}

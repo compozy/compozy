@@ -1,6 +1,11 @@
 package runshared
 
-import "time"
+import (
+	"context"
+	"time"
+
+	"github.com/compozy/compozy/internal/core/model"
+)
 
 const (
 	ProcessTerminationGracePeriod = 3 * time.Second
@@ -44,7 +49,22 @@ const (
 type UISession interface {
 	Enqueue(any)
 	SetQuitHandler(func(UIQuitRequest))
+	SetJobControlHandler(func(context.Context, UIJobControlRequest) (model.JobControlResponse, error))
 	CloseEvents()
 	Shutdown()
 	Wait() error
+}
+
+type UIJobControlAction string
+
+const (
+	UIJobControlPause   UIJobControlAction = "pause"
+	UIJobControlMessage UIJobControlAction = "message"
+)
+
+type UIJobControlRequest struct {
+	Action  UIJobControlAction
+	RunID   string
+	JobID   string
+	Message string
 }

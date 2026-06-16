@@ -71,6 +71,7 @@ type SessionAvailableCommand struct {
 // SessionUpdate is the public view of one streamed ACP update.
 type SessionUpdate struct {
 	Kind              SessionUpdateKind         `json:"kind,omitempty"`
+	MessageID         string                    `json:"message_id,omitempty"`
 	ToolCallID        string                    `json:"tool_call_id,omitempty"`
 	ToolCallState     ToolCallState             `json:"tool_call_state,omitempty"`
 	Blocks            []ContentBlock            `json:"blocks,omitempty"`

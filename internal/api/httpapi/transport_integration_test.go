@@ -2237,6 +2237,31 @@ func (f *fakeRunService) Cancel(context.Context, string) error {
 	return nil
 }
 
+func (*fakeRunService) PauseRunJob(
+	_ context.Context,
+	runID string,
+	jobID string,
+) (core.RunJobControlResponse, error) {
+	return core.RunJobControlResponse{
+		RunID:  runID,
+		JobID:  jobID,
+		Status: "pausing",
+	}, nil
+}
+
+func (*fakeRunService) SendRunJobMessage(
+	_ context.Context,
+	runID string,
+	jobID string,
+	_ core.RunJobMessageRequest,
+) (core.RunJobControlResponse, error) {
+	return core.RunJobControlResponse{
+		RunID:  runID,
+		JobID:  jobID,
+		Status: "resumed",
+	}, nil
+}
+
 type channelRunStream struct {
 	events chan core.RunStreamItem
 	errors chan error

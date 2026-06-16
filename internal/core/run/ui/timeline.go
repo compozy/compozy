@@ -12,7 +12,15 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-const timelineDetailIndent = "   "
+const (
+	timelineDetailIndent     = "   "
+	composerPromptGlyph      = "〉 "
+	composerPausedTaskPrompt = "Message paused task"
+	// timelineChromeRows is the vertical budget consumed around the transcript:
+	// header box (2 content + 2 border), composer box (1 content + 2 border),
+	// and the messages box border.
+	timelineChromeRows = 9
+)
 
 var setTranscriptViewportContent = func(vp *viewport.Model, content string) {
 	vp.SetContent(content)
@@ -32,40 +40,116 @@ func (m *uiModel) renderMainPanels() string {
 	return m.renderTimelinePanel(job, m.timelineWidth)
 }
 
+// renderTimelinePanel renders the page content as three separate boxes: header,
+// streaming messages, and the composer textbox.
 func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	contentWidth := panelContentWidth(panelWidth)
 	cacheHit := m.timelineCacheHit(job, contentWidth)
 	m.transcriptViewport.SetWidth(contentWidth)
-	transcriptHeight := max(m.contentHeight-4, logViewportMinHeight)
-	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
-		transcriptHeight = max(transcriptHeight-1, logViewportMinHeight)
-	}
-	m.transcriptViewport.SetHeight(transcriptHeight)
+	m.transcriptViewport.SetHeight(max(m.contentHeight-timelineChromeRows, logViewportMinHeight))
 	rendered := m.buildTimelineContent(job, contentWidth)
 	if !cacheHit || !m.timelineViewportMounted(job, contentWidth) {
 		m.applyTranscriptViewportContent(rendered.content)
 		m.restoreTranscriptViewport(job, rendered.offsets)
 		m.timelineMounted = m.newTimelineMountState(job, contentWidth)
 	}
+	headerBox := techPanelStyle(panelWidth, colorBorder).
+		Render(m.renderTimelineHeaderContent(job, contentWidth))
+	messagesBox := techPanelStyle(panelWidth, m.timelineMessagesBorderColor()).
+		Render(m.renderTimelineMessagesContent(contentWidth))
+	composerBox := techPanelStyle(panelWidth, m.composerBorderColor(job)).
+		Render(m.renderComposerContent(job, contentWidth))
+	return lipgloss.JoinVertical(lipgloss.Left, headerBox, messagesBox, composerBox)
+}
 
+func (m *uiModel) renderTimelineHeaderContent(job *uiJob, contentWidth int) string {
 	lines := []string{
-		renderOwnedLineKnownOwned(contentWidth, colorBgSurface, m.renderTimelineHeader(job, contentWidth)),
+		renderOwnedLineKnownOwned(contentWidth, m.renderTimelineHeader(job, contentWidth)),
 		renderOwnedLineKnownOwned(
 			contentWidth,
-			colorBgSurface,
-			renderStyledOnBackground(styleDimText, colorBgSurface, m.timelineMetaForWidth(job, contentWidth)),
+			styleDimText.Render(m.timelineMetaForWidth(job, contentWidth)),
 		),
 	}
-	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
-		lines = append(lines, renderOwnedLineKnownOwned(contentWidth, colorBgSurface, ""))
-	}
-	lines = append(lines, renderOwnedBlock(contentWidth, colorBgSurface, m.transcriptViewport.View()))
+	return strings.Join(lines, "\n")
+}
 
+func (m *uiModel) renderTimelineMessagesContent(contentWidth int) string {
+	return renderOwnedBlock(contentWidth, m.transcriptViewport.View())
+}
+
+func (m *uiModel) timelineMessagesBorderColor() color.Color {
 	borderColor := colorBorder
 	if m.focusedPane == uiPaneTimeline {
 		borderColor = colorBorderFocus
 	}
-	return techPanelStyle(panelWidth, borderColor).Render(strings.Join(lines, "\n"))
+	return borderColor
+}
+
+func (m *uiModel) renderComposerContent(job *uiJob, innerWidth int) string {
+	enabled := m.composerEnabled(job)
+	m.configureComposerAppearance()
+	m.composer.SetWidth(innerWidth)
+	m.composer.SetHeight(1)
+	if enabled {
+		m.composer.Placeholder = composerPausedTaskPrompt
+		return renderOwnedLineKnownOwned(innerWidth, m.composer.View())
+	}
+	label := m.composerDisabledLabel(job)
+	if m.composerBusy {
+		label = "Sending message..."
+	}
+	if strings.TrimSpace(m.composerError) != "" {
+		return renderOwnedLineKnownOwned(
+			innerWidth,
+			m.renderComposerPromptedText(m.composerError, innerWidth, styleBodyText.Foreground(colorError)),
+		)
+	}
+	return renderOwnedLineKnownOwned(
+		innerWidth,
+		m.renderComposerPromptedText(label, innerWidth, styleDimText),
+	)
+}
+
+func (m *uiModel) composerBorderColor(job *uiJob) color.Color {
+	if strings.TrimSpace(m.composerError) != "" {
+		return colorError
+	}
+	if m.focusedPane == uiPaneComposer && m.composerEnabled(job) {
+		return colorBorderFocus
+	}
+	return colorBorder
+}
+
+func (m *uiModel) renderComposerPromptedText(label string, width int, labelStyle lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+	promptWidth := lipgloss.Width(composerPromptGlyph)
+	if width <= promptWidth {
+		return styleDimText.Render(truncateString(composerPromptGlyph, width))
+	}
+	return styleDimText.Render(composerPromptGlyph) +
+		labelStyle.Render(truncateString(label, width-promptWidth))
+}
+
+func (m *uiModel) composerDisabledLabel(job *uiJob) string {
+	if job == nil {
+		return "No task selected"
+	}
+	switch job.state {
+	case jobPaused:
+		return composerPausedTaskPrompt
+	case jobPausing:
+		return "Pausing task..."
+	case jobRunning, jobRetrying:
+		return "Task running"
+	case jobSuccess:
+		return "Task completed"
+	case jobFailed:
+		return "Task failed"
+	default:
+		return "Task pending"
+	}
 }
 
 func invalidTimelineMountState() timelineMountState {
@@ -140,16 +224,25 @@ func (m *uiModel) timelineEntryMeta(job *uiJob) string {
 	return m.timelineAttemptMeta(job, fmt.Sprintf("%d entries · selected %d/%d", total, selected, total))
 }
 
+// timelineRuntimeMeta renders the right-hand runtime strip:
+//
+//	Codex · gpt-5.5 · xhigh · 12.3k tok
+//
+// Provider/model fall back to the run config; reasoning effort and the ACP token
+// total are appended only when present. The string is plain (no ANSI) so the
+// caller can width-truncate it safely.
 func (m *uiModel) timelineRuntimeMeta() string {
 	if m == nil {
 		return ""
 	}
 	current := m.currentJob()
-	ide := ""
-	modelName := ""
+	ide, modelName, reasoning := "", "", ""
+	var usage *model.Usage
 	if current != nil {
 		ide = strings.TrimSpace(current.ide)
 		modelName = strings.TrimSpace(current.model)
+		reasoning = strings.TrimSpace(current.reasoningEffort)
+		usage = current.tokenUsage
 	}
 	if ide == "" && m.cfg != nil {
 		ide = strings.TrimSpace(m.cfg.IDE)
@@ -157,15 +250,34 @@ func (m *uiModel) timelineRuntimeMeta() string {
 	if modelName == "" && m.cfg != nil {
 		modelName = strings.TrimSpace(m.cfg.Model)
 	}
-	provider := strings.TrimSpace(agent.DisplayName(ide))
-	switch {
-	case provider != "" && modelName != "":
-		return provider + " · " + modelName
-	case provider != "":
-		return provider
-	default:
-		return modelName
+	parts := make([]string, 0, 4)
+	if provider := strings.TrimSpace(agent.DisplayName(ide)); provider != "" {
+		parts = append(parts, provider)
 	}
+	if modelName != "" {
+		parts = append(parts, modelName)
+	}
+	if reasoning != "" {
+		parts = append(parts, reasoning)
+	}
+	if total := formatUsageTotalLabel(usage); total != "" {
+		parts = append(parts, total)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// formatUsageTotalLabel renders the provider token total, returning "" until
+// usage has accrued. model.Usage.Total prefers provider total_tokens when set,
+// including cache token classes that are not visible in input/output splits.
+func formatUsageTotalLabel(usage *model.Usage) string {
+	if usage == nil {
+		return ""
+	}
+	total := usage.Total()
+	if total <= 0 {
+		return ""
+	}
+	return formatTokens(total) + " tok"
 }
 
 func (m *uiModel) timelineAttemptMeta(job *uiJob, base string) string {
@@ -194,24 +306,24 @@ func timelineHeaderLabel(job *uiJob) string {
 func (m *uiModel) renderTimelineHeader(job *uiJob, contentWidth int) string {
 	label := timelineHeaderLabel(job)
 	if label == "session.timeline" {
-		return renderTechLabel(label, colorBgSurface)
+		return renderTechLabel(label)
 	}
 
 	title := strings.ToUpper(strings.TrimSpace(job.taskTitle))
 	taskType := strings.TrimSpace(job.taskType)
 	if taskType == "" {
-		return renderStyledOnBackground(styleTimelineTitle, colorBgSurface, truncateString(title, contentWidth))
+		return styleTimelineTitle.Render(truncateString(title, contentWidth))
 	}
 
 	badgeWidth := lipgloss.Width("[" + taskType + "]")
 	titleWidth := max(contentWidth-badgeWidth-2, 1)
 	title = truncateString(title, titleWidth)
 
-	return renderStyledOnBackground(styleTimelineTitle, colorBgSurface, title) +
-		renderGap(colorBgSurface, 2) +
-		renderStyledOnBackground(styleMutedText, colorBgSurface, "[") +
-		renderStyledOnBackground(styleTimelineBadge, colorBgSurface, taskType) +
-		renderStyledOnBackground(styleMutedText, colorBgSurface, "]")
+	return styleTimelineTitle.Render(title) +
+		renderGap(2) +
+		styleMutedText.Render("[") +
+		styleTimelineBadge.Render(taskType) +
+		styleMutedText.Render("]")
 }
 
 func (m *uiModel) retryAttemptLabel(job *uiJob) string {
@@ -228,11 +340,9 @@ func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
 
 	if len(job.snapshot.Entries) == 0 {
 		rendered := timelineRender{
-			content: renderStyledOwnedLine(
+			content: renderOwnedLineKnownOwned(
 				width,
-				styleMutedText,
-				colorBgSurface,
-				"Waiting for ACP updates...",
+				styleMutedText.Render("Waiting for ACP updates..."),
 			),
 		}
 		job.timelineCache = rendered
@@ -252,7 +362,7 @@ func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
 		entryLines := m.renderTimelineEntry(job, entry, idx, width)
 		lines = append(lines, entryLines...)
 		if idx < len(job.snapshot.Entries)-1 {
-			lines = append(lines, renderOwnedLine(width, colorBgSurface, ""))
+			lines = append(lines, renderOwnedLineKnownOwned(width, ""))
 		}
 	}
 	rendered := timelineRender{
@@ -270,7 +380,6 @@ func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
 
 func (m *uiModel) renderTimelineEntry(job *uiJob, entry TranscriptEntry, index int, width int) []string {
 	selected := index == job.selectedEntry
-	bg := colorBgSurface
 	marker := "  "
 	if selected {
 		marker = "▌ "
@@ -278,20 +387,20 @@ func (m *uiModel) renderTimelineEntry(job *uiJob, entry TranscriptEntry, index i
 
 	title := m.timelineEntryTitle(entry)
 	headerStyle := m.timelineEntryHeaderStyle(entry, selected)
-	line := renderStyledOwnedLine(width, headerStyle, bg, truncateString(marker+title, width))
+	line := renderOwnedLineKnownOwned(width, headerStyle.Render(truncateString(marker+title, width)))
 	lines := []string{line}
 
 	preview := entry.Preview
 	if preview != "" && m.shouldRenderEntryPreview(job, entry) {
 		lines = append(
 			lines,
-			renderStyledOwnedLine(width, styleDimText, bg, truncateString(timelineDetailIndent+preview, width)),
+			renderOwnedLineKnownOwned(width, styleDimText.Render(truncateString(timelineDetailIndent+preview, width))),
 		)
 	}
 
 	if m.isEntryExpanded(job, entry) {
 		for _, detail := range m.renderEntryDetailLines(entry, width) {
-			lines = append(lines, renderStyledOwnedLine(width, styleBodyText, bg, truncateString(detail, width)))
+			lines = append(lines, renderOwnedLineKnownOwned(width, styleBodyText.Render(truncateString(detail, width))))
 		}
 	}
 
@@ -300,6 +409,8 @@ func (m *uiModel) renderTimelineEntry(job *uiJob, entry TranscriptEntry, index i
 
 func (m *uiModel) timelineEntryTitle(entry TranscriptEntry) string {
 	switch entry.Kind {
+	case transcriptEntryUserMessage:
+		return "You"
 	case transcriptEntryToolCall:
 		label := toolCallStateLabel(entry.ToolCallState)
 		if label == "" {
@@ -316,6 +427,8 @@ func (m *uiModel) timelineEntryTitle(entry TranscriptEntry) string {
 func (m *uiModel) timelineEntryHeaderStyle(entry TranscriptEntry, selected bool) lipgloss.Style {
 	style := styleMutedText
 	switch entry.Kind {
+	case transcriptEntryUserMessage:
+		style = styleBodyText.Foreground(colorAccentDeep)
 	case transcriptEntryAssistantMessage:
 		style = styleBodyText
 	case transcriptEntryAssistantThinking:
@@ -425,11 +538,11 @@ func toolCallStateLabel(state model.ToolCallState) string {
 	case model.ToolCallStatePending:
 		return "PENDING"
 	case model.ToolCallStateInProgress:
-		return "RUNNING"
+		return statusLabelRunning
 	case model.ToolCallStateCompleted:
 		return ""
 	case model.ToolCallStateFailed:
-		return "FAILED"
+		return statusLabelFailed
 	case model.ToolCallStateWaitingForConfirmation:
 		return "CONFIRM"
 	default:
@@ -481,7 +594,10 @@ func (m *uiModel) isEntryExpanded(job *uiJob, entry TranscriptEntry) bool {
 		}
 	}
 	switch entry.Kind {
-	case transcriptEntryAssistantMessage, transcriptEntryRuntimeNotice, transcriptEntryStderrEvent:
+	case transcriptEntryUserMessage,
+		transcriptEntryAssistantMessage,
+		transcriptEntryRuntimeNotice,
+		transcriptEntryStderrEvent:
 		return true
 	case transcriptEntryToolCall:
 		switch entry.ToolCallState {
@@ -520,7 +636,8 @@ func wrapViewportLines(lines []string, maxW int) []string {
 
 func isNarrativeEntryKind(kind transcriptEntryKind) bool {
 	switch kind {
-	case transcriptEntryAssistantMessage,
+	case transcriptEntryUserMessage,
+		transcriptEntryAssistantMessage,
 		transcriptEntryAssistantThinking,
 		transcriptEntryRuntimeNotice,
 		transcriptEntryStderrEvent:

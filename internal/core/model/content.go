@@ -153,6 +153,7 @@ type SessionAvailableCommand struct {
 // SessionUpdate is the Compozy-owned view of one streamed ACP update.
 type SessionUpdate struct {
 	Kind              SessionUpdateKind         `json:"kind,omitempty"`
+	MessageID         string                    `json:"messageId,omitempty"`
 	ToolCallID        string                    `json:"toolCallId,omitempty"`
 	ToolCallState     ToolCallState             `json:"toolCallState,omitempty"`
 	Blocks            []ContentBlock            `json:"blocks,omitempty"`

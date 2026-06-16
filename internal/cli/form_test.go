@@ -398,17 +398,17 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 			ReasoningEffort: stringPointer("high"),
 		}}
 
-		form, err := newTaskRunRuntimeForm(state)
+		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
 		if err != nil {
-			t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 		}
 		if form == nil {
 			t.Fatal("expected task runtime form")
 		}
-		if !slices.Contains(form.selectedTypes, "backend") {
+		if !slices.Contains(form.selectedTypes, "demo::backend") {
 			t.Fatalf("expected backend type to be preselected, got %#v", form.selectedTypes)
 		}
-		editor := form.typeEditors["backend"]
+		editor := form.typeEditors["demo::backend"]
 		if editor == nil {
 			t.Fatal("expected backend editor to be created")
 		}
@@ -443,9 +443,9 @@ func TestTaskRuntimeFormUsesRecursiveWalkerWhenEnabled(t *testing.T) {
 	state.name = "demo"
 	state.recursive = true
 
-	form, err := newTaskRunRuntimeForm(state)
+	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
 	if err != nil {
-		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
@@ -480,9 +480,9 @@ func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
 	state.name = "demo"
 	state.recursive = false
 
-	form, err := newTaskRunRuntimeForm(state)
+	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
 	if err != nil {
-		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
+		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
@@ -492,23 +492,188 @@ func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
 	}
 }
 
-func TestClearTaskRunRuntimeRulesRemovesConfiguredAndExecutionRules(t *testing.T) {
+func TestTaskRunFormInputsApplyMultipleWorkflowSelection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should remove configured and execution task runtime rules", func(t *testing.T) {
+	t.Run("Should apply multiple workflow selection correctly", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
-		state.configuredTaskRuntimeRules = []model.TaskRuntimeRule{{Type: stringPointer("backend")}}
-		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{{ID: stringPointer("task-1")}}
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		inputs := &taskRunFormInputs{
+			selectedWorkflows:      []string{"alpha", "beta"},
+			ide:                    "codex",
+			model:                  "gpt-5.5",
+			reasoningEffort:        "high",
+			accessMode:             core.AccessModeFull,
+			timeout:                "15m",
+			tailLines:              "25",
+			maxRetries:             "2",
+			retryBackoffMultiplier: "2.25",
+			dryRun:                 true,
+			autoCommit:             true,
+			includeCompleted:       true,
+			recursive:              true,
+		}
 
-		clearTaskRunRuntimeRules(state)
+		if err := inputs.apply(cmd, state); err != nil {
+			t.Fatalf("apply task run form inputs: %v", err)
+		}
 
-		if rules := state.taskRuntimeRules(); len(rules) != 0 {
-			t.Fatalf("taskRuntimeRules() = %#v, want none", rules)
+		if state.name != "" || state.multiple != "alpha,beta" {
+			t.Fatalf("unexpected workflow selection state: name=%q multiple=%q", state.name, state.multiple)
+		}
+		for _, flag := range []string{
+			"multiple",
+			"ide",
+			"model",
+			"reasoning-effort",
+			"access-mode",
+			"timeout",
+			"tail-lines",
+			"max-retries",
+			"retry-backoff-multiplier",
+			"dry-run",
+			"auto-commit",
+			"include-completed",
+			"recursive",
+			"task-runtime",
+		} {
+			if !cmd.Flags().Changed(flag) {
+				t.Fatalf("expected %s to be marked explicit", flag)
+			}
+		}
+		if !state.dryRun || !state.autoCommit || !state.includeCompleted || !state.recursive {
+			t.Fatalf("expected bool fields to apply, got %#v", state.runtimeConfig)
+		}
+		if state.tailLines != 25 || state.maxRetries != 2 || state.retryBackoffMultiplier != 2.25 {
+			t.Fatalf("unexpected numeric fields: tail=%d retries=%d backoff=%f",
+				state.tailLines,
+				state.maxRetries,
+				state.retryBackoffMultiplier,
+			)
 		}
 		if !state.replaceConfiguredTaskRunRules {
-			t.Fatal("expected configured task runtime rules to be replaced")
+			t.Fatal("expected task runtime rules to replace configured rules")
+		}
+	})
+}
+
+func TestTaskRunRuntimeFormScopesDuplicateTaskIDsByWorkflow(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should scope duplicate task IDs by workflow", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		for _, slug := range []string{"alpha", "beta"} {
+			workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
+			if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+				t.Fatalf("mkdir %s: %v", slug, err)
+			}
+			writeFormTaskFile(t, workflowDir, "task_01.md", "pending")
+		}
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.workspaceRoot = workspaceRoot
+		state.ide = "codex"
+		state.reasoningEffort = "medium"
+
+		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"alpha", "beta"})
+		if err != nil {
+			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
+		}
+		if form == nil {
+			t.Fatal("expected multi-workflow task runtime form")
+		}
+		if len(form.taskOptions) != 2 {
+			t.Fatalf("expected two task options, got %#v", form.taskOptions)
+		}
+		if form.taskOptions[0].Key != "alpha::task_01" || form.taskOptions[1].Key != "beta::task_01" {
+			t.Fatalf("unexpected task option keys: %#v", form.taskOptions)
+		}
+
+		form.selectedTypes = []string{"beta::backend"}
+		form.typeEditors["beta::backend"] = &taskRuntimeEditor{IDE: "claude", ReasoningEffort: "high"}
+		form.selectedTasks = []string{"alpha::task_01"}
+		form.taskEditors["alpha::task_01"] = &taskRuntimeEditor{Model: "alpha-model"}
+		form.apply(state)
+
+		if len(state.executionTaskRuntimeRules) != 2 {
+			t.Fatalf("expected two workflow-scoped runtime rules, got %#v", state.executionTaskRuntimeRules)
+		}
+		typeRule := state.executionTaskRuntimeRules[0]
+		if typeRule.Workflow == nil || *typeRule.Workflow != "beta" ||
+			typeRule.Type == nil || *typeRule.Type != "backend" ||
+			typeRule.IDE == nil || *typeRule.IDE != "claude" ||
+			typeRule.ReasoningEffort == nil || *typeRule.ReasoningEffort != "high" {
+			t.Fatalf("unexpected type rule: %#v", typeRule)
+		}
+		taskRule := state.executionTaskRuntimeRules[1]
+		if taskRule.Workflow == nil || *taskRule.Workflow != "alpha" ||
+			taskRule.ID == nil || *taskRule.ID != "task_01" ||
+			taskRule.Model == nil || *taskRule.Model != "alpha-model" {
+			t.Fatalf("unexpected task rule: %#v", taskRule)
+		}
+	})
+}
+
+func TestTaskRunRuntimeFormPreservesSingleWorkflowScopedRules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preselect and preserve workflow scoped rules for one workflow", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "alpha")
+		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+			t.Fatalf("mkdir alpha: %v", err)
+		}
+		writeFormTaskFile(t, workflowDir, "task_01.md", "pending")
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.workspaceRoot = workspaceRoot
+		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{
+			{
+				Workflow: stringPointer("alpha"),
+				Type:     stringPointer("backend"),
+				IDE:      stringPointer("claude"),
+			},
+			{
+				Workflow: stringPointer("alpha"),
+				ID:       stringPointer("task_01"),
+				Model:    stringPointer("alpha-model"),
+			},
+		}
+
+		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"alpha"})
+		if err != nil {
+			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
+		}
+		if form == nil {
+			t.Fatal("expected single-workflow task runtime form")
+		}
+		if !slices.Equal(form.selectedTypes, []string{"alpha::backend"}) {
+			t.Fatalf("selected types = %#v, want alpha-scoped backend", form.selectedTypes)
+		}
+		if !slices.Equal(form.selectedTasks, []string{"alpha::task_01"}) {
+			t.Fatalf("selected tasks = %#v, want alpha-scoped task", form.selectedTasks)
+		}
+		if form.typeOptions[0].Label != "backend" || strings.Contains(form.taskOptions[0].Label, "alpha /") {
+			t.Fatalf("single-workflow labels should omit workflow prefix, got type=%q task=%q",
+				form.typeOptions[0].Label,
+				form.taskOptions[0].Label,
+			)
+		}
+
+		form.apply(state)
+		if len(state.executionTaskRuntimeRules) != 2 {
+			t.Fatalf("expected two preserved workflow-scoped runtime rules, got %#v", state.executionTaskRuntimeRules)
+		}
+		for _, rule := range state.executionTaskRuntimeRules {
+			if rule.Workflow == nil || *rule.Workflow != "alpha" {
+				t.Fatalf("expected preserved alpha workflow on rule, got %#v", rule)
+			}
 		}
 	})
 }

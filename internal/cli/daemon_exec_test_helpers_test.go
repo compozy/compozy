@@ -164,6 +164,29 @@ func (c *inProcessDaemonCommandClient) CancelRun(ctx context.Context, runID stri
 	return c.manager.Cancel(ctx, runID)
 }
 
+func (c *inProcessDaemonCommandClient) PauseRunJob(
+	ctx context.Context,
+	runID string,
+	jobID string,
+) (apicore.RunJobControlResponse, error) {
+	if c == nil || c.manager == nil {
+		return apicore.RunJobControlResponse{}, errors.New("PauseRunJob requires an in-process run manager")
+	}
+	return c.manager.PauseRunJob(ctx, runID, jobID)
+}
+
+func (c *inProcessDaemonCommandClient) SendRunJobMessage(
+	ctx context.Context,
+	runID string,
+	jobID string,
+	req apicore.RunJobMessageRequest,
+) (apicore.RunJobControlResponse, error) {
+	if c == nil || c.manager == nil {
+		return apicore.RunJobControlResponse{}, errors.New("SendRunJobMessage requires an in-process run manager")
+	}
+	return c.manager.SendRunJobMessage(ctx, runID, jobID, req)
+}
+
 func (*inProcessDaemonCommandClient) RegisterWorkspace(
 	context.Context,
 	string,
