@@ -18,6 +18,8 @@ func TestAgentNameForIDE(t *testing.T) {
 		"gemini":       "gemini-cli",
 		"opencode":     "opencode",
 		"pi":           "pi",
+		"kiro":         "kiro-cli",
+		"devin":        "devin",
 	}
 
 	for ide, want := range tests {

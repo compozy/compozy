@@ -92,6 +92,7 @@ Execution runtimes are separate from skill installation. To run `compozy exec`, 
 | Claude Agent       | `claude`       | `claude-agent-acp`               |
 | Codex CLI          | `codex`        | `codex-acp`                      |
 | GitHub Copilot CLI | `copilot`      | `copilot --acp`                  |
+| Devin CLI          | `devin`        | `devin acp`                      |
 | Cursor             | `cursor-agent` | `cursor-agent acp`               |
 | Droid              | `droid`        | `droid exec --output-format acp` |
 | OpenCode           | `opencode`     | `opencode acp`                   |
@@ -500,13 +501,14 @@ The `cy-workflow-memory` skill handles all of this automatically when referenced
 | Claude Code    | `claude`       |
 | Codex          | `codex`        |
 | GitHub Copilot | `copilot`      |
+| Devin CLI      | `devin`        |
 | Cursor         | `cursor-agent` |
 | Droid          | `droid`        |
 | OpenCode       | `opencode`     |
 | Pi             | `pi`           |
 | Gemini         | `gemini`       |
 
-**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` installs core workflow skills plus any setup assets shipped by enabled extensions. Run `compozy setup` to see all detected agents on your system.
+**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Devin CLI, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` installs core workflow skills plus any setup assets shipped by enabled extensions. Run `compozy setup` to see all detected agents on your system.
 
 When installing to multiple agents, Compozy offers two modes:
 

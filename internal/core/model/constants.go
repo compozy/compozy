@@ -13,6 +13,7 @@ const (
 	IDEGemini                = "gemini"
 	IDECopilot               = "copilot"
 	IDEKiro                  = "kiro"
+	IDEDevin                 = "devin"
 	DefaultCodexModel        = "gpt-5.5"
 	DefaultClaudeModel       = "opus"
 	DefaultCursorModel       = "composer-1"
@@ -21,6 +22,7 @@ const (
 	DefaultGeminiModel       = "gemini-2.5-pro"
 	DefaultCopilotModel      = "claude-sonnet-4.6"
 	DefaultKiroModel         = "anthropic/claude-opus-4-6"
+	DefaultDevinModel        = "anthropic/claude-opus-4-6"
 	DefaultActivityTimeout   = 10 * time.Minute
 	WorkflowRootDirName      = ".compozy"
 	WorkflowConfigFileName   = "config.toml"

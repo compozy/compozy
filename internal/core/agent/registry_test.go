@@ -117,6 +117,33 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantLaunch:          []string{"gemini", "--acp"},
 			wantProbe:           []string{"gemini", "--acp", "--help"},
 		},
+		{
+			name:                "copilot",
+			ide:                 model.IDECopilot,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"copilot", "--acp"},
+			wantProbe:           []string{"copilot", "--acp", "--help"},
+		},
+		{
+			name:                "kiro",
+			ide:                 model.IDEKiro,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"kiro-cli", "acp", "--model", model.DefaultKiroModel, "-a"},
+			wantProbe:           []string{"kiro-cli", "acp", "--help"},
+		},
+		{
+			name:                "devin",
+			ide:                 model.IDEDevin,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"devin", "acp"},
+			wantProbe:           []string{"devin", "acp", "--help"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -711,6 +738,9 @@ func TestValidateRuntimeConfigAcceptsSupportedIDEs(t *testing.T) {
 		model.IDEOpenCode,
 		model.IDEPi,
 		model.IDEGemini,
+		model.IDECopilot,
+		model.IDEKiro,
+		model.IDEDevin,
 	}
 
 	for _, ide := range validIDEs {
@@ -1272,6 +1302,27 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 			wantCommand:         []string{"gemini", "--acp"},
 			wantProbe:           []string{"gemini", "--acp", "--help"},
 			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
+		},
+		{
+			ide:                 model.IDECopilot,
+			wantCommand:         []string{"copilot", "--acp"},
+			wantProbe:           []string{"copilot", "--acp", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
+		},
+		{
+			ide:                 model.IDEKiro,
+			wantCommand:         []string{"kiro-cli", "acp"},
+			wantProbe:           []string{"kiro-cli", "acp", "--help"},
+			wantFallbackCount:   0,
+			wantSupportsAddDirs: false,
+		},
+		{
+			ide:                 model.IDEDevin,
+			wantCommand:         []string{"devin", "acp"},
+			wantProbe:           []string{"devin", "acp", "--help"},
+			wantFallbackCount:   0,
 			wantSupportsAddDirs: false,
 		},
 	}
