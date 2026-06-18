@@ -54,6 +54,9 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 				cfg.SoundOnFailed,
 			)
 		}
+		if cfg.TargetTaskNumber != nil {
+			t.Fatalf("expected target task number to stay unset, got %d", *cfg.TargetTaskNumber)
+		}
 	})
 
 	t.Run("Should fill sound presets only when sound is enabled", func(t *testing.T) {
@@ -539,6 +542,39 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 	})
 }
 
+func TestRuntimeConfigClonePreservesTargetTaskNumber(t *testing.T) {
+	t.Parallel()
+
+	targetTaskNumber := 3
+	cfg := &model.RuntimeConfig{
+		TargetTaskNumber: &targetTaskNumber,
+		AddDirs:          []string{"/workspace/docs"},
+	}
+
+	cloned := cfg.Clone()
+	if cloned == nil {
+		t.Fatal("Clone() = nil, want runtime config")
+	}
+	if cloned.TargetTaskNumber == nil {
+		t.Fatal("Clone().TargetTaskNumber = nil, want copied target")
+	}
+	if cloned.TargetTaskNumber == cfg.TargetTaskNumber {
+		t.Fatal("Clone().TargetTaskNumber aliases base pointer")
+	}
+	if *cloned.TargetTaskNumber != targetTaskNumber {
+		t.Fatalf("Clone().TargetTaskNumber = %d, want %d", *cloned.TargetTaskNumber, targetTaskNumber)
+	}
+
+	*cloned.TargetTaskNumber = 7
+	cloned.AddDirs[0] = "/workspace/changed"
+	if *cfg.TargetTaskNumber != targetTaskNumber {
+		t.Fatalf("base TargetTaskNumber changed to %d, want %d", *cfg.TargetTaskNumber, targetTaskNumber)
+	}
+	if cfg.AddDirs[0] != "/workspace/docs" {
+		t.Fatalf("base AddDirs changed to %#v", cfg.AddDirs)
+	}
+}
+
 func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {
 	t.Parallel()
 
@@ -567,6 +603,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 	t.Run("Should preserve explicit runtime config values", func(t *testing.T) {
 		t.Parallel()
 
+		targetTaskNumber := 5
 		cfg := &model.RuntimeConfig{
 			Concurrent:             3,
 			BatchSize:              2,
@@ -576,6 +613,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			AccessMode:             model.AccessModeDefault,
 			Mode:                   model.ExecutionModePRDTasks,
 			OutputFormat:           model.OutputFormatJSON,
+			TargetTaskNumber:       &targetTaskNumber,
 			Timeout:                30 * time.Second,
 			RetryBackoffMultiplier: 2,
 		}
@@ -586,6 +624,9 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			cfg.Mode != model.ExecutionModePRDTasks ||
 			cfg.OutputFormat != model.OutputFormatJSON {
 			t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
+		}
+		if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("apply defaults changed TargetTaskNumber: %#v", cfg.TargetTaskNumber)
 		}
 	})
 }

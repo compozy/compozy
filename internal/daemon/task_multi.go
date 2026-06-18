@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
+	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
+	"github.com/compozy/compozy/internal/core/run/recovery"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -36,6 +39,7 @@ type preparedTaskMulti struct {
 	presentationMode string
 	parallelLimit    int
 	items            []preparedTaskMultiItem
+	parallelTasks    *preparedParallelTasks
 }
 
 type preparedTaskMultiItem struct {
@@ -46,9 +50,21 @@ type preparedTaskMultiItem struct {
 	recovery     workspacecfg.AgentRecoveryConfig
 }
 
+type preparedParallelTasks struct {
+	config workspacecfg.ParallelTasksConfig
+	waves  runparallel.Waves
+	tasks  []runparallel.TaskSpec
+}
+
 type taskMultiSnapshotBuilder struct {
 	items []apicore.TaskRunMultipleItem
 	index map[string]int
+}
+
+type taskWorktreeChildRun struct {
+	Run           apicore.Run
+	Allocation    taskMultiWorktreeAllocation
+	RuntimeConfig *model.RuntimeConfig
 }
 
 // StartTaskRunMultiple starts one daemon-owned parent for an ordered task queue.
@@ -84,6 +100,82 @@ func (m *RunManager) StartTaskRunMultiple(
 		runtimeCfg:       runtimeCfg,
 		taskMulti:        prepared,
 	})
+}
+
+func (m *RunManager) startParallelTaskRunIfEnabled(
+	ctx context.Context,
+	workspaceRow globaldb.Workspace,
+	workflowID *string,
+	workflowSlug string,
+	runtimeCfg *model.RuntimeConfig,
+	recoveryCfg workspacecfg.AgentRecoveryConfig,
+	presentationMode string,
+) (apicore.Run, bool, error) {
+	if runtimeCfg == nil {
+		return apicore.Run{}, false, errors.New("daemon: runtime config is required")
+	}
+	projectCfg, err := m.loadProjectConfig(detachContext(ctx), workspaceRow.RootDir)
+	if err != nil {
+		return apicore.Run{}, false, fmt.Errorf("load workspace config for parallel task execution: %w", err)
+	}
+	parallelCfg := projectCfg.Tasks.Run.Parallel.ApplyDefaults()
+	if parallelCfg.Enabled == nil || !*parallelCfg.Enabled {
+		return apicore.Run{}, false, nil
+	}
+	waves, taskSpecs, err := buildDaemonParallelTaskPlan(
+		runtimeCfg.TasksDir,
+		strings.TrimSpace(workflowSlug),
+		runtimeCfg.IncludeCompleted,
+		runtimeCfg.Recursive,
+	)
+	if err != nil {
+		return apicore.Run{}, true, err
+	}
+	if len(taskSpecs) == 0 {
+		return apicore.Run{}, true, taskMultiValidationProblem(
+			"parallel_tasks_empty",
+			"parallel task execution requires at least one task",
+			"tasks",
+		)
+	}
+	parentCfg := runtimeCfg.Clone()
+	if parentCfg == nil {
+		return apicore.Run{}, true, errors.New("daemon: runtime config is required")
+	}
+	parentCfg.Name = taskMultiRunName
+	parentCfg.TargetTaskNumber = nil
+	prepared := &preparedTaskMulti{
+		workspace:        workspaceRow,
+		mode:             workspacecfg.TaskRunMultipleModeParallel,
+		presentationMode: presentationMode,
+		parallelLimit:    parallelTaskMaxConcurrency(parallelCfg),
+		items: []preparedTaskMultiItem{
+			{
+				slug:         strings.TrimSpace(workflowSlug),
+				workflowID:   cloneStringPtr(workflowID),
+				workflowRoot: strings.TrimSpace(runtimeCfg.TasksDir),
+				runtimeCfg:   runtimeCfg,
+				recovery:     recoveryCfg,
+			},
+		},
+		parallelTasks: &preparedParallelTasks{
+			config: parallelCfg,
+			waves:  waves,
+			tasks:  taskSpecs,
+		},
+	}
+	run, err := m.startRun(ctx, startRunSpec{
+		workspace:        workspaceRow,
+		workflowID:       workflowID,
+		workflowSlug:     strings.TrimSpace(workflowSlug),
+		workflowRoot:     strings.TrimSpace(runtimeCfg.TasksDir),
+		mode:             runModeTaskMulti,
+		presentationMode: presentationMode,
+		runtimeCfg:       parentCfg,
+		taskMulti:        prepared,
+		recovery:         recoveryCfg,
+	})
+	return run, true, err
 }
 
 // RunMultipleSnapshot reconstructs the ordered child state for a parent multi-run.
@@ -275,6 +367,87 @@ func taskMultiChildRuntimeOverrides(raw json.RawMessage) (json.RawMessage, error
 	return encoded, nil
 }
 
+func buildDaemonParallelTaskPlan(
+	tasksDir string,
+	workflowSlug string,
+	includeCompleted bool,
+	recursive bool,
+) (runparallel.Waves, []runparallel.TaskSpec, error) {
+	var (
+		entries []model.IssueEntry
+		err     error
+	)
+	if recursive {
+		entries, err = taskscore.ReadTaskEntriesRecursive(tasksDir, includeCompleted)
+	} else {
+		entries, err = taskscore.ReadTaskEntries(tasksDir, includeCompleted)
+	}
+	if err != nil {
+		return runparallel.Waves{}, nil, fmt.Errorf("read parallel task entries: %w", err)
+	}
+	taskEntries := make([]model.TaskEntry, 0, len(entries))
+	taskSpecs := make([]runparallel.TaskSpec, 0, len(entries))
+	for idx := range entries {
+		task, err := taskscore.ParseTaskFile(entries[idx].Content)
+		if err != nil {
+			return runparallel.Waves{}, nil, taskscore.WrapParseError(entries[idx].AbsPath, err)
+		}
+		task.ID = taskscore.TaskIdentityFromName(entries[idx].Name)
+		number := taskscore.ExtractTaskNumber(filepath.Base(filepath.FromSlash(entries[idx].Name)))
+		if number <= 0 {
+			return runparallel.Waves{}, nil, fmt.Errorf(
+				"parallel task entry %q does not have a task number",
+				entries[idx].Name,
+			)
+		}
+		taskEntries = append(taskEntries, task)
+		taskSpecs = append(taskSpecs, runparallel.TaskSpec{
+			ID:     runparallel.TaskID(task.ID),
+			Number: number,
+			Title:  task.Title,
+			Slug:   strings.TrimSpace(workflowSlug),
+		})
+	}
+	waves, err := runparallel.BuildWaves(taskEntries)
+	if err != nil {
+		return runparallel.Waves{}, nil, err
+	}
+	return waves, taskSpecs, nil
+}
+
+func parallelTaskMaxConcurrency(cfg workspacecfg.ParallelTasksConfig) int {
+	effective := cfg.ApplyDefaults()
+	if effective.MaxConcurrency == nil || *effective.MaxConcurrency < 1 {
+		return workspacecfg.DefaultParallelTasksMaxConcurrency
+	}
+	return *effective.MaxConcurrency
+}
+
+func parallelIntegrationBranch(runID string) string {
+	segment := sanitizeTaskMultiWorktreeSegment(strings.TrimSpace(runID), taskMultiWorktreeSlugMaxLen)
+	if segment == "" {
+		segment = "run"
+	}
+	return "compozy/parallel-" + segment
+}
+
+func planParallelIntegrationPath(worktreesRoot string, workspaceRoot string, runID string) (string, error) {
+	root := strings.TrimSpace(worktreesRoot)
+	if root == "" {
+		return "", errors.New("daemon: worktree allocator root is required")
+	}
+	workspace := strings.TrimSpace(workspaceRoot)
+	if workspace == "" {
+		return "", errors.New("daemon: worktree workspace root is required")
+	}
+	parent := sanitizeTaskMultiWorktreeSegment(runID, taskMultiWorktreeParentShortLen)
+	if parent == "" {
+		return "", errors.New("daemon: parallel parent run id is required")
+	}
+	parent += "-" + taskMultiShortHash(strings.TrimSpace(runID), taskMultiWorktreeParentHashLen)
+	return filepath.Join(root, taskMultiWorkspaceHash(workspace), parent, "integration"), nil
+}
+
 func normalizeTaskMultiSlugs(values []string) ([]string, error) {
 	slugs, err := taskscore.ParseCommaSeparatedSlugs(strings.Join(values, ","))
 	if err != nil {
@@ -361,6 +534,9 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 	if err := m.emitTaskMultiQueueStarted(active, prepared, total); err != nil {
 		return err
 	}
+	if prepared.parallelTasks != nil {
+		return m.runTaskMultiParallelTasks(active, prepared, total)
+	}
 	switch prepared.mode {
 	case workspacecfg.TaskRunMultipleModeParallel:
 		// Parallel mode re-emits item_queued with worktree metadata per child as it
@@ -410,6 +586,302 @@ func (m *RunManager) emitTaskMultiItemsQueued(active *activeRun, prepared *prepa
 		}
 	}
 	return nil
+}
+
+func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *preparedTaskMulti, total int) error {
+	if prepared.parallelTasks == nil {
+		return errors.New("parallel task execution is not configured")
+	}
+	if len(prepared.items) != 1 {
+		return fmt.Errorf("parallel task execution requires one workflow item, got %d", len(prepared.items))
+	}
+	base, err := m.resolveTaskMultiParallelBase(active, prepared)
+	if err != nil {
+		if cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, 0, total, err); cancelErr != nil {
+			return errors.Join(err, cancelErr)
+		}
+		return err
+	}
+	integrationPath, err := planParallelIntegrationPath(
+		m.worktreeAllocator.worktreesRoot,
+		prepared.workspace.RootDir,
+		active.runID,
+	)
+	if err != nil {
+		return err
+	}
+	integrationBranch := parallelIntegrationBranch(active.runID)
+	orchestrator := runparallel.NewParallelExecutionOrchestrator(
+		parallelWorktreeLifecycle{allocator: m.worktreeAllocator},
+		parallelTaskLauncher{
+			manager:  m,
+			active:   active,
+			prepared: prepared,
+			item:     prepared.items[0],
+		},
+		runparallel.WithRecoveryStrategy(m.recoveryStrategy),
+	)
+	_, err = orchestrator.Run(active.ctx, runparallel.ParallelPlan{
+		RunID:             active.runID,
+		WorkspaceRoot:     prepared.workspace.RootDir,
+		BaseBranch:        base.Branch,
+		BaseCommit:        base.Commit,
+		IntegrationBranch: integrationBranch,
+		IntegrationPath:   integrationPath,
+		Waves:             prepared.parallelTasks.waves,
+		Tasks:             prepared.parallelTasks.tasks,
+		Config:            prepared.parallelTasks.config,
+		Recovery:          prepared.items[0].recovery,
+	})
+	if err != nil {
+		return err
+	}
+	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+}
+
+type parallelWorktreeLifecycle struct {
+	allocator *taskMultiWorktreeAllocator
+}
+
+func (l parallelWorktreeLifecycle) CreateIntegrationBranch(
+	ctx context.Context,
+	spec runparallel.IntegrationSpec,
+) error {
+	if l.allocator == nil {
+		return errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.CreateIntegrationBranch(
+		ctx,
+		spec.WorkspaceRoot,
+		spec.IntegrationPath,
+		spec.IntegrationBranch,
+		spec.BaseRef,
+	)
+}
+
+func (l parallelWorktreeLifecycle) Commit(ctx context.Context, path string, message string) (string, error) {
+	if l.allocator == nil {
+		return "", errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.Commit(ctx, path, message)
+}
+
+func (l parallelWorktreeLifecycle) SquashMerge(
+	ctx context.Context,
+	integrationPath string,
+	worktreeRef string,
+	message string,
+) (runparallel.ConflictSet, error) {
+	if l.allocator == nil {
+		return runparallel.ConflictSet{}, errors.New("daemon: task worktree allocator is not configured")
+	}
+	conflicts, err := l.allocator.SquashMerge(ctx, integrationPath, worktreeRef, message)
+	if err != nil {
+		return runparallel.ConflictSet{}, err
+	}
+	return runparallel.ConflictSet{Files: conflicts.Files, Clean: conflicts.Clean}, nil
+}
+
+func (l parallelWorktreeLifecycle) Head(ctx context.Context, path string) (string, error) {
+	if l.allocator == nil {
+		return "", errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.Head(ctx, path)
+}
+
+func (l parallelWorktreeLifecycle) FastForward(
+	ctx context.Context,
+	workspaceRoot string,
+	targetBranch string,
+	integrationBranch string,
+) error {
+	if l.allocator == nil {
+		return errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.FastForward(ctx, workspaceRoot, targetBranch, integrationBranch)
+}
+
+func (l parallelWorktreeLifecycle) DiscardIntegrationBranch(
+	ctx context.Context,
+	workspaceRoot string,
+	integrationPath string,
+	integrationBranch string,
+) error {
+	if l.allocator == nil {
+		return errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.DiscardIntegrationBranch(ctx, workspaceRoot, integrationPath, integrationBranch)
+}
+
+func (l parallelWorktreeLifecycle) Remove(ctx context.Context, workspaceRoot string, path string) error {
+	if l.allocator == nil {
+		return errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.Remove(ctx, workspaceRoot, path)
+}
+
+func (l parallelWorktreeLifecycle) Prune(ctx context.Context, workspaceRoot string) error {
+	if l.allocator == nil {
+		return errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.Prune(ctx, workspaceRoot)
+}
+
+type parallelTaskLauncher struct {
+	manager  *RunManager
+	active   *activeRun
+	prepared *preparedTaskMulti
+	item     preparedTaskMultiItem
+}
+
+func (l parallelTaskLauncher) PrepareTask(
+	ctx context.Context,
+	spec runparallel.TaskLaunchSpec,
+) (runparallel.PreparedTaskRun, error) {
+	if l.manager == nil {
+		return nil, errors.New("daemon: run manager is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return &parallelPreparedTaskRun{launcher: l, spec: spec}, nil
+}
+
+type parallelPreparedTaskRun struct {
+	launcher parallelTaskLauncher
+	spec     runparallel.TaskLaunchSpec
+	child    taskWorktreeChildRun
+	result   runparallel.TaskRunResult
+}
+
+func (r *parallelPreparedTaskRun) Execute(ctx context.Context) (recovery.RunOutcome, error) {
+	child, err := r.launcher.manager.startTaskWorktreeChild(
+		r.launcher.active,
+		r.launcher.prepared,
+		r.launcher.item,
+		r.spec.Task.Number,
+		taskMultiWorktreeBase{Branch: r.spec.Base.Branch, Commit: r.spec.Base.Commit},
+	)
+	if err != nil {
+		return recovery.RunOutcome{}, err
+	}
+	r.child = child
+	return r.awaitChild(ctx, child)
+}
+
+func (r *parallelPreparedTaskRun) RestartFailed(
+	ctx context.Context,
+	failedJobIDs []string,
+) (recovery.RunOutcome, error) {
+	if len(failedJobIDs) == 0 {
+		return recovery.RunOutcome{}, errors.New("parallel task recovery: no failed job IDs supplied")
+	}
+	if strings.TrimSpace(r.child.Allocation.Path) == "" {
+		return recovery.RunOutcome{}, errors.New("parallel task recovery: missing task worktree allocation")
+	}
+	child, err := r.launcher.manager.startTaskWorktreeChildInAllocation(
+		r.launcher.active,
+		r.launcher.prepared,
+		r.launcher.item,
+		r.spec.Task.Number,
+		r.child.Allocation,
+	)
+	if err != nil {
+		return recovery.RunOutcome{}, err
+	}
+	r.child = child
+	return r.awaitChild(ctx, child)
+}
+
+func (r *parallelPreparedTaskRun) Result() runparallel.TaskRunResult {
+	return r.result
+}
+
+func (r *parallelPreparedTaskRun) FailedConfig() *model.RuntimeConfig {
+	if r.child.RuntimeConfig == nil {
+		return nil
+	}
+	return r.child.RuntimeConfig.Clone()
+}
+
+func (r *parallelPreparedTaskRun) awaitChild(
+	ctx context.Context,
+	child taskWorktreeChildRun,
+) (recovery.RunOutcome, error) {
+	childRow, err := r.launcher.manager.waitForTaskMultiChild(ctx, child.Run.RunID)
+	if err != nil {
+		var childCancelErr error
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			childCancelErr = r.launcher.manager.Cancel(detachContext(ctx), child.Run.RunID)
+		}
+		return recovery.RunOutcome{}, errors.Join(err, childCancelErr)
+	}
+	r.result = runparallel.TaskRunResult{
+		Task:         r.spec.Task,
+		RunID:        child.Run.RunID,
+		WorktreePath: child.Allocation.Path,
+		BaseBranch:   child.Allocation.BaseBranch,
+		BaseCommit:   child.Allocation.BaseCommit,
+	}
+	outcome, readErr := readParallelTaskChildOutcome(child.Run.RunID)
+	terminalErr := parallelTaskChildTerminalError(childRow, r.spec.Task.ID)
+	if readErr != nil {
+		if terminalErr != nil {
+			return recovery.RunOutcome{
+				RunID:  child.Run.RunID,
+				Status: recoveryStatusForRunStatus(childRow.Status),
+			}, terminalErr
+		}
+		return recovery.RunOutcome{}, readErr
+	}
+	return outcome, terminalErr
+}
+
+func readParallelTaskChildOutcome(runID string) (recovery.RunOutcome, error) {
+	artifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		return recovery.RunOutcome{}, err
+	}
+	outcome, err := recovery.ReadRunOutcome(artifacts)
+	if err != nil {
+		return recovery.RunOutcome{}, err
+	}
+	return *outcome, nil
+}
+
+func parallelTaskChildTerminalError(row globaldb.Run, taskID runparallel.TaskID) error {
+	switch row.Status {
+	case runStatusCompleted:
+		return nil
+	case runStatusCancelled:
+		return fmt.Errorf("parallel task child run %s for task %s was canceled", row.RunID, taskID)
+	default:
+		return fmt.Errorf(
+			"parallel task child run %s for task %s ended with status %s: %s",
+			row.RunID,
+			taskID,
+			row.Status,
+			row.ErrorText,
+		)
+	}
+}
+
+func recoveryStatusForRunStatus(status string) recovery.RunStatus {
+	switch status {
+	case runStatusCompleted:
+		return recovery.StatusSucceeded
+	case runStatusCancelled:
+		return recovery.StatusCanceled
+	case runStatusFailed:
+		return recovery.StatusFailed
+	default:
+		return recovery.StatusUnknown
+	}
+}
+
+func disabledParallelChildRecoveryConfig() workspacecfg.AgentRecoveryConfig {
+	enabled := false
+	return workspacecfg.AgentRecoveryConfig{Enabled: &enabled}
 }
 
 // emitTaskMultiQueueCompleted emits the terminal "queue completed" event for a
@@ -847,6 +1319,88 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 	return childRun, nil
 }
 
+// startTaskWorktreeChild launches one PRD task file as an isolated child run in
+// its own git worktree. Unlike startTaskMultiWorktreeChild, this scopes the
+// normal task run to exactly one task number and leaves the slug-scoped
+// multi-run path unchanged.
+func (m *RunManager) startTaskWorktreeChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	targetTaskNumber int,
+	base taskMultiWorktreeBase,
+) (taskWorktreeChildRun, error) {
+	if targetTaskNumber <= 0 {
+		return taskWorktreeChildRun{}, fmt.Errorf(
+			"daemon: target task number must be positive, got %d",
+			targetTaskNumber,
+		)
+	}
+	if m.worktreeAllocator == nil {
+		return taskWorktreeChildRun{}, errors.New("daemon: task worktree allocator is not configured")
+	}
+	allocation, err := m.worktreeAllocator.Allocate(active.ctx, taskMultiWorktreeSpec{
+		WorkspaceRoot: prepared.workspace.RootDir,
+		ParentRunID:   active.runID,
+		Slug:          item.slug,
+		Index:         targetTaskNumber,
+		TaskNumber:    targetTaskNumber,
+		Base:          base,
+	})
+	if err != nil {
+		return taskWorktreeChildRun{}, fmt.Errorf(
+			"allocate worktree for %s task %d: %w",
+			item.slug,
+			targetTaskNumber,
+			err,
+		)
+	}
+	return m.startTaskWorktreeChildInAllocation(active, prepared, item, targetTaskNumber, allocation)
+}
+
+func (m *RunManager) startTaskWorktreeChildInAllocation(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	targetTaskNumber int,
+	allocation taskMultiWorktreeAllocation,
+) (taskWorktreeChildRun, error) {
+	workspaceRow, workflowID, _, err := m.resolveWorkflowContext(detachContext(active.ctx), allocation.Path, item.slug)
+	if err != nil {
+		return taskWorktreeChildRun{}, fmt.Errorf("register worktree workspace for %s task %d: %w",
+			item.slug,
+			targetTaskNumber,
+			err,
+		)
+	}
+	tasksDir, err := requireTaskMultiWorktreeTaskDir(workspaceRow.RootDir, item.slug)
+	if err != nil {
+		return taskWorktreeChildRun{}, err
+	}
+	runtimeCfg, err := remapTaskMultiChildRuntime(item.runtimeCfg, workspaceRow.RootDir, item.slug, active.runID)
+	if err != nil {
+		return taskWorktreeChildRun{}, err
+	}
+	target := targetTaskNumber
+	runtimeCfg.TargetTaskNumber = &target
+	runtimeCfg.Name = fmt.Sprintf("%s-task-%02d", item.slug, targetTaskNumber)
+	childRun, err := m.startRun(active.ctx, startRunSpec{
+		workspace:        workspaceRow,
+		workflowID:       workflowID,
+		workflowSlug:     item.slug,
+		workflowRoot:     tasksDir,
+		mode:             runModeTask,
+		presentationMode: prepared.presentationMode,
+		parentRunID:      active.runID,
+		runtimeCfg:       runtimeCfg,
+		recovery:         disabledParallelChildRecoveryConfig(),
+	})
+	if err != nil {
+		return taskWorktreeChildRun{}, err
+	}
+	return taskWorktreeChildRun{Run: childRun, Allocation: allocation, RuntimeConfig: runtimeCfg}, nil
+}
+
 // remapTaskMultiChildRuntime clones base and repoints it at the worktree: the
 // workspace root becomes the worktree path, the task directory becomes the slug
 // directory inside the worktree, and ParentRunID links the child to the parent
@@ -875,6 +1429,7 @@ func remapTaskMultiChildRuntime(
 	remapped.WorkspaceRoot = trimmedPath
 	remapped.TasksDir = model.TaskDirectoryForWorkspace(trimmedPath, trimmedSlug)
 	remapped.ParentRunID = strings.TrimSpace(parentRunID)
+	remapped.RunID = ""
 	return remapped, nil
 }
 

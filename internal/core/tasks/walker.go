@@ -193,6 +193,7 @@ func readTaskEntry(tasksDir, name string) (model.IssueEntry, model.TaskEntry, er
 	if err != nil {
 		return model.IssueEntry{}, model.TaskEntry{}, WrapParseError(absPath, err)
 	}
+	task.ID = TaskIdentityFromName(name)
 
 	entry := model.IssueEntry{
 		Name:     name,

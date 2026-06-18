@@ -280,6 +280,31 @@ func TestExtractTaskIdentityNumber(t *testing.T) {
 	}
 }
 
+func TestTaskIdentityFromName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "canonical filename", in: "task_042.md", want: "task_042"},
+		{name: "extensionless identity", in: "task_15", want: "task_15"},
+		{name: "nested path", in: "features/auth/task_07.md", want: "features/auth/task_07"},
+		{name: "backslash path", in: `features\auth\task_08.md`, want: "features/auth/task_08"},
+		{name: "empty input", in: "   ", want: ""},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := TaskIdentityFromName(tt.in); got != tt.want {
+				t.Fatalf("TaskIdentityFromName(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHasTaskV1FrontMatterKeys(t *testing.T) {
 	t.Parallel()
 

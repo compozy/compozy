@@ -20,6 +20,9 @@ const (
 	DefaultRecoveryReasoningEffort = "medium"
 	DefaultRecoveryMaxAttempts     = 1
 	MaxRecoveryAttempts            = 3
+
+	DefaultParallelTasksEnabled        = false
+	DefaultParallelTasksMaxConcurrency = 4
 )
 
 type Context struct {
@@ -65,6 +68,7 @@ type TaskRunConfig struct {
 	OutputFormat             *string                  `toml:"output_format"`
 	RunMultipleMode          *string                  `toml:"run_multiple_mode"`
 	RunMultipleParallelLimit *int                     `toml:"run_multiple_parallel_limit"`
+	Parallel                 ParallelTasksConfig      `toml:"parallel"`
 	TUI                      *bool                    `toml:"tui"`
 	TaskRuntimeRules         *[]model.TaskRuntimeRule `toml:"task_runtime_rules"`
 }
@@ -87,6 +91,40 @@ func (cfg TaskRunConfig) EffectiveRunMultipleParallelLimit() int {
 		return DefaultRunMultipleParallelLimit
 	}
 	return *cfg.RunMultipleParallelLimit
+}
+
+type ParallelTasksConfig struct {
+	Enabled          *bool                `toml:"enabled"`
+	MaxConcurrency   *int                 `toml:"max_concurrency"`
+	ConflictResolver *AgentRecoveryConfig `toml:"conflict_resolver"`
+}
+
+func DefaultParallelTasksConfig() ParallelTasksConfig {
+	enabled := DefaultParallelTasksEnabled
+	maxConcurrency := DefaultParallelTasksMaxConcurrency
+	conflictResolver := DefaultAgentRecoveryConfig()
+	return ParallelTasksConfig{
+		Enabled:          &enabled,
+		MaxConcurrency:   &maxConcurrency,
+		ConflictResolver: &conflictResolver,
+	}
+}
+
+func (cfg ParallelTasksConfig) ApplyDefaults() ParallelTasksConfig {
+	defaults := DefaultParallelTasksConfig()
+	if cfg.Enabled == nil {
+		cfg.Enabled = defaults.Enabled
+	}
+	if cfg.MaxConcurrency == nil {
+		cfg.MaxConcurrency = defaults.MaxConcurrency
+	}
+	if cfg.ConflictResolver == nil {
+		cfg.ConflictResolver = defaults.ConflictResolver
+		return cfg
+	}
+	conflictResolver := cfg.ConflictResolver.ApplyDefaults()
+	cfg.ConflictResolver = &conflictResolver
+	return cfg
 }
 
 type TasksConfig struct {

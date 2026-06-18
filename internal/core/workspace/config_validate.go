@@ -107,6 +107,9 @@ func validateTaskRun(scope string, defaults DefaultsConfig, cfg TaskRunConfig) e
 	); err != nil {
 		return err
 	}
+	if err := validateParallelTasksConfig(scope, cfg.Parallel); err != nil {
+		return err
+	}
 	return validateTaskRunRuntimeRules(scope, cfg.TaskRuntimeRules)
 }
 
@@ -315,42 +318,60 @@ func validateRuns(scope string, cfg RunsConfig) error {
 }
 
 func validateRecovery(scope string, cfg AgentRecoveryConfig) error {
-	if err := validateRecoveryIDE(scope, cfg); err != nil {
+	return validateAgentRecoveryConfig(scope, "recovery", cfg)
+}
+
+func validateParallelTasksConfig(scope string, cfg ParallelTasksConfig) error {
+	if cfg.MaxConcurrency != nil && *cfg.MaxConcurrency < 1 {
+		return fmt.Errorf(
+			"%s must be greater than zero (got %d)",
+			configFieldName(scope, "tasks.run.parallel.max_concurrency"),
+			*cfg.MaxConcurrency,
+		)
+	}
+	if cfg.ConflictResolver == nil {
+		return nil
+	}
+	return validateAgentRecoveryConfig(scope, "tasks.run.parallel.conflict_resolver", *cfg.ConflictResolver)
+}
+
+func validateAgentRecoveryConfig(scope string, section string, cfg AgentRecoveryConfig) error {
+	if err := validateAgentRecoveryIDE(scope, section, cfg); err != nil {
 		return err
 	}
-	if err := validateOptionalNonEmptyString(scope, "recovery.model", cfg.Model); err != nil {
+	if err := validateOptionalNonEmptyString(scope, section+".model", cfg.Model); err != nil {
 		return err
 	}
 	if err := validateReasoningEffortValue(
-		configFieldName(scope, "recovery.reasoning_effort"),
+		configFieldName(scope, section+".reasoning_effort"),
 		cfg.ReasoningEffort,
 	); err != nil {
 		return err
 	}
-	return validateRecoveryMaxAttempts(scope, cfg.MaxAttempts)
+	return validateAgentRecoveryMaxAttempts(scope, section, cfg.MaxAttempts)
 }
 
-func validateRecoveryIDE(scope string, cfg AgentRecoveryConfig) error {
+func validateAgentRecoveryIDE(scope string, section string, cfg AgentRecoveryConfig) error {
 	if cfg.IDE == nil {
 		return nil
 	}
 	if strings.TrimSpace(*cfg.IDE) == "" {
-		return fmt.Errorf("%s cannot be empty", configFieldName(scope, "recovery.ide"))
+		return fmt.Errorf("%s cannot be empty", configFieldName(scope, section+".ide"))
 	}
 	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
-		return fmt.Errorf("%s: %w", configFieldName(scope, "recovery.ide"), err)
+		return fmt.Errorf("%s: %w", configFieldName(scope, section+".ide"), err)
 	}
 	return nil
 }
 
-func validateRecoveryMaxAttempts(scope string, value *int) error {
+func validateAgentRecoveryMaxAttempts(scope string, section string, value *int) error {
 	if value == nil {
 		return nil
 	}
 	if *value < DefaultRecoveryMaxAttempts || *value > MaxRecoveryAttempts {
 		return fmt.Errorf(
 			"%s must be between %d and %d (got %d)",
-			configFieldName(scope, "recovery.max_attempts"),
+			configFieldName(scope, section+".max_attempts"),
 			DefaultRecoveryMaxAttempts,
 			MaxRecoveryAttempts,
 			*value,

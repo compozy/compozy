@@ -14,5 +14,9 @@ func cloneRuntimeConfig(cfg model.RuntimeConfig) *model.RuntimeConfig {
 	if len(cfg.AddDirs) > 0 {
 		cloned.AddDirs = append([]string(nil), cfg.AddDirs...)
 	}
+	if cfg.TargetTaskNumber != nil {
+		target := *cfg.TargetTaskNumber
+		cloned.TargetTaskNumber = &target
+	}
 	return &cloned
 }

@@ -47,6 +47,7 @@ type RuntimeConfig struct {
 	ParentRunID                string
 	PromptText                 string
 	SystemPrompt               string
+	TargetTaskNumber           *int
 	PromptFile                 string
 	ReadPromptStdin            bool
 	ResolvedPromptText         string

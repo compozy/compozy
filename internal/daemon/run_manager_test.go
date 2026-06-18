@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	runpkg "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/run/recovery"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -2437,6 +2438,7 @@ type runManagerTestDeps struct {
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	executeExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	recoveryStrategy       recovery.RemediationStrategy
 	openRunDB              func(context.Context, string) (*rundb.RunDB, error)
 	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	reviewProviderRegistry reviewProviderRegistryFactory
@@ -2511,6 +2513,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 		Prepare:                firstPrepare(deps.prepare),
 		Execute:                firstExecute(deps.execute),
 		ExecuteExec:            firstExecuteExec(deps.executeExec),
+		RecoveryStrategy:       deps.recoveryStrategy,
 		OpenRunDB:              deps.openRunDB,
 		ReviewProviderRegistry: deps.reviewProviderRegistry,
 		ReviewWatchGit:         deps.reviewWatchGit,

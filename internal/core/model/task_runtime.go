@@ -103,6 +103,10 @@ func (cfg *RuntimeConfig) Clone() *RuntimeConfig {
 	cloned := *cfg
 	cloned.AddDirs = append([]string(nil), cfg.AddDirs...)
 	cloned.TaskRuntimeRules = CloneTaskRuntimeRules(cfg.TaskRuntimeRules)
+	if cfg.TargetTaskNumber != nil {
+		target := *cfg.TargetTaskNumber
+		cloned.TargetTaskNumber = &target
+	}
 	return &cloned
 }
 

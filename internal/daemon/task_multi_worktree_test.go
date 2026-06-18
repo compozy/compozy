@@ -122,6 +122,38 @@ func TestPlanTaskMultiWorktreePath(t *testing.T) {
 		}
 	})
 
+	t.Run("Should key per-task worktree leaves by task number", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		base := taskMultiWorktreeSpec{
+			WorkspaceRoot: "/home/dev/project",
+			ParentRunID:   "parallel-task-parent",
+			Slug:          "alpha",
+			Index:         0,
+		}
+		taskOne := base
+		taskOne.TaskNumber = 1
+		taskTwo := base
+		taskTwo.TaskNumber = 2
+		pathOne, err := planTaskMultiWorktreePath(root, taskOne)
+		if err != nil {
+			t.Fatalf("task one path error = %v", err)
+		}
+		pathTwo, err := planTaskMultiWorktreePath(root, taskTwo)
+		if err != nil {
+			t.Fatalf("task two path error = %v", err)
+		}
+		if pathOne == pathTwo {
+			t.Fatal("different task numbers sharing wave index 0 must not collide")
+		}
+		if leaf := filepath.Base(pathOne); !strings.HasPrefix(leaf, "01-") {
+			t.Fatalf("task one leaf = %q, want task-number prefix 01-", leaf)
+		}
+		if leaf := filepath.Base(pathTwo); !strings.HasPrefix(leaf, "02-") {
+			t.Fatalf("task two leaf = %q, want task-number prefix 02-", leaf)
+		}
+	})
+
 	t.Run("Should keep paths short enough for local daemon constraints", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -197,6 +229,11 @@ func TestPlanTaskMultiWorktreePath(t *testing.T) {
 				name: "negative index",
 				root: t.TempDir(),
 				spec: func() taskMultiWorktreeSpec { s := valid; s.Index = -1; return s }(),
+			},
+			{
+				name: "negative task number",
+				root: t.TempDir(),
+				spec: func() taskMultiWorktreeSpec { s := valid; s.TaskNumber = -1; return s }(),
 			},
 		}
 		for _, tc := range cases {
@@ -356,6 +393,359 @@ func TestTaskMultiWorktreeAllocatorResolveBaseUnit(t *testing.T) {
 			t.Fatalf("empty workspace ResolveBase() error = %v, want workspace validation", err)
 		}
 	})
+}
+
+func TestTaskMultiWorktreeAllocatorCommitUnit(t *testing.T) {
+	t.Run("Should no-op when the worktree is clean", func(t *testing.T) {
+		t.Parallel()
+		var calls []string
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, dir string, args ...string) (string, error) {
+				if dir != "/worktree" {
+					t.Fatalf("dir = %q, want /worktree", dir)
+				}
+				call := strings.Join(args, " ")
+				calls = append(calls, call)
+				switch call {
+				case "status --porcelain":
+					return " \n", nil
+				case "rev-parse HEAD":
+					return "clean-head\n", nil
+				default:
+					t.Fatalf("unexpected git args: %v", args)
+					return "", nil
+				}
+			},
+		}
+		head, err := allocator.Commit(context.Background(), "/worktree", "capture residual")
+		if err != nil {
+			t.Fatalf("Commit(clean) error = %v", err)
+		}
+		if head != "clean-head" {
+			t.Fatalf("Commit(clean) head = %q, want clean-head", head)
+		}
+		if got, want := strings.Join(calls, "|"), "status --porcelain|rev-parse HEAD"; got != want {
+			t.Fatalf("git calls = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should stage and commit residual changes when dirty", func(t *testing.T) {
+		t.Parallel()
+		var calls []string
+		statusCalls := 0
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, dir string, args ...string) (string, error) {
+				if dir != "/worktree" {
+					t.Fatalf("dir = %q, want /worktree", dir)
+				}
+				call := strings.Join(args, " ")
+				calls = append(calls, call)
+				switch call {
+				case "status --porcelain":
+					statusCalls++
+					if statusCalls == 1 {
+						return " M changed.txt\n?? new.txt\n", nil
+					}
+					return "M  changed.txt\nA  new.txt\n", nil
+				case "add -A":
+					return "", nil
+				case "commit -m capture residual":
+					return "", nil
+				case "rev-parse HEAD":
+					return "dirty-head\n", nil
+				default:
+					t.Fatalf("unexpected git args: %v", args)
+					return "", nil
+				}
+			},
+		}
+		head, err := allocator.Commit(context.Background(), "/worktree", "capture residual")
+		if err != nil {
+			t.Fatalf("Commit(dirty) error = %v", err)
+		}
+		if head != "dirty-head" {
+			t.Fatalf("Commit(dirty) head = %q, want dirty-head", head)
+		}
+		want := "status --porcelain|add -A|status --porcelain|commit -m capture residual|rev-parse HEAD"
+		if got := strings.Join(calls, "|"); got != want {
+			t.Fatalf("git calls = %s, want %s", got, want)
+		}
+	})
+}
+
+func TestTaskMultiWorktreeAllocatorSquashMergeUnit(t *testing.T) {
+	t.Run("Should return a clean conflict set after a successful squash commit", func(t *testing.T) {
+		t.Parallel()
+		var calls []string
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, dir string, args ...string) (string, error) {
+				if dir != "/integration" {
+					t.Fatalf("dir = %q, want /integration", dir)
+				}
+				call := strings.Join(args, " ")
+				calls = append(calls, call)
+				switch call {
+				case "status --porcelain":
+					return "", nil
+				case "merge --squash -- worktree-ref":
+					return "", nil
+				case "commit --allow-empty -m task 01: add file":
+					return "commit ok", nil
+				default:
+					t.Fatalf("unexpected git args: %v", args)
+					return "", nil
+				}
+			},
+		}
+		conflicts, err := allocator.SquashMerge(
+			context.Background(),
+			"/integration",
+			"worktree-ref",
+			"task 01: add file",
+		)
+		if err != nil {
+			t.Fatalf("SquashMerge(clean) error = %v", err)
+		}
+		if !conflicts.Clean || len(conflicts.Files) != 0 {
+			t.Fatalf("conflicts = %#v, want clean", conflicts)
+		}
+		want := "status --porcelain|merge --squash -- worktree-ref|commit --allow-empty -m task 01: add file"
+		if got := strings.Join(calls, "|"); got != want {
+			t.Fatalf("git calls = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should return unmerged files when a squash merge conflicts", func(t *testing.T) {
+		t.Parallel()
+		mergeErr := errors.New("merge conflict")
+		statusCalls := 0
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, dir string, args ...string) (string, error) {
+				if dir != "/integration" {
+					t.Fatalf("dir = %q, want /integration", dir)
+				}
+				switch strings.Join(args, " ") {
+				case "status --porcelain":
+					statusCalls++
+					if statusCalls == 1 {
+						return "", nil
+					}
+					return "UU story.txt\nAA nested/name.txt\n", nil
+				case "merge --squash -- worktree-ref":
+					return "", mergeErr
+				default:
+					t.Fatalf("unexpected git args: %v", args)
+					return "", nil
+				}
+			},
+		}
+		conflicts, err := allocator.SquashMerge(
+			context.Background(),
+			"/integration",
+			"worktree-ref",
+			"task 02: overlap",
+		)
+		if err != nil {
+			t.Fatalf("SquashMerge(conflict) error = %v, want conflict set", err)
+		}
+		if conflicts.Clean {
+			t.Fatalf("conflicts.Clean = true, want false")
+		}
+		if got, want := strings.Join(conflicts.Files, ","), "nested/name.txt,story.txt"; got != want {
+			t.Fatalf("conflict files = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestTaskMultiWorktreeAllocatorLifecycleValidationUnit(t *testing.T) {
+	t.Run("Should reject a missing lifecycle git runner", func(t *testing.T) {
+		t.Parallel()
+		if _, err := (*taskMultiWorktreeAllocator)(
+			nil,
+		).Commit(context.Background(), "/worktree", "message"); err == nil ||
+			!strings.Contains(err.Error(), "git runner is required") {
+			t.Fatalf("nil allocator Commit() error = %v, want runner validation", err)
+		}
+	})
+
+	t.Run("Should validate required lifecycle values before touching git", func(t *testing.T) {
+		t.Parallel()
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(context.Context, string, ...string) (string, error) {
+				t.Fatal("git must not run for invalid lifecycle inputs")
+				return "", nil
+			},
+		}
+		if _, err := allocator.Commit(context.Background(), " ", "message"); err == nil ||
+			!strings.Contains(err.Error(), "worktree path is required") {
+			t.Fatalf("Commit(empty path) error = %v, want path validation", err)
+		}
+		if _, err := allocator.Commit(context.Background(), "/worktree", " "); err == nil ||
+			!strings.Contains(err.Error(), "commit message is required") {
+			t.Fatalf("Commit(empty message) error = %v, want message validation", err)
+		}
+		if err := allocator.CreateIntegrationBranch(
+			context.Background(),
+			" ",
+			"/integration",
+			"branch",
+			"HEAD",
+		); err == nil ||
+			!strings.Contains(err.Error(), "workspace root is required") {
+			t.Fatalf("CreateIntegrationBranch(empty workspace) error = %v, want workspace validation", err)
+		}
+		if _, err := allocator.SquashMerge(context.Background(), "/integration", " ", "message"); err == nil ||
+			!strings.Contains(err.Error(), "worktree ref is required") {
+			t.Fatalf("SquashMerge(empty ref) error = %v, want ref validation", err)
+		}
+		if err := allocator.FastForward(context.Background(), "/repo", " ", "integration"); err == nil ||
+			!strings.Contains(err.Error(), "target branch is required") {
+			t.Fatalf("FastForward(empty target) error = %v, want target validation", err)
+		}
+		if err := allocator.DiscardIntegrationBranch(context.Background(), "/repo", "/integration", " "); err == nil ||
+			!strings.Contains(err.Error(), "integration branch is required") {
+			t.Fatalf("DiscardIntegrationBranch(empty branch) error = %v, want branch validation", err)
+		}
+		if err := allocator.Remove(context.Background(), "/repo", " "); err == nil ||
+			!strings.Contains(err.Error(), "worktree path is required") {
+			t.Fatalf("Remove(empty path) error = %v, want path validation", err)
+		}
+		if err := allocator.Prune(context.Background(), " "); err == nil ||
+			!strings.Contains(err.Error(), "workspace root is required") {
+			t.Fatalf("Prune(empty workspace) error = %v, want workspace validation", err)
+		}
+	})
+}
+
+func TestTaskMultiWorktreeAllocatorLifecycleFailureUnit(t *testing.T) {
+	t.Run("Should reject residual commits when the worktree has unmerged files", func(t *testing.T) {
+		t.Parallel()
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, _ string, args ...string) (string, error) {
+				if strings.Join(args, " ") != "status --porcelain" {
+					t.Fatalf("unexpected git args: %v", args)
+				}
+				return "UU story.txt\n", nil
+			},
+		}
+		if _, err := allocator.Commit(context.Background(), "/worktree", "capture residual"); err == nil ||
+			!strings.Contains(err.Error(), "unresolved merge conflicts: story.txt") {
+			t.Fatalf("Commit(unmerged) error = %v, want unresolved conflict validation", err)
+		}
+	})
+
+	t.Run("Should reject fast-forward from the wrong branch", func(t *testing.T) {
+		t.Parallel()
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, _ string, args ...string) (string, error) {
+				if strings.Join(args, " ") != "rev-parse --abbrev-ref HEAD" {
+					t.Fatalf("unexpected git args: %v", args)
+				}
+				return "feature\n", nil
+			},
+		}
+		err := allocator.FastForward(context.Background(), "/repo", "main", "compozy/parallel")
+		if err == nil || !strings.Contains(err.Error(), "want target branch") {
+			t.Fatalf("FastForward(wrong branch) error = %v, want branch validation", err)
+		}
+	})
+
+	t.Run("Should reject fast-forward from a dirty target branch", func(t *testing.T) {
+		t.Parallel()
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, _ string, args ...string) (string, error) {
+				switch strings.Join(args, " ") {
+				case "rev-parse --abbrev-ref HEAD":
+					return "main\n", nil
+				case "status --porcelain":
+					return " M dirty.txt\n", nil
+				default:
+					t.Fatalf("unexpected git args: %v", args)
+					return "", nil
+				}
+			},
+		}
+		err := allocator.FastForward(context.Background(), "/repo", "main", "compozy/parallel")
+		if err == nil || !strings.Contains(err.Error(), "must be clean before fast-forward") {
+			t.Fatalf("FastForward(dirty) error = %v, want clean-tree validation", err)
+		}
+	})
+
+	t.Run("Should reject non-fast-forward integration branches", func(t *testing.T) {
+		t.Parallel()
+		ancestorErr := errors.New("not ancestor")
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, _ string, args ...string) (string, error) {
+				switch strings.Join(args, " ") {
+				case "rev-parse --abbrev-ref HEAD":
+					return "main\n", nil
+				case "status --porcelain":
+					return "", nil
+				case "merge-base --is-ancestor main compozy/parallel":
+					return "", ancestorErr
+				default:
+					t.Fatalf("unexpected git args: %v", args)
+					return "", nil
+				}
+			},
+		}
+		err := allocator.FastForward(context.Background(), "/repo", "main", "compozy/parallel")
+		if !errors.Is(err, ancestorErr) {
+			t.Fatalf("FastForward(non-ancestor) error = %v, want wrapped %v", err, ancestorErr)
+		}
+	})
+
+	t.Run("Should delete an integration branch even when its worktree path is already gone", func(t *testing.T) {
+		t.Parallel()
+		missingPath := filepath.Join(t.TempDir(), "missing")
+		var calls []string
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(_ context.Context, dir string, args ...string) (string, error) {
+				if dir != "/repo" {
+					t.Fatalf("dir = %q, want /repo", dir)
+				}
+				calls = append(calls, strings.Join(args, " "))
+				return "", nil
+			},
+		}
+		if err := allocator.DiscardIntegrationBranch(
+			context.Background(),
+			"/repo",
+			missingPath,
+			"compozy/parallel",
+		); err != nil {
+			t.Fatalf("DiscardIntegrationBranch(missing path) error = %v", err)
+		}
+		if got, want := strings.Join(calls, "|"), "branch -D compozy/parallel"; got != want {
+			t.Fatalf("git calls = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should no-op removing an already missing worktree", func(t *testing.T) {
+		t.Parallel()
+		missingPath := filepath.Join(t.TempDir(), "missing")
+		allocator := &taskMultiWorktreeAllocator{
+			run: func(context.Context, string, ...string) (string, error) {
+				t.Fatal("git must not run when the worktree path is missing")
+				return "", nil
+			},
+		}
+		if err := allocator.Remove(context.Background(), "/repo", missingPath); err != nil {
+			t.Fatalf("Remove(missing path) error = %v", err)
+		}
+	})
+}
+
+func TestTaskMultiWorktreeStatusParsing(t *testing.T) {
+	t.Parallel()
+	status := "UU story.txt\nM  clean.txt\nAA \"dir/file with spaces.txt\"\nR  old.txt -> new.txt\n"
+	files := taskMultiWorktreeUnmergedFiles(status)
+	if got, want := strings.Join(files, "|"), "dir/file with spaces.txt|story.txt"; got != want {
+		t.Fatalf("unmerged files = %q, want %q", got, want)
+	}
+	if got := taskMultiWorktreeStatusPath("old.txt -> renamed.txt"); got != "renamed.txt" {
+		t.Fatalf("renamed status path = %q, want renamed.txt", got)
+	}
 }
 
 func TestTaskMultiWorktreeAllocatorAllocateUnit(t *testing.T) {
@@ -518,6 +908,188 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 			t.Fatalf("second Allocate() error = %v, want collision error", err)
 		}
 	})
+
+	t.Run("Should squash two task worktrees into ordered commits and fast-forward main", func(t *testing.T) {
+		t.Parallel()
+		repo := initTaskMultiWorktreeRepo(t)
+		ctx := context.Background()
+		root := t.TempDir()
+		allocator := newTaskMultiWorktreeAllocator(root)
+		base, err := allocator.ResolveBase(ctx, repo)
+		if err != nil {
+			t.Fatalf("ResolveBase() error = %v", err)
+		}
+		integrationBranch := "compozy/parallel-clean"
+		integrationPath := filepath.Join(t.TempDir(), "integration")
+		if err := allocator.CreateIntegrationBranch(
+			ctx,
+			repo,
+			integrationPath,
+			integrationBranch,
+			base.Commit,
+		); err != nil {
+			t.Fatalf("CreateIntegrationBranch() error = %v", err)
+		}
+
+		first := allocateTaskMultiWorktreeForTest(t, allocator, repo, base, "task_01", 1)
+		second := allocateTaskMultiWorktreeForTest(t, allocator, repo, base, "task_02", 2)
+		writeTaskMultiWorktreeFile(t, first.Path, "task-01.txt", "task one\n")
+		writeTaskMultiWorktreeFile(t, second.Path, "task-02.txt", "task two\n")
+		firstRef, err := allocator.Commit(ctx, first.Path, "capture task 01")
+		if err != nil {
+			t.Fatalf("Commit(first) error = %v", err)
+		}
+		secondRef, err := allocator.Commit(ctx, second.Path, "capture task 02")
+		if err != nil {
+			t.Fatalf("Commit(second) error = %v", err)
+		}
+		conflicts, err := allocator.SquashMerge(ctx, integrationPath, firstRef, "task 01: Add task one")
+		if err != nil {
+			t.Fatalf("SquashMerge(first) error = %v", err)
+		}
+		if !conflicts.Clean {
+			t.Fatalf("SquashMerge(first) conflicts = %#v, want clean", conflicts)
+		}
+		conflicts, err = allocator.SquashMerge(ctx, integrationPath, secondRef, "task 02: Add task two")
+		if err != nil {
+			t.Fatalf("SquashMerge(second) error = %v", err)
+		}
+		if !conflicts.Clean {
+			t.Fatalf("SquashMerge(second) conflicts = %#v, want clean", conflicts)
+		}
+		messages := strings.Split(
+			runGitOutput(t, repo, "log", "--reverse", "--format=%s", "main.."+integrationBranch),
+			"\n",
+		)
+		wantMessages := "task 01: Add task one|task 02: Add task two"
+		if got := strings.Join(messages, "|"); got != wantMessages {
+			t.Fatalf("integration commit messages = %s, want %s", got, wantMessages)
+		}
+		if _, err := os.Stat(filepath.Join(repo, "task-01.txt")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("main has task-01 before fast-forward: %v", err)
+		}
+		if err := allocator.FastForward(ctx, repo, "main", integrationBranch); err != nil {
+			t.Fatalf("FastForward() error = %v", err)
+		}
+		if got, want := runGitOutput(
+			t,
+			repo,
+			"rev-parse",
+			"main",
+		), runGitOutput(
+			t,
+			repo,
+			"rev-parse",
+			integrationBranch,
+		); got != want {
+			t.Fatalf("main head = %q, want integration head %q", got, want)
+		}
+		for _, name := range []string{"task-01.txt", "task-02.txt"} {
+			if _, err := os.Stat(filepath.Join(repo, name)); err != nil {
+				t.Fatalf("expected %s after fast-forward: %v", name, err)
+			}
+		}
+		if err := allocator.Remove(ctx, repo, first.Path); err != nil {
+			t.Fatalf("Remove(first) error = %v", err)
+		}
+		if err := allocator.Remove(ctx, repo, second.Path); err != nil {
+			t.Fatalf("Remove(second) error = %v", err)
+		}
+		if err := allocator.DiscardIntegrationBranch(ctx, repo, integrationPath, integrationBranch); err != nil {
+			t.Fatalf("DiscardIntegrationBranch() error = %v", err)
+		}
+		if err := allocator.Prune(ctx, repo); err != nil {
+			t.Fatalf("Prune() error = %v", err)
+		}
+		for _, path := range []string{first.Path, second.Path, integrationPath} {
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("worktree path %s stat error = %v, want not exist", path, err)
+			}
+		}
+	})
+
+	t.Run("Should report conflicts and discard integration branch without moving main", func(t *testing.T) {
+		t.Parallel()
+		repo := initTaskMultiWorktreeRepo(t)
+		ctx := context.Background()
+		writeTaskMultiWorktreeFile(t, repo, "story.txt", "base\n")
+		runGitOutput(t, repo, "add", "story.txt")
+		runGitOutput(t, repo, "commit", "-q", "-m", "add story")
+		preHead := runGitOutput(t, repo, "rev-parse", "main")
+		preContent := readTaskMultiWorktreeFile(t, repo, "story.txt")
+
+		allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+		base, err := allocator.ResolveBase(ctx, repo)
+		if err != nil {
+			t.Fatalf("ResolveBase() error = %v", err)
+		}
+		integrationBranch := "compozy/parallel-conflict"
+		integrationPath := filepath.Join(t.TempDir(), "integration")
+		if err := allocator.CreateIntegrationBranch(
+			ctx,
+			repo,
+			integrationPath,
+			integrationBranch,
+			base.Commit,
+		); err != nil {
+			t.Fatalf("CreateIntegrationBranch() error = %v", err)
+		}
+		first := allocateTaskMultiWorktreeForTest(t, allocator, repo, base, "task_01", 1)
+		second := allocateTaskMultiWorktreeForTest(t, allocator, repo, base, "task_02", 2)
+		writeTaskMultiWorktreeFile(t, first.Path, "story.txt", "first\n")
+		writeTaskMultiWorktreeFile(t, second.Path, "story.txt", "second\n")
+		firstRef, err := allocator.Commit(ctx, first.Path, "capture task 01")
+		if err != nil {
+			t.Fatalf("Commit(first) error = %v", err)
+		}
+		secondRef, err := allocator.Commit(ctx, second.Path, "capture task 02")
+		if err != nil {
+			t.Fatalf("Commit(second) error = %v", err)
+		}
+		if conflicts, err := allocator.SquashMerge(
+			ctx,
+			integrationPath,
+			firstRef,
+			"task 01: first story",
+		); err != nil ||
+			!conflicts.Clean {
+			t.Fatalf("SquashMerge(first) conflicts = %#v, err = %v, want clean", conflicts, err)
+		}
+		conflicts, err := allocator.SquashMerge(ctx, integrationPath, secondRef, "task 02: second story")
+		if err != nil {
+			t.Fatalf("SquashMerge(second) error = %v, want conflict set", err)
+		}
+		if conflicts.Clean || strings.Join(conflicts.Files, ",") != "story.txt" {
+			t.Fatalf("SquashMerge(second) conflicts = %#v, want story.txt conflict", conflicts)
+		}
+		if err := allocator.DiscardIntegrationBranch(ctx, repo, integrationPath, integrationBranch); err != nil {
+			t.Fatalf("DiscardIntegrationBranch() error = %v", err)
+		}
+		if got := runGitOutput(t, repo, "rev-parse", "main"); got != preHead {
+			t.Fatalf("main head = %q, want unchanged %q", got, preHead)
+		}
+		if got := readTaskMultiWorktreeFile(t, repo, "story.txt"); got != preContent {
+			t.Fatalf("main story content = %q, want unchanged %q", got, preContent)
+		}
+		if got := runGitOutput(t, repo, "status", "--porcelain"); got != "" {
+			t.Fatalf("main status after rollback = %q, want clean", got)
+		}
+		if _, err := runGitOutputContext(
+			ctx,
+			repo,
+			"rev-parse",
+			"--verify",
+			"refs/heads/"+integrationBranch,
+		); err == nil {
+			t.Fatalf("integration branch %s still exists after discard", integrationBranch)
+		}
+		if err := allocator.Remove(ctx, repo, first.Path); err != nil {
+			t.Fatalf("Remove(first) error = %v", err)
+		}
+		if err := allocator.Remove(ctx, repo, second.Path); err != nil {
+			t.Fatalf("Remove(second) error = %v", err)
+		}
+	})
 }
 
 func TestEnsureTaskMultiWorktreeTargetFree(t *testing.T) {
@@ -595,4 +1167,43 @@ func initTaskMultiWorktreeRepo(t *testing.T) string {
 	runGitOutput(t, dir, "add", "README.md")
 	runGitOutput(t, dir, "commit", "-q", "-m", "initial")
 	return dir
+}
+
+func allocateTaskMultiWorktreeForTest(
+	t *testing.T,
+	allocator *taskMultiWorktreeAllocator,
+	repo string,
+	base taskMultiWorktreeBase,
+	slug string,
+	taskNumber int,
+) taskMultiWorktreeAllocation {
+	t.Helper()
+	alloc, err := allocator.Allocate(context.Background(), taskMultiWorktreeSpec{
+		WorkspaceRoot: repo,
+		ParentRunID:   "parallel-writeback-test",
+		Slug:          slug,
+		Index:         0,
+		TaskNumber:    taskNumber,
+		Base:          base,
+	})
+	if err != nil {
+		t.Fatalf("Allocate(%s) error = %v", slug, err)
+	}
+	return alloc
+}
+
+func writeTaskMultiWorktreeFile(t *testing.T, dir string, name string, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", name, err)
+	}
+}
+
+func readTaskMultiWorktreeFile(t *testing.T, dir string, name string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return string(content)
 }

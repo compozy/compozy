@@ -182,6 +182,168 @@ func TestValidateAndFilterEntriesKeepsEmptyTaskDirectoriesDistinct(t *testing.T)
 	}
 }
 
+func TestValidateAndFilterEntriesRejectsTargetTaskNumberWhenAbsentOrCompleted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		files     map[string]string
+		target    int
+		wantError string
+	}{
+		{
+			name: "Should reject an absent target task number",
+			files: map[string]string{
+				"task_1.md": "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+				"task_2.md": "---\nstatus: pending\ntitle: Task 2\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
+			},
+			target:    3,
+			wantError: "target task 3 not found",
+		},
+		{
+			name: "Should reject a completed target task number",
+			files: map[string]string{
+				"task_3.md": "---\nstatus: completed\ntitle: Task 3\ntype: backend\ncomplexity: low\n---\n\n# Task 3\n",
+				"task_4.md": "---\nstatus: pending\ntitle: Task 4\ntype: backend\ncomplexity: low\n---\n\n# Task 4\n",
+			},
+			target:    3,
+			wantError: "target task 3 is completed",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			for name, content := range tt.files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+					t.Fatalf("write %s: %v", name, err)
+				}
+			}
+			entries, err := readTaskEntries(dir, false, false)
+			if err != nil {
+				t.Fatalf("readTaskEntries: %v", err)
+			}
+
+			_, err = validateAndFilterEntries(entries, &model.RuntimeConfig{
+				Mode:             model.ExecutionModePRDTasks,
+				TasksDir:         dir,
+				TargetTaskNumber: &tt.target,
+			})
+			if err == nil {
+				t.Fatal("validateAndFilterEntries() error = nil, want target-specific error")
+			}
+			if !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("validateAndFilterEntries() error = %v, want %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestValidateAndFilterEntriesRejectsInvalidOrAmbiguousTargetTaskNumber(t *testing.T) {
+	t.Parallel()
+
+	pendingTask := "---\nstatus: pending\ntitle: Task 3\ntype: backend\ncomplexity: low\n---\n\n# Task 3\n"
+	t.Run("Should reject a non-positive target task number", func(t *testing.T) {
+		t.Parallel()
+
+		target := 0
+		_, err := validateAndFilterEntries([]model.IssueEntry{{
+			Name:    "task_3.md",
+			Content: pendingTask,
+		}}, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TargetTaskNumber: &target,
+		})
+		if err == nil || !strings.Contains(err.Error(), "must be positive") {
+			t.Fatalf("validateAndFilterEntries() error = %v, want positive-target error", err)
+		}
+	})
+
+	t.Run("Should report absent target from discovered entries without tasks dir", func(t *testing.T) {
+		t.Parallel()
+
+		target := 3
+		_, err := validateAndFilterEntries([]model.IssueEntry{{
+			Name:    "task_1.md",
+			Content: pendingTask,
+		}}, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TargetTaskNumber: &target,
+		})
+		if err == nil || !strings.Contains(err.Error(), "target task 3 not found in discovered task entries") {
+			t.Fatalf("validateAndFilterEntries() error = %v, want discovered-entries error", err)
+		}
+	})
+
+	t.Run("Should reject malformed target task content", func(t *testing.T) {
+		t.Parallel()
+
+		target := 3
+		_, err := validateAndFilterEntries([]model.IssueEntry{{
+			Name:    "task_3.md",
+			AbsPath: filepath.Join("tasks", "task_3.md"),
+			Content: "---\ntitle: Task 3\n---\n\n# Task 3\n",
+		}}, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TargetTaskNumber: &target,
+		})
+		if err == nil || !strings.Contains(err.Error(), "inspect target task 3") {
+			t.Fatalf("validateAndFilterEntries() error = %v, want parse inspection error", err)
+		}
+		if !strings.Contains(err.Error(), "missing status") {
+			t.Fatalf("validateAndFilterEntries() error = %v, want parse cause", err)
+		}
+	})
+
+	t.Run("Should reject target task omitted from pending entries", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		files := map[string]string{
+			"task_3.md": pendingTask,
+			"task_4.md": "---\nstatus: pending\ntitle: Task 4\ntype: backend\ncomplexity: low\n---\n\n# Task 4\n",
+		}
+		for name, content := range files {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+				t.Fatalf("write %s: %v", name, err)
+			}
+		}
+
+		target := 3
+		_, err := validateAndFilterEntries([]model.IssueEntry{{
+			Name:    "task_4.md",
+			AbsPath: filepath.Join(dir, "task_4.md"),
+			Content: files["task_4.md"],
+		}}, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TasksDir:         dir,
+			TargetTaskNumber: &target,
+		})
+		if err == nil || !strings.Contains(err.Error(), "target task 3 was not selected from pending task entries") {
+			t.Fatalf("validateAndFilterEntries() error = %v, want omitted-target error", err)
+		}
+	})
+
+	t.Run("Should reject duplicate target task numbers", func(t *testing.T) {
+		t.Parallel()
+
+		target := 3
+		_, err := validateAndFilterEntries([]model.IssueEntry{
+			{Name: "alpha/task_3.md", Content: pendingTask},
+			{Name: "beta/task_3.md", Content: pendingTask},
+		}, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TargetTaskNumber: &target,
+		})
+		if err == nil || !strings.Contains(err.Error(), "matched 2 task files") {
+			t.Fatalf("validateAndFilterEntries() error = %v, want duplicate-target error", err)
+		}
+	})
+}
+
 func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
 	t.Parallel()
 
@@ -783,6 +945,57 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 	}
 	for _, job := range prep.Jobs {
 		assertJobUsesRunArtifacts(t, runArtifacts, job)
+	}
+}
+
+func TestPreparePRDTasksFiltersTargetTaskNumber(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	files := map[string]string{
+		"task_1.md": "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+		"task_3.md": "---\nstatus: pending\ntitle: Task 3\ntype: backend\ncomplexity: low\n---\n\n# Task 3\n",
+		"task_5.md": "---\nstatus: pending\ntitle: Task 5\ntype: backend\ncomplexity: low\n---\n\n# Task 5\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(tasksDir, name), []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	targetTaskNumber := 3
+	cfg := &model.RuntimeConfig{
+		Name:             "demo",
+		WorkspaceRoot:    workspaceRoot,
+		DryRun:           true,
+		IDE:              model.IDECodex,
+		Mode:             model.ExecutionModePRDTasks,
+		TargetTaskNumber: &targetTaskNumber,
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected exactly one prepared target-task job, got %d", len(prep.Jobs))
+	}
+	job := prep.Jobs[0]
+	if got, want := job.CodeFiles, []string{"task_3"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected target job code files\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if job.TaskNumber != targetTaskNumber {
+		t.Fatalf("target job task number = %d, want %d", job.TaskNumber, targetTaskNumber)
+	}
+	if job.TaskTitle != "Task 3" {
+		t.Fatalf("target job title = %q, want Task 3", job.TaskTitle)
 	}
 }
 

@@ -433,6 +433,18 @@ func (m *RunManager) StartTaskRun(
 		return apicore.Run{}, err
 	}
 
+	if run, routed, err := m.startParallelTaskRunIfEnabled(
+		ctx,
+		workspaceRow,
+		workflowID,
+		workflowSlug,
+		runtimeCfg,
+		recoveryCfg,
+		presentationMode,
+	); routed || err != nil {
+		return run, err
+	}
+
 	return m.startRun(ctx, startRunSpec{
 		workspace:        workspaceRow,
 		workflowID:       workflowID,

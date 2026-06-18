@@ -88,6 +88,7 @@ func buildEffectiveTaskRunConfig(
 		RunMultipleParallelLimit: cloneOptionalValue(
 			preferOverlay(global.RunMultipleParallelLimit, workspace.RunMultipleParallelLimit),
 		),
+		Parallel:         mergeParallelTasksConfig(global.Parallel, workspace.Parallel).ApplyDefaults(),
 		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		TaskRuntimeRules: mergeTaskRunRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}
@@ -213,6 +214,30 @@ func mergeRecoveryConfig(base, overlay AgentRecoveryConfig) AgentRecoveryConfig 
 		ReasoningEffort: cloneOptionalValue(preferOverlay(base.ReasoningEffort, overlay.ReasoningEffort)),
 		MaxAttempts:     cloneOptionalValue(preferOverlay(base.MaxAttempts, overlay.MaxAttempts)),
 	}
+}
+
+func mergeParallelTasksConfig(base, overlay ParallelTasksConfig) ParallelTasksConfig {
+	return ParallelTasksConfig{
+		Enabled:          cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
+		MaxConcurrency:   cloneOptionalValue(preferOverlay(base.MaxConcurrency, overlay.MaxConcurrency)),
+		ConflictResolver: mergeAgentRecoveryConfigPointer(base.ConflictResolver, overlay.ConflictResolver),
+	}
+}
+
+func mergeAgentRecoveryConfigPointer(base, overlay *AgentRecoveryConfig) *AgentRecoveryConfig {
+	if base == nil && overlay == nil {
+		return nil
+	}
+	baseConfig := AgentRecoveryConfig{}
+	if base != nil {
+		baseConfig = *base
+	}
+	overlayConfig := AgentRecoveryConfig{}
+	if overlay != nil {
+		overlayConfig = *overlay
+	}
+	merged := mergeRecoveryConfig(baseConfig, overlayConfig)
+	return &merged
 }
 
 func mergeSoundConfig(base, overlay SoundConfig) SoundConfig {

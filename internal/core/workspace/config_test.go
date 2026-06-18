@@ -155,7 +155,10 @@ func TestLoadConfigReturnsDefaultRecoveryWhenFileIsMissing(t *testing.T) {
 	if path != filepath.Join(root, ".compozy", "config.toml") {
 		t.Fatalf("unexpected config path: %q", path)
 	}
-	want := ProjectConfig{Recovery: DefaultAgentRecoveryConfig()}
+	want := ProjectConfig{
+		Tasks:    TasksConfig{Run: TaskRunConfig{Parallel: DefaultParallelTasksConfig()}},
+		Recovery: DefaultAgentRecoveryConfig(),
+	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("unexpected default project config\nwant: %#v\ngot:  %#v", want, cfg)
 	}
@@ -495,6 +498,156 @@ func TestLoadConfigRejectsInvalidRecoveryValues(t *testing.T) {
 				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+func TestLoadConfigAppliesParallelTaskDefaultsWhenUnset(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, "")
+
+	cfg, _, err := loadConfigWithIsolatedHome(t, root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, DefaultParallelTasksConfig())
+}
+
+func TestLoadConfigMergesParallelTasksWorkspaceOverGlobalConfig(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[tasks.run.parallel]
+enabled = false
+max_concurrency = 2
+
+[tasks.run.parallel.conflict_resolver]
+enabled = false
+ide = "claude"
+model = "sonnet"
+reasoning_effort = "medium"
+max_attempts = 1
+`)
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel]
+enabled = true
+
+[tasks.run.parallel.conflict_resolver]
+model = "gpt-5.5"
+reasoning_effort = "high"
+max_attempts = 3
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, ParallelTasksConfig{
+		Enabled:        ptrBool(true),
+		MaxConcurrency: ptrInt(2),
+		ConflictResolver: &AgentRecoveryConfig{
+			Enabled:         ptrBool(false),
+			IDE:             ptrString("claude"),
+			Model:           ptrString("gpt-5.5"),
+			ReasoningEffort: ptrString("high"),
+			MaxAttempts:     ptrInt(3),
+		},
+	})
+}
+
+func TestLoadConfigParsesParallelTasksTOML(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel]
+enabled = true
+max_concurrency = 6
+
+[tasks.run.parallel.conflict_resolver]
+enabled = true
+ide = "codex"
+model = "gpt-5.5"
+reasoning_effort = "high"
+max_attempts = 3
+`)
+
+	cfg, _, err := loadConfigWithIsolatedHome(t, root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, ParallelTasksConfig{
+		Enabled:        ptrBool(true),
+		MaxConcurrency: ptrInt(6),
+		ConflictResolver: &AgentRecoveryConfig{
+			Enabled:         ptrBool(true),
+			IDE:             ptrString("codex"),
+			Model:           ptrString("gpt-5.5"),
+			ReasoningEffort: ptrString("high"),
+			MaxAttempts:     ptrInt(3),
+		},
+	})
+}
+
+func TestLoadConfigRejectsInvalidParallelTasksValues(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "zero max concurrency",
+			content: `
+[tasks.run.parallel]
+max_concurrency = 0
+`,
+			wantErr: "tasks.run.parallel.max_concurrency",
+		},
+		{
+			name: "invalid resolver reasoning effort",
+			content: `
+[tasks.run.parallel.conflict_resolver]
+reasoning_effort = "extreme"
+`,
+			wantErr: "tasks.run.parallel.conflict_resolver.reasoning_effort",
+		},
+		{
+			name: "resolver max attempts above maximum",
+			content: `
+[tasks.run.parallel.conflict_resolver]
+max_attempts = 5
+`,
+			wantErr: "tasks.run.parallel.conflict_resolver.max_attempts",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := loadConfigWithIsolatedHome(t, root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsUnknownParallelTasksFields(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel]
+unexpected = true
+`)
+
+	_, _, err := loadConfigWithIsolatedHome(t, root)
+	if err == nil {
+		t.Fatal("expected unknown parallel field error")
+	}
+	if !strings.Contains(err.Error(), "decode workspace config") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1956,11 +2109,35 @@ func assertOptionalString(t *testing.T, field string, got *string, want *string)
 
 func assertRecoveryConfig(t *testing.T, got AgentRecoveryConfig, want AgentRecoveryConfig) {
 	t.Helper()
-	assertOptionalBool(t, "recovery.enabled", got.Enabled, want.Enabled)
-	assertOptionalString(t, "recovery.ide", got.IDE, want.IDE)
-	assertOptionalString(t, "recovery.model", got.Model, want.Model)
-	assertOptionalString(t, "recovery.reasoning_effort", got.ReasoningEffort, want.ReasoningEffort)
-	assertOptionalInt(t, "recovery.max_attempts", got.MaxAttempts, want.MaxAttempts)
+	assertAgentRecoveryConfig(t, "recovery", got, want)
+}
+
+func assertParallelTasksConfig(t *testing.T, got ParallelTasksConfig, want ParallelTasksConfig) {
+	t.Helper()
+	assertOptionalBool(t, "tasks.run.parallel.enabled", got.Enabled, want.Enabled)
+	assertOptionalInt(t, "tasks.run.parallel.max_concurrency", got.MaxConcurrency, want.MaxConcurrency)
+	switch {
+	case want.ConflictResolver == nil && got.ConflictResolver != nil:
+		t.Fatalf("tasks.run.parallel.conflict_resolver: expected nil, got %#v", *got.ConflictResolver)
+	case want.ConflictResolver != nil && got.ConflictResolver == nil:
+		t.Fatalf("tasks.run.parallel.conflict_resolver: expected %#v, got nil", *want.ConflictResolver)
+	case want.ConflictResolver != nil && got.ConflictResolver != nil:
+		assertAgentRecoveryConfig(
+			t,
+			"tasks.run.parallel.conflict_resolver",
+			*got.ConflictResolver,
+			*want.ConflictResolver,
+		)
+	}
+}
+
+func assertAgentRecoveryConfig(t *testing.T, fieldPrefix string, got AgentRecoveryConfig, want AgentRecoveryConfig) {
+	t.Helper()
+	assertOptionalBool(t, fieldPrefix+".enabled", got.Enabled, want.Enabled)
+	assertOptionalString(t, fieldPrefix+".ide", got.IDE, want.IDE)
+	assertOptionalString(t, fieldPrefix+".model", got.Model, want.Model)
+	assertOptionalString(t, fieldPrefix+".reasoning_effort", got.ReasoningEffort, want.ReasoningEffort)
+	assertOptionalInt(t, fieldPrefix+".max_attempts", got.MaxAttempts, want.MaxAttempts)
 }
 
 func assertOptionalInt(t *testing.T, field string, got *int, want *int) {
