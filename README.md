@@ -182,6 +182,13 @@ run_multiple_parallel_limit = 2
 [exec]
 output_format = "text"
 
+[recovery]
+enabled = false
+ide = "codex"
+model = "gpt-5.5"
+reasoning_effort = "medium"
+max_attempts = 1
+
 [fix_reviews]
 concurrent = 2
 batch_size = 3
@@ -200,6 +207,7 @@ Supported sections:
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
+- `[recovery]` for agentic recovery defaults used by run-producing commands: `enabled`, `ide`, `model`, `reasoning_effort`, and `max_attempts`
 - `[sound]` for optional run-completion audio presets or absolute file paths
 
 Notes:
@@ -214,6 +222,8 @@ Notes:
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
+- Recovery is disabled by default. When enabled, `max_attempts` is the number of remediation plus restart cycles and must be between `1` and `3`.
+- Recovery config is resolved fresh for each invocation and is not persisted into run or exec metadata. Use `--recovery`, `--no-recovery`, `--recovery-ide`, `--recovery-model`, `--recovery-reasoning`, and `--recovery-max-attempts` to override `[recovery]` for one command.
 
 ## Reusable Agents
 
@@ -616,21 +626,27 @@ compozy tasks run <slug> [flags]
 
 The CLI resolves workspace defaults locally, validates the task metadata, auto-starts the daemon when needed, and then starts the workflow through the daemon transport.
 
-| Flag                  | Default | Description                                                                                      |
-| --------------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `--name`              |         | Workflow slug (defaults to the positional slug)                                                  |
-| `--multiple`          |         | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
-| `--parallel`          | `false` | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
-| `--parallel-limit`    | `2`     | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
-| `--include-completed` | `false` | Re-run completed tasks                                                                           |
-| `--recursive`, `-r`   | `false` | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
-| `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere                     |
-| `--force`             | `false` | Continue after task metadata validation fails in non-interactive mode                            |
-| `--attach`            | `auto`  | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
-| `--ui`                | `false` | Force interactive TUI attach mode                                                                |
-| `--stream`            | `false` | Force textual stream attach mode                                                                 |
-| `--detach`            | `false` | Start the run without attaching a client                                                         |
-| `--task-runtime`      |         | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
+| Flag                      | Default   | Description                                                                                      |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
+| `--name`                  |           | Workflow slug (defaults to the positional slug)                                                  |
+| `--multiple`              |           | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
+| `--parallel`              | `false`   | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
+| `--parallel-limit`        | `2`       | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
+| `--include-completed`     | `false`   | Re-run completed tasks                                                                           |
+| `--recursive`, `-r`       | `false`   | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
+| `--skip-validation`       | `false`   | Skip task metadata preflight; use only when validation already ran elsewhere                     |
+| `--force`                 | `false`   | Continue after task metadata validation fails in non-interactive mode                            |
+| `--attach`                | `auto`    | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
+| `--ui`                    | `false`   | Force interactive TUI attach mode                                                                |
+| `--stream`                | `false`   | Force textual stream attach mode                                                                 |
+| `--detach`                | `false`   | Start the run without attaching a client                                                         |
+| `--task-runtime`          |           | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
+| `--recovery`              | `false`   | Enable agentic recovery for failed runs                                                          |
+| `--no-recovery`           | `false`   | Disable agentic recovery for this invocation                                                     |
+| `--recovery-ide`          | `codex`   | Runtime used by the recovery agent                                                               |
+| `--recovery-model`        | `gpt-5.5` | Model used by the recovery agent                                                                 |
+| `--recovery-reasoning`    | `medium`  | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                             |
+| `--recovery-max-attempts` | `1`       | Recovery remediation plus restart cycles; must be between `1` and `3`                            |
 
 When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
@@ -753,6 +769,12 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
 | `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
+| `--recovery`                 | `false`     | Enable agentic recovery for failed exec runs                                               |
+| `--no-recovery`              | `false`     | Disable agentic recovery for this invocation                                               |
+| `--recovery-ide`             | `codex`     | Runtime used by the recovery agent                                                         |
+| `--recovery-model`           | `gpt-5.5`   | Model used by the recovery agent                                                           |
+| `--recovery-reasoning`       | `medium`    | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                       |
+| `--recovery-max-attempts`    | `1`         | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
 | `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |

@@ -56,6 +56,31 @@ func TestExecutePreparedPromptValidatesInputs(t *testing.T) {
 	}
 }
 
+func TestPersistedExecRunOmitsRuntimeOnlyRecoveryAttempt(t *testing.T) {
+	t.Parallel()
+
+	record := newPersistedExecRunRecord(
+		&model.RuntimeConfig{
+			WorkspaceRoot:   t.TempDir(),
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "medium",
+			AccessMode:      model.AccessModeFull,
+			RecoveryAttempt: 1,
+		},
+		model.NewRunArtifacts(t.TempDir(), "exec-run"),
+		"exec-run",
+		"gpt-5.5",
+	)
+	payload, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal persisted exec run: %v", err)
+	}
+	if strings.Contains(string(payload), "recovery") {
+		t.Fatalf("persisted exec run should omit runtime-only recovery marker: %s", string(payload))
+	}
+}
+
 func TestExecutePreparedPromptReturnsEnsureAvailableError(t *testing.T) {
 	t.Parallel()
 
@@ -319,6 +344,52 @@ func TestNewExecRuntimeJobAttachesReservedServerWithoutReusableAgent(t *testing.
 	}
 	if jb.MCPServers[0].Stdio == nil || jb.MCPServers[0].Stdio.Name != reusableagents.ReservedMCPServerName {
 		t.Fatalf("unexpected reserved MCP server wiring: %#v", jb.MCPServers)
+	}
+}
+
+func TestNewExecRuntimeJobUsesRuntimeSystemPromptOverride(t *testing.T) {
+	agentExecution := &reusableagents.ExecutionContext{
+		Agent: reusableagents.ResolvedAgent{
+			Name: "planner",
+			Metadata: reusableagents.Metadata{
+				Title:       "Planner",
+				Description: "Plans work",
+			},
+			Prompt: "agent prompt must not be used",
+			Source: reusableagents.Source{Scope: reusableagents.ScopeWorkspace},
+		},
+		Catalog: reusableagents.Catalog{
+			Agents: []reusableagents.ResolvedAgent{{
+				Name: "planner",
+				Metadata: reusableagents.Metadata{
+					Title:       "Planner",
+					Description: "Plans work",
+				},
+				Prompt: "agent prompt must not be used",
+				Source: reusableagents.Source{Scope: reusableagents.ScopeWorkspace},
+			}},
+		},
+	}
+	jb, err := newExecRuntimeJob(
+		"delegate this",
+		nil,
+		agentExecution,
+		&model.RuntimeConfig{
+			WorkspaceRoot: workspaceRootForExecTest(t),
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.5",
+			AccessMode:    model.AccessModeDefault,
+			SystemPrompt:  "runtime system prompt",
+		},
+	)
+	if err != nil {
+		t.Fatalf("newExecRuntimeJob: %v", err)
+	}
+	if jb.SystemPrompt != "runtime system prompt" {
+		t.Fatalf("SystemPrompt = %q, want runtime override", jb.SystemPrompt)
+	}
+	if strings.Contains(jb.SystemPrompt, "agent prompt must not be used") {
+		t.Fatalf("runtime SystemPrompt should override agent prompt, got:\n%s", jb.SystemPrompt)
 	}
 }
 

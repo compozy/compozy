@@ -403,7 +403,6 @@ func runSingleExecAttempt(
 	if timeout > 0 {
 		activity = newActivityMonitor()
 		attemptCtx, cancel = context.WithCancelCause(ctx)
-		stopActivityWatchdog = startACPActivityWatchdog(attemptCtx, activity, timeout, cancel)
 	}
 	defer func() {
 		stopActivityWatchdog()
@@ -422,11 +421,16 @@ func runSingleExecAttempt(
 		AggregateUsage:    nil,
 		AggregateMu:       nil,
 		Activity:          activity,
+		InitTimeout:       resolveACPInitTimeout(timeout),
 		Logger:            runtimeLoggerFor(cfg, useUI),
 		TrackClient:       nil,
 	})
 	if err != nil {
 		return execExecutionResult{status: runStatusFailed, err: err}
+	}
+	if timeout > 0 {
+		activity.RecordActivity()
+		stopActivityWatchdog = startACPActivityWatchdog(attemptCtx, activity, timeout, cancel)
 	}
 	defer execution.Close()
 	if state != nil {
@@ -1231,7 +1235,7 @@ func newExecRuntimeJob(
 	if err != nil {
 		return job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
 	}
-	return newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers)
+	return newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers, cfg)
 }
 
 func newExecRuntimeJobWithMCP(
@@ -1239,9 +1243,12 @@ func newExecRuntimeJobWithMCP(
 	state *execRunState,
 	agentExecution *reusableagents.ExecutionContext,
 	mcpServers []model.MCPServer,
+	cfg *model.RuntimeConfig,
 ) (job, error) {
 	systemPrompt := ""
-	if agentExecution != nil {
+	if cfg != nil && strings.TrimSpace(cfg.SystemPrompt) != "" {
+		systemPrompt = cfg.SystemPrompt
+	} else if agentExecution != nil {
 		systemPrompt = agentExecution.SystemPrompt("")
 	}
 
@@ -1428,7 +1435,7 @@ func isExecRetryableError(err error) bool {
 	if agent.IsAuthenticationRequired(err) {
 		return false
 	}
-	if isActivityTimeout(err) {
+	if isActivityTimeout(err) || isInitTimeout(err) {
 		return true
 	}
 	var setupErr *agent.SessionSetupError

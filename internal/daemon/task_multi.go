@@ -43,6 +43,7 @@ type preparedTaskMultiItem struct {
 	workflowID   *string
 	workflowRoot string
 	runtimeCfg   *model.RuntimeConfig
+	recovery     workspacecfg.AgentRecoveryConfig
 }
 
 type taskMultiSnapshotBuilder struct {
@@ -141,7 +142,7 @@ func (m *RunManager) prepareTaskMultiStart(
 	var workspaceRow globaldb.Workspace
 	var presentationMode string
 	for idx, slug := range slugs {
-		row, workflowID, runtimeCfg, childPresentationMode, err := m.prepareTaskStart(
+		row, workflowID, runtimeCfg, recoveryCfg, childPresentationMode, err := m.prepareTaskStart(
 			ctx,
 			workspaceRef,
 			slug,
@@ -163,6 +164,7 @@ func (m *RunManager) prepareTaskMultiStart(
 			workflowID:   cloneStringPtr(workflowID),
 			workflowRoot: strings.TrimSpace(runtimeCfg.TasksDir),
 			runtimeCfg:   runtimeCfg,
+			recovery:     recoveryCfg,
 		})
 	}
 	if len(items) == 0 {
@@ -750,6 +752,7 @@ func (m *RunManager) startTaskMultiChild(
 		presentationMode: prepared.presentationMode,
 		parentRunID:      active.runID,
 		runtimeCfg:       runtimeCfg,
+		recovery:         item.recovery,
 	})
 	if err != nil {
 		return apicore.Run{}, err
@@ -828,6 +831,7 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 		presentationMode: prepared.presentationMode,
 		parentRunID:      active.runID,
 		runtimeCfg:       runtimeCfg,
+		recovery:         item.recovery,
 	})
 	if err != nil {
 		return apicore.Run{}, err

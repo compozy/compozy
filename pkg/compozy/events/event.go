@@ -30,6 +30,11 @@ const (
 	EventKindRunFailed    EventKind = "run.failed"
 	EventKindRunCancelled EventKind = "run.cancelled"
 
+	EventKindRunRecoveryStarted    EventKind = "run.recovery_started"
+	EventKindRunRecoveryRestarting EventKind = "run.recovery_restarting"
+	EventKindRunRecovered          EventKind = "run.recovered"
+	EventKindRunRecoveryExhausted  EventKind = "run.recovery_exhausted"
+
 	// Job lifecycle events.
 	EventKindJobQueued          EventKind = "job.queued"
 	EventKindJobStarted         EventKind = "job.started"

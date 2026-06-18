@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
@@ -68,6 +69,7 @@ type SessionSetupRequest struct {
 	AggregateUsage    *model.Usage
 	AggregateMu       *sync.Mutex
 	Activity          *activityMonitor
+	InitTimeout       time.Duration
 	Logger            *slog.Logger
 	TrackClient       func(agent.Client) func()
 }
@@ -123,13 +125,16 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		req.Context = context.Background()
 	}
 	logger := resolveSessionLogger(req.Logger)
+	setupCtx, cancelSetup := withACPInitDeadline(req.Context, req.InitTimeout)
+	defer cancelSetup()
 
 	outFile, errFile, err := createSessionLogFiles(req.Job)
 	if err != nil {
 		return nil, err
 	}
-	client, err := createACPClient(req.Context, req.Config, req.Job, logger)
+	client, err := createACPClient(setupCtx, req.Config, req.Job, logger)
 	if err != nil {
+		err = withSetupContextCause(setupCtx, err)
 		setupErr := setupFailureForUser(req.Config, req.Job, err)
 		writeErr := writeSetupFailureToErrLog(errFile, setupErr)
 		closeSetupLogFiles(outFile, errFile)
@@ -148,8 +153,9 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		logger.Warn("failed to emit reusable agent setup lifecycle; continuing", "error", err)
 	}
 
-	session, err := createACPSession(req.Context, client, req.Config, req.Job, req.CWD)
+	session, err := createACPSession(req.Context, setupCtx, client, req.Config, req.Job, req.CWD)
 	if err != nil {
+		err = withSetupContextCause(setupCtx, err)
 		setupErr := setupFailureForUser(req.Config, req.Job, fmt.Errorf("create ACP session: %w", err))
 		writeErr := writeSetupFailureToErrLog(errFile, setupErr)
 		closeSetupLogFiles(outFile, errFile)
@@ -182,6 +188,24 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	}
 
 	return execution, nil
+}
+
+func withACPInitDeadline(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeoutCause(ctx, timeout, NewInitTimeoutError(timeout))
+}
+
+func withSetupContextCause(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	cause := context.Cause(ctx)
+	if cause == nil || errors.Is(err, cause) {
+		return err
+	}
+	return errors.Join(cause, err)
 }
 
 type sessionExecutionResources struct {
@@ -340,6 +364,7 @@ func joinSetupFailure(setupErr error, writeErr error) error {
 
 func createACPSession(
 	ctx context.Context,
+	setupCtx context.Context,
 	client agent.Client,
 	cfg *config,
 	job *job,
@@ -348,26 +373,28 @@ func createACPSession(
 	prompt := composeSessionPrompt(job.Prompt, job.SystemPrompt)
 	if strings.TrimSpace(job.ResumeSession) == "" {
 		return client.CreateSession(ctx, agent.SessionRequest{
-			Prompt:     prompt,
-			WorkingDir: cwd,
-			Model:      jobModel(cfg, job),
-			MCPServers: model.CloneMCPServers(job.MCPServers),
-			ExtraEnv:   buildSessionEnvironment(),
-			RunID:      cfg.RunArtifacts.RunID,
-			JobID:      safeJobID(job),
-			RuntimeMgr: cfg.RuntimeManager,
+			Prompt:       prompt,
+			WorkingDir:   cwd,
+			Model:        jobModel(cfg, job),
+			MCPServers:   model.CloneMCPServers(job.MCPServers),
+			ExtraEnv:     buildSessionEnvironment(),
+			SetupContext: setupCtx,
+			RunID:        cfg.RunArtifacts.RunID,
+			JobID:        safeJobID(job),
+			RuntimeMgr:   cfg.RuntimeManager,
 		})
 	}
 	return client.ResumeSession(ctx, agent.ResumeSessionRequest{
-		SessionID:  job.ResumeSession,
-		Prompt:     prompt,
-		WorkingDir: cwd,
-		Model:      jobModel(cfg, job),
-		MCPServers: model.CloneMCPServers(job.MCPServers),
-		ExtraEnv:   buildSessionEnvironment(),
-		RunID:      cfg.RunArtifacts.RunID,
-		JobID:      safeJobID(job),
-		RuntimeMgr: cfg.RuntimeManager,
+		SessionID:    job.ResumeSession,
+		Prompt:       prompt,
+		WorkingDir:   cwd,
+		Model:        jobModel(cfg, job),
+		MCPServers:   model.CloneMCPServers(job.MCPServers),
+		ExtraEnv:     buildSessionEnvironment(),
+		SetupContext: setupCtx,
+		RunID:        cfg.RunArtifacts.RunID,
+		JobID:        safeJobID(job),
+		RuntimeMgr:   cfg.RuntimeManager,
 	})
 }
 

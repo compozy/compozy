@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/reviews"
 	runpkg "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/run/recovery"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -72,6 +73,7 @@ type RunManagerConfig struct {
 	Prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	Execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	ExecuteExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	RecoveryStrategy       recovery.RemediationStrategy
 	OpenRunDB              func(context.Context, string) (*rundb.RunDB, error)
 	LoadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	ReviewProviderRegistry reviewProviderRegistryFactory
@@ -92,6 +94,7 @@ type RunManager struct {
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	executeExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	recoveryStrategy       recovery.RemediationStrategy
 	openRunDB              func(context.Context, string) (*rundb.RunDB, error)
 	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	reviewProviderRegistry reviewProviderRegistryFactory
@@ -138,6 +141,7 @@ type activeRun struct {
 	reviewWatchKey *reviewWatchKey
 	taskMulti      *preparedTaskMulti
 	jobControls    *model.JobControlRegistry
+	recovery       workspacecfg.AgentRecoveryConfig
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
@@ -150,31 +154,32 @@ type activeRun struct {
 }
 
 type runtimeOverrideInput struct {
-	DryRun                     *bool                       `json:"dry_run"`
-	RunID                      *string                     `json:"run_id"`
-	IDE                        *string                     `json:"ide"`
-	Model                      *string                     `json:"model"`
-	AgentName                  *string                     `json:"agent_name"`
-	ExplicitRuntime            *model.ExplicitRuntimeFlags `json:"explicit_runtime"`
-	OutputFormat               *string                     `json:"output_format"`
-	ReasoningEffort            *string                     `json:"reasoning_effort"`
-	AccessMode                 *string                     `json:"access_mode"`
-	Timeout                    *string                     `json:"timeout"`
-	TailLines                  *int                        `json:"tail_lines"`
-	AddDirs                    *[]string                   `json:"add_dirs"`
-	AutoCommit                 *bool                       `json:"auto_commit"`
-	MaxRetries                 *int                        `json:"max_retries"`
-	RetryBackoffMultiplier     *float64                    `json:"retry_backoff_multiplier"`
-	Concurrent                 *int                        `json:"concurrent"`
-	BatchSize                  *int                        `json:"batch_size"`
-	Verbose                    *bool                       `json:"verbose"`
-	Persist                    *bool                       `json:"persist"`
-	IncludeCompleted           *bool                       `json:"include_completed"`
-	Recursive                  *bool                       `json:"recursive"`
-	IncludeResolved            *bool                       `json:"include_resolved"`
-	TaskRuntimeRules           *[]model.TaskRuntimeRule    `json:"task_runtime_rules"`
-	TUI                        *bool                       `json:"tui"`
-	EnableExecutableExtensions *bool                       `json:"enable_executable_extensions"`
+	DryRun                     *bool                             `json:"dry_run"`
+	RunID                      *string                           `json:"run_id"`
+	IDE                        *string                           `json:"ide"`
+	Model                      *string                           `json:"model"`
+	AgentName                  *string                           `json:"agent_name"`
+	ExplicitRuntime            *model.ExplicitRuntimeFlags       `json:"explicit_runtime"`
+	OutputFormat               *string                           `json:"output_format"`
+	ReasoningEffort            *string                           `json:"reasoning_effort"`
+	AccessMode                 *string                           `json:"access_mode"`
+	Timeout                    *string                           `json:"timeout"`
+	TailLines                  *int                              `json:"tail_lines"`
+	AddDirs                    *[]string                         `json:"add_dirs"`
+	AutoCommit                 *bool                             `json:"auto_commit"`
+	MaxRetries                 *int                              `json:"max_retries"`
+	RetryBackoffMultiplier     *float64                          `json:"retry_backoff_multiplier"`
+	Concurrent                 *int                              `json:"concurrent"`
+	BatchSize                  *int                              `json:"batch_size"`
+	Verbose                    *bool                             `json:"verbose"`
+	Persist                    *bool                             `json:"persist"`
+	IncludeCompleted           *bool                             `json:"include_completed"`
+	Recursive                  *bool                             `json:"recursive"`
+	IncludeResolved            *bool                             `json:"include_resolved"`
+	TaskRuntimeRules           *[]model.TaskRuntimeRule          `json:"task_runtime_rules"`
+	TUI                        *bool                             `json:"tui"`
+	EnableExecutableExtensions *bool                             `json:"enable_executable_extensions"`
+	Recovery                   *workspacecfg.AgentRecoveryConfig `json:"recovery"`
 }
 
 type reviewBatchingInput struct {
@@ -195,6 +200,7 @@ type startRunSpec struct {
 	reviewWatch      *preparedReviewWatch
 	reviewWatchKey   *reviewWatchKey
 	taskMulti        *preparedTaskMulti
+	recovery         workspacecfg.AgentRecoveryConfig
 }
 
 type terminalState struct {
@@ -248,6 +254,7 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		prepare:                resolveRunManagerPrepare(cfg.Prepare),
 		execute:                resolveRunManagerExecute(cfg.Execute),
 		executeExec:            resolveRunManagerExecuteExec(cfg.ExecuteExec),
+		recoveryStrategy:       cfg.RecoveryStrategy,
 		openRunDB:              resolveRunManagerOpenRunDB(cfg.OpenRunDB),
 		loadProjectConfig:      resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
 		reviewProviderRegistry: resolveReviewProviderRegistryFactory(cfg.ReviewProviderRegistry),
@@ -416,7 +423,7 @@ func (m *RunManager) StartTaskRun(
 	workflowSlug string,
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
-	workspaceRow, workflowID, runtimeCfg, presentationMode, err := m.prepareTaskStart(
+	workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareTaskStart(
 		detachContext(ctx),
 		workspaceRef,
 		workflowSlug,
@@ -434,6 +441,7 @@ func (m *RunManager) StartTaskRun(
 		mode:             runModeTask,
 		presentationMode: presentationMode,
 		runtimeCfg:       runtimeCfg,
+		recovery:         recoveryCfg,
 	})
 }
 
@@ -456,7 +464,7 @@ func (m *RunManager) startReviewRun(
 	req apicore.ReviewRunRequest,
 	parentRunID string,
 ) (apicore.Run, error) {
-	workspaceRow, workflowID, runtimeCfg, presentationMode, err := m.prepareReviewStart(
+	workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareReviewStart(
 		detachContext(ctx),
 		workspaceRef,
 		workflowSlug,
@@ -476,6 +484,7 @@ func (m *RunManager) startReviewRun(
 		presentationMode: presentationMode,
 		parentRunID:      strings.TrimSpace(parentRunID),
 		runtimeCfg:       runtimeCfg,
+		recovery:         recoveryCfg,
 	})
 }
 
@@ -484,7 +493,7 @@ func (m *RunManager) StartExecRun(
 	ctx context.Context,
 	req apicore.ExecRequest,
 ) (apicore.Run, error) {
-	workspaceRow, runtimeCfg, presentationMode, err := m.prepareExecStart(detachContext(ctx), req)
+	workspaceRow, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareExecStart(detachContext(ctx), req)
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -494,6 +503,7 @@ func (m *RunManager) StartExecRun(
 		mode:             runModeExec,
 		presentationMode: presentationMode,
 		runtimeCfg:       runtimeCfg,
+		recovery:         recoveryCfg,
 	})
 }
 
@@ -838,24 +848,28 @@ func (m *RunManager) prepareTaskStart(
 	workspaceRef string,
 	workflowSlug string,
 	req apicore.TaskRunRequest,
-) (globaldb.Workspace, *string, *model.RuntimeConfig, string, error) {
+) (globaldb.Workspace, *string, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
 	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	presentationMode, err := normalizePresentationMode(req.PresentationMode)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	overrides, err := parseRuntimeOverrides(req.RuntimeOverrides)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+	}
+	recoveryCfg, err := resolveDaemonRecoveryConfig(projectCfg, overrides)
+	if err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	tasksDir := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
 	if err := requireDirectory(tasksDir); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:              workspaceRow.RootDir,
@@ -870,15 +884,15 @@ func (m *RunManager) prepareTaskStart(
 		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
 		"defaults",
 	); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	applyTaskProjectConfig(runtimeCfg, projectCfg.Tasks.Run)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	if !runtimeCfg.IncludeCompleted {
 		if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
-			return globaldb.Workspace{}, nil, nil, "", err
+			return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 		}
 	}
 	runtimeCfg.ApplyDefaults()
@@ -886,9 +900,9 @@ func (m *RunManager) prepareTaskStart(
 	runtimeCfg.DaemonOwned = true
 	runtimeCfg.EnableExecutableExtensions = true
 	if err := validateDaemonRuntimeConfig(runtimeCfg); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
-	return workspaceRow, workflowID, runtimeCfg, presentationMode, nil
+	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
 func (m *RunManager) rejectCompletedTaskWorkflow(
@@ -948,9 +962,9 @@ func (m *RunManager) prepareReviewStart(
 	workflowSlug string,
 	round int,
 	req apicore.ReviewRunRequest,
-) (globaldb.Workspace, *string, *model.RuntimeConfig, string, error) {
+) (globaldb.Workspace, *string, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
 	if round <= 0 {
-		return globaldb.Workspace{}, nil, nil, "", apicore.NewProblem(
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
 			http.StatusUnprocessableEntity,
 			"round_invalid",
 			"round must be a positive integer",
@@ -961,20 +975,24 @@ func (m *RunManager) prepareReviewStart(
 
 	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	presentationMode, err := normalizePresentationMode(req.PresentationMode)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	overrides, err := parseRuntimeOverrides(req.RuntimeOverrides)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+	}
+	recoveryCfg, err := resolveDaemonRecoveryConfig(projectCfg, overrides)
+	if err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	batching, err := parseReviewBatching(req.Batching)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	reviewDir := filepath.Join(
@@ -982,7 +1000,7 @@ func (m *RunManager) prepareReviewStart(
 		reviews.RoundDirName(round),
 	)
 	if err := requireDirectory(reviewDir); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	runtimeCfg := &model.RuntimeConfig{
@@ -999,11 +1017,11 @@ func (m *RunManager) prepareReviewStart(
 		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
 		"defaults",
 	); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	applyReviewBatching(runtimeCfg, batching)
 	runtimeCfg.ApplyDefaults()
@@ -1011,9 +1029,9 @@ func (m *RunManager) prepareReviewStart(
 	runtimeCfg.DaemonOwned = true
 	runtimeCfg.EnableExecutableExtensions = true
 	if err := validateDaemonRuntimeConfig(runtimeCfg); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
-	return workspaceRow, workflowID, runtimeCfg, presentationMode, nil
+	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
 func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, active *activeRun) error {
@@ -1051,10 +1069,10 @@ func (m *RunManager) resolveExecWorkspace(ctx context.Context, workspacePath str
 func (m *RunManager) prepareExecStart(
 	ctx context.Context,
 	req apicore.ExecRequest,
-) (globaldb.Workspace, *model.RuntimeConfig, string, error) {
+) (globaldb.Workspace, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
 	workspacePath := strings.TrimSpace(req.WorkspacePath)
 	if workspacePath == "" {
-		return globaldb.Workspace{}, nil, "", apicore.NewProblem(
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
 			http.StatusUnprocessableEntity,
 			"workspace_path_required",
 			"workspace path is required",
@@ -1063,7 +1081,7 @@ func (m *RunManager) prepareExecStart(
 		)
 	}
 	if strings.TrimSpace(req.Prompt) == "" {
-		return globaldb.Workspace{}, nil, "", apicore.NewProblem(
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
 			http.StatusUnprocessableEntity,
 			"prompt_required",
 			"prompt is required",
@@ -1074,21 +1092,25 @@ func (m *RunManager) prepareExecStart(
 
 	workspaceRow, err := m.resolveExecWorkspace(ctx, workspacePath)
 	if err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	projectCfg, err := m.loadProjectConfig(ctx, workspaceRow.RootDir)
 	if err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	presentationMode, err := normalizePresentationMode(req.PresentationMode)
 	if err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	overrides, err := parseRuntimeOverrides(req.RuntimeOverrides)
 	if err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+	}
+	recoveryCfg, err := resolveDaemonRecoveryConfig(projectCfg, overrides)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	runtimeCfg := &model.RuntimeConfig{
@@ -1103,25 +1125,25 @@ func (m *RunManager) prepareExecStart(
 		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
 		"defaults",
 	); err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	if err := applyExecProjectConfig(runtimeCfg, projectCfg.Exec); err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	if err := applyPersistedExecRuntimeDefaults(runtimeCfg, workspaceRow.RootDir, overrides); err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	runtimeCfg.ApplyDefaults()
 	runtimeCfg.Persist = true
 	runtimeCfg.TUI = false
 	runtimeCfg.DaemonOwned = true
 	if err := validateDaemonRuntimeConfig(runtimeCfg); err != nil {
-		return globaldb.Workspace{}, nil, "", err
+		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
-	return workspaceRow, runtimeCfg, presentationMode, nil
+	return workspaceRow, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
 func (m *RunManager) resolveWorkflowContext(
@@ -1488,6 +1510,7 @@ func newActiveRun(
 		reviewWatch:    spec.reviewWatch,
 		reviewWatchKey: cloneReviewWatchKey(spec.reviewWatchKey),
 		taskMulti:      spec.taskMulti,
+		recovery:       spec.recovery.ApplyDefaults(),
 	}
 }
 
@@ -1594,6 +1617,19 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 	row = updated
 	m.publishRunWorkspaceEvent(active.ctx, row, active.workflowSlug, apicore.WorkspaceEventKindRunStatusChanged)
 
+	if shouldWrapDaemonRecovery(runtimeCfg, active.recovery) {
+		prepared := newDaemonWorkflowPreparedRun(m, runtimeCfg, scope)
+		_, err := m.runWithRecovery(active.ctx, prepared, runtimeCfg, active.recovery, scope)
+		switch {
+		case errors.Is(err, plan.ErrNoWork):
+			fallback = completedTerminalState(scope.RunArtifacts(), completedNoWorkSummary)
+		default:
+			fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested())
+		}
+		m.finishRun(active, row, fallback)
+		return
+	}
+
 	prep, err := m.prepare(active.ctx, runtimeCfg, scope)
 	if err != nil {
 		switch {
@@ -1653,9 +1689,46 @@ func (m *RunManager) executeExecRun(active *activeRun, row globaldb.Run, runtime
 	row = updated
 	m.publishRunWorkspaceEvent(active.ctx, row, active.workflowSlug, apicore.WorkspaceEventKindRunStatusChanged)
 
+	if shouldWrapDaemonRecovery(runtimeCfg, active.recovery) {
+		prepared := newDaemonExecPreparedRun(m, runtimeCfg, scope)
+		_, err := m.runWithRecovery(active.ctx, prepared, runtimeCfg, active.recovery, scope)
+		fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested())
+		m.finishRun(active, row, fallback)
+		return
+	}
+
 	executionErr := m.executeExec(active.ctx, runtimeCfg, scope)
 	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested())
 	m.finishRun(active, row, fallback)
+}
+
+func (m *RunManager) runWithRecovery(
+	ctx context.Context,
+	prepared recovery.PreparedRun,
+	runtimeCfg *model.RuntimeConfig,
+	recoveryCfg workspacecfg.AgentRecoveryConfig,
+	scope model.RunScope,
+) (recovery.RunOutcome, error) {
+	orchestrator := recovery.NewRunRecoveryOrchestrator(
+		m.recoveryStrategy,
+		recoveryCfg,
+		recovery.WithFailedRunConfig(runtimeCfg),
+		recovery.WithRecoveryEventSink(daemonRecoveryEventSink(scope)),
+		recovery.WithRecoveryLogger(slog.Default()),
+	)
+	return orchestrator.Run(ctx, prepared)
+}
+
+func shouldWrapDaemonRecovery(runtimeCfg *model.RuntimeConfig, cfg workspacecfg.AgentRecoveryConfig) bool {
+	if runtimeCfg == nil || runtimeCfg.RecoveryAttempt != 0 {
+		return false
+	}
+	resolved := cfg.ApplyDefaults()
+	return resolved.Enabled != nil && *resolved.Enabled
+}
+
+func daemonRecoveryEventSink(scope model.RunScope) recovery.EventSink {
+	return recovery.NewRunScopeEventSink(scope)
 }
 
 func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback terminalState) {
@@ -2534,6 +2607,77 @@ func parseRuntimeOverrides(raw json.RawMessage) (runtimeOverrideInput, error) {
 		)
 	}
 	return input, nil
+}
+
+func resolveDaemonRecoveryConfig(
+	projectCfg workspacecfg.ProjectConfig,
+	overrides runtimeOverrideInput,
+) (workspacecfg.AgentRecoveryConfig, error) {
+	cfg := cloneDaemonRecoveryConfig(projectCfg.Recovery)
+	if overrides.Recovery != nil {
+		cfg = mergeDaemonRecoveryConfig(cfg, *overrides.Recovery)
+	}
+	cfg = cfg.ApplyDefaults()
+	if err := workspacecfg.ValidateAgentRecoveryConfig("daemon recovery config", cfg); err != nil {
+		return workspacecfg.AgentRecoveryConfig{}, err
+	}
+	return cfg, nil
+}
+
+func mergeDaemonRecoveryConfig(
+	base workspacecfg.AgentRecoveryConfig,
+	overlay workspacecfg.AgentRecoveryConfig,
+) workspacecfg.AgentRecoveryConfig {
+	if overlay.Enabled != nil {
+		base.Enabled = cloneBoolPointer(overlay.Enabled)
+	}
+	if overlay.IDE != nil {
+		base.IDE = cloneStringPointerRaw(overlay.IDE)
+	}
+	if overlay.Model != nil {
+		base.Model = cloneStringPointerRaw(overlay.Model)
+	}
+	if overlay.ReasoningEffort != nil {
+		base.ReasoningEffort = cloneStringPointerRaw(overlay.ReasoningEffort)
+	}
+	if overlay.MaxAttempts != nil {
+		base.MaxAttempts = cloneIntPointer(overlay.MaxAttempts)
+	}
+	return base
+}
+
+func cloneDaemonRecoveryConfig(cfg workspacecfg.AgentRecoveryConfig) workspacecfg.AgentRecoveryConfig {
+	return workspacecfg.AgentRecoveryConfig{
+		Enabled:         cloneBoolPointer(cfg.Enabled),
+		IDE:             cloneStringPointerRaw(cfg.IDE),
+		Model:           cloneStringPointerRaw(cfg.Model),
+		ReasoningEffort: cloneStringPointerRaw(cfg.ReasoningEffort),
+		MaxAttempts:     cloneIntPointer(cfg.MaxAttempts),
+	}
+}
+
+func cloneBoolPointer(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func cloneStringPointerRaw(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
 }
 
 func parseReviewBatching(raw json.RawMessage) (reviewBatchingInput, error) {

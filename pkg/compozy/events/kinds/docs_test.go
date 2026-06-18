@@ -33,6 +33,31 @@ func TestTaskRunMultiplePayloadFieldsDocumented(t *testing.T) {
 	})
 }
 
+func TestRunRecoveryPayloadFieldsDocumented(t *testing.T) {
+	t.Parallel()
+
+	payloads := []any{
+		RunRecoveryStartedPayload{},
+		RunRecoveryRestartingPayload{},
+		RunRecoveredPayload{},
+		RunRecoveryExhaustedPayload{},
+	}
+	content := readEventsDocumentation(t)
+	for _, payload := range payloads {
+		payloadType := reflect.TypeOf(payload)
+		for i := range payloadType.NumField() {
+			tag := jsonFieldName(payloadType.Field(i).Tag.Get("json"))
+			if tag == "" || tag == "-" {
+				continue
+			}
+			want := "`" + tag + "`"
+			if !strings.Contains(content, want) {
+				t.Fatalf("expected docs/events.md to document %s field %s", payloadType.Name(), want)
+			}
+		}
+	}
+}
+
 func jsonFieldName(tag string) string {
 	name, _, _ := strings.Cut(tag, ",")
 	return strings.TrimSpace(name)

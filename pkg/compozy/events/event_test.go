@@ -147,6 +147,33 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			payload: kinds.RunCancelledPayload{Reason: "sigint", RequestedBy: "signal", DurationMs: 200},
 		},
 		{
+			name: "run recovery started",
+			payload: kinds.RunRecoveryStartedPayload{
+				Attempt:       1,
+				Strategy:      "agentic",
+				RecoveryRunID: "recovery-run",
+			},
+		},
+		{
+			name: "run recovery restarting",
+			payload: kinds.RunRecoveryRestartingPayload{
+				FailedJobIDs: []string{"task_02"},
+			},
+		},
+		{
+			name: "run recovered",
+			payload: kinds.RunRecoveredPayload{
+				Attempts: 1,
+			},
+		},
+		{
+			name: "run recovery exhausted",
+			payload: kinds.RunRecoveryExhaustedPayload{
+				Error:      "rejected",
+				ResultPath: "/repo/.compozy/runs/run-1/result.json",
+			},
+		},
+		{
 			name: "Should round-trip job queued payload with runtime fields",
 			payload: kinds.JobQueuedPayload{
 				Index:           1,

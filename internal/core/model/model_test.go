@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -227,6 +228,9 @@ func TestPathHelpers(t *testing.T) {
 		}
 		if got, want := runArtifacts.JobsDir, filepath.Join(runArtifacts.RunDir, "jobs"); got != want {
 			t.Fatalf("unexpected jobs dir\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.RecoveryDir, filepath.Join(runArtifacts.RunDir, "recovery"); got != want {
+			t.Fatalf("unexpected recovery dir\nwant: %q\ngot:  %q", want, got)
 		}
 		if got, want := runArtifacts.ResultPath, filepath.Join(runArtifacts.RunDir, "result.json"); got != want {
 			t.Fatalf("unexpected result path\nwant: %q\ngot:  %q", want, got)
@@ -586,15 +590,29 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 	})
 }
 
-func TestRuntimeConfigSurfaceOmitsSystemPromptWhileJobsRetainIt(t *testing.T) {
+func TestRuntimeConfigSurfaceIncludesRecoveryRuntimeFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep runtime config free of unreachable system prompt fields", func(t *testing.T) {
+	t.Run("Should round-trip SystemPrompt and RecoveryAttempt", func(t *testing.T) {
 		t.Parallel()
 
-		runtimeType := reflect.TypeOf(model.RuntimeConfig{})
-		if _, ok := runtimeType.FieldByName("SystemPrompt"); ok {
-			t.Fatal("expected runtime config to omit SystemPrompt")
+		cfg := model.RuntimeConfig{
+			SystemPrompt:    "fix root causes only",
+			RecoveryAttempt: 1,
+		}
+		payload, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatalf("marshal runtime config: %v", err)
+		}
+		var got model.RuntimeConfig
+		if err := json.Unmarshal(payload, &got); err != nil {
+			t.Fatalf("unmarshal runtime config: %v", err)
+		}
+		if got.SystemPrompt != cfg.SystemPrompt {
+			t.Fatalf("SystemPrompt did not round-trip: %q", got.SystemPrompt)
+		}
+		if got.RecoveryAttempt != cfg.RecoveryAttempt {
+			t.Fatalf("RecoveryAttempt did not round-trip: %d", got.RecoveryAttempt)
 		}
 	})
 

@@ -118,6 +118,48 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	}
 }
 
+func TestExecuteJobWithTimeoutACPSlowInitializeCompletesBeforeInitDeadline(t *testing.T) {
+	tmpDir := t.TempDir()
+	activityTimeout := 1500 * time.Millisecond
+	installACPHelperOnPath(t, []runACPHelperScenario{{
+		InitializeDelayMillis: 1800,
+		Updates: []acp.SessionUpdate{
+			acp.UpdateAgentMessageText("slow initialize completed"),
+		},
+	}})
+
+	job := newTestACPJob(tmpDir)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			IDE:                    model.IDECodex,
+			Model:                  "",
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		0,
+		activityTimeout,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	if got := result.Status; got != attemptStatusSuccess {
+		t.Fatalf("expected slow initialize to succeed, got %s (%#v)", got, result.Failure)
+	}
+	outLog, err := os.ReadFile(job.OutLog)
+	if err != nil {
+		t.Fatalf("read out log: %v", err)
+	}
+	if !strings.Contains(string(outLog), "slow initialize completed") {
+		t.Fatalf("expected slow initialize output, got %q", string(outLog))
+	}
+}
+
 func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T) {
 	tmpDir := t.TempDir()
 	failedStatus := acp.ToolCallStatusFailed
@@ -1193,6 +1235,7 @@ type runACPHelperScenario struct {
 	ExpectedLoadSessionID   string                    `json:"expected_load_session_id,omitempty"`
 	ExpectedPromptContains  string                    `json:"expected_prompt_contains,omitempty"`
 	SupportsLoadSession     bool                      `json:"supports_load_session,omitempty"`
+	InitializeDelayMillis   int                       `json:"initialize_delay_millis,omitempty"`
 	ReplayUpdatesOnLoad     []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
 	SessionMeta             map[string]any            `json:"session_meta,omitempty"`
 	Updates                 []acp.SessionUpdate       `json:"updates,omitempty"`
@@ -1215,7 +1258,16 @@ type runACPHelperAgent struct {
 	sessionID string
 }
 
-func (a *runACPHelperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
+func (a *runACPHelperAgent) Initialize(ctx context.Context, _ acp.InitializeRequest) (acp.InitializeResponse, error) {
+	if a.scenario.InitializeDelayMillis > 0 {
+		timer := time.NewTimer(time.Duration(a.scenario.InitializeDelayMillis) * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return acp.InitializeResponse{}, ctx.Err()
+		}
+	}
 	return acp.InitializeResponse{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		AgentCapabilities: acp.AgentCapabilities{

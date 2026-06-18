@@ -51,6 +51,8 @@ type fakeOperations struct {
 
 	prepareResult *model.SolvePreparation
 	prepareHook   func(model.RunScope)
+	executeHook   func(context.Context, *model.SolvePreparation, *model.RuntimeConfig, int) error
+	execHook      func(context.Context, *model.RuntimeConfig, model.RunScope, int) error
 	fetchResult   *model.FetchResult
 	migrateResult *model.MigrationResult
 	syncResult    *model.SyncResult
@@ -97,7 +99,7 @@ func (f *fakeOperations) Prepare(
 }
 
 func (f *fakeOperations) Execute(
-	_ context.Context,
+	ctx context.Context,
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
 ) error {
@@ -105,11 +107,16 @@ func (f *fakeOperations) Execute(
 		prep: cloneSolvePreparation(prep),
 		cfg:  cloneRuntimeConfig(cfg),
 	})
+	if f.executeHook != nil {
+		if err := f.executeHook(ctx, prep, cfg, len(f.executeCalls)); err != nil {
+			return err
+		}
+	}
 	return f.executeErr
 }
 
 func (f *fakeOperations) ExecuteExec(
-	_ context.Context,
+	ctx context.Context,
 	cfg *model.RuntimeConfig,
 	scope model.RunScope,
 ) error {
@@ -117,6 +124,11 @@ func (f *fakeOperations) ExecuteExec(
 		cfg:   cloneRuntimeConfig(cfg),
 		scope: scope,
 	})
+	if f.execHook != nil {
+		if err := f.execHook(ctx, cfg, scope, len(f.execCalls)); err != nil {
+			return err
+		}
+	}
 	return f.execErr
 }
 

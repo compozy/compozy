@@ -38,9 +38,15 @@ Flags:
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --multiple string                  Comma-separated task workflow slugs to run through one daemon-owned parent queue
       --name string                      Task workflow slug (defaults to the positional slug)
+      --no-recovery                      Disable agentic recovery for this invocation
       --parallel                         Run --multiple task workflows in parallel with git worktree isolation (overrides run_multiple_mode; valid only with --multiple)
       --parallel-limit int               Maximum number of child runs started at once in --parallel mode (overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple) (default 2)
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
+      --recovery                         Enable agentic recovery for failed runs
+      --recovery-ide string              ACP runtime used by the recovery agent (default "codex")
+      --recovery-max-attempts int        Maximum recovery remediation and restart cycles (1-3) (default 1)
+      --recovery-model string            Model used by the recovery agent (default "gpt-5.5")
+      --recovery-reasoning string        Reasoning effort for the recovery agent (low, medium, high, xhigh) (default "medium")
   -r, --recursive                        Recursively discover task_NNN.md files in subdirectories. Skips dot-, underscore-prefixed, reviews-*, adrs, and memory directories. Note: DB sync and extension Host API still operate on the slug root only.
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately

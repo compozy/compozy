@@ -3665,6 +3665,50 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	}
 }
 
+func TestBuildTaskRunRuntimeOverridesIncludesRecoveryFlags(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, "")
+	cmd := newTaskRunPresentationCommand(state)
+	addCommonFlags(cmd, state, commonFlagOptions{})
+
+	mustSetFlag := func(name string, value string) {
+		t.Helper()
+		if err := cmd.Flags().Set(name, value); err != nil {
+			t.Fatalf("set %s: %v", name, err)
+		}
+	}
+	mustSetFlag("recovery", "true")
+	mustSetFlag("recovery-ide", "codex")
+	mustSetFlag("recovery-model", "gpt-5.5")
+	mustSetFlag("recovery-reasoning", "high")
+	mustSetFlag("recovery-max-attempts", "2")
+
+	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
+	if err != nil {
+		t.Fatalf("buildTaskRunRuntimeOverrides: %v", err)
+	}
+	overrides := decodeTaskRunOverrides(t, raw)
+	if overrides.Recovery == nil {
+		t.Fatalf("expected recovery override, got %#v", overrides)
+	}
+	if overrides.Recovery.Enabled == nil || !*overrides.Recovery.Enabled {
+		t.Fatalf("expected recovery enabled override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.IDE == nil || *overrides.Recovery.IDE != "codex" {
+		t.Fatalf("expected recovery ide override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.Model == nil || *overrides.Recovery.Model != "gpt-5.5" {
+		t.Fatalf("expected recovery model override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.ReasoningEffort == nil || *overrides.Recovery.ReasoningEffort != "high" {
+		t.Fatalf("expected recovery reasoning override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.MaxAttempts == nil || *overrides.Recovery.MaxAttempts != 2 {
+		t.Fatalf("expected recovery max attempts override, got %#v", overrides.Recovery)
+	}
+}
+
 func TestHelpOnlyDaemonCommandRootsReturnHelp(t *testing.T) {
 	t.Parallel()
 

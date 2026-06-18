@@ -13,6 +13,13 @@ const (
 	// DefaultRunMultipleParallelLimit is the effective parallel multi-run fanout
 	// limit applied when run_multiple_parallel_limit is unset.
 	DefaultRunMultipleParallelLimit = 2
+
+	DefaultRecoveryEnabled         = false
+	DefaultRecoveryIDE             = model.IDECodex
+	DefaultRecoveryModel           = model.DefaultCodexModel
+	DefaultRecoveryReasoningEffort = "medium"
+	DefaultRecoveryMaxAttempts     = 1
+	MaxRecoveryAttempts            = 3
 )
 
 type Context struct {
@@ -25,14 +32,15 @@ type Context struct {
 }
 
 type ProjectConfig struct {
-	Defaults     DefaultsConfig     `toml:"defaults"`
-	Tasks        TasksConfig        `toml:"tasks"`
-	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
-	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
-	WatchReviews WatchReviewsConfig `toml:"watch_reviews"`
-	Exec         ExecConfig         `toml:"exec"`
-	Runs         RunsConfig         `toml:"runs"`
-	Sound        SoundConfig        `toml:"sound"`
+	Defaults     DefaultsConfig      `toml:"defaults"`
+	Tasks        TasksConfig         `toml:"tasks"`
+	FixReviews   FixReviewsConfig    `toml:"fix_reviews"`
+	FetchReviews FetchReviewsConfig  `toml:"fetch_reviews"`
+	WatchReviews WatchReviewsConfig  `toml:"watch_reviews"`
+	Exec         ExecConfig          `toml:"exec"`
+	Runs         RunsConfig          `toml:"runs"`
+	Recovery     AgentRecoveryConfig `toml:"recovery"`
+	Sound        SoundConfig         `toml:"sound"`
 }
 
 type RuntimeOverrides struct {
@@ -122,6 +130,53 @@ type RunsConfig struct {
 	KeepTerminalDays     *int    `toml:"keep_terminal_days"`
 	KeepMax              *int    `toml:"keep_max"`
 	ShutdownDrainTimeout *string `toml:"shutdown_drain_timeout"`
+}
+
+type AgentRecoveryConfig struct {
+	Enabled         *bool   `toml:"enabled"          json:"enabled,omitempty"`
+	IDE             *string `toml:"ide"              json:"ide,omitempty"`
+	Model           *string `toml:"model"            json:"model,omitempty"`
+	ReasoningEffort *string `toml:"reasoning_effort" json:"reasoning_effort,omitempty"`
+	MaxAttempts     *int    `toml:"max_attempts"     json:"max_attempts,omitempty"`
+}
+
+func DefaultAgentRecoveryConfig() AgentRecoveryConfig {
+	enabled := DefaultRecoveryEnabled
+	ide := DefaultRecoveryIDE
+	modelName := DefaultRecoveryModel
+	reasoningEffort := DefaultRecoveryReasoningEffort
+	maxAttempts := DefaultRecoveryMaxAttempts
+	return AgentRecoveryConfig{
+		Enabled:         &enabled,
+		IDE:             &ide,
+		Model:           &modelName,
+		ReasoningEffort: &reasoningEffort,
+		MaxAttempts:     &maxAttempts,
+	}
+}
+
+func (cfg AgentRecoveryConfig) ApplyDefaults() AgentRecoveryConfig {
+	defaults := DefaultAgentRecoveryConfig()
+	if cfg.Enabled == nil {
+		cfg.Enabled = defaults.Enabled
+	}
+	if cfg.IDE == nil {
+		cfg.IDE = defaults.IDE
+	}
+	if cfg.Model == nil {
+		cfg.Model = defaults.Model
+	}
+	if cfg.ReasoningEffort == nil {
+		cfg.ReasoningEffort = defaults.ReasoningEffort
+	}
+	if cfg.MaxAttempts == nil {
+		cfg.MaxAttempts = defaults.MaxAttempts
+	}
+	return cfg
+}
+
+func ValidateAgentRecoveryConfig(scope string, cfg AgentRecoveryConfig) error {
+	return validateRecovery(scope, cfg)
 }
 
 // SoundConfig controls optional audio notifications on run lifecycle events.

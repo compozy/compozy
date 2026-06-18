@@ -23,6 +23,7 @@ func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig 
 		WatchReviews: mergeWatchReviewsConfig(global.WatchReviews, workspace.WatchReviews),
 		Exec:         buildEffectiveExecConfig(global.Defaults, global.Exec, workspace.Defaults, workspace.Exec),
 		Runs:         mergeRunsConfig(global.Runs, workspace.Runs),
+		Recovery:     mergeRecoveryConfig(global.Recovery, workspace.Recovery).ApplyDefaults(),
 		Sound:        mergeSoundConfig(global.Sound, workspace.Sound),
 	}
 }
@@ -201,6 +202,16 @@ func mergeRunsConfig(base, overlay RunsConfig) RunsConfig {
 		ShutdownDrainTimeout: cloneOptionalValue(
 			preferOverlay(base.ShutdownDrainTimeout, overlay.ShutdownDrainTimeout),
 		),
+	}
+}
+
+func mergeRecoveryConfig(base, overlay AgentRecoveryConfig) AgentRecoveryConfig {
+	return AgentRecoveryConfig{
+		Enabled:         cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
+		IDE:             cloneOptionalValue(preferOverlay(base.IDE, overlay.IDE)),
+		Model:           cloneOptionalValue(preferOverlay(base.Model, overlay.Model)),
+		ReasoningEffort: cloneOptionalValue(preferOverlay(base.ReasoningEffort, overlay.ReasoningEffort)),
+		MaxAttempts:     cloneOptionalValue(preferOverlay(base.MaxAttempts, overlay.MaxAttempts)),
 	}
 }
 

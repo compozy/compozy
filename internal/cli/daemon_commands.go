@@ -100,27 +100,28 @@ type cliDaemonBootstrap struct {
 }
 
 type daemonRuntimeOverrides struct {
-	DryRun                     *bool                       `json:"dry_run,omitempty"`
-	RunID                      *string                     `json:"run_id,omitempty"`
-	AutoCommit                 *bool                       `json:"auto_commit,omitempty"`
-	IDE                        *string                     `json:"ide,omitempty"`
-	Model                      *string                     `json:"model,omitempty"`
-	AgentName                  *string                     `json:"agent_name,omitempty"`
-	ExplicitRuntime            *model.ExplicitRuntimeFlags `json:"explicit_runtime,omitempty"`
-	OutputFormat               *string                     `json:"output_format,omitempty"`
-	AddDirs                    *[]string                   `json:"add_dirs,omitempty"`
-	TailLines                  *int                        `json:"tail_lines,omitempty"`
-	ReasoningEffort            *string                     `json:"reasoning_effort,omitempty"`
-	AccessMode                 *string                     `json:"access_mode,omitempty"`
-	Timeout                    *string                     `json:"timeout,omitempty"`
-	MaxRetries                 *int                        `json:"max_retries,omitempty"`
-	RetryBackoffMultiplier     *float64                    `json:"retry_backoff_multiplier,omitempty"`
-	Verbose                    *bool                       `json:"verbose,omitempty"`
-	Persist                    *bool                       `json:"persist,omitempty"`
-	IncludeCompleted           *bool                       `json:"include_completed,omitempty"`
-	Recursive                  *bool                       `json:"recursive,omitempty"`
-	TaskRuntimeRules           *[]model.TaskRuntimeRule    `json:"task_runtime_rules,omitempty"`
-	EnableExecutableExtensions *bool                       `json:"enable_executable_extensions,omitempty"`
+	DryRun                     *bool                             `json:"dry_run,omitempty"`
+	RunID                      *string                           `json:"run_id,omitempty"`
+	AutoCommit                 *bool                             `json:"auto_commit,omitempty"`
+	IDE                        *string                           `json:"ide,omitempty"`
+	Model                      *string                           `json:"model,omitempty"`
+	AgentName                  *string                           `json:"agent_name,omitempty"`
+	ExplicitRuntime            *model.ExplicitRuntimeFlags       `json:"explicit_runtime,omitempty"`
+	OutputFormat               *string                           `json:"output_format,omitempty"`
+	AddDirs                    *[]string                         `json:"add_dirs,omitempty"`
+	TailLines                  *int                              `json:"tail_lines,omitempty"`
+	ReasoningEffort            *string                           `json:"reasoning_effort,omitempty"`
+	AccessMode                 *string                           `json:"access_mode,omitempty"`
+	Timeout                    *string                           `json:"timeout,omitempty"`
+	MaxRetries                 *int                              `json:"max_retries,omitempty"`
+	RetryBackoffMultiplier     *float64                          `json:"retry_backoff_multiplier,omitempty"`
+	Verbose                    *bool                             `json:"verbose,omitempty"`
+	Persist                    *bool                             `json:"persist,omitempty"`
+	IncludeCompleted           *bool                             `json:"include_completed,omitempty"`
+	Recursive                  *bool                             `json:"recursive,omitempty"`
+	TaskRuntimeRules           *[]model.TaskRuntimeRule          `json:"task_runtime_rules,omitempty"`
+	EnableExecutableExtensions *bool                             `json:"enable_executable_extensions,omitempty"`
+	Recovery                   *workspacecfg.AgentRecoveryConfig `json:"recovery,omitempty"`
 }
 
 func newDefaultCLIDaemonBootstrap() cliDaemonBootstrap {
@@ -1367,6 +1368,14 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 		}
 		overrides.TaskRuntimeRules = &rules
 	})
+	recovery, err := s.recoveryFlagOverrides(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if recovery != nil {
+		overrides.Recovery = recovery
+		hasOverrides = true
+	}
 
 	if !hasOverrides {
 		return nil, nil
@@ -1377,6 +1386,42 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 		return nil, fmt.Errorf("encode runtime overrides: %w", err)
 	}
 	return payload, nil
+}
+
+func (s *commandState) recoveryFlagOverrides(cmd *cobra.Command) (*workspacecfg.AgentRecoveryConfig, error) {
+	cfg := workspacecfg.AgentRecoveryConfig{}
+	changed := false
+	if commandFlagChanged(cmd, "recovery") {
+		cfg.Enabled = boolPointer(s.recoveryEnabled)
+		changed = true
+	}
+	if commandFlagChanged(cmd, "no-recovery") && s.recoveryDisabled {
+		cfg.Enabled = boolPointer(false)
+		changed = true
+	}
+	if commandFlagChanged(cmd, "recovery-ide") {
+		cfg.IDE = stringPointer(s.recoveryIDE)
+		changed = true
+	}
+	if commandFlagChanged(cmd, "recovery-model") {
+		cfg.Model = stringPointer(s.recoveryModel)
+		changed = true
+	}
+	if commandFlagChanged(cmd, "recovery-reasoning") {
+		cfg.ReasoningEffort = stringPointer(s.recoveryReasoningEffort)
+		changed = true
+	}
+	if commandFlagChanged(cmd, "recovery-max-attempts") {
+		cfg.MaxAttempts = intPointer(s.recoveryMaxAttempts)
+		changed = true
+	}
+	if !changed {
+		return nil, nil
+	}
+	if err := workspacecfg.ValidateAgentRecoveryConfig("CLI recovery flags", cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
 
 func mapDaemonCommandError(err error) error {

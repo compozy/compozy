@@ -39,6 +39,9 @@ func TestBuildExecutionResultIncludesStatusUsageAndArtifactPaths(t *testing.T) {
 
 	result := buildExecutionResult(cfg, jobs, nil, nil)
 
+	if result.SchemaVersion != executionResultSchemaVersion {
+		t.Fatalf("unexpected schema version: %d", result.SchemaVersion)
+	}
 	if result.Status != runStatusSucceeded {
 		t.Fatalf("unexpected result Status: %q", result.Status)
 	}
@@ -283,6 +286,9 @@ func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T)
 	}
 	if !bytes.Contains(resultBytes, []byte(`"status": "succeeded"`)) {
 		t.Fatalf("unexpected result artifact payload: %s", string(resultBytes))
+	}
+	if !bytes.Contains(resultBytes, []byte(`"schema_version": 1`)) {
+		t.Fatalf("expected schema version in result artifact: %s", string(resultBytes))
 	}
 	if len(stdoutBytes) != 0 {
 		t.Fatalf("expected text mode to keep stdout quiet, got %q", string(stdoutBytes))

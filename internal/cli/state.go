@@ -62,6 +62,13 @@ type runtimeConfig struct {
 	soundEnabled                  bool
 	soundOnCompleted              string
 	soundOnFailed                 string
+	recoveryFlagsRegistered       bool
+	recoveryEnabled               bool
+	recoveryDisabled              bool
+	recoveryIDE                   string
+	recoveryModel                 string
+	recoveryReasoningEffort       string
+	recoveryMaxAttempts           int
 }
 
 type execConfig struct {
@@ -261,6 +268,42 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		1.5,
 		"Multiplier applied to the next activity timeout after each retry",
 	)
+	addRecoveryFlags(cmd, state)
+}
+
+func addRecoveryFlags(cmd *cobra.Command, state *commandState) {
+	state.recoveryFlagsRegistered = true
+	cmd.Flags().BoolVar(
+		&state.recoveryEnabled,
+		"recovery",
+		workspace.DefaultRecoveryEnabled,
+		"Enable agentic recovery for failed runs",
+	)
+	cmd.Flags().BoolVar(&state.recoveryDisabled, "no-recovery", false, "Disable agentic recovery for this invocation")
+	cmd.Flags().StringVar(
+		&state.recoveryIDE,
+		"recovery-ide",
+		workspace.DefaultRecoveryIDE,
+		"ACP runtime used by the recovery agent",
+	)
+	cmd.Flags().StringVar(
+		&state.recoveryModel,
+		"recovery-model",
+		workspace.DefaultRecoveryModel,
+		"Model used by the recovery agent",
+	)
+	cmd.Flags().StringVar(
+		&state.recoveryReasoningEffort,
+		"recovery-reasoning",
+		workspace.DefaultRecoveryReasoningEffort,
+		"Reasoning effort for the recovery agent (low, medium, high, xhigh)",
+	)
+	cmd.Flags().IntVar(
+		&state.recoveryMaxAttempts,
+		"recovery-max-attempts",
+		workspace.DefaultRecoveryMaxAttempts,
+		"Maximum recovery remediation and restart cycles (1-3)",
+	)
 }
 
 func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
@@ -302,6 +345,11 @@ func (s *commandState) buildConfig() (core.Config, error) {
 			return core.Config{}, fmt.Errorf("invalid timeout %q: must be > 0", s.timeout)
 		}
 		timeoutDuration = parsed
+	}
+
+	recoveryCfg := s.resolvedRecoveryConfig()
+	if err := workspace.ValidateAgentRecoveryConfig("CLI recovery config", recoveryCfg); err != nil {
+		return core.Config{}, err
 	}
 
 	return core.Config{
@@ -347,10 +395,42 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
 
+		Recovery:         recoveryCfg,
 		SoundEnabled:     s.soundEnabled,
 		SoundOnCompleted: s.soundOnCompleted,
 		SoundOnFailed:    s.soundOnFailed,
 	}, nil
+}
+
+func (s *commandState) resolvedRecoveryConfig() workspace.AgentRecoveryConfig {
+	cfg := workspace.AgentRecoveryConfig{
+		Enabled:         boolPointer(s.recoveryEnabled),
+		IDE:             recoveryStringPointer(s.recoveryIDE),
+		Model:           recoveryStringPointer(s.recoveryModel),
+		ReasoningEffort: recoveryStringPointer(s.recoveryReasoningEffort),
+		MaxAttempts:     recoveryMaxAttemptsPointer(s),
+	}
+	if s.recoveryDisabled {
+		cfg.Enabled = boolPointer(false)
+	}
+	return cfg.ApplyDefaults()
+}
+
+func recoveryStringPointer(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return stringPointer(value)
+}
+
+func recoveryMaxAttemptsPointer(s *commandState) *int {
+	if s == nil {
+		return nil
+	}
+	if s.recoveryMaxAttempts != 0 || s.recoveryFlagsRegistered {
+		return intPointer(s.recoveryMaxAttempts)
+	}
+	return nil
 }
 
 func (s *commandState) taskRuntimeRules() []model.TaskRuntimeRule {

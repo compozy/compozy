@@ -540,11 +540,13 @@ type RuntimeConfig struct {
 	RunID                      string
 	ParentRunID                string
 	PromptText                 string
+	SystemPrompt               string
 	PromptFile                 string
 	ReadPromptStdin            bool
 	ResolvedPromptText         string
 	IncludeCompleted           bool
 	Recursive                  bool
+	RecoveryAttempt            int
 	IncludeResolved            bool
 	Timeout                    time.Duration
 	MaxRetries                 int
@@ -563,6 +565,7 @@ type RunArtifacts struct {
 	EventsPath  string
 	TurnsDir    string
 	JobsDir     string
+	RecoveryDir string
 	ResultPath  string
 }
 

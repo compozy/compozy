@@ -51,6 +51,9 @@ func (cfg ProjectConfig) validate(scope string) error {
 	if err := validateRuns(scope, cfg.Runs); err != nil {
 		return err
 	}
+	if err := validateRecovery(scope, cfg.Recovery); err != nil {
+		return err
+	}
 	if err := validateSound(scope, cfg.Sound); err != nil {
 		return err
 	}
@@ -307,6 +310,51 @@ func validateRuns(scope string, cfg RunsConfig) error {
 				timeout,
 			)
 		}
+	}
+	return nil
+}
+
+func validateRecovery(scope string, cfg AgentRecoveryConfig) error {
+	if err := validateRecoveryIDE(scope, cfg); err != nil {
+		return err
+	}
+	if err := validateOptionalNonEmptyString(scope, "recovery.model", cfg.Model); err != nil {
+		return err
+	}
+	if err := validateReasoningEffortValue(
+		configFieldName(scope, "recovery.reasoning_effort"),
+		cfg.ReasoningEffort,
+	); err != nil {
+		return err
+	}
+	return validateRecoveryMaxAttempts(scope, cfg.MaxAttempts)
+}
+
+func validateRecoveryIDE(scope string, cfg AgentRecoveryConfig) error {
+	if cfg.IDE == nil {
+		return nil
+	}
+	if strings.TrimSpace(*cfg.IDE) == "" {
+		return fmt.Errorf("%s cannot be empty", configFieldName(scope, "recovery.ide"))
+	}
+	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
+		return fmt.Errorf("%s: %w", configFieldName(scope, "recovery.ide"), err)
+	}
+	return nil
+}
+
+func validateRecoveryMaxAttempts(scope string, value *int) error {
+	if value == nil {
+		return nil
+	}
+	if *value < DefaultRecoveryMaxAttempts || *value > MaxRecoveryAttempts {
+		return fmt.Errorf(
+			"%s must be between %d and %d (got %d)",
+			configFieldName(scope, "recovery.max_attempts"),
+			DefaultRecoveryMaxAttempts,
+			MaxRecoveryAttempts,
+			*value,
+		)
 	}
 	return nil
 }

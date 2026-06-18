@@ -1272,6 +1272,28 @@ func TestReviewWatchRuntimeOverrideHelpers(t *testing.T) {
 			t.Fatalf("child runtime overrides = %s, want run_id stripped and auto_commit forced", raw)
 		}
 		requireRuntimeOverrideMaxRetries(t, raw, 1)
+		raw, err = reviewWatchChildRuntimeOverrides(
+			json.RawMessage(
+				`{"run_id":"parent","recovery":{"enabled":true,"ide":"codex","model":"gpt-5.5","reasoning_effort":"high","max_attempts":2}}`,
+			),
+			false,
+			false,
+		)
+		if err != nil {
+			t.Fatalf("reviewWatchChildRuntimeOverrides(recovery) error = %v", err)
+		}
+		var childOverrides runtimeOverrideInput
+		if err := json.Unmarshal(raw, &childOverrides); err != nil {
+			t.Fatalf("decode child recovery overrides: %v", err)
+		}
+		if childOverrides.Recovery == nil ||
+			childOverrides.Recovery.Enabled == nil || !*childOverrides.Recovery.Enabled ||
+			childOverrides.Recovery.IDE == nil || *childOverrides.Recovery.IDE != "codex" ||
+			childOverrides.Recovery.Model == nil || *childOverrides.Recovery.Model != "gpt-5.5" ||
+			childOverrides.Recovery.ReasoningEffort == nil || *childOverrides.Recovery.ReasoningEffort != "high" ||
+			childOverrides.Recovery.MaxAttempts == nil || *childOverrides.Recovery.MaxAttempts != 2 {
+			t.Fatalf("unexpected child recovery override: %#v", childOverrides.Recovery)
+		}
 		raw, err = reviewWatchChildRuntimeOverrides(json.RawMessage(`{"run_id":"parent"}`), false, false)
 		if err != nil {
 			t.Fatalf("reviewWatchChildRuntimeOverrides(strip only) error = %v", err)

@@ -1,0 +1,19 @@
+# Managed resources cloned under .resources/
+https://github.com/openclaw/acpx acpx
+https://github.com/openai/codex codex
+https://github.com/OpenSource03/harnss harnss
+https://github.com/anomalyco/opencode opencode
+https://github.com/badlogic/pi-mono pi
+https://github.com/zed-industries/zed zed
+# parallel-task-execution spec references — DAG waves
+https://github.com/pleme-io/shigoto-go shigoto-go
+https://github.com/FrogoAI/ltree ltree
+https://github.com/noneback/go-taskflow go-taskflow
+# parallel-task-execution spec references — worktree commit/merge-back lifecycle
+https://github.com/dagger/container-use container-use
+https://github.com/smtg-ai/claude-squad claude-squad
+https://github.com/devflowinc/uzi uzi
+# parallel-task-execution spec references — FSM orchestration + conflict resolution
+https://github.com/looplab/fsm fsm
+https://github.com/qmuntal/stateless stateless
+https://codeberg.org/mergiraf/mergiraf mergiraf

@@ -77,7 +77,7 @@ func ExecutePreparedPrompt(
 	state.events = nil
 
 	internalCfg := newConfig(cfg, state.runArtifacts)
-	execJob, err := newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers)
+	execJob, err := newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers, cfg)
 	if err != nil {
 		return PreparedPromptResult{}, err
 	}

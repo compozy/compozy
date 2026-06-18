@@ -21,6 +21,7 @@ type RunArtifacts struct {
 	EventsPath  string
 	TurnsDir    string
 	JobsDir     string
+	RecoveryDir string
 	ResultPath  string
 }
 
@@ -45,6 +46,7 @@ func NewRunArtifactsForRunsDir(runsDir, runID string) RunArtifacts {
 		EventsPath:  layout.EventsLogPath(runDir),
 		TurnsDir:    layout.TurnsDir(runDir),
 		JobsDir:     layout.JobsDir(runDir),
+		RecoveryDir: layout.RecoveryDir(runDir),
 		ResultPath:  layout.ResultPath(runDir),
 	}
 }

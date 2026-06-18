@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/workspace"
 )
 
 const (
@@ -110,12 +112,15 @@ func (h *runStartHandler) Handle(
 	cmd commands.RunStartCommand,
 ) (result commands.RunStartResult, retErr error) {
 	runtimeCfg := cmd.RuntimeConfig()
+	recoveryCfg := cmd.RecoveryConfig()
 	if err := h.ops.ValidateRuntimeConfig(runtimeCfg); err != nil {
 		return commands.RunStartResult{}, err
 	}
 
 	opts := h.runScopeOptions(runtimeCfg)
-	if runtimeCfg.Mode == model.ExecutionModeExec && !opts.EnableExecutableExtensions {
+	if runtimeCfg.Mode == model.ExecutionModeExec &&
+		!opts.EnableExecutableExtensions &&
+		!shouldWrapRecovery(runtimeCfg, recoveryCfg) {
 		return h.handleFastExec(ctx, runtimeCfg)
 	}
 
@@ -125,10 +130,10 @@ func (h *runStartHandler) Handle(
 	}
 
 	if runtimeCfg.Mode == model.ExecutionModeExec {
-		return h.handleScopedExec(ctx, runtimeCfg, scope)
+		return h.handleScopedExec(ctx, runtimeCfg, scope, recoveryCfg)
 	}
 
-	return h.handlePreparedRun(ctx, runtimeCfg, scope)
+	return h.handlePreparedRun(ctx, runtimeCfg, scope, recoveryCfg)
 }
 
 func (h *runStartHandler) runScopeOptions(runtimeCfg *model.RuntimeConfig) model.OpenRunScopeOptions {
@@ -181,10 +186,20 @@ func (h *runStartHandler) handleScopedExec(
 	ctx context.Context,
 	runtimeCfg *model.RuntimeConfig,
 	scope model.RunScope,
+	recoveryCfg workspace.AgentRecoveryConfig,
 ) (result commands.RunStartResult, retErr error) {
 	defer func() {
 		retErr = errors.Join(retErr, scope.Close(ctx))
 	}()
+
+	if shouldWrapRecovery(runtimeCfg, recoveryCfg) {
+		prepared := newKernelExecPreparedRun(h.ops, runtimeCfg, scope)
+		outcome, err := h.runWithRecovery(ctx, prepared, runtimeCfg, recoveryCfg, scope)
+		if err != nil {
+			return commands.RunStartResult{}, err
+		}
+		return runStartResultFromOutcome(outcome), nil
+	}
 
 	if err := h.ops.ExecuteExec(ctx, runtimeCfg, scope); err != nil {
 		return commands.RunStartResult{}, err
@@ -213,14 +228,26 @@ func (h *runStartHandler) handlePreparedRun(
 	ctx context.Context,
 	runtimeCfg *model.RuntimeConfig,
 	scope model.RunScope,
+	recoveryCfg workspace.AgentRecoveryConfig,
 ) (result commands.RunStartResult, retErr error) {
-	scopeOwned := true
 	defer func() {
-		if !scopeOwned || scope == nil {
+		if scope == nil {
 			return
 		}
 		retErr = errors.Join(retErr, scope.Close(ctx))
 	}()
+
+	if shouldWrapRecovery(runtimeCfg, recoveryCfg) {
+		prepared := newKernelWorkflowPreparedRun(h.ops, runtimeCfg, scope)
+		outcome, err := h.runWithRecovery(ctx, prepared, runtimeCfg, recoveryCfg, scope)
+		if errors.Is(err, plan.ErrNoWork) {
+			return commands.RunStartResult{Status: runStartStatusNoWork}, nil
+		}
+		if err != nil {
+			return commands.RunStartResult{}, err
+		}
+		return runStartResultFromOutcome(outcome), nil
+	}
 
 	prep, err := h.ops.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
@@ -230,10 +257,6 @@ func (h *runStartHandler) handlePreparedRun(
 		return commands.RunStartResult{}, err
 	}
 	prep.SetRunScope(scope)
-	scopeOwned = false
-	defer func() {
-		retErr = errors.Join(retErr, closePreparationRunScope(ctx, prep))
-	}()
 
 	if err := h.ops.Execute(ctx, prep, runtimeCfg); err != nil {
 		return commands.RunStartResult{}, err
@@ -244,6 +267,47 @@ func (h *runStartHandler) handlePreparedRun(
 		ArtifactsDir: prep.RunArtifacts.RunDir,
 		Status:       runStartStatusSucceeded,
 	}, nil
+}
+
+func (h *runStartHandler) runWithRecovery(
+	ctx context.Context,
+	prepared recovery.PreparedRun,
+	runtimeCfg *model.RuntimeConfig,
+	recoveryCfg workspace.AgentRecoveryConfig,
+	scope model.RunScope,
+) (recovery.RunOutcome, error) {
+	orchestrator := recovery.NewRunRecoveryOrchestrator(
+		h.deps.RecoveryStrategy,
+		recoveryCfg,
+		recovery.WithFailedRunConfig(runtimeCfg),
+		recovery.WithRecoveryEventSink(recoveryEventSink(scope)),
+		recovery.WithRecoveryLogger(h.deps.Logger),
+	)
+	return orchestrator.Run(ctx, prepared)
+}
+
+func shouldWrapRecovery(runtimeCfg *model.RuntimeConfig, cfg workspace.AgentRecoveryConfig) bool {
+	if runtimeCfg == nil || runtimeCfg.RecoveryAttempt != 0 {
+		return false
+	}
+	resolved := cfg.ApplyDefaults()
+	return resolved.Enabled != nil && *resolved.Enabled
+}
+
+func recoveryEventSink(scope model.RunScope) recovery.EventSink {
+	return recovery.NewRunScopeEventSink(scope)
+}
+
+func runStartResultFromOutcome(outcome recovery.RunOutcome) commands.RunStartResult {
+	status := string(outcome.Status)
+	if status == "" {
+		status = runStartStatusSucceeded
+	}
+	return commands.RunStartResult{
+		RunID:        outcome.RunID,
+		ArtifactsDir: outcome.ArtifactsDir,
+		Status:       status,
+	}
 }
 
 func (h *workflowPrepareHandler) Handle(
