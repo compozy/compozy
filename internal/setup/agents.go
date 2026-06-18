@@ -294,6 +294,7 @@ var agentSpecs = []agentSpec{
 	specificAgent("crush", "Crush", ".crush/skills", xdgPath("crush/skills"), xdgPath("crush")),
 	universalAgent("cursor", "Cursor", homePath(".cursor/skills"), homePath(".cursor")),
 	universalAgent("deepagents", "Deep Agents", homePath(".deepagents/agent/skills"), homePath(".deepagents")),
+	specificAgent("devin", "Devin CLI", ".devin/skills", xdgPath("devin/skills"), xdgPath("devin")),
 	specificAgent("droid", "Droid", ".factory/skills", homePath(".factory/skills"), homePath(".factory")),
 	universalAgent("firebender", "Firebender", homePath(".firebender/skills"), homePath(".firebender")),
 	universalAgent("gemini-cli", "Gemini CLI", homePath(".gemini/skills"), homePath(".gemini")),

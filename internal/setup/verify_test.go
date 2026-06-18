@@ -13,11 +13,14 @@ func TestAgentNameForIDE(t *testing.T) {
 	tests := map[string]string{
 		"claude":       "claude-code",
 		"codex":        "codex",
+		"copilot":      "github-copilot",
 		"cursor-agent": "cursor",
 		"droid":        "droid",
 		"gemini":       "gemini-cli",
 		"opencode":     "opencode",
 		"pi":           "pi",
+		"kiro":         "kiro-cli",
+		"devin":        "devin",
 	}
 
 	for ide, want := range tests {

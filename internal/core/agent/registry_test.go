@@ -27,7 +27,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 		wantProbe           []string
 	}{
 		{
-			name:                "claude",
+			name:                "Should expose Claude ACP commands",
 			ide:                 model.IDEClaude,
 			reasoning:           "medium",
 			addDirs:             []string{"../shared", "../docs"},
@@ -37,7 +37,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe:           []string{"claude-agent-acp", "--help"},
 		},
 		{
-			name:                "codex",
+			name:                "Should expose Codex ACP commands",
 			ide:                 model.IDECodex,
 			reasoning:           "medium",
 			addDirs:             []string{"../shared", "../docs"},
@@ -63,7 +63,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe: []string{"codex-acp", "--help"},
 		},
 		{
-			name:                "droid",
+			name:                "Should expose Droid ACP commands",
 			ide:                 model.IDEDroid,
 			reasoning:           "medium",
 			accessMode:          model.AccessModeFull,
@@ -82,7 +82,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe: []string{"droid", "exec", "--help"},
 		},
 		{
-			name:                "cursor",
+			name:                "Should expose Cursor ACP commands",
 			ide:                 model.IDECursor,
 			reasoning:           "medium",
 			accessMode:          model.AccessModeFull,
@@ -91,7 +91,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe:           []string{"cursor-agent", "acp", "--help"},
 		},
 		{
-			name:                "opencode",
+			name:                "Should expose OpenCode ACP commands",
 			ide:                 model.IDEOpenCode,
 			reasoning:           "medium",
 			accessMode:          model.AccessModeFull,
@@ -100,7 +100,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe:           []string{"opencode", "acp", "--help"},
 		},
 		{
-			name:                "pi",
+			name:                "Should expose Pi ACP commands",
 			ide:                 model.IDEPi,
 			reasoning:           "medium",
 			accessMode:          model.AccessModeFull,
@@ -109,13 +109,40 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe:           []string{"pi-acp", "--help"},
 		},
 		{
-			name:                "gemini",
+			name:                "Should expose Gemini ACP commands",
 			ide:                 model.IDEGemini,
 			reasoning:           "medium",
 			accessMode:          model.AccessModeFull,
 			wantSupportsAddDirs: false,
 			wantLaunch:          []string{"gemini", "--acp"},
 			wantProbe:           []string{"gemini", "--acp", "--help"},
+		},
+		{
+			name:                "Should expose Copilot ACP commands",
+			ide:                 model.IDECopilot,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"copilot", "--acp"},
+			wantProbe:           []string{"copilot", "--acp", "--help"},
+		},
+		{
+			name:                "Should expose Kiro ACP commands",
+			ide:                 model.IDEKiro,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"kiro-cli", "acp", "--model", model.DefaultKiroModel, "-a"},
+			wantProbe:           []string{"kiro-cli", "acp", "--help"},
+		},
+		{
+			name:                "Should expose Devin ACP commands",
+			ide:                 model.IDEDevin,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"devin", "acp"},
+			wantProbe:           []string{"devin", "acp", "--help"},
 		},
 	}
 
@@ -711,11 +738,14 @@ func TestValidateRuntimeConfigAcceptsSupportedIDEs(t *testing.T) {
 		model.IDEOpenCode,
 		model.IDEPi,
 		model.IDEGemini,
+		model.IDECopilot,
+		model.IDEKiro,
+		model.IDEDevin,
 	}
 
 	for _, ide := range validIDEs {
 		ide := ide
-		t.Run(ide, func(t *testing.T) {
+		t.Run("Should accept "+ide+" runtime config", func(t *testing.T) {
 			t.Parallel()
 
 			cfg := &model.RuntimeConfig{
@@ -1272,6 +1302,27 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 			wantCommand:         []string{"gemini", "--acp"},
 			wantProbe:           []string{"gemini", "--acp", "--help"},
 			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
+		},
+		{
+			ide:                 model.IDECopilot,
+			wantCommand:         []string{"copilot", "--acp"},
+			wantProbe:           []string{"copilot", "--acp", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
+		},
+		{
+			ide:                 model.IDEKiro,
+			wantCommand:         []string{"kiro-cli", "acp"},
+			wantProbe:           []string{"kiro-cli", "acp", "--help"},
+			wantFallbackCount:   0,
+			wantSupportsAddDirs: false,
+		},
+		{
+			ide:                 model.IDEDevin,
+			wantCommand:         []string{"devin", "acp"},
+			wantProbe:           []string{"devin", "acp", "--help"},
+			wantFallbackCount:   0,
 			wantSupportsAddDirs: false,
 		},
 	}

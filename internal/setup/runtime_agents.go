@@ -8,12 +8,14 @@ import (
 var runtimeIDEAgentNames = map[string]string{
 	"claude":       "claude-code",
 	"codex":        "codex",
+	"copilot":      "github-copilot",
 	"cursor-agent": "cursor",
 	"droid":        "droid",
 	"gemini":       "gemini-cli",
 	"opencode":     "opencode",
 	"pi":           "pi",
 	"kiro":         "kiro-cli",
+	"devin":        "devin",
 }
 
 // AgentNameForIDE maps a compozy runtime IDE name to the setup agent name.

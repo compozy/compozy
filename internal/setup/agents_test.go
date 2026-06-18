@@ -67,6 +67,9 @@ func TestSupportedAgentsUseDeclarativePaths(t *testing.T) {
 	if err := ensureDir(claudeConfigDir); err != nil {
 		t.Fatalf("create claude dir: %v", err)
 	}
+	if err := ensureDir(filepath.Join(xdgConfigHome, "devin")); err != nil {
+		t.Fatalf("create devin dir: %v", err)
+	}
 	if err := ensureDir(filepath.Join(homeDir, ".trae-cn")); err != nil {
 		t.Fatalf("create trae-cn dir: %v", err)
 	}
@@ -106,6 +109,14 @@ func TestSupportedAgentsUseDeclarativePaths(t *testing.T) {
 		DisplayName:    "OpenClaw",
 		ProjectRootDir: "skills",
 		GlobalRootDir:  filepath.Join(homeDir, ".clawdbot", "skills"),
+		Detected:       true,
+	})
+
+	assertAgent(t, byName["devin"], Agent{
+		Name:           "devin",
+		DisplayName:    "Devin CLI",
+		ProjectRootDir: ".devin/skills",
+		GlobalRootDir:  filepath.Join(xdgConfigHome, "devin", "skills"),
 		Detected:       true,
 	})
 

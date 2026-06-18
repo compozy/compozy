@@ -49,6 +49,8 @@ const (
 	IDEGemini = core.IDEGemini
 	// IDECopilot runs GitHub Copilot CLI jobs.
 	IDECopilot = core.IDECopilot
+	// IDEDevin runs Devin CLI jobs.
+	IDEDevin = core.IDEDevin
 )
 
 // Config configures compozy preparation and execution.
