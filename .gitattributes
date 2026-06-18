@@ -1,0 +1,3 @@
+# >>> skeeper lockfile merge driver >>>
+skeeper.lock merge=skeeper-lock
+# <<< skeeper lockfile merge driver <<<
