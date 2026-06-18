@@ -1,3 +1,18 @@
+## 0.2.10 - 2026-06-18
+
+### ♻️  Refactoring
+
+- Tui redesign (#201)
+### 🎉 Features
+
+- Worktree-backed parallel multi-run for tasks run --multiple (#200)- Add Devin CLI agent support (#204)
+### 🐛 Bug Fixes
+
+- Reviews watch bug
+### 📦 Build System
+
+- Skeeper config (#206)- Converge skeeper sidecar lock to main branch
+
 ## 0.2.9 - 2026-06-13
 
 ### 🐛 Bug Fixes
