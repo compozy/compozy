@@ -1,1 +1,7 @@
 bunx --no-install lint-staged
+
+# Skeeper: mirror spec/working artifacts to the sidecar on commit.
+# Graceful — runs only if the skeeper binary is installed; never blocks commits.
+if [ "${SKEEPER_SKIP:-}" != "1" ] && command -v skeeper >/dev/null 2>&1; then
+  skeeper internal pre-commit
+fi

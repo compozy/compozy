@@ -1,0 +1,5 @@
+# Skeeper: keep the sidecar lock consistent across merge commits.
+# Graceful — runs only if the skeeper binary is installed; never blocks merges.
+if [ "${SKEEPER_SKIP:-}" != "1" ] && command -v skeeper >/dev/null 2>&1; then
+  skeeper internal pre-commit
+fi

@@ -11,7 +11,6 @@ RELEASE_NOTES.md
 coverage.out
 coverage.html
 .codex/CONTINUITY*
-.codex/plans
 .peer-reviews/
 .resources/
 .factory/skills
@@ -30,3 +29,15 @@ coverage/
 
 # TanStack Router generated tree — regenerated at build/dev time.
 web/src/routeTree.gen.ts
+
+# >>> skeeper ignored specs >>>
+.skeeper/
+.compozy/**
+.codex/ledger/**
+.codex/plans/**
+.codex/qa/**
+.codex/release-021-qa/**
+.codex/tmp/**
+.claude/ledger/**
+!.compozy/runs/**
+# <<< skeeper ignored specs <<<

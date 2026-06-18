@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "sidecar": "git@github.com:compozy/specs.git",
+  "source_branch": "chore/skeeper-migrate-artifacts",
+  "namespaces": [
+    {
+      "name": "compozy",
+      "sidecar_branch": "compozy/__branches__/chore/skeeper-migrate-artifacts",
+      "commit": "e3631133aad834f01b41c57e0ea5f74b1c36583a",
+      "digest": "sha256:38c8f5c6875161ba54291f8d1c27233ae5082bab88f211dd6a514925c84c21ce",
+      "files": 1339,
+      "bytes": 11165471
+    }
+  ]
+}
