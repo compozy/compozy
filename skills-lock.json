@@ -69,6 +69,12 @@
             "skillPath": "skills/releasepr/SKILL.md",
             "computedHash": "e9bcd1dcb1967536dc8c038a40066eb6ae6110ce5a9b6b751e8e0acc483f3508"
         },
+        "skeeper": {
+            "source": "compozy/skeeper",
+            "sourceType": "github",
+            "skillPath": "skills/skeeper/SKILL.md",
+            "computedHash": "fee0e0b10b743d95df50c6ba27d6babf72c1edc9d2b3870de575b60a1e820cc5"
+        },
         "smux": {
             "source": "ShawnPana/smux",
             "sourceType": "github",
