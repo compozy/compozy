@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "chore/skeeper-migrate-artifacts",
+  "source_branch": "main",
   "namespaces": [
     {
       "name": "compozy",
-      "sidecar_branch": "compozy/__branches__/chore/skeeper-migrate-artifacts",
-      "commit": "87de52728e016c3c88a0825b869e2abc8afde6ca",
-      "digest": "sha256:8989f7a76ef6b19bc8fd8482fbb7e3a1fd15e3d69366f76c9784c85de54dccba",
-      "files": 1341,
-      "bytes": 11172148
+      "sidecar_branch": "compozy/__branches__/main",
+      "commit": "f38f59b8434c4f3b5da7bdf96c8106a82bd9d73d",
+      "digest": "sha256:579f8de1af25c6e3e1d69d8f49b284d1d3c038cbd263c4b7ec3cbb92d5213aa3",
+      "files": 1355,
+      "bytes": 11205463
     }
   ]
 }
