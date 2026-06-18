@@ -297,6 +297,7 @@ type clientImpl struct {
 	started        bool
 	closed         bool
 	startModel     string
+	startCommand   []string
 	sessions       map[string]*sessionImpl
 	pendingCreates int
 	pendingUpdates map[string][]model.SessionUpdate
@@ -354,7 +355,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		McpServers: mcpServers,
 	})
 	if err != nil {
-		return nil, wrapSessionSetupError(SessionSetupStageNewSession, wrapACPError(err))
+		return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, SessionSetupStageNewSession, "create ACP session", err)
 	}
 
 	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
@@ -372,7 +373,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 			ModeId:    acp.SessionModeId(modeID),
 		}); err != nil {
 			c.removeSession(session.id)
-			return nil, wrapSessionSetupError(SessionSetupStageSetMode, wrapACPError(err))
+			return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, SessionSetupStageSetMode, "set ACP session mode", err)
 		}
 	}
 
@@ -481,7 +482,7 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	})
 	if err != nil {
 		c.removeSession(session.id)
-		return nil, wrapSessionSetupError(SessionSetupStageLoadSession, wrapACPError(err))
+		return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, SessionSetupStageLoadSession, "load ACP session", err)
 	}
 	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
 	session.waitForIdle(ctx, 15*time.Millisecond)
@@ -745,6 +746,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 	c.conn = conn
 	c.started = true
 	c.startModel = startModel
+	c.startCommand = append([]string(nil), command...)
 	c.wg.Add(1)
 	go c.waitForProcess()
 	c.mu.Unlock()
@@ -772,7 +774,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 				command,
 				process.StderrBuffer().String(),
 				"initialize ACP agent",
-				wrapACPError(err),
+				wrapACPErrorWithContextCause(ctx, wrapACPError(err)),
 			),
 		)
 	}
@@ -903,6 +905,12 @@ func (c *clientImpl) processRef() *subprocess.Process {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.process
+}
+
+func (c *clientImpl) startCommandSnapshot() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.startCommand...)
 }
 
 func (c *clientImpl) awaitBackgroundShutdown(processErr error) error {
@@ -1262,6 +1270,45 @@ func wrapACPError(err error) error {
 	return err
 }
 
+func (c *clientImpl) wrapACPSetupErrorWithDiagnostics(
+	ctx context.Context,
+	stage SessionSetupStage,
+	operation string,
+	err error,
+) error {
+	wrapped := wrapACPErrorWithContextCause(ctx, wrapACPError(err))
+	if command := c.startCommandSnapshot(); len(command) > 0 {
+		stderr := ""
+		if process := c.processRef(); process != nil && process.StderrBuffer() != nil {
+			stderr = process.StderrBuffer().String()
+		}
+		wrapped = wrapACPLaunchError(c.spec, command, stderr, operation, wrapped)
+	}
+	return wrapSessionSetupError(stage, wrapped)
+}
+
+func wrapACPErrorWithContextCause(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	cause := cancellationCause(ctx)
+	if cause == nil || errors.Is(err, cause) {
+		return err
+	}
+	return errors.Join(cause, err)
+}
+
+func cancellationCause(ctx context.Context) error {
+	if ctx == nil || ctx.Err() == nil {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	// Defensive fallback for non-standard contexts with Err but no Cause.
+	return ctx.Err()
+}
+
 func isAuthenticationRequiredSessionError(err *SessionError) bool {
 	if err == nil || err.Code != jsonRPCServerError {
 		return false
@@ -1285,25 +1332,64 @@ func sessionErrorDataMessage(data json.RawMessage) string {
 	return strings.TrimSpace(payload.Message)
 }
 
+type acpLaunchError struct {
+	spec    Spec
+	command []string
+	stderr  string
+	stage   string
+	err     error
+}
+
+func (e *acpLaunchError) Error() string {
+	if e == nil {
+		return ""
+	}
+	parts := []string{
+		fmt.Sprintf("%s while running %s", e.stage, formatShellCommand(e.command)),
+		e.err.Error(),
+	}
+	if trimmed := strings.TrimSpace(e.stderr); trimmed != "" {
+		parts = append(parts, "adapter stderr: "+trimmed)
+	}
+	if includeACPLaunchInstallGuidance(e.stage) {
+		if trimmed := strings.TrimSpace(e.spec.InstallHint); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+		if trimmed := strings.TrimSpace(e.spec.DocsURL); trimmed != "" {
+			parts = append(parts, "docs: "+trimmed)
+		}
+	}
+	return strings.Join(parts, ". ")
+}
+
+func includeACPLaunchInstallGuidance(stage string) bool {
+	switch stage {
+	case "start ACP agent process", "initialize ACP agent":
+		return true
+	default:
+		return false
+	}
+}
+
+func (e *acpLaunchError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
 func wrapACPLaunchError(spec Spec, command []string, stderr, stage string, err error) error {
 	if err == nil {
 		return nil
 	}
 
-	parts := []string{
-		fmt.Sprintf("%s while running %s", stage, formatShellCommand(command)),
-		err.Error(),
+	return &acpLaunchError{
+		spec:    spec,
+		command: append([]string(nil), command...),
+		stderr:  stderr,
+		stage:   stage,
+		err:     err,
 	}
-	if trimmed := strings.TrimSpace(stderr); trimmed != "" {
-		parts = append(parts, "adapter stderr: "+trimmed)
-	}
-	if trimmed := strings.TrimSpace(spec.InstallHint); trimmed != "" {
-		parts = append(parts, trimmed)
-	}
-	if trimmed := strings.TrimSpace(spec.DocsURL); trimmed != "" {
-		parts = append(parts, "docs: "+trimmed)
-	}
-	return errors.New(strings.Join(parts, ". "))
 }
 
 func wrapSessionSetupError(stage SessionSetupStage, err error) error {

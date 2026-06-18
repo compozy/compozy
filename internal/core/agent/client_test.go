@@ -1692,6 +1692,77 @@ func TestClientUtilityHelpers(t *testing.T) {
 	}
 }
 
+func TestClientSetupDiagnosticsPreserveContextCause(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("activity timeout sentinel")
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(cause)
+	client := &clientImpl{
+		spec:         Spec{ID: "test-acp", DisplayName: "Test ACP"},
+		startCommand: []string{"test-acp", "acp"},
+	}
+
+	err := client.wrapACPSetupErrorWithDiagnostics(
+		ctx,
+		SessionSetupStageNewSession,
+		"create ACP session",
+		&acp.RequestError{
+			Code:    -32603,
+			Message: "Internal error",
+			Data:    map[string]any{"error": "activity timeout: no output received for 10m0s"},
+		},
+	)
+	if !errors.Is(err, cause) {
+		t.Fatalf("wrapped setup error does not preserve context cause: %v", err)
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("expected SessionSetupError, got %T", err)
+	}
+	if setupErr.Stage != SessionSetupStageNewSession {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageNewSession)
+	}
+	var sessionErr *SessionError
+	if !errors.As(err, &sessionErr) || sessionErr.Code != -32603 {
+		t.Fatalf("expected wrapped SessionError, got %#v", err)
+	}
+}
+
+func TestACPLaunchErrorPreservesCauseAndFormatsDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	wrapped := wrapACPLaunchError(
+		Spec{
+			ID:          "test-acp",
+			DisplayName: "Test ACP",
+			InstallHint: "Install the test adapter.",
+			DocsURL:     "https://example.com/acp",
+		},
+		[]string{"test-acp", "acp"},
+		"post-initialize stderr",
+		"create ACP session",
+		&SessionError{Code: -32603, Message: "Internal error"},
+	)
+	for _, want := range []string{
+		"create ACP session while running test-acp acp",
+		"post-initialize stderr",
+	} {
+		if !strings.Contains(wrapped.Error(), want) {
+			t.Fatalf("launch error = %q, want %q", wrapped, want)
+		}
+	}
+	for _, notWant := range []string{"Install the test adapter.", "https://example.com/acp"} {
+		if strings.Contains(wrapped.Error(), notWant) {
+			t.Fatalf("launch error = %q, should not include post-initialize install guidance %q", wrapped, notWant)
+		}
+	}
+	var sessionErr *SessionError
+	if !errors.As(wrapped, &sessionErr) || sessionErr.Code != -32603 {
+		t.Fatalf("expected wrapped SessionError, got %#v", wrapped)
+	}
+}
+
 func TestClientCreateSessionSurfacesStartupCommandAndStderr(t *testing.T) {
 	tmpDir := t.TempDir()
 	scriptPath := filepath.Join(tmpDir, "broken-agent")
@@ -1734,6 +1805,49 @@ func TestClientCreateSessionSurfacesStartupCommandAndStderr(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "adapter boot failed") {
 		t.Fatalf("expected adapter stderr in error, got %q", err)
+	}
+}
+
+func TestClientCreateSessionSurfacesNewSessionCommandAndTypedError(t *testing.T) {
+	workingDir := t.TempDir()
+	scenario := helperScenario{
+		ExpectedCWD: workingDir,
+		NewSessionError: &helperRequestError{
+			Code:    -32603,
+			Message: "Internal error",
+			Data:    json.RawMessage("{\"error\":\"activity timeout: no output received for 10m0s\"}"),
+		},
+	}
+	client := newTestClient(t, scenario)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: workingDir,
+		Prompt:     []byte("hello"),
+	})
+	if err == nil {
+		t.Fatal("expected create session error")
+	}
+	for _, want := range []string{
+		"new_session",
+		"create ACP session while running",
+		"TestACPHelperProcess",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("new-session error = %q, want %q", err, want)
+		}
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) || setupErr.Stage != SessionSetupStageNewSession {
+		t.Fatalf("expected new-session setup error, got %#v", err)
+	}
+	var sessionErr *SessionError
+	if !errors.As(err, &sessionErr) || sessionErr.Code != -32603 {
+		t.Fatalf("expected wrapped SessionError, got %#v", err)
 	}
 }
 

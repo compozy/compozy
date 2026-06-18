@@ -62,8 +62,17 @@ func ExecuteJobWithTimeout(
 		TrackClient:       trackClient,
 	})
 	if err != nil {
-		if timeout > 0 && IsActivityTimeout(err) {
-			return HandleSessionTimeout(ResolveTimeoutError(timeout, err), j, index, emitHuman, timeout)
+		if timeout > 0 && isSessionTimeout(attemptCtx, err) {
+			// Inactivity timeouts are transport/runtime stalls, not protocol
+			// rejections. Treat them as retryable even when the setup stage
+			// would not retry an immediate non-timeout error.
+			return HandleSessionTimeout(
+				ResolveTimeoutError(timeout, err, context.Cause(attemptCtx)),
+				j,
+				index,
+				emitHuman,
+				timeout,
+			)
 		}
 		fail := RecordFailureWithContext(nil, j, nil, err, -1)
 		return jobAttemptResult{

@@ -325,6 +325,98 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	}
 }
 
+func TestJobRunnerRetriesSetupErrorAfterActivityTimeoutThenSucceeds(t *testing.T) {
+	tmpDir := t.TempDir()
+	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		<-ctx.Done()
+		return nil, &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
+		}
+	})
+	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-setup-timeout-retry")
+		go session.finish(nil)
+		return session, nil
+	})
+	installFakeACPClients(t, firstClient, secondClient)
+
+	job := newTestACPJob(tmpDir)
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			IDE:                    model.IDECodex,
+			Model:                  "test-model",
+			ReasoningEffort:        "medium",
+			MaxRetries:             1,
+			RetryBackoffMultiplier: 2,
+			Timeout:                25 * time.Millisecond,
+		},
+		cwd: tmpDir,
+	}
+
+	runner := newJobRunner(0, &job, execCtx)
+	runner.run(context.Background())
+
+	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
+		t.Fatalf("expected succeeded lifecycle state after setup timeout retry, got %s", got)
+	}
+	if got := firstClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected first setup timeout attempt once, got %d", got)
+	}
+	if got := secondClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected one successful retry attempt, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected no failed jobs after setup timeout retry, got %d", got)
+	}
+}
+
+func TestExecuteJobWithTimeoutClassifiesSetupErrorAfterActivityTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		<-ctx.Done()
+		return nil, &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
+		}
+	})
+	installFakeACPClients(t, blockingSetupClient)
+
+	job := newTestACPJob(tmpDir)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			IDE:                    model.IDECodex,
+			Model:                  "test-model",
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		0,
+		25*time.Millisecond,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	if got := result.Status; got != attemptStatusTimeout {
+		t.Fatalf("expected setup error after activity timeout to be timeout, got %s", got)
+	}
+	if result.ExitCode != -2 {
+		t.Fatalf("expected timeout exit code -2, got %d", result.ExitCode)
+	}
+	if !result.Retryable {
+		t.Fatal("expected setup activity timeout to be retryable")
+	}
+	if result.Failure == nil || !strings.Contains(result.Failure.Err.Error(), "activity timeout") {
+		t.Fatalf("expected activity timeout failure, got %#v", result.Failure)
+	}
+}
+
 func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 	tmpDir := t.TempDir()
 	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {

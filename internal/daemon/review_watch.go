@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ const (
 	defaultReviewWatchPollInterval  = 30 * time.Second
 	defaultReviewWatchTimeout       = 30 * time.Minute
 	defaultReviewWatchQuietPeriod   = 20 * time.Second
+	defaultReviewWatchChildRetries  = 1
 	reviewWatchChildPollInterval    = 100 * time.Millisecond
 	reviewWatchInvokingCommand      = "compozy reviews watch"
 	reviewWatchPushStatusStartup    = "startup_unpushed_head"
@@ -44,19 +46,20 @@ type reviewWatchKey struct {
 }
 
 type reviewWatchOptions struct {
-	Provider         string
-	PR               string
-	UntilClean       bool
-	MaxRounds        int
-	AutoPush         bool
-	PushRemote       string
-	PushBranch       string
-	Nitpicks         bool
-	PollInterval     time.Duration
-	ReviewTimeout    time.Duration
-	QuietPeriod      time.Duration
-	RuntimeOverrides json.RawMessage
-	Batching         json.RawMessage
+	Provider                    string
+	PR                          string
+	UntilClean                  bool
+	MaxRounds                   int
+	AutoPush                    bool
+	PushRemote                  string
+	PushBranch                  string
+	Nitpicks                    bool
+	PollInterval                time.Duration
+	ReviewTimeout               time.Duration
+	QuietPeriod                 time.Duration
+	RuntimeOverrides            json.RawMessage
+	Batching                    json.RawMessage
+	ProjectMaxRetriesConfigured bool
 }
 
 type reviewWatchLoopOptions struct {
@@ -183,7 +186,12 @@ func (m *RunManager) prepareReviewWatchStart(
 			nil,
 		)
 	}
-	childRuntimeOverrides, err := reviewWatchChildRuntimeOverrides(req.RuntimeOverrides, options.AutoPush)
+	options.ProjectMaxRetriesConfigured = projectCfg.Defaults.MaxRetries != nil
+	childRuntimeOverrides, err := reviewWatchChildRuntimeOverrides(
+		req.RuntimeOverrides,
+		options.AutoPush,
+		options.ProjectMaxRetriesConfigured,
+	)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -1268,25 +1276,26 @@ func reviewWatchContextError(err error, timeoutMessage string) error {
 	return err
 }
 
-func reviewWatchChildRuntimeOverrides(raw json.RawMessage, autoPush bool) (json.RawMessage, error) {
+func reviewWatchChildRuntimeOverrides(
+	raw json.RawMessage,
+	autoPush bool,
+	projectMaxRetriesConfigured bool,
+) (json.RawMessage, error) {
 	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 {
-		if !autoPush {
-			return nil, nil
-		}
-		return json.RawMessage(`{"auto_commit":true}`), nil
-	}
 	values := make(map[string]json.RawMessage)
-	if err := json.Unmarshal(trimmed, &values); err != nil {
-		return nil, apicore.NewProblem(
-			http.StatusUnprocessableEntity,
-			"invalid_runtime_overrides",
-			fmt.Sprintf("runtime_overrides: %v", err),
-			nil,
-			err,
-		)
+	if len(trimmed) > 0 {
+		if err := json.Unmarshal(trimmed, &values); err != nil {
+			return nil, apicore.NewProblem(
+				http.StatusUnprocessableEntity,
+				"invalid_runtime_overrides",
+				fmt.Sprintf("runtime_overrides: %v", err),
+				nil,
+				err,
+			)
+		}
 	}
 	delete(values, "run_id")
+	ensureReviewWatchChildRetryDefault(values, projectMaxRetriesConfigured)
 	if autoPush {
 		values["auto_commit"] = json.RawMessage(`true`)
 	}
@@ -1298,6 +1307,17 @@ func reviewWatchChildRuntimeOverrides(raw json.RawMessage, autoPush bool) (json.
 		return nil, fmt.Errorf("encode child runtime overrides: %w", err)
 	}
 	return encoded, nil
+}
+
+func ensureReviewWatchChildRetryDefault(values map[string]json.RawMessage, projectMaxRetriesConfigured bool) {
+	if projectMaxRetriesConfigured {
+		return
+	}
+	raw, ok := values["max_retries"]
+	if ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return
+	}
+	values["max_retries"] = json.RawMessage(strconv.Itoa(defaultReviewWatchChildRetries))
 }
 
 func cloneJSON(raw json.RawMessage) json.RawMessage {

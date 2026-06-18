@@ -120,7 +120,11 @@ func (m *RunManager) applyReviewWatchPreRoundHook(
 		return false, "", err
 	}
 
-	childOverrides, err := reviewWatchChildRuntimeOverrides(updated.RuntimeOverrides, options.AutoPush)
+	childOverrides, err := reviewWatchChildRuntimeOverrides(
+		updated.RuntimeOverrides,
+		options.AutoPush,
+		options.ProjectMaxRetriesConfigured,
+	)
 	if err != nil {
 		return false, "", err
 	}

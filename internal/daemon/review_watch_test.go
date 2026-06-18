@@ -186,6 +186,31 @@ func TestRunManagerReviewWatchPersistsRoundAndStartsOneChildRun(t *testing.T) {
 	})
 }
 
+func TestRunManagerReviewWatchChildRunMaxRetriesPrecedence(t *testing.T) {
+	t.Run("Should default child max retries when no explicit value exists", func(t *testing.T) {
+		got := runReviewWatchAndCaptureChildMaxRetries(t, nil)
+		if got != 1 {
+			t.Fatalf("child MaxRetries = %d, want default 1", got)
+		}
+	})
+
+	t.Run("Should preserve project default max retries over watch child default", func(t *testing.T) {
+		projectCfg := workspacecfg.ProjectConfig{
+			Defaults: workspacecfg.DefaultsConfig{
+				MaxRetries: intPtr(0),
+			},
+			WatchReviews: workspacecfg.WatchReviewsConfig{
+				UntilClean: boolPtr(true),
+				MaxRounds:  intPtr(1),
+			},
+		}
+		got := runReviewWatchAndCaptureChildMaxRetries(t, &projectCfg)
+		if got != 0 {
+			t.Fatalf("child MaxRetries = %d, want project default 0", got)
+		}
+	})
+}
+
 func TestRunManagerReviewWatchCurrentSettledFetchesPendingItems(t *testing.T) {
 	t.Run(
 		"Should fetch and fix unresolved reviews when provider settled without a current review object",
@@ -1223,24 +1248,22 @@ func TestReviewWatchOptionResolutionValidationAndConfigFallbacks(t *testing.T) {
 
 func TestReviewWatchRuntimeOverrideHelpers(t *testing.T) {
 	t.Run("Should normalize review watch runtime override helpers", func(t *testing.T) {
-		raw, err := reviewWatchChildRuntimeOverrides(nil, false)
+		raw, err := reviewWatchChildRuntimeOverrides(nil, false, false)
 		if err != nil {
 			t.Fatalf("reviewWatchChildRuntimeOverrides(empty) error = %v", err)
 		}
-		if len(raw) != 0 {
-			t.Fatalf("empty child runtime overrides = %s, want nil", raw)
-		}
-		raw, err = reviewWatchChildRuntimeOverrides(nil, true)
+		requireRuntimeOverrideMaxRetries(t, raw, 1)
+		raw, err = reviewWatchChildRuntimeOverrides(nil, true, false)
 		if err != nil {
 			t.Fatalf("reviewWatchChildRuntimeOverrides(empty auto push) error = %v", err)
 		}
-		if string(raw) != `{"auto_commit":true}` {
-			t.Fatalf("empty auto-push child overrides = %s, want auto_commit true", raw)
-		}
+		requireRuntimeOverrideBool(t, raw, "auto_commit", true)
+		requireRuntimeOverrideMaxRetries(t, raw, 1)
 
 		raw, err = reviewWatchChildRuntimeOverrides(
 			json.RawMessage(`{"run_id":"parent","auto_commit":false,"model":"gpt"}`),
 			true,
+			false,
 		)
 		if err != nil {
 			t.Fatalf("reviewWatchChildRuntimeOverrides(auto push) error = %v", err)
@@ -1248,14 +1271,35 @@ func TestReviewWatchRuntimeOverrideHelpers(t *testing.T) {
 		if strings.Contains(string(raw), "run_id") || !strings.Contains(string(raw), `"auto_commit":true`) {
 			t.Fatalf("child runtime overrides = %s, want run_id stripped and auto_commit forced", raw)
 		}
-		raw, err = reviewWatchChildRuntimeOverrides(json.RawMessage(`{"run_id":"parent"}`), false)
+		requireRuntimeOverrideMaxRetries(t, raw, 1)
+		raw, err = reviewWatchChildRuntimeOverrides(json.RawMessage(`{"run_id":"parent"}`), false, false)
 		if err != nil {
 			t.Fatalf("reviewWatchChildRuntimeOverrides(strip only) error = %v", err)
 		}
-		if len(raw) != 0 {
-			t.Fatalf("child runtime overrides = %s, want nil after stripping only run_id", raw)
+		requireRuntimeOverrideMaxRetries(t, raw, 1)
+		raw, err = reviewWatchChildRuntimeOverrides(
+			json.RawMessage(`{"run_id":"parent","max_retries":0}`),
+			false,
+			false,
+		)
+		if err != nil {
+			t.Fatalf("reviewWatchChildRuntimeOverrides(explicit retries) error = %v", err)
 		}
-		if _, err := reviewWatchChildRuntimeOverrides(json.RawMessage(`{`), false); err == nil {
+		requireRuntimeOverrideMaxRetries(t, raw, 0)
+		raw, err = reviewWatchChildRuntimeOverrides(nil, false, true)
+		if err != nil {
+			t.Fatalf("reviewWatchChildRuntimeOverrides(project retries) error = %v", err)
+		}
+		if len(raw) != 0 {
+			t.Fatalf("project max_retries child overrides = %s, want nil", raw)
+		}
+		raw, err = reviewWatchChildRuntimeOverrides(nil, true, true)
+		if err != nil {
+			t.Fatalf("reviewWatchChildRuntimeOverrides(project retries auto push) error = %v", err)
+		}
+		requireRuntimeOverrideBool(t, raw, "auto_commit", true)
+		requireRuntimeOverrideNoMaxRetries(t, raw)
+		if _, err := reviewWatchChildRuntimeOverrides(json.RawMessage(`{`), false, false); err == nil {
 			t.Fatal("invalid child runtime overrides error = nil, want validation error")
 		}
 
@@ -1287,6 +1331,87 @@ func TestReviewWatchRuntimeOverrideHelpers(t *testing.T) {
 			t.Fatalf("cloneJSON(nonempty) = %s, want original JSON", cloned)
 		}
 	})
+}
+
+func requireRuntimeOverrideMaxRetries(t *testing.T, raw json.RawMessage, want int) {
+	t.Helper()
+	var got runtimeOverrideInput
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("decode runtime overrides %s: %v", raw, err)
+	}
+	if got.MaxRetries == nil || *got.MaxRetries != want {
+		t.Fatalf("runtime overrides %s max_retries = %#v, want %d", raw, got.MaxRetries, want)
+	}
+}
+
+func requireRuntimeOverrideNoMaxRetries(t *testing.T, raw json.RawMessage) {
+	t.Helper()
+	var got runtimeOverrideInput
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("decode runtime overrides %s: %v", raw, err)
+	}
+	if got.MaxRetries != nil {
+		t.Fatalf("runtime overrides %s max_retries = %#v, want nil", raw, got.MaxRetries)
+	}
+}
+
+func requireRuntimeOverrideBool(t *testing.T, raw json.RawMessage, field string, want bool) {
+	t.Helper()
+	values := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(raw, &values); err != nil {
+		t.Fatalf("decode runtime overrides %s: %v", raw, err)
+	}
+	var got bool
+	if err := json.Unmarshal(values[field], &got); err != nil {
+		t.Fatalf("decode runtime override %s from %s: %v", field, raw, err)
+	}
+	if got != want {
+		t.Fatalf("runtime overrides %s %s = %t, want %t", raw, field, got, want)
+	}
+}
+
+func runReviewWatchAndCaptureChildMaxRetries(
+	t *testing.T,
+	projectCfg *workspacecfg.ProjectConfig,
+) int {
+	t.Helper()
+	reviewProvider := &fakeReviewWatchProvider{
+		statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+		fetches:  [][]provider.ReviewItem{{watchReviewItem()}},
+	}
+	git := &fakeReviewWatchGit{
+		states: []ReviewWatchGitState{
+			{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+			{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+			{HeadSHA: "head-1", UpstreamRemote: "origin", UpstreamBranch: "feature"},
+		},
+	}
+	captured := make(chan int, 1)
+	resolveIssues := resolveReviewIssuesDuringRun(t)
+	deps := runManagerTestDeps{
+		execute: func(ctx context.Context, preparation *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			captured <- cfg.MaxRetries
+			return resolveIssues(ctx, preparation, cfg)
+		},
+	}
+	if projectCfg != nil {
+		deps.loadProjectConfig = func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+			return *projectCfg, nil
+		}
+	}
+	env := newReviewWatchTestEnv(t, reviewProvider, git, deps)
+
+	run := startReviewWatch(t, env, reviewWatchRequest(`{"run_id":"review-watch-child-retries"}`))
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	select {
+	case got := <-captured:
+		return got
+	default:
+		t.Fatal("child review run did not execute")
+		return 0
+	}
 }
 
 func TestReviewWatchResolverAndReservationHelpers(t *testing.T) {
