@@ -4,7 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## 0.2.9 - 2026-06-13
+## 0.2.10 - 2026-06-18
+
+### ♻️  Refactoring
+
+- Tui redesign (#201)
+### 🎉 Features
+
+- Worktree-backed parallel multi-run for tasks run --multiple (#200)- Add Devin CLI agent support (#204)
+### 🐛 Bug Fixes
+
+- Reviews watch bug
+### 📚 Documentation
+
+- Release notes
+### 📦 Build System
+
+- Skeeper config (#206)- Converge skeeper sidecar lock to main branch
+## 0.2.9 - 2026-06-14
 
 ### 🐛 Bug Fixes
 
@@ -324,6 +341,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
+[0.2.10]: https://github.com///compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com///compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com///compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com///compare/v0.2.6...v0.2.7
