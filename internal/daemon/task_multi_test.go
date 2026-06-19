@@ -652,167 +652,250 @@ func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspac
 
 func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
 	t.Parallel()
-	requireGitForTaskMulti(t)
+	t.Run("Should scope the launched child plan to the requested task number", func(t *testing.T) {
+		requireGitForTaskMulti(t)
 
-	const (
-		parentRunID      = "parallel-task-parent"
-		workflowSlug     = "alpha"
-		targetTaskNumber = 2
-	)
-	executedCfg := make(chan *model.RuntimeConfig, 1)
-	preparedJobs := make(chan []model.Job, 1)
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		buildRunID: taskMultiRunIDBuilder(parentRunID),
-		prepare:    plan.Prepare,
-		execute: func(_ context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			if len(prep.Jobs) != 1 {
-				return fmt.Errorf("prepared jobs = %d, want 1", len(prep.Jobs))
-			}
-			job := prep.Jobs[0]
-			if job.TaskNumber != targetTaskNumber {
-				return fmt.Errorf("prepared task number = %d, want %d", job.TaskNumber, targetTaskNumber)
-			}
-			marker := filepath.Join(cfg.WorkspaceRoot, fmt.Sprintf("task-%02d-output.txt", job.TaskNumber))
-			if err := os.WriteFile(marker, []byte("target task executed\n"), 0o600); err != nil {
-				return fmt.Errorf("write target marker: %w", err)
-			}
-			executedCfg <- cfg.Clone()
-			preparedJobs <- append([]model.Job(nil), prep.Jobs...)
-			return nil
-		},
-	})
-	env.writeWorkflowFile(t, workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
-	env.writeWorkflowFile(t, workflowSlug, "task_02.md", daemonTaskBody("pending", "Task 2"))
-	env.writeWorkflowFile(t, workflowSlug, "task_03.md", daemonTaskBody("pending", "Task 3"))
-	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+		const (
+			parentRunID      = "parallel-task-parent"
+			workflowSlug     = "alpha"
+			targetTaskNumber = 2
+		)
+		executedCfg := make(chan *model.RuntimeConfig, 1)
+		preparedJobs := make(chan []model.Job, 1)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiRunIDBuilder(parentRunID),
+			prepare:    plan.Prepare,
+			execute: func(_ context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				if len(prep.Jobs) != 1 {
+					return fmt.Errorf("prepared jobs = %d, want 1", len(prep.Jobs))
+				}
+				job := prep.Jobs[0]
+				if job.TaskNumber != targetTaskNumber {
+					return fmt.Errorf("prepared task number = %d, want %d", job.TaskNumber, targetTaskNumber)
+				}
+				marker := filepath.Join(cfg.WorkspaceRoot, fmt.Sprintf("task-%02d-output.txt", job.TaskNumber))
+				if err := os.WriteFile(marker, []byte("target task executed\n"), 0o600); err != nil {
+					return fmt.Errorf("write target marker: %w", err)
+				}
+				executedCfg <- cfg.Clone()
+				preparedJobs <- append([]model.Job(nil), prep.Jobs...)
+				return nil
+			},
+		})
+		env.writeWorkflowFile(t, workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
+		env.writeWorkflowFile(t, workflowSlug, "task_02.md", daemonTaskBody("pending", "Task 2"))
+		env.writeWorkflowFile(t, workflowSlug, "task_03.md", daemonTaskBody("pending", "Task 3"))
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
 
-	workspaceRow, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
-	if err != nil {
-		t.Fatalf("ResolveOrRegister() error = %v", err)
-	}
-	base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
-	if err != nil {
-		t.Fatalf("ResolveBase() error = %v", err)
-	}
-
-	parentCtx, cancelParent := context.WithCancel(context.Background())
-	defer cancelParent()
-	prepared := &preparedTaskMulti{
-		workspace:        workspaceRow,
-		mode:             workspacecfg.TaskRunMultipleModeParallel,
-		presentationMode: defaultPresentationMode,
-	}
-	active := &activeRun{
-		runID:     parentRunID,
-		ctx:       parentCtx,
-		cancel:    cancelParent,
-		mode:      runModeTaskMulti,
-		taskMulti: prepared,
-	}
-	item := preparedTaskMultiItem{
-		slug:         workflowSlug,
-		workflowRoot: model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
-		runtimeCfg: &model.RuntimeConfig{
-			Name:          workflowSlug,
-			WorkspaceRoot: env.workspaceRoot,
-			TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
-			Mode:          model.ExecutionModePRDTasks,
-			DryRun:        true,
-		},
-	}
-
-	childRun, err := env.manager.startTaskWorktreeChild(active, prepared, item, targetTaskNumber, base)
-	if err != nil {
-		t.Fatalf("startTaskWorktreeChild() error = %v", err)
-	}
-	childRow := requireTaskMultiChildRow(t, env, childRun.Run.RunID, parentRunID, runStatusCompleted)
-	if childRow.Mode != runModeTask {
-		t.Fatalf("child mode = %q, want %q", childRow.Mode, runModeTask)
-	}
-
-	cfg := waitForRuntimeConfig(t, executedCfg)
-	jobs := waitForPreparedJobs(t, preparedJobs)
-	if len(jobs) != 1 || jobs[0].TaskNumber != targetTaskNumber {
-		t.Fatalf("prepared jobs = %#v, want only task %d", jobs, targetTaskNumber)
-	}
-	if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
-		t.Fatalf("TargetTaskNumber = %#v, want %d", cfg.TargetTaskNumber, targetTaskNumber)
-	}
-	if cfg.ParentRunID != parentRunID {
-		t.Fatalf("ParentRunID = %q, want %q", cfg.ParentRunID, parentRunID)
-	}
-	if cfg.WorkspaceRoot == env.workspaceRoot {
-		t.Fatalf("WorkspaceRoot = original workspace %q, want isolated worktree", cfg.WorkspaceRoot)
-	}
-	if want := model.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, workflowSlug); cfg.TasksDir != want {
-		t.Fatalf("TasksDir = %q, want %q", cfg.TasksDir, want)
-	}
-	if !strings.Contains(cfg.WorkspaceRoot, filepath.Join("state", "worktrees")) {
-		t.Fatalf("WorkspaceRoot = %q, want worktree state path", cfg.WorkspaceRoot)
-	}
-	if !strings.Contains(cfg.WorkspaceRoot, fmt.Sprintf("%02d-%s", targetTaskNumber, workflowSlug)) {
-		t.Fatalf("WorkspaceRoot = %q, want task-number keyed worktree leaf", cfg.WorkspaceRoot)
-	}
-	if got := runGitOutput(t, cfg.WorkspaceRoot, "rev-parse", "--show-toplevel"); got != cfg.WorkspaceRoot {
-		t.Fatalf("worktree top-level = %q, want %q", got, cfg.WorkspaceRoot)
-	}
-	if _, err := os.Stat(filepath.Join(cfg.WorkspaceRoot, "task-02-output.txt")); err != nil {
-		t.Fatalf("target task marker missing: %v", err)
-	}
-	for _, name := range []string{"task-01-output.txt", "task-03-output.txt"} {
-		if _, err := os.Stat(filepath.Join(cfg.WorkspaceRoot, name)); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("non-target marker %s stat error = %v, want not exist", name, err)
+		workspaceRow, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
 		}
-	}
+		base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveBase() error = %v", err)
+		}
+
+		parentCtx, cancelParent := context.WithCancel(context.Background())
+		defer cancelParent()
+		prepared := &preparedTaskMulti{
+			workspace:        workspaceRow,
+			mode:             workspacecfg.TaskRunMultipleModeParallel,
+			presentationMode: defaultPresentationMode,
+		}
+		active := &activeRun{
+			runID:     parentRunID,
+			ctx:       parentCtx,
+			cancel:    cancelParent,
+			mode:      runModeTaskMulti,
+			taskMulti: prepared,
+		}
+		item := preparedTaskMultiItem{
+			slug:         workflowSlug,
+			workflowRoot: model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
+			runtimeCfg: &model.RuntimeConfig{
+				Name:          workflowSlug,
+				WorkspaceRoot: env.workspaceRoot,
+				TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
+				Mode:          model.ExecutionModePRDTasks,
+				DryRun:        true,
+			},
+		}
+
+		childRun, err := env.manager.startTaskWorktreeChild(active, prepared, item, targetTaskNumber, base)
+		if err != nil {
+			t.Fatalf("startTaskWorktreeChild() error = %v", err)
+		}
+		childRow := requireTaskMultiChildRow(t, env, childRun.Run.RunID, parentRunID, runStatusCompleted)
+		if childRow.Mode != runModeTask {
+			t.Fatalf("child mode = %q, want %q", childRow.Mode, runModeTask)
+		}
+
+		cfg := waitForRuntimeConfig(t, executedCfg)
+		jobs := waitForPreparedJobs(t, preparedJobs)
+		if len(jobs) != 1 || jobs[0].TaskNumber != targetTaskNumber {
+			t.Fatalf("prepared jobs = %#v, want only task %d", jobs, targetTaskNumber)
+		}
+		if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("TargetTaskNumber = %#v, want %d", cfg.TargetTaskNumber, targetTaskNumber)
+		}
+		if cfg.ParentRunID != parentRunID {
+			t.Fatalf("ParentRunID = %q, want %q", cfg.ParentRunID, parentRunID)
+		}
+		if cfg.WorkspaceRoot == env.workspaceRoot {
+			t.Fatalf("WorkspaceRoot = original workspace %q, want isolated worktree", cfg.WorkspaceRoot)
+		}
+		if want := model.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, workflowSlug); cfg.TasksDir != want {
+			t.Fatalf("TasksDir = %q, want %q", cfg.TasksDir, want)
+		}
+		if !strings.Contains(cfg.WorkspaceRoot, filepath.Join("state", "worktrees")) {
+			t.Fatalf("WorkspaceRoot = %q, want worktree state path", cfg.WorkspaceRoot)
+		}
+		if !strings.Contains(cfg.WorkspaceRoot, fmt.Sprintf("%02d-%s", targetTaskNumber, workflowSlug)) {
+			t.Fatalf("WorkspaceRoot = %q, want task-number keyed worktree leaf", cfg.WorkspaceRoot)
+		}
+		if got := runGitOutput(t, cfg.WorkspaceRoot, "rev-parse", "--show-toplevel"); got != cfg.WorkspaceRoot {
+			t.Fatalf("worktree top-level = %q, want %q", got, cfg.WorkspaceRoot)
+		}
+		if _, err := os.Stat(filepath.Join(cfg.WorkspaceRoot, "task-02-output.txt")); err != nil {
+			t.Fatalf("target task marker missing: %v", err)
+		}
+		for _, name := range []string{"task-01-output.txt", "task-03-output.txt"} {
+			if _, err := os.Stat(filepath.Join(cfg.WorkspaceRoot, name)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("non-target marker %s stat error = %v, want not exist", name, err)
+			}
+		}
+	})
+}
+
+func TestRunManagerStartTaskWorktreeChildCleansUpAllocatedWorktreeOnLaunchFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove the allocated worktree when child startup fails after allocation", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+
+		const (
+			parentRunID      = "parallel-task-cleanup"
+			workflowSlug     = "alpha"
+			targetTaskNumber = 1
+		)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		env.writeWorkflowFile(t, workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		workspaceRow, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
+		}
+		base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveBase() error = %v", err)
+		}
+		worktreePath, err := planTaskMultiWorktreePath(env.paths.WorktreesDir, taskMultiWorktreeSpec{
+			WorkspaceRoot: env.workspaceRoot,
+			ParentRunID:   parentRunID,
+			Slug:          workflowSlug,
+			Index:         targetTaskNumber,
+			TaskNumber:    targetTaskNumber,
+			Base:          base,
+		})
+		if err != nil {
+			t.Fatalf("planTaskMultiWorktreePath() error = %v", err)
+		}
+
+		parentCtx, cancelParent := context.WithCancel(context.Background())
+		defer cancelParent()
+		prepared := &preparedTaskMulti{
+			workspace:        workspaceRow,
+			mode:             workspacecfg.TaskRunMultipleModeParallel,
+			presentationMode: defaultPresentationMode,
+		}
+		active := &activeRun{
+			runID:     parentRunID,
+			ctx:       parentCtx,
+			cancel:    cancelParent,
+			mode:      runModeTaskMulti,
+			taskMulti: prepared,
+		}
+		item := preparedTaskMultiItem{
+			slug:         workflowSlug,
+			workflowRoot: model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
+		}
+
+		if _, err := env.manager.startTaskWorktreeChild(active, prepared, item, targetTaskNumber, base); err == nil ||
+			!strings.Contains(err.Error(), "runtime config is required") {
+			t.Fatalf("startTaskWorktreeChild() error = %v, want runtime config guard", err)
+		}
+		if _, err := os.Stat(worktreePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("allocated worktree stat error = %v, want not exist after cleanup", err)
+		}
+	})
 }
 
 func TestRunManagerStartTaskWorktreeChildRejectsInvalidLaunchInputs(t *testing.T) {
 	t.Parallel()
 
-	active := &activeRun{runID: "parent", ctx: context.Background()}
-	prepared := &preparedTaskMulti{
-		workspace: globaldb.Workspace{RootDir: "/repo"},
-	}
-	item := preparedTaskMultiItem{
-		slug:       "alpha",
-		runtimeCfg: &model.RuntimeConfig{Mode: model.ExecutionModePRDTasks},
-	}
+	t.Run("Should reject invalid launch inputs", func(t *testing.T) {
+		active := &activeRun{runID: "parent", ctx: context.Background()}
+		prepared := &preparedTaskMulti{
+			workspace: globaldb.Workspace{RootDir: "/repo"},
+		}
+		item := preparedTaskMultiItem{
+			slug:       "alpha",
+			runtimeCfg: &model.RuntimeConfig{Mode: model.ExecutionModePRDTasks},
+		}
+		allocator := &taskMultiWorktreeAllocator{
+			worktreesRoot: t.TempDir(),
+			run: func(context.Context, string, ...string) (string, error) {
+				t.Fatal("allocator should reject missing base commit before invoking git")
+				return "", nil
+			},
+		}
+		cases := []struct {
+			name             string
+			manager          *RunManager
+			targetTaskNumber int
+			base             taskMultiWorktreeBase
+			wantErr          string
+		}{
+			{
+				name:             "Should reject non-positive target task numbers",
+				manager:          &RunManager{},
+				targetTaskNumber: 0,
+				base:             taskMultiWorktreeBase{Commit: "abc123"},
+				wantErr:          "must be positive",
+			},
+			{
+				name:             "Should reject a missing worktree allocator",
+				manager:          &RunManager{},
+				targetTaskNumber: 1,
+				base:             taskMultiWorktreeBase{Commit: "abc123"},
+				wantErr:          "allocator is not configured",
+			},
+			{
+				name:             "Should reject a missing base commit before git allocation",
+				manager:          &RunManager{worktreeAllocator: allocator},
+				targetTaskNumber: 1,
+				base:             taskMultiWorktreeBase{},
+				wantErr:          "base commit is required",
+			},
+		}
 
-	if _, err := (&RunManager{}).startTaskWorktreeChild(
-		active,
-		prepared,
-		item,
-		0,
-		taskMultiWorktreeBase{Commit: "abc123"},
-	); err == nil || !strings.Contains(err.Error(), "must be positive") {
-		t.Fatalf("invalid target error = %v, want positive-target guard", err)
-	}
-	if _, err := (&RunManager{}).startTaskWorktreeChild(
-		active,
-		prepared,
-		item,
-		1,
-		taskMultiWorktreeBase{Commit: "abc123"},
-	); err == nil || !strings.Contains(err.Error(), "allocator is not configured") {
-		t.Fatalf("nil allocator error = %v, want allocator guard", err)
-	}
-
-	allocator := &taskMultiWorktreeAllocator{
-		worktreesRoot: t.TempDir(),
-		run: func(context.Context, string, ...string) (string, error) {
-			t.Fatal("allocator should reject missing base commit before invoking git")
-			return "", nil
-		},
-	}
-	if _, err := (&RunManager{worktreeAllocator: allocator}).startTaskWorktreeChild(
-		active,
-		prepared,
-		item,
-		1,
-		taskMultiWorktreeBase{},
-	); err == nil || !strings.Contains(err.Error(), "base commit is required") {
-		t.Fatalf("allocation error = %v, want base commit guard", err)
-	}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				if _, err := tc.manager.startTaskWorktreeChild(
+					active,
+					prepared,
+					item,
+					tc.targetTaskNumber,
+					tc.base,
+				); err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("startTaskWorktreeChild() error = %v, want substring %q", err, tc.wantErr)
+				}
+			})
+		}
+	})
 }
 
 func TestRunManagerTaskRunMultipleIncludeCompletedStartsCompletedWorkflow(t *testing.T) {
@@ -2036,282 +2119,288 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 
 func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T) {
 	t.Parallel()
-	requireGitForTaskMulti(t)
-	enabled := true
-	maxConcurrency := 2
-	maxAttempts := 1
-	attempts := newTaskExecutionAttempts()
-	strategy := &daemonFakeRecoveryStrategy{
-		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed task 3"}},
-	}
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		buildRunID:       taskParallelRecoveryRunIDBuilder("task-parallel-recovered"),
-		recoveryStrategy: strategy,
-		loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
-			return workspacecfg.ProjectConfig{
-				Recovery: workspacecfg.AgentRecoveryConfig{Enabled: &enabled, MaxAttempts: &maxAttempts},
-				Tasks: workspacecfg.TasksConfig{
-					Run: workspacecfg.TaskRunConfig{
-						Parallel: workspacecfg.ParallelTasksConfig{
-							Enabled:        &enabled,
-							MaxConcurrency: &maxConcurrency,
+	t.Run("Should recover a failing parallel task and resume dependent execution", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		enabled := true
+		maxConcurrency := 2
+		maxAttempts := 1
+		attempts := newTaskExecutionAttempts()
+		strategy := &daemonFakeRecoveryStrategy{
+			verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed task 3"}},
+		}
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID:       taskParallelRecoveryRunIDBuilder("task-parallel-recovered"),
+			recoveryStrategy: strategy,
+			loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+				return workspacecfg.ProjectConfig{
+					Recovery: workspacecfg.AgentRecoveryConfig{Enabled: &enabled, MaxAttempts: &maxAttempts},
+					Tasks: workspacecfg.TasksConfig{
+						Run: workspacecfg.TaskRunConfig{
+							Parallel: workspacecfg.ParallelTasksConfig{
+								Enabled:        &enabled,
+								MaxConcurrency: &maxConcurrency,
+							},
 						},
 					},
-				},
-			}, nil
-		},
-		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
-			return &model.SolvePreparation{}, nil
-		},
-		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			taskNumber, err := requireTargetTaskNumber(cfg)
-			if err != nil {
-				return err
-			}
-			attempt := attempts.next(taskNumber)
-			if taskNumber == 3 && attempt == 1 {
-				if err := writeDaemonTaskResultFixture(cfg, "failed", 1, "task 3 failed"); err != nil {
+				}, nil
+			},
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				taskNumber, err := requireTargetTaskNumber(cfg)
+				if err != nil {
 					return err
 				}
-				return errors.New("task 3 failed")
-			}
-			if err := writeTaskOutput(cfg, taskNumber); err != nil {
-				return err
-			}
-			return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
-		},
-	})
-	writeFiveTaskParallelWorkflow(t, env, map[int][]string{
-		2: {"task_01"},
-		3: {"task_01"},
-		4: {"task_02", "task_03"},
-		5: {"task_04"},
-	})
-	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
-	baseHead := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
+				attempt := attempts.next(taskNumber)
+				if taskNumber == 3 && attempt == 1 {
+					if err := writeDaemonTaskResultFixture(cfg, "failed", 1, "task 3 failed"); err != nil {
+						return err
+					}
+					return errors.New("task 3 failed")
+				}
+				if err := writeTaskOutput(cfg, taskNumber); err != nil {
+					return err
+				}
+				return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
+			},
+		})
+		writeFiveTaskParallelWorkflow(t, env, map[int][]string{
+			2: {"task_01"},
+			3: {"task_01"},
+			4: {"task_02", "task_03"},
+			5: {"task_04"},
+		})
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+		baseHead := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
 
-	run, err := env.manager.StartTaskRun(
-		context.Background(),
-		env.workspaceRoot,
-		env.workflowSlug,
-		apicore.TaskRunRequest{
-			Workspace:        env.workspaceRoot,
-			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-recovered"}`),
-		},
-	)
-	if err != nil {
-		t.Fatalf("StartTaskRun(parallel recovery) error = %v", err)
-	}
-	parent := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return isTerminalRunStatus(row.Status)
-	})
-	if parent.Status != runStatusCompleted {
-		t.Fatalf("parent status = %q error=%q, want completed", parent.Status, parent.ErrorText)
-	}
-	if got := strategy.callCount(); got != 1 {
-		t.Fatalf("recovery strategy calls = %d, want 1", got)
-	}
-	if got := attempts.count(3); got != 2 {
-		t.Fatalf("task 3 execute attempts = %d, want initial + recovery restart", got)
-	}
-	for taskNumber := 1; taskNumber <= 5; taskNumber++ {
-		outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
-		if _, err := os.Stat(outputPath); err != nil {
-			t.Fatalf("output file %s missing after recovered parallel run: %v", outputPath, err)
+		run, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-recovered"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("StartTaskRun(parallel recovery) error = %v", err)
 		}
-	}
-	logSubjects := strings.Split(
-		runGitOutput(t, env.workspaceRoot, "log", "--reverse", "--format=%s", baseHead+"..HEAD"),
-		"\n",
-	)
-	wantSubjects := []string{
-		"task 01: Task 1",
-		"task 02: Task 2",
-		"task 03: Task 3",
-		"task 04: Task 4",
-		"task 05: Task 5",
-	}
-	if !reflect.DeepEqual(logSubjects, wantSubjects) {
-		t.Fatalf("squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
-	}
+		parent := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if parent.Status != runStatusCompleted {
+			t.Fatalf("parent status = %q error=%q, want completed", parent.Status, parent.ErrorText)
+		}
+		if got := strategy.callCount(); got != 1 {
+			t.Fatalf("recovery strategy calls = %d, want 1", got)
+		}
+		if got := attempts.count(3); got != 2 {
+			t.Fatalf("task 3 execute attempts = %d, want initial + recovery restart", got)
+		}
+		for taskNumber := 1; taskNumber <= 5; taskNumber++ {
+			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
+			if _, err := os.Stat(outputPath); err != nil {
+				t.Fatalf("output file %s missing after recovered parallel run: %v", outputPath, err)
+			}
+		}
+		logSubjects := strings.Split(
+			runGitOutput(t, env.workspaceRoot, "log", "--reverse", "--format=%s", baseHead+"..HEAD"),
+			"\n",
+		)
+		wantSubjects := []string{
+			"task 01: Task 1",
+			"task 02: Task 2",
+			"task 03: Task 3",
+			"task 04: Task 4",
+			"task 05: Task 5",
+		}
+		if !reflect.DeepEqual(logSubjects, wantSubjects) {
+			t.Fatalf("squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
+		}
+	})
 }
 
 func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing.T) {
 	t.Parallel()
-	requireGitForTaskMulti(t)
-	enabled := true
-	maxConcurrency := 3
-	maxAttempts := 1
-	attempts := newTaskExecutionAttempts()
-	strategy := &daemonFakeRecoveryStrategy{
-		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictReject, Reason: "cannot fix"}},
-	}
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		buildRunID:       taskParallelRecoveryRunIDBuilder("task-parallel-unrecoverable"),
-		recoveryStrategy: strategy,
-		loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
-			return workspacecfg.ProjectConfig{
-				Recovery: workspacecfg.AgentRecoveryConfig{Enabled: &enabled, MaxAttempts: &maxAttempts},
-				Tasks: workspacecfg.TasksConfig{
-					Run: workspacecfg.TaskRunConfig{
-						Parallel: workspacecfg.ParallelTasksConfig{
-							Enabled:        &enabled,
-							MaxConcurrency: &maxConcurrency,
+	t.Run("Should skip blocked dependents after an unrecoverable parallel task failure", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		enabled := true
+		maxConcurrency := 3
+		maxAttempts := 1
+		attempts := newTaskExecutionAttempts()
+		strategy := &daemonFakeRecoveryStrategy{
+			verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictReject, Reason: "cannot fix"}},
+		}
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID:       taskParallelRecoveryRunIDBuilder("task-parallel-unrecoverable"),
+			recoveryStrategy: strategy,
+			loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+				return workspacecfg.ProjectConfig{
+					Recovery: workspacecfg.AgentRecoveryConfig{Enabled: &enabled, MaxAttempts: &maxAttempts},
+					Tasks: workspacecfg.TasksConfig{
+						Run: workspacecfg.TaskRunConfig{
+							Parallel: workspacecfg.ParallelTasksConfig{
+								Enabled:        &enabled,
+								MaxConcurrency: &maxConcurrency,
+							},
 						},
 					},
-				},
-			}, nil
-		},
-		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
-			return &model.SolvePreparation{}, nil
-		},
-		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			taskNumber, err := requireTargetTaskNumber(cfg)
-			if err != nil {
-				return err
-			}
-			attempts.next(taskNumber)
-			if taskNumber == 3 {
-				if err := writeDaemonTaskResultFixture(cfg, "failed", 1, "task 3 failed"); err != nil {
+				}, nil
+			},
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				taskNumber, err := requireTargetTaskNumber(cfg)
+				if err != nil {
 					return err
 				}
-				return errors.New("task 3 failed")
-			}
-			if err := writeTaskOutput(cfg, taskNumber); err != nil {
-				return err
-			}
-			return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
-		},
-	})
-	writeFiveTaskParallelWorkflow(t, env, map[int][]string{
-		4: {"task_03"},
-		5: {"task_04"},
-	})
-	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
-	baseHead := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
+				attempts.next(taskNumber)
+				if taskNumber == 3 {
+					if err := writeDaemonTaskResultFixture(cfg, "failed", 1, "task 3 failed"); err != nil {
+						return err
+					}
+					return errors.New("task 3 failed")
+				}
+				if err := writeTaskOutput(cfg, taskNumber); err != nil {
+					return err
+				}
+				return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
+			},
+		})
+		writeFiveTaskParallelWorkflow(t, env, map[int][]string{
+			4: {"task_03"},
+			5: {"task_04"},
+		})
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+		baseHead := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
 
-	run, err := env.manager.StartTaskRun(
-		context.Background(),
-		env.workspaceRoot,
-		env.workflowSlug,
-		apicore.TaskRunRequest{
-			Workspace:        env.workspaceRoot,
-			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-unrecoverable"}`),
-		},
-	)
-	if err != nil {
-		t.Fatalf("StartTaskRun(parallel recovery skip) error = %v", err)
-	}
-	parent := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
-		return isTerminalRunStatus(row.Status)
+		run, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-unrecoverable"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("StartTaskRun(parallel recovery skip) error = %v", err)
+		}
+		parent := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if parent.Status != runStatusCompleted {
+			t.Fatalf("parent status = %q error=%q, want completed partial success", parent.Status, parent.ErrorText)
+		}
+		if got := strategy.callCount(); got != 1 {
+			t.Fatalf("recovery strategy calls = %d, want 1", got)
+		}
+		if got := attempts.count(4); got != 0 {
+			t.Fatalf("task 4 attempts = %d, want skipped", got)
+		}
+		if got := attempts.count(5); got != 0 {
+			t.Fatalf("task 5 attempts = %d, want skipped", got)
+		}
+		for _, taskNumber := range []int{1, 2} {
+			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
+			if _, err := os.Stat(outputPath); err != nil {
+				t.Fatalf("output file %s missing after partial finalize: %v", outputPath, err)
+			}
+		}
+		for _, taskNumber := range []int{3, 4, 5} {
+			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
+			if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("output file %s stat error = %v, want not exist", outputPath, err)
+			}
+		}
+		logSubjects := strings.Split(
+			runGitOutput(t, env.workspaceRoot, "log", "--reverse", "--format=%s", baseHead+"..HEAD"),
+			"\n",
+		)
+		wantSubjects := []string{"task 01: Task 1", "task 02: Task 2"}
+		if !reflect.DeepEqual(logSubjects, wantSubjects) {
+			t.Fatalf("partial squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
+		}
+		if _, err := env.globalDB.GetRun(context.Background(), "child-daemon-workflow-task-04"); err == nil {
+			t.Fatal("task 4 child run exists, want skipped before launch")
+		}
+		if _, err := env.globalDB.GetRun(context.Background(), "child-daemon-workflow-task-05"); err == nil {
+			t.Fatal("task 5 child run exists, want skipped before launch")
+		}
 	})
-	if parent.Status != runStatusCompleted {
-		t.Fatalf("parent status = %q error=%q, want completed partial success", parent.Status, parent.ErrorText)
-	}
-	if got := strategy.callCount(); got != 1 {
-		t.Fatalf("recovery strategy calls = %d, want 1", got)
-	}
-	if got := attempts.count(4); got != 0 {
-		t.Fatalf("task 4 attempts = %d, want skipped", got)
-	}
-	if got := attempts.count(5); got != 0 {
-		t.Fatalf("task 5 attempts = %d, want skipped", got)
-	}
-	for _, taskNumber := range []int{1, 2} {
-		outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
-		if _, err := os.Stat(outputPath); err != nil {
-			t.Fatalf("output file %s missing after partial finalize: %v", outputPath, err)
-		}
-	}
-	for _, taskNumber := range []int{3, 4, 5} {
-		outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
-		if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("output file %s stat error = %v, want not exist", outputPath, err)
-		}
-	}
-	logSubjects := strings.Split(
-		runGitOutput(t, env.workspaceRoot, "log", "--reverse", "--format=%s", baseHead+"..HEAD"),
-		"\n",
-	)
-	wantSubjects := []string{"task 01: Task 1", "task 02: Task 2"}
-	if !reflect.DeepEqual(logSubjects, wantSubjects) {
-		t.Fatalf("partial squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
-	}
-	if _, err := env.globalDB.GetRun(context.Background(), "child-daemon-workflow-task-04"); err == nil {
-		t.Fatal("task 4 child run exists, want skipped before launch")
-	}
-	if _, err := env.globalDB.GetRun(context.Background(), "child-daemon-workflow-task-05"); err == nil {
-		t.Fatal("task 5 child run exists, want skipped before launch")
-	}
 }
 
 func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 
-	enabled := false
-	maxConcurrency := 6
-	projectResolverEnabled := false
-	projectResolverIDE := "claude"
-	projectResolverModel := "sonnet"
-	projectResolverReasoning := "medium"
-	projectResolverAttempts := 1
-	overrideEnabled := true
-	overrideResolverModel := "gpt-5.5"
-	overrideResolverReasoning := "high"
+	t.Run("Should merge runtime overrides onto the project parallel-task config", func(t *testing.T) {
+		enabled := false
+		maxConcurrency := 6
+		projectResolverEnabled := false
+		projectResolverIDE := "claude"
+		projectResolverModel := "sonnet"
+		projectResolverReasoning := "medium"
+		projectResolverAttempts := 1
+		overrideEnabled := true
+		overrideResolverModel := "gpt-5.5"
+		overrideResolverReasoning := "high"
 
-	cfg, err := resolveDaemonParallelTasksConfig(
-		workspacecfg.ProjectConfig{
-			Tasks: workspacecfg.TasksConfig{
-				Run: workspacecfg.TaskRunConfig{
-					Parallel: workspacecfg.ParallelTasksConfig{
-						Enabled:        &enabled,
-						MaxConcurrency: &maxConcurrency,
-						ConflictResolver: &workspacecfg.AgentRecoveryConfig{
-							Enabled:         &projectResolverEnabled,
-							IDE:             &projectResolverIDE,
-							Model:           &projectResolverModel,
-							ReasoningEffort: &projectResolverReasoning,
-							MaxAttempts:     &projectResolverAttempts,
+		cfg, err := resolveDaemonParallelTasksConfig(
+			workspacecfg.ProjectConfig{
+				Tasks: workspacecfg.TasksConfig{
+					Run: workspacecfg.TaskRunConfig{
+						Parallel: workspacecfg.ParallelTasksConfig{
+							Enabled:        &enabled,
+							MaxConcurrency: &maxConcurrency,
+							ConflictResolver: &workspacecfg.AgentRecoveryConfig{
+								Enabled:         &projectResolverEnabled,
+								IDE:             &projectResolverIDE,
+								Model:           &projectResolverModel,
+								ReasoningEffort: &projectResolverReasoning,
+								MaxAttempts:     &projectResolverAttempts,
+							},
 						},
 					},
 				},
 			},
-		},
-		runtimeOverrideInput{
-			ParallelTasks: &workspacecfg.ParallelTasksConfig{
-				Enabled: &overrideEnabled,
-				ConflictResolver: &workspacecfg.AgentRecoveryConfig{
-					Model:           &overrideResolverModel,
-					ReasoningEffort: &overrideResolverReasoning,
+			runtimeOverrideInput{
+				ParallelTasks: &workspacecfg.ParallelTasksConfig{
+					Enabled: &overrideEnabled,
+					ConflictResolver: &workspacecfg.AgentRecoveryConfig{
+						Model:           &overrideResolverModel,
+						ReasoningEffort: &overrideResolverReasoning,
+					},
 				},
 			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("resolveDaemonParallelTasksConfig() error = %v", err)
-	}
-	if cfg.Enabled == nil || !*cfg.Enabled {
-		t.Fatalf("parallel enabled = %#v, want true", cfg.Enabled)
-	}
-	if cfg.MaxConcurrency == nil || *cfg.MaxConcurrency != 6 {
-		t.Fatalf("max concurrency = %#v, want 6", cfg.MaxConcurrency)
-	}
-	resolver := cfg.ConflictResolver
-	if resolver == nil ||
-		resolver.Enabled == nil ||
-		*resolver.Enabled ||
-		resolver.IDE == nil ||
-		*resolver.IDE != "claude" ||
-		resolver.Model == nil ||
-		*resolver.Model != "gpt-5.5" ||
-		resolver.ReasoningEffort == nil ||
-		*resolver.ReasoningEffort != "high" ||
-		resolver.MaxAttempts == nil ||
-		*resolver.MaxAttempts != 1 {
-		t.Fatalf("merged resolver = %#v", resolver)
-	}
+		)
+		if err != nil {
+			t.Fatalf("resolveDaemonParallelTasksConfig() error = %v", err)
+		}
+		if cfg.Enabled == nil || !*cfg.Enabled {
+			t.Fatalf("parallel enabled = %#v, want true", cfg.Enabled)
+		}
+		if cfg.MaxConcurrency == nil || *cfg.MaxConcurrency != 6 {
+			t.Fatalf("max concurrency = %#v, want 6", cfg.MaxConcurrency)
+		}
+		resolver := cfg.ConflictResolver
+		if resolver == nil ||
+			resolver.Enabled == nil ||
+			*resolver.Enabled ||
+			resolver.IDE == nil ||
+			*resolver.IDE != "claude" ||
+			resolver.Model == nil ||
+			*resolver.Model != "gpt-5.5" ||
+			resolver.ReasoningEffort == nil ||
+			*resolver.ReasoningEffort != "high" ||
+			resolver.MaxAttempts == nil ||
+			*resolver.MaxAttempts != 1 {
+			t.Fatalf("merged resolver = %#v", resolver)
+		}
+	})
 }
 
 func TestBuildDaemonParallelTaskPlanRejectsDuplicateTaskNumbersInRecursiveMode(t *testing.T) {

@@ -1390,7 +1390,16 @@ func (m *RunManager) startTaskWorktreeChild(
 			err,
 		)
 	}
-	return m.startTaskWorktreeChildInAllocation(active, prepared, item, targetTaskNumber, allocation)
+	child, err := m.startTaskWorktreeChildInAllocation(active, prepared, item, targetTaskNumber, allocation)
+	if err != nil {
+		cleanupErr := m.worktreeAllocator.Remove(
+			detachContext(active.ctx),
+			prepared.workspace.RootDir,
+			allocation.Path,
+		)
+		return taskWorktreeChildRun{}, errors.Join(err, cleanupErr)
+	}
+	return child, nil
 }
 
 func (m *RunManager) startTaskWorktreeChildInAllocation(
