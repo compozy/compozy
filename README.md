@@ -118,7 +118,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 
 - `compozy daemon start|status|stop` manages the home-scoped daemon lifecycle. `daemon start` is idempotent, and task/review/exec commands auto-start the daemon when needed.
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
-- `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
+- `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior. Add `--parallel-tasks` to opt into dependency-aware parallel execution for task files inside one workflow.
 - `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation. Add `--parallel` to run the batch concurrently — each child runs in its own isolated git worktree, bounded by `--parallel-limit` (default `2`).
 - Independent `compozy tasks run` invocations from different workspaces run concurrently on the shared home-scoped daemon. When another workspace already has an active run, the CLI prints a warning with the busy workspace and run ID before starting the new run.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
@@ -179,8 +179,25 @@ include_completed = false
 run_multiple_mode = "enqueued"
 run_multiple_parallel_limit = 2
 
+[tasks.run.parallel]
+enabled = false
+max_concurrency = 4
+
+[tasks.run.parallel.conflict_resolver]
+ide = "codex"
+model = "gpt-5.5"
+reasoning_effort = "medium"
+max_attempts = 1
+
 [exec]
 output_format = "text"
+
+[recovery]
+enabled = false
+ide = "codex"
+model = "gpt-5.5"
+reasoning_effort = "medium"
+max_attempts = 1
 
 [fix_reviews]
 concurrent = 2
@@ -198,8 +215,10 @@ Supported sections:
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
+- `[tasks.run.parallel]` for dependency-aware parallel execution inside one PRD task workflow, including `enabled`, `max_concurrency`, and the conflict-resolver agent under `[tasks.run.parallel.conflict_resolver]`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
+- `[recovery]` for agentic recovery defaults used by run-producing commands: `enabled`, `ide`, `model`, `reasoning_effort`, and `max_attempts`
 - `[sound]` for optional run-completion audio presets or absolute file paths
 
 Notes:
@@ -211,9 +230,13 @@ Notes:
 - `[tasks.run] run_multiple_mode` controls `tasks run --multiple` scheduling. Valid values are `"enqueued"` and `"parallel"`; when unset, the built-in default is `"enqueued"`.
 - `run_multiple_mode = "parallel"` runs the batch concurrently, with each child in its own isolated git worktree. The CLI `--parallel` flag overrides this config value for a single invocation.
 - `[tasks.run] run_multiple_parallel_limit` caps how many children run at once in parallel mode. It must be a positive integer and defaults to `2`. The CLI `--parallel-limit <n>` flag overrides it for a single invocation. The limit has no effect in enqueued mode, which always runs one child at a time.
+- `[tasks.run.parallel] enabled = true` runs pending task files in one workflow by dependency waves. The CLI `--parallel-tasks` flag overrides this config value for a single invocation.
+- `[tasks.run.parallel] max_concurrency` caps concurrent task worktrees within a wave and defaults to `4`. The conflict resolver reuses the recovery-agent shape (`ide`, `model`, `reasoning_effort`, `max_attempts`) for bounded merge-conflict resolution.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
+- Recovery is disabled by default. When enabled, `max_attempts` is the number of remediation plus restart cycles and must be between `1` and `3`.
+- Recovery config is resolved fresh for each invocation and is not persisted into run or exec metadata. Use `--recovery`, `--no-recovery`, `--recovery-ide`, `--recovery-model`, `--recovery-reasoning`, and `--recovery-max-attempts` to override `[recovery]` for one command.
 
 ## Reusable Agents
 
@@ -402,6 +425,7 @@ Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`
 
 ```bash
 compozy tasks run user-auth --ide claude
+compozy tasks run user-auth --parallel-tasks
 compozy tasks run --multiple user-auth,cleanup --ide claude
 compozy tasks run --multiple user-auth,cleanup --parallel --parallel-limit 2
 ```
@@ -616,25 +640,38 @@ compozy tasks run <slug> [flags]
 
 The CLI resolves workspace defaults locally, validates the task metadata, auto-starts the daemon when needed, and then starts the workflow through the daemon transport.
 
-| Flag                  | Default | Description                                                                                      |
-| --------------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `--name`              |         | Workflow slug (defaults to the positional slug)                                                  |
-| `--multiple`          |         | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
-| `--parallel`          | `false` | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
-| `--parallel-limit`    | `2`     | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
-| `--include-completed` | `false` | Re-run completed tasks                                                                           |
-| `--recursive`, `-r`   | `false` | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
-| `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere                     |
-| `--force`             | `false` | Continue after task metadata validation fails in non-interactive mode                            |
-| `--attach`            | `auto`  | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
-| `--ui`                | `false` | Force interactive TUI attach mode                                                                |
-| `--stream`            | `false` | Force textual stream attach mode                                                                 |
-| `--detach`            | `false` | Start the run without attaching a client                                                         |
-| `--task-runtime`      |         | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
+| Flag                      | Default   | Description                                                                                      |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
+| `--name`                  |           | Workflow slug (defaults to the positional slug)                                                  |
+| `--multiple`              |           | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
+| `--parallel`              | `false`   | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
+| `--parallel-limit`        | `2`       | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
+| `--parallel-tasks`        | `false`   | Run task files inside one PRD workflow in dependency-aware parallel mode                         |
+| `--include-completed`     | `false`   | Re-run completed tasks                                                                           |
+| `--recursive`, `-r`       | `false`   | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
+| `--skip-validation`       | `false`   | Skip task metadata preflight; use only when validation already ran elsewhere                     |
+| `--force`                 | `false`   | Continue after task metadata validation fails in non-interactive mode                            |
+| `--attach`                | `auto`    | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
+| `--ui`                    | `false`   | Force interactive TUI attach mode                                                                |
+| `--stream`                | `false`   | Force textual stream attach mode                                                                 |
+| `--detach`                | `false`   | Start the run without attaching a client                                                         |
+| `--task-runtime`          |           | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
+| `--recovery`              | `false`   | Enable agentic recovery for failed runs                                                          |
+| `--no-recovery`           | `false`   | Disable agentic recovery for this invocation                                                     |
+| `--recovery-ide`          | `codex`   | Runtime used by the recovery agent                                                               |
+| `--recovery-model`        | `gpt-5.5` | Model used by the recovery agent                                                                 |
+| `--recovery-reasoning`    | `medium`  | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                             |
+| `--recovery-max-attempts` | `1`       | Recovery remediation plus restart cycles; must be between `1` and `3`                            |
 
 When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
 Use `tasks run --multiple` when you want to start several task workflows from one invocation with the same runtime flags. Use `tasks run <slug>` when you only need one workflow run, when a script expects a single workflow slug, or when you want the existing single-run command path.
+
+For one workflow, `--parallel-tasks` executes pending task files in dependency waves using isolated worktrees, bounded by `[tasks.run.parallel] max_concurrency`:
+
+```bash
+compozy tasks run my-feature --parallel-tasks
+```
 
 The `--multiple` flag takes one comma-separated slug list:
 
@@ -686,7 +723,7 @@ Cross-workspace runs are different from `--multiple` scheduling: the home-scoped
 
 In the TUI, every requested slug has a tab. Queued tabs appear before their child run exists, the running tab shows the familiar task-run surface, and completed, failed, or canceled tabs remain available for inspection. The quit dialog applies to the parent queue: `Close TUI` detaches and leaves the queue running in the daemon, `Stop Run` cancels the parent queue, cancels the active child, and marks queued workflows canceled, and `Cancel` returns to the TUI without changing execution.
 
-The multi-run path uses the same attach and runtime flags as single-run `tasks run`, except `--multiple` cannot be combined with a positional slug or `--name`.
+The multi-run path uses the same attach and runtime flags as single-run `tasks run`, except `--multiple` cannot be combined with a positional slug, `--name`, or `--parallel-tasks`.
 
 </details>
 
@@ -753,6 +790,12 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
 | `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
+| `--recovery`                 | `false`     | Enable agentic recovery for failed exec runs                                               |
+| `--no-recovery`              | `false`     | Disable agentic recovery for this invocation                                               |
+| `--recovery-ide`             | `codex`     | Runtime used by the recovery agent                                                         |
+| `--recovery-model`           | `gpt-5.5`   | Model used by the recovery agent                                                           |
+| `--recovery-reasoning`       | `medium`    | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                       |
+| `--recovery-max-attempts`    | `1`         | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
 | `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
