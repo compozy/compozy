@@ -1,3 +1,9 @@
+## 0.2.11 - 2026-06-19
+
+### 📚 Documentation
+
+- Update skills
+
 ## 0.2.10 - 2026-06-18
 
 ### ♻️  Refactoring
