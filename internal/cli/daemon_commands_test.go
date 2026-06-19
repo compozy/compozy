@@ -1154,6 +1154,47 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 	return payload
 }
 
+func TestBuildTaskRunRuntimeOverridesParallelTasks(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	cmd := newTaskRunFlagCommandForTest(t, state)
+	if err := cmd.Flags().Set(taskRunParallelTasksFlag, "true"); err != nil {
+		t.Fatalf("set --parallel-tasks: %v", err)
+	}
+	for flag, value := range map[string]string{
+		taskRunParallelConflictResolverIDEFlag:       "codex",
+		taskRunParallelConflictResolverModelFlag:     "gpt-5.5",
+		taskRunParallelConflictResolverReasoningFlag: "high",
+	} {
+		if err := cmd.Flags().Set(flag, value); err != nil {
+			t.Fatalf("set --%s: %v", flag, err)
+		}
+	}
+
+	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
+	if err != nil {
+		t.Fatalf("buildTaskRunRuntimeOverrides() error = %v", err)
+	}
+	overrides := decodeTaskRunOverrides(t, raw)
+	if overrides.ParallelTasks == nil {
+		t.Fatal("expected parallel_tasks override")
+	}
+	if overrides.ParallelTasks.Enabled == nil || !*overrides.ParallelTasks.Enabled {
+		t.Fatalf("parallel_tasks.enabled = %#v, want true", overrides.ParallelTasks.Enabled)
+	}
+	resolver := overrides.ParallelTasks.ConflictResolver
+	if resolver == nil ||
+		resolver.IDE == nil ||
+		*resolver.IDE != "codex" ||
+		resolver.Model == nil ||
+		*resolver.Model != "gpt-5.5" ||
+		resolver.ReasoningEffort == nil ||
+		*resolver.ReasoningEffort != "high" {
+		t.Fatalf("parallel conflict resolver override = %#v", resolver)
+	}
+}
+
 func newTaskRunFlagCommandForTest(t *testing.T, state *commandState) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "run"}
@@ -1259,6 +1300,23 @@ func TestResolveTaskRunMultipleMode(t *testing.T) {
 		_, err := state.resolveTaskRunMultipleMode(&cobra.Command{})
 		if err == nil || !strings.Contains(err.Error(), "tasks.run.run_multiple_mode") {
 			t.Fatalf("expected invalid mode error, got %v", err)
+		}
+	})
+
+	t.Run("Should not treat --parallel-tasks as slug multi-run parallel mode", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set(taskRunParallelTasksFlag, "true"); err != nil {
+			t.Fatalf("set --parallel-tasks: %v", err)
+		}
+		mode, err := state.resolveTaskRunMultipleMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleMode() error = %v", err)
+		}
+		if mode != workspacecfg.TaskRunMultipleModeEnqueued {
+			t.Fatalf("mode = %q, want enqueued", mode)
 		}
 	})
 }
@@ -3662,6 +3720,50 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	}
 	if taskRuntimeRule.Model == nil || *taskRuntimeRule.Model != "codex-fast" {
 		t.Fatalf("expected task-runtime model override, got %#v", taskRuntimeRule)
+	}
+}
+
+func TestBuildTaskRunRuntimeOverridesIncludesRecoveryFlags(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, "")
+	cmd := newTaskRunPresentationCommand(state)
+	addCommonFlags(cmd, state, commonFlagOptions{})
+
+	mustSetFlag := func(name string, value string) {
+		t.Helper()
+		if err := cmd.Flags().Set(name, value); err != nil {
+			t.Fatalf("set %s: %v", name, err)
+		}
+	}
+	mustSetFlag("recovery", "true")
+	mustSetFlag("recovery-ide", "codex")
+	mustSetFlag("recovery-model", "gpt-5.5")
+	mustSetFlag("recovery-reasoning", "high")
+	mustSetFlag("recovery-max-attempts", "2")
+
+	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
+	if err != nil {
+		t.Fatalf("buildTaskRunRuntimeOverrides: %v", err)
+	}
+	overrides := decodeTaskRunOverrides(t, raw)
+	if overrides.Recovery == nil {
+		t.Fatalf("expected recovery override, got %#v", overrides)
+	}
+	if overrides.Recovery.Enabled == nil || !*overrides.Recovery.Enabled {
+		t.Fatalf("expected recovery enabled override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.IDE == nil || *overrides.Recovery.IDE != "codex" {
+		t.Fatalf("expected recovery ide override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.Model == nil || *overrides.Recovery.Model != "gpt-5.5" {
+		t.Fatalf("expected recovery model override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.ReasoningEffort == nil || *overrides.Recovery.ReasoningEffort != "high" {
+		t.Fatalf("expected recovery reasoning override, got %#v", overrides.Recovery)
+	}
+	if overrides.Recovery.MaxAttempts == nil || *overrides.Recovery.MaxAttempts != 2 {
+		t.Fatalf("expected recovery max attempts override, got %#v", overrides.Recovery)
 	}
 }
 

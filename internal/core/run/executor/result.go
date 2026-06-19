@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	executionResultSchemaVersion = 1
+
 	runStatusSucceeded = "succeeded"
 	runStatusFailed    = "failed"
 	runStatusCanceled  = "canceled"
@@ -18,6 +20,7 @@ const (
 )
 
 type executionResult struct {
+	SchemaVersion int                `json:"schema_version"`
 	RunID         string             `json:"run_id"`
 	Mode          string             `json:"mode"`
 	Status        string             `json:"status"`
@@ -50,16 +53,17 @@ type executionJobInfo struct {
 
 func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdownErr error) executionResult {
 	result := executionResult{
-		RunID:        cfg.RunArtifacts.RunID,
-		Mode:         string(cfg.Mode),
-		Status:       deriveRunStatus(jobs, failures),
-		IDE:          cfg.IDE,
-		Model:        cfg.Model,
-		OutputFormat: string(cfg.OutputFormat),
-		ArtifactsDir: cfg.RunArtifacts.RunDir,
-		RunMetaPath:  cfg.RunArtifacts.RunMetaPath,
-		ResultPath:   cfg.RunArtifacts.ResultPath,
-		Jobs:         make([]executionJobInfo, 0, len(jobs)),
+		SchemaVersion: executionResultSchemaVersion,
+		RunID:         cfg.RunArtifacts.RunID,
+		Mode:          string(cfg.Mode),
+		Status:        deriveRunStatus(jobs, failures),
+		IDE:           cfg.IDE,
+		Model:         cfg.Model,
+		OutputFormat:  string(cfg.OutputFormat),
+		ArtifactsDir:  cfg.RunArtifacts.RunDir,
+		RunMetaPath:   cfg.RunArtifacts.RunMetaPath,
+		ResultPath:    cfg.RunArtifacts.ResultPath,
+		Jobs:          make([]executionJobInfo, 0, len(jobs)),
 	}
 	for idx := range jobs {
 		item := &jobs[idx]
@@ -117,6 +121,9 @@ func jobStatusOrDefault(status string) string {
 func emitExecutionResult(cfg *config, result executionResult) error {
 	if cfg == nil {
 		return nil
+	}
+	if result.SchemaVersion == 0 {
+		result.SchemaVersion = executionResultSchemaVersion
 	}
 
 	payload, err := json.MarshalIndent(result, "", "  ")

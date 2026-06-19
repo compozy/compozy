@@ -152,6 +152,17 @@ func (s *RunScope) RunJournal() *journal.Journal {
 	return s.Journal
 }
 
+// SetRunJournal replaces the journal owned by the scope and its extension manager.
+func (s *RunScope) SetRunJournal(runJournal *journal.Journal) {
+	if s == nil {
+		return
+	}
+	s.Journal = runJournal
+	if s.Manager != nil {
+		s.Manager.setRunJournal(runJournal)
+	}
+}
+
 // RunEventBus reports the run-scoped event bus.
 func (s *RunScope) RunEventBus() *events.Bus[events.Event] {
 	if s == nil {
@@ -364,6 +375,21 @@ func newManagerForExtensions(cfg managerConfig, extensions []*RuntimeExtension) 
 	}
 
 	return manager, nil
+}
+
+func (m *Manager) setRunJournal(runJournal *journal.Journal) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.journal = runJournal
+	if m.audit != nil {
+		m.audit.journal = runJournal
+	}
+	if m.hostAPI != nil {
+		m.hostAPI.setRunJournal(runJournal)
+	}
 }
 
 func (m *Manager) waitForObservers(ctx context.Context) error {

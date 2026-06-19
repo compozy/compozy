@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/run"
+	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
@@ -133,6 +134,7 @@ type Config struct {
 	Timeout                    time.Duration
 	MaxRetries                 int
 	RetryBackoffMultiplier     float64
+	Recovery                   workspacecfg.AgentRecoveryConfig
 	SoundEnabled               bool
 	SoundOnCompleted           string
 	SoundOnFailed              string
@@ -183,6 +185,9 @@ type ArchiveResult = model.ArchiveResult
 func (cfg Config) Validate() error {
 	if cfg.TailLines < 0 {
 		return errors.New("tail-lines must be 0 or greater")
+	}
+	if err := workspacecfg.ValidateAgentRecoveryConfig("core config", cfg.Recovery); err != nil {
+		return err
 	}
 	runtimeCfg := cfg.runtime()
 	return agent.ValidateRuntimeConfig(runtimeCfg)

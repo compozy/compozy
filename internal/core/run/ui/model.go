@@ -57,6 +57,7 @@ type uiModel struct {
 	sidebarDirty                 bool
 	sidebarContent               string
 	spinnerRunning               bool
+	parallel                     *parallelView
 	timelineMounted              timelineMountState
 	setTranscriptViewportContent func(vp *viewport.Model, content string)
 	setSidebarViewportContent    func(vp *viewport.Model, content string)
@@ -702,7 +703,14 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindSessionUpdate,
 			events.EventKindShutdownRequested,
 			events.EventKindShutdownDraining,
-			events.EventKindShutdownTerminated:
+			events.EventKindShutdownTerminated,
+			events.EventKindTaskParallelWaveStarted,
+			events.EventKindTaskParallelWaveCompleted,
+			events.EventKindTaskParallelMergeStarted,
+			events.EventKindTaskParallelConflictDetected,
+			events.EventKindTaskParallelConflictResolving,
+			events.EventKindTaskParallelMerged,
+			events.EventKindTaskParallelRolledBack:
 			return true
 		default:
 			return false
@@ -802,7 +810,82 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 	if msg, ok := t.translateUsageEvent(ev); ok {
 		return msg, true
 	}
+	if msg, ok := translateParallelEvent(ev); ok {
+		return msg, true
+	}
 	return translateShutdownEvent(ev)
+}
+
+func translateParallelEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
+	case events.EventKindTaskParallelWaveStarted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelWaveStartedMsg{
+			WaveIndex:         payload.WaveIndex,
+			WaveTotal:         payload.WaveTotal,
+			TaskID:            payload.TaskID,
+			IntegrationBranch: payload.IntegrationBranch,
+		}, true
+	case events.EventKindTaskParallelMergeStarted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelMergeStartedMsg{
+			WaveIndex:         payload.WaveIndex,
+			WaveTotal:         payload.WaveTotal,
+			IntegrationBranch: payload.IntegrationBranch,
+		}, true
+	case events.EventKindTaskParallelConflictDetected:
+		return parallelConflictFromPayload(ev, false)
+	case events.EventKindTaskParallelConflictResolving:
+		return parallelConflictFromPayload(ev, true)
+	case events.EventKindTaskParallelMerged:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelMergedMsg{
+			WaveIndex: payload.WaveIndex,
+			TaskID:    payload.TaskID,
+			Status:    payload.Status,
+		}, true
+	case events.EventKindTaskParallelWaveCompleted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelWaveCompletedMsg{WaveIndex: payload.WaveIndex, WaveTotal: payload.WaveTotal}, true
+	case events.EventKindTaskParallelRolledBack:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelRolledBackMsg{
+			WaveIndex:         payload.WaveIndex,
+			IntegrationBranch: payload.IntegrationBranch,
+		}, true
+	default:
+		return nil, false
+	}
+}
+
+func parallelConflictFromPayload(ev events.Event, resolving bool) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return parallelConflictMsg{
+		WaveIndex:   payload.WaveIndex,
+		TaskID:      payload.TaskID,
+		Files:       append([]string(nil), payload.ConflictFiles...),
+		Attempt:     payload.Attempt,
+		MaxAttempts: payload.MaxAttempts,
+		Resolving:   resolving,
+	}, true
 }
 
 func translateRunEvent(ev events.Event) (uiMsg, bool) {

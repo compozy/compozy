@@ -39,7 +39,6 @@ func ExecuteJobWithTimeout(
 	if timeout > 0 {
 		activity = newActivityMonitor()
 		attemptCtx, cancel = context.WithCancelCause(ctx)
-		stopActivityWatchdog = StartACPActivityWatchdog(attemptCtx, activity, timeout, cancel)
 	}
 	defer func() {
 		stopActivityWatchdog()
@@ -58,20 +57,26 @@ func ExecuteJobWithTimeout(
 		AggregateUsage:    aggregateUsage,
 		AggregateMu:       aggregateMu,
 		Activity:          activity,
+		InitTimeout:       ResolveACPInitTimeout(timeout),
 		Logger:            runtimeLoggerFor(cfg, useUI),
 		TrackClient:       trackClient,
 	})
 	if err != nil {
 		if timeout > 0 && isSessionTimeout(attemptCtx, err) {
-			// Inactivity timeouts are transport/runtime stalls, not protocol
-			// rejections. Treat them as retryable even when the setup stage
-			// would not retry an immediate non-timeout error.
 			return HandleSessionTimeout(
 				ResolveTimeoutError(timeout, err, context.Cause(attemptCtx)),
 				j,
 				index,
 				emitHuman,
 				timeout,
+			)
+		}
+		if isSessionCancellation(attemptCtx, err) {
+			return HandleSessionCancellation(
+				ResolveCancellationError(context.Cause(attemptCtx), err, attemptCtx.Err()),
+				j,
+				index,
+				emitHuman,
 			)
 		}
 		fail := RecordFailureWithContext(nil, j, nil, err, -1)
@@ -81,6 +86,10 @@ func ExecuteJobWithTimeout(
 			Failure:   &fail,
 			Retryable: RetryableSetupFailure(err),
 		}
+	}
+	if timeout > 0 {
+		activity.RecordActivity()
+		stopActivityWatchdog = StartACPActivityWatchdog(attemptCtx, activity, timeout, cancel)
 	}
 	return ExecuteSessionAndResolve(attemptCtx, cfg, timeout, execution, j, index, emitHuman)
 }
@@ -97,6 +106,35 @@ func NewActivityTimeoutError(timeout time.Duration) error {
 
 func (e *activityTimeoutError) Error() string {
 	return fmt.Sprintf("activity timeout: no output received for %v", e.timeout)
+}
+
+type initTimeoutError struct {
+	timeout time.Duration
+}
+
+type InitTimeoutError = initTimeoutError
+
+func NewInitTimeoutError(timeout time.Duration) error {
+	return &initTimeoutError{timeout: timeout}
+}
+
+func (e *initTimeoutError) Error() string {
+	return fmt.Sprintf("ACP initialization timeout after %v", e.timeout)
+}
+
+const (
+	acpInitTimeoutMultiplier = 3
+	maxACPInitTimeout        = 30 * time.Minute
+)
+
+func ResolveACPInitTimeout(activityTimeout time.Duration) time.Duration {
+	if activityTimeout <= 0 {
+		return 0
+	}
+	if activityTimeout >= maxACPInitTimeout/acpInitTimeoutMultiplier {
+		return maxACPInitTimeout
+	}
+	return activityTimeout * acpInitTimeoutMultiplier
 }
 
 func StartACPActivityWatchdog(
@@ -655,7 +693,9 @@ func handleSessionCompletion(
 }
 
 func isSessionTimeout(ctx context.Context, err error) bool {
-	return IsActivityTimeout(err) ||
+	return IsInitTimeout(err) ||
+		IsInitTimeout(context.Cause(ctx)) ||
+		IsActivityTimeout(err) ||
 		IsActivityTimeout(context.Cause(ctx)) ||
 		errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(ctx.Err(), context.DeadlineExceeded)
@@ -666,7 +706,18 @@ func IsActivityTimeout(err error) bool {
 	return errors.As(err, &timeoutErr)
 }
 
+func IsInitTimeout(err error) bool {
+	var timeoutErr *initTimeoutError
+	return errors.As(err, &timeoutErr)
+}
+
 func ResolveTimeoutError(timeout time.Duration, errs ...error) error {
+	for _, err := range errs {
+		var timeoutErr *initTimeoutError
+		if errors.As(err, &timeoutErr) {
+			return timeoutErr
+		}
+	}
 	for _, err := range errs {
 		var timeoutErr *activityTimeoutError
 		if errors.As(err, &timeoutErr) {
@@ -679,6 +730,24 @@ func ResolveTimeoutError(timeout time.Duration, errs ...error) error {
 		}
 	}
 	return &activityTimeoutError{timeout: timeout}
+}
+
+func isSessionCancellation(ctx context.Context, err error) bool {
+	if IsInitTimeout(err) || IsActivityTimeout(err) {
+		return false
+	}
+	return errors.Is(err, context.Canceled) ||
+		errors.Is(context.Cause(ctx), context.Canceled) ||
+		errors.Is(ctx.Err(), context.Canceled)
+}
+
+func ResolveCancellationError(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return context.Canceled
 }
 
 func HandleSessionCancellation(

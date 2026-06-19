@@ -112,6 +112,14 @@ func (s *BaseRunScope) RunJournal() *journal.Journal {
 	return s.Journal
 }
 
+// SetRunJournal replaces the journal owned by the scope.
+func (s *BaseRunScope) SetRunJournal(runJournal *journal.Journal) {
+	if s == nil {
+		return
+	}
+	s.Journal = runJournal
+}
+
 // EventBus reports the run-scoped event bus.
 func (s *BaseRunScope) RunEventBus() *events.Bus[events.Event] {
 	if s == nil {

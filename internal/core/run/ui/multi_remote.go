@@ -707,6 +707,45 @@ func (m *multiRunModel) hasAnyActiveTab() bool {
 	return false
 }
 
+// ensureTabChild lazily creates a tab's embedded cockpit, reusing the parent's
+// config and job-control handlers. fallbackRunID seeds the child run id when the
+// tab has not yet learned its own.
+func (m *multiRunModel) ensureTabChild(tab *multiRunTab, fallbackRunID string) {
+	if tab == nil || tab.child != nil {
+		return
+	}
+	tab.child = newPlaceholderChildModelWithControls(
+		tab.slug,
+		firstNonEmpty(tab.runID, fallbackRunID),
+		m.cfg,
+		m.childWidth(),
+		m.childHeight(),
+		m.pauseRunJob,
+		m.sendRunJobMessage,
+	)
+}
+
+// applyParallelParentEvent forwards a task.parallel.* parent event to the active
+// tab's cockpit so the wave-grouped sidebar and INTEGRATION pane render there.
+// Parallel PRD-tasks runs use a single workflow tab, so the active tab owns the
+// parallel view; the events are dropped only when no tab exists yet.
+func (m *multiRunModel) applyParallelParentEvent(ev events.Event) {
+	tab := m.activeTabState()
+	if tab == nil {
+		if len(m.tabs) == 0 {
+			return
+		}
+		tab = &m.tabs[0]
+	}
+	m.ensureTabChild(tab, m.parentRun.RunID)
+	if tab.translator == nil {
+		tab.translator = newUIEventTranslator()
+	}
+	for _, uiMsg := range tab.translator.translateMessages(ev) {
+		applyChildUIMsg(tab, uiMsg)
+	}
+}
+
 func (m *multiRunModel) handleParentEvent(ev events.Event) {
 	switch ev.Kind {
 	case events.EventKindTaskRunMultipleStarted:
@@ -717,6 +756,14 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		events.EventKindTaskRunMultipleChildFailed,
 		events.EventKindTaskRunMultipleItemCanceled:
 		m.applyTaskMultiItem(ev)
+	case events.EventKindTaskParallelWaveStarted,
+		events.EventKindTaskParallelWaveCompleted,
+		events.EventKindTaskParallelMergeStarted,
+		events.EventKindTaskParallelConflictDetected,
+		events.EventKindTaskParallelConflictResolving,
+		events.EventKindTaskParallelMerged,
+		events.EventKindTaskParallelRolledBack:
+		m.applyParallelParentEvent(ev)
 	case events.EventKindTaskRunMultipleQueueCompleted:
 		m.parentRun.Status = remoteRunStatusCompleted
 		m.quitDialog.Close()
@@ -842,17 +889,7 @@ func (m *multiRunModel) handleChildEvent(msg multiRunChildEventMsg) tea.Cmd {
 		return nil
 	}
 	tab := &m.tabs[idx]
-	if tab.child == nil {
-		tab.child = newPlaceholderChildModelWithControls(
-			tab.slug,
-			firstNonEmpty(tab.runID, msg.RunID),
-			m.cfg,
-			m.childWidth(),
-			m.childHeight(),
-			m.pauseRunJob,
-			m.sendRunJobMessage,
-		)
-	}
+	m.ensureTabChild(tab, msg.RunID)
 	if tab.translator == nil {
 		tab.translator = newUIEventTranslator()
 	}

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"os"
 	"sync"
 )
 
@@ -46,9 +48,12 @@ func (e *RequestError) Error() string {
 
 // Transport reads and writes line-delimited JSON-RPC messages.
 type Transport struct {
-	scanner *bufio.Scanner
-	writer  io.Writer
-	mu      sync.Mutex
+	scanner   *bufio.Scanner
+	reader    io.Reader
+	writer    io.Writer
+	mu        sync.Mutex
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // NewTransport constructs a line-delimited JSON-RPC transport.
@@ -59,6 +64,7 @@ func NewTransport(reader io.Reader, writer io.Writer) *Transport {
 
 	return &Transport{
 		scanner: scanner,
+		reader:  reader,
 		writer:  writer,
 	}
 }
@@ -109,6 +115,36 @@ func (t *Transport) WriteMessage(message Message) error {
 	encoded = append(encoded, '\n')
 	_, err = t.writer.Write(encoded)
 	return err
+}
+
+// Close releases transport endpoints that expose close semantics.
+func (t *Transport) Close() error {
+	if t == nil {
+		return nil
+	}
+	t.closeOnce.Do(func() {
+		t.closeErr = errors.Join(
+			closeTransportEndpoint(t.reader),
+			closeTransportEndpoint(t.writer),
+		)
+	})
+	return t.closeErr
+}
+
+func closeTransportEndpoint(endpoint any) error {
+	closer, ok := endpoint.(io.Closer)
+	if !ok || closer == nil {
+		return nil
+	}
+	if err := closer.Close(); err != nil {
+		if errors.Is(err, os.ErrClosed) ||
+			errors.Is(err, io.ErrClosedPipe) ||
+			errors.Is(err, net.ErrClosed) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // NewParseError creates a JSON-RPC parse error.

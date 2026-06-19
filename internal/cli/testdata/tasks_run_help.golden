@@ -9,11 +9,15 @@ Pass --parallel (or set run_multiple_mode = "parallel") to run children in
 parallel with git worktree isolation, and --parallel-limit to bound the
 concurrent child fanout.
 
+Pass --parallel-tasks on a single workflow run to execute pending task files in
+dependency-aware waves using the resolved [tasks.run.parallel] config.
+
 Usage:
   compozy tasks run [slug] [flags]
 
 Examples:
   compozy tasks run my-feature
+  compozy tasks run my-feature --parallel-tasks
   compozy tasks run --multiple alpha,beta --stream
   compozy tasks run --multiple alpha,beta --detach
   compozy tasks run --multiple alpha,beta --parallel
@@ -38,9 +42,16 @@ Flags:
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --multiple string                  Comma-separated task workflow slugs to run through one daemon-owned parent queue
       --name string                      Task workflow slug (defaults to the positional slug)
+      --no-recovery                      Disable agentic recovery for this invocation
       --parallel                         Run --multiple task workflows in parallel with git worktree isolation (overrides run_multiple_mode; valid only with --multiple)
       --parallel-limit int               Maximum number of child runs started at once in --parallel mode (overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple) (default 2)
+      --parallel-tasks                   Run this PRD task workflow in dependency-aware parallel task mode
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
+      --recovery                         Enable agentic recovery for failed runs
+      --recovery-ide string              ACP runtime used by the recovery agent (default "codex")
+      --recovery-max-attempts int        Maximum recovery remediation and restart cycles (1-3) (default 1)
+      --recovery-model string            Model used by the recovery agent (default "gpt-5.5")
+      --recovery-reasoning string        Reasoning effort for the recovery agent (low, medium, high, xhigh) (default "medium")
   -r, --recursive                        Recursively discover task_NNN.md files in subdirectories. Skips dot-, underscore-prefixed, reviews-*, adrs, and memory directories. Note: DB sync and extension Host API still operate on the slug root only.
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately

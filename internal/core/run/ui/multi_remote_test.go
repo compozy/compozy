@@ -878,6 +878,62 @@ func TestMultiRunParentStartedAndQueueCanceledEvents(t *testing.T) {
 	}
 }
 
+func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
+	t.Parallel()
+
+	mdl := &multiRunModel{
+		parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+		width:      120,
+		height:     30,
+		cfg:        &config{},
+		quitDialog: newQuitDialogState(),
+	}
+	mdl.handleParentEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindTaskRunMultipleStarted,
+		kinds.TaskRunMultiplePayload{Status: taskMultiStatusRunning, Slugs: []string{"alpha"}, Total: 1},
+	))
+	if len(mdl.tabs) != 1 {
+		t.Fatalf("expected one tab, got %d", len(mdl.tabs))
+	}
+
+	mdl.handleParentEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindTaskParallelWaveStarted,
+		kinds.TaskParallelPayload{
+			WaveIndex:         0,
+			WaveTotal:         1,
+			TaskID:            "task_01",
+			IntegrationBranch: "compozy/parallel-x",
+		},
+	))
+	child := mdl.tabs[0].child
+	if child == nil || child.parallel == nil {
+		t.Fatal("expected parallel parent event to initialize the child parallel view")
+	}
+	if got := child.parallel.integrationBranch; got != "compozy/parallel-x" {
+		t.Fatalf("integration branch = %q, want compozy/parallel-x", got)
+	}
+
+	mdl.handleParentEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindTaskParallelConflictDetected,
+		kinds.TaskParallelPayload{
+			WaveIndex:     0,
+			TaskID:        "task_01",
+			ConflictFiles: []string{"story.txt"},
+			Attempt:       1,
+			MaxAttempts:   3,
+		},
+	))
+	if child.parallel.conflict == nil {
+		t.Fatal("expected conflict to be recorded on the child parallel view")
+	}
+	if !child.parallel.expanded() {
+		t.Fatal("expected the INTEGRATION pane to expand on conflict")
+	}
+}
+
 func TestMultiRunChildEventCreatesPlaceholderAndMapsTerminalRunStatus(t *testing.T) {
 	t.Parallel()
 

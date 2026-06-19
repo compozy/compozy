@@ -26,6 +26,9 @@ const (
 	// TurnsDirName is the basename of the subdirectory that holds per-turn
 	// transcript artifacts.
 	TurnsDirName = "turns"
+	// RecoveryDirName is the basename of the recovery diff-audit artifact
+	// directory.
+	RecoveryDirName = "recovery"
 )
 
 // RunDBPath returns the absolute path to the run database file inside runDir.
@@ -45,3 +48,7 @@ func JobsDir(runDir string) string { return filepath.Join(runDir, JobsDirName) }
 
 // TurnsDir returns the absolute path to the turns subdirectory inside runDir.
 func TurnsDir(runDir string) string { return filepath.Join(runDir, TurnsDirName) }
+
+// RecoveryDir returns the absolute path to the recovery artifact subdirectory
+// inside runDir.
+func RecoveryDir(runDir string) string { return filepath.Join(runDir, RecoveryDirName) }

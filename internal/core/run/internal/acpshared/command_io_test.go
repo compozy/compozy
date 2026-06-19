@@ -133,6 +133,7 @@ func TestCreateACPSessionForwardsMCPServersOnNewSession(t *testing.T) {
 
 	session, err := createACPSession(
 		context.Background(),
+		context.Background(),
 		client,
 		&config{Model: "model-1"},
 		&job{
@@ -170,6 +171,7 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 	}}
 
 	session, err := createACPSession(
+		context.Background(),
 		context.Background(),
 		client,
 		&config{Model: "model-1"},

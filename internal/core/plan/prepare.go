@@ -807,6 +807,7 @@ func prepareBatchTaskContext(
 	if err != nil {
 		return model.TaskEntry{}, tasks.WrapParseError(batchIssues[0].AbsPath, err)
 	}
+	taskData.ID = tasks.TaskIdentityFromName(batchIssues[0].Name)
 	memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
 	if err != nil {
 		return model.TaskEntry{}, fmt.Errorf("prepare memory for %s: %w", batchIssues[0].AbsPath, err)

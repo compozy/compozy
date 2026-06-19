@@ -94,9 +94,25 @@ type scopedPath struct {
 
 var _ KernelOps = (*defaultKernelOps)(nil)
 
+func (o *defaultKernelOps) setRunJournal(runJournal *journal.Journal) {
+	if o == nil {
+		return
+	}
+	o.journal = runJournal
+}
+
 type HostServices struct {
 	ops                   KernelOps
 	subscriptionIDCounter atomic.Uint64
+}
+
+func (s *HostServices) setRunJournal(runJournal *journal.Journal) {
+	if s == nil {
+		return
+	}
+	if setter, ok := s.ops.(interface{ setRunJournal(*journal.Journal) }); ok {
+		setter.setRunJournal(runJournal)
+	}
 }
 
 type TaskFrontmatter struct {

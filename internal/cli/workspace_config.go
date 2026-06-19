@@ -107,6 +107,7 @@ func commandPath(cmd *cobra.Command) string {
 
 func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
 	applySoundConfig(s, cfg.Sound)
+	s.applyRecoveryConfig(cmd, cfg.Recovery)
 	applyConfig(cmd, "ide", cfg.Defaults.IDE, func(val string) { s.ide = val })
 	applyConfig(cmd, "model", cfg.Defaults.Model, func(val string) { s.model = val })
 	applyConfig(cmd, "format", cfg.Defaults.OutputFormat, func(val string) { s.outputFormat = val })
@@ -176,6 +177,7 @@ func (s *commandState) applyTasksRunConfig(cmd *cobra.Command, cfg workspace.Pro
 	applyConfig(cmd, "attach", cfg.Runs.DefaultAttachMode, func(val string) { s.attachMode = val })
 	applyConfig(cmd, "format", cfg.Tasks.Run.OutputFormat, func(val string) { s.outputFormat = val })
 	applyConfig(cmd, "tui", cfg.Tasks.Run.TUI, func(val bool) { s.tui = val })
+	s.applyParallelTasksConfig(cmd, cfg.Tasks.Run.Parallel)
 	s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
 		derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules),
 	)
@@ -190,6 +192,33 @@ func (s *commandState) applyTasksRunConfig(cmd *cobra.Command, cfg workspace.Pro
 		"recursive",
 		cfg.Tasks.Run.Recursive,
 		func(val bool) { s.recursive = val },
+	)
+}
+
+func (s *commandState) applyParallelTasksConfig(cmd *cobra.Command, cfg workspace.ParallelTasksConfig) {
+	resolved := cfg.ApplyDefaults()
+	applyConfig(cmd, taskRunParallelTasksFlag, resolved.Enabled, func(val bool) { s.parallelTasks = val })
+	if resolved.ConflictResolver == nil {
+		return
+	}
+	resolver := resolved.ConflictResolver.ApplyDefaults()
+	applyConfig(
+		cmd,
+		taskRunParallelConflictResolverIDEFlag,
+		resolver.IDE,
+		func(val string) { s.parallelConflictResolverIDE = val },
+	)
+	applyConfig(
+		cmd,
+		taskRunParallelConflictResolverModelFlag,
+		resolver.Model,
+		func(val string) { s.parallelConflictResolverModel = val },
+	)
+	applyConfig(
+		cmd,
+		taskRunParallelConflictResolverReasoningFlag,
+		resolver.ReasoningEffort,
+		func(val string) { s.parallelConflictResolverReasoningEffort = val },
 	)
 }
 
@@ -233,6 +262,22 @@ func applySoundConfig(s *commandState, cfg workspace.SoundConfig) {
 	}
 	if cfg.OnFailed != nil {
 		s.soundOnFailed = *cfg.OnFailed
+	}
+}
+
+func (s *commandState) applyRecoveryConfig(cmd *cobra.Command, cfg workspace.AgentRecoveryConfig) {
+	resolved := cfg.ApplyDefaults()
+	applyConfig(cmd, "recovery", resolved.Enabled, func(val bool) { s.recoveryEnabled = val })
+	applyConfig(cmd, "recovery-ide", resolved.IDE, func(val string) { s.recoveryIDE = val })
+	applyConfig(cmd, "recovery-model", resolved.Model, func(val string) { s.recoveryModel = val })
+	applyConfig(cmd, "recovery-reasoning", resolved.ReasoningEffort, func(val string) {
+		s.recoveryReasoningEffort = val
+	})
+	applyConfig(cmd, "recovery-max-attempts", resolved.MaxAttempts, func(val int) {
+		s.recoveryMaxAttempts = val
+	})
+	if commandFlagChanged(cmd, "no-recovery") && s.recoveryDisabled {
+		s.recoveryEnabled = false
 	}
 }
 

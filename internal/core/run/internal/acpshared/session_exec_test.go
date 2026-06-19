@@ -199,6 +199,70 @@ func TestSessionTurnControllerUnexpectedPromptCancelFailsJob(t *testing.T) {
 	}
 }
 
+func TestResolveACPInitTimeoutScalesAndCapsActivityTimeout(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   time.Duration
+		want time.Duration
+	}{
+		{name: "disabled", in: 0, want: 0},
+		{name: "scales", in: 5 * time.Minute, want: 15 * time.Minute},
+		{name: "caps", in: 20 * time.Minute, want: 30 * time.Minute},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ResolveACPInitTimeout(tc.in); got != tc.want {
+				t.Fatalf("ResolveACPInitTimeout(%s) = %s, want %s", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveTimeoutErrorPrefersTypedInitThenActivityTimeouts(t *testing.T) {
+	t.Parallel()
+
+	initErr := NewInitTimeoutError(time.Second)
+	activityErr := NewActivityTimeoutError(time.Minute)
+	wrapped := errors.Join(errors.New("outer"), initErr, activityErr)
+
+	if got := ResolveTimeoutError(time.Hour, wrapped); !errors.Is(got, initErr) || !IsInitTimeout(got) {
+		t.Fatalf("expected init timeout to win, got %T %[1]v", got)
+	}
+	if got := ResolveTimeoutError(time.Hour, activityErr); !errors.Is(got, activityErr) || !IsActivityTimeout(got) {
+		t.Fatalf("expected activity timeout, got %T %[1]v", got)
+	}
+	fallbackErr := errors.New("deadline exceeded elsewhere")
+	if got := ResolveTimeoutError(time.Hour, fallbackErr); !errors.Is(got, fallbackErr) {
+		t.Fatalf("expected fallback error, got %T %[1]v", got)
+	}
+	if got := ResolveTimeoutError(time.Hour); !IsActivityTimeout(got) {
+		t.Fatalf("expected synthesized activity timeout, got %T %[1]v", got)
+	}
+}
+
+func TestSessionCancellationHelpersKeepTimeoutsDistinct(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(errors.New("shutdown requested"))
+	if !isSessionCancellation(ctx, ctx.Err()) {
+		t.Fatal("expected canceled context to be session cancellation")
+	}
+	if isSessionCancellation(context.Background(), NewInitTimeoutError(time.Second)) {
+		t.Fatal("expected init timeout not to be session cancellation")
+	}
+	if got := ResolveCancellationError(nil, context.Canceled); !errors.Is(got, context.Canceled) {
+		t.Fatalf("expected context cancellation, got %T %[1]v", got)
+	}
+	if got := ResolveCancellationError(); !errors.Is(got, context.Canceled) {
+		t.Fatalf("expected default context cancellation, got %T %[1]v", got)
+	}
+}
+
 func TestSessionTurnControllerRejectsConcurrentResumeMessages(t *testing.T) {
 	t.Parallel()
 

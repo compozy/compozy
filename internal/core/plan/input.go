@@ -180,6 +180,10 @@ func missingRequiredInputsError(mode model.ExecutionMode) error {
 }
 
 func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConfig) ([]model.IssueEntry, error) {
+	if cfg.Mode == model.ExecutionModePRDTasks && cfg.TargetTaskNumber != nil {
+		return filterTargetTaskEntries(entries, cfg)
+	}
+
 	if len(entries) == 0 {
 		if cfg.Mode == model.ExecutionModePRDTasks {
 			if !cfg.IncludeCompleted && strings.TrimSpace(cfg.TasksDir) != "" {
@@ -209,6 +213,80 @@ func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConf
 	}
 
 	return entries, nil
+}
+
+func filterTargetTaskEntries(entries []model.IssueEntry, cfg *model.RuntimeConfig) ([]model.IssueEntry, error) {
+	target := *cfg.TargetTaskNumber
+	if target <= 0 {
+		return nil, fmt.Errorf("target task number must be positive, got %d", target)
+	}
+
+	matches := make([]model.IssueEntry, 0, 1)
+	for _, entry := range entries {
+		if issueEntryTaskNumber(entry) != target {
+			continue
+		}
+		completed, err := taskEntryCompleted(entry)
+		if err != nil {
+			return nil, fmt.Errorf("inspect target task %d at %s: %w", target, entry.AbsPath, err)
+		}
+		if completed {
+			return nil, fmt.Errorf("target task %d is completed; only pending tasks can be targeted", target)
+		}
+		matches = append(matches, entry)
+	}
+	switch len(matches) {
+	case 1:
+		return matches, nil
+	case 0:
+		return nil, targetTaskNotFoundError(cfg, target)
+	default:
+		return nil, fmt.Errorf("target task %d matched %d task files; expected exactly one", target, len(matches))
+	}
+}
+
+func targetTaskNotFoundError(cfg *model.RuntimeConfig, target int) error {
+	tasksDir := strings.TrimSpace(cfg.TasksDir)
+	if tasksDir == "" {
+		return fmt.Errorf("target task %d not found in discovered task entries", target)
+	}
+	allEntries, err := readTaskEntries(tasksDir, true, cfg.Recursive)
+	if err != nil {
+		return fmt.Errorf("inspect target task %d in %s: %w", target, tasksDir, err)
+	}
+	allMatches := make([]model.IssueEntry, 0, 1)
+	for _, entry := range allEntries {
+		if issueEntryTaskNumber(entry) == target {
+			allMatches = append(allMatches, entry)
+		}
+	}
+	switch len(allMatches) {
+	case 0:
+		return fmt.Errorf("target task %d not found in %s", target, tasksDir)
+	case 1:
+		completed, err := taskEntryCompleted(allMatches[0])
+		if err != nil {
+			return fmt.Errorf("inspect target task %d at %s: %w", target, allMatches[0].AbsPath, err)
+		}
+		if completed {
+			return fmt.Errorf("target task %d is completed; only pending tasks can be targeted", target)
+		}
+		return fmt.Errorf("target task %d was not selected from pending task entries", target)
+	default:
+		return fmt.Errorf("target task %d matched %d task files; expected exactly one", target, len(allMatches))
+	}
+}
+
+func issueEntryTaskNumber(entry model.IssueEntry) int {
+	return tasks.ExtractTaskNumber(filepath.Base(filepath.FromSlash(entry.Name)))
+}
+
+func taskEntryCompleted(entry model.IssueEntry) (bool, error) {
+	task, err := tasks.ParseTaskFile(entry.Content)
+	if err != nil {
+		return false, err
+	}
+	return tasks.IsTaskCompleted(task), nil
 }
 
 func readIssueEntries(

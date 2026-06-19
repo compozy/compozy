@@ -3,8 +3,11 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -56,7 +59,7 @@ func TestREADMETasksRunSnippetsMatchCLIHelp(t *testing.T) {
 			}
 		}
 		// Guard the new parallel surface is actually exercised by the README.
-		for _, flag := range []string{"multiple", "parallel", "parallel-limit"} {
+		for _, flag := range []string{"multiple", "parallel", "parallel-limit", "parallel-tasks"} {
 			if !seen[flag] {
 				t.Fatalf("expected README tasks run snippets to document --%s", flag)
 			}
@@ -72,6 +75,10 @@ func TestREADMETasksRunSnippetsMatchCLIHelp(t *testing.T) {
 		limit := cmd.Flags().Lookup("parallel-limit")
 		if limit == nil || limit.Value.Type() != "int" || limit.DefValue != "2" {
 			t.Fatalf("--parallel-limit flag = %#v, want int default 2", limit)
+		}
+		parallelTasks := cmd.Flags().Lookup("parallel-tasks")
+		if parallelTasks == nil || parallelTasks.Value.Type() != "bool" || parallelTasks.DefValue != "false" {
+			t.Fatalf("--parallel-tasks flag = %#v, want bool default false", parallelTasks)
 		}
 		if !strings.Contains(readme, "run_multiple_parallel_limit = 2") {
 			t.Fatal("expected README to document run_multiple_parallel_limit = 2")
@@ -161,6 +168,56 @@ func TestTasksRunMultipleParallelLimitOneEndToEnd(t *testing.T) {
 	})
 }
 
+func TestTasksRunParallelTasksEndToEndRoutesSingleWorkflowThroughParallelOrchestrator(t *testing.T) {
+	t.Run("Should run one workflow in dependency-aware parallel task mode", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		const slug = "demo"
+		client, _, workspaceRoot := newParallelTasksCLIEnv(t, slug)
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", slug,
+			"--parallel-tasks",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute --parallel-tasks run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(stdout, "task run started:", "(mode=stream)", "run completed") {
+			t.Fatalf("expected started and completed output, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		runID := taskRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		if snapshot.Run.Mode != "task_multi" || snapshot.Run.Status != "completed" {
+			t.Fatalf(
+				"snapshot run = (mode=%q,status=%q), want (task_multi,completed)",
+				snapshot.Run.Mode,
+				snapshot.Run.Status,
+			)
+		}
+		for taskNumber := 1; taskNumber <= 3; taskNumber++ {
+			path := filepath.Join(workspaceRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber))
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("expected merged task output %s: %v", path, err)
+			}
+		}
+		page, err := client.ListRunEvents(context.Background(), runID, apicore.StreamCursor{}, 500)
+		if err != nil {
+			t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
+		}
+		if !hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelWaveStarted) ||
+			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelMerged) ||
+			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelWaveCompleted) {
+			t.Fatalf("parallel task events missing from parent run: %v", eventKindsFromCoreEvents(page.Events))
+		}
+	})
+}
+
 func assertParallelWorktreeSnapshot(
 	t *testing.T,
 	snapshot apicore.TaskRunMultipleSnapshot,
@@ -235,12 +292,208 @@ func newParallelMultiRunCLIEnv(
 	return client, paths
 }
 
+func newParallelTasksCLIEnv(
+	t *testing.T,
+	slug string,
+) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string) {
+	t.Helper()
+
+	workspaceRoot := t.TempDir()
+	writeParallelTasksWorkflowForCLI(t, workspaceRoot, slug)
+	gitInitCommitCLIWorkspace(t, workspaceRoot)
+
+	prepareInProcessCLIDaemonHome(t)
+	paths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{
+		WorktreesRoot: paths.WorktreesDir,
+		Prepare: func(
+			_ context.Context,
+			cfg *model.RuntimeConfig,
+			scope model.RunScope,
+		) (*model.SolvePreparation, error) {
+			taskNumber, err := requireCLITargetTaskNumber(cfg)
+			if err != nil {
+				return nil, err
+			}
+			if scope == nil {
+				return nil, errors.New("run scope is required")
+			}
+			return &model.SolvePreparation{
+				Jobs: []model.Job{{
+					SafeName: fmt.Sprintf("task-%02d", taskNumber),
+				}},
+				RunArtifacts: scope.RunArtifacts(),
+			}, nil
+		},
+		Execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			taskNumber, err := requireCLITargetTaskNumber(cfg)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(
+				filepath.Join(cfg.WorkspaceRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber)),
+				[]byte(fmt.Sprintf("task %02d\n", taskNumber)),
+				0o600,
+			); err != nil {
+				return err
+			}
+			return writeCLITaskResultFixture(cfg, "succeeded", 0, "")
+		},
+	})
+	return client, paths, workspaceRoot
+}
+
+func writeParallelTasksWorkflowForCLI(t *testing.T, workspaceRoot string, slug string) {
+	t.Helper()
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir task workflow %s: %v", slug, err)
+	}
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: First parallel task",
+			"type: backend",
+			"complexity: low",
+			"dependencies: []",
+		},
+		"# Task 1: First parallel task",
+	))
+	writeRawTaskFileForCLI(t, tasksDir, "task_02.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Second parallel task",
+			"type: backend",
+			"complexity: low",
+			"dependencies: []",
+		},
+		"# Task 2: Second parallel task",
+	))
+	writeRawTaskFileForCLI(t, tasksDir, "task_03.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Dependent parallel task",
+			"type: backend",
+			"complexity: low",
+			"dependencies:",
+			"  - task_01",
+			"  - task_02",
+		},
+		"# Task 3: Dependent parallel task",
+	))
+}
+
 func runParallelMultiRunCLI(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
 	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	return executeCommandCapturingProcessIO(t, cmd, nil, args...)
+}
+
+func taskRunIDFromCLIOutput(t *testing.T, stdout string) string {
+	t.Helper()
+	const prefix = "task run started: "
+	for _, line := range strings.Split(stdout, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, prefix) {
+			continue
+		}
+		runPart := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+		runID, _, ok := strings.Cut(runPart, " ")
+		if !ok || strings.TrimSpace(runID) == "" {
+			t.Fatalf("parse task run id from line %q", line)
+		}
+		return runID
+	}
+	t.Fatalf("task run start line not found in output:\n%s", stdout)
+	return ""
+}
+
+func requireCLITargetTaskNumber(cfg *model.RuntimeConfig) (int, error) {
+	if cfg == nil || cfg.TargetTaskNumber == nil {
+		return 0, errors.New("parallel CLI child run missing target task number")
+	}
+	return *cfg.TargetTaskNumber, nil
+}
+
+func writeCLITaskResultFixture(
+	cfg *model.RuntimeConfig,
+	status string,
+	exitCode int,
+	errText string,
+) error {
+	if cfg == nil {
+		return errors.New("cli task result fixture: runtime config is required")
+	}
+	artifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(artifacts.ResultPath), 0o755); err != nil {
+		return err
+	}
+	taskNumber, err := requireCLITargetTaskNumber(cfg)
+	if err != nil {
+		return err
+	}
+	payload := struct {
+		SchemaVersion int    `json:"schema_version"`
+		RunID         string `json:"run_id"`
+		Status        string `json:"status"`
+		ArtifactsDir  string `json:"artifacts_dir"`
+		ResultPath    string `json:"result_path"`
+		Jobs          []struct {
+			SafeName string `json:"safe_name"`
+			Status   string `json:"status"`
+			ExitCode int    `json:"exit_code"`
+			Error    string `json:"error,omitempty"`
+		} `json:"jobs"`
+	}{
+		SchemaVersion: 1,
+		RunID:         cfg.RunID,
+		Status:        status,
+		ArtifactsDir:  artifacts.RunDir,
+		ResultPath:    artifacts.ResultPath,
+		Jobs: []struct {
+			SafeName string `json:"safe_name"`
+			Status   string `json:"status"`
+			ExitCode int    `json:"exit_code"`
+			Error    string `json:"error,omitempty"`
+		}{{
+			SafeName: fmt.Sprintf("task-%02d", taskNumber),
+			Status:   status,
+			ExitCode: exitCode,
+			Error:    errText,
+		}},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(artifacts.ResultPath, raw, 0o600)
+}
+
+func hasRunEventKind(events []eventspkg.Event, kind eventspkg.EventKind) bool {
+	for _, event := range events {
+		if event.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func eventKindsFromCoreEvents(events []eventspkg.Event) []eventspkg.EventKind {
+	kinds := make([]eventspkg.EventKind, 0, len(events))
+	for _, event := range events {
+		kinds = append(kinds, event.Kind)
+	}
+	return kinds
 }
 
 func taskMultiStartedParallelLimit(t *testing.T, client *inProcessDaemonCommandClient, runID string) int {

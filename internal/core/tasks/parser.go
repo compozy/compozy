@@ -126,6 +126,19 @@ func ExtractTaskIdentityNumber(name string) int {
 	return ExtractTaskNumber(base + ".md")
 }
 
+// TaskIdentityFromName returns the extensionless task identity for a task path.
+func TaskIdentityFromName(name string) string {
+	trimmed := strings.TrimSpace(strings.ReplaceAll(name, `\`, "/"))
+	if trimmed == "" {
+		return ""
+	}
+	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(trimmed)))
+	if clean == "." {
+		return ""
+	}
+	return strings.TrimSuffix(clean, filepath.Ext(clean))
+}
+
 func LooksLikeLegacyTaskFile(content string) bool {
 	return strings.Contains(content, "<task_context>") ||
 		legacyTaskStatusHeadingRe.MatchString(content)

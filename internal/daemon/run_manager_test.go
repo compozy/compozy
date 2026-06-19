@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	runpkg "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/run/recovery"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1745,6 +1746,35 @@ func TestRunManagerExecRunFailureMarksRunFailed(t *testing.T) {
 }
 
 func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
+	t.Run("resolve recovery config", func(t *testing.T) {
+		cfg, err := resolveDaemonRecoveryConfig(workspacecfg.ProjectConfig{
+			Recovery: workspacecfg.AgentRecoveryConfig{
+				Enabled:         boolPtr(false),
+				IDE:             stringPtr("claude"),
+				Model:           stringPtr("sonnet"),
+				ReasoningEffort: stringPtr("medium"),
+				MaxAttempts:     intPtr(1),
+			},
+		}, runtimeOverrideInput{
+			Recovery: &workspacecfg.AgentRecoveryConfig{
+				Enabled:         boolPtr(true),
+				Model:           stringPtr("gpt-5.5"),
+				ReasoningEffort: stringPtr("high"),
+				MaxAttempts:     intPtr(2),
+			},
+		})
+		if err != nil {
+			t.Fatalf("resolveDaemonRecoveryConfig() error = %v", err)
+		}
+		if cfg.Enabled == nil || !*cfg.Enabled ||
+			cfg.IDE == nil || *cfg.IDE != "claude" ||
+			cfg.Model == nil || *cfg.Model != "gpt-5.5" ||
+			cfg.ReasoningEffort == nil || *cfg.ReasoningEffort != "high" ||
+			cfg.MaxAttempts == nil || *cfg.MaxAttempts != 2 {
+			t.Fatalf("unexpected recovery config: %#v", cfg)
+		}
+	})
+
 	t.Run("apply overrides", func(t *testing.T) {
 		cfg := &model.RuntimeConfig{}
 		rules := []model.TaskRuntimeRule{
@@ -2408,6 +2438,7 @@ type runManagerTestDeps struct {
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	executeExec            func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	recoveryStrategy       recovery.RemediationStrategy
 	openRunDB              func(context.Context, string) (*rundb.RunDB, error)
 	loadProjectConfig      func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	reviewProviderRegistry reviewProviderRegistryFactory
@@ -2482,6 +2513,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 		Prepare:                firstPrepare(deps.prepare),
 		Execute:                firstExecute(deps.execute),
 		ExecuteExec:            firstExecuteExec(deps.executeExec),
+		RecoveryStrategy:       deps.recoveryStrategy,
 		OpenRunDB:              deps.openRunDB,
 		ReviewProviderRegistry: deps.reviewProviderRegistry,
 		ReviewWatchGit:         deps.reviewWatchGit,

@@ -24,12 +24,37 @@ import (
 
 const captureSchemaVersion = "compozy-worktree-v1"
 
+// UnsupportedReason describes why a working-tree snapshot could not be
+// captured.
+type UnsupportedReason string
+
+const (
+	// UnsupportedReasonBlankRoot means the caller did not provide a workspace
+	// root.
+	UnsupportedReasonBlankRoot UnsupportedReason = "blank_root"
+	// UnsupportedReasonNonGit means the workspace root does not contain git
+	// metadata.
+	UnsupportedReasonNonGit UnsupportedReason = "non_git"
+	// UnsupportedReasonGitMissing means the git executable could not be found.
+	UnsupportedReasonGitMissing UnsupportedReason = "git_missing"
+	// UnsupportedReasonNoCommits means HEAD could not be resolved, most often
+	// because the repository has no commits yet.
+	UnsupportedReasonNoCommits UnsupportedReason = "no_commits"
+)
+
 // Snapshot is an opaque deterministic fingerprint of a working tree. Snapshots
 // captured at different points in time can be compared with Equal to decide
 // whether the working tree changed between the two captures.
 type Snapshot struct {
-	digest    string
-	supported bool
+	digest            string
+	head              string
+	branch            string
+	porcelain         []byte
+	unsupportedReason UnsupportedReason
+	gitAvailable      bool
+	gitRepo           bool
+	hasCommits        bool
+	supported         bool
 }
 
 // IsSupported reports whether the snapshot was successfully captured. An
@@ -37,6 +62,30 @@ type Snapshot struct {
 // metadata, no `git` binary, empty repo) and intentionally never compares
 // equal to anything so callers fall back to the prior behavior.
 func (s Snapshot) IsSupported() bool { return s.supported }
+
+// Digest returns the deterministic snapshot digest for supported captures.
+func (s Snapshot) Digest() string { return s.digest }
+
+// Head returns the HEAD commit captured for supported snapshots.
+func (s Snapshot) Head() string { return s.head }
+
+// Branch returns the current branch name captured for supported snapshots.
+func (s Snapshot) Branch() string { return s.branch }
+
+// Porcelain returns a copy of the raw git porcelain v1 -z status payload.
+func (s Snapshot) Porcelain() []byte { return append([]byte(nil), s.porcelain...) }
+
+// UnsupportedReason returns the reason a snapshot is unsupported.
+func (s Snapshot) UnsupportedReason() UnsupportedReason { return s.unsupportedReason }
+
+// GitAvailable reports whether a git executable was available to the capture.
+func (s Snapshot) GitAvailable() bool { return s.gitAvailable }
+
+// IsGitRepo reports whether the workspace root had git metadata.
+func (s Snapshot) IsGitRepo() bool { return s.gitRepo }
+
+// HasCommits reports whether HEAD resolved during capture.
+func (s Snapshot) HasCommits() bool { return s.hasCommits }
 
 // Equal reports whether two snapshots represent the same working-tree state.
 // Unsupported snapshots never compare equal — including against each other —
@@ -56,13 +105,20 @@ func (s Snapshot) Equal(other Snapshot) bool {
 func Capture(ctx context.Context, root string) (Snapshot, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
-		return Snapshot{}, nil
+		return Snapshot{gitAvailable: gitAvailable(), unsupportedReason: UnsupportedReasonBlankRoot}, nil
 	}
+	snapshot := Snapshot{gitAvailable: gitAvailable()}
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Snapshot{}, nil
+			snapshot.unsupportedReason = UnsupportedReasonNonGit
+			return snapshot, nil
 		}
 		return Snapshot{}, fmt.Errorf("worktree: stat .git in %s: %w", root, err)
+	}
+	snapshot.gitRepo = true
+	if !snapshot.gitAvailable {
+		snapshot.unsupportedReason = UnsupportedReasonGitMissing
+		return snapshot, nil
 	}
 	head, err := runGit(ctx, root, "rev-parse", "HEAD")
 	if err != nil {
@@ -72,16 +128,33 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 		// failure here would force every non-git or fresh-repo workspace through
 		// the error path even though the no-op check is purely advisory.
 		if isExecLookupError(err) {
-			return Snapshot{}, nil
+			snapshot.gitAvailable = false
+			snapshot.unsupportedReason = UnsupportedReasonGitMissing
+			return snapshot, nil
 		}
-		return Snapshot{}, nil
+		snapshot.unsupportedReason = UnsupportedReasonNoCommits
+		return snapshot, nil
 	}
+	snapshot.head = string(bytes.TrimSpace(head))
+	snapshot.hasCommits = true
+	branch, err := runGit(ctx, root, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		if isExecLookupError(err) {
+			snapshot.gitAvailable = false
+			snapshot.unsupportedReason = UnsupportedReasonGitMissing
+			return snapshot, nil
+		}
+		return snapshot, fmt.Errorf("worktree: git branch in %s: %w", root, err)
+	}
+	snapshot.branch = string(bytes.TrimSpace(branch))
 	porcelain, err := runGit(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		if isExecLookupError(err) {
-			return Snapshot{}, nil
+			snapshot.gitAvailable = false
+			snapshot.unsupportedReason = UnsupportedReasonGitMissing
+			return snapshot, nil
 		}
-		return Snapshot{}, fmt.Errorf("worktree: git status in %s: %w", root, err)
+		return snapshot, fmt.Errorf("worktree: git status in %s: %w", root, err)
 	}
 	h := sha256.New()
 	h.Write([]byte(captureSchemaVersion))
@@ -89,7 +162,21 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 	h.Write(bytes.TrimSpace(head))
 	h.Write([]byte{0})
 	h.Write(porcelain)
-	return Snapshot{digest: hex.EncodeToString(h.Sum(nil)), supported: true}, nil
+	return Snapshot{
+		digest:       hex.EncodeToString(h.Sum(nil)),
+		head:         snapshot.head,
+		branch:       snapshot.branch,
+		porcelain:    append([]byte(nil), porcelain...),
+		gitAvailable: true,
+		gitRepo:      true,
+		hasCommits:   true,
+		supported:    true,
+	}, nil
+}
+
+func gitAvailable() bool {
+	_, err := exec.LookPath("git")
+	return err == nil
 }
 
 func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
