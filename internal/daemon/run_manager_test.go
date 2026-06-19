@@ -1748,78 +1748,80 @@ func TestRunManagerExecRunFailureMarksRunFailed(t *testing.T) {
 func TestDaemonWorkflowPreparedRunRestartFailedTreatsEmptyFailedJobIDsAsRestartAll(t *testing.T) {
 	t.Parallel()
 
-	var preparedJobNames []string
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		prepare: func(_ context.Context, _ *model.RuntimeConfig, scope model.RunScope) (*model.SolvePreparation, error) {
-			return &model.SolvePreparation{
-				Jobs: []model.Job{
-					{SafeName: "task_01"},
-					{SafeName: "task_02"},
-				},
-				RunArtifacts: scope.RunArtifacts(),
-			}, nil
-		},
-		execute: func(_ context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			preparedJobNames = make([]string, 0, len(prep.Jobs))
-			for _, job := range prep.Jobs {
-				preparedJobNames = append(preparedJobNames, job.SafeName)
-			}
-			payload, err := json.Marshal(struct {
-				SchemaVersion int                   `json:"schema_version"`
-				RunID         string                `json:"run_id"`
-				Status        recovery.RunStatus    `json:"status"`
-				ArtifactsDir  string                `json:"artifacts_dir"`
-				ResultPath    string                `json:"result_path,omitempty"`
-				Jobs          []recovery.JobOutcome `json:"jobs"`
-			}{
-				SchemaVersion: recovery.ResultSchemaVersion,
-				RunID:         cfg.RunID,
-				Status:        recovery.StatusSucceeded,
-				ArtifactsDir:  prep.RunArtifacts.RunDir,
-				ResultPath:    prep.RunArtifacts.ResultPath,
-				Jobs: []recovery.JobOutcome{
-					{SafeName: "task_01", Status: recovery.StatusSucceeded, ExitCode: 0},
-					{SafeName: "task_02", Status: recovery.StatusSucceeded, ExitCode: 0},
-				},
-			})
-			if err != nil {
-				return err
-			}
-			if err := os.MkdirAll(filepath.Dir(prep.RunArtifacts.ResultPath), 0o755); err != nil {
-				return err
-			}
-			return os.WriteFile(prep.RunArtifacts.ResultPath, payload, 0o600)
-		},
+	t.Run("Should restart all prepared jobs when failed job IDs are empty", func(t *testing.T) {
+		var preparedJobNames []string
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			prepare: func(_ context.Context, _ *model.RuntimeConfig, scope model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{
+					Jobs: []model.Job{
+						{SafeName: "task_01"},
+						{SafeName: "task_02"},
+					},
+					RunArtifacts: scope.RunArtifacts(),
+				}, nil
+			},
+			execute: func(_ context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				preparedJobNames = make([]string, 0, len(prep.Jobs))
+				for _, job := range prep.Jobs {
+					preparedJobNames = append(preparedJobNames, job.SafeName)
+				}
+				payload, err := json.Marshal(struct {
+					SchemaVersion int                   `json:"schema_version"`
+					RunID         string                `json:"run_id"`
+					Status        recovery.RunStatus    `json:"status"`
+					ArtifactsDir  string                `json:"artifacts_dir"`
+					ResultPath    string                `json:"result_path,omitempty"`
+					Jobs          []recovery.JobOutcome `json:"jobs"`
+				}{
+					SchemaVersion: recovery.ResultSchemaVersion,
+					RunID:         cfg.RunID,
+					Status:        recovery.StatusSucceeded,
+					ArtifactsDir:  prep.RunArtifacts.RunDir,
+					ResultPath:    prep.RunArtifacts.ResultPath,
+					Jobs: []recovery.JobOutcome{
+						{SafeName: "task_01", Status: recovery.StatusSucceeded, ExitCode: 0},
+						{SafeName: "task_02", Status: recovery.StatusSucceeded, ExitCode: 0},
+					},
+				})
+				if err != nil {
+					return err
+				}
+				if err := os.MkdirAll(filepath.Dir(prep.RunArtifacts.ResultPath), 0o755); err != nil {
+					return err
+				}
+				return os.WriteFile(prep.RunArtifacts.ResultPath, payload, 0o600)
+			},
+		})
+
+		cfg := (&model.RuntimeConfig{
+			RunID:         "restart-all-prepared-jobs",
+			WorkspaceRoot: env.workspaceRoot,
+			TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
+			Mode:          model.ExecutionModePRDTasks,
+			AccessMode:    model.AccessModeDefault,
+		}).Clone()
+		cfg.ApplyDefaults()
+
+		scope, err := newTestOpenRunScope(nil)(context.Background(), cfg, model.OpenRunScopeOptions{})
+		if err != nil {
+			t.Fatalf("open test scope: %v", err)
+		}
+		defer func() {
+			_ = scope.Close(context.Background())
+		}()
+
+		outcome, err := newDaemonWorkflowPreparedRun(env.manager, cfg, scope).
+			RestartFailed(context.Background(), []string{})
+		if err != nil {
+			t.Fatalf("RestartFailed() error = %v", err)
+		}
+		if !slices.Equal(preparedJobNames, []string{"task_01", "task_02"}) {
+			t.Fatalf("prepared jobs = %#v, want all jobs", preparedJobNames)
+		}
+		if len(outcome.Jobs) != 2 {
+			t.Fatalf("outcome jobs = %#v, want both prepared jobs", outcome.Jobs)
+		}
 	})
-
-	cfg := (&model.RuntimeConfig{
-		RunID:         "restart-all-prepared-jobs",
-		WorkspaceRoot: env.workspaceRoot,
-		TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
-		Mode:          model.ExecutionModePRDTasks,
-		AccessMode:    model.AccessModeDefault,
-	}).Clone()
-	cfg.ApplyDefaults()
-
-	scope, err := newTestOpenRunScope(nil)(context.Background(), cfg, model.OpenRunScopeOptions{})
-	if err != nil {
-		t.Fatalf("open test scope: %v", err)
-	}
-	defer func() {
-		_ = scope.Close(context.Background())
-	}()
-
-	outcome, err := newDaemonWorkflowPreparedRun(env.manager, cfg, scope).
-		RestartFailed(context.Background(), []string{})
-	if err != nil {
-		t.Fatalf("RestartFailed() error = %v", err)
-	}
-	if !slices.Equal(preparedJobNames, []string{"task_01", "task_02"}) {
-		t.Fatalf("prepared jobs = %#v, want all jobs", preparedJobNames)
-	}
-	if len(outcome.Jobs) != 2 {
-		t.Fatalf("outcome jobs = %#v, want both prepared jobs", outcome.Jobs)
-	}
 }
 
 func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
