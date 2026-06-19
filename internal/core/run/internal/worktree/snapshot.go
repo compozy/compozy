@@ -159,7 +159,7 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 	h := sha256.New()
 	h.Write([]byte(captureSchemaVersion))
 	h.Write([]byte{0})
-	h.Write(bytes.TrimSpace(head))
+	h.Write([]byte(snapshot.head))
 	h.Write([]byte{0})
 	h.Write(porcelain)
 	return Snapshot{

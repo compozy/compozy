@@ -682,7 +682,7 @@ func (s *commandState) buildReviewRunRuntimeOverrides(
 	}
 	recovery, err := s.recoveryFlagOverrides(cmd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build review runtime recovery overrides: %w", err)
 	}
 	if recovery != nil {
 		overrides.Recovery = recovery
@@ -763,7 +763,7 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 	}
 	recovery, err := s.recoveryFlagOverrides(cmd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build exec runtime recovery overrides: %w", err)
 	}
 	if recovery != nil {
 		overrides.Recovery = recovery

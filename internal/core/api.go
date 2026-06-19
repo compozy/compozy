@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -187,7 +188,7 @@ func (cfg Config) Validate() error {
 		return errors.New("tail-lines must be 0 or greater")
 	}
 	if err := workspacecfg.ValidateAgentRecoveryConfig("core config", cfg.Recovery); err != nil {
-		return err
+		return fmt.Errorf("validate core recovery config: %w", err)
 	}
 	runtimeCfg := cfg.runtime()
 	return agent.ValidateRuntimeConfig(runtimeCfg)

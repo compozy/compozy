@@ -125,31 +125,15 @@ var _ ConflictResolver = (*AgenticConflictResolution)(nil)
 // Resolve runs the selected agent for a bounded number of attempts and
 // validates the integration worktree after every attempt.
 func (r *AgenticConflictResolution) Resolve(ctx context.Context, in ConflictInput) (ConflictResult, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if r == nil || r.executePreparedPrompt == nil {
-		return ConflictResult{}, errors.New("conflict resolver: missing prompt executor")
-	}
-	if r.commands == nil {
-		return ConflictResult{}, errors.New("conflict resolver: missing command runner")
-	}
-	root := strings.TrimSpace(in.IntegrationWorktree)
-	if root == "" {
-		return ConflictResult{}, errors.New("conflict resolver: integration worktree is required")
-	}
-	maxAttempts := boundedConflictAttempts(in.MaxAttempts)
-	startAttempt := in.Attempt
-	if startAttempt < 1 {
-		startAttempt = 1
+	in, err := r.normalizeResolveInput(ctx, in)
+	if err != nil {
+		return ConflictResult{}, err
 	}
 	var last ConflictResult
 	var lastErr error
-	for attempt := startAttempt; attempt <= maxAttempts; attempt++ {
+	for attempt := in.Attempt; attempt <= in.MaxAttempts; attempt++ {
 		attemptInput := in
-		attemptInput.IntegrationWorktree = root
 		attemptInput.Attempt = attempt
-		attemptInput.MaxAttempts = maxAttempts
 		systemPrompt, err := r.buildConflictSystemPrompt(attemptInput)
 		if err != nil {
 			return last, err
@@ -176,6 +160,28 @@ func (r *AgenticConflictResolution) Resolve(ctx context.Context, in ConflictInpu
 		return last, fmt.Errorf("conflict resolver exhausted after %d attempt(s): %w", last.Attempts, lastErr)
 	}
 	return last, nil
+}
+
+func (r *AgenticConflictResolution) normalizeResolveInput(
+	ctx context.Context,
+	in ConflictInput,
+) (ConflictInput, error) {
+	if r == nil || r.executePreparedPrompt == nil {
+		return ConflictInput{}, errors.New("conflict resolver: missing prompt executor")
+	}
+	if ctx == nil {
+		return ConflictInput{}, errors.New("conflict resolver: context is required")
+	}
+	if r.commands == nil {
+		return ConflictInput{}, errors.New("conflict resolver: missing command runner")
+	}
+	in.IntegrationWorktree = strings.TrimSpace(in.IntegrationWorktree)
+	if in.IntegrationWorktree == "" {
+		return ConflictInput{}, errors.New("conflict resolver: integration worktree is required")
+	}
+	in.MaxAttempts = boundedConflictAttempts(in.MaxAttempts)
+	in.Attempt = normalizeConflictAttempt(in.Attempt, in.MaxAttempts)
+	return in, nil
 }
 
 func (r *AgenticConflictResolution) buildConflictSystemPrompt(in ConflictInput) (string, error) {
@@ -484,6 +490,16 @@ func boundedConflictAttempts(maxAttempts int) int {
 		return workspace.MaxRecoveryAttempts
 	}
 	return maxAttempts
+}
+
+func normalizeConflictAttempt(attempt int, maxAttempts int) int {
+	if attempt < 1 {
+		return 1
+	}
+	if attempt > maxAttempts {
+		return maxAttempts
+	}
+	return attempt
 }
 
 // resolverMaxAttempts returns the bounded conflict-resolution attempt ceiling for

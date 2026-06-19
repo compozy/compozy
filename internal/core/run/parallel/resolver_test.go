@@ -15,7 +15,30 @@ import (
 	execpkg "github.com/compozy/compozy/internal/core/run/exec"
 )
 
-func TestConflictResolverSystemPromptIncludesSkillAndConflictContext(t *testing.T) {
+func TestAgenticConflictResolutionScenarios(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should include the embedded skill and conflict context in the system prompt",
+		runConflictResolverSystemPromptIncludesSkillAndConflictContext,
+	)
+	t.Run(
+		"Should derive the conflict result from git status, markers, and the build gate",
+		runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate,
+	)
+	t.Run("Should bound resolver attempts at three", runAgenticConflictResolutionBoundsAttemptsAtThree)
+	t.Run(
+		"Should clamp an oversized starting attempt to the bounded maximum",
+		runAgenticConflictResolutionClampsStartingAttemptToBoundedMax,
+	)
+	t.Run("Should reject a nil context at the resolver boundary", runAgenticConflictResolutionRejectsNilContext)
+	t.Run(
+		"Should build the runtime config with the selected agent settings",
+		runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection,
+	)
+}
+
+func runConflictResolverSystemPromptIncludesSkillAndConflictContext(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -52,7 +75,7 @@ func TestConflictResolverSystemPromptIncludesSkillAndConflictContext(t *testing.
 	}
 }
 
-func TestAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *testing.T) {
+func runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -64,28 +87,28 @@ func TestAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *
 		wantBuilds int
 	}{
 		{
-			name:       "clean status and passing build resolves",
+			name:       "Should resolve when git status is clean and the build passes",
 			status:     " M story.txt\n",
 			file:       "resolved\n",
 			want:       ConflictResult{Resolved: true, Builds: true, Attempts: 1},
 			wantBuilds: 1,
 		},
 		{
-			name:       "unmerged status is unresolved without build",
+			name:       "Should stay unresolved when git status still reports unmerged files",
 			status:     "UU story.txt\n",
 			file:       "resolved\n",
 			want:       ConflictResult{Resolved: false, Builds: false, Attempts: 1},
 			wantBuilds: 0,
 		},
 		{
-			name:       "marker in file is unresolved without build",
+			name:       "Should stay unresolved when conflict markers remain in the file",
 			status:     " M story.txt\n",
 			file:       "<<<<<<< HEAD\nfirst\n=======\nsecond\n>>>>>>> task\n",
 			want:       ConflictResult{Resolved: false, Builds: false, Attempts: 1},
 			wantBuilds: 0,
 		},
 		{
-			name:       "build failure is clean but not buildable",
+			name:       "Should report unresolved builds when git status is clean but verify fails",
 			status:     " M story.txt\n",
 			file:       "resolved\n",
 			buildErr:   errors.New("verify failed"),
@@ -128,7 +151,7 @@ func TestAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *
 	}
 }
 
-func TestAgenticConflictResolutionBoundsAttemptsAtThree(t *testing.T) {
+func runAgenticConflictResolutionBoundsAttemptsAtThree(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -166,7 +189,72 @@ func TestAgenticConflictResolutionBoundsAttemptsAtThree(t *testing.T) {
 	}
 }
 
-func TestAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection(t *testing.T) {
+func runAgenticConflictResolutionClampsStartingAttemptToBoundedMax(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+	runner := &fakeConflictCommandRunner{statuses: []string{" M story.txt\n"}}
+	var calls int
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(runner),
+		WithConflictPreparedPromptExecutor(func(
+			context.Context,
+			*model.RuntimeConfig,
+			string,
+			*reusableagents.ExecutionContext,
+			execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			calls++
+			return execpkg.PreparedPromptResult{RunID: "resolver-run"}, nil
+		}),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+
+	got, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{"story.txt"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2},
+		Attempt:             9,
+		MaxAttempts:         4,
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("prompt executor calls = %d, want 1", calls)
+	}
+	if got.Attempts != 3 {
+		t.Fatalf("attempts = %d, want 3", got.Attempts)
+	}
+}
+
+func runAgenticConflictResolutionRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(&fakeConflictCommandRunner{statuses: []string{" M story.txt\n"}}),
+		WithConflictPreparedPromptExecutor(successfulConflictPromptExecutor),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+
+	_, err := resolver.Resolve(nilContextForTest(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{"story.txt"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2},
+		MaxAttempts:         1,
+	})
+	if err == nil {
+		t.Fatal("Resolve() error = nil, want nil-context rejection")
+	}
+	if !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("Resolve() error = %v, want nil-context rejection", err)
+	}
+}
+
+func runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -287,5 +375,9 @@ func errorAtIndex(errs []error, idx int) error {
 	if idx < len(errs) {
 		return errs[idx]
 	}
+	return nil
+}
+
+func nilContextForTest() context.Context {
 	return nil
 }

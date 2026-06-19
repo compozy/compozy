@@ -6,10 +6,10 @@
     {
       "name": "compozy",
       "sidecar_branch": "compozy/__branches__/agentic",
-      "commit": "22215e21ab2c2e38f98ab8d06bd2879a09779e8c",
-      "digest": "sha256:096bd727f6f72071f0043f42132c54f3c40b12c32ef3ab2ec99c94a17bc91cd5",
-      "files": 1401,
-      "bytes": 11803244
+      "commit": "103f1c4cc980c66e88019ce0051fd81e4929b5f2",
+      "digest": "sha256:8b3ecccea52c0e7397e9bbd297907dff3da6a2ceed71e5cc0fd886e341859218",
+      "files": 1444,
+      "bytes": 11879573
     }
   ]
 }

@@ -20,7 +20,57 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
-func TestParallelFSMModelsRequiredHappyPathTransitions(t *testing.T) {
+func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should model the required happy-path FSM transitions", runParallelFSMModelsRequiredHappyPathTransitions)
+	t.Run("Should bound wave concurrency", runParallelExecutionOrchestratorBoundsWaveConcurrency)
+	t.Run(
+		"Should merge each wave serially in task order",
+		runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder,
+	)
+	t.Run(
+		"Should allocate the next wave from the post-merge integration head",
+		runParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead,
+	)
+	t.Run("Should reject a nil context at the orchestrator boundary", runParallelExecutionOrchestratorRejectsNilContext)
+	t.Run(
+		"Should cancel in-flight work and join workers on context cancellation",
+		runParallelExecutionOrchestratorCancellationTransitionsAndJoinsWorkers,
+	)
+	t.Run(
+		"Should recover a failed task and mark it recovered after merge",
+		runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus,
+	)
+	t.Run(
+		"Should skip dependent tasks after recovery exhaustion while finalizing independent work",
+		runParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinalizes,
+	)
+	t.Run(
+		"Should resolve merge conflicts and commit the resolved squash",
+		runParallelExecutionOrchestratorResolvesConflictAndCommitsSquash,
+	)
+	t.Run(
+		"Should roll back after conflict-resolution exhaustion",
+		runParallelExecutionOrchestratorConflictExhaustionRollsBack,
+	)
+	t.Run(
+		"Should never commit unresolved conflict markers",
+		runParallelExecutionOrchestratorNeverCommitsConflictMarkers,
+	)
+	t.Run("Should emit wave lifecycle events", runParallelExecutionOrchestratorEmitsWaveLifecycleEvents)
+	t.Run(
+		"Should emit conflict detection and resolution events",
+		runParallelExecutionOrchestratorEmitsConflictAndResolveEvents,
+	)
+	t.Run(
+		"Should emit the rolled-back event with the expected error",
+		runParallelExecutionOrchestratorEmitsRolledBackEvent,
+	)
+	t.Run("Should keep the noop event emitter inert", runNoopEventEmitterIsInert)
+}
+
+func runParallelFSMModelsRequiredHappyPathTransitions(t *testing.T) {
 	t.Parallel()
 
 	machine := newParallelFSM()
@@ -91,7 +141,7 @@ func TestParallelFSMModelsRequiredHappyPathTransitions(t *testing.T) {
 	}
 }
 
-func TestParallelExecutionOrchestratorBoundsWaveConcurrency(t *testing.T) {
+func runParallelExecutionOrchestratorBoundsWaveConcurrency(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -134,7 +184,7 @@ func TestParallelExecutionOrchestratorBoundsWaveConcurrency(t *testing.T) {
 	}
 }
 
-func TestParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T) {
+func runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -166,7 +216,7 @@ func TestParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T
 	}
 }
 
-func TestParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead(t *testing.T) {
+func runParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -194,7 +244,27 @@ func TestParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead(t *test
 	}
 }
 
-func TestParallelExecutionOrchestratorCancellationTransitionsAndJoinsWorkers(t *testing.T) {
+func runParallelExecutionOrchestratorRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+	}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+
+	_, err := NewParallelExecutionOrchestrator(worktrees, launcher).Run(nilContextForTest(), plan)
+	if err == nil {
+		t.Fatal("Run() error = nil, want nil-context rejection")
+	}
+	if !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("Run() error = %v, want nil-context rejection", err)
+	}
+}
+
+func runParallelExecutionOrchestratorCancellationTransitionsAndJoinsWorkers(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -224,7 +294,7 @@ func TestParallelExecutionOrchestratorCancellationTransitionsAndJoinsWorkers(t *
 	launcher.assertNoActiveWorkers(t)
 }
 
-func TestParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus(t *testing.T) {
+func runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -274,7 +344,7 @@ func TestParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatu
 	}
 }
 
-func TestParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinalizes(t *testing.T) {
+func runParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinalizes(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -334,7 +404,7 @@ func TestParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinal
 	}
 }
 
-func TestParallelExecutionOrchestratorResolvesConflictAndCommitsSquash(t *testing.T) {
+func runParallelExecutionOrchestratorResolvesConflictAndCommitsSquash(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -378,7 +448,7 @@ func TestParallelExecutionOrchestratorResolvesConflictAndCommitsSquash(t *testin
 	}
 }
 
-func TestParallelExecutionOrchestratorConflictExhaustionRollsBack(t *testing.T) {
+func runParallelExecutionOrchestratorConflictExhaustionRollsBack(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -419,7 +489,7 @@ func TestParallelExecutionOrchestratorConflictExhaustionRollsBack(t *testing.T) 
 	}
 }
 
-func TestParallelExecutionOrchestratorNeverCommitsConflictMarkers(t *testing.T) {
+func runParallelExecutionOrchestratorNeverCommitsConflictMarkers(t *testing.T) {
 	t.Parallel()
 
 	integrationPath := t.TempDir()
@@ -460,7 +530,7 @@ func TestParallelExecutionOrchestratorNeverCommitsConflictMarkers(t *testing.T) 
 	}
 }
 
-func TestParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
+func runParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -484,7 +554,8 @@ func TestParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
 
 	started := emitter.byKind(events.EventKindTaskParallelWaveStarted)
 	startedWaves := map[string]int{}
-	for _, payload := range started {
+	for idx := range started {
+		payload := started[idx]
 		startedWaves[payload.TaskID] = payload.WaveIndex
 		if payload.WaveTotal != 2 {
 			t.Fatalf("wave_started %s wave_total = %d, want 2", payload.TaskID, payload.WaveTotal)
@@ -506,7 +577,8 @@ func TestParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
 	if len(merged) != 2 {
 		t.Fatalf("merged events = %d, want 2", len(merged))
 	}
-	for _, payload := range merged {
+	for idx := range merged {
+		payload := merged[idx]
 		if payload.Status != string(TaskOutcomeMerged) {
 			t.Fatalf("merged %s status = %q, want %q", payload.TaskID, payload.Status, TaskOutcomeMerged)
 		}
@@ -522,7 +594,7 @@ func TestParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
 	}
 }
 
-func TestParallelExecutionOrchestratorEmitsConflictAndResolveEvents(t *testing.T) {
+func runParallelExecutionOrchestratorEmitsConflictAndResolveEvents(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -571,7 +643,7 @@ func TestParallelExecutionOrchestratorEmitsConflictAndResolveEvents(t *testing.T
 	}
 }
 
-func TestParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
+func runParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
 	t.Parallel()
 
 	plan := testParallelPlan(t, []model.TaskEntry{
@@ -589,12 +661,18 @@ func TestParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
 	})
 	emitter := &fakeParallelEventEmitter{}
 
-	outcome, _ := NewParallelExecutionOrchestrator(
+	outcome, err := NewParallelExecutionOrchestrator(
 		worktrees,
 		launcher,
 		WithConflictResolver(resolver),
 		WithEventEmitter(emitter),
 	).Run(context.Background(), plan)
+	if err == nil {
+		t.Fatal("Run() error = nil, want conflict exhaustion")
+	}
+	if !strings.Contains(err.Error(), "conflict resolver exhausted") {
+		t.Fatalf("Run() error = %v, want conflict exhaustion", err)
+	}
 	if outcome.Status != ParallelOutcomeRolledBack {
 		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeRolledBack)
 	}
@@ -607,7 +685,7 @@ func TestParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
 	}
 }
 
-func TestNoopEventEmitterIsInert(t *testing.T) {
+func runNoopEventEmitterIsInert(t *testing.T) {
 	t.Parallel()
 	var emitter ParallelEventEmitter = noopEventEmitter{}
 	emitter.EmitParallelEvent(

@@ -604,90 +604,94 @@ include_completed = true
 }
 
 func TestApplyWorkspaceDefaultsMergesRecoveryAndPreservesExplicitRecoveryIDE(t *testing.T) {
-	root := t.TempDir()
-	homeDir := isolateCLIConfigHome(t)
-	startDir := filepath.Join(root, "pkg", "feature")
-	if err := os.MkdirAll(startDir, 0o755); err != nil {
-		t.Fatalf("mkdir start dir: %v", err)
-	}
-	writeCLIGlobalConfig(t, homeDir, `
-	[recovery]
-	enabled = true
-	ide = "claude"
-	model = "sonnet"
-	reasoning_effort = "high"
-	max_attempts = 2
-	`)
-	writeCLIWorkspaceConfig(t, root, `
-	[recovery]
-	ide = "droid"
-	`)
+	t.Run("Should merge recovery config while preserving an explicit recovery IDE", func(t *testing.T) {
+		root := t.TempDir()
+		homeDir := isolateCLIConfigHome(t)
+		startDir := filepath.Join(root, "pkg", "feature")
+		if err := os.MkdirAll(startDir, 0o755); err != nil {
+			t.Fatalf("mkdir start dir: %v", err)
+		}
+		writeCLIGlobalConfig(t, homeDir, `
+		[recovery]
+		enabled = true
+		ide = "claude"
+		model = "sonnet"
+		reasoning_effort = "high"
+		max_attempts = 2
+		`)
+		writeCLIWorkspaceConfig(t, root, `
+		[recovery]
+		ide = "droid"
+		`)
 
-	state := newCommandState(commandKindExec, core.ModeExec)
-	cmd := newTestCommand(state)
-	if err := cmd.Flags().Set("recovery-ide", "codex"); err != nil {
-		t.Fatalf("set recovery-ide: %v", err)
-	}
+		state := newCommandState(commandKindExec, core.ModeExec)
+		cmd := newTestCommand(state)
+		if err := cmd.Flags().Set("recovery-ide", "codex"); err != nil {
+			t.Fatalf("set recovery-ide: %v", err)
+		}
 
-	chdirCLITest(t, startDir)
+		chdirCLITest(t, startDir)
 
-	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
-		t.Fatalf("apply workspace defaults: %v", err)
-	}
-	if !state.recoveryEnabled {
-		t.Fatal("expected global recovery.enabled to apply")
-	}
-	if state.recoveryIDE != "codex" {
-		t.Fatalf("expected explicit recovery ide to win, got %q", state.recoveryIDE)
-	}
-	if state.recoveryModel != "sonnet" {
-		t.Fatalf("expected global recovery model fallback, got %q", state.recoveryModel)
-	}
-	if state.recoveryReasoningEffort != "high" {
-		t.Fatalf("expected global recovery reasoning fallback, got %q", state.recoveryReasoningEffort)
-	}
-	if state.recoveryMaxAttempts != 2 {
-		t.Fatalf("expected global recovery max attempts fallback, got %d", state.recoveryMaxAttempts)
-	}
-	cfg, err := state.buildConfig()
-	if err != nil {
-		t.Fatalf("buildConfig: %v", err)
-	}
-	if cfg.Recovery.IDE == nil || *cfg.Recovery.IDE != "codex" {
-		t.Fatalf("expected config recovery ide override, got %#v", cfg.Recovery.IDE)
-	}
+		if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+			t.Fatalf("apply workspace defaults: %v", err)
+		}
+		if !state.recoveryEnabled {
+			t.Fatal("expected global recovery.enabled to apply")
+		}
+		if state.recoveryIDE != "codex" {
+			t.Fatalf("expected explicit recovery ide to win, got %q", state.recoveryIDE)
+		}
+		if state.recoveryModel != "sonnet" {
+			t.Fatalf("expected global recovery model fallback, got %q", state.recoveryModel)
+		}
+		if state.recoveryReasoningEffort != "high" {
+			t.Fatalf("expected global recovery reasoning fallback, got %q", state.recoveryReasoningEffort)
+		}
+		if state.recoveryMaxAttempts != 2 {
+			t.Fatalf("expected global recovery max attempts fallback, got %d", state.recoveryMaxAttempts)
+		}
+		cfg, err := state.buildConfig()
+		if err != nil {
+			t.Fatalf("buildConfig: %v", err)
+		}
+		if cfg.Recovery.IDE == nil || *cfg.Recovery.IDE != "codex" {
+			t.Fatalf("expected config recovery ide override, got %#v", cfg.Recovery.IDE)
+		}
+	})
 }
 
 func TestApplyWorkspaceDefaultsNoRecoveryForcesDisabled(t *testing.T) {
-	root := t.TempDir()
-	homeDir := isolateCLIConfigHome(t)
-	startDir := filepath.Join(root, "pkg", "feature")
-	if err := os.MkdirAll(startDir, 0o755); err != nil {
-		t.Fatalf("mkdir start dir: %v", err)
-	}
-	writeCLIGlobalConfig(t, homeDir, `
-	[recovery]
-	enabled = true
-	`)
+	t.Run("Should force recovery disabled when no-recovery is explicit", func(t *testing.T) {
+		root := t.TempDir()
+		homeDir := isolateCLIConfigHome(t)
+		startDir := filepath.Join(root, "pkg", "feature")
+		if err := os.MkdirAll(startDir, 0o755); err != nil {
+			t.Fatalf("mkdir start dir: %v", err)
+		}
+		writeCLIGlobalConfig(t, homeDir, `
+		[recovery]
+		enabled = true
+		`)
 
-	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
-	cmd := newTestCommand(state)
-	if err := cmd.Flags().Set("no-recovery", "true"); err != nil {
-		t.Fatalf("set no-recovery: %v", err)
-	}
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTestCommand(state)
+		if err := cmd.Flags().Set("no-recovery", "true"); err != nil {
+			t.Fatalf("set no-recovery: %v", err)
+		}
 
-	chdirCLITest(t, startDir)
+		chdirCLITest(t, startDir)
 
-	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
-		t.Fatalf("apply workspace defaults: %v", err)
-	}
-	cfg, err := state.buildConfig()
-	if err != nil {
-		t.Fatalf("buildConfig: %v", err)
-	}
-	if cfg.Recovery.Enabled == nil || *cfg.Recovery.Enabled {
-		t.Fatalf("expected --no-recovery to force disabled, got %#v", cfg.Recovery.Enabled)
-	}
+		if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+			t.Fatalf("apply workspace defaults: %v", err)
+		}
+		cfg, err := state.buildConfig()
+		if err != nil {
+			t.Fatalf("buildConfig: %v", err)
+		}
+		if cfg.Recovery.Enabled == nil || *cfg.Recovery.Enabled {
+			t.Fatalf("expected --no-recovery to force disabled, got %#v", cfg.Recovery.Enabled)
+		}
+	})
 }
 
 func TestApplyWorkspaceDefaultsUsesWorkspaceAttachModeOverGlobalRunsDefault(t *testing.T) {

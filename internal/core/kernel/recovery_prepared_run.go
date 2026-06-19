@@ -8,6 +8,11 @@ import (
 	"github.com/compozy/compozy/internal/core/run/recovery"
 )
 
+var (
+	_ recovery.PreparedRun = (*kernelWorkflowPreparedRun)(nil)
+	_ recovery.PreparedRun = (*kernelExecPreparedRun)(nil)
+)
+
 type kernelWorkflowPreparedRun struct {
 	ops        operations
 	runtimeCfg *model.RuntimeConfig
@@ -46,6 +51,9 @@ func (r *kernelWorkflowPreparedRun) executePrepared(
 	prep, err := r.ops.Prepare(ctx, r.runtimeCfg, r.scope)
 	if err != nil {
 		return recovery.RunOutcome{}, err
+	}
+	if prep == nil {
+		return recovery.RunOutcome{}, errors.New("kernel prepared run: prepare returned nil preparation")
 	}
 	prep.SetRunScope(r.scope)
 	if failedJobIDs != nil {

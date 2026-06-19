@@ -27,253 +27,302 @@ import (
 func TestKernelWorkflowPreparedRunRestartFailedFiltersBySafeName(t *testing.T) {
 	t.Parallel()
 
-	scope := newKernelRecoveryScope(t, "filter-run")
-	prepare := kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{
-		{SafeName: "already-green"},
-		{SafeName: "needs-restart"},
-		{SafeName: "also-green"},
-	})
-	fake := &fakeOperations{
-		prepareResult: prepare,
-		executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, _ int) error {
-			writeKernelRunResult(t, prep.RunArtifacts, recovery.StatusSucceeded, prep.Jobs, nil)
-			return nil
-		},
-	}
-	prepared := newKernelWorkflowPreparedRun(fake, &model.RuntimeConfig{}, scope)
+	t.Run("Should restart only the failed jobs matched by safe name", func(t *testing.T) {
+		t.Parallel()
 
-	outcome, err := prepared.RestartFailed(context.Background(), []string{"needs-restart"})
-	if err != nil {
-		t.Fatalf("RestartFailed() error = %v", err)
-	}
-	if outcome.Status != recovery.StatusSucceeded {
-		t.Fatalf("status = %q, want succeeded", outcome.Status)
-	}
-	if len(fake.executeCalls) != 1 {
-		t.Fatalf("execute calls = %d, want 1", len(fake.executeCalls))
-	}
-	gotJobs := fake.executeCalls[0].prep.Jobs
-	if len(gotJobs) != 1 || gotJobs[0].SafeName != "needs-restart" {
-		t.Fatalf("executed jobs = %#v, want only needs-restart", gotJobs)
-	}
+		scope := newKernelRecoveryScope(t, "filter-run")
+		prepare := kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{
+			{SafeName: "already-green"},
+			{SafeName: "needs-restart"},
+			{SafeName: "also-green"},
+		})
+		fake := &fakeOperations{
+			prepareResult: prepare,
+			executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, _ int) error {
+				writeKernelRunResult(t, prep.RunArtifacts, recovery.StatusSucceeded, prep.Jobs, nil)
+				return nil
+			},
+		}
+		prepared := newKernelWorkflowPreparedRun(fake, &model.RuntimeConfig{}, scope)
+
+		outcome, err := prepared.RestartFailed(context.Background(), []string{"needs-restart"})
+		if err != nil {
+			t.Fatalf("RestartFailed() error = %v", err)
+		}
+		if outcome.Status != recovery.StatusSucceeded {
+			t.Fatalf("status = %q, want succeeded", outcome.Status)
+		}
+		if len(fake.executeCalls) != 1 {
+			t.Fatalf("execute calls = %d, want 1", len(fake.executeCalls))
+		}
+		gotJobs := fake.executeCalls[0].prep.Jobs
+		if len(gotJobs) != 1 || gotJobs[0].SafeName != "needs-restart" {
+			t.Fatalf("executed jobs = %#v, want only needs-restart", gotJobs)
+		}
+	})
+}
+
+type nilKernelPreparationOperations struct {
+	*fakeOperations
+}
+
+func (o *nilKernelPreparationOperations) Prepare(
+	context.Context,
+	*model.RuntimeConfig,
+	model.RunScope,
+) (*model.SolvePreparation, error) {
+	return nil, nil
+}
+
+func TestKernelWorkflowPreparedRunRejectsNilPreparation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nil preparation returned by the operations seam", func(t *testing.T) {
+		t.Parallel()
+
+		scope := newKernelRecoveryScope(t, "nil-preparation")
+		prepared := newKernelWorkflowPreparedRun(
+			&nilKernelPreparationOperations{fakeOperations: &fakeOperations{}},
+			&model.RuntimeConfig{},
+			scope,
+		)
+
+		_, err := prepared.Execute(context.Background())
+		if err == nil {
+			t.Fatal("Execute() error = nil, want nil preparation rejection")
+		}
+		if !strings.Contains(err.Error(), "prepare returned nil preparation") {
+			t.Fatalf("Execute() error = %v, want nil preparation rejection", err)
+		}
+	})
 }
 
 func TestRunStartRecoveryDisabledUsesOriginalPreparedPath(t *testing.T) {
 	t.Parallel()
 
-	scope := newKernelRecoveryScope(t, "disabled-run")
-	fake := &fakeOperations{
-		openResult: scope,
-		prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{{
-			SafeName: "task-001",
-		}}),
-	}
-	deps := testKernelDeps(fake)
-	deps.RecoveryStrategy = &kernelFakeRecoveryStrategy{
-		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed}},
-	}
+	t.Run("Should execute the original prepared path when recovery is disabled", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
-		context.Background(),
-		BuildDefault(deps),
-		commands.RunStartCommand{
-			Runtime: model.RuntimeConfig{
-				WorkspaceRoot: "/workspace",
-				Name:          "demo",
-				Mode:          model.ExecutionModePRDTasks,
-				IDE:           model.IDECodex,
-				BatchSize:     1,
+		scope := newKernelRecoveryScope(t, "disabled-run")
+		fake := &fakeOperations{
+			openResult: scope,
+			prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{{
+				SafeName: "task-001",
+			}}),
+		}
+		deps := testKernelDeps(fake)
+		deps.RecoveryStrategy = &kernelFakeRecoveryStrategy{
+			verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed}},
+		}
+
+		result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+			context.Background(),
+			BuildDefault(deps),
+			commands.RunStartCommand{
+				Runtime: model.RuntimeConfig{
+					WorkspaceRoot: "/workspace",
+					Name:          "demo",
+					Mode:          model.ExecutionModePRDTasks,
+					IDE:           model.IDECodex,
+					BatchSize:     1,
+				},
+				Recovery: workspace.AgentRecoveryConfig{Enabled: boolPtr(false)},
 			},
-			Recovery: workspace.AgentRecoveryConfig{Enabled: boolPtr(false)},
-		},
-	)
-	if err != nil {
-		t.Fatalf("dispatch run start: %v", err)
-	}
-	if result.Status != runStartStatusSucceeded {
-		t.Fatalf("status = %q, want %q", result.Status, runStartStatusSucceeded)
-	}
-	if len(fake.executeCalls) != 1 {
-		t.Fatalf("execute calls = %d, want 1", len(fake.executeCalls))
-	}
-	if got := len(deps.RecoveryStrategy.(*kernelFakeRecoveryStrategy).inputs); got != 0 {
-		t.Fatalf("strategy calls = %d, want 0", got)
-	}
+		)
+		if err != nil {
+			t.Fatalf("dispatch run start: %v", err)
+		}
+		if result.Status != runStartStatusSucceeded {
+			t.Fatalf("status = %q, want %q", result.Status, runStartStatusSucceeded)
+		}
+		if len(fake.executeCalls) != 1 {
+			t.Fatalf("execute calls = %d, want 1", len(fake.executeCalls))
+		}
+		if got := len(deps.RecoveryStrategy.(*kernelFakeRecoveryStrategy).inputs); got != 0 {
+			t.Fatalf("strategy calls = %d, want 0", got)
+		}
+	})
 }
 
 func TestRunStartRecoveryRecoversAndRestartsOnlyFailedJobs(t *testing.T) {
 	t.Parallel()
 
-	originalErr := errors.New("unit tests failed")
-	scope := newKernelRecoveryScope(t, "recovered-run")
-	jobs := []model.Job{{SafeName: "unit-tests"}, {SafeName: "lint"}}
-	fake := &fakeOperations{
-		openResult:    scope,
-		prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), jobs),
-		executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, call int) error {
-			switch call {
-			case 1:
-				writeKernelRunResult(
-					t,
-					prep.RunArtifacts,
-					recovery.StatusFailed,
-					prep.Jobs,
-					map[string]recovery.RunStatus{
-						"unit-tests": recovery.StatusFailed,
-						"lint":       recovery.StatusSucceeded,
-					},
-				)
-				return originalErr
-			case 2:
-				if got := safeNames(prep.Jobs); !reflect.DeepEqual(got, []string{"unit-tests"}) {
-					t.Fatalf("restart jobs = %#v, want [unit-tests]", got)
-				}
-				writeKernelRunResult(t, prep.RunArtifacts, recovery.StatusSucceeded, prep.Jobs, nil)
-				return nil
-			default:
-				t.Fatalf("unexpected execute call %d", call)
-				return nil
-			}
-		},
-	}
-	strategy := &kernelFakeRecoveryStrategy{
-		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed test"}},
-	}
-	deps := testKernelDeps(fake)
-	deps.RecoveryStrategy = strategy
+	t.Run("Should recover and restart only the failed jobs", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
-		context.Background(),
-		BuildDefault(deps),
-		commands.RunStartCommand{
-			Runtime: model.RuntimeConfig{
-				WorkspaceRoot: "/workspace",
-				Name:          "demo",
-				Mode:          model.ExecutionModePRDTasks,
-				IDE:           model.IDECodex,
-				BatchSize:     1,
+		originalErr := errors.New("unit tests failed")
+		scope := newKernelRecoveryScope(t, "recovered-run")
+		jobs := []model.Job{{SafeName: "unit-tests"}, {SafeName: "lint"}}
+		fake := &fakeOperations{
+			openResult:    scope,
+			prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), jobs),
+			executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, call int) error {
+				switch call {
+				case 1:
+					writeKernelRunResult(
+						t,
+						prep.RunArtifacts,
+						recovery.StatusFailed,
+						prep.Jobs,
+						map[string]recovery.RunStatus{
+							"unit-tests": recovery.StatusFailed,
+							"lint":       recovery.StatusSucceeded,
+						},
+					)
+					return originalErr
+				case 2:
+					if got := safeNames(prep.Jobs); !reflect.DeepEqual(got, []string{"unit-tests"}) {
+						t.Fatalf("restart jobs = %#v, want [unit-tests]", got)
+					}
+					writeKernelRunResult(t, prep.RunArtifacts, recovery.StatusSucceeded, prep.Jobs, nil)
+					return nil
+				default:
+					t.Fatalf("unexpected execute call %d", call)
+					return nil
+				}
 			},
-			Recovery: enabledKernelRecoveryConfig(),
-		},
-	)
-	if err != nil {
-		t.Fatalf("dispatch run start: %v", err)
-	}
-	if result.Status != string(recovery.StatusSucceeded) {
-		t.Fatalf("status = %q, want succeeded", result.Status)
-	}
-	if len(fake.executeCalls) != 2 {
-		t.Fatalf("execute calls = %d, want 2", len(fake.executeCalls))
-	}
-	if len(strategy.inputs) != 1 {
-		t.Fatalf("strategy calls = %d, want 1", len(strategy.inputs))
-	}
+		}
+		strategy := &kernelFakeRecoveryStrategy{
+			verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed test"}},
+		}
+		deps := testKernelDeps(fake)
+		deps.RecoveryStrategy = strategy
+
+		result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+			context.Background(),
+			BuildDefault(deps),
+			commands.RunStartCommand{
+				Runtime: model.RuntimeConfig{
+					WorkspaceRoot: "/workspace",
+					Name:          "demo",
+					Mode:          model.ExecutionModePRDTasks,
+					IDE:           model.IDECodex,
+					BatchSize:     1,
+				},
+				Recovery: enabledKernelRecoveryConfig(),
+			},
+		)
+		if err != nil {
+			t.Fatalf("dispatch run start: %v", err)
+		}
+		if result.Status != string(recovery.StatusSucceeded) {
+			t.Fatalf("status = %q, want succeeded", result.Status)
+		}
+		if len(fake.executeCalls) != 2 {
+			t.Fatalf("execute calls = %d, want 2", len(fake.executeCalls))
+		}
+		if len(strategy.inputs) != 1 {
+			t.Fatalf("strategy calls = %d, want 1", len(strategy.inputs))
+		}
+	})
 }
 
 func TestRunStartRecoveryIntegrationUsesDeterministicACPAndRealRestart(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
-	installKernelRuntimeProbeStub(t, "codex-acp")
-	initKernelGitRepo(t, workspaceRoot)
-	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
-	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
-		t.Fatalf("mkdir tasks dir: %v", err)
-	}
-	writeKernelTaskFile(
-		t,
-		tasksDir,
-		"task_01.md",
-		"Needs recovery",
-		"Create task_01.done, but this task requires fixed.txt before it can pass.",
-	)
-	writeKernelTaskFile(
-		t,
-		tasksDir,
-		"task_02.md",
-		"Already green",
-		"Create task_02.done. This task should not be restarted after recovery.",
-	)
-	fakeACP := newKernelBoundaryACP(t, workspaceRoot)
-	restore := corerun.SwapNewAgentClientForTest(
-		func(context.Context, agent.ClientConfig) (agent.Client, error) {
-			return fakeACP, nil
-		},
-	)
-	t.Cleanup(restore)
-
-	dispatcher := BuildDefault(KernelDeps{AgentRegistry: agent.DefaultRegistry()})
-	result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
-		context.Background(),
-		dispatcher,
-		commands.RunStartCommand{
-			Runtime: model.RuntimeConfig{
-				WorkspaceRoot:          workspaceRoot,
-				Name:                   "demo",
-				TasksDir:               tasksDir,
-				Mode:                   model.ExecutionModePRDTasks,
-				IDE:                    model.IDECodex,
-				Model:                  workspace.DefaultRecoveryModel,
-				ReasoningEffort:        workspace.DefaultRecoveryReasoningEffort,
-				AccessMode:             model.AccessModeDefault,
-				BatchSize:              1,
-				Concurrent:             1,
-				MaxRetries:             0,
-				RetryBackoffMultiplier: 1.5,
-				Timeout:                time.Minute,
-			},
-			Recovery: workspace.AgentRecoveryConfig{
-				Enabled:         boolPtr(true),
-				IDE:             strPtr(model.IDECodex),
-				Model:           strPtr(workspace.DefaultRecoveryModel),
-				ReasoningEffort: strPtr(workspace.DefaultRecoveryReasoningEffort),
-				MaxAttempts:     intPtr(1),
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("dispatch run start with real recovery: %v", err)
-	}
-	if result.Status != string(recovery.StatusSucceeded) {
-		t.Fatalf("result status = %q, want succeeded", result.Status)
-	}
-	if result.RunID == "" {
-		t.Fatal("expected run ID")
-	}
-	fakeACP.assertCallCounts(t, map[string]int{
-		"task_01": 2,
-		"task_02": 1,
-	}, 1)
-	if _, err := os.Stat(filepath.Join(workspaceRoot, "fixed.txt")); err != nil {
-		t.Fatalf("expected recovery agent to create fixed.txt: %v", err)
-	}
-	if got := kernelGitCommitCount(t, workspaceRoot); got != "1" {
-		t.Fatalf("git commit count = %s, want 1 (no recovery commit)", got)
-	}
-	artifacts, err := model.ResolveHomeRunArtifacts(result.RunID)
-	if err != nil {
-		t.Fatalf("resolve run artifacts: %v", err)
-	}
-	assertKernelRecoveryArtifacts(t, artifacts.RecoveryDir)
-	eventsPayload, err := os.ReadFile(artifacts.EventsPath)
-	if err != nil {
-		t.Fatalf("read events: %v", err)
-	}
-	for _, kind := range []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
-		eventspkg.EventKindRunRecoveryRestarting,
-		eventspkg.EventKindRunRecovered,
-	} {
-		if got := strings.Count(string(eventsPayload), string(kind)); got != 1 {
-			t.Fatalf("event %s count = %d, want 1\n%s", kind, got, string(eventsPayload))
+	t.Run("Should recover deterministically through ACP and restart only failed jobs", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		t.Setenv("HOME", t.TempDir())
+		installKernelRuntimeProbeStub(t, "codex-acp")
+		initKernelGitRepo(t, workspaceRoot)
+		tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+		if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir tasks dir: %v", err)
 		}
-	}
-	outcome, err := recovery.ReadRunOutcome(artifacts)
-	if err != nil {
-		t.Fatalf("read final run outcome: %v", err)
-	}
-	if outcome == nil || outcome.Status != recovery.StatusSucceeded {
-		t.Fatalf("final outcome = %#v, want succeeded", outcome)
-	}
+		writeKernelTaskFile(
+			t,
+			tasksDir,
+			"task_01.md",
+			"Needs recovery",
+			"Create task_01.done, but this task requires fixed.txt before it can pass.",
+		)
+		writeKernelTaskFile(
+			t,
+			tasksDir,
+			"task_02.md",
+			"Already green",
+			"Create task_02.done. This task should not be restarted after recovery.",
+		)
+		fakeACP := newKernelBoundaryACP(t, workspaceRoot)
+		restore := corerun.SwapNewAgentClientForTest(
+			func(context.Context, agent.ClientConfig) (agent.Client, error) {
+				return fakeACP, nil
+			},
+		)
+		t.Cleanup(restore)
+
+		dispatcher := BuildDefault(KernelDeps{AgentRegistry: agent.DefaultRegistry()})
+		result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+			context.Background(),
+			dispatcher,
+			commands.RunStartCommand{
+				Runtime: model.RuntimeConfig{
+					WorkspaceRoot:          workspaceRoot,
+					Name:                   "demo",
+					TasksDir:               tasksDir,
+					Mode:                   model.ExecutionModePRDTasks,
+					IDE:                    model.IDECodex,
+					Model:                  workspace.DefaultRecoveryModel,
+					ReasoningEffort:        workspace.DefaultRecoveryReasoningEffort,
+					AccessMode:             model.AccessModeDefault,
+					BatchSize:              1,
+					Concurrent:             1,
+					MaxRetries:             0,
+					RetryBackoffMultiplier: 1.5,
+					Timeout:                time.Minute,
+				},
+				Recovery: workspace.AgentRecoveryConfig{
+					Enabled:         boolPtr(true),
+					IDE:             strPtr(model.IDECodex),
+					Model:           strPtr(workspace.DefaultRecoveryModel),
+					ReasoningEffort: strPtr(workspace.DefaultRecoveryReasoningEffort),
+					MaxAttempts:     intPtr(1),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("dispatch run start with real recovery: %v", err)
+		}
+		if result.Status != string(recovery.StatusSucceeded) {
+			t.Fatalf("result status = %q, want succeeded", result.Status)
+		}
+		if result.RunID == "" {
+			t.Fatal("expected run ID")
+		}
+		fakeACP.assertCallCounts(t, map[string]int{
+			"task_01": 2,
+			"task_02": 1,
+		}, 1)
+		if _, err := os.Stat(filepath.Join(workspaceRoot, "fixed.txt")); err != nil {
+			t.Fatalf("expected recovery agent to create fixed.txt: %v", err)
+		}
+		if got := kernelGitCommitCount(t, workspaceRoot); got != "1" {
+			t.Fatalf("git commit count = %s, want 1 (no recovery commit)", got)
+		}
+		artifacts, err := model.ResolveHomeRunArtifacts(result.RunID)
+		if err != nil {
+			t.Fatalf("resolve run artifacts: %v", err)
+		}
+		assertKernelRecoveryArtifacts(t, artifacts.RecoveryDir)
+		eventsPayload, err := os.ReadFile(artifacts.EventsPath)
+		if err != nil {
+			t.Fatalf("read events: %v", err)
+		}
+		for _, kind := range []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+			eventspkg.EventKindRunRecoveryRestarting,
+			eventspkg.EventKindRunRecovered,
+		} {
+			if got := strings.Count(string(eventsPayload), string(kind)); got != 1 {
+				t.Fatalf("event %s count = %d, want 1\n%s", kind, got, string(eventsPayload))
+			}
+		}
+		outcome, err := recovery.ReadRunOutcome(artifacts)
+		if err != nil {
+			t.Fatalf("read final run outcome: %v", err)
+		}
+		if outcome == nil || outcome.Status != recovery.StatusSucceeded {
+			t.Fatalf("final outcome = %#v, want succeeded", outcome)
+		}
+	})
 }
 
 func TestRunStartRecoverySkipsCanceledAndRecoveryAttemptRuns(t *testing.T) {
@@ -287,172 +336,190 @@ func TestRunStartRecoverySkipsCanceledAndRecoveryAttemptRuns(t *testing.T) {
 		recoveryAttempt int
 	}{
 		{
-			name:    "canceled",
+			name:    "Should skip canceled runs",
 			status:  recovery.StatusCanceled,
 			execErr: context.Canceled,
 		},
 		{
-			name:            "recovery attempt",
+			name:            "Should skip recovery attempts",
 			status:          recovery.StatusFailed,
 			execErr:         originalErr,
 			recoveryAttempt: 1,
 		},
 	}
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	t.Run("Should skip canceled runs and recovery-attempt reruns", func(t *testing.T) {
+		t.Parallel()
 
-			scope := newKernelRecoveryScope(t, "skip-"+strings.ReplaceAll(tc.name, " ", "-"))
-			fake := &fakeOperations{
-				openResult: scope,
-				prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{{
-					SafeName: "unit-tests",
-				}}),
-				executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, _ int) error {
-					writeKernelRunResult(t, prep.RunArtifacts, tc.status, prep.Jobs, map[string]recovery.RunStatus{
-						"unit-tests": tc.status,
-					})
-					return tc.execErr
-				},
-			}
-			strategy := &kernelFakeRecoveryStrategy{
-				verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed}},
-			}
-			deps := testKernelDeps(fake)
-			deps.RecoveryStrategy = strategy
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
-				context.Background(),
-				BuildDefault(deps),
-				commands.RunStartCommand{
-					Runtime: model.RuntimeConfig{
-						WorkspaceRoot:   "/workspace",
-						Name:            "demo",
-						Mode:            model.ExecutionModePRDTasks,
-						IDE:             model.IDECodex,
-						BatchSize:       1,
-						RecoveryAttempt: tc.recoveryAttempt,
+				scope := newKernelRecoveryScope(t, "skip-"+strings.ReplaceAll(tc.name, " ", "-"))
+				fake := &fakeOperations{
+					openResult: scope,
+					prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{{
+						SafeName: "unit-tests",
+					}}),
+					executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, _ int) error {
+						writeKernelRunResult(t, prep.RunArtifacts, tc.status, prep.Jobs, map[string]recovery.RunStatus{
+							"unit-tests": tc.status,
+						})
+						return tc.execErr
 					},
-					Recovery: enabledKernelRecoveryConfig(),
-				},
-			)
-			if !errors.Is(err, tc.execErr) {
-				t.Fatalf("dispatch error = %v, want %v", err, tc.execErr)
-			}
-			if len(strategy.inputs) != 0 {
-				t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
-			}
-		})
-	}
+				}
+				strategy := &kernelFakeRecoveryStrategy{
+					verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed}},
+				}
+				deps := testKernelDeps(fake)
+				deps.RecoveryStrategy = strategy
+
+				_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+					context.Background(),
+					BuildDefault(deps),
+					commands.RunStartCommand{
+						Runtime: model.RuntimeConfig{
+							WorkspaceRoot:   "/workspace",
+							Name:            "demo",
+							Mode:            model.ExecutionModePRDTasks,
+							IDE:             model.IDECodex,
+							BatchSize:       1,
+							RecoveryAttempt: tc.recoveryAttempt,
+						},
+						Recovery: enabledKernelRecoveryConfig(),
+					},
+				)
+				if !errors.Is(err, tc.execErr) {
+					t.Fatalf("dispatch error = %v, want %v", err, tc.execErr)
+				}
+				if len(strategy.inputs) != 0 {
+					t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
+				}
+			})
+		}
+	})
 }
 
 func TestRunStartRecoveryRejectFailsLoudlyAndRecordsOneAttempt(t *testing.T) {
 	t.Parallel()
 
-	originalErr := errors.New("missing credentials")
-	scope := newKernelRecoveryScope(t, "reject-run")
-	fake := &fakeOperations{
-		openResult: scope,
-		prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{{
-			SafeName: "integration",
-		}}),
-		executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, _ int) error {
-			writeKernelRunResult(t, prep.RunArtifacts, recovery.StatusFailed, prep.Jobs, map[string]recovery.RunStatus{
-				"integration": recovery.StatusFailed,
-			})
-			return originalErr
-		},
-	}
-	strategy := &kernelFakeRecoveryStrategy{
-		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictReject, Reason: "infra failure"}},
-	}
-	deps := testKernelDeps(fake)
-	deps.RecoveryStrategy = strategy
+	t.Run("Should surface rejection loudly and record a single recovery attempt", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
-		context.Background(),
-		BuildDefault(deps),
-		commands.RunStartCommand{
-			Runtime: model.RuntimeConfig{
-				WorkspaceRoot: "/workspace",
-				Name:          "demo",
-				Mode:          model.ExecutionModePRDTasks,
-				IDE:           model.IDECodex,
-				BatchSize:     1,
+		originalErr := errors.New("missing credentials")
+		scope := newKernelRecoveryScope(t, "reject-run")
+		fake := &fakeOperations{
+			openResult: scope,
+			prepareResult: kernelRecoveryPreparation(scope.RunArtifacts(), []model.Job{{
+				SafeName: "integration",
+			}}),
+			executeHook: func(_ context.Context, prep *model.SolvePreparation, _ *model.RuntimeConfig, _ int) error {
+				writeKernelRunResult(
+					t,
+					prep.RunArtifacts,
+					recovery.StatusFailed,
+					prep.Jobs,
+					map[string]recovery.RunStatus{
+						"integration": recovery.StatusFailed,
+					},
+				)
+				return originalErr
 			},
-			Recovery: enabledKernelRecoveryConfig(),
-		},
-	)
-	if !errors.Is(err, originalErr) {
-		t.Fatalf("dispatch error = %v, want original cause", err)
-	}
-	if len(strategy.inputs) != 1 {
-		t.Fatalf("strategy calls = %d, want 1", len(strategy.inputs))
-	}
-	payload, readErr := os.ReadFile(scope.RunArtifacts().EventsPath)
-	if readErr != nil {
-		t.Fatalf("read recovery events: %v", readErr)
-	}
-	if got := strings.Count(string(payload), string(eventspkg.EventKindRunRecoveryStarted)); got != 1 {
-		t.Fatalf("recovery started events = %d, want 1\n%s", got, string(payload))
-	}
+		}
+		strategy := &kernelFakeRecoveryStrategy{
+			verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictReject, Reason: "infra failure"}},
+		}
+		deps := testKernelDeps(fake)
+		deps.RecoveryStrategy = strategy
+
+		_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+			context.Background(),
+			BuildDefault(deps),
+			commands.RunStartCommand{
+				Runtime: model.RuntimeConfig{
+					WorkspaceRoot: "/workspace",
+					Name:          "demo",
+					Mode:          model.ExecutionModePRDTasks,
+					IDE:           model.IDECodex,
+					BatchSize:     1,
+				},
+				Recovery: enabledKernelRecoveryConfig(),
+			},
+		)
+		if !errors.Is(err, originalErr) {
+			t.Fatalf("dispatch error = %v, want original cause", err)
+		}
+		if len(strategy.inputs) != 1 {
+			t.Fatalf("strategy calls = %d, want 1", len(strategy.inputs))
+		}
+		payload, readErr := os.ReadFile(scope.RunArtifacts().EventsPath)
+		if readErr != nil {
+			t.Fatalf("read recovery events: %v", readErr)
+		}
+		if got := strings.Count(string(payload), string(eventspkg.EventKindRunRecoveryStarted)); got != 1 {
+			t.Fatalf("recovery started events = %d, want 1\n%s", got, string(payload))
+		}
+	})
 }
 
 func TestRunStartExecRecoveryRerunsSingleJob(t *testing.T) {
 	t.Parallel()
 
-	originalErr := errors.New("exec failed")
-	workspaceRoot := t.TempDir()
-	scope := newKernelRecoveryScopeInRoot(t, workspaceRoot, "exec-recovery")
-	fake := &fakeOperations{
-		openResult: scope,
-		execHook: func(_ context.Context, cfg *model.RuntimeConfig, scope model.RunScope, call int) error {
-			switch call {
-			case 1:
-				writeKernelExecOutcome(t, cfg, scope.RunArtifacts(), recovery.StatusFailed, "exec failed")
-				return originalErr
-			case 2:
-				writeKernelExecOutcome(t, cfg, scope.RunArtifacts(), recovery.StatusSucceeded, "")
-				return nil
-			default:
-				t.Fatalf("unexpected exec call %d", call)
-				return nil
-			}
-		},
-	}
-	strategy := &kernelFakeRecoveryStrategy{
-		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed exec"}},
-	}
-	deps := testKernelDeps(fake)
-	deps.RecoveryStrategy = strategy
+	t.Run("Should rerun a failed exec recovery through the single exec job path", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
-		context.Background(),
-		BuildDefault(deps),
-		commands.RunStartCommand{
-			Runtime: model.RuntimeConfig{
-				WorkspaceRoot: workspaceRoot,
-				RunID:         "exec-recovery",
-				Mode:          model.ExecutionModeExec,
-				IDE:           model.IDECodex,
-				PromptText:    "fix this",
+		originalErr := errors.New("exec failed")
+		workspaceRoot := t.TempDir()
+		scope := newKernelRecoveryScopeInRoot(t, workspaceRoot, "exec-recovery")
+		fake := &fakeOperations{
+			openResult: scope,
+			execHook: func(_ context.Context, cfg *model.RuntimeConfig, scope model.RunScope, call int) error {
+				switch call {
+				case 1:
+					writeKernelExecOutcome(t, cfg, scope.RunArtifacts(), recovery.StatusFailed, "exec failed")
+					return originalErr
+				case 2:
+					writeKernelExecOutcome(t, cfg, scope.RunArtifacts(), recovery.StatusSucceeded, "")
+					return nil
+				default:
+					t.Fatalf("unexpected exec call %d", call)
+					return nil
+				}
 			},
-			Recovery: enabledKernelRecoveryConfig(),
-		},
-	)
-	if err != nil {
-		t.Fatalf("dispatch exec run start: %v", err)
-	}
-	if result.Status != string(recovery.StatusSucceeded) {
-		t.Fatalf("status = %q, want succeeded", result.Status)
-	}
-	if len(fake.execCalls) != 2 {
-		t.Fatalf("exec calls = %d, want 2", len(fake.execCalls))
-	}
-	if len(strategy.inputs) != 1 || len(strategy.inputs[0].Outcome.FailedJobIDs()) != 1 {
-		t.Fatalf("unexpected strategy inputs: %#v", strategy.inputs)
-	}
+		}
+		strategy := &kernelFakeRecoveryStrategy{
+			verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed exec"}},
+		}
+		deps := testKernelDeps(fake)
+		deps.RecoveryStrategy = strategy
+
+		result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+			context.Background(),
+			BuildDefault(deps),
+			commands.RunStartCommand{
+				Runtime: model.RuntimeConfig{
+					WorkspaceRoot: workspaceRoot,
+					RunID:         "exec-recovery",
+					Mode:          model.ExecutionModeExec,
+					IDE:           model.IDECodex,
+					PromptText:    "fix this",
+				},
+				Recovery: enabledKernelRecoveryConfig(),
+			},
+		)
+		if err != nil {
+			t.Fatalf("dispatch exec run start: %v", err)
+		}
+		if result.Status != string(recovery.StatusSucceeded) {
+			t.Fatalf("status = %q, want succeeded", result.Status)
+		}
+		if len(fake.execCalls) != 2 {
+			t.Fatalf("exec calls = %d, want 2", len(fake.execCalls))
+		}
+		if len(strategy.inputs) != 1 || len(strategy.inputs[0].Outcome.FailedJobIDs()) != 1 {
+			t.Fatalf("unexpected strategy inputs: %#v", strategy.inputs)
+		}
+	})
 }
 
 type kernelBoundaryACP struct {
@@ -542,6 +609,11 @@ func (c *kernelBoundaryACP) assertCallCounts(t *testing.T, wantJobs map[string]i
 	for jobID, want := range wantJobs {
 		if got := c.jobCalls[jobID]; got != want {
 			t.Fatalf("ACP calls for %s = %d, want %d; all calls=%#v", jobID, got, want, c.jobCalls)
+		}
+	}
+	for jobID := range c.jobCalls {
+		if _, ok := wantJobs[jobID]; !ok {
+			t.Fatalf("unexpected ACP calls for %s; all calls=%#v want=%#v", jobID, c.jobCalls, wantJobs)
 		}
 	}
 	if got := c.recoveryCalls; got != wantRecovery {

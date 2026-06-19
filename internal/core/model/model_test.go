@@ -545,34 +545,38 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 func TestRuntimeConfigClonePreservesTargetTaskNumber(t *testing.T) {
 	t.Parallel()
 
-	targetTaskNumber := 3
-	cfg := &model.RuntimeConfig{
-		TargetTaskNumber: &targetTaskNumber,
-		AddDirs:          []string{"/workspace/docs"},
-	}
+	t.Run("Should preserve and deep-copy the target task number", func(t *testing.T) {
+		t.Parallel()
 
-	cloned := cfg.Clone()
-	if cloned == nil {
-		t.Fatal("Clone() = nil, want runtime config")
-	}
-	if cloned.TargetTaskNumber == nil {
-		t.Fatal("Clone().TargetTaskNumber = nil, want copied target")
-	}
-	if cloned.TargetTaskNumber == cfg.TargetTaskNumber {
-		t.Fatal("Clone().TargetTaskNumber aliases base pointer")
-	}
-	if *cloned.TargetTaskNumber != targetTaskNumber {
-		t.Fatalf("Clone().TargetTaskNumber = %d, want %d", *cloned.TargetTaskNumber, targetTaskNumber)
-	}
+		targetTaskNumber := 3
+		cfg := &model.RuntimeConfig{
+			TargetTaskNumber: &targetTaskNumber,
+			AddDirs:          []string{"/workspace/docs"},
+		}
 
-	*cloned.TargetTaskNumber = 7
-	cloned.AddDirs[0] = "/workspace/changed"
-	if *cfg.TargetTaskNumber != targetTaskNumber {
-		t.Fatalf("base TargetTaskNumber changed to %d, want %d", *cfg.TargetTaskNumber, targetTaskNumber)
-	}
-	if cfg.AddDirs[0] != "/workspace/docs" {
-		t.Fatalf("base AddDirs changed to %#v", cfg.AddDirs)
-	}
+		cloned := cfg.Clone()
+		if cloned == nil {
+			t.Fatal("Clone() = nil, want runtime config")
+		}
+		if cloned.TargetTaskNumber == nil {
+			t.Fatal("Clone().TargetTaskNumber = nil, want copied target")
+		}
+		if cloned.TargetTaskNumber == cfg.TargetTaskNumber {
+			t.Fatal("Clone().TargetTaskNumber aliases base pointer")
+		}
+		if *cloned.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("Clone().TargetTaskNumber = %d, want %d", *cloned.TargetTaskNumber, targetTaskNumber)
+		}
+
+		*cloned.TargetTaskNumber = 7
+		cloned.AddDirs[0] = "/workspace/changed"
+		if *cfg.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("base TargetTaskNumber changed to %d, want %d", *cfg.TargetTaskNumber, targetTaskNumber)
+		}
+		if cfg.AddDirs[0] != "/workspace/docs" {
+			t.Fatalf("base AddDirs changed to %#v", cfg.AddDirs)
+		}
+	})
 }
 
 func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {

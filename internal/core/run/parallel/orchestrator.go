@@ -248,11 +248,11 @@ func NewParallelExecutionOrchestrator(
 // Run executes every wave, merges successful task worktrees, and fast-forwards
 // the target branch on completion.
 func (o *ExecutionOrchestrator) Run(ctx context.Context, plan ParallelPlan) (ParallelOutcome, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if o == nil {
 		return ParallelOutcome{}, errors.New("parallel execution: missing orchestrator")
+	}
+	if ctx == nil {
+		return ParallelOutcome{}, errors.New("parallel execution: context is required")
 	}
 	if err := o.validatePlan(plan); err != nil {
 		return ParallelOutcome{}, err

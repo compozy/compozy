@@ -119,45 +119,47 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 }
 
 func TestExecuteJobWithTimeoutACPSlowInitializeCompletesBeforeInitDeadline(t *testing.T) {
-	tmpDir := t.TempDir()
-	activityTimeout := 1500 * time.Millisecond
-	installACPHelperOnPath(t, []runACPHelperScenario{{
-		InitializeDelayMillis: 1800,
-		Updates: []acp.SessionUpdate{
-			acp.UpdateAgentMessageText("slow initialize completed"),
-		},
-	}})
+	t.Run("Should allow a slow ACP initialize phase to complete before the init deadline", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		activityTimeout := 1500 * time.Millisecond
+		installACPHelperOnPath(t, []runACPHelperScenario{{
+			InitializeDelayMillis: 1800,
+			Updates: []acp.SessionUpdate{
+				acp.UpdateAgentMessageText("slow initialize completed"),
+			},
+		}})
 
-	job := newTestACPJob(tmpDir)
-	result := executeJobWithTimeout(
-		context.Background(),
-		&config{
-			IDE:                    model.IDECodex,
-			Model:                  "",
-			ReasoningEffort:        "medium",
-			RetryBackoffMultiplier: 2,
-		},
-		&job,
-		tmpDir,
-		false,
-		0,
-		activityTimeout,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+		job := newTestACPJob(tmpDir)
+		result := executeJobWithTimeout(
+			context.Background(),
+			&config{
+				IDE:                    model.IDECodex,
+				Model:                  "",
+				ReasoningEffort:        "medium",
+				RetryBackoffMultiplier: 2,
+			},
+			&job,
+			tmpDir,
+			false,
+			0,
+			activityTimeout,
+			nil,
+			nil,
+			nil,
+			nil,
+		)
 
-	if got := result.Status; got != attemptStatusSuccess {
-		t.Fatalf("expected slow initialize to succeed, got %s (%#v)", got, result.Failure)
-	}
-	outLog, err := os.ReadFile(job.OutLog)
-	if err != nil {
-		t.Fatalf("read out log: %v", err)
-	}
-	if !strings.Contains(string(outLog), "slow initialize completed") {
-		t.Fatalf("expected slow initialize output, got %q", string(outLog))
-	}
+		if got := result.Status; got != attemptStatusSuccess {
+			t.Fatalf("expected slow initialize to succeed, got %s (%#v)", got, result.Failure)
+		}
+		outLog, err := os.ReadFile(job.OutLog)
+		if err != nil {
+			t.Fatalf("read out log: %v", err)
+		}
+		if !strings.Contains(string(outLog), "slow initialize completed") {
+			t.Fatalf("expected slow initialize output, got %q", string(outLog))
+		}
+	})
 }
 
 func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T) {

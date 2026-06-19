@@ -1809,39 +1809,41 @@ func TestTasksRunCommandRejectsParallelFlagsWithoutMultiple(t *testing.T) {
 }
 
 func TestTasksRunCommandRejectsParallelTasksWithMultiple(t *testing.T) {
-	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
-		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
-			t.Fatal("daemon bootstrap should not run for invalid parallel task usage")
-			return compozyconfig.HomePaths{}, nil
-		},
-	})
+	t.Run("Should reject combining parallel tasks with multiple", func(t *testing.T) {
+		installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+			resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+				t.Fatal("daemon bootstrap should not run for invalid parallel task usage")
+				return compozyconfig.HomePaths{}, nil
+			},
+		})
 
-	defaults := allowBundledSkillsForExecutionTests()
-	defaults.isInteractive = func() bool { return false }
-	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"tasks",
-		"run",
-		"--multiple",
-		"alpha,beta",
-		"--parallel-tasks",
-	)
-	if err == nil {
-		t.Fatalf("expected parallel-tasks with multiple rejection\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
-	}
-	var exitErr *commandExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-		t.Fatalf("expected exit code 1, got %v", err)
-	}
-	if stdout != "" {
-		t.Fatalf("expected no stdout, got %q", stdout)
-	}
-	if !strings.Contains(stderr, "--parallel-tasks cannot be combined with --multiple") {
-		t.Fatalf("stderr = %q, want parallel-tasks rejection", stderr)
-	}
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"--multiple",
+			"alpha,beta",
+			"--parallel-tasks",
+		)
+		if err == nil {
+			t.Fatalf("expected parallel-tasks with multiple rejection\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			t.Fatalf("expected exit code 1, got %v", err)
+		}
+		if stdout != "" {
+			t.Fatalf("expected no stdout, got %q", stdout)
+		}
+		if !strings.Contains(stderr, "--parallel-tasks cannot be combined with --multiple") {
+			t.Fatalf("stderr = %q, want parallel-tasks rejection", stderr)
+		}
+	})
 }
 
 func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
