@@ -51,29 +51,31 @@ type ClientConfig struct {
 
 // SessionRequest contains the parameters for creating a new ACP session.
 type SessionRequest struct {
-	Prompt     []byte               `json:"prompt,omitempty"`
-	WorkingDir string               `json:"working_dir,omitempty"`
-	Model      string               `json:"model,omitempty"`
-	MCPServers []model.MCPServer    `json:"mcp_servers,omitempty"`
-	ExtraEnv   map[string]string    `json:"extra_env,omitempty"`
-	Context    context.Context      `json:"-"`
-	RunID      string               `json:"-"`
-	JobID      string               `json:"-"`
-	RuntimeMgr model.RuntimeManager `json:"-"`
+	Prompt       []byte               `json:"prompt,omitempty"`
+	WorkingDir   string               `json:"working_dir,omitempty"`
+	Model        string               `json:"model,omitempty"`
+	MCPServers   []model.MCPServer    `json:"mcp_servers,omitempty"`
+	ExtraEnv     map[string]string    `json:"extra_env,omitempty"`
+	Context      context.Context      `json:"-"`
+	SetupContext context.Context      `json:"-"`
+	RunID        string               `json:"-"`
+	JobID        string               `json:"-"`
+	RuntimeMgr   model.RuntimeManager `json:"-"`
 }
 
 // ResumeSessionRequest contains the parameters for loading and continuing an existing ACP session.
 type ResumeSessionRequest struct {
-	SessionID  string               `json:"session_id,omitempty"`
-	Prompt     []byte               `json:"prompt,omitempty"`
-	WorkingDir string               `json:"working_dir,omitempty"`
-	Model      string               `json:"model,omitempty"`
-	MCPServers []model.MCPServer    `json:"mcp_servers,omitempty"`
-	ExtraEnv   map[string]string    `json:"extra_env,omitempty"`
-	Context    context.Context      `json:"-"`
-	RunID      string               `json:"-"`
-	JobID      string               `json:"-"`
-	RuntimeMgr model.RuntimeManager `json:"-"`
+	SessionID    string               `json:"session_id,omitempty"`
+	Prompt       []byte               `json:"prompt,omitempty"`
+	WorkingDir   string               `json:"working_dir,omitempty"`
+	Model        string               `json:"model,omitempty"`
+	MCPServers   []model.MCPServer    `json:"mcp_servers,omitempty"`
+	ExtraEnv     map[string]string    `json:"extra_env,omitempty"`
+	Context      context.Context      `json:"-"`
+	SetupContext context.Context      `json:"-"`
+	RunID        string               `json:"-"`
+	JobID        string               `json:"-"`
+	RuntimeMgr   model.RuntimeManager `json:"-"`
 }
 
 // PromptSessionRequest contains the parameters for a follow-up prompt in an active ACP session.
@@ -339,8 +341,12 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	if err != nil {
 		return nil, err
 	}
+	setupCtx := req.SetupContext
+	if setupCtx == nil {
+		setupCtx = ctx
+	}
 
-	if err := c.ensureStarted(ctx, req); err != nil {
+	if err := c.ensureStarted(setupCtx, req); err != nil {
 		return nil, err
 	}
 
@@ -350,12 +356,12 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	}
 	c.beginPendingCreate()
 	defer c.finishPendingCreate()
-	sessionResp, err := c.conn.NewSession(ctx, acp.NewSessionRequest{
+	sessionResp, err := c.conn.NewSession(setupCtx, acp.NewSessionRequest{
 		Cwd:        workingDir,
 		McpServers: mcpServers,
 	})
 	if err != nil {
-		return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, SessionSetupStageNewSession, "create ACP session", err)
+		return nil, c.wrapACPSetupErrorWithDiagnostics(setupCtx, SessionSetupStageNewSession, "create ACP session", err)
 	}
 
 	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
@@ -368,12 +374,17 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	c.storeSession(ctx, session)
 
 	if modeID := c.spec.sessionModeForAccess(c.cfg.AccessMode); modeID != "" {
-		if _, err := c.conn.SetSessionMode(ctx, acp.SetSessionModeRequest{
+		if _, err := c.conn.SetSessionMode(setupCtx, acp.SetSessionModeRequest{
 			SessionId: sessionResp.SessionId,
 			ModeId:    acp.SessionModeId(modeID),
 		}); err != nil {
 			c.removeSession(session.id)
-			return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, SessionSetupStageSetMode, "set ACP session mode", err)
+			return nil, c.wrapACPSetupErrorWithDiagnostics(
+				setupCtx,
+				SessionSetupStageSetMode,
+				"set ACP session mode",
+				err,
+			)
 		}
 	}
 
@@ -445,13 +456,18 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	}
 
 	sessionReq := SessionRequest{
-		Prompt:     req.Prompt,
-		WorkingDir: workingDir,
-		Model:      req.Model,
-		MCPServers: model.CloneMCPServers(req.MCPServers),
-		ExtraEnv:   req.ExtraEnv,
+		Prompt:       req.Prompt,
+		WorkingDir:   workingDir,
+		Model:        req.Model,
+		MCPServers:   model.CloneMCPServers(req.MCPServers),
+		ExtraEnv:     req.ExtraEnv,
+		SetupContext: req.SetupContext,
 	}
-	if err := c.ensureStarted(ctx, sessionReq); err != nil {
+	setupCtx := req.SetupContext
+	if setupCtx == nil {
+		setupCtx = ctx
+	}
+	if err := c.ensureStarted(setupCtx, sessionReq); err != nil {
 		return nil, err
 	}
 	if !c.SupportsLoadSession() {
@@ -475,14 +491,14 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 		c.removeSession(session.id)
 		return nil, fmt.Errorf("prepare ACP MCP servers for load session: %w", err)
 	}
-	loadResp, err := c.conn.LoadSession(ctx, acp.LoadSessionRequest{
+	loadResp, err := c.conn.LoadSession(setupCtx, acp.LoadSessionRequest{
 		SessionId:  acp.SessionId(sessionID),
 		Cwd:        workingDir,
 		McpServers: mcpServers,
 	})
 	if err != nil {
 		c.removeSession(session.id)
-		return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, SessionSetupStageLoadSession, "load ACP session", err)
+		return nil, c.wrapACPSetupErrorWithDiagnostics(setupCtx, SessionSetupStageLoadSession, "load ACP session", err)
 	}
 	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
 	session.waitForIdle(ctx, 15*time.Millisecond)

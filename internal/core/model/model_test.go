@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -52,6 +53,9 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 				cfg.SoundOnCompleted,
 				cfg.SoundOnFailed,
 			)
+		}
+		if cfg.TargetTaskNumber != nil {
+			t.Fatalf("expected target task number to stay unset, got %d", *cfg.TargetTaskNumber)
 		}
 	})
 
@@ -227,6 +231,9 @@ func TestPathHelpers(t *testing.T) {
 		}
 		if got, want := runArtifacts.JobsDir, filepath.Join(runArtifacts.RunDir, "jobs"); got != want {
 			t.Fatalf("unexpected jobs dir\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.RecoveryDir, filepath.Join(runArtifacts.RunDir, "recovery"); got != want {
+			t.Fatalf("unexpected recovery dir\nwant: %q\ngot:  %q", want, got)
 		}
 		if got, want := runArtifacts.ResultPath, filepath.Join(runArtifacts.RunDir, "result.json"); got != want {
 			t.Fatalf("unexpected result path\nwant: %q\ngot:  %q", want, got)
@@ -535,6 +542,43 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 	})
 }
 
+func TestRuntimeConfigClonePreservesTargetTaskNumber(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve and deep-copy the target task number", func(t *testing.T) {
+		t.Parallel()
+
+		targetTaskNumber := 3
+		cfg := &model.RuntimeConfig{
+			TargetTaskNumber: &targetTaskNumber,
+			AddDirs:          []string{"/workspace/docs"},
+		}
+
+		cloned := cfg.Clone()
+		if cloned == nil {
+			t.Fatal("Clone() = nil, want runtime config")
+		}
+		if cloned.TargetTaskNumber == nil {
+			t.Fatal("Clone().TargetTaskNumber = nil, want copied target")
+		}
+		if cloned.TargetTaskNumber == cfg.TargetTaskNumber {
+			t.Fatal("Clone().TargetTaskNumber aliases base pointer")
+		}
+		if *cloned.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("Clone().TargetTaskNumber = %d, want %d", *cloned.TargetTaskNumber, targetTaskNumber)
+		}
+
+		*cloned.TargetTaskNumber = 7
+		cloned.AddDirs[0] = "/workspace/changed"
+		if *cfg.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("base TargetTaskNumber changed to %d, want %d", *cfg.TargetTaskNumber, targetTaskNumber)
+		}
+		if cfg.AddDirs[0] != "/workspace/docs" {
+			t.Fatalf("base AddDirs changed to %#v", cfg.AddDirs)
+		}
+	})
+}
+
 func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {
 	t.Parallel()
 
@@ -563,6 +607,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 	t.Run("Should preserve explicit runtime config values", func(t *testing.T) {
 		t.Parallel()
 
+		targetTaskNumber := 5
 		cfg := &model.RuntimeConfig{
 			Concurrent:             3,
 			BatchSize:              2,
@@ -572,6 +617,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			AccessMode:             model.AccessModeDefault,
 			Mode:                   model.ExecutionModePRDTasks,
 			OutputFormat:           model.OutputFormatJSON,
+			TargetTaskNumber:       &targetTaskNumber,
 			Timeout:                30 * time.Second,
 			RetryBackoffMultiplier: 2,
 		}
@@ -583,18 +629,35 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			cfg.OutputFormat != model.OutputFormatJSON {
 			t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
 		}
+		if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
+			t.Fatalf("apply defaults changed TargetTaskNumber: %#v", cfg.TargetTaskNumber)
+		}
 	})
 }
 
-func TestRuntimeConfigSurfaceOmitsSystemPromptWhileJobsRetainIt(t *testing.T) {
+func TestRuntimeConfigSurfaceIncludesRecoveryRuntimeFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep runtime config free of unreachable system prompt fields", func(t *testing.T) {
+	t.Run("Should round-trip SystemPrompt and RecoveryAttempt", func(t *testing.T) {
 		t.Parallel()
 
-		runtimeType := reflect.TypeOf(model.RuntimeConfig{})
-		if _, ok := runtimeType.FieldByName("SystemPrompt"); ok {
-			t.Fatal("expected runtime config to omit SystemPrompt")
+		cfg := model.RuntimeConfig{
+			SystemPrompt:    "fix root causes only",
+			RecoveryAttempt: 1,
+		}
+		payload, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatalf("marshal runtime config: %v", err)
+		}
+		var got model.RuntimeConfig
+		if err := json.Unmarshal(payload, &got); err != nil {
+			t.Fatalf("unmarshal runtime config: %v", err)
+		}
+		if got.SystemPrompt != cfg.SystemPrompt {
+			t.Fatalf("SystemPrompt did not round-trip: %q", got.SystemPrompt)
+		}
+		if got.RecoveryAttempt != cfg.RecoveryAttempt {
+			t.Fatalf("RecoveryAttempt did not round-trip: %d", got.RecoveryAttempt)
 		}
 	})
 

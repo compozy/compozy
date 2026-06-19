@@ -8,7 +8,9 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/version"
 )
@@ -109,6 +111,38 @@ func TestTransportSkipsBlankLinesAndNeverWritesBlankLines(t *testing.T) {
 	}
 	if trimmed := strings.TrimSpace(encoded); trimmed == "" {
 		t.Fatal("expected encoded message content")
+	}
+}
+
+func TestTransportCloseClosesEndpointsOnce(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should close transport endpoints exactly once", func(t *testing.T) {
+		reader := &countingReadCloser{Reader: strings.NewReader("")}
+		writer := &countingWriteCloser{}
+		transport := NewTransport(reader, writer)
+
+		if err := transport.Close(); err != nil {
+			t.Fatalf("close transport: %v", err)
+		}
+		if err := transport.Close(); err != nil {
+			t.Fatalf("second close transport: %v", err)
+		}
+		if got := reader.closeCalls; got != 1 {
+			t.Fatalf("reader close calls = %d, want 1", got)
+		}
+		if got := writer.closeCalls; got != 1 {
+			t.Fatalf("writer close calls = %d, want 1", got)
+		}
+	})
+}
+
+func TestTransportCloseIgnoresNonClosableEndpoints(t *testing.T) {
+	t.Parallel()
+
+	transport := NewTransport(strings.NewReader(""), io.Discard)
+	if err := transport.Close(); err != nil {
+		t.Fatalf("close transport with non-closers: %v", err)
 	}
 }
 
@@ -261,6 +295,60 @@ func TestInitializeRejectsUnsupportedProtocolVersion(t *testing.T) {
 	<-serverDone
 }
 
+func TestInitializeCancellationPreservesTypedCauseAndReleasesReader(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the typed cancellation cause and release the reader", func(t *testing.T) {
+		reader := newBlockingReadCloser()
+		transport := NewTransport(reader, io.Discard)
+		ctx, cancel := context.WithCancelCause(context.Background())
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := Initialize(ctx, transport, nil, InitializeRequest{
+				ProtocolVersion:           version.ExtensionProtocolVersion,
+				SupportedProtocolVersions: []string{version.ExtensionProtocolVersion},
+			})
+			errCh <- err
+		}()
+
+		select {
+		case <-reader.readStarted:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initialize read goroutine")
+		}
+
+		cause := &testInitializeTimeoutCause{label: "deadline"}
+		cancel(cause)
+
+		select {
+		case err := <-errCh:
+			if err == nil {
+				t.Fatal("expected initialize cancellation error")
+			}
+			var gotCause *testInitializeTimeoutCause
+			if !errors.As(err, &gotCause) {
+				t.Fatalf("expected typed cancellation cause, got %T %[1]v", err)
+			}
+			var cancelErr *InitializeCanceledError
+			if !errors.As(err, &cancelErr) {
+				t.Fatalf("expected InitializeCanceledError wrapper, got %T %[1]v", err)
+			}
+			var requestErr *RequestError
+			if errors.As(err, &requestErr) {
+				t.Fatalf("expected cancellation not to be wrapped as RequestError, got %#v", requestErr)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initialize cancellation")
+		}
+
+		select {
+		case <-reader.readReturned:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for blocked ReadMessage to release")
+		}
+	})
+}
+
 func TestInitializeRejectsUnexpectedResponseID(t *testing.T) {
 	t.Parallel()
 
@@ -335,4 +423,88 @@ func TestValidateInitializeResponseRejectsUnsupportedCapabilities(t *testing.T) 
 	if requestErr.Code != -32602 {
 		t.Fatalf("unexpected error code: %d", requestErr.Code)
 	}
+}
+
+type testInitializeTimeoutCause struct {
+	label string
+}
+
+func (e *testInitializeTimeoutCause) Error() string {
+	return "typed initialize timeout: " + e.label
+}
+
+func TestInitializeCanceledErrorFormatsAndUnwrapsCause(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should format and unwrap the initialize cancellation cause", func(t *testing.T) {
+		cause := errors.New("init deadline")
+		err := &InitializeCanceledError{Cause: cause}
+		if !strings.Contains(err.Error(), "init deadline") {
+			t.Fatalf("expected cause in error string, got %q", err.Error())
+		}
+		if !errors.Is(err, cause) {
+			t.Fatalf("expected unwrap to expose cause, got %v", err)
+		}
+		if got := (*InitializeCanceledError)(nil).Error(); got != "initialize subprocess canceled" {
+			t.Fatalf("unexpected nil error string: %q", got)
+		}
+	})
+}
+
+type blockingReadCloser struct {
+	readStarted  chan struct{}
+	readReturned chan struct{}
+	closed       chan struct{}
+	startOnce    sync.Once
+	returnOnce   sync.Once
+	closeOnce    sync.Once
+}
+
+func newBlockingReadCloser() *blockingReadCloser {
+	return &blockingReadCloser{
+		readStarted:  make(chan struct{}),
+		readReturned: make(chan struct{}),
+		closed:       make(chan struct{}),
+	}
+}
+
+func (r *blockingReadCloser) Read([]byte) (int, error) {
+	r.startOnce.Do(func() {
+		close(r.readStarted)
+	})
+	<-r.closed
+	r.returnOnce.Do(func() {
+		close(r.readReturned)
+	})
+	return 0, io.ErrClosedPipe
+}
+
+func (r *blockingReadCloser) Close() error {
+	r.closeOnce.Do(func() {
+		close(r.closed)
+	})
+	return nil
+}
+
+type countingReadCloser struct {
+	*strings.Reader
+	closeCalls int
+}
+
+func (c *countingReadCloser) Close() error {
+	c.closeCalls++
+	return nil
+}
+
+type countingWriteCloser struct {
+	closeCalls int
+}
+
+func (c *countingWriteCloser) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (c *countingWriteCloser) Close() error {
+	c.closeCalls++
+	return nil
 }

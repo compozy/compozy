@@ -40,13 +40,20 @@ func (m *uiModel) renderMainPanels() string {
 	return m.renderTimelinePanel(job, m.timelineWidth)
 }
 
-// renderTimelinePanel renders the page content as three separate boxes: header,
-// streaming messages, and the composer textbox.
+// renderTimelinePanel renders the page content as a vertical stack of boxes:
+// header, streaming messages, an optional persistent INTEGRATION pane (parallel
+// runs only), and the composer textbox. The transcript viewport height is budgeted
+// against the INTEGRATION pane so the panel never overflows the available height.
 func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	contentWidth := panelContentWidth(panelWidth)
+	integrationBox := m.renderIntegrationBox(panelWidth, contentWidth)
+	integrationRows := 0
+	if integrationBox != "" {
+		integrationRows = lipgloss.Height(integrationBox)
+	}
 	cacheHit := m.timelineCacheHit(job, contentWidth)
 	m.transcriptViewport.SetWidth(contentWidth)
-	m.transcriptViewport.SetHeight(max(m.contentHeight-timelineChromeRows, logViewportMinHeight))
+	m.transcriptViewport.SetHeight(max(m.contentHeight-timelineChromeRows-integrationRows, logViewportMinHeight))
 	rendered := m.buildTimelineContent(job, contentWidth)
 	if !cacheHit || !m.timelineViewportMounted(job, contentWidth) {
 		m.applyTranscriptViewportContent(rendered.content)
@@ -59,7 +66,47 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 		Render(m.renderTimelineMessagesContent(contentWidth))
 	composerBox := techPanelStyle(panelWidth, m.composerBorderColor(job)).
 		Render(m.renderComposerContent(job, contentWidth))
-	return lipgloss.JoinVertical(lipgloss.Left, headerBox, messagesBox, composerBox)
+	boxes := make([]string, 0, 4)
+	boxes = append(boxes, headerBox, messagesBox)
+	if integrationBox != "" {
+		boxes = append(boxes, integrationBox)
+	}
+	boxes = append(boxes, composerBox)
+	return lipgloss.JoinVertical(lipgloss.Left, boxes...)
+}
+
+// integrationBoxChromeRows is the vertical frame (top + bottom border) the
+// INTEGRATION pane box adds around its content.
+const integrationBoxChromeRows = 2
+
+// renderIntegrationBox renders the persistent INTEGRATION pane as a bordered box,
+// capping its content height so the transcript viewport keeps at least
+// logViewportMinHeight rows. Returns "" for non-parallel runs.
+func (m *uiModel) renderIntegrationBox(panelWidth, contentWidth int) string {
+	content := m.renderIntegrationContent(contentWidth)
+	if content == "" {
+		return ""
+	}
+	maxRows := m.contentHeight - timelineChromeRows - logViewportMinHeight - integrationBoxChromeRows
+	if maxRows < 1 {
+		return ""
+	}
+	content = capLines(content, maxRows)
+	return techPanelStyle(panelWidth, m.integrationBorderColor()).Render(content)
+}
+
+// capLines keeps the first maxRows lines of content, preserving the highest-signal
+// rows (status line, banner, conflicted files) and dropping trailing resolver
+// transcript lines first.
+func capLines(content string, maxRows int) string {
+	if maxRows < 1 {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) <= maxRows {
+		return content
+	}
+	return strings.Join(lines[:maxRows], "\n")
 }
 
 func (m *uiModel) renderTimelineHeaderContent(job *uiJob, contentWidth int) string {

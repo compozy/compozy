@@ -506,10 +506,12 @@ export interface RuntimeConfig {
   run_id?: string;
   parent_run_id?: string;
   prompt_text?: string;
+  system_prompt?: string;
   prompt_file?: string;
   read_prompt_stdin?: boolean;
   resolved_prompt_text?: string;
   include_completed?: boolean;
+  recovery_attempt?: number;
   include_resolved?: boolean;
   timeout_ms?: number;
   max_retries?: number;
@@ -524,6 +526,7 @@ export interface RunArtifacts {
   events_path?: string;
   turns_dir?: string;
   jobs_dir?: string;
+  recovery_dir?: string;
   result_path?: string;
 }
 

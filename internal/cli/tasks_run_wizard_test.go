@@ -324,6 +324,150 @@ func TestTaskRunWizardModel(t *testing.T) {
 			t.Fatalf("selected workflows = %#v, want [manual]", selectedTaskRunWizardWorkflows(wizard.inputs))
 		}
 	})
+
+	t.Run("Should configure recovery controls", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+			selectedWorkflows: []string{"alpha"},
+			ide:               "codex",
+			reasoningEffort:   "medium",
+			accessMode:        core.AccessModeFull,
+		})
+		wizard.ideOptions = []taskRunWizardChoice{
+			{Label: "Codex", Value: "codex"},
+			{Label: "Claude", Value: "claude"},
+		}
+		wizard.inputs.recoveryIDE = "codex"
+		wizard.step = taskRunWizardStepExecution
+		wizard.execCursor = taskRunWizardFieldRecoveryEnabled
+		wizard.syncTextFocus()
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !wizard.inputs.recoveryEnabled {
+			t.Fatal("expected recovery toggle to enable recovery")
+		}
+
+		wizard.execCursor = taskRunWizardFieldRecoveryIDE
+		wizard = updateTaskRunWizardTestModel(t, wizard, "right")
+		if wizard.inputs.recoveryIDE != "claude" {
+			t.Fatalf("recovery IDE = %q, want claude", wizard.inputs.recoveryIDE)
+		}
+
+		wizard.execCursor = taskRunWizardFieldRecoveryReasoning
+		wizard.inputs.recoveryReasoning = "medium"
+		wizard = updateTaskRunWizardTestModel(t, wizard, "right")
+		if wizard.inputs.recoveryReasoning != "high" {
+			t.Fatalf("recovery reasoning = %q, want high", wizard.inputs.recoveryReasoning)
+		}
+
+		wizard.execCursor = taskRunWizardFieldRecoveryModel
+		wizard.inputs.recoveryModel = ""
+		wizard.textInputs.recoveryModel.SetValue("")
+		wizard.syncTextFocus()
+		for _, key := range []string{"o", "3"} {
+			wizard = updateTaskRunWizardTestModel(t, wizard, key)
+		}
+		if wizard.inputs.recoveryModel != "o3" {
+			t.Fatalf("recovery model = %q, want o3", wizard.inputs.recoveryModel)
+		}
+
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		if err := wizard.inputs.apply(cmd, appliedState); err != nil {
+			t.Fatalf("apply recovery wizard inputs: %v", err)
+		}
+		if !appliedState.recoveryEnabled ||
+			appliedState.recoveryIDE != "claude" ||
+			appliedState.recoveryModel != "o3" ||
+			appliedState.recoveryReasoningEffort != "high" {
+			t.Fatalf("unexpected applied recovery state: %#v", appliedState)
+		}
+		for _, flag := range []string{"recovery", "recovery-ide", "recovery-model", "recovery-reasoning"} {
+			if !cmd.Flags().Changed(flag) {
+				t.Fatalf("expected %s to be marked explicit", flag)
+			}
+		}
+	})
+
+	t.Run("Should configure parallel task controls", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+			selectedWorkflows: []string{"alpha"},
+			ide:               "codex",
+			reasoningEffort:   "medium",
+			accessMode:        core.AccessModeFull,
+		})
+		wizard.ideOptions = []taskRunWizardChoice{
+			{Label: "Codex", Value: "codex"},
+			{Label: "Claude", Value: "claude"},
+		}
+		wizard.inputs.parallelResolverIDE = "codex"
+		wizard.inputs.parallelResolverReasoning = "medium"
+		wizard.step = taskRunWizardStepExecution
+		wizard.execCursor = taskRunWizardFieldParallelTasks
+		wizard.syncTextFocus()
+
+		if strings.Contains(wizard.renderExecutionStep(), "Conflict resolver IDE") {
+			t.Fatal("parallel resolver controls should be hidden while parallel tasks are disabled")
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !wizard.inputs.parallelTasks {
+			t.Fatal("expected parallel task toggle to enable parallel tasks")
+		}
+		if !strings.Contains(wizard.renderExecutionStep(), "Conflict resolver IDE") {
+			t.Fatal("expected resolver controls when parallel tasks are enabled")
+		}
+
+		wizard.execCursor = taskRunWizardFieldParallelResolverIDE
+		wizard = updateTaskRunWizardTestModel(t, wizard, "right")
+		if wizard.inputs.parallelResolverIDE != "claude" {
+			t.Fatalf("parallel resolver IDE = %q, want claude", wizard.inputs.parallelResolverIDE)
+		}
+
+		wizard.execCursor = taskRunWizardFieldParallelResolverReasoning
+		wizard = updateTaskRunWizardTestModel(t, wizard, "right")
+		if wizard.inputs.parallelResolverReasoning != "high" {
+			t.Fatalf("parallel resolver reasoning = %q, want high", wizard.inputs.parallelResolverReasoning)
+		}
+
+		wizard.execCursor = taskRunWizardFieldParallelResolverModel
+		wizard.inputs.parallelResolverModel = ""
+		wizard.textInputs.parallelResolverModel.SetValue("")
+		wizard.syncTextFocus()
+		for _, key := range []string{"o", "3"} {
+			wizard = updateTaskRunWizardTestModel(t, wizard, key)
+		}
+		if wizard.inputs.parallelResolverModel != "o3" {
+			t.Fatalf("parallel resolver model = %q, want o3", wizard.inputs.parallelResolverModel)
+		}
+
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		if err := wizard.inputs.apply(cmd, appliedState); err != nil {
+			t.Fatalf("apply parallel wizard inputs: %v", err)
+		}
+		if !appliedState.parallelTasks ||
+			appliedState.parallelConflictResolverIDE != "claude" ||
+			appliedState.parallelConflictResolverModel != "o3" ||
+			appliedState.parallelConflictResolverReasoningEffort != "high" {
+			t.Fatalf("unexpected applied parallel state: %#v", appliedState)
+		}
+		for _, flag := range []string{
+			taskRunParallelTasksFlag,
+			taskRunParallelConflictResolverIDEFlag,
+			taskRunParallelConflictResolverModelFlag,
+			taskRunParallelConflictResolverReasoningFlag,
+		} {
+			if !cmd.Flags().Changed(flag) {
+				t.Fatalf("expected %s to be marked explicit", flag)
+			}
+		}
+	})
 }
 
 // TestTaskRunWizardViewFitsTerminalBounds guards the layout invariant that the

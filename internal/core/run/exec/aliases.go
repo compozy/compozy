@@ -84,8 +84,16 @@ func isActivityTimeout(err error) bool {
 	return acpshared.IsActivityTimeout(err)
 }
 
+func isInitTimeout(err error) bool {
+	return acpshared.IsInitTimeout(err)
+}
+
 func newActivityTimeoutError(timeout time.Duration) error {
 	return acpshared.NewActivityTimeoutError(timeout)
+}
+
+func resolveACPInitTimeout(timeout time.Duration) time.Duration {
+	return acpshared.ResolveACPInitTimeout(timeout)
 }
 
 func sessionErrorCode(err error) int {

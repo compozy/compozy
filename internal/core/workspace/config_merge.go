@@ -23,6 +23,7 @@ func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig 
 		WatchReviews: mergeWatchReviewsConfig(global.WatchReviews, workspace.WatchReviews),
 		Exec:         buildEffectiveExecConfig(global.Defaults, global.Exec, workspace.Defaults, workspace.Exec),
 		Runs:         mergeRunsConfig(global.Runs, workspace.Runs),
+		Recovery:     mergeRecoveryConfig(global.Recovery, workspace.Recovery).ApplyDefaults(),
 		Sound:        mergeSoundConfig(global.Sound, workspace.Sound),
 	}
 }
@@ -87,6 +88,7 @@ func buildEffectiveTaskRunConfig(
 		RunMultipleParallelLimit: cloneOptionalValue(
 			preferOverlay(global.RunMultipleParallelLimit, workspace.RunMultipleParallelLimit),
 		),
+		Parallel:         mergeParallelTasksConfig(global.Parallel, workspace.Parallel).ApplyDefaults(),
 		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		TaskRuntimeRules: mergeTaskRunRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}
@@ -202,6 +204,40 @@ func mergeRunsConfig(base, overlay RunsConfig) RunsConfig {
 			preferOverlay(base.ShutdownDrainTimeout, overlay.ShutdownDrainTimeout),
 		),
 	}
+}
+
+func mergeRecoveryConfig(base, overlay AgentRecoveryConfig) AgentRecoveryConfig {
+	return AgentRecoveryConfig{
+		Enabled:         cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
+		IDE:             cloneOptionalValue(preferOverlay(base.IDE, overlay.IDE)),
+		Model:           cloneOptionalValue(preferOverlay(base.Model, overlay.Model)),
+		ReasoningEffort: cloneOptionalValue(preferOverlay(base.ReasoningEffort, overlay.ReasoningEffort)),
+		MaxAttempts:     cloneOptionalValue(preferOverlay(base.MaxAttempts, overlay.MaxAttempts)),
+	}
+}
+
+func mergeParallelTasksConfig(base, overlay ParallelTasksConfig) ParallelTasksConfig {
+	return ParallelTasksConfig{
+		Enabled:          cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
+		MaxConcurrency:   cloneOptionalValue(preferOverlay(base.MaxConcurrency, overlay.MaxConcurrency)),
+		ConflictResolver: mergeAgentRecoveryConfigPointer(base.ConflictResolver, overlay.ConflictResolver),
+	}
+}
+
+func mergeAgentRecoveryConfigPointer(base, overlay *AgentRecoveryConfig) *AgentRecoveryConfig {
+	if base == nil && overlay == nil {
+		return nil
+	}
+	baseConfig := AgentRecoveryConfig{}
+	if base != nil {
+		baseConfig = *base
+	}
+	overlayConfig := AgentRecoveryConfig{}
+	if overlay != nil {
+		overlayConfig = *overlay
+	}
+	merged := mergeRecoveryConfig(baseConfig, overlayConfig)
+	return &merged
 }
 
 func mergeSoundConfig(base, overlay SoundConfig) SoundConfig {

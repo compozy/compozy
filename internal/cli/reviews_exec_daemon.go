@@ -680,6 +680,14 @@ func (s *commandState) buildReviewRunRuntimeOverrides(
 		overrides.ExplicitRuntime = explicit
 		hasOverrides = true
 	}
+	recovery, err := s.recoveryFlagOverrides(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("build review runtime recovery overrides: %w", err)
+	}
+	if recovery != nil {
+		overrides.Recovery = recovery
+		hasOverrides = true
+	}
 
 	if !hasOverrides {
 		return nil, nil
@@ -751,6 +759,14 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 	})
 	if explicit := explicitRuntimeOverridesPayload(s.explicitRuntime); explicit != nil {
 		overrides.ExplicitRuntime = explicit
+		hasOverrides = true
+	}
+	recovery, err := s.recoveryFlagOverrides(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("build exec runtime recovery overrides: %w", err)
+	}
+	if recovery != nil {
+		overrides.Recovery = recovery
 		hasOverrides = true
 	}
 

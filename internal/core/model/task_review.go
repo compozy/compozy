@@ -46,6 +46,7 @@ type TaskMeta struct {
 }
 
 type TaskEntry struct {
+	ID           string
 	Content      string
 	Status       string
 	Title        string

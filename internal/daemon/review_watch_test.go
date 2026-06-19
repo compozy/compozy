@@ -8,15 +8,19 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
+	execpkg "github.com/compozy/compozy/internal/core/run/exec"
+	"github.com/compozy/compozy/internal/core/run/recovery"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -920,6 +924,175 @@ func TestRunManagerReviewWatchTwoRoundFlowWithTempGitRepository(t *testing.T) {
 	})
 }
 
+func TestRunManagerReviewWatchDaemonRecoveryRestartsFailedChildRun(t *testing.T) {
+	t.Run("Should recover a failed review child run through the daemon recovery wrapper", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+
+		const failedSafeName = "task"
+		var env *runManagerTestEnv
+		reviewProvider := &fakeReviewWatchProvider{
+			statusFunc: func(ctx context.Context) (provider.WatchStatus, error) {
+				head, err := runGitOutputContext(ctx, env.workspaceRoot, "rev-parse", "HEAD")
+				if err != nil {
+					return provider.WatchStatus{}, err
+				}
+				return currentWatchStatus(head), nil
+			},
+			fetches: [][]provider.ReviewItem{
+				{watchReviewItem()},
+				{},
+			},
+		}
+		var executeMu sync.Mutex
+		executeCalls := 0
+		strategy := recovery.NewAgenticRemediation(recovery.WithPreparedPromptExecutor(
+			func(
+				_ context.Context,
+				cfg *model.RuntimeConfig,
+				_ string,
+				_ *reusableagents.ExecutionContext,
+				_ execpkg.SessionMCPBuilder,
+			) (execpkg.PreparedPromptResult, error) {
+				if cfg == nil {
+					return execpkg.PreparedPromptResult{}, errors.New("recovery runtime config is required")
+				}
+				if cfg.RecoveryAttempt != 1 {
+					return execpkg.PreparedPromptResult{}, fmt.Errorf(
+						"recovery attempt = %d, want 1",
+						cfg.RecoveryAttempt,
+					)
+				}
+				if strings.TrimSpace(cfg.ParentRunID) == "" {
+					return execpkg.PreparedPromptResult{}, errors.New("recovery parent run id is required")
+				}
+				if err := os.WriteFile(
+					filepath.Join(cfg.WorkspaceRoot, "recovery-agent.txt"),
+					[]byte("agentic recovery ran\n"),
+					0o600,
+				); err != nil {
+					return execpkg.PreparedPromptResult{}, err
+				}
+				return execpkg.PreparedPromptResult{
+					RunID:  "review-watch-recovery-agent",
+					Output: "{\"decision\":\"fixed\",\"reason\":\"resolved child run failure\",\"changed_files\":[\"recovery-agent.txt\"]}",
+				}, nil
+			},
+		))
+		enabled := true
+		maxAttempts := 1
+		env = newReviewWatchTestEnv(t, reviewProvider, newExecReviewWatchGit(), runManagerTestDeps{
+			loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+				untilClean := true
+				maxRounds := 2
+				return workspacecfg.ProjectConfig{
+					WatchReviews: workspacecfg.WatchReviewsConfig{
+						UntilClean: &untilClean,
+						MaxRounds:  &maxRounds,
+					},
+					Recovery: workspacecfg.AgentRecoveryConfig{
+						Enabled:     &enabled,
+						MaxAttempts: &maxAttempts,
+					},
+				}, nil
+			},
+			recoveryStrategy: strategy,
+			prepare: func(
+				_ context.Context,
+				_ *model.RuntimeConfig,
+				scope model.RunScope,
+			) (*model.SolvePreparation, error) {
+				if scope == nil {
+					return nil, errors.New("run scope is required")
+				}
+				return &model.SolvePreparation{
+					Jobs: []model.Job{{
+						SafeName: failedSafeName,
+					}},
+					RunArtifacts: scope.RunArtifacts(),
+				}, nil
+			},
+			execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				if prep == nil || len(prep.Jobs) != 1 || prep.Jobs[0].SafeName != failedSafeName {
+					return fmt.Errorf("prepared jobs = %#v, want only %q", prep, failedSafeName)
+				}
+				executeMu.Lock()
+				executeCalls++
+				call := executeCalls
+				executeMu.Unlock()
+				if call == 1 {
+					if err := writeDaemonTaskResultFixture(cfg, "failed", 1, "review child failed"); err != nil {
+						return err
+					}
+					return errors.New("review child failed")
+				}
+				if err := resolveReviewIssuesDuringRun(t)(ctx, prep, cfg); err != nil {
+					return err
+				}
+				return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
+			},
+		})
+		initializeReviewWatchGitRepository(t, env)
+
+		run := startReviewWatch(
+			t,
+			env,
+			reviewWatchRequest("{\"run_id\":\"review-watch-recovery\"}"),
+			func(req *apicore.ReviewWatchRequest) {
+				req.QuietPeriod = "1ms"
+				req.ReviewTimeout = "2s"
+				req.MaxRounds = 2
+			},
+		)
+		row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("row.Status = %q error = %q, want completed", row.Status, row.ErrorText)
+		}
+		executeMu.Lock()
+		calls := executeCalls
+		executeMu.Unlock()
+		if calls != 2 {
+			t.Fatalf("execute calls = %d, want initial failure plus recovery restart", calls)
+		}
+		runs, err := env.manager.List(context.Background(), apicore.RunListQuery{
+			Workspace: env.workspaceRoot,
+			Mode:      runModeReview,
+			Limit:     10,
+		})
+		if err != nil {
+			t.Fatalf("List(review runs) error = %v", err)
+		}
+		if len(runs) != 1 {
+			t.Fatalf("review child runs = %d, want 1: %#v", len(runs), runs)
+		}
+		childRunID := runs[0].RunID
+		if runs[0].Status != runStatusCompleted || runs[0].ParentRunID != run.RunID {
+			t.Fatalf("review child = %#v, want completed child of %s", runs[0], run.RunID)
+		}
+		started := requireRunEvent(t, childRunID, eventspkg.EventKindRunRecoveryStarted)
+		var startedPayload kinds.RunRecoveryStartedPayload
+		decodeRunEventPayload(t, started, &startedPayload)
+		if startedPayload.Attempt != 1 || startedPayload.Strategy != "agentic" {
+			t.Fatalf("recovery started payload = %#v", startedPayload)
+		}
+		restarting := requireRunEvent(t, childRunID, eventspkg.EventKindRunRecoveryRestarting)
+		var restartingPayload kinds.RunRecoveryRestartingPayload
+		decodeRunEventPayload(t, restarting, &restartingPayload)
+		if !reflect.DeepEqual(restartingPayload.FailedJobIDs, []string{failedSafeName}) {
+			t.Fatalf("restarting failed jobs = %#v, want %q", restartingPayload.FailedJobIDs, failedSafeName)
+		}
+		recovered := requireRunEvent(t, childRunID, eventspkg.EventKindRunRecovered)
+		var recoveredPayload kinds.RunRecoveredPayload
+		decodeRunEventPayload(t, recovered, &recoveredPayload)
+		if recoveredPayload.Attempts != 1 {
+			t.Fatalf("recovered attempts = %d, want 1", recoveredPayload.Attempts)
+		}
+		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchFixCompleted)
+		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+	})
+}
+
 func TestReviewWatchHookPayloadMutabilityRules(t *testing.T) {
 	t.Run("Should enforce review watch hook payload mutability rules", func(t *testing.T) {
 		beforeRound := reviewWatchPreRoundHookPayload{
@@ -1272,6 +1445,28 @@ func TestReviewWatchRuntimeOverrideHelpers(t *testing.T) {
 			t.Fatalf("child runtime overrides = %s, want run_id stripped and auto_commit forced", raw)
 		}
 		requireRuntimeOverrideMaxRetries(t, raw, 1)
+		raw, err = reviewWatchChildRuntimeOverrides(
+			json.RawMessage(
+				`{"run_id":"parent","recovery":{"enabled":true,"ide":"codex","model":"gpt-5.5","reasoning_effort":"high","max_attempts":2}}`,
+			),
+			false,
+			false,
+		)
+		if err != nil {
+			t.Fatalf("reviewWatchChildRuntimeOverrides(recovery) error = %v", err)
+		}
+		var childOverrides runtimeOverrideInput
+		if err := json.Unmarshal(raw, &childOverrides); err != nil {
+			t.Fatalf("decode child recovery overrides: %v", err)
+		}
+		if childOverrides.Recovery == nil ||
+			childOverrides.Recovery.Enabled == nil || !*childOverrides.Recovery.Enabled ||
+			childOverrides.Recovery.IDE == nil || *childOverrides.Recovery.IDE != "codex" ||
+			childOverrides.Recovery.Model == nil || *childOverrides.Recovery.Model != "gpt-5.5" ||
+			childOverrides.Recovery.ReasoningEffort == nil || *childOverrides.Recovery.ReasoningEffort != "high" ||
+			childOverrides.Recovery.MaxAttempts == nil || *childOverrides.Recovery.MaxAttempts != 2 {
+			t.Fatalf("unexpected child recovery override: %#v", childOverrides.Recovery)
+		}
 		raw, err = reviewWatchChildRuntimeOverrides(json.RawMessage(`{"run_id":"parent"}`), false, false)
 		if err != nil {
 			t.Fatalf("reviewWatchChildRuntimeOverrides(strip only) error = %v", err)
@@ -1684,6 +1879,13 @@ func eventKinds(events []eventspkg.Event) []eventspkg.EventKind {
 func decodeReviewWatchPayload(t *testing.T, event eventspkg.Event) kinds.ReviewWatchPayload {
 	t.Helper()
 	return decodeReviewWatchPayloadFromRaw(t, event.Payload)
+}
+
+func decodeRunEventPayload(t *testing.T, event eventspkg.Event, dst any) {
+	t.Helper()
+	if err := json.Unmarshal(event.Payload, dst); err != nil {
+		t.Fatalf("decode %s payload: %v", event.Kind, err)
+	}
 }
 
 func decodeReviewWatchPayloadFromRaw(t *testing.T, raw json.RawMessage) kinds.ReviewWatchPayload {

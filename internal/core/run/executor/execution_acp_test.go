@@ -325,95 +325,305 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	}
 }
 
-func TestJobRunnerRetriesSetupErrorAfterActivityTimeoutThenSucceeds(t *testing.T) {
-	tmpDir := t.TempDir()
-	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
-		<-ctx.Done()
-		return nil, &agent.SessionSetupError{
-			Stage: agent.SessionSetupStageNewSession,
-			Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
-		}
-	})
-	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
-		session := newFakeACPSession("sess-setup-timeout-retry")
-		go session.finish(nil)
-		return session, nil
-	})
-	installFakeACPClients(t, firstClient, secondClient)
+func TestACPSetupPhaseScenarios(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "Should retry a setup error that arrives after the init timeout and then succeed",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				firstClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						<-setupCtx.Done()
+						return nil, &agent.SessionSetupError{
+							Stage: agent.SessionSetupStageNewSession,
+							Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
+						}
+					},
+				)
+				secondClient := newFakeACPClient(
+					func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+						session := newFakeACPSession("sess-setup-timeout-retry")
+						go session.finish(nil)
+						return session, nil
+					},
+				)
+				installFakeACPClients(t, firstClient, secondClient)
 
-	job := newTestACPJob(tmpDir)
-	execCtx := &jobExecutionContext{
-		ctx: context.Background(),
-		cfg: &config{
-			IDE:                    model.IDECodex,
-			Model:                  "test-model",
-			ReasoningEffort:        "medium",
-			MaxRetries:             1,
-			RetryBackoffMultiplier: 2,
-			Timeout:                25 * time.Millisecond,
+				job := newTestACPJob(tmpDir)
+				execCtx := &jobExecutionContext{
+					ctx: context.Background(),
+					cfg: &config{
+						IDE:                    model.IDECodex,
+						Model:                  "test-model",
+						ReasoningEffort:        "medium",
+						MaxRetries:             1,
+						RetryBackoffMultiplier: 2,
+						Timeout:                25 * time.Millisecond,
+					},
+					cwd: tmpDir,
+				}
+
+				runner := newJobRunner(0, &job, execCtx)
+				runner.run(context.Background())
+
+				if got := runner.lifecycle.state; got != jobPhaseSucceeded {
+					t.Fatalf("expected succeeded lifecycle state after setup timeout retry, got %s", got)
+				}
+				if got := firstClient.createCalls.Load(); got != 1 {
+					t.Fatalf("expected first setup timeout attempt once, got %d", got)
+				}
+				if got := secondClient.createCalls.Load(); got != 1 {
+					t.Fatalf("expected one successful retry attempt, got %d", got)
+				}
+				if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+					t.Fatalf("expected no failed jobs after setup timeout retry, got %d", got)
+				}
+			},
 		},
-		cwd: tmpDir,
-	}
+		{
+			name: "Should classify a setup error after the init timeout as a retryable init timeout",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				blockingSetupClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						<-setupCtx.Done()
+						return nil, &agent.SessionSetupError{
+							Stage: agent.SessionSetupStageNewSession,
+							Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
+						}
+					},
+				)
+				installFakeACPClients(t, blockingSetupClient)
 
-	runner := newJobRunner(0, &job, execCtx)
-	runner.run(context.Background())
+				job := newTestACPJob(tmpDir)
+				result := executeJobWithTimeout(
+					context.Background(),
+					&config{
+						IDE:                    model.IDECodex,
+						Model:                  "test-model",
+						ReasoningEffort:        "medium",
+						RetryBackoffMultiplier: 2,
+					},
+					&job,
+					tmpDir,
+					false,
+					0,
+					25*time.Millisecond,
+					nil,
+					nil,
+					nil,
+					nil,
+				)
 
-	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
-		t.Fatalf("expected succeeded lifecycle state after setup timeout retry, got %s", got)
-	}
-	if got := firstClient.createCalls.Load(); got != 1 {
-		t.Fatalf("expected first setup timeout attempt once, got %d", got)
-	}
-	if got := secondClient.createCalls.Load(); got != 1 {
-		t.Fatalf("expected one successful retry attempt, got %d", got)
-	}
-	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
-		t.Fatalf("expected no failed jobs after setup timeout retry, got %d", got)
-	}
-}
-
-func TestExecuteJobWithTimeoutClassifiesSetupErrorAfterActivityTimeout(t *testing.T) {
-	tmpDir := t.TempDir()
-	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
-		<-ctx.Done()
-		return nil, &agent.SessionSetupError{
-			Stage: agent.SessionSetupStageNewSession,
-			Err:   &agent.SessionError{Code: -32603, Message: "Internal error"},
-		}
-	})
-	installFakeACPClients(t, blockingSetupClient)
-
-	job := newTestACPJob(tmpDir)
-	result := executeJobWithTimeout(
-		context.Background(),
-		&config{
-			IDE:                    model.IDECodex,
-			Model:                  "test-model",
-			ReasoningEffort:        "medium",
-			RetryBackoffMultiplier: 2,
+				if got := result.Status; got != attemptStatusTimeout {
+					t.Fatalf("expected setup error after init timeout to be timeout, got %s", got)
+				}
+				if result.ExitCode != -2 {
+					t.Fatalf("expected timeout exit code -2, got %d", result.ExitCode)
+				}
+				if !result.Retryable {
+					t.Fatal("expected setup init timeout to be retryable")
+				}
+				if result.Failure == nil || !acpshared.IsInitTimeout(result.Failure.Err) {
+					t.Fatalf("expected typed init-timeout failure, got %#v", result.Failure)
+				}
+			},
 		},
-		&job,
-		tmpDir,
-		false,
-		0,
-		25*time.Millisecond,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+		{
+			name: "Should arm the activity watchdog only after the session is established",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				activityTimeout := 100 * time.Millisecond
+				setupDelay := activityTimeout + 20*time.Millisecond
+				slowSetupClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						timer := time.NewTimer(setupDelay)
+						defer timer.Stop()
+						select {
+						case <-timer.C:
+						case <-setupCtx.Done():
+							return nil, context.Cause(setupCtx)
+						}
+						session := newFakeACPSession("sess-slow-setup")
+						go func() {
+							textBlock, err := model.NewContentBlock(model.TextBlock{Text: "slow setup completed"})
+							if err != nil {
+								session.finish(err)
+								return
+							}
+							session.publish(model.SessionUpdate{
+								Kind:   model.UpdateKindAgentMessageChunk,
+								Blocks: []model.ContentBlock{textBlock},
+								Status: model.StatusRunning,
+							})
+							session.finish(nil)
+						}()
+						return session, nil
+					},
+				)
+				installFakeACPClients(t, slowSetupClient)
 
-	if got := result.Status; got != attemptStatusTimeout {
-		t.Fatalf("expected setup error after activity timeout to be timeout, got %s", got)
+				job := newTestACPJob(tmpDir)
+				result := executeJobWithTimeout(
+					context.Background(),
+					&config{
+						IDE:                    model.IDECodex,
+						Model:                  "test-model",
+						ReasoningEffort:        "medium",
+						RetryBackoffMultiplier: 2,
+					},
+					&job,
+					tmpDir,
+					false,
+					0,
+					activityTimeout,
+					nil,
+					nil,
+					nil,
+					nil,
+				)
+
+				if got := result.Status; got != attemptStatusSuccess {
+					t.Fatalf("expected slow setup to succeed, got %s (%#v)", got, result.Failure)
+				}
+				if got := slowSetupClient.closeCalls.Load(); got != 1 {
+					t.Fatalf("expected slow setup client to close once, got %d", got)
+				}
+			},
+		},
+		{
+			name: "Should return a typed init timeout when setup never establishes the session",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				blockingSetupClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						<-setupCtx.Done()
+						return nil, context.Cause(setupCtx)
+					},
+				)
+				installFakeACPClients(t, blockingSetupClient)
+
+				job := newTestACPJob(tmpDir)
+				result := executeJobWithTimeout(
+					context.Background(),
+					&config{
+						IDE:                    model.IDECodex,
+						Model:                  "test-model",
+						ReasoningEffort:        "medium",
+						RetryBackoffMultiplier: 2,
+					},
+					&job,
+					tmpDir,
+					false,
+					0,
+					25*time.Millisecond,
+					nil,
+					nil,
+					nil,
+					nil,
+				)
+
+				if got := result.Status; got != attemptStatusTimeout {
+					t.Fatalf("expected setup init timeout status, got %s (%#v)", got, result.Failure)
+				}
+				if result.ExitCode != -2 {
+					t.Fatalf("expected timeout exit code -2, got %d", result.ExitCode)
+				}
+				if !result.Retryable {
+					t.Fatal("expected setup init timeout to be retryable")
+				}
+				if result.Failure == nil || !acpshared.IsInitTimeout(result.Failure.Err) {
+					t.Fatalf("expected typed init-timeout failure, got %#v", result.Failure)
+				}
+				if acpshared.IsActivityTimeout(result.Failure.Err) {
+					t.Fatalf("expected init timeout not to masquerade as activity timeout: %#v", result.Failure.Err)
+				}
+				if got := blockingSetupClient.closeCalls.Load(); got != 1 {
+					t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
+				}
+			},
+		},
+		{
+			name: "Should surface cancellation distinctly from setup timeouts",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				started := make(chan struct{})
+				blockingSetupClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						close(started)
+						<-setupCtx.Done()
+						return nil, context.Cause(setupCtx)
+					},
+				)
+				installFakeACPClients(t, blockingSetupClient)
+
+				job := newTestACPJob(tmpDir)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				resultCh := make(chan jobAttemptResult, 1)
+				go func() {
+					resultCh <- executeJobWithTimeout(
+						ctx,
+						&config{
+							IDE:                    model.IDECodex,
+							Model:                  "test-model",
+							ReasoningEffort:        "medium",
+							RetryBackoffMultiplier: 2,
+						},
+						&job,
+						tmpDir,
+						false,
+						0,
+						time.Second,
+						nil,
+						nil,
+						nil,
+						nil,
+					)
+				}()
+
+				select {
+				case <-started:
+				case <-time.After(2 * time.Second):
+					t.Fatal("timed out waiting for setup to start")
+				}
+				cancel()
+
+				var result jobAttemptResult
+				select {
+				case result = <-resultCh:
+				case <-time.After(2 * time.Second):
+					t.Fatal("timed out waiting for setup cancellation")
+				}
+				if got := result.Status; got != attemptStatusCanceled {
+					t.Fatalf("expected setup cancellation status, got %s (%#v)", got, result.Failure)
+				}
+				if result.ExitCode != -1 {
+					t.Fatalf("expected canceled exit code -1, got %d", result.ExitCode)
+				}
+				if result.Failure == nil {
+					t.Fatal("expected cancellation failure info")
+				}
+				if acpshared.IsInitTimeout(result.Failure.Err) || acpshared.IsActivityTimeout(result.Failure.Err) {
+					t.Fatalf("expected cancellation not timeout, got %#v", result.Failure.Err)
+				}
+			},
+		},
 	}
-	if result.ExitCode != -2 {
-		t.Fatalf("expected timeout exit code -2, got %d", result.ExitCode)
-	}
-	if !result.Retryable {
-		t.Fatal("expected setup activity timeout to be retryable")
-	}
-	if result.Failure == nil || !strings.Contains(result.Failure.Err.Error(), "activity timeout") {
-		t.Fatalf("expected activity timeout failure, got %#v", result.Failure)
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
 	}
 }
 
@@ -755,6 +965,9 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	if result.Failure == nil || !strings.Contains(result.Failure.Err.Error(), "activity timeout") {
 		t.Fatalf("expected activity-timeout failure, got %#v", result.Failure)
 	}
+	if !result.Retryable {
+		t.Fatal("expected post-init activity timeout to be retryable")
+	}
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
 	}
@@ -815,91 +1028,116 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 	}
 }
 
-func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
-	tmpDir := t.TempDir()
-	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
-		<-ctx.Done()
-		return nil, context.Cause(ctx)
-	})
-	installFakeACPClients(t, blockingSetupClient)
+func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "Should classify a blocked setup as an init timeout",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				blockingSetupClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						<-setupCtx.Done()
+						return nil, context.Cause(setupCtx)
+					},
+				)
+				installFakeACPClients(t, blockingSetupClient)
 
-	job := newTestACPJob(tmpDir)
-	result := executeJobWithTimeout(
-		context.Background(),
-		&config{
-			IDE:                    model.IDECodex,
-			Model:                  "test-model",
-			ReasoningEffort:        "medium",
-			RetryBackoffMultiplier: 2,
-		},
-		&job,
-		tmpDir,
-		false,
-		0,
-		25*time.Millisecond,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+				job := newTestACPJob(tmpDir)
+				result := executeJobWithTimeout(
+					context.Background(),
+					&config{
+						IDE:                    model.IDECodex,
+						Model:                  "test-model",
+						ReasoningEffort:        "medium",
+						RetryBackoffMultiplier: 2,
+					},
+					&job,
+					tmpDir,
+					false,
+					0,
+					25*time.Millisecond,
+					nil,
+					nil,
+					nil,
+					nil,
+				)
 
-	if got := result.Status; got != attemptStatusTimeout {
-		t.Fatalf("expected timeout status for blocked setup, got %s (%#v)", got, result.Failure)
-	}
-	if result.Failure == nil || !strings.Contains(result.Failure.Err.Error(), "activity timeout") {
-		t.Fatalf("expected activity-timeout failure, got %#v", result.Failure)
-	}
-	if got := blockingSetupClient.closeCalls.Load(); got != 1 {
-		t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
-	}
-}
-
-func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *testing.T) {
-	tmpDir := t.TempDir()
-	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
-		<-ctx.Done()
-		return nil, context.Cause(ctx)
-	})
-	installFakeACPClients(t, blockingSetupClient)
-
-	job := newTestACPJob(tmpDir)
-
-	var result jobAttemptResult
-	stdout, stderr, captureErr := captureExecuteStreams(t, func() error {
-		result = executeJobWithTimeout(
-			context.Background(),
-			&config{
-				IDE:                    model.IDECodex,
-				Model:                  "test-model",
-				ReasoningEffort:        "medium",
-				RetryBackoffMultiplier: 2,
+				if got := result.Status; got != attemptStatusTimeout {
+					t.Fatalf("expected timeout status for blocked setup, got %s (%#v)", got, result.Failure)
+				}
+				if result.Failure == nil || !acpshared.IsInitTimeout(result.Failure.Err) {
+					t.Fatalf("expected typed init-timeout failure, got %#v", result.Failure)
+				}
+				if got := blockingSetupClient.closeCalls.Load(); got != 1 {
+					t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
+				}
 			},
-			&job,
-			tmpDir,
-			true,
-			0,
-			25*time.Millisecond,
-			nil,
-			nil,
-			nil,
-			nil,
-		)
-		return nil
-	})
-	if captureErr != nil {
-		t.Fatalf("capture execute streams: %v", captureErr)
+		},
+		{
+			name: "Should suppress human fallback output for interactive setup timeouts",
+			run: func(t *testing.T) {
+				tmpDir := t.TempDir()
+				blockingSetupClient := newFakeACPClient(
+					func(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+						setupCtx := fakeSetupContext(ctx, req)
+						<-setupCtx.Done()
+						return nil, context.Cause(setupCtx)
+					},
+				)
+				installFakeACPClients(t, blockingSetupClient)
+
+				job := newTestACPJob(tmpDir)
+
+				var result jobAttemptResult
+				stdout, stderr, captureErr := captureExecuteStreams(t, func() error {
+					result = executeJobWithTimeout(
+						context.Background(),
+						&config{
+							IDE:                    model.IDECodex,
+							Model:                  "test-model",
+							ReasoningEffort:        "medium",
+							RetryBackoffMultiplier: 2,
+						},
+						&job,
+						tmpDir,
+						true,
+						0,
+						25*time.Millisecond,
+						nil,
+						nil,
+						nil,
+						nil,
+					)
+					return nil
+				})
+				if captureErr != nil {
+					t.Fatalf("capture execute streams: %v", captureErr)
+				}
+				if stdout != "" {
+					t.Fatalf("expected no stdout fallback for interactive timeout, got %q", stdout)
+				}
+				if stderr != "" {
+					t.Fatalf("expected no stderr fallback for interactive timeout, got %q", stderr)
+				}
+				if got := result.Status; got != attemptStatusTimeout {
+					t.Fatalf("expected timeout status, got %s", got)
+				}
+				if result.Failure == nil || !acpshared.IsInitTimeout(result.Failure.Err) {
+					t.Fatalf("expected typed init-timeout failure, got %#v", result.Failure)
+				}
+			},
+		},
 	}
-	if stdout != "" {
-		t.Fatalf("expected no stdout fallback for interactive timeout, got %q", stdout)
-	}
-	if stderr != "" {
-		t.Fatalf("expected no stderr fallback for interactive timeout, got %q", stderr)
-	}
-	if got := result.Status; got != attemptStatusTimeout {
-		t.Fatalf("expected timeout status, got %s", got)
-	}
-	if result.Failure == nil || !strings.Contains(result.Failure.Err.Error(), "activity timeout") {
-		t.Fatalf("expected activity-timeout failure, got %#v", result.Failure)
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
 	}
 }
 
@@ -1442,6 +1680,13 @@ func installFakeACPClients(t *testing.T, clients ...*fakeACPClient) {
 	t.Cleanup(func() {
 		restore()
 	})
+}
+
+func fakeSetupContext(ctx context.Context, req agent.SessionRequest) context.Context {
+	if req.SetupContext != nil {
+		return req.SetupContext
+	}
+	return ctx
 }
 
 func newTestACPJob(tmpDir string) job {

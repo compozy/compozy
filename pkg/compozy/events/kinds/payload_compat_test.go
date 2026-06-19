@@ -62,6 +62,103 @@ func TestJobAttemptPayloadJSONCompatibility(t *testing.T) {
 	}
 }
 
+func TestRunRecoveryPayloadJSONCompatibility(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		payload any
+		want    string
+		decode  func(t *testing.T, data []byte)
+	}{
+		{
+			name: "started",
+			payload: RunRecoveryStartedPayload{
+				Attempt:       1,
+				Strategy:      "agentic",
+				RecoveryRunID: "recovery-run",
+			},
+			want: `{"attempt":1,"strategy":"agentic","recovery_run_id":"recovery-run"}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var got RunRecoveryStartedPayload
+				if err := json.Unmarshal(data, &got); err != nil {
+					t.Fatalf("unmarshal started payload: %v", err)
+				}
+				if got.Attempt != 1 || got.Strategy != "agentic" || got.RecoveryRunID != "recovery-run" {
+					t.Fatalf("unexpected started payload: %#v", got)
+				}
+			},
+		},
+		{
+			name: "restarting",
+			payload: RunRecoveryRestartingPayload{
+				FailedJobIDs: []string{"task_02", "task_03"},
+			},
+			want: `{"failed_job_ids":["task_02","task_03"]}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var got RunRecoveryRestartingPayload
+				if err := json.Unmarshal(data, &got); err != nil {
+					t.Fatalf("unmarshal restarting payload: %v", err)
+				}
+				if !reflect.DeepEqual(got.FailedJobIDs, []string{"task_02", "task_03"}) {
+					t.Fatalf("unexpected restarting payload: %#v", got)
+				}
+			},
+		},
+		{
+			name:    "recovered",
+			payload: RunRecoveredPayload{Attempts: 1},
+			want:    `{"attempts":1}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var got RunRecoveredPayload
+				if err := json.Unmarshal(data, &got); err != nil {
+					t.Fatalf("unmarshal recovered payload: %v", err)
+				}
+				if got.Attempts != 1 {
+					t.Fatalf("unexpected recovered payload: %#v", got)
+				}
+			},
+		},
+		{
+			name: "exhausted",
+			payload: RunRecoveryExhaustedPayload{
+				Error:      "rejected",
+				ResultPath: "/repo/.compozy/runs/run-1/result.json",
+			},
+			want: `{"error":"rejected","result_path":"/repo/.compozy/runs/run-1/result.json"}`,
+			decode: func(t *testing.T, data []byte) {
+				t.Helper()
+				var got RunRecoveryExhaustedPayload
+				if err := json.Unmarshal(data, &got); err != nil {
+					t.Fatalf("unmarshal exhausted payload: %v", err)
+				}
+				if got.Error != "rejected" || got.ResultPath != "/repo/.compozy/runs/run-1/result.json" {
+					t.Fatalf("unexpected exhausted payload: %#v", got)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+			if string(payload) != tc.want {
+				t.Fatalf("payload JSON mismatch: got %s want %s", string(payload), tc.want)
+			}
+			tc.decode(t, payload)
+		})
+	}
+}
+
 func TestExtensionReadyPayloadJSONCompatibility(t *testing.T) {
 	t.Parallel()
 

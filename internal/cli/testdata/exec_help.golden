@@ -31,9 +31,15 @@ Flags:
       --ide string                       ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog. (default "codex")
       --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
       --model string                     Model to use. Leave empty to use the selected runtime default.
+      --no-recovery                      Disable agentic recovery for this invocation
       --persist                          Persist exec artifacts under ~/.compozy/runs/<run-id>/
       --prompt-file string               Path to a file containing the prompt text
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
+      --recovery                         Enable agentic recovery for failed runs
+      --recovery-ide string              ACP runtime used by the recovery agent (default "codex")
+      --recovery-max-attempts int        Maximum recovery remediation and restart cycles (1-3) (default 1)
+      --recovery-model string            Model used by the recovery agent (default "gpt-5.5")
+      --recovery-reasoning string        Reasoning effort for the recovery agent (low, medium, high, xhigh) (default "medium")
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --run-id string                    Resume a previously persisted exec session by run id
       --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)

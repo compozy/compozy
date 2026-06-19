@@ -59,6 +59,7 @@ type reviewWatchOptions struct {
 	QuietPeriod                 time.Duration
 	RuntimeOverrides            json.RawMessage
 	Batching                    json.RawMessage
+	Recovery                    workspacecfg.AgentRecoveryConfig
 	ProjectMaxRetriesConfigured bool
 }
 
@@ -113,7 +114,7 @@ func (m *RunManager) StartReviewWatch(
 	workflowSlug string,
 	req apicore.ReviewWatchRequest,
 ) (apicore.Run, error) {
-	prepared, runtimeCfg, presentationMode, err := m.prepareReviewWatchStart(
+	prepared, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareReviewWatchStart(
 		detachContext(ctx),
 		workspaceRef,
 		workflowSlug,
@@ -147,6 +148,7 @@ func (m *RunManager) StartReviewWatch(
 		runtimeCfg:       runtimeCfg,
 		reviewWatch:      prepared,
 		reviewWatchKey:   &key,
+		recovery:         recoveryCfg,
 	})
 	if err != nil {
 		return apicore.Run{}, err
@@ -160,25 +162,29 @@ func (m *RunManager) prepareReviewWatchStart(
 	workspaceRef string,
 	workflowSlug string,
 	req apicore.ReviewWatchRequest,
-) (*preparedReviewWatch, *model.RuntimeConfig, string, error) {
+) (*preparedReviewWatch, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
 	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	options, err := resolveReviewWatchOptions(projectCfg, req)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	presentationMode, err := normalizePresentationMode(req.PresentationMode)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	overrides, err := parseRuntimeOverrides(req.RuntimeOverrides)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+	}
+	recoveryCfg, err := resolveDaemonRecoveryConfig(projectCfg, overrides)
+	if err != nil {
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	if options.AutoPush && overrides.AutoCommit != nil && !*overrides.AutoCommit {
-		return nil, nil, "", apicore.NewProblem(
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
 			http.StatusUnprocessableEntity,
 			"invalid_watch_request",
 			"auto_push requires auto_commit to be true",
@@ -193,17 +199,18 @@ func (m *RunManager) prepareReviewWatchStart(
 		options.ProjectMaxRetriesConfigured,
 	)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	options.RuntimeOverrides = childRuntimeOverrides
+	options.Recovery = recoveryCfg
 	if _, err := parseReviewBatching(req.Batching); err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	options.Batching = cloneJSON(req.Batching)
 
 	workflowRoot := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
 	if err := ensureReviewWatchWorkflowDirectory(workflowRoot, workflowSlug, options.PR); err != nil {
-		return nil, nil, "", err
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
 	runtimeCfg := &model.RuntimeConfig{
@@ -230,7 +237,7 @@ func (m *RunManager) prepareReviewWatchStart(
 		workflowSlug: strings.TrimSpace(workflowSlug),
 		workflowRoot: workflowRoot,
 		options:      options,
-	}, runtimeCfg, presentationMode, nil
+	}, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
 func ensureReviewWatchWorkflowDirectory(dir string, workflowSlug string, prRef string) error {

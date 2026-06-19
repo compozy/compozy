@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/run/journal"
 )
 
 // HostAPIService handles one registered Host API namespace.
@@ -48,6 +50,23 @@ func NewHostAPIRouter(registry *Registry, audit AuditHandler) *HostAPIRouter {
 		registry: registry,
 		audit:    audit,
 		services: make(map[string]HostAPIService),
+	}
+}
+
+func (r *HostAPIRouter) setRunJournal(runJournal *journal.Journal) {
+	if r == nil {
+		return
+	}
+	r.mu.RLock()
+	services := make([]HostAPIService, 0, len(r.services))
+	for _, service := range r.services {
+		services = append(services, service)
+	}
+	r.mu.RUnlock()
+	for _, service := range services {
+		if setter, ok := service.(interface{ setRunJournal(*journal.Journal) }); ok {
+			setter.setRunJournal(runJournal)
+		}
 	}
 }
 

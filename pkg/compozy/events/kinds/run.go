@@ -59,3 +59,26 @@ type RunCancelledPayload struct {
 	RequestedBy string `json:"requested_by,omitempty"`
 	DurationMs  int64  `json:"duration_ms,omitempty"`
 }
+
+// RunRecoveryStartedPayload describes the start of one recovery attempt.
+type RunRecoveryStartedPayload struct {
+	Attempt       int    `json:"attempt,omitempty"`
+	Strategy      string `json:"strategy,omitempty"`
+	RecoveryRunID string `json:"recovery_run_id,omitempty"`
+}
+
+// RunRecoveryRestartingPayload describes a restart after remediation.
+type RunRecoveryRestartingPayload struct {
+	FailedJobIDs []string `json:"failed_job_ids,omitempty"`
+}
+
+// RunRecoveredPayload describes a run recovered after remediation.
+type RunRecoveredPayload struct {
+	Attempts int `json:"attempts,omitempty"`
+}
+
+// RunRecoveryExhaustedPayload describes a recovery lifecycle that exhausted its attempts.
+type RunRecoveryExhaustedPayload struct {
+	Error      string `json:"error,omitempty"`
+	ResultPath string `json:"result_path,omitempty"`
+}

@@ -30,6 +30,11 @@ const (
 	EventKindRunFailed    EventKind = "run.failed"
 	EventKindRunCancelled EventKind = "run.cancelled"
 
+	EventKindRunRecoveryStarted    EventKind = "run.recovery_started"
+	EventKindRunRecoveryRestarting EventKind = "run.recovery_restarting"
+	EventKindRunRecovered          EventKind = "run.recovered"
+	EventKindRunRecoveryExhausted  EventKind = "run.recovery_exhausted"
+
 	// Job lifecycle events.
 	EventKindJobQueued          EventKind = "job.queued"
 	EventKindJobStarted         EventKind = "job.started"
@@ -74,6 +79,15 @@ const (
 	EventKindTaskRunMultipleItemCanceled   EventKind = "task.multi.item_canceled"
 	EventKindTaskRunMultipleQueueCanceled  EventKind = "task.multi.queue_canceled"
 	EventKindTaskRunMultipleQueueCompleted EventKind = "task.multi.queue_completed"
+
+	// Parallel task execution events emitted by the ParallelExecutionOrchestrator.
+	EventKindTaskParallelWaveStarted       EventKind = "task.parallel.wave_started"
+	EventKindTaskParallelWaveCompleted     EventKind = "task.parallel.wave_completed"
+	EventKindTaskParallelMergeStarted      EventKind = "task.parallel.merge_started"
+	EventKindTaskParallelConflictDetected  EventKind = "task.parallel.conflict_detected"
+	EventKindTaskParallelConflictResolving EventKind = "task.parallel.conflict_resolving"
+	EventKindTaskParallelMerged            EventKind = "task.parallel.merged"
+	EventKindTaskParallelRolledBack        EventKind = "task.parallel.rolled_back"
 
 	// Artifact and extension events.
 	EventKindArtifactUpdated EventKind = "artifact.updated"

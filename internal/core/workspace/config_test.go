@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -140,7 +141,7 @@ func TestDiscoverMemoizesSuccessfulResultPerStartDir(t *testing.T) {
 	}
 }
 
-func TestLoadConfigReturnsZeroConfigWhenFileIsMissing(t *testing.T) {
+func TestLoadConfigReturnsDefaultRecoveryWhenFileIsMissing(t *testing.T) {
 	isolateWorkspaceConfigHome(t)
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
@@ -154,8 +155,12 @@ func TestLoadConfigReturnsZeroConfigWhenFileIsMissing(t *testing.T) {
 	if path != filepath.Join(root, ".compozy", "config.toml") {
 		t.Fatalf("unexpected config path: %q", path)
 	}
-	if cfg != (ProjectConfig{}) {
-		t.Fatalf("expected zero project config, got %#v", cfg)
+	want := ProjectConfig{
+		Tasks:    TasksConfig{Run: TaskRunConfig{Parallel: DefaultParallelTasksConfig()}},
+		Recovery: DefaultAgentRecoveryConfig(),
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Fatalf("unexpected default project config\nwant: %#v\ngot:  %#v", want, cfg)
 	}
 }
 
@@ -201,6 +206,22 @@ unknown = "value"
 	_, _, err := LoadConfig(context.Background(), root)
 	if err == nil {
 		t.Fatal("expected unknown field error")
+	}
+	if !strings.Contains(err.Error(), "decode workspace config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsUnknownRecoveryFields(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+		[recovery]
+	unexpected = true
+	`)
+
+	_, _, err := loadConfigWithIsolatedHome(t, root)
+	if err == nil {
+		t.Fatal("expected unknown recovery field error")
 	}
 	if !strings.Contains(err.Error(), "decode workspace config") {
 		t.Fatalf("unexpected error: %v", err)
@@ -378,6 +399,256 @@ output_format = "json"
 	}
 }
 
+func TestLoadConfigAppliesRecoveryDefaultsWhenUnset(t *testing.T) {
+	isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, "")
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertRecoveryConfig(t, cfg.Recovery, DefaultAgentRecoveryConfig())
+}
+
+func TestLoadConfigMergesRecoveryWorkspaceOverGlobalConfig(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+	[recovery]
+	enabled = true
+	ide = "claude"
+	model = "sonnet"
+	reasoning_effort = "high"
+	max_attempts = 2
+	`)
+	writeWorkspaceConfig(t, root, `
+	[recovery]
+	ide = "codex"
+	max_attempts = 3
+	`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertRecoveryConfig(t, cfg.Recovery, AgentRecoveryConfig{
+		Enabled:         ptrBool(true),
+		IDE:             ptrString("codex"),
+		Model:           ptrString("sonnet"),
+		ReasoningEffort: ptrString("high"),
+		MaxAttempts:     ptrInt(3),
+	})
+}
+
+func TestLoadConfigRejectsInvalidRecoveryValues(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "unknown ide",
+			content: `
+	[recovery]
+	ide = "unknown-runtime"
+	`,
+			wantErr: "recovery.ide",
+		},
+		{
+			name: "max attempts below minimum",
+			content: `
+	[recovery]
+	max_attempts = 0
+	`,
+			wantErr: "recovery.max_attempts",
+		},
+		{
+			name: "max attempts above maximum",
+			content: `
+	[recovery]
+	max_attempts = 4
+	`,
+			wantErr: "recovery.max_attempts",
+		},
+		{
+			name: "invalid reasoning effort",
+			content: `
+	[recovery]
+	reasoning_effort = "turbo"
+	`,
+			wantErr: "recovery.reasoning_effort",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			isolateWorkspaceConfigHome(t)
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := LoadConfig(context.Background(), root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigAppliesParallelTaskDefaultsWhenUnset(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, "")
+
+	cfg, _, err := loadConfigWithIsolatedHome(t, root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, DefaultParallelTasksConfig())
+}
+
+func TestLoadConfigMergesParallelTasksWorkspaceOverGlobalConfig(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[tasks.run.parallel]
+enabled = false
+max_concurrency = 2
+
+[tasks.run.parallel.conflict_resolver]
+enabled = false
+ide = "claude"
+model = "sonnet"
+reasoning_effort = "medium"
+max_attempts = 1
+`)
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel]
+enabled = true
+
+[tasks.run.parallel.conflict_resolver]
+model = "gpt-5.5"
+reasoning_effort = "high"
+max_attempts = 3
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, ParallelTasksConfig{
+		Enabled:        ptrBool(true),
+		MaxConcurrency: ptrInt(2),
+		ConflictResolver: &AgentRecoveryConfig{
+			Enabled:         ptrBool(false),
+			IDE:             ptrString("claude"),
+			Model:           ptrString("gpt-5.5"),
+			ReasoningEffort: ptrString("high"),
+			MaxAttempts:     ptrInt(3),
+		},
+	})
+}
+
+func TestLoadConfigParsesParallelTasksTOML(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel]
+enabled = true
+max_concurrency = 6
+
+[tasks.run.parallel.conflict_resolver]
+enabled = true
+ide = "codex"
+model = "gpt-5.5"
+reasoning_effort = "high"
+max_attempts = 3
+`)
+
+	cfg, _, err := loadConfigWithIsolatedHome(t, root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, ParallelTasksConfig{
+		Enabled:        ptrBool(true),
+		MaxConcurrency: ptrInt(6),
+		ConflictResolver: &AgentRecoveryConfig{
+			Enabled:         ptrBool(true),
+			IDE:             ptrString("codex"),
+			Model:           ptrString("gpt-5.5"),
+			ReasoningEffort: ptrString("high"),
+			MaxAttempts:     ptrInt(3),
+		},
+	})
+}
+
+func TestLoadConfigRejectsInvalidParallelTasksValues(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "zero max concurrency",
+			content: `
+[tasks.run.parallel]
+max_concurrency = 0
+`,
+			wantErr: "tasks.run.parallel.max_concurrency",
+		},
+		{
+			name: "invalid resolver reasoning effort",
+			content: `
+[tasks.run.parallel.conflict_resolver]
+reasoning_effort = "extreme"
+`,
+			wantErr: "tasks.run.parallel.conflict_resolver.reasoning_effort",
+		},
+		{
+			name: "resolver max attempts above maximum",
+			content: `
+[tasks.run.parallel.conflict_resolver]
+max_attempts = 5
+`,
+			wantErr: "tasks.run.parallel.conflict_resolver.max_attempts",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := loadConfigWithIsolatedHome(t, root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsUnknownParallelTasksFields(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel]
+unexpected = true
+`)
+
+	_, _, err := loadConfigWithIsolatedHome(t, root)
+	if err == nil {
+		t.Fatal("expected unknown parallel field error")
+	}
+	if !strings.Contains(err.Error(), "decode workspace config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadConfigParsesTaskRunMultipleMode(t *testing.T) {
 	tests := []struct {
 		name string
@@ -390,8 +661,6 @@ func TestLoadConfigParsesTaskRunMultipleMode(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run("Should parse run_multiple_mode="+tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, `
 [tasks.run]
@@ -460,8 +729,6 @@ recursive = false
 
 func TestLoadConfigDefaultsTaskRunMultipleModeToEnqueued(t *testing.T) {
 	t.Run("Should default run_multiple_mode to enqueued", func(t *testing.T) {
-		t.Parallel()
-
 		root := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
 			t.Fatalf("mkdir .compozy: %v", err)
@@ -529,8 +796,6 @@ run_multiple_parallel_limit = 5
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, tc.content)
 
@@ -551,8 +816,6 @@ run_multiple_parallel_limit = 5
 
 func TestLoadConfigDefaultsTaskRunMultipleParallelLimit(t *testing.T) {
 	t.Run("Should default run_multiple_parallel_limit to two", func(t *testing.T) {
-		t.Parallel()
-
 		root := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
 			t.Fatalf("mkdir .compozy: %v", err)
@@ -618,8 +881,6 @@ run_multiple_parallel_limit = -1
 	for _, tc := range cases {
 		tc := tc
 		t.Run("Should reject "+tc.name+" run_multiple_parallel_limit", func(t *testing.T) {
-			t.Parallel()
-
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, tc.content)
 
@@ -727,8 +988,6 @@ run_multiple_parallel_limit = 4
 
 func TestLoadConfigRejectsInvalidTaskRunMultipleMode(t *testing.T) {
 	t.Run("Should reject invalid run_multiple_mode", func(t *testing.T) {
-		t.Parallel()
-
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
 [tasks.run]
@@ -747,8 +1006,6 @@ run_multiple_mode = "invalid"
 
 func TestLoadConfigAcceptsTaskRunMultipleModeAndRejectsUnknownTaskRunKeys(t *testing.T) {
 	t.Run("Should accept run_multiple_mode", func(t *testing.T) {
-		t.Parallel()
-
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
 [tasks.run]
@@ -768,8 +1025,6 @@ run_multiple_mode = "enqueued"
 	})
 
 	t.Run("Should reject unknown task-run key", func(t *testing.T) {
-		t.Parallel()
-
 		root := t.TempDir()
 		writeWorkspaceConfig(t, root, `
 [tasks.run]
@@ -1824,6 +2079,7 @@ ide = "claude"
 
 func ptrBool(b bool) *bool       { return &b }
 func ptrString(s string) *string { return &s }
+func ptrInt(i int) *int          { return &i }
 
 func assertOptionalBool(t *testing.T, field string, got *bool, want *bool) {
 	t.Helper()
@@ -1846,6 +2102,51 @@ func assertOptionalString(t *testing.T, field string, got *string, want *string)
 		t.Fatalf("%s: expected %q, got nil", field, *want)
 	case want != nil && got != nil && *want != *got:
 		t.Fatalf("%s: expected %q, got %q", field, *want, *got)
+	}
+}
+
+func assertRecoveryConfig(t *testing.T, got AgentRecoveryConfig, want AgentRecoveryConfig) {
+	t.Helper()
+	assertAgentRecoveryConfig(t, "recovery", got, want)
+}
+
+func assertParallelTasksConfig(t *testing.T, got ParallelTasksConfig, want ParallelTasksConfig) {
+	t.Helper()
+	assertOptionalBool(t, "tasks.run.parallel.enabled", got.Enabled, want.Enabled)
+	assertOptionalInt(t, "tasks.run.parallel.max_concurrency", got.MaxConcurrency, want.MaxConcurrency)
+	switch {
+	case want.ConflictResolver == nil && got.ConflictResolver != nil:
+		t.Fatalf("tasks.run.parallel.conflict_resolver: expected nil, got %#v", *got.ConflictResolver)
+	case want.ConflictResolver != nil && got.ConflictResolver == nil:
+		t.Fatalf("tasks.run.parallel.conflict_resolver: expected %#v, got nil", *want.ConflictResolver)
+	case want.ConflictResolver != nil && got.ConflictResolver != nil:
+		assertAgentRecoveryConfig(
+			t,
+			"tasks.run.parallel.conflict_resolver",
+			*got.ConflictResolver,
+			*want.ConflictResolver,
+		)
+	}
+}
+
+func assertAgentRecoveryConfig(t *testing.T, fieldPrefix string, got AgentRecoveryConfig, want AgentRecoveryConfig) {
+	t.Helper()
+	assertOptionalBool(t, fieldPrefix+".enabled", got.Enabled, want.Enabled)
+	assertOptionalString(t, fieldPrefix+".ide", got.IDE, want.IDE)
+	assertOptionalString(t, fieldPrefix+".model", got.Model, want.Model)
+	assertOptionalString(t, fieldPrefix+".reasoning_effort", got.ReasoningEffort, want.ReasoningEffort)
+	assertOptionalInt(t, fieldPrefix+".max_attempts", got.MaxAttempts, want.MaxAttempts)
+}
+
+func assertOptionalInt(t *testing.T, field string, got *int, want *int) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Fatalf("%s: expected nil, got %d", field, *got)
+	case want != nil && got == nil:
+		t.Fatalf("%s: expected %d, got nil", field, *want)
+	case want != nil && got != nil && *want != *got:
+		t.Fatalf("%s: expected %d, got %d", field, *want, *got)
 	}
 }
 
