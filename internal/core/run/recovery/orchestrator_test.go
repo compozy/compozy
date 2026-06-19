@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -165,6 +166,80 @@ func TestRunRecoveryOrchestratorSkipsCanceledOutcome(t *testing.T) {
 	if len(sink.events) != 0 {
 		t.Fatalf("events = %#v, want none", sink.events)
 	}
+}
+
+func TestRunRecoveryOrchestratorStopsBeforeRestartWhenContextCancelsDuringRemediation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	originalErr := errors.New("initial failure")
+	prepared := &fakePreparedRun{
+		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+		executeErr:     originalErr,
+		restartOutcomes: []RunOutcome{
+			succeededRunOutcome("restart-run"),
+		},
+	}
+	strategy := &cancelingRemediationStrategy{cancel: cancel}
+	sink := &recordingEventSink{}
+
+	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+		Run(ctx, prepared)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() error = %v, want context canceled", err)
+	}
+	if strings.Contains(err.Error(), "fsm transition") {
+		t.Fatalf("Run() error = %v, want cancellation without fsm transition failure", err)
+	}
+	if got.Status != StatusFailed {
+		t.Fatalf("status = %q, want original failed outcome", got.Status)
+	}
+	if len(prepared.restartCalls) != 0 {
+		t.Fatalf("RestartFailed calls = %#v, want none after cancellation", prepared.restartCalls)
+	}
+	assertEventKinds(t, sink, []eventspkg.EventKind{
+		eventspkg.EventKindRunRecoveryStarted,
+	})
+}
+
+func TestRunRecoveryOrchestratorRecordsCanceledRestartWithoutFSMError(t *testing.T) {
+	t.Parallel()
+
+	prepared := &fakePreparedRun{
+		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+		executeErr:     errors.New("initial failure"),
+		restartOutcomes: []RunOutcome{{
+			RunID:  "restart-run",
+			Status: StatusCanceled,
+			Jobs: []JobOutcome{
+				{SafeName: "unit-tests", Status: StatusCanceled, ExitCode: 1, Error: context.Canceled.Error()},
+			},
+		}},
+		restartErrs: []error{context.Canceled},
+	}
+	strategy := &fakeRemediationStrategy{
+		verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "patched"}},
+	}
+	sink := &recordingEventSink{}
+
+	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+		Run(context.Background(), prepared)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() error = %v, want context canceled", err)
+	}
+	if strings.Contains(err.Error(), "fsm transition") {
+		t.Fatalf("Run() error = %v, want cancellation without fsm transition failure", err)
+	}
+	if got.Status != StatusCanceled {
+		t.Fatalf("status = %q, want canceled", got.Status)
+	}
+	if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
+		t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
+	}
+	assertEventKinds(t, sink, []eventspkg.EventKind{
+		eventspkg.EventKindRunRecoveryStarted,
+		eventspkg.EventKindRunRecoveryRestarting,
+	})
 }
 
 func TestRunRecoveryOrchestratorEnforcesRecoveryAttemptLoopGuard(t *testing.T) {
@@ -451,6 +526,21 @@ type fakeRemediationStrategy struct {
 	verdicts []TriageVerdict
 	errs     []error
 	inputs   []RemediationInput
+}
+
+type cancelingRemediationStrategy struct {
+	cancel func()
+}
+
+func (*cancelingRemediationStrategy) Name() string {
+	return "canceling-remediation"
+}
+
+func (s *cancelingRemediationStrategy) Remediate(context.Context, RemediationInput) (TriageVerdict, error) {
+	if s.cancel != nil {
+		s.cancel()
+	}
+	return TriageVerdict{Decision: VerdictFixed, Reason: "patched before cancellation"}, nil
 }
 
 func (*fakeRemediationStrategy) Name() string {

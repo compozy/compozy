@@ -80,6 +80,12 @@
             "sourceType": "github",
             "computedHash": "cc6cfffb9f793c89a46f0f97bb9d20cd84ca5e170c6fd538066e7953cb69c10d"
         },
+        "testing-boss": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/testing-boss/SKILL.md",
+            "computedHash": "2b1585ba06742cc047f63199b4da2ca9d5b043389e8b7677b04df767a3228a42"
+        },
         "to-prompt": {
             "source": "pedronauck/skills",
             "sourceType": "github",

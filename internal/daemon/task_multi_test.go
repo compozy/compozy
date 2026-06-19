@@ -1984,6 +1984,52 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			if got := runGitOutput(t, env.workspaceRoot, "status", "--porcelain"); got != "" {
 				t.Fatalf("workspace status after parallel run = %q, want clean", got)
 			}
+			started := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelWaveStarted)
+			if len(started) != 5 {
+				t.Fatalf("wave_started events = %d, want 5: %#v", len(started), started)
+			}
+			seenStarted := map[string]bool{}
+			for _, payload := range started {
+				if payload.RunID != run.RunID || payload.WaveTotal != 4 || payload.Phase != "running" {
+					t.Fatalf("wave_started payload = %#v", payload)
+				}
+				seenStarted[payload.TaskID] = true
+			}
+			for _, taskID := range []string{"task_01", "task_02", "task_03", "task_04", "task_05"} {
+				if !seenStarted[taskID] {
+					t.Fatalf("wave_started missing task %s: %#v", taskID, started)
+				}
+			}
+			mergeStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelMergeStarted)
+			if len(mergeStarted) != 4 {
+				t.Fatalf("merge_started events = %d, want 4: %#v", len(mergeStarted), mergeStarted)
+			}
+			for _, payload := range mergeStarted {
+				if payload.RunID != run.RunID || payload.WaveTotal != 4 || payload.TaskID != "" ||
+					payload.Phase != "merging" {
+					t.Fatalf("merge_started payload = %#v", payload)
+				}
+			}
+			merged := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelMerged)
+			if len(merged) != 5 {
+				t.Fatalf("merged events = %d, want 5: %#v", len(merged), merged)
+			}
+			for _, payload := range merged {
+				if payload.RunID != run.RunID || payload.Phase != "merged" || payload.Status != "merged" ||
+					strings.TrimSpace(payload.TaskID) == "" ||
+					!strings.HasPrefix(payload.WorktreePath, env.paths.WorktreesDir) {
+					t.Fatalf("merged payload = %#v", payload)
+				}
+			}
+			completed := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelWaveCompleted)
+			if len(completed) != 4 {
+				t.Fatalf("wave_completed events = %d, want 4: %#v", len(completed), completed)
+			}
+			for _, payload := range completed {
+				if payload.RunID != run.RunID || payload.WaveTotal != 4 || payload.TaskID != "" {
+					t.Fatalf("wave_completed payload = %#v", payload)
+				}
+			}
 		},
 	)
 }
@@ -2526,4 +2572,24 @@ func writeDaemonTaskResultFixture(
 		return err
 	}
 	return os.WriteFile(artifacts.ResultPath, raw, 0o600)
+}
+
+func taskParallelPayloads(
+	t *testing.T,
+	runID string,
+	kind eventspkg.EventKind,
+) []kinds.TaskParallelPayload {
+	t.Helper()
+	payloads := make([]kinds.TaskParallelPayload, 0)
+	for _, event := range allRunEvents(t, runID) {
+		if event.Kind != kind {
+			continue
+		}
+		var payload kinds.TaskParallelPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode %s payload: %v", kind, err)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
 }

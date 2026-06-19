@@ -174,7 +174,7 @@ func (o *RunRecoveryOrchestrator) runRecoveryAttempt(
 		)
 	}
 	if err := ctx.Err(); err != nil {
-		cancelErr := o.transition(ctx, machine, recoveryEventCancel, attempts, outcome, TriageVerdict{})
+		cancelErr := o.cancelRecovery(ctx, machine, attempts, outcome, TriageVerdict{})
 		return terminalRecoveryResult(outcome, errors.Join(lastErr, cancelErr, err))
 	}
 
@@ -185,6 +185,10 @@ func (o *RunRecoveryOrchestrator) runRecoveryAttempt(
 	verdict, err := o.remediateRecoveryAttempt(ctx, machine, outcome, attempt, originalOutcome, originalErr)
 	if err != nil {
 		return terminalRecoveryResult(originalOutcome, err)
+	}
+	if err := ctx.Err(); err != nil {
+		cancelErr := o.cancelRecovery(ctx, machine, attempt, outcome, verdict)
+		return terminalRecoveryResult(outcome, errors.Join(lastErr, cancelErr, err))
 	}
 	if verdict.Decision != VerdictFixed {
 		return terminalRecoveryResult(
@@ -285,7 +289,7 @@ func (o *RunRecoveryOrchestrator) handleRestartOutcome(
 	lastErr := ensureFailureError(outcome, restartErr)
 	switch {
 	case outcome.Canceled():
-		err := o.transition(ctx, machine, recoveryEventCancel, attempts, outcome, verdict)
+		err := o.cancelRecovery(ctx, machine, attempts, outcome, verdict)
 		return terminalRecoveryResult(outcome, errors.Join(restartErr, err))
 	case restartErr != nil && outcome.Status != StatusFailed:
 		return terminalRecoveryResult(outcome, o.exhaustRecovery(ctx, machine, attempts, outcome, restartErr, verdict))
@@ -298,6 +302,19 @@ func (o *RunRecoveryOrchestrator) handleRestartOutcome(
 		cause := errors.Join(lastErr, statusErr)
 		return terminalRecoveryResult(outcome, o.exhaustRecovery(ctx, machine, attempts, outcome, cause, verdict))
 	}
+}
+
+func (o *RunRecoveryOrchestrator) cancelRecovery(
+	ctx context.Context,
+	machine *fsm.FSM,
+	attempt int,
+	outcome RunOutcome,
+	verdict TriageVerdict,
+) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return o.transition(context.WithoutCancel(ctx), machine, recoveryEventCancel, attempt, outcome, verdict)
 }
 
 func (o *RunRecoveryOrchestrator) recoveredResult(
