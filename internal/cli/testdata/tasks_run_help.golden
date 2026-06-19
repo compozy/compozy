@@ -9,11 +9,15 @@ Pass --parallel (or set run_multiple_mode = "parallel") to run children in
 parallel with git worktree isolation, and --parallel-limit to bound the
 concurrent child fanout.
 
+Pass --parallel-tasks on a single workflow run to execute pending task files in
+dependency-aware waves using the resolved [tasks.run.parallel] config.
+
 Usage:
   compozy tasks run [slug] [flags]
 
 Examples:
   compozy tasks run my-feature
+  compozy tasks run my-feature --parallel-tasks
   compozy tasks run --multiple alpha,beta --stream
   compozy tasks run --multiple alpha,beta --detach
   compozy tasks run --multiple alpha,beta --parallel
@@ -41,6 +45,7 @@ Flags:
       --no-recovery                      Disable agentic recovery for this invocation
       --parallel                         Run --multiple task workflows in parallel with git worktree isolation (overrides run_multiple_mode; valid only with --multiple)
       --parallel-limit int               Maximum number of child runs started at once in --parallel mode (overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple) (default 2)
+      --parallel-tasks                   Run this PRD task workflow in dependency-aware parallel task mode
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
       --recovery                         Enable agentic recovery for failed runs
       --recovery-ide string              ACP runtime used by the recovery agent (default "codex")

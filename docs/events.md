@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id`         | `string`            | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq`            | `uint64`            | Monotonic sequence number within a run.                                |
 | `ts`             | `RFC3339 timestamp` | Event timestamp in UTC.                                                |
-| `kind`           | `string`            | One of the 64 public event kinds below.                                |
+| `kind`           | `string`            | One of the 74 public event kinds below.                                |
 | `payload`        | `object`            | Kind-specific payload from `pkg/compozy/events/kinds`.                 |
 
 ## Run Events
@@ -487,6 +487,82 @@ The parent queue was canceled. Carries the aggregate summary `error` when presen
 Payload type: `kinds.TaskRunMultiplePayload`
 
 The parent queue settled. Carries `total` and, on aggregate failure, the summary `error`.
+
+## Parallel Task Events
+
+Parallel task events are emitted by the `ParallelExecutionOrchestrator` during an
+opt-in parallel PRD-tasks run (`[tasks.run.parallel]`). They are persisted in the
+parent run journal, streamed through the regular run stream APIs, and drive the
+wave-grouped sidebar and the persistent `INTEGRATION` pane in the run TUI. All
+seven kinds share one payload type, `kinds.TaskParallelPayload`.
+
+`kinds.TaskParallelPayload` fields:
+
+- `run_id`: parent parallel-run id
+- `wave_index`: zero-based topological wave the event belongs to
+- `wave_total`: total number of waves in the run, emitted with `wave_started`
+- `task_id`: PRD task identity such as `task_01`; empty for wave-level events
+- `phase`: lifecycle phase, one of `running`, `recovering`, `merging`, `resolving`, or `merged`
+- `integration_branch`: dedicated integration branch `compozy/parallel-<run-id>`
+- `conflict_files`: relative paths with unresolved conflicts during a squash merge
+- `attempt`: current bounded conflict-resolution attempt
+- `max_attempts`: configured conflict-resolution attempt ceiling
+- `worktree_path`: per-task git worktree path
+- `status`: terminal per-task status, one of `merged`, `recovered`, `failed`, or `skipped`
+
+Per-task events (`wave_started`, `conflict_detected`, `conflict_resolving`,
+`merged`) carry `task_id` and `wave_index` so the TUI can assign each task card to
+its wave. Wave-level events (`wave_completed`, `merge_started`) leave `task_id`
+empty. Empty fields are treated as unknown so older event streams stay compatible.
+
+### `task.parallel.wave_started`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A task entered a running wave. Carries `wave_index`, `wave_total`, `task_id`,
+`integration_branch`, `worktree_path`, and `phase` (`running`).
+
+### `task.parallel.wave_completed`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A wave finished running and merging. Carries `wave_index` and `wave_total`.
+
+### `task.parallel.merge_started`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A wave began squash-merging its task worktrees into the integration branch.
+Carries `wave_index` and `integration_branch`, with `phase` set to `merging`.
+
+### `task.parallel.conflict_detected`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A squash merge produced unmerged files. Carries `task_id`, `wave_index`,
+`conflict_files`, `attempt`, and `max_attempts`.
+
+### `task.parallel.conflict_resolving`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The bounded agentic conflict resolver started an attempt. Carries `task_id`,
+`wave_index`, `attempt`, `max_attempts`, and `phase` (`resolving`).
+
+### `task.parallel.merged`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A task was integrated into the integration branch. Carries `task_id`,
+`wave_index`, `worktree_path`, and `status` (`merged` or `recovered`).
+
+### `task.parallel.rolled_back`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The run exhausted conflict resolution or hit an unrecoverable failure. The
+integration branch is discarded and the working branch is left untouched. Carries
+`integration_branch`, `wave_index`, and any remaining `conflict_files`.
 
 ## Artifact Events
 

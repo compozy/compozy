@@ -177,6 +177,7 @@ func (s *commandState) applyTasksRunConfig(cmd *cobra.Command, cfg workspace.Pro
 	applyConfig(cmd, "attach", cfg.Runs.DefaultAttachMode, func(val string) { s.attachMode = val })
 	applyConfig(cmd, "format", cfg.Tasks.Run.OutputFormat, func(val string) { s.outputFormat = val })
 	applyConfig(cmd, "tui", cfg.Tasks.Run.TUI, func(val bool) { s.tui = val })
+	s.applyParallelTasksConfig(cmd, cfg.Tasks.Run.Parallel)
 	s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
 		derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules),
 	)
@@ -191,6 +192,33 @@ func (s *commandState) applyTasksRunConfig(cmd *cobra.Command, cfg workspace.Pro
 		"recursive",
 		cfg.Tasks.Run.Recursive,
 		func(val bool) { s.recursive = val },
+	)
+}
+
+func (s *commandState) applyParallelTasksConfig(cmd *cobra.Command, cfg workspace.ParallelTasksConfig) {
+	resolved := cfg.ApplyDefaults()
+	applyConfig(cmd, taskRunParallelTasksFlag, resolved.Enabled, func(val bool) { s.parallelTasks = val })
+	if resolved.ConflictResolver == nil {
+		return
+	}
+	resolver := resolved.ConflictResolver.ApplyDefaults()
+	applyConfig(
+		cmd,
+		taskRunParallelConflictResolverIDEFlag,
+		resolver.IDE,
+		func(val string) { s.parallelConflictResolverIDE = val },
+	)
+	applyConfig(
+		cmd,
+		taskRunParallelConflictResolverModelFlag,
+		resolver.Model,
+		func(val string) { s.parallelConflictResolverModel = val },
+	)
+	applyConfig(
+		cmd,
+		taskRunParallelConflictResolverReasoningFlag,
+		resolver.ReasoningEffort,
+		func(val string) { s.parallelConflictResolverReasoningEffort = val },
 	)
 }
 

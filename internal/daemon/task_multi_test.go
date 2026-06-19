@@ -2201,6 +2201,73 @@ func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing
 	}
 }
 
+func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
+	t.Parallel()
+
+	enabled := false
+	maxConcurrency := 6
+	projectResolverEnabled := false
+	projectResolverIDE := "claude"
+	projectResolverModel := "sonnet"
+	projectResolverReasoning := "medium"
+	projectResolverAttempts := 1
+	overrideEnabled := true
+	overrideResolverModel := "gpt-5.5"
+	overrideResolverReasoning := "high"
+
+	cfg, err := resolveDaemonParallelTasksConfig(
+		workspacecfg.ProjectConfig{
+			Tasks: workspacecfg.TasksConfig{
+				Run: workspacecfg.TaskRunConfig{
+					Parallel: workspacecfg.ParallelTasksConfig{
+						Enabled:        &enabled,
+						MaxConcurrency: &maxConcurrency,
+						ConflictResolver: &workspacecfg.AgentRecoveryConfig{
+							Enabled:         &projectResolverEnabled,
+							IDE:             &projectResolverIDE,
+							Model:           &projectResolverModel,
+							ReasoningEffort: &projectResolverReasoning,
+							MaxAttempts:     &projectResolverAttempts,
+						},
+					},
+				},
+			},
+		},
+		runtimeOverrideInput{
+			ParallelTasks: &workspacecfg.ParallelTasksConfig{
+				Enabled: &overrideEnabled,
+				ConflictResolver: &workspacecfg.AgentRecoveryConfig{
+					Model:           &overrideResolverModel,
+					ReasoningEffort: &overrideResolverReasoning,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("resolveDaemonParallelTasksConfig() error = %v", err)
+	}
+	if cfg.Enabled == nil || !*cfg.Enabled {
+		t.Fatalf("parallel enabled = %#v, want true", cfg.Enabled)
+	}
+	if cfg.MaxConcurrency == nil || *cfg.MaxConcurrency != 6 {
+		t.Fatalf("max concurrency = %#v, want 6", cfg.MaxConcurrency)
+	}
+	resolver := cfg.ConflictResolver
+	if resolver == nil ||
+		resolver.Enabled == nil ||
+		*resolver.Enabled ||
+		resolver.IDE == nil ||
+		*resolver.IDE != "claude" ||
+		resolver.Model == nil ||
+		*resolver.Model != "gpt-5.5" ||
+		resolver.ReasoningEffort == nil ||
+		*resolver.ReasoningEffort != "high" ||
+		resolver.MaxAttempts == nil ||
+		*resolver.MaxAttempts != 1 {
+		t.Fatalf("merged resolver = %#v", resolver)
+	}
+}
+
 func TestRunManagerTaskRunMultipleParallelIgnoresParallelTasksConfig(t *testing.T) {
 	t.Parallel()
 	t.Run("Should leave slug-scoped parallel multi-run routing unchanged", func(t *testing.T) {

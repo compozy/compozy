@@ -3,11 +3,17 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/core/model"
+	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
+	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/workspace"
 )
 
 func TestPlanTaskMultiWorktreePath(t *testing.T) {
@@ -1092,6 +1098,104 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 	})
 }
 
+func TestParallelOrchestratorConflictResolverIntegration(t *testing.T) {
+	t.Run("Should merge a deterministic conflict resolved by a stub resolver", func(t *testing.T) {
+		t.Parallel()
+		repo, base := initTaskMultiWorktreeStoryRepo(t)
+		ctx := context.Background()
+		allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+		integrationPath := filepath.Join(t.TempDir(), "integration")
+		plan := parallelConflictIntegrationPlan(t, repo, base, integrationPath, "resolved")
+		launcher := &daemonConflictTaskLauncher{
+			allocator: allocator,
+			repo:      repo,
+			writes: map[runparallel.TaskID]string{
+				"task_01": "first\n",
+				"task_02": "first\nsecond\n",
+			},
+		}
+		resolver := &daemonStubConflictResolver{resolution: "first\nsecond\n"}
+
+		outcome, err := runparallel.NewParallelExecutionOrchestrator(
+			parallelWorktreeLifecycle{allocator: allocator},
+			launcher,
+			runparallel.WithConflictResolver(resolver),
+		).Run(ctx, plan)
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if outcome.Status != runparallel.ParallelOutcomeCompleted {
+			t.Fatalf("status = %q, want completed", outcome.Status)
+		}
+		if resolver.calls != 1 {
+			t.Fatalf("resolver calls = %d, want 1", resolver.calls)
+		}
+		if got := readTaskMultiWorktreeFile(t, repo, "story.txt"); got != "first\nsecond\n" {
+			t.Fatalf("main story = %q, want resolved content", got)
+		}
+		if got := runGitOutput(t, repo, "status", "--porcelain"); got != "" {
+			t.Fatalf("main status = %q, want clean", got)
+		}
+		messages := runGitOutput(t, repo, "log", "--reverse", "--format=%s", base.Commit+"..main")
+		if !strings.Contains(messages, "task 02: task_02") {
+			t.Fatalf("main log missing resolved squash commit:\n%s", messages)
+		}
+	})
+
+	t.Run("Should roll back when the stub resolver exhausts", func(t *testing.T) {
+		t.Parallel()
+		repo, base := initTaskMultiWorktreeStoryRepo(t)
+		preHead := runGitOutput(t, repo, "rev-parse", "main")
+		preContent := readTaskMultiWorktreeFile(t, repo, "story.txt")
+		ctx := context.Background()
+		allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+		integrationPath := filepath.Join(t.TempDir(), "integration")
+		plan := parallelConflictIntegrationPlan(t, repo, base, integrationPath, "exhausted")
+		launcher := &daemonConflictTaskLauncher{
+			allocator: allocator,
+			repo:      repo,
+			writes: map[runparallel.TaskID]string{
+				"task_01": "first\n",
+				"task_02": "first\nsecond\n",
+			},
+		}
+		resolver := &daemonStubConflictResolver{exhaust: true}
+
+		outcome, err := runparallel.NewParallelExecutionOrchestrator(
+			parallelWorktreeLifecycle{allocator: allocator},
+			launcher,
+			runparallel.WithConflictResolver(resolver),
+		).Run(ctx, plan)
+		if err == nil {
+			t.Fatal("Run() error = nil, want conflict exhaustion")
+		}
+		if outcome.Status != runparallel.ParallelOutcomeRolledBack {
+			t.Fatalf("status = %q, want rolled_back", outcome.Status)
+		}
+		if resolver.calls != 1 {
+			t.Fatalf("resolver calls = %d, want 1", resolver.calls)
+		}
+		if got := runGitOutput(t, repo, "rev-parse", "main"); got != preHead {
+			t.Fatalf("main head = %q, want unchanged %q", got, preHead)
+		}
+		if got := readTaskMultiWorktreeFile(t, repo, "story.txt"); got != preContent {
+			t.Fatalf("main story = %q, want unchanged %q", got, preContent)
+		}
+		if got := runGitOutput(t, repo, "status", "--porcelain"); got != "" {
+			t.Fatalf("main status = %q, want clean", got)
+		}
+		if _, err := runGitOutputContext(
+			ctx,
+			repo,
+			"rev-parse",
+			"--verify",
+			"refs/heads/"+plan.IntegrationBranch,
+		); err == nil {
+			t.Fatalf("integration branch %s still exists after rollback", plan.IntegrationBranch)
+		}
+	})
+}
+
 func TestEnsureTaskMultiWorktreeTargetFree(t *testing.T) {
 	t.Run("Should allow a missing target path", func(t *testing.T) {
 		t.Parallel()
@@ -1206,4 +1310,155 @@ func readTaskMultiWorktreeFile(t *testing.T, dir string, name string) string {
 		t.Fatalf("read %s: %v", name, err)
 	}
 	return string(content)
+}
+
+func initTaskMultiWorktreeStoryRepo(t *testing.T) (string, taskMultiWorktreeBase) {
+	t.Helper()
+	repo := initTaskMultiWorktreeRepo(t)
+	writeTaskMultiWorktreeFile(t, repo, "story.txt", "base\n")
+	runGitOutput(t, repo, "add", "story.txt")
+	runGitOutput(t, repo, "commit", "-q", "-m", "add story")
+	allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+	base, err := allocator.ResolveBase(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("ResolveBase() error = %v", err)
+	}
+	return repo, base
+}
+
+func parallelConflictIntegrationPlan(
+	t *testing.T,
+	repo string,
+	base taskMultiWorktreeBase,
+	integrationPath string,
+	runSuffix string,
+) runparallel.ParallelPlan {
+	t.Helper()
+	entries := []model.TaskEntry{
+		{ID: "task_01", Title: "task_01", Status: "pending"},
+		{ID: "task_02", Title: "task_02", Status: "pending"},
+	}
+	waves, err := runparallel.BuildWaves(entries)
+	if err != nil {
+		t.Fatalf("BuildWaves() error = %v", err)
+	}
+	enabled := true
+	maxConcurrency := 2
+	return runparallel.ParallelPlan{
+		RunID:             "parallel-conflict-" + runSuffix,
+		WorkspaceRoot:     repo,
+		BaseBranch:        base.Branch,
+		BaseCommit:        base.Commit,
+		IntegrationBranch: "compozy/parallel-conflict-" + runSuffix,
+		IntegrationPath:   integrationPath,
+		Waves:             waves,
+		Tasks: []runparallel.TaskSpec{
+			{ID: "task_01", Number: 1, Title: "task_01", Slug: "task_01"},
+			{ID: "task_02", Number: 2, Title: "task_02", Slug: "task_02"},
+		},
+		Config: workspace.ParallelTasksConfig{
+			Enabled:        &enabled,
+			MaxConcurrency: &maxConcurrency,
+		},
+	}
+}
+
+type daemonConflictTaskLauncher struct {
+	allocator *taskMultiWorktreeAllocator
+	repo      string
+	writes    map[runparallel.TaskID]string
+}
+
+func (l *daemonConflictTaskLauncher) PrepareTask(
+	ctx context.Context,
+	spec runparallel.TaskLaunchSpec,
+) (runparallel.PreparedTaskRun, error) {
+	if l == nil || l.allocator == nil {
+		return nil, errors.New("missing conflict task launcher allocator")
+	}
+	alloc, err := l.allocator.Allocate(ctx, taskMultiWorktreeSpec{
+		WorkspaceRoot: l.repo,
+		ParentRunID:   spec.RunID,
+		Slug:          spec.Task.Slug,
+		Index:         spec.Task.Number - 1,
+		TaskNumber:    spec.Task.Number,
+		Base: taskMultiWorktreeBase{
+			Branch: spec.Base.Branch,
+			Commit: spec.Base.Commit,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &daemonConflictPreparedTaskRun{
+		result: runparallel.TaskRunResult{
+			Task:         spec.Task,
+			RunID:        fmt.Sprintf("run-task-%02d", spec.Task.Number),
+			WorktreePath: alloc.Path,
+			BaseBranch:   alloc.BaseBranch,
+			BaseCommit:   alloc.BaseCommit,
+		},
+		content: l.writes[spec.Task.ID],
+	}, nil
+}
+
+type daemonConflictPreparedTaskRun struct {
+	result  runparallel.TaskRunResult
+	content string
+}
+
+func (r *daemonConflictPreparedTaskRun) Execute(context.Context) (recovery.RunOutcome, error) {
+	if err := os.WriteFile(filepath.Join(r.result.WorktreePath, "story.txt"), []byte(r.content), 0o600); err != nil {
+		return recovery.RunOutcome{}, err
+	}
+	return recovery.RunOutcome{
+		RunID:  r.result.RunID,
+		Status: recovery.StatusSucceeded,
+		Jobs: []recovery.JobOutcome{{
+			SafeName: fmt.Sprintf("task-%02d", r.result.Task.Number),
+			Status:   recovery.StatusSucceeded,
+		}},
+	}, nil
+}
+
+func (r *daemonConflictPreparedTaskRun) RestartFailed(
+	context.Context,
+	[]string,
+) (recovery.RunOutcome, error) {
+	return recovery.RunOutcome{}, errors.New("conflict integration task should not restart")
+}
+
+func (r *daemonConflictPreparedTaskRun) Result() runparallel.TaskRunResult {
+	return r.result
+}
+
+func (r *daemonConflictPreparedTaskRun) FailedConfig() *model.RuntimeConfig {
+	return &model.RuntimeConfig{WorkspaceRoot: r.result.WorktreePath}
+}
+
+type daemonStubConflictResolver struct {
+	resolution string
+	exhaust    bool
+	calls      int
+}
+
+func (r *daemonStubConflictResolver) Resolve(
+	ctx context.Context,
+	in runparallel.ConflictInput,
+) (runparallel.ConflictResult, error) {
+	r.calls++
+	if r.exhaust {
+		return runparallel.ConflictResult{Resolved: false, Builds: false, Attempts: in.MaxAttempts}, nil
+	}
+	if err := os.WriteFile(
+		filepath.Join(in.IntegrationWorktree, "story.txt"),
+		[]byte(r.resolution),
+		0o600,
+	); err != nil {
+		return runparallel.ConflictResult{}, err
+	}
+	if _, err := runGitOutputContext(ctx, in.IntegrationWorktree, "add", "story.txt"); err != nil {
+		return runparallel.ConflictResult{}, err
+	}
+	return runparallel.ConflictResult{Resolved: true, Builds: true, Attempts: 1}, nil
 }

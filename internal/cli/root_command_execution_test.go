@@ -1808,6 +1808,42 @@ func TestTasksRunCommandRejectsParallelFlagsWithoutMultiple(t *testing.T) {
 	}
 }
 
+func TestTasksRunCommandRejectsParallelTasksWithMultiple(t *testing.T) {
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			t.Fatal("daemon bootstrap should not run for invalid parallel task usage")
+			return compozyconfig.HomePaths{}, nil
+		},
+	})
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"--multiple",
+		"alpha,beta",
+		"--parallel-tasks",
+	)
+	if err == nil {
+		t.Fatalf("expected parallel-tasks with multiple rejection\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	var exitErr *commandExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("expected exit code 1, got %v", err)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "--parallel-tasks cannot be combined with --multiple") {
+		t.Fatalf("stderr = %q, want parallel-tasks rejection", stderr)
+	}
+}
+
 func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
 	t.Run("Should still call single run client", func(t *testing.T) {
 		t.Parallel()
@@ -1855,6 +1891,66 @@ func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
 		}
 		if !strings.Contains(stdout, "task run started: run-task-single-stable (mode=detach)") {
 			t.Fatalf("unexpected stdout: %q", stdout)
+		}
+	})
+}
+
+func TestTasksRunCommandForwardsParallelTasksOverride(t *testing.T) {
+	t.Run("Should forward --parallel-tasks on a single workflow run", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Demo Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Demo Task",
+		))
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startRun: apicore.Run{
+				RunID:            "run-task-parallel-tasks",
+				Mode:             string(core.ModePRDTasks),
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 7, 30, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"demo",
+			"--detach",
+			"--parallel-tasks",
+		)
+		if err != nil {
+			t.Fatalf("execute tasks run --parallel-tasks: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if readyClient.startCalls != 1 {
+			t.Fatalf("StartTaskRun calls = %d, want 1", readyClient.startCalls)
+		}
+		if readyClient.startMultipleCalls != 0 {
+			t.Fatalf("StartTaskRunMultiple calls = %d, want 0", readyClient.startMultipleCalls)
+		}
+		overrides := decodeTaskRunOverrides(t, readyClient.startRequest.RuntimeOverrides)
+		if overrides.ParallelTasks == nil ||
+			overrides.ParallelTasks.Enabled == nil ||
+			!*overrides.ParallelTasks.Enabled {
+			t.Fatalf("parallel task override = %#v, want enabled true", overrides.ParallelTasks)
 		}
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -109,16 +110,13 @@ func (m *RunManager) startParallelTaskRunIfEnabled(
 	workflowSlug string,
 	runtimeCfg *model.RuntimeConfig,
 	recoveryCfg workspacecfg.AgentRecoveryConfig,
+	parallelCfg workspacecfg.ParallelTasksConfig,
 	presentationMode string,
 ) (apicore.Run, bool, error) {
 	if runtimeCfg == nil {
 		return apicore.Run{}, false, errors.New("daemon: runtime config is required")
 	}
-	projectCfg, err := m.loadProjectConfig(detachContext(ctx), workspaceRow.RootDir)
-	if err != nil {
-		return apicore.Run{}, false, fmt.Errorf("load workspace config for parallel task execution: %w", err)
-	}
-	parallelCfg := projectCfg.Tasks.Run.Parallel.ApplyDefaults()
+	parallelCfg = parallelCfg.ApplyDefaults()
 	if parallelCfg.Enabled == nil || !*parallelCfg.Enabled {
 		return apicore.Run{}, false, nil
 	}
@@ -234,7 +232,7 @@ func (m *RunManager) prepareTaskMultiStart(
 	var workspaceRow globaldb.Workspace
 	var presentationMode string
 	for idx, slug := range slugs {
-		row, workflowID, runtimeCfg, recoveryCfg, childPresentationMode, err := m.prepareTaskStart(
+		row, workflowID, runtimeCfg, recoveryCfg, _, childPresentationMode, err := m.prepareTaskStart(
 			ctx,
 			workspaceRef,
 			slug,
@@ -620,6 +618,7 @@ func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *prep
 			item:     prepared.items[0],
 		},
 		runparallel.WithRecoveryStrategy(m.recoveryStrategy),
+		runparallel.WithEventEmitter(parallelEventEmitter{manager: m, active: active}),
 	)
 	_, err = orchestrator.Run(active.ctx, runparallel.ParallelPlan{
 		RunID:             active.runID,
@@ -637,6 +636,32 @@ func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *prep
 		return err
 	}
 	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+}
+
+// parallelEventEmitter bridges the daemon-neutral orchestrator emit seam onto the
+// parent run journal + workspace event bus. Emit failures are observability-only,
+// so they are logged rather than surfaced into the FSM control flow.
+type parallelEventEmitter struct {
+	manager *RunManager
+	active  *activeRun
+}
+
+func (e parallelEventEmitter) EmitParallelEvent(
+	_ context.Context,
+	kind eventspkg.EventKind,
+	payload kinds.TaskParallelPayload,
+) {
+	if e.manager == nil || e.active == nil {
+		return
+	}
+	if err := e.manager.emitTaskParallelEvent(e.active, kind, payload); err != nil {
+		slog.Default().Warn(
+			"daemon: emit parallel task event",
+			"run_id", e.active.runID,
+			"kind", string(kind),
+			"error", err.Error(),
+		)
+	}
 }
 
 type parallelWorktreeLifecycle struct {
@@ -1614,6 +1639,39 @@ func (m *RunManager) emitTaskMultiEvent(
 	if payload.Mode == "" && active.taskMulti != nil {
 		payload.Mode = active.taskMulti.mode
 	}
+	if err := submitSyntheticEvent(
+		detachContext(active.ctx),
+		active.scope.RunJournal(),
+		active.runID,
+		kind,
+		payload,
+	); err != nil {
+		return err
+	}
+	m.publishWorkspaceEvent(active.ctx, apicore.WorkspaceEvent{
+		WorkspaceID: active.workspaceID,
+		RunID:       active.runID,
+		Mode:        active.mode,
+		Status:      runStatusRunning,
+		Kind:        apicore.WorkspaceEventKindRunStatusChanged,
+	})
+	return nil
+}
+
+// emitTaskParallelEvent appends one task.parallel.* event to the parent run
+// journal and notifies the workspace bus, mirroring emitTaskMultiEvent. Emission
+// is serialized through active.emitMu so concurrent wave workers append atomically.
+func (m *RunManager) emitTaskParallelEvent(
+	active *activeRun,
+	kind eventspkg.EventKind,
+	payload kinds.TaskParallelPayload,
+) error {
+	if active == nil || active.scope == nil || active.scope.RunJournal() == nil {
+		return nil
+	}
+	active.emitMu.Lock()
+	defer active.emitMu.Unlock()
+	payload.RunID = active.runID
 	if err := submitSyntheticEvent(
 		detachContext(active.ctx),
 		active.scope.RunJournal(),

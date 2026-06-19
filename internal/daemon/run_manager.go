@@ -180,6 +180,7 @@ type runtimeOverrideInput struct {
 	TUI                        *bool                             `json:"tui"`
 	EnableExecutableExtensions *bool                             `json:"enable_executable_extensions"`
 	Recovery                   *workspacecfg.AgentRecoveryConfig `json:"recovery"`
+	ParallelTasks              *workspacecfg.ParallelTasksConfig `json:"parallel_tasks"`
 }
 
 type reviewBatchingInput struct {
@@ -423,7 +424,7 @@ func (m *RunManager) StartTaskRun(
 	workflowSlug string,
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
-	workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareTaskStart(
+	workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, err := m.prepareTaskStart(
 		detachContext(ctx),
 		workspaceRef,
 		workflowSlug,
@@ -440,6 +441,7 @@ func (m *RunManager) StartTaskRun(
 		workflowSlug,
 		runtimeCfg,
 		recoveryCfg,
+		parallelCfg,
 		presentationMode,
 	); routed || err != nil {
 		return run, err
@@ -860,28 +862,40 @@ func (m *RunManager) prepareTaskStart(
 	workspaceRef string,
 	workflowSlug string,
 	req apicore.TaskRunRequest,
-) (globaldb.Workspace, *string, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
+) (
+	globaldb.Workspace,
+	*string,
+	*model.RuntimeConfig,
+	workspacecfg.AgentRecoveryConfig,
+	workspacecfg.ParallelTasksConfig,
+	string,
+	error,
+) {
 	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 
 	presentationMode, err := normalizePresentationMode(req.PresentationMode)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	overrides, err := parseRuntimeOverrides(req.RuntimeOverrides)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	recoveryCfg, err := resolveDaemonRecoveryConfig(projectCfg, overrides)
 	if err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
+	}
+	parallelCfg, err := resolveDaemonParallelTasksConfig(projectCfg, overrides)
+	if err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 
 	tasksDir := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
 	if err := requireDirectory(tasksDir); err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:              workspaceRow.RootDir,
@@ -896,15 +910,19 @@ func (m *RunManager) prepareTaskStart(
 		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
 		"defaults",
 	); err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	applyTaskProjectConfig(runtimeCfg, projectCfg.Tasks.Run)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	if !runtimeCfg.IncludeCompleted {
 		if err := m.rejectCompletedTaskWorkflow(ctx, workflowID, tasksDir, workflowSlug); err != nil {
-			return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+			return globaldb.Workspace{}, nil, nil,
+				workspacecfg.AgentRecoveryConfig{},
+				workspacecfg.ParallelTasksConfig{},
+				"",
+				err
 		}
 	}
 	runtimeCfg.ApplyDefaults()
@@ -912,9 +930,9 @@ func (m *RunManager) prepareTaskStart(
 	runtimeCfg.DaemonOwned = true
 	runtimeCfg.EnableExecutableExtensions = true
 	if err := validateDaemonRuntimeConfig(runtimeCfg); err != nil {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
-	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, nil
+	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, nil
 }
 
 func (m *RunManager) rejectCompletedTaskWorkflow(
@@ -2636,6 +2654,32 @@ func resolveDaemonRecoveryConfig(
 	return cfg, nil
 }
 
+func resolveDaemonParallelTasksConfig(
+	projectCfg workspacecfg.ProjectConfig,
+	overrides runtimeOverrideInput,
+) (workspacecfg.ParallelTasksConfig, error) {
+	cfg := cloneDaemonParallelTasksConfig(projectCfg.Tasks.Run.Parallel)
+	if overrides.ParallelTasks != nil {
+		cfg = mergeDaemonParallelTasksConfig(cfg, *overrides.ParallelTasks)
+	}
+	cfg = cfg.ApplyDefaults()
+	if cfg.MaxConcurrency != nil && *cfg.MaxConcurrency < 1 {
+		return workspacecfg.ParallelTasksConfig{}, fmt.Errorf(
+			"daemon parallel task config: tasks.run.parallel.max_concurrency must be greater than zero (got %d)",
+			*cfg.MaxConcurrency,
+		)
+	}
+	if cfg.ConflictResolver != nil {
+		if err := workspacecfg.ValidateAgentRecoveryConfig(
+			"daemon parallel conflict resolver config",
+			*cfg.ConflictResolver,
+		); err != nil {
+			return workspacecfg.ParallelTasksConfig{}, err
+		}
+	}
+	return cfg, nil
+}
+
 func mergeDaemonRecoveryConfig(
 	base workspacecfg.AgentRecoveryConfig,
 	overlay workspacecfg.AgentRecoveryConfig,
@@ -2658,6 +2702,27 @@ func mergeDaemonRecoveryConfig(
 	return base
 }
 
+func mergeDaemonParallelTasksConfig(
+	base workspacecfg.ParallelTasksConfig,
+	overlay workspacecfg.ParallelTasksConfig,
+) workspacecfg.ParallelTasksConfig {
+	if overlay.Enabled != nil {
+		base.Enabled = cloneBoolPointer(overlay.Enabled)
+	}
+	if overlay.MaxConcurrency != nil {
+		base.MaxConcurrency = cloneIntPointer(overlay.MaxConcurrency)
+	}
+	if overlay.ConflictResolver != nil {
+		baseResolver := workspacecfg.AgentRecoveryConfig{}
+		if base.ConflictResolver != nil {
+			baseResolver = *base.ConflictResolver
+		}
+		mergedResolver := mergeDaemonRecoveryConfig(baseResolver, *overlay.ConflictResolver)
+		base.ConflictResolver = &mergedResolver
+	}
+	return base
+}
+
 func cloneDaemonRecoveryConfig(cfg workspacecfg.AgentRecoveryConfig) workspacecfg.AgentRecoveryConfig {
 	return workspacecfg.AgentRecoveryConfig{
 		Enabled:         cloneBoolPointer(cfg.Enabled),
@@ -2666,6 +2731,18 @@ func cloneDaemonRecoveryConfig(cfg workspacecfg.AgentRecoveryConfig) workspacecf
 		ReasoningEffort: cloneStringPointerRaw(cfg.ReasoningEffort),
 		MaxAttempts:     cloneIntPointer(cfg.MaxAttempts),
 	}
+}
+
+func cloneDaemonParallelTasksConfig(cfg workspacecfg.ParallelTasksConfig) workspacecfg.ParallelTasksConfig {
+	cloned := workspacecfg.ParallelTasksConfig{
+		Enabled:        cloneBoolPointer(cfg.Enabled),
+		MaxConcurrency: cloneIntPointer(cfg.MaxConcurrency),
+	}
+	if cfg.ConflictResolver != nil {
+		resolver := cloneDaemonRecoveryConfig(*cfg.ConflictResolver)
+		cloned.ConflictResolver = &resolver
+	}
+	return cloned
 }
 
 func cloneBoolPointer(value *bool) *bool {

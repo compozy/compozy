@@ -56,7 +56,7 @@ func TestREADMETasksRunSnippetsMatchCLIHelp(t *testing.T) {
 			}
 		}
 		// Guard the new parallel surface is actually exercised by the README.
-		for _, flag := range []string{"multiple", "parallel", "parallel-limit"} {
+		for _, flag := range []string{"multiple", "parallel", "parallel-limit", "parallel-tasks"} {
 			if !seen[flag] {
 				t.Fatalf("expected README tasks run snippets to document --%s", flag)
 			}
@@ -72,6 +72,10 @@ func TestREADMETasksRunSnippetsMatchCLIHelp(t *testing.T) {
 		limit := cmd.Flags().Lookup("parallel-limit")
 		if limit == nil || limit.Value.Type() != "int" || limit.DefValue != "2" {
 			t.Fatalf("--parallel-limit flag = %#v, want int default 2", limit)
+		}
+		parallelTasks := cmd.Flags().Lookup("parallel-tasks")
+		if parallelTasks == nil || parallelTasks.Value.Type() != "bool" || parallelTasks.DefValue != "false" {
+			t.Fatalf("--parallel-tasks flag = %#v, want bool default false", parallelTasks)
 		}
 		if !strings.Contains(readme, "run_multiple_parallel_limit = 2") {
 			t.Fatal("expected README to document run_multiple_parallel_limit = 2")

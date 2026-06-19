@@ -236,6 +236,46 @@ type dispatchBatchMsg struct {
 	msgs []uiMsg
 }
 
+// Parallel task execution messages translated from task.parallel.* events. They
+// drive the wave-grouped sidebar and the persistent INTEGRATION pane.
+type parallelWaveStartedMsg struct {
+	WaveIndex         int
+	WaveTotal         int
+	TaskID            string
+	IntegrationBranch string
+}
+
+type parallelMergeStartedMsg struct {
+	WaveIndex         int
+	WaveTotal         int
+	IntegrationBranch string
+}
+
+type parallelConflictMsg struct {
+	WaveIndex   int
+	TaskID      string
+	Files       []string
+	Attempt     int
+	MaxAttempts int
+	Resolving   bool
+}
+
+type parallelMergedMsg struct {
+	WaveIndex int
+	TaskID    string
+	Status    string
+}
+
+type parallelWaveCompletedMsg struct {
+	WaveIndex int
+	WaveTotal int
+}
+
+type parallelRolledBackMsg struct {
+	WaveIndex         int
+	IntegrationBranch string
+}
+
 type uiViewState string
 
 const (

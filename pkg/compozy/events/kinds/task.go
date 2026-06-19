@@ -65,3 +65,23 @@ type TaskRunMultiplePayload struct {
 	BaseCommit     string   `json:"base_commit,omitempty"`
 	WorktreeStatus string   `json:"worktree_status,omitempty"`
 }
+
+// TaskParallelPayload describes one wave/merge/conflict transition emitted by the
+// ParallelExecutionOrchestrator during a parallel PRD-tasks run. Wave-level events
+// (wave_completed, merge_started) leave task_id empty; per-task events (wave_started,
+// conflict_detected, conflict_resolving, merged) carry task_id and the wave it belongs
+// to so the TUI can group sidebar cards by wave. All fields are additive and optional;
+// snapshot reconstruction must treat any empty field as "unknown".
+type TaskParallelPayload struct {
+	RunID             string   `json:"run_id,omitempty"`
+	WaveIndex         int      `json:"wave_index,omitempty"`
+	WaveTotal         int      `json:"wave_total,omitempty"`
+	TaskID            string   `json:"task_id,omitempty"`
+	Phase             string   `json:"phase,omitempty"`
+	IntegrationBranch string   `json:"integration_branch,omitempty"`
+	ConflictFiles     []string `json:"conflict_files,omitempty"`
+	Attempt           int      `json:"attempt,omitempty"`
+	MaxAttempts       int      `json:"max_attempts,omitempty"`
+	WorktreePath      string   `json:"worktree_path,omitempty"`
+	Status            string   `json:"status,omitempty"`
+}

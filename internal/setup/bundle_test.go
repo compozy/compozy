@@ -30,6 +30,7 @@ func TestListBundledSkillsExposesOnlyPublicCatalog(t *testing.T) {
 		"cy-fix-reviews",
 		"cy-review-round",
 		"cy-workflow-memory",
+		"git-rebase",
 	}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("unexpected bundled skill names\nwant: %#v\ngot:  %#v", want, names)
@@ -55,6 +56,28 @@ func TestBundledWorkflowMemorySkillIncludesReferenceFile(t *testing.T) {
 	}
 	if _, err := fs.Stat(bundle, "cy-workflow-memory/references/memory-guidelines.md"); err != nil {
 		t.Fatalf("expected bundled workflow-memory reference file, got %v", err)
+	}
+}
+
+func TestBundledGitRebaseSkillIsDiscoverable(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := bundledSkillsRoot()
+	if err != nil {
+		t.Fatalf("bundled skills root: %v", err)
+	}
+	if _, err := fs.Stat(bundle, "git-rebase/SKILL.md"); err != nil {
+		t.Fatalf("expected bundled git-rebase skill, got %v", err)
+	}
+
+	skills, err := ListBundledSkills()
+	if err != nil {
+		t.Fatalf("list bundled skills: %v", err)
+	}
+	if !slices.ContainsFunc(skills, func(skill Skill) bool {
+		return skill.Name == "git-rebase"
+	}) {
+		t.Fatalf("bundled skills did not include git-rebase: %#v", skills)
 	}
 }
 

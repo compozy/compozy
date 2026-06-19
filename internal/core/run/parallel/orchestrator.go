@@ -114,8 +114,9 @@ type ParallelPlan = Plan
 type OutcomeStatus string
 
 const (
-	ParallelOutcomeCompleted OutcomeStatus = "completed"
-	ParallelOutcomeCanceled  OutcomeStatus = "canceled"
+	ParallelOutcomeCompleted  OutcomeStatus = "completed"
+	ParallelOutcomeCanceled   OutcomeStatus = "canceled"
+	ParallelOutcomeRolledBack OutcomeStatus = "rolled_back"
 )
 
 // ParallelOutcomeStatus preserves the task-specified public API name.
@@ -174,6 +175,8 @@ type ExecutionOrchestrator struct {
 	worktrees        WorktreeLifecycle
 	launcher         TaskLauncher
 	recoveryStrategy recovery.RemediationStrategy
+	conflictResolver ConflictResolver
+	emitter          ParallelEventEmitter
 	log              *slog.Logger
 }
 
@@ -202,6 +205,25 @@ func WithRecoveryStrategy(strategy recovery.RemediationStrategy) ExecutionOrches
 	}
 }
 
+// WithConflictResolver supplies the agentic merge-conflict resolver.
+func WithConflictResolver(resolver ConflictResolver) ExecutionOrchestratorOption {
+	return func(o *ExecutionOrchestrator) {
+		if resolver != nil {
+			o.conflictResolver = resolver
+		}
+	}
+}
+
+// WithEventEmitter supplies the sink for task.parallel.* lifecycle events. When
+// unset the orchestrator emits to a no-op sink.
+func WithEventEmitter(emitter ParallelEventEmitter) ExecutionOrchestratorOption {
+	return func(o *ExecutionOrchestrator) {
+		if emitter != nil {
+			o.emitter = emitter
+		}
+	}
+}
+
 // NewParallelExecutionOrchestrator constructs an FSM-backed parallel orchestrator.
 func NewParallelExecutionOrchestrator(
 	worktrees WorktreeLifecycle,
@@ -209,9 +231,11 @@ func NewParallelExecutionOrchestrator(
 	opts ...ExecutionOrchestratorOption,
 ) *ExecutionOrchestrator {
 	o := &ExecutionOrchestrator{
-		worktrees: worktrees,
-		launcher:  launcher,
-		log:       slog.Default(),
+		worktrees:        worktrees,
+		launcher:         launcher,
+		conflictResolver: NewAgenticConflictResolution(),
+		emitter:          noopEventEmitter{},
+		log:              slog.Default(),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -275,12 +299,14 @@ func (o *ExecutionOrchestrator) runWaves(
 	tasksByID := taskSpecsByID(plan.Tasks)
 	failed := map[TaskID]bool{}
 	blockedBy := map[TaskID]TaskID{}
+	waveTotal := len(levels)
 	for waveIndex, level := range levels {
 		if err := o.runOneWave(
 			ctx,
 			machine,
 			plan,
 			waveIndex,
+			waveTotal,
 			level,
 			currentBase,
 			tasksByID,
@@ -304,6 +330,7 @@ func (o *ExecutionOrchestrator) runOneWave(
 	machine *fsm.FSM,
 	plan ParallelPlan,
 	waveIndex int,
+	waveTotal int,
 	level []TaskID,
 	currentBase WorktreeBase,
 	tasksByID map[TaskID]TaskSpec,
@@ -318,6 +345,7 @@ func (o *ExecutionOrchestrator) runOneWave(
 		return err
 	}
 	runnable, skipped := splitRunnableLevel(waveIndex, level, tasksByID, *blockedBy)
+	o.emitWaveTasksStarted(ctx, plan, waveIndex, waveTotal, runnable, tasksByID)
 	waveOutcome := WaveOutcome{Index: waveIndex, Tasks: skipped}
 	executions, err := o.runWave(ctx, plan, waveIndex, runnable, currentBase, tasksByID)
 	if err != nil {
@@ -343,7 +371,8 @@ func (o *ExecutionOrchestrator) runOneWave(
 	if err := o.transition(ctx, machine, parallelEventMergeWave, waveIndex); err != nil {
 		return err
 	}
-	mergeOutcome, err := o.mergeWave(ctx, plan, waveIndex, mergeableExecutions(executions))
+	o.emitMergeStarted(ctx, plan, waveIndex, waveTotal)
+	mergeOutcome, err := o.mergeWave(ctx, machine, plan, waveIndex, mergeableExecutions(executions), outcome)
 	if err != nil {
 		return o.wrapCancelError(ctx, machine, outcome, err)
 	}
@@ -351,7 +380,29 @@ func (o *ExecutionOrchestrator) runOneWave(
 	sortTaskOutcomes(waveOutcome.Tasks)
 	outcome.Waves = append(outcome.Waves, waveOutcome)
 	outcome.Tasks = append(outcome.Tasks, waveOutcome.Tasks...)
-	return o.transition(ctx, machine, parallelEventFinishWave, waveIndex)
+	if err := o.transition(ctx, machine, parallelEventFinishWave, waveIndex); err != nil {
+		return err
+	}
+	o.emitWaveCompleted(ctx, plan, waveIndex, waveTotal)
+	return nil
+}
+
+// emitWaveTasksStarted announces every runnable task entering a wave so the TUI
+// can group sidebar cards by wave before the per-task child runs start streaming.
+func (o *ExecutionOrchestrator) emitWaveTasksStarted(
+	ctx context.Context,
+	plan ParallelPlan,
+	waveIndex, waveTotal int,
+	runnable []TaskID,
+	tasksByID map[TaskID]TaskSpec,
+) {
+	for _, taskID := range runnable {
+		task, ok := tasksByID[taskID]
+		if !ok {
+			task = TaskSpec{ID: taskID}
+		}
+		o.emitWaveStarted(ctx, plan, waveIndex, waveTotal, task)
+	}
 }
 
 func (o *ExecutionOrchestrator) finalize(
@@ -386,6 +437,9 @@ func (o *ExecutionOrchestrator) validatePlan(plan ParallelPlan) error {
 	}
 	if o.launcher == nil {
 		return errors.New("parallel execution: missing task launcher")
+	}
+	if o.conflictResolver == nil {
+		return errors.New("parallel execution: missing conflict resolver")
 	}
 	required := []struct {
 		name  string
@@ -497,9 +551,11 @@ func (o *ExecutionOrchestrator) runWave(
 
 func (o *ExecutionOrchestrator) mergeWave(
 	ctx context.Context,
+	machine *fsm.FSM,
 	plan ParallelPlan,
 	waveIndex int,
 	executions []taskExecution,
+	runOutcome *ParallelOutcome,
 ) (WaveOutcome, error) {
 	orderedRuns := append([]taskExecution(nil), executions...)
 	sort.SliceStable(orderedRuns, func(i, j int) bool {
@@ -521,22 +577,102 @@ func (o *ExecutionOrchestrator) mergeWave(
 			return outcome, fmt.Errorf("squash merge task %s: %w", run.Task.ID, err)
 		}
 		if !conflicts.Clean {
-			return outcome, fmt.Errorf(
-				"squash merge task %s has conflicts outside happy-path scope: %s",
-				run.Task.ID,
-				strings.Join(conflicts.Files, ", "),
-			)
+			o.emitConflictDetected(ctx, plan, waveIndex, run.Task, conflicts, 1, resolverMaxAttempts(plan))
+			result, err := o.resolveConflict(ctx, machine, plan, waveIndex, run.Task, conflicts)
+			if err != nil {
+				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
+			}
+			if !result.Resolved || !result.Builds {
+				err := fmt.Errorf(
+					"squash merge task %s conflict resolver exhausted after %d attempt(s): resolved=%t builds=%t files=%s",
+					run.Task.ID,
+					result.Attempts,
+					result.Resolved,
+					result.Builds,
+					strings.Join(conflicts.Files, ", "),
+				)
+				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
+			}
+			if _, err := o.worktrees.Commit(ctx, plan.IntegrationPath, commitMessage(run.Task)); err != nil {
+				return outcome, o.rollback(
+					ctx,
+					machine,
+					plan,
+					waveIndex,
+					runOutcome,
+					fmt.Errorf("commit resolved squash merge for task %s: %w", run.Task.ID, err),
+				)
+			}
 		}
-		outcome.Tasks = append(outcome.Tasks, TaskOutcome{
+		taskOutcome := TaskOutcome{
 			Task:           run.Task,
 			WaveIndex:      waveIndex,
 			RunID:          strings.TrimSpace(run.RunID),
 			WorktreePath:   strings.TrimSpace(run.WorktreePath),
 			WorktreeCommit: strings.TrimSpace(commit),
 			Status:         mergedStatus(*execution),
-		})
+		}
+		outcome.Tasks = append(outcome.Tasks, taskOutcome)
+		o.emitTaskOutcome(ctx, plan, taskOutcome)
 	}
 	return outcome, nil
+}
+
+func (o *ExecutionOrchestrator) resolveConflict(
+	ctx context.Context,
+	machine *fsm.FSM,
+	plan ParallelPlan,
+	waveIndex int,
+	task TaskSpec,
+	conflicts ConflictSet,
+) (ConflictResult, error) {
+	if err := o.transition(ctx, machine, parallelEventResolve, waveIndex); err != nil {
+		return ConflictResult{}, err
+	}
+	o.emitConflictResolving(ctx, plan, waveIndex, task, conflicts, 1, resolverMaxAttempts(plan))
+	message := commitMessage(task)
+	result, err := o.conflictResolver.Resolve(ctx, conflictResolverInput(plan, task, conflicts, message))
+	if err != nil {
+		return result, err
+	}
+	hasMarkers, markerErr := conflictMarkersPresent(plan.IntegrationPath, conflicts.Files)
+	if markerErr != nil {
+		return result, markerErr
+	}
+	if hasMarkers {
+		result.Resolved = false
+		return result, nil
+	}
+	if result.Resolved && result.Builds {
+		if err := o.transition(ctx, machine, parallelEventResolved, waveIndex); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+func (o *ExecutionOrchestrator) rollback(
+	ctx context.Context,
+	machine *fsm.FSM,
+	plan ParallelPlan,
+	waveIndex int,
+	outcome *ParallelOutcome,
+	cause error,
+) error {
+	rollbackCtx := context.WithoutCancel(ctx)
+	if outcome != nil {
+		outcome.Status = ParallelOutcomeRolledBack
+	}
+	discardErr := o.worktrees.DiscardIntegrationBranch(
+		rollbackCtx,
+		plan.WorkspaceRoot,
+		plan.IntegrationPath,
+		plan.IntegrationBranch,
+	)
+	pruneErr := o.worktrees.Prune(rollbackCtx, plan.WorkspaceRoot)
+	transitionErr := o.transition(rollbackCtx, machine, parallelEventRollback, -1)
+	o.emitRolledBack(rollbackCtx, plan, waveIndex)
+	return errors.Join(cause, discardErr, pruneErr, transitionErr)
 }
 
 func (o *ExecutionOrchestrator) cleanupCompleted(

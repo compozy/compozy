@@ -86,7 +86,7 @@ func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
 	case jobControlResultMsg:
 		return m.applyUIMsg(v), true
 	default:
-		return nil, false
+		return m.applyParallelUIMsg(v)
 	}
 }
 
@@ -136,8 +136,39 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 	case jobControlResultMsg:
 		return m.handleJobControlResult(value)
 	default:
-		return nil
+		cmd, _ := m.applyParallelUIMsg(value)
+		return cmd
 	}
+}
+
+// applyParallelUIMsg routes task.parallel.* translated messages to their handlers,
+// returning ok=false for any non-parallel message. Kept separate from applyUIMsg
+// to bound that switch's cyclomatic complexity.
+func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
+	switch value := msg.(type) {
+	case parallelWaveStartedMsg:
+		m.handleParallelWaveStarted(value)
+	case parallelMergeStartedMsg:
+		m.handleParallelMergeStarted(value)
+	case parallelConflictMsg:
+		m.handleParallelConflict(value)
+	case parallelMergedMsg:
+		m.handleParallelMerged(value)
+	case parallelWaveCompletedMsg:
+		m.handleParallelWaveCompleted(value)
+	case parallelRolledBackMsg:
+		m.handleParallelRolledBack(value)
+	default:
+		return nil, false
+	}
+	return m.afterParallelUpdate(), true
+}
+
+// afterParallelUpdate refreshes derived viewport content after a parallel-state
+// mutation and keeps the wave-grouped sidebar spinners animating.
+func (m *uiModel) afterParallelUpdate() tea.Cmd {
+	m.refreshViewportContent()
+	return m.ensureSpinnerTick()
 }
 
 func (m *uiModel) handleRunStatus(v runStatusMsg) tea.Cmd {
@@ -621,20 +652,29 @@ func (m *uiModel) refreshViewportContent() {
 }
 
 func (m *uiModel) refreshSidebarContent() {
-	items := make([]string, 0, len(m.jobs))
-	for i := range m.jobs {
-		items = append(items, m.renderSidebarItem(i, &m.jobs[i], i == m.selectedJob))
+	width := m.sidebarViewport.Width()
+	var content string
+	var lineOffset int
+	if m.parallel.grouped() {
+		// Parallel runs group cards under wave headers; everything else renders as
+		// the flat single-run/multi-run card stack untouched.
+		content, lineOffset = m.renderWaveGroupedSidebar(width)
+	} else {
+		items := make([]string, 0, len(m.jobs))
+		for i := range m.jobs {
+			items = append(items, m.renderSidebarItem(i, &m.jobs[i], i == m.selectedJob))
+		}
+		// Each item is a bordered card; adjacent cards share one separator border row
+		// so there is no blank gap or duplicated top/bottom border in the viewport.
+		content = renderSidebarStack(items, width)
+		lineOffset = m.selectedJob * sidebarRowStride
 	}
-	// Each item is a bordered card; adjacent cards share one separator border row
-	// so there is no blank gap or duplicated top/bottom border in the viewport.
-	content := renderSidebarStack(items, m.sidebarViewport.Width())
 	if content != m.sidebarContent {
 		m.applySidebarViewportContent(content)
 		m.sidebarContent = content
 	}
 	m.sidebarDirty = false
 
-	lineOffset := m.selectedJob * sidebarRowStride
 	sidebarOffset := m.sidebarViewport.YOffset()
 	sidebarHeight := m.sidebarViewport.Height()
 	if lineOffset > sidebarOffset+sidebarHeight-sidebarRowLines {

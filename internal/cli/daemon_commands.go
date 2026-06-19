@@ -122,6 +122,7 @@ type daemonRuntimeOverrides struct {
 	TaskRuntimeRules           *[]model.TaskRuntimeRule          `json:"task_runtime_rules,omitempty"`
 	EnableExecutableExtensions *bool                             `json:"enable_executable_extensions,omitempty"`
 	Recovery                   *workspacecfg.AgentRecoveryConfig `json:"recovery,omitempty"`
+	ParallelTasks              *workspacecfg.ParallelTasksConfig `json:"parallel_tasks,omitempty"`
 }
 
 func newDefaultCLIDaemonBootstrap() cliDaemonBootstrap {
@@ -600,8 +601,12 @@ Use --multiple with one comma-separated slug list to start several task workflow
 through one daemon-owned parent run. The queue runs in enqueued order by default.
 Pass --parallel (or set run_multiple_mode = "parallel") to run children in
 parallel with git worktree isolation, and --parallel-limit to bound the
-concurrent child fanout.`,
+concurrent child fanout.
+
+Pass --parallel-tasks on a single workflow run to execute pending task files in
+dependency-aware waves using the resolved [tasks.run.parallel] config.`,
 		Example: `  compozy tasks run my-feature
+  compozy tasks run my-feature --parallel-tasks
   compozy tasks run --multiple alpha,beta --stream
   compozy tasks run --multiple alpha,beta --detach
   compozy tasks run --multiple alpha,beta --parallel
@@ -622,6 +627,13 @@ concurrent child fanout.`,
 type taskRunFlagOptions struct {
 	includeName bool
 }
+
+const (
+	taskRunParallelTasksFlag                     = "parallel-tasks"
+	taskRunParallelConflictResolverIDEFlag       = "parallel-conflict-resolver-ide"
+	taskRunParallelConflictResolverModelFlag     = "parallel-conflict-resolver-model"
+	taskRunParallelConflictResolverReasoningFlag = "parallel-conflict-resolver-reasoning"
+)
 
 func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOptions) {
 	addCommonFlags(cmd, state, commonFlagOptions{})
@@ -648,6 +660,23 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"Maximum number of child runs started at once in --parallel mode "+
 			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
 	)
+	cmd.Flags().BoolVar(
+		&state.parallelTasks,
+		taskRunParallelTasksFlag,
+		false,
+		"Run this PRD task workflow in dependency-aware parallel task mode",
+	)
+	cmd.Flags().StringVar(&state.parallelConflictResolverIDE, taskRunParallelConflictResolverIDEFlag, "", "")
+	cmd.Flags().StringVar(&state.parallelConflictResolverModel, taskRunParallelConflictResolverModelFlag, "", "")
+	cmd.Flags().StringVar(
+		&state.parallelConflictResolverReasoningEffort,
+		taskRunParallelConflictResolverReasoningFlag,
+		"",
+		"",
+	)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverIDEFlag)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverModelFlag)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverReasoningFlag)
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVarP(
 		&state.recursive,
@@ -684,6 +713,14 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"task-runtime",
 		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.5 or id=task_01,reasoning-effort=xhigh`,
 	)
+}
+
+func hideTaskRunWizardFlag(cmd *cobra.Command, flagName string) {
+	flag := cmd.Flags().Lookup(flagName)
+	if flag == nil {
+		return
+	}
+	flag.Hidden = true
 }
 
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
@@ -769,6 +806,11 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	slugs, err := s.resolveTaskWorkflowSlugList(args)
 	if err != nil {
 		return withExitCode(1, err)
+	}
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+		return withExitCode(1, errors.New(
+			"--parallel-tasks cannot be combined with --multiple; use --parallel for slug multi-run mode",
+		))
 	}
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
@@ -1376,6 +1418,14 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 		overrides.Recovery = recovery
 		hasOverrides = true
 	}
+	parallelTasks, err := s.parallelTasksFlagOverrides(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if parallelTasks != nil {
+		overrides.ParallelTasks = parallelTasks
+		hasOverrides = true
+	}
 
 	if !hasOverrides {
 		return nil, nil
@@ -1420,6 +1470,43 @@ func (s *commandState) recoveryFlagOverrides(cmd *cobra.Command) (*workspacecfg.
 	}
 	if err := workspacecfg.ValidateAgentRecoveryConfig("CLI recovery flags", cfg); err != nil {
 		return nil, err
+	}
+	return &cfg, nil
+}
+
+func (s *commandState) parallelTasksFlagOverrides(cmd *cobra.Command) (*workspacecfg.ParallelTasksConfig, error) {
+	cfg := workspacecfg.ParallelTasksConfig{}
+	changed := false
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+		cfg.Enabled = boolPointer(s.parallelTasks)
+		changed = true
+	}
+	resolver := workspacecfg.AgentRecoveryConfig{}
+	resolverChanged := false
+	if commandFlagChanged(cmd, taskRunParallelConflictResolverIDEFlag) {
+		resolver.IDE = stringPointer(s.parallelConflictResolverIDE)
+		resolverChanged = true
+	}
+	if commandFlagChanged(cmd, taskRunParallelConflictResolverModelFlag) {
+		resolver.Model = stringPointer(s.parallelConflictResolverModel)
+		resolverChanged = true
+	}
+	if commandFlagChanged(cmd, taskRunParallelConflictResolverReasoningFlag) {
+		resolver.ReasoningEffort = stringPointer(s.parallelConflictResolverReasoningEffort)
+		resolverChanged = true
+	}
+	if resolverChanged {
+		cfg.ConflictResolver = &resolver
+		changed = true
+		if err := workspacecfg.ValidateAgentRecoveryConfig(
+			"CLI parallel conflict resolver flags",
+			resolver,
+		); err != nil {
+			return nil, err
+		}
+	}
+	if !changed {
+		return nil, nil
 	}
 	return &cfg, nil
 }
