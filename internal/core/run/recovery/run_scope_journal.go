@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -64,17 +65,20 @@ func NewRunScopeEventSink(scope model.RunScope) EventSink {
 	if scope == nil {
 		return nil
 	}
-	return runScopeEventSink{scope: scope}
+	return &runScopeEventSink{scope: scope}
 }
 
 type runScopeEventSink struct {
 	scope model.RunScope
+	mu    sync.Mutex
 }
 
-func (s runScopeEventSink) Submit(ctx context.Context, event events.Event) error {
-	if s.scope == nil {
+func (s *runScopeEventSink) Submit(ctx context.Context, event events.Event) error {
+	if s == nil || s.scope == nil {
 		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := RefreshRunScopeJournal(ctx, s.scope); err != nil {
 		return err
 	}

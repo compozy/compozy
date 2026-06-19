@@ -117,22 +117,24 @@ func TestTransportSkipsBlankLinesAndNeverWritesBlankLines(t *testing.T) {
 func TestTransportCloseClosesEndpointsOnce(t *testing.T) {
 	t.Parallel()
 
-	reader := &countingReadCloser{Reader: strings.NewReader("")}
-	writer := &countingWriteCloser{}
-	transport := NewTransport(reader, writer)
+	t.Run("Should close transport endpoints exactly once", func(t *testing.T) {
+		reader := &countingReadCloser{Reader: strings.NewReader("")}
+		writer := &countingWriteCloser{}
+		transport := NewTransport(reader, writer)
 
-	if err := transport.Close(); err != nil {
-		t.Fatalf("close transport: %v", err)
-	}
-	if err := transport.Close(); err != nil {
-		t.Fatalf("second close transport: %v", err)
-	}
-	if got := reader.closeCalls; got != 1 {
-		t.Fatalf("reader close calls = %d, want 1", got)
-	}
-	if got := writer.closeCalls; got != 1 {
-		t.Fatalf("writer close calls = %d, want 1", got)
-	}
+		if err := transport.Close(); err != nil {
+			t.Fatalf("close transport: %v", err)
+		}
+		if err := transport.Close(); err != nil {
+			t.Fatalf("second close transport: %v", err)
+		}
+		if got := reader.closeCalls; got != 1 {
+			t.Fatalf("reader close calls = %d, want 1", got)
+		}
+		if got := writer.closeCalls; got != 1 {
+			t.Fatalf("writer close calls = %d, want 1", got)
+		}
+	})
 }
 
 func TestTransportCloseIgnoresNonClosableEndpoints(t *testing.T) {
@@ -296,53 +298,55 @@ func TestInitializeRejectsUnsupportedProtocolVersion(t *testing.T) {
 func TestInitializeCancellationPreservesTypedCauseAndReleasesReader(t *testing.T) {
 	t.Parallel()
 
-	reader := newBlockingReadCloser()
-	transport := NewTransport(reader, io.Discard)
-	ctx, cancel := context.WithCancelCause(context.Background())
-	errCh := make(chan error, 1)
-	go func() {
-		_, err := Initialize(ctx, transport, nil, InitializeRequest{
-			ProtocolVersion:           version.ExtensionProtocolVersion,
-			SupportedProtocolVersions: []string{version.ExtensionProtocolVersion},
-		})
-		errCh <- err
-	}()
+	t.Run("Should preserve the typed cancellation cause and release the reader", func(t *testing.T) {
+		reader := newBlockingReadCloser()
+		transport := NewTransport(reader, io.Discard)
+		ctx, cancel := context.WithCancelCause(context.Background())
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := Initialize(ctx, transport, nil, InitializeRequest{
+				ProtocolVersion:           version.ExtensionProtocolVersion,
+				SupportedProtocolVersions: []string{version.ExtensionProtocolVersion},
+			})
+			errCh <- err
+		}()
 
-	select {
-	case <-reader.readStarted:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for initialize read goroutine")
-	}
+		select {
+		case <-reader.readStarted:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initialize read goroutine")
+		}
 
-	cause := &testInitializeTimeoutCause{label: "deadline"}
-	cancel(cause)
+		cause := &testInitializeTimeoutCause{label: "deadline"}
+		cancel(cause)
 
-	select {
-	case err := <-errCh:
-		if err == nil {
-			t.Fatal("expected initialize cancellation error")
+		select {
+		case err := <-errCh:
+			if err == nil {
+				t.Fatal("expected initialize cancellation error")
+			}
+			var gotCause *testInitializeTimeoutCause
+			if !errors.As(err, &gotCause) {
+				t.Fatalf("expected typed cancellation cause, got %T %[1]v", err)
+			}
+			var cancelErr *InitializeCanceledError
+			if !errors.As(err, &cancelErr) {
+				t.Fatalf("expected InitializeCanceledError wrapper, got %T %[1]v", err)
+			}
+			var requestErr *RequestError
+			if errors.As(err, &requestErr) {
+				t.Fatalf("expected cancellation not to be wrapped as RequestError, got %#v", requestErr)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initialize cancellation")
 		}
-		var gotCause *testInitializeTimeoutCause
-		if !errors.As(err, &gotCause) {
-			t.Fatalf("expected typed cancellation cause, got %T %[1]v", err)
-		}
-		var cancelErr *InitializeCanceledError
-		if !errors.As(err, &cancelErr) {
-			t.Fatalf("expected InitializeCanceledError wrapper, got %T %[1]v", err)
-		}
-		var requestErr *RequestError
-		if errors.As(err, &requestErr) {
-			t.Fatalf("expected cancellation not to be wrapped as RequestError, got %#v", requestErr)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for initialize cancellation")
-	}
 
-	select {
-	case <-reader.readReturned:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for blocked ReadMessage to release")
-	}
+		select {
+		case <-reader.readReturned:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for blocked ReadMessage to release")
+		}
+	})
 }
 
 func TestInitializeRejectsUnexpectedResponseID(t *testing.T) {
@@ -432,17 +436,19 @@ func (e *testInitializeTimeoutCause) Error() string {
 func TestInitializeCanceledErrorFormatsAndUnwrapsCause(t *testing.T) {
 	t.Parallel()
 
-	cause := errors.New("init deadline")
-	err := &InitializeCanceledError{Cause: cause}
-	if !strings.Contains(err.Error(), "init deadline") {
-		t.Fatalf("expected cause in error string, got %q", err.Error())
-	}
-	if !errors.Is(err, cause) {
-		t.Fatalf("expected unwrap to expose cause, got %v", err)
-	}
-	if got := (*InitializeCanceledError)(nil).Error(); got != "initialize subprocess canceled" {
-		t.Fatalf("unexpected nil error string: %q", got)
-	}
+	t.Run("Should format and unwrap the initialize cancellation cause", func(t *testing.T) {
+		cause := errors.New("init deadline")
+		err := &InitializeCanceledError{Cause: cause}
+		if !strings.Contains(err.Error(), "init deadline") {
+			t.Fatalf("expected cause in error string, got %q", err.Error())
+		}
+		if !errors.Is(err, cause) {
+			t.Fatalf("expected unwrap to expose cause, got %v", err)
+		}
+		if got := (*InitializeCanceledError)(nil).Error(); got != "initialize subprocess canceled" {
+			t.Fatalf("unexpected nil error string: %q", got)
+		}
+	})
 }
 
 type blockingReadCloser struct {

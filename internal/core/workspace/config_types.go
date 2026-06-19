@@ -94,9 +94,9 @@ func (cfg TaskRunConfig) EffectiveRunMultipleParallelLimit() int {
 }
 
 type ParallelTasksConfig struct {
-	Enabled          *bool                `toml:"enabled"`
-	MaxConcurrency   *int                 `toml:"max_concurrency"`
-	ConflictResolver *AgentRecoveryConfig `toml:"conflict_resolver"`
+	Enabled          *bool                `toml:"enabled"           json:"enabled,omitempty"`
+	MaxConcurrency   *int                 `toml:"max_concurrency"   json:"max_concurrency,omitempty"`
+	ConflictResolver *AgentRecoveryConfig `toml:"conflict_resolver" json:"conflict_resolver,omitempty"`
 }
 
 func DefaultParallelTasksConfig() ParallelTasksConfig {

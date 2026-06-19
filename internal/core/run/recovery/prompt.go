@@ -127,7 +127,7 @@ func readLogTail(path string, limit int64) (string, error) {
 	if limit > 0 && size > limit {
 		offset = size - limit
 	}
-	if _, err := file.Seek(offset, 0); err != nil {
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
 		return "", fmt.Errorf("seek %s: %w", cleanPath, err)
 	}
 	data, err := io.ReadAll(file)

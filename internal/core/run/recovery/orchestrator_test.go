@@ -19,368 +19,409 @@ import (
 func TestRecoveryFSMModelsRequiredTransitions(t *testing.T) {
 	t.Parallel()
 
-	machine := newRecoveryFSM()
-	if got := machine.Current(); got != string(recoveryStateExecuting) {
-		t.Fatalf("initial state = %q, want %q", got, recoveryStateExecuting)
-	}
+	t.Run("Should model the required recovery state transitions", func(t *testing.T) {
+		machine := newRecoveryFSM()
+		if got := machine.Current(); got != string(recoveryStateExecuting) {
+			t.Fatalf("initial state = %q, want %q", got, recoveryStateExecuting)
+		}
 
-	transitions := []struct {
-		event string
-		want  recoveryState
-	}{
-		{event: recoveryEventFail, want: recoveryStateFailed},
-		{event: recoveryEventTriage, want: recoveryStateTriaging},
-		{event: recoveryEventRemediate, want: recoveryStateRemediating},
-		{event: recoveryEventRestart, want: recoveryStateRestarting},
-		{event: recoveryEventFail, want: recoveryStateFailed},
-		{event: recoveryEventTriage, want: recoveryStateTriaging},
-		{event: recoveryEventRemediate, want: recoveryStateRemediating},
-		{event: recoveryEventRestart, want: recoveryStateRestarting},
-		{event: recoveryEventRecover, want: recoveryStateRecovered},
-	}
-	for _, transition := range transitions {
-		if err := machine.Event(context.Background(), transition.event); err != nil {
-			t.Fatalf("Event(%q) error = %v", transition.event, err)
+		transitions := []struct {
+			event string
+			want  recoveryState
+		}{
+			{event: recoveryEventFail, want: recoveryStateFailed},
+			{event: recoveryEventTriage, want: recoveryStateTriaging},
+			{event: recoveryEventRemediate, want: recoveryStateRemediating},
+			{event: recoveryEventRestart, want: recoveryStateRestarting},
+			{event: recoveryEventFail, want: recoveryStateFailed},
+			{event: recoveryEventTriage, want: recoveryStateTriaging},
+			{event: recoveryEventRemediate, want: recoveryStateRemediating},
+			{event: recoveryEventRestart, want: recoveryStateRestarting},
+			{event: recoveryEventRecover, want: recoveryStateRecovered},
 		}
-		if got := machine.Current(); got != string(transition.want) {
-			t.Fatalf("after %q state = %q, want %q", transition.event, got, transition.want)
+		for _, transition := range transitions {
+			if err := machine.Event(context.Background(), transition.event); err != nil {
+				t.Fatalf("Event(%q) error = %v", transition.event, err)
+			}
+			if got := machine.Current(); got != string(transition.want) {
+				t.Fatalf("after %q state = %q, want %q", transition.event, got, transition.want)
+			}
 		}
-	}
+	})
+}
+
+func TestRunRecoveryOrchestratorRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nil context before executing the prepared run", func(t *testing.T) {
+		prepared := &fakePreparedRun{}
+		strategy := &fakeRemediationStrategy{}
+
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, nil).
+			Run(nil, prepared)
+		if !errors.Is(err, errNilRecoveryContext) {
+			t.Fatalf("Run() error = %v, want errNilRecoveryContext", err)
+		}
+		if got.RunID != "" || got.Status != "" || got.ArtifactsDir != "" || len(got.Jobs) != 0 {
+			t.Fatalf("Run() outcome = %#v, want zero outcome", got)
+		}
+		if prepared.executeCalls != 0 {
+			t.Fatalf("Execute() calls = %d, want 0", prepared.executeCalls)
+		}
+	})
 }
 
 func TestRunRecoveryOrchestratorFixedVerdictRestartsFailedJobsAndRecovers(t *testing.T) {
 	t.Parallel()
 
-	originalErr := errors.New("unit tests failed")
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
-		executeErr:     originalErr,
-		restartOutcomes: []RunOutcome{
-			succeededRunOutcome("restart-run"),
-		},
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "fixed assertion"}},
-	}
-	sink := &recordingEventSink{}
+	t.Run("Should restart failed jobs and recover after a fixed verdict", func(t *testing.T) {
+		originalErr := errors.New("unit tests failed")
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+			executeErr:     originalErr,
+			restartOutcomes: []RunOutcome{
+				succeededRunOutcome("restart-run"),
+			},
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "fixed assertion"}},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if got.Status != StatusSucceeded {
-		t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
-	}
-	if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
-		t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
-	}
-	if len(strategy.inputs) != 1 {
-		t.Fatalf("strategy calls = %d, want 1", len(strategy.inputs))
-	}
-	assertEventKinds(t, sink, []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
-		eventspkg.EventKindRunRecoveryRestarting,
-		eventspkg.EventKindRunRecovered,
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got.Status != StatusSucceeded {
+			t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
+		}
+		if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
+			t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
+		}
+		if len(strategy.inputs) != 1 {
+			t.Fatalf("strategy calls = %d, want 1", len(strategy.inputs))
+		}
+		assertEventKinds(t, sink, []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+			eventspkg.EventKindRunRecoveryRestarting,
+			eventspkg.EventKindRunRecovered,
+		})
+		var started kinds.RunRecoveryStartedPayload
+		decodeEventPayload(t, sink.events[0], &started)
+		if started.Attempt != 1 || started.Strategy != fakeRemediationStrategyName {
+			t.Fatalf("started payload = %#v", started)
+		}
+		var restarting kinds.RunRecoveryRestartingPayload
+		decodeEventPayload(t, sink.events[1], &restarting)
+		if !reflect.DeepEqual(restarting.FailedJobIDs, []string{"unit-tests"}) {
+			t.Fatalf("restarting failed jobs = %#v", restarting.FailedJobIDs)
+		}
+		var recovered kinds.RunRecoveredPayload
+		decodeEventPayload(t, sink.events[2], &recovered)
+		if recovered.Attempts != 1 {
+			t.Fatalf("recovered attempts = %d, want 1", recovered.Attempts)
+		}
 	})
-	var started kinds.RunRecoveryStartedPayload
-	decodeEventPayload(t, sink.events[0], &started)
-	if started.Attempt != 1 || started.Strategy != fakeRemediationStrategyName {
-		t.Fatalf("started payload = %#v", started)
-	}
-	var restarting kinds.RunRecoveryRestartingPayload
-	decodeEventPayload(t, sink.events[1], &restarting)
-	if !reflect.DeepEqual(restarting.FailedJobIDs, []string{"unit-tests"}) {
-		t.Fatalf("restarting failed jobs = %#v", restarting.FailedJobIDs)
-	}
-	var recovered kinds.RunRecoveredPayload
-	decodeEventPayload(t, sink.events[2], &recovered)
-	if recovered.Attempts != 1 {
-		t.Fatalf("recovered attempts = %d, want 1", recovered.Attempts)
-	}
 }
 
 func TestRunRecoveryOrchestratorRejectVerdictExhaustsWithOriginalCause(t *testing.T) {
 	t.Parallel()
 
-	originalErr := errors.New("original failure")
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "build", "compiler failed"),
-		executeErr:     originalErr,
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictReject, Reason: "missing credentials"}},
-	}
-	sink := &recordingEventSink{}
+	t.Run("Should exhaust recovery with the original failure on a reject verdict", func(t *testing.T) {
+		originalErr := errors.New("original failure")
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "build", "compiler failed"),
+			executeErr:     originalErr,
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictReject, Reason: "missing credentials"}},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if !errors.Is(err, originalErr) {
-		t.Fatalf("Run() error = %v, want original failure", err)
-	}
-	if got.Status != StatusFailed {
-		t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
-	}
-	if len(prepared.restartCalls) != 0 {
-		t.Fatalf("RestartFailed calls = %#v, want none", prepared.restartCalls)
-	}
-	assertEventKinds(t, sink, []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
-		eventspkg.EventKindRunRecoveryExhausted,
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if !errors.Is(err, originalErr) {
+			t.Fatalf("Run() error = %v, want original failure", err)
+		}
+		if got.Status != StatusFailed {
+			t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
+		}
+		if len(prepared.restartCalls) != 0 {
+			t.Fatalf("RestartFailed calls = %#v, want none", prepared.restartCalls)
+		}
+		assertEventKinds(t, sink, []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+			eventspkg.EventKindRunRecoveryExhausted,
+		})
+		var exhausted kinds.RunRecoveryExhaustedPayload
+		decodeEventPayload(t, sink.events[1], &exhausted)
+		if exhausted.Error != originalErr.Error() {
+			t.Fatalf("exhausted error = %q, want %q", exhausted.Error, originalErr.Error())
+		}
 	})
-	var exhausted kinds.RunRecoveryExhaustedPayload
-	decodeEventPayload(t, sink.events[1], &exhausted)
-	if exhausted.Error != originalErr.Error() {
-		t.Fatalf("exhausted error = %q, want %q", exhausted.Error, originalErr.Error())
-	}
 }
 
 func TestRunRecoveryOrchestratorSkipsCanceledOutcome(t *testing.T) {
 	t.Parallel()
 
-	prepared := &fakePreparedRun{
-		executeOutcome: RunOutcome{
-			RunID:  "canceled-run",
-			Status: StatusCanceled,
-			Jobs: []JobOutcome{
-				{SafeName: "unit-tests", Status: StatusSucceeded, ExitCode: 0},
+	t.Run("Should skip recovery for a canceled outcome", func(t *testing.T) {
+		prepared := &fakePreparedRun{
+			executeOutcome: RunOutcome{
+				RunID:  "canceled-run",
+				Status: StatusCanceled,
+				Jobs: []JobOutcome{
+					{SafeName: "unit-tests", Status: StatusSucceeded, ExitCode: 0},
+				},
 			},
-		},
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictFixed}},
-	}
-	sink := &recordingEventSink{}
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictFixed}},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if got.Status != StatusCanceled {
-		t.Fatalf("status = %q, want %q", got.Status, StatusCanceled)
-	}
-	if len(strategy.inputs) != 0 {
-		t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
-	}
-	if len(sink.events) != 0 {
-		t.Fatalf("events = %#v, want none", sink.events)
-	}
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got.Status != StatusCanceled {
+			t.Fatalf("status = %q, want %q", got.Status, StatusCanceled)
+		}
+		if len(strategy.inputs) != 0 {
+			t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
+		}
+		if len(sink.events) != 0 {
+			t.Fatalf("events = %#v, want none", sink.events)
+		}
+	})
 }
 
 func TestRunRecoveryOrchestratorStopsBeforeRestartWhenContextCancelsDuringRemediation(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	originalErr := errors.New("initial failure")
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
-		executeErr:     originalErr,
-		restartOutcomes: []RunOutcome{
-			succeededRunOutcome("restart-run"),
-		},
-	}
-	strategy := &cancelingRemediationStrategy{cancel: cancel}
-	sink := &recordingEventSink{}
+	t.Run("Should stop before restart when the context cancels during remediation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		originalErr := errors.New("initial failure")
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+			executeErr:     originalErr,
+			restartOutcomes: []RunOutcome{
+				succeededRunOutcome("restart-run"),
+			},
+		}
+		strategy := &cancelingRemediationStrategy{cancel: cancel}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(ctx, prepared)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context canceled", err)
-	}
-	if strings.Contains(err.Error(), "fsm transition") {
-		t.Fatalf("Run() error = %v, want cancellation without fsm transition failure", err)
-	}
-	if got.Status != StatusFailed {
-		t.Fatalf("status = %q, want original failed outcome", got.Status)
-	}
-	if len(prepared.restartCalls) != 0 {
-		t.Fatalf("RestartFailed calls = %#v, want none after cancellation", prepared.restartCalls)
-	}
-	assertEventKinds(t, sink, []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(ctx, prepared)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run() error = %v, want context canceled", err)
+		}
+		if strings.Contains(err.Error(), "fsm transition") {
+			t.Fatalf("Run() error = %v, want cancellation without fsm transition failure", err)
+		}
+		if got.Status != StatusFailed {
+			t.Fatalf("status = %q, want original failed outcome", got.Status)
+		}
+		if len(prepared.restartCalls) != 0 {
+			t.Fatalf("RestartFailed calls = %#v, want none after cancellation", prepared.restartCalls)
+		}
+		assertEventKinds(t, sink, []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+		})
 	})
 }
 
 func TestRunRecoveryOrchestratorRecordsCanceledRestartWithoutFSMError(t *testing.T) {
 	t.Parallel()
 
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
-		executeErr:     errors.New("initial failure"),
-		restartOutcomes: []RunOutcome{{
-			RunID:  "restart-run",
-			Status: StatusCanceled,
-			Jobs: []JobOutcome{
-				{SafeName: "unit-tests", Status: StatusCanceled, ExitCode: 1, Error: context.Canceled.Error()},
-			},
-		}},
-		restartErrs: []error{context.Canceled},
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "patched"}},
-	}
-	sink := &recordingEventSink{}
+	t.Run("Should record a canceled restart without an FSM error", func(t *testing.T) {
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+			executeErr:     errors.New("initial failure"),
+			restartOutcomes: []RunOutcome{{
+				RunID:  "restart-run",
+				Status: StatusCanceled,
+				Jobs: []JobOutcome{
+					{SafeName: "unit-tests", Status: StatusCanceled, ExitCode: 1, Error: context.Canceled.Error()},
+				},
+			}},
+			restartErrs: []error{context.Canceled},
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "patched"}},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run() error = %v, want context canceled", err)
-	}
-	if strings.Contains(err.Error(), "fsm transition") {
-		t.Fatalf("Run() error = %v, want cancellation without fsm transition failure", err)
-	}
-	if got.Status != StatusCanceled {
-		t.Fatalf("status = %q, want canceled", got.Status)
-	}
-	if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
-		t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
-	}
-	assertEventKinds(t, sink, []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
-		eventspkg.EventKindRunRecoveryRestarting,
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Run() error = %v, want context canceled", err)
+		}
+		if strings.Contains(err.Error(), "fsm transition") {
+			t.Fatalf("Run() error = %v, want cancellation without fsm transition failure", err)
+		}
+		if got.Status != StatusCanceled {
+			t.Fatalf("status = %q, want canceled", got.Status)
+		}
+		if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
+			t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
+		}
+		assertEventKinds(t, sink, []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+			eventspkg.EventKindRunRecoveryRestarting,
+		})
 	})
 }
 
 func TestRunRecoveryOrchestratorEnforcesRecoveryAttemptLoopGuard(t *testing.T) {
 	t.Parallel()
 
-	originalErr := errors.New("nested recovery failed")
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("recovery-run", "unit-tests", "still failing"),
-		executeErr:     originalErr,
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictFixed}},
-	}
-	sink := &recordingEventSink{}
+	t.Run("Should enforce the recovery attempt loop guard", func(t *testing.T) {
+		originalErr := errors.New("nested recovery failed")
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("recovery-run", "unit-tests", "still failing"),
+			executeErr:     originalErr,
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictFixed}},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(
-		strategy,
-		enabledRecoveryConfig(1),
-		&model.RuntimeConfig{RecoveryAttempt: 1},
-		sink,
-	).Run(context.Background(), prepared)
-	if !errors.Is(err, originalErr) {
-		t.Fatalf("Run() error = %v, want nested recovery failure", err)
-	}
-	if got.Status != StatusFailed {
-		t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
-	}
-	if len(strategy.inputs) != 0 {
-		t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
-	}
-	if len(prepared.restartCalls) != 0 {
-		t.Fatalf("RestartFailed calls = %#v, want none", prepared.restartCalls)
-	}
-	if len(sink.events) != 0 {
-		t.Fatalf("events = %#v, want none", sink.events)
-	}
+		got, err := newTestOrchestrator(
+			strategy,
+			enabledRecoveryConfig(1),
+			&model.RuntimeConfig{RecoveryAttempt: 1},
+			sink,
+		).Run(context.Background(), prepared)
+		if !errors.Is(err, originalErr) {
+			t.Fatalf("Run() error = %v, want nested recovery failure", err)
+		}
+		if got.Status != StatusFailed {
+			t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
+		}
+		if len(strategy.inputs) != 0 {
+			t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
+		}
+		if len(prepared.restartCalls) != 0 {
+			t.Fatalf("RestartFailed calls = %#v, want none", prepared.restartCalls)
+		}
+		if len(sink.events) != 0 {
+			t.Fatalf("events = %#v, want none", sink.events)
+		}
+	})
 }
 
 func TestRunRecoveryOrchestratorSkipsDisabledRecovery(t *testing.T) {
 	t.Parallel()
 
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictFixed}},
-	}
-	sink := &recordingEventSink{}
+	t.Run("Should skip recovery when recovery is disabled", func(t *testing.T) {
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictFixed}},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, workspace.AgentRecoveryConfig{}, &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if err == nil || err.Error() != "assertion failed" {
-		t.Fatalf("Run() error = %v, want synthesized assertion failure", err)
-	}
-	if got.Status != StatusFailed {
-		t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
-	}
-	if len(strategy.inputs) != 0 {
-		t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
-	}
-	if len(sink.events) != 0 {
-		t.Fatalf("events = %#v, want none", sink.events)
-	}
+		got, err := newTestOrchestrator(strategy, workspace.AgentRecoveryConfig{}, &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if err == nil || err.Error() != "assertion failed" {
+			t.Fatalf("Run() error = %v, want synthesized assertion failure", err)
+		}
+		if got.Status != StatusFailed {
+			t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
+		}
+		if len(strategy.inputs) != 0 {
+			t.Fatalf("strategy calls = %d, want 0", len(strategy.inputs))
+		}
+		if len(sink.events) != 0 {
+			t.Fatalf("events = %#v, want none", sink.events)
+		}
+	})
 }
 
 func TestRunRecoveryOrchestratorRemediationErrorExhausts(t *testing.T) {
 	t.Parallel()
 
-	remediateErr := errors.New("recovery agent crashed")
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
-	}
-	strategy := &fakeRemediationStrategy{
-		errs: []error{remediateErr},
-	}
-	sink := &recordingEventSink{}
+	t.Run("Should exhaust recovery when remediation returns an error", func(t *testing.T) {
+		remediateErr := errors.New("recovery agent crashed")
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+		}
+		strategy := &fakeRemediationStrategy{
+			errs: []error{remediateErr},
+		}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if !errors.Is(err, remediateErr) {
-		t.Fatalf("Run() error = %v, want remediation error", err)
-	}
-	if got.Status != StatusFailed {
-		t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
-	}
-	if len(prepared.restartCalls) != 0 {
-		t.Fatalf("RestartFailed calls = %#v, want none", prepared.restartCalls)
-	}
-	assertEventKinds(t, sink, []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
-		eventspkg.EventKindRunRecoveryExhausted,
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if !errors.Is(err, remediateErr) {
+			t.Fatalf("Run() error = %v, want remediation error", err)
+		}
+		if got.Status != StatusFailed {
+			t.Fatalf("status = %q, want %q", got.Status, StatusFailed)
+		}
+		if len(prepared.restartCalls) != 0 {
+			t.Fatalf("RestartFailed calls = %#v, want none", prepared.restartCalls)
+		}
+		assertEventKinds(t, sink, []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+			eventspkg.EventKindRunRecoveryExhausted,
+		})
+		var exhausted kinds.RunRecoveryExhaustedPayload
+		decodeEventPayload(t, sink.events[1], &exhausted)
+		if exhausted.Error == "" {
+			t.Fatal("expected exhausted event to carry an error")
+		}
 	})
-	var exhausted kinds.RunRecoveryExhaustedPayload
-	decodeEventPayload(t, sink.events[1], &exhausted)
-	if exhausted.Error == "" {
-		t.Fatal("expected exhausted event to carry an error")
-	}
 }
 
 func TestRunRecoveryOrchestratorUsesEventSinkFuncAndLoggerOption(t *testing.T) {
 	t.Parallel()
 
-	prepared := &fakePreparedRun{
-		executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
-		executeErr:     errors.New("initial failure"),
-		restartOutcomes: []RunOutcome{
-			succeededRunOutcome("failed-run"),
-		},
-	}
-	strategy := &fakeRemediationStrategy{
-		verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "patched"}},
-	}
-	var gotEvents []eventspkg.Event
-	sink := EventSinkFunc(func(_ context.Context, event eventspkg.Event) error {
-		gotEvents = append(gotEvents, event)
-		return nil
-	})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	t.Run("Should use the event sink func and logger option", func(t *testing.T) {
+		prepared := &fakePreparedRun{
+			executeOutcome: failedRunOutcome("failed-run", "unit-tests", "assertion failed"),
+			executeErr:     errors.New("initial failure"),
+			restartOutcomes: []RunOutcome{
+				succeededRunOutcome("failed-run"),
+			},
+		}
+		strategy := &fakeRemediationStrategy{
+			verdicts: []TriageVerdict{{Decision: VerdictFixed, Reason: "patched"}},
+		}
+		var gotEvents []eventspkg.Event
+		sink := EventSinkFunc(func(_ context.Context, event eventspkg.Event) error {
+			gotEvents = append(gotEvents, event)
+			return nil
+		})
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	got, err := NewRunRecoveryOrchestrator(
-		strategy,
-		enabledRecoveryConfig(1),
-		WithFailedRunConfig(&model.RuntimeConfig{}),
-		WithRecoveryEventSink(sink),
-		WithRecoveryLogger(logger),
-	).Run(context.Background(), prepared)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if got.Status != StatusSucceeded {
-		t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
-	}
-	if len(gotEvents) != 3 {
-		t.Fatalf("events = %d, want 3", len(gotEvents))
-	}
+		got, err := NewRunRecoveryOrchestrator(
+			strategy,
+			enabledRecoveryConfig(1),
+			WithFailedRunConfig(&model.RuntimeConfig{}),
+			WithRecoveryEventSink(sink),
+			WithRecoveryLogger(logger),
+		).Run(context.Background(), prepared)
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got.Status != StatusSucceeded {
+			t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
+		}
+		if len(gotEvents) != 3 {
+			t.Fatalf("events = %d, want 3", len(gotEvents))
+		}
+	})
 }
 
 func TestRunRecoveryOrchestratorBoundsAttempts(t *testing.T) {
 	t.Parallel()
 
-	t.Run("MaxAttempts=1 exhausts after one failed restart", func(t *testing.T) {
+	t.Run("Should exhaust after one failed restart when max attempts is 1", func(t *testing.T) {
 		t.Parallel()
 
 		restartErr := errors.New("restart still failed")
@@ -419,7 +460,7 @@ func TestRunRecoveryOrchestratorBoundsAttempts(t *testing.T) {
 		})
 	})
 
-	t.Run("MaxAttempts=2 permits at most two cycles", func(t *testing.T) {
+	t.Run("Should permit at most two recovery cycles when max attempts is 2", func(t *testing.T) {
 		t.Parallel()
 
 		prepared := &fakePreparedRun{
@@ -467,29 +508,31 @@ func TestRunRecoveryOrchestratorBoundsAttempts(t *testing.T) {
 func TestRunRecoveryOrchestratorIntegrationDrivesPreparedRunAndStrategy(t *testing.T) {
 	t.Parallel()
 
-	fixed := false
-	prepared := &statefulPreparedRun{fixed: &fixed}
-	strategy := &statefulRemediationStrategy{fixed: &fixed}
-	sink := &recordingEventSink{}
+	t.Run("Should drive the prepared run and remediation strategy end to end", func(t *testing.T) {
+		fixed := false
+		prepared := &statefulPreparedRun{fixed: &fixed}
+		strategy := &statefulRemediationStrategy{fixed: &fixed}
+		sink := &recordingEventSink{}
 
-	got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
-		Run(context.Background(), prepared)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if got.Status != StatusSucceeded {
-		t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
-	}
-	if !fixed {
-		t.Fatal("strategy did not apply the fake fix")
-	}
-	if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
-		t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
-	}
-	assertEventKinds(t, sink, []eventspkg.EventKind{
-		eventspkg.EventKindRunRecoveryStarted,
-		eventspkg.EventKindRunRecoveryRestarting,
-		eventspkg.EventKindRunRecovered,
+		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, sink).
+			Run(context.Background(), prepared)
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got.Status != StatusSucceeded {
+			t.Fatalf("status = %q, want %q", got.Status, StatusSucceeded)
+		}
+		if !fixed {
+			t.Fatal("strategy did not apply the fake fix")
+		}
+		if !reflect.DeepEqual(prepared.restartCalls, [][]string{{"unit-tests"}}) {
+			t.Fatalf("RestartFailed calls = %#v", prepared.restartCalls)
+		}
+		assertEventKinds(t, sink, []eventspkg.EventKind{
+			eventspkg.EventKindRunRecoveryStarted,
+			eventspkg.EventKindRunRecoveryRestarting,
+			eventspkg.EventKindRunRecovered,
+		})
 	})
 }
 

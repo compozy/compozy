@@ -16,7 +16,7 @@ type resultFixture struct {
 	RunID         string       `json:"run_id"`
 	Status        RunStatus    `json:"status"`
 	ArtifactsDir  string       `json:"artifacts_dir"`
-	ResultPath    string       `json:"result_path"`
+	ResultPath    string       `json:"result_path,omitempty"`
 	Jobs          []JobOutcome `json:"jobs"`
 }
 
@@ -54,14 +54,14 @@ func TestReadRunOutcome(t *testing.T) {
 			mutate func(*resultFixture)
 		}{
 			{
-				name: "run status",
+				name: "Should report canceled when the run status is canceled",
 				mutate: func(result *resultFixture) {
 					result.Status = StatusCanceled
 					result.Jobs = []JobOutcome{{SafeName: "task_01", Status: StatusSucceeded, ExitCode: 0}}
 				},
 			},
 			{
-				name: "job status",
+				name: "Should report canceled when a job status is canceled",
 				mutate: func(result *resultFixture) {
 					result.Status = StatusFailed
 					result.Jobs = []JobOutcome{{SafeName: "task_01", Status: StatusCanceled, ExitCode: -1}}
@@ -82,6 +82,25 @@ func TestReadRunOutcome(t *testing.T) {
 					t.Fatalf("expected canceled outcome, got %#v", outcome)
 				}
 			})
+		}
+	})
+
+	t.Run("Should preserve the artifact result path when the persisted field is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		artifacts := writeResultFixture(t, func(result *resultFixture) {
+			result.ResultPath = ""
+		})
+
+		outcome, err := ReadRunOutcome(artifacts)
+		if err != nil {
+			t.Fatalf("ReadRunOutcome() error = %v", err)
+		}
+		if outcome == nil {
+			t.Fatal("expected outcome")
+		}
+		if outcome.ResultPath != artifacts.ResultPath {
+			t.Fatalf("ResultPath = %q, want %q", outcome.ResultPath, artifacts.ResultPath)
 		}
 	})
 

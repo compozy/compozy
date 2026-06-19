@@ -49,8 +49,11 @@ func ReadRunOutcome(artifacts model.RunArtifacts) (*RunOutcome, error) {
 		RunID:        result.RunID,
 		Status:       result.Status,
 		ArtifactsDir: result.ArtifactsDir,
-		ResultPath:   result.ResultPath,
+		ResultPath:   resultPath,
 		Jobs:         append([]JobOutcome(nil), result.Jobs...),
+	}
+	if persistedPath := strings.TrimSpace(result.ResultPath); persistedPath != "" {
+		outcome.ResultPath = persistedPath
 	}
 	return outcome, nil
 }

@@ -213,15 +213,13 @@ unknown = "value"
 }
 
 func TestLoadConfigRejectsUnknownRecoveryFields(t *testing.T) {
-	t.Parallel()
-
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `
-	[recovery]
+		[recovery]
 	unexpected = true
 	`)
 
-	_, _, err := LoadConfig(context.Background(), root)
+	_, _, err := loadConfigWithIsolatedHome(t, root)
 	if err == nil {
 		t.Fatal("expected unknown recovery field error")
 	}

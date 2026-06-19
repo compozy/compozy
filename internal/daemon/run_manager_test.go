@@ -1745,8 +1745,85 @@ func TestRunManagerExecRunFailureMarksRunFailed(t *testing.T) {
 	}
 }
 
+func TestDaemonWorkflowPreparedRunRestartFailedTreatsEmptyFailedJobIDsAsRestartAll(t *testing.T) {
+	t.Parallel()
+
+	var preparedJobNames []string
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(_ context.Context, _ *model.RuntimeConfig, scope model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{
+				Jobs: []model.Job{
+					{SafeName: "task_01"},
+					{SafeName: "task_02"},
+				},
+				RunArtifacts: scope.RunArtifacts(),
+			}, nil
+		},
+		execute: func(_ context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			preparedJobNames = make([]string, 0, len(prep.Jobs))
+			for _, job := range prep.Jobs {
+				preparedJobNames = append(preparedJobNames, job.SafeName)
+			}
+			payload, err := json.Marshal(struct {
+				SchemaVersion int                   `json:"schema_version"`
+				RunID         string                `json:"run_id"`
+				Status        recovery.RunStatus    `json:"status"`
+				ArtifactsDir  string                `json:"artifacts_dir"`
+				ResultPath    string                `json:"result_path,omitempty"`
+				Jobs          []recovery.JobOutcome `json:"jobs"`
+			}{
+				SchemaVersion: recovery.ResultSchemaVersion,
+				RunID:         cfg.RunID,
+				Status:        recovery.StatusSucceeded,
+				ArtifactsDir:  prep.RunArtifacts.RunDir,
+				ResultPath:    prep.RunArtifacts.ResultPath,
+				Jobs: []recovery.JobOutcome{
+					{SafeName: "task_01", Status: recovery.StatusSucceeded, ExitCode: 0},
+					{SafeName: "task_02", Status: recovery.StatusSucceeded, ExitCode: 0},
+				},
+			})
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(prep.RunArtifacts.ResultPath), 0o755); err != nil {
+				return err
+			}
+			return os.WriteFile(prep.RunArtifacts.ResultPath, payload, 0o600)
+		},
+	})
+
+	cfg := (&model.RuntimeConfig{
+		RunID:         "restart-all-prepared-jobs",
+		WorkspaceRoot: env.workspaceRoot,
+		TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
+		Mode:          model.ExecutionModePRDTasks,
+		AccessMode:    model.AccessModeDefault,
+	}).Clone()
+	cfg.ApplyDefaults()
+
+	scope, err := newTestOpenRunScope(nil)(context.Background(), cfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		t.Fatalf("open test scope: %v", err)
+	}
+	defer func() {
+		_ = scope.Close(context.Background())
+	}()
+
+	outcome, err := newDaemonWorkflowPreparedRun(env.manager, cfg, scope).
+		RestartFailed(context.Background(), []string{})
+	if err != nil {
+		t.Fatalf("RestartFailed() error = %v", err)
+	}
+	if !slices.Equal(preparedJobNames, []string{"task_01", "task_02"}) {
+		t.Fatalf("prepared jobs = %#v, want all jobs", preparedJobNames)
+	}
+	if len(outcome.Jobs) != 2 {
+		t.Fatalf("outcome jobs = %#v, want both prepared jobs", outcome.Jobs)
+	}
+}
+
 func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
-	t.Run("resolve recovery config", func(t *testing.T) {
+	t.Run("Should merge daemon recovery overrides with project defaults", func(t *testing.T) {
 		cfg, err := resolveDaemonRecoveryConfig(workspacecfg.ProjectConfig{
 			Recovery: workspacecfg.AgentRecoveryConfig{
 				Enabled:         boolPtr(false),
@@ -1775,7 +1852,33 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}
 	})
 
-	t.Run("apply overrides", func(t *testing.T) {
+	t.Run("Should parse snake_case parallel task runtime overrides from JSON", func(t *testing.T) {
+		overrides, err := parseRuntimeOverrides(rawJSON(
+			t,
+			`{"parallel_tasks":{"enabled":true,"max_concurrency":3,"conflict_resolver":{"model":"gpt-5.5","reasoning_effort":"high","max_attempts":2}}}`,
+		))
+		if err != nil {
+			t.Fatalf("parseRuntimeOverrides() error = %v", err)
+		}
+		cfg, err := resolveDaemonParallelTasksConfig(workspacecfg.ProjectConfig{}, overrides)
+		if err != nil {
+			t.Fatalf("resolveDaemonParallelTasksConfig() error = %v", err)
+		}
+		if cfg.Enabled == nil || !*cfg.Enabled {
+			t.Fatalf("parallel enabled = %#v, want true", cfg.Enabled)
+		}
+		if cfg.MaxConcurrency == nil || *cfg.MaxConcurrency != 3 {
+			t.Fatalf("max concurrency = %#v, want 3", cfg.MaxConcurrency)
+		}
+		if cfg.ConflictResolver == nil ||
+			cfg.ConflictResolver.Model == nil || *cfg.ConflictResolver.Model != "gpt-5.5" ||
+			cfg.ConflictResolver.ReasoningEffort == nil || *cfg.ConflictResolver.ReasoningEffort != "high" ||
+			cfg.ConflictResolver.MaxAttempts == nil || *cfg.ConflictResolver.MaxAttempts != 2 {
+			t.Fatalf("parallel conflict resolver = %#v", cfg.ConflictResolver)
+		}
+	})
+
+	t.Run("Should apply runtime and project overrides in order", func(t *testing.T) {
 		cfg := &model.RuntimeConfig{}
 		rules := []model.TaskRuntimeRule{
 			{Type: stringPtr("backend"), IDE: stringPtr("codex")},
@@ -1879,7 +1982,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}
 	})
 
-	t.Run("duration and error helpers", func(t *testing.T) {
+	t.Run("Should apply duration and override error helpers", func(t *testing.T) {
 		cfg := &model.RuntimeConfig{}
 		if err := applyOptionalDuration(cfg, stringPtr("90s")); err != nil {
 			t.Fatalf("applyOptionalDuration(valid) error = %v", err)
@@ -1901,7 +2004,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		assertProblemStatus(t, err, 422)
 	})
 
-	t.Run("context and raw helpers", func(t *testing.T) {
+	t.Run("Should detach context and normalize raw helper values", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
@@ -1929,7 +2032,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}
 	})
 
-	t.Run("filesystem helpers", func(t *testing.T) {
+	t.Run("Should enforce filesystem helper behavior", func(t *testing.T) {
 		runDir := filepath.Join(t.TempDir(), "runs", "helper-run")
 		if err := reserveRunDirectory(runDir); err != nil {
 			t.Fatalf("reserveRunDirectory() error = %v", err)

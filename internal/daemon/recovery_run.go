@@ -52,7 +52,7 @@ func (r *daemonWorkflowPreparedRun) executePrepared(
 		return recovery.RunOutcome{}, err
 	}
 	prep.SetRunScope(r.scope)
-	if failedJobIDs != nil {
+	if len(failedJobIDs) > 0 {
 		filtered, err := recovery.FilterJobsBySafeName(prep.Jobs, failedJobIDs)
 		if err != nil {
 			return recovery.RunOutcome{}, err

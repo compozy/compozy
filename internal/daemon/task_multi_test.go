@@ -2314,6 +2314,29 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 	}
 }
 
+func TestBuildDaemonParallelTaskPlanRejectsDuplicateTaskNumbersInRecursiveMode(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	for relPath, title := range map[string]string{
+		filepath.Join("api", "task_01.md"): "API Task 1",
+		filepath.Join("web", "task_01.md"): "Web Task 1",
+	} {
+		absPath := filepath.Join(tasksDir, relPath)
+		if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", absPath, err)
+		}
+		if err := os.WriteFile(absPath, []byte(daemonTaskBodyWithDependencies("pending", title)), 0o600); err != nil {
+			t.Fatalf("write %s: %v", absPath, err)
+		}
+	}
+
+	_, _, err := buildDaemonParallelTaskPlan(tasksDir, "daemon-workflow", false, true)
+	if err == nil || !strings.Contains(err.Error(), `share task number 1`) {
+		t.Fatalf("buildDaemonParallelTaskPlan() error = %v, want duplicate task-number guard", err)
+	}
+}
+
 func TestRunManagerTaskRunMultipleParallelIgnoresParallelTasksConfig(t *testing.T) {
 	t.Parallel()
 	t.Run("Should leave slug-scoped parallel multi-run routing unchanged", func(t *testing.T) {

@@ -177,6 +177,7 @@ func recoveryDirForArtifacts(artifacts model.RunArtifacts) (string, error) {
 
 func captureAuditSnapshot(ctx context.Context, workspaceRoot string) (auditSnapshotDocument, error) {
 	snapshot, err := worktree.Capture(ctx, workspaceRoot)
+	porcelain := snapshot.Porcelain()
 	doc := auditSnapshotDocument{
 		SchemaVersion:          recoveryDiffAuditSchemaVersion,
 		Supported:              snapshot.IsSupported(),
@@ -187,9 +188,9 @@ func captureAuditSnapshot(ctx context.Context, workspaceRoot string) (auditSnaps
 		Branch:                 snapshot.Branch(),
 		Digest:                 snapshot.Digest(),
 		UnsupportedReason:      string(snapshot.UnsupportedReason()),
-		rawPorcelainForParsing: snapshot.Porcelain(),
+		rawPorcelainForParsing: porcelain,
 	}
-	if porcelain := snapshot.Porcelain(); len(porcelain) > 0 {
+	if len(porcelain) > 0 {
 		doc.RawPorcelainZBase64 = base64.StdEncoding.EncodeToString(porcelain)
 	}
 	if err != nil {

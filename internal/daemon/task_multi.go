@@ -385,6 +385,7 @@ func buildDaemonParallelTaskPlan(
 	}
 	taskEntries := make([]model.TaskEntry, 0, len(entries))
 	taskSpecs := make([]runparallel.TaskSpec, 0, len(entries))
+	seenTaskNumbers := make(map[int]string, len(entries))
 	for idx := range entries {
 		task, err := taskscore.ParseTaskFile(entries[idx].Content)
 		if err != nil {
@@ -398,6 +399,15 @@ func buildDaemonParallelTaskPlan(
 				entries[idx].Name,
 			)
 		}
+		if previous, ok := seenTaskNumbers[number]; ok {
+			return runparallel.Waves{}, nil, fmt.Errorf(
+				"parallel task entries %q and %q share task number %d",
+				previous,
+				entries[idx].Name,
+				number,
+			)
+		}
+		seenTaskNumbers[number] = entries[idx].Name
 		taskEntries = append(taskEntries, task)
 		taskSpecs = append(taskSpecs, runparallel.TaskSpec{
 			ID:     runparallel.TaskID(task.ID),

@@ -23,154 +23,158 @@ import (
 func TestAgenticRemediationBuildsNonRecursiveRecoveryRunConfig(t *testing.T) {
 	t.Parallel()
 
-	workspaceRoot := t.TempDir()
-	runDir := t.TempDir()
-	stdoutLog := writeTestFile(t, workspaceRoot, "stdout.log", "go test ./...\n")
-	stderrLog := writeTestFile(t, workspaceRoot, "stderr.log", "exit status 1\n")
+	t.Run("Should build a non-recursive recovery run config", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		runDir := t.TempDir()
+		stdoutLog := writeTestFile(t, workspaceRoot, "stdout.log", "go test ./...\n")
+		stderrLog := writeTestFile(t, workspaceRoot, "stderr.log", "exit status 1\n")
 
-	var captured model.RuntimeConfig
-	strategy := NewAgenticRemediation(WithPreparedPromptExecutor(
-		func(
-			_ context.Context,
-			cfg *model.RuntimeConfig,
-			promptText string,
-			_ *reusableagents.ExecutionContext,
-			_ execpkg.SessionMCPBuilder,
-		) (execpkg.PreparedPromptResult, error) {
-			captured = *cfg
-			if strings.TrimSpace(promptText) == "" {
-				t.Fatal("expected recovery prompt")
-			}
-			return execpkg.PreparedPromptResult{
-				RunID:  "recovery-run",
-				Output: `{"decision":"reject","reason":"not project-side","changed_files":[]}`,
-			}, nil
-		},
-	))
+		var captured model.RuntimeConfig
+		strategy := NewAgenticRemediation(WithPreparedPromptExecutor(
+			func(
+				_ context.Context,
+				cfg *model.RuntimeConfig,
+				promptText string,
+				_ *reusableagents.ExecutionContext,
+				_ execpkg.SessionMCPBuilder,
+			) (execpkg.PreparedPromptResult, error) {
+				captured = *cfg
+				if strings.TrimSpace(promptText) == "" {
+					t.Fatal("expected recovery prompt")
+				}
+				return execpkg.PreparedPromptResult{
+					RunID:  "recovery-run",
+					Output: `{"decision":"reject","reason":"not project-side","changed_files":[]}`,
+				}, nil
+			},
+		))
 
-	verdict, err := strategy.Remediate(context.Background(), RemediationInput{
-		Outcome: RunOutcome{
-			RunID:        "failed-run",
-			Status:       StatusFailed,
-			ArtifactsDir: runDir,
-			Jobs: []JobOutcome{{
-				SafeName: "unit-tests",
-				Status:   StatusFailed,
-				ExitCode: 1,
-				OutLog:   stdoutLog,
-				ErrLog:   stderrLog,
-				Error:    "tests failed",
-			}},
-		},
-		FailedConfig: &model.RuntimeConfig{
-			WorkspaceRoot: workspaceRoot,
-			RunID:         "failed-run",
-			Mode:          model.ExecutionModePRDTasks,
-			Name:          "agentic-recovery",
-			PR:            "123",
-			Recursive:     true,
-			Timeout:       2 * time.Minute,
-			IDE:           model.IDEClaude,
-			Model:         "failed-model",
-		},
-		Recovery: workspace.AgentRecoveryConfig{
-			IDE:             strPtr(model.IDECodex),
-			Model:           strPtr("gpt-5.5"),
-			ReasoningEffort: strPtr("high"),
-		},
+		verdict, err := strategy.Remediate(context.Background(), RemediationInput{
+			Outcome: RunOutcome{
+				RunID:        "failed-run",
+				Status:       StatusFailed,
+				ArtifactsDir: runDir,
+				Jobs: []JobOutcome{{
+					SafeName: "unit-tests",
+					Status:   StatusFailed,
+					ExitCode: 1,
+					OutLog:   stdoutLog,
+					ErrLog:   stderrLog,
+					Error:    "tests failed",
+				}},
+			},
+			FailedConfig: &model.RuntimeConfig{
+				WorkspaceRoot: workspaceRoot,
+				RunID:         "failed-run",
+				Mode:          model.ExecutionModePRDTasks,
+				Name:          "agentic-recovery",
+				PR:            "123",
+				Recursive:     true,
+				Timeout:       2 * time.Minute,
+				IDE:           model.IDEClaude,
+				Model:         "failed-model",
+			},
+			Recovery: workspace.AgentRecoveryConfig{
+				IDE:             strPtr(model.IDECodex),
+				Model:           strPtr("gpt-5.5"),
+				ReasoningEffort: strPtr("high"),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Remediate() error = %v", err)
+		}
+		if verdict.Decision != VerdictReject {
+			t.Fatalf("verdict = %#v, want reject", verdict)
+		}
+		if captured.RecoveryAttempt != 1 {
+			t.Fatalf("RecoveryAttempt = %d, want 1", captured.RecoveryAttempt)
+		}
+		if captured.Recursive {
+			t.Fatal("expected recovery run to be non-recursive")
+		}
+		if captured.RunID != "" {
+			t.Fatalf("RunID = %q, want empty so exec allocates a fresh run id", captured.RunID)
+		}
+		if captured.ParentRunID != "failed-run" {
+			t.Fatalf("ParentRunID = %q, want failed run id", captured.ParentRunID)
+		}
+		if captured.Timeout != 2*time.Minute {
+			t.Fatalf("Timeout = %s, want failed-run bounded timeout", captured.Timeout)
+		}
+		if captured.IDE != model.IDECodex || captured.Model != "gpt-5.5" || captured.ReasoningEffort != "high" {
+			t.Fatalf("unexpected recovery runtime: %#v", captured)
+		}
+		if captured.SystemPrompt == "" {
+			t.Fatal("expected recovery system prompt")
+		}
 	})
-	if err != nil {
-		t.Fatalf("Remediate() error = %v", err)
-	}
-	if verdict.Decision != VerdictReject {
-		t.Fatalf("verdict = %#v, want reject", verdict)
-	}
-	if captured.RecoveryAttempt != 1 {
-		t.Fatalf("RecoveryAttempt = %d, want 1", captured.RecoveryAttempt)
-	}
-	if captured.Recursive {
-		t.Fatal("expected recovery run to be non-recursive")
-	}
-	if captured.RunID != "" {
-		t.Fatalf("RunID = %q, want empty so exec allocates a fresh run id", captured.RunID)
-	}
-	if captured.ParentRunID != "failed-run" {
-		t.Fatalf("ParentRunID = %q, want failed run id", captured.ParentRunID)
-	}
-	if captured.Timeout != 2*time.Minute {
-		t.Fatalf("Timeout = %s, want failed-run bounded timeout", captured.Timeout)
-	}
-	if captured.IDE != model.IDECodex || captured.Model != "gpt-5.5" || captured.ReasoningEffort != "high" {
-		t.Fatalf("unexpected recovery runtime: %#v", captured)
-	}
-	if captured.SystemPrompt == "" {
-		t.Fatal("expected recovery system prompt")
-	}
 }
 
 func TestAgenticRemediationSystemPromptContainsGuidanceAndFailureContext(t *testing.T) {
 	t.Parallel()
 
-	workspaceRoot := t.TempDir()
-	stderrLog := writeTestFile(t, workspaceRoot, "stderr.log", "panic: broken invariant\n")
-	var systemPrompt string
-	strategy := NewAgenticRemediation(WithPreparedPromptExecutor(
-		func(
-			_ context.Context,
-			cfg *model.RuntimeConfig,
-			_ string,
-			_ *reusableagents.ExecutionContext,
-			_ execpkg.SessionMCPBuilder,
-		) (execpkg.PreparedPromptResult, error) {
-			systemPrompt = cfg.SystemPrompt
-			return execpkg.PreparedPromptResult{
-				RunID:  "recovery-run",
-				Output: `{"decision":"reject","reason":"not enough context","changed_files":[]}`,
-			}, nil
-		},
-	))
+	t.Run("Should include guidance and failure context in the system prompt", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		stderrLog := writeTestFile(t, workspaceRoot, "stderr.log", "panic: broken invariant\n")
+		var systemPrompt string
+		strategy := NewAgenticRemediation(WithPreparedPromptExecutor(
+			func(
+				_ context.Context,
+				cfg *model.RuntimeConfig,
+				_ string,
+				_ *reusableagents.ExecutionContext,
+				_ execpkg.SessionMCPBuilder,
+			) (execpkg.PreparedPromptResult, error) {
+				systemPrompt = cfg.SystemPrompt
+				return execpkg.PreparedPromptResult{
+					RunID:  "recovery-run",
+					Output: `{"decision":"reject","reason":"not enough context","changed_files":[]}`,
+				}, nil
+			},
+		))
 
-	_, err := strategy.Remediate(context.Background(), RemediationInput{
-		Outcome: RunOutcome{
-			RunID:        "failed-run",
-			Status:       StatusFailed,
-			ArtifactsDir: t.TempDir(),
-			Jobs: []JobOutcome{{
-				SafeName: "build",
-				Status:   StatusFailed,
-				ExitCode: 2,
-				ErrLog:   stderrLog,
-				Error:    "build failed",
-			}},
-		},
-		FailedConfig: &model.RuntimeConfig{
-			WorkspaceRoot: workspaceRoot,
-			Mode:          model.ExecutionModeExec,
-			Name:          "scope-name",
-			ReviewsDir:    ".compozy/tasks/reviews",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Remediate() error = %v", err)
-	}
-	required := []string{
-		"Identify the root cause before proposing a fix.",
-		"Do not delete failing tests.",
-		"Do not skip tests with `.skip`",
-		"Do not add lint suppressions",
-		"Failure context:",
-		"failed_run_id: failed-run",
-		"scope_name: scope-name",
-		"scope_mode: exec",
-		"exit_code: 2",
-		"stderr_log:",
-		"panic: broken invariant",
-	}
-	for _, snippet := range required {
-		if !strings.Contains(systemPrompt, snippet) {
-			t.Fatalf("expected system prompt to contain %q, got:\n%s", snippet, systemPrompt)
+		_, err := strategy.Remediate(context.Background(), RemediationInput{
+			Outcome: RunOutcome{
+				RunID:        "failed-run",
+				Status:       StatusFailed,
+				ArtifactsDir: t.TempDir(),
+				Jobs: []JobOutcome{{
+					SafeName: "build",
+					Status:   StatusFailed,
+					ExitCode: 2,
+					ErrLog:   stderrLog,
+					Error:    "build failed",
+				}},
+			},
+			FailedConfig: &model.RuntimeConfig{
+				WorkspaceRoot: workspaceRoot,
+				Mode:          model.ExecutionModeExec,
+				Name:          "scope-name",
+				ReviewsDir:    ".compozy/tasks/reviews",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Remediate() error = %v", err)
 		}
-	}
+		required := []string{
+			"Identify the root cause before proposing a fix.",
+			"Do not delete failing tests.",
+			"Do not skip tests with `.skip`",
+			"Do not add lint suppressions",
+			"Failure context:",
+			"failed_run_id: failed-run",
+			"scope_name: scope-name",
+			"scope_mode: exec",
+			"exit_code: 2",
+			"stderr_log:",
+			"panic: broken invariant",
+		}
+		for _, snippet := range required {
+			if !strings.Contains(systemPrompt, snippet) {
+				t.Fatalf("expected system prompt to contain %q, got:\n%s", snippet, systemPrompt)
+			}
+		}
+	})
 }
 
 func TestParseTriageVerdict(t *testing.T) {
@@ -184,30 +188,30 @@ func TestParseTriageVerdict(t *testing.T) {
 		wantReasonSub string
 	}{
 		{
-			name:         "fixed",
+			name:         "Should parse a fixed verdict JSON payload",
 			output:       `{"decision":"fixed","reason":"updated parser","changed_files":["parser.go","parser.go"," tests/parser_test.go "]}`,
 			wantDecision: VerdictFixed,
 			wantChanged:  []string{"parser.go", "tests/parser_test.go"},
 		},
 		{
-			name:         "reject",
+			name:         "Should parse a reject verdict from fenced JSON output",
 			output:       "analysis\n```json\n{\"decision\":\"reject\",\"reason\":\"missing credentials\",\"changed_files\":[]}\n```",
 			wantDecision: VerdictReject,
 		},
 		{
-			name:          "malformed",
+			name:          "Should fail safe on malformed JSON output",
 			output:        `{"decision":"fixed",`,
 			wantDecision:  VerdictReject,
 			wantReasonSub: "did not contain",
 		},
 		{
-			name:          "missing json",
+			name:          "Should fail safe when JSON is missing entirely",
 			output:        "I fixed it but forgot JSON",
 			wantDecision:  VerdictReject,
 			wantReasonSub: "did not contain",
 		},
 		{
-			name:          "unknown decision",
+			name:          "Should reject unknown verdict decisions",
 			output:        `{"decision":"maybe","reason":"unsure","changed_files":["x.go"]}`,
 			wantDecision:  VerdictReject,
 			wantReasonSub: "unknown decision",
@@ -233,89 +237,91 @@ func TestParseTriageVerdict(t *testing.T) {
 }
 
 func TestAgenticRemediationIntegrationRunsDeterministicAgentAndWritesAudit(t *testing.T) {
-	workspaceRoot := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
-	installRuntimeProbeStub(t, "codex-acp")
-	initGitRepo(t, workspaceRoot)
+	t.Run("Should run a deterministic agent and write recovery audit artifacts", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		t.Setenv("HOME", t.TempDir())
+		installRuntimeProbeStub(t, "codex-acp")
+		initGitRepo(t, workspaceRoot)
 
-	runArtifacts := model.NewRunArtifactsForRunsDir(t.TempDir(), "failed-run")
-	var capturedPrompt string
-	restore := acpshared.SwapNewAgentClientForTest(
-		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
-			return &recoveryFakeACPClient{
-				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
-					capturedPrompt = string(req.Prompt)
-					if err := os.WriteFile(
-						filepath.Join(workspaceRoot, "fixed.txt"),
-						[]byte("fixed\n"),
-						0o600,
-					); err != nil {
-						t.Fatalf("write deterministic fix: %v", err)
-					}
-					session := newRecoveryFakeSession("sess-recovery")
-					session.updates <- model.SessionUpdate{
-						Kind:   model.UpdateKindAgentMessageChunk,
-						Status: model.StatusRunning,
-						Blocks: []model.ContentBlock{
-							textContentBlock(t, `{"decision":"fixed","reason":"added missing file","changed_files":["fixed.txt"]}`),
-						},
-					}
-					go session.finish(nil)
-					return session, nil
-				},
-			}, nil
-		},
-	)
-	t.Cleanup(restore)
+		runArtifacts := model.NewRunArtifactsForRunsDir(t.TempDir(), "failed-run")
+		var capturedPrompt string
+		restore := acpshared.SwapNewAgentClientForTest(
+			func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+				return &recoveryFakeACPClient{
+					createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+						capturedPrompt = string(req.Prompt)
+						if err := os.WriteFile(
+							filepath.Join(workspaceRoot, "fixed.txt"),
+							[]byte("fixed\n"),
+							0o600,
+						); err != nil {
+							t.Fatalf("write deterministic fix: %v", err)
+						}
+						session := newRecoveryFakeSession("sess-recovery")
+						session.updates <- model.SessionUpdate{
+							Kind:   model.UpdateKindAgentMessageChunk,
+							Status: model.StatusRunning,
+							Blocks: []model.ContentBlock{
+								textContentBlock(t, `{"decision":"fixed","reason":"added missing file","changed_files":["fixed.txt"]}`),
+							},
+						}
+						go session.finish(nil)
+						return session, nil
+					},
+				}, nil
+			},
+		)
+		t.Cleanup(restore)
 
-	strategy := NewAgenticRemediation()
-	verdict, err := strategy.Remediate(context.Background(), RemediationInput{
-		Outcome: RunOutcome{
-			RunID:        "failed-run",
-			Status:       StatusFailed,
-			ArtifactsDir: runArtifacts.RunDir,
-			Jobs: []JobOutcome{{
-				SafeName: "integration",
-				Status:   StatusFailed,
-				ExitCode: 1,
-				Error:    "missing fixed.txt",
-			}},
-		},
-		FailedConfig: &model.RuntimeConfig{
-			WorkspaceRoot: workspaceRoot,
-			IDE:           model.IDECodex,
-			Model:         "gpt-5.5",
-			AccessMode:    model.AccessModeDefault,
-			Timeout:       time.Minute,
-		},
-	})
-	if err != nil {
-		t.Fatalf("Remediate() error = %v", err)
-	}
-	if verdict.Decision != VerdictFixed || !equalStrings(verdict.ChangedFiles, []string{"fixed.txt"}) {
-		t.Fatalf("unexpected verdict: %#v", verdict)
-	}
-	if !strings.Contains(capturedPrompt, "Do not delete failing tests.") ||
-		!strings.Contains(capturedPrompt, "missing fixed.txt") {
-		t.Fatalf("expected ACP prompt to contain system prompt and failure context, got:\n%s", capturedPrompt)
-	}
-	for _, name := range []string{
-		recoveryBaselineFileName,
-		recoveryFinalFileName,
-		recoveryChangedFilesFileName,
-		recoveryMetadataFileName,
-	} {
-		if _, err := os.Stat(filepath.Join(runArtifacts.RecoveryDir, name)); err != nil {
-			t.Fatalf("expected recovery artifact %s: %v", name, err)
+		strategy := NewAgenticRemediation()
+		verdict, err := strategy.Remediate(context.Background(), RemediationInput{
+			Outcome: RunOutcome{
+				RunID:        "failed-run",
+				Status:       StatusFailed,
+				ArtifactsDir: runArtifacts.RunDir,
+				Jobs: []JobOutcome{{
+					SafeName: "integration",
+					Status:   StatusFailed,
+					ExitCode: 1,
+					Error:    "missing fixed.txt",
+				}},
+			},
+			FailedConfig: &model.RuntimeConfig{
+				WorkspaceRoot: workspaceRoot,
+				IDE:           model.IDECodex,
+				Model:         "gpt-5.5",
+				AccessMode:    model.AccessModeDefault,
+				Timeout:       time.Minute,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Remediate() error = %v", err)
 		}
-	}
-	payload, err := os.ReadFile(filepath.Join(runArtifacts.RecoveryDir, recoveryChangedFilesFileName))
-	if err != nil {
-		t.Fatalf("read changed files audit: %v", err)
-	}
-	if !strings.Contains(string(payload), "fixed.txt") {
-		t.Fatalf("expected changed files audit to contain fixed.txt, got:\n%s", string(payload))
-	}
+		if verdict.Decision != VerdictFixed || !equalStrings(verdict.ChangedFiles, []string{"fixed.txt"}) {
+			t.Fatalf("unexpected verdict: %#v", verdict)
+		}
+		if !strings.Contains(capturedPrompt, "Do not delete failing tests.") ||
+			!strings.Contains(capturedPrompt, "missing fixed.txt") {
+			t.Fatalf("expected ACP prompt to contain system prompt and failure context, got:\n%s", capturedPrompt)
+		}
+		for _, name := range []string{
+			recoveryBaselineFileName,
+			recoveryFinalFileName,
+			recoveryChangedFilesFileName,
+			recoveryMetadataFileName,
+		} {
+			if _, err := os.Stat(filepath.Join(runArtifacts.RecoveryDir, name)); err != nil {
+				t.Fatalf("expected recovery artifact %s: %v", name, err)
+			}
+		}
+		payload, err := os.ReadFile(filepath.Join(runArtifacts.RecoveryDir, recoveryChangedFilesFileName))
+		if err != nil {
+			t.Fatalf("read changed files audit: %v", err)
+		}
+		if !strings.Contains(string(payload), "fixed.txt") {
+			t.Fatalf("expected changed files audit to contain fixed.txt, got:\n%s", string(payload))
+		}
+	})
 }
 
 func writeTestFile(t *testing.T, dir string, name string, content string) string {

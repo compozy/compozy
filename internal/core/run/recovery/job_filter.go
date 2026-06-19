@@ -9,6 +9,12 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
+var (
+	errNoFailedJobIDs        = errors.New("recovery restart: no failed job IDs supplied")
+	errNoPreparedJobsMatched = errors.New("recovery restart: no prepared jobs matched failed job IDs")
+	errFailedJobNotPrepared  = errors.New("recovery restart: failed job was not prepared for restart")
+)
+
 // FilterJobsBySafeName keeps only prepared jobs whose SafeName appears in
 // failedJobIDs, preserving prepared order and failing loudly on stale IDs.
 func FilterJobsBySafeName(jobs []model.Job, failedJobIDs []string) ([]model.Job, error) {
@@ -20,7 +26,7 @@ func FilterJobsBySafeName(jobs []model.Job, failedJobIDs []string) ([]model.Job,
 		}
 	}
 	if len(failedSet) == 0 {
-		return nil, errors.New("recovery restart: no failed job IDs supplied")
+		return nil, errNoFailedJobIDs
 	}
 
 	filtered := make([]model.Job, 0, len(failedSet))
@@ -35,11 +41,11 @@ func FilterJobsBySafeName(jobs []model.Job, failedJobIDs []string) ([]model.Job,
 		matched = append(matched, safeName)
 	}
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("recovery restart: no prepared jobs matched failed job IDs %v", failedJobIDs)
+		return nil, fmt.Errorf("%w: %v", errNoPreparedJobsMatched, failedJobIDs)
 	}
 	for id := range failedSet {
 		if !slices.Contains(matched, id) {
-			return nil, fmt.Errorf("recovery restart: failed job %q was not prepared for restart", id)
+			return nil, fmt.Errorf("%w: %q", errFailedJobNotPrepared, id)
 		}
 	}
 	return filtered, nil

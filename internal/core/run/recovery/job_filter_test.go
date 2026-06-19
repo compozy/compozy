@@ -1,6 +1,7 @@
 package recovery
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -32,8 +33,8 @@ func TestFilterJobsBySafeName(t *testing.T) {
 		t.Parallel()
 
 		_, err := FilterJobsBySafeName(jobs, []string{" ", ""})
-		if err == nil || !strings.Contains(err.Error(), "no failed job IDs") {
-			t.Fatalf("FilterJobsBySafeName() error = %v, want empty failed IDs error", err)
+		if !errors.Is(err, errNoFailedJobIDs) {
+			t.Fatalf("FilterJobsBySafeName() error = %v, want errNoFailedJobIDs", err)
 		}
 	})
 
@@ -41,8 +42,8 @@ func TestFilterJobsBySafeName(t *testing.T) {
 		t.Parallel()
 
 		_, err := FilterJobsBySafeName(jobs, []string{"needs-restart", "missing"})
-		if err == nil || !strings.Contains(err.Error(), `failed job "missing"`) {
-			t.Fatalf("FilterJobsBySafeName() error = %v, want stale failed ID error", err)
+		if !errors.Is(err, errFailedJobNotPrepared) || !strings.Contains(err.Error(), `"missing"`) {
+			t.Fatalf("FilterJobsBySafeName() error = %v, want errFailedJobNotPrepared for missing", err)
 		}
 	})
 
@@ -50,8 +51,8 @@ func TestFilterJobsBySafeName(t *testing.T) {
 		t.Parallel()
 
 		_, err := FilterJobsBySafeName(jobs, []string{"missing"})
-		if err == nil || !strings.Contains(err.Error(), "no prepared jobs matched") {
-			t.Fatalf("FilterJobsBySafeName() error = %v, want no match error", err)
+		if !errors.Is(err, errNoPreparedJobsMatched) || !strings.Contains(err.Error(), "missing") {
+			t.Fatalf("FilterJobsBySafeName() error = %v, want errNoPreparedJobsMatched", err)
 		}
 	})
 }

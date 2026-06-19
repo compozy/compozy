@@ -16,7 +16,10 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
-var errNoFailedJobsToRestart = errors.New("recovery fixed verdict did not have failed jobs to restart")
+var (
+	errNoFailedJobsToRestart = errors.New("recovery fixed verdict did not have failed jobs to restart")
+	errNilRecoveryContext    = errors.New("run recovery: nil context")
+)
 
 // EventSink persists or publishes recovery lifecycle events.
 type EventSink interface {
@@ -94,7 +97,7 @@ func NewRunRecoveryOrchestrator(
 // Run executes the original run and, when gated in, attempts bounded recovery.
 func (o *RunRecoveryOrchestrator) Run(ctx context.Context, run PreparedRun) (RunOutcome, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return RunOutcome{}, errNilRecoveryContext
 	}
 	if run == nil {
 		return RunOutcome{}, errors.New("run recovery: missing prepared run")
