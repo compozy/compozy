@@ -20,6 +20,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
@@ -2116,6 +2117,64 @@ func TestRunManagerTaskRunMultipleParallelEmitsSingleItemQueuedPerChild(t *testi
 	})
 }
 
+func TestParallelPreparedTaskRunEmitTaskStartedIsBestEffort(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	ctx := context.Background()
+	runID := "task-parallel-start-event-fails"
+	scope, err := model.OpenBaseRunScope(ctx, &model.RuntimeConfig{RunID: runID})
+	if err != nil {
+		t.Fatalf("OpenBaseRunScope() error = %v", err)
+	}
+	if scope.RunEventBus() != nil {
+		t.Cleanup(func() {
+			_ = scope.RunEventBus().Close(context.Background())
+		})
+	}
+	if err := scope.RunJournal().Close(ctx); err != nil {
+		t.Fatalf("close run journal: %v", err)
+	}
+	active := &activeRun{
+		runID: runID,
+		mode:  runModeTaskMulti,
+		scope: scope,
+		ctx:   ctx,
+	}
+	payload := kinds.TaskParallelPayload{
+		WaveIndex:  0,
+		WaveTotal:  1,
+		TaskID:     "task_01",
+		Phase:      runStatusRunning,
+		ChildRunID: "child-task-01",
+	}
+	if err := env.manager.emitTaskParallelEvent(
+		active,
+		eventspkg.EventKindTaskParallelTaskStarted,
+		payload,
+	); !errors.Is(err, journal.ErrClosed) {
+		t.Fatalf("emitTaskParallelEvent() error = %v, want journal.ErrClosed", err)
+	}
+
+	run := &parallelPreparedTaskRun{
+		launcher: parallelTaskLauncher{
+			manager:           env.manager,
+			active:            active,
+			integrationBranch: "compozy/parallel-x",
+		},
+		spec: runparallel.TaskLaunchSpec{
+			WaveIndex: 0,
+			WaveTotal: 1,
+			Task: runparallel.TaskSpec{
+				ID:     runparallel.TaskID("task_01"),
+				Number: 1,
+			},
+		},
+	}
+	run.emitTaskStarted(ctx, taskWorktreeChildRun{
+		Run:        apicore.Run{RunID: "child-task-01"},
+		Allocation: taskMultiWorktreeAllocation{Path: filepath.Join(t.TempDir(), "task-01")},
+	})
+}
+
 func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *testing.T) {
 	t.Parallel()
 	t.Run(
@@ -2282,6 +2341,37 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					t.Fatalf("wave_started missing task %s: %#v", taskID, started)
 				}
 			}
+			taskStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelTaskStarted)
+			if len(taskStarted) != 5 {
+				t.Fatalf("task_started events = %d, want 5: %#v", len(taskStarted), taskStarted)
+			}
+			seenTaskStarted := map[string]bool{}
+			for _, payload := range taskStarted {
+				if payload.RunID != run.RunID || payload.WaveTotal != 4 || payload.Phase != "running" ||
+					payload.IntegrationBranch != plans[0].IntegrationBranch ||
+					strings.TrimSpace(payload.ChildRunID) == "" ||
+					!strings.HasPrefix(payload.WorktreePath, env.paths.WorktreesDir) {
+					t.Fatalf("task_started payload = %#v", payload)
+				}
+				var taskNumber int
+				if _, err := fmt.Sscanf(payload.TaskID, "task_%02d", &taskNumber); err != nil {
+					t.Fatalf("task_started task id = %q: %v", payload.TaskID, err)
+				}
+				wantChildID := fmt.Sprintf("child-%s-task-%02d", env.workflowSlug, taskNumber)
+				if payload.ChildRunID != wantChildID {
+					t.Fatalf("task_started child run id for %s = %q, want %q",
+						payload.TaskID,
+						payload.ChildRunID,
+						wantChildID,
+					)
+				}
+				seenTaskStarted[payload.TaskID] = true
+			}
+			for _, taskID := range []string{"task_01", "task_02", "task_03", "task_04", "task_05"} {
+				if !seenTaskStarted[taskID] {
+					t.Fatalf("task_started missing task %s: %#v", taskID, taskStarted)
+				}
+			}
 			mergeStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelMergeStarted)
 			if len(mergeStarted) != 4 {
 				t.Fatalf("merge_started events = %d, want 4: %#v", len(mergeStarted), mergeStarted)
@@ -2398,6 +2488,30 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 		}
 		if got := attempts.count(3); got != 2 {
 			t.Fatalf("task 3 execute attempts = %d, want initial + recovery restart", got)
+		}
+		taskStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelTaskStarted)
+		if len(taskStarted) != 6 {
+			t.Fatalf(
+				"task_started events = %d, want five initial launches plus one restart: %#v",
+				len(taskStarted),
+				taskStarted,
+			)
+		}
+		var task3Children []string
+		for _, payload := range taskStarted {
+			if payload.TaskID == "task_03" {
+				task3Children = append(task3Children, payload.ChildRunID)
+			}
+			if strings.TrimSpace(payload.ChildRunID) == "" {
+				t.Fatalf("task_started payload missing child run id: %#v", payload)
+			}
+		}
+		wantTask3Children := []string{
+			"child-" + env.workflowSlug + "-task-03",
+			"child-" + env.workflowSlug + "-task-03-retry-2",
+		}
+		if !reflect.DeepEqual(task3Children, wantTask3Children) {
+			t.Fatalf("task 3 child bindings = %#v, want %#v", task3Children, wantTask3Children)
 		}
 		for taskNumber := 1; taskNumber <= 5; taskNumber++ {
 			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))

@@ -212,13 +212,26 @@ func (m *uiModel) handleParallelPlanStarted(v parallelPlanStartedMsg) {
 }
 
 func (m *uiModel) handleParallelWaveStarted(v parallelWaveStartedMsg) {
+	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, v.IntegrationBranch)
+}
+
+func (m *uiModel) handleParallelTaskStarted(v parallelTaskStartedMsg) {
+	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, v.IntegrationBranch)
+}
+
+func (m *uiModel) markParallelTaskRunning(
+	waveTotal int,
+	waveIndex int,
+	taskID string,
+	integrationBranch string,
+) {
 	p := m.parallelState()
-	p.ensureWaves(v.WaveTotal)
-	p.ensureWaveIndex(v.WaveIndex)
-	p.assignTask(v.TaskID, v.WaveIndex)
-	p.setWaveStatus(v.WaveIndex, waveStatusRunning)
-	if strings.TrimSpace(v.IntegrationBranch) != "" {
-		p.integrationBranch = strings.TrimSpace(v.IntegrationBranch)
+	p.ensureWaves(waveTotal)
+	p.ensureWaveIndex(waveIndex)
+	p.assignTask(taskID, waveIndex)
+	p.setWaveStatus(waveIndex, waveStatusRunning)
+	if strings.TrimSpace(integrationBranch) != "" {
+		p.integrationBranch = strings.TrimSpace(integrationBranch)
 	}
 	if p.phase == integrationPhaseIdle || p.phase == integrationPhaseDone {
 		p.phase = integrationPhaseRunning

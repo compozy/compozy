@@ -35,6 +35,7 @@ type TaskSpec struct {
 type TaskLaunchSpec struct {
 	RunID     string
 	WaveIndex int
+	WaveTotal int
 	Task      TaskSpec
 	Base      WorktreeBase
 }
@@ -349,7 +350,7 @@ func (o *ExecutionOrchestrator) runOneWave(
 	runnable, skipped := splitRunnableLevel(waveIndex, level, tasksByID, *blockedBy)
 	o.emitWaveTasksStarted(ctx, plan, waveIndex, waveTotal, runnable, tasksByID)
 	waveOutcome := WaveOutcome{Index: waveIndex, Tasks: skipped}
-	executions, err := o.runWave(ctx, plan, waveIndex, runnable, currentBase, tasksByID)
+	executions, err := o.runWave(ctx, plan, waveIndex, waveTotal, runnable, currentBase, tasksByID)
 	if err != nil {
 		return o.wrapCancelError(ctx, machine, outcome, err)
 	}
@@ -486,6 +487,7 @@ func (o *ExecutionOrchestrator) runWave(
 	ctx context.Context,
 	plan ParallelPlan,
 	waveIndex int,
+	waveTotal int,
 	level []TaskID,
 	base WorktreeBase,
 	tasksByID map[TaskID]TaskSpec,
@@ -520,6 +522,7 @@ func (o *ExecutionOrchestrator) runWave(
 			prepared, err := o.launcher.PrepareTask(ctx, TaskLaunchSpec{
 				RunID:     strings.TrimSpace(plan.RunID),
 				WaveIndex: waveIndex,
+				WaveTotal: waveTotal,
 				Task:      task,
 				Base:      base,
 			})

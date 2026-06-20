@@ -706,6 +706,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindShutdownTerminated,
 			events.EventKindTaskParallelPlanStarted,
 			events.EventKindTaskParallelWaveStarted,
+			events.EventKindTaskParallelTaskStarted,
 			events.EventKindTaskParallelWaveCompleted,
 			events.EventKindTaskParallelMergeStarted,
 			events.EventKindTaskParallelConflictDetected,
@@ -818,8 +819,7 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 }
 
 func translateParallelEvent(ev events.Event) (uiMsg, bool) {
-	switch ev.Kind {
-	case events.EventKindTaskParallelPlanStarted:
+	if ev.Kind == events.EventKindTaskParallelPlanStarted {
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPlanPayload](ev)
 		if !ok {
 			return nil, false
@@ -831,6 +831,12 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 			Tasks:             parallelPlanTasksFromPayload(payload.Tasks),
 			Waves:             parallelPlanWavesFromPayload(payload.Waves),
 		}, true
+	}
+	return translateParallelPayloadEvent(ev)
+}
+
+func translateParallelPayloadEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
 	case events.EventKindTaskParallelWaveStarted:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
@@ -840,6 +846,19 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 			WaveIndex:         payload.WaveIndex,
 			WaveTotal:         payload.WaveTotal,
 			TaskID:            payload.TaskID,
+			IntegrationBranch: payload.IntegrationBranch,
+		}, true
+	case events.EventKindTaskParallelTaskStarted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelTaskStartedMsg{
+			WaveIndex:         payload.WaveIndex,
+			WaveTotal:         payload.WaveTotal,
+			TaskID:            payload.TaskID,
+			ChildRunID:        payload.ChildRunID,
+			WorktreePath:      payload.WorktreePath,
 			IntegrationBranch: payload.IntegrationBranch,
 		}, true
 	case events.EventKindTaskParallelMergeStarted:

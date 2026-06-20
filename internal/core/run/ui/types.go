@@ -268,6 +268,15 @@ type parallelWaveStartedMsg struct {
 	IntegrationBranch string
 }
 
+type parallelTaskStartedMsg struct {
+	WaveIndex         int
+	WaveTotal         int
+	TaskID            string
+	ChildRunID        string
+	WorktreePath      string
+	IntegrationBranch string
+}
+
 type parallelMergeStartedMsg struct {
 	WaveIndex         int
 	WaveTotal         int

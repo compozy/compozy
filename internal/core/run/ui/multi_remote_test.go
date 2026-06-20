@@ -948,11 +948,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		if !strings.Contains(view, "WAVE 1") || !strings.Contains(view, "task_01") {
 			t.Fatalf("expected aggregate parallel view with wave and task, got:\n%s", view)
 		}
-		if !strings.Contains(view, "Parallel task running: task_01") {
-			t.Fatalf("expected aggregate task notice instead of empty ACP transcript, got:\n%s", view)
-		}
-		if strings.Contains(view, "Waiting for ACP updates") || strings.Contains(view, "No ACP transcript yet") {
-			t.Fatalf("aggregate parallel view must not render ACP waiting placeholders, got:\n%s", view)
+		if strings.Contains(view, "Parallel task running") {
+			t.Fatalf("aggregate parallel view must not synthesize a fake task transcript, got:\n%s", view)
 		}
 		if strings.Contains(view, "QUEUE.QUEUED") {
 			t.Fatalf("parallel-tasks tab must not stay on queued placeholder, got:\n%s", view)
@@ -1066,6 +1063,161 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		}
 		if got := child.jobs[0].snapshot.Entries[0].Title; got != "Parallel task stopped: task_01" {
 			t.Fatalf("aggregate task notice = %q, want stopped", got)
+		}
+	})
+
+	t.Run("Should bind parallel task child snapshot to the aggregate task row", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{
+				WaveIndex:         0,
+				WaveTotal:         1,
+				TaskID:            "task_01",
+				ChildRunID:        "child-task-01",
+				WorktreePath:      "/tmp/task-01",
+				IntegrationBranch: "compozy/parallel-x",
+			},
+		))
+		if _, ok := mdl.parallelChildBinding("child-task-01"); !ok {
+			t.Fatal("expected child run id to be bound to the aggregate task row")
+		}
+
+		mdl.handleChildBootstrap(multiRunChildBootstrapMsg{
+			RunID: "child-task-01",
+			Snapshot: childSnapshotForTest(
+				t,
+				"child-task-01",
+				"task_01",
+				remoteRunStatusRunning,
+				"real task transcript",
+			),
+		})
+		if child.jobs[0].state != jobRunning {
+			t.Fatalf("aggregate task state = %v, want running from child snapshot", child.jobs[0].state)
+		}
+		if got := child.jobs[0].snapshot.Entries[0].Preview; got != "real task transcript" {
+			t.Fatalf("task transcript = %q, want real child transcript", got)
+		}
+		view := xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "real task transcript") {
+			t.Fatalf("expected selected task to render child transcript, got:\n%s", view)
+		}
+		if strings.Contains(view, "Parallel task running") {
+			t.Fatalf("child-bound task must not show synthetic parallel transcript, got:\n%s", view)
+		}
+	})
+
+	t.Run("Should drop stale child bindings when a parallel task restarts", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{WaveIndex: 0, WaveTotal: 1, TaskID: "task_01", ChildRunID: "child-task-old"},
+		))
+		mdl.handleChildBootstrap(multiRunChildBootstrapMsg{
+			RunID:    "child-task-old",
+			Snapshot: childSnapshotForTest(t, "child-task-old", "task_01", remoteRunStatusRunning, "old transcript"),
+		})
+		if got := child.jobs[0].snapshot.Entries[0].Preview; got != "old transcript" {
+			t.Fatalf("old child transcript = %q, want old transcript", got)
+		}
+
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{WaveIndex: 0, WaveTotal: 1, TaskID: "task_01", ChildRunID: "child-task-new"},
+		))
+		if _, ok := mdl.parallelChildBinding("child-task-old"); ok {
+			t.Fatal("old child binding remained after task restart")
+		}
+		if _, ok := mdl.parallelChildBinding("child-task-new"); !ok {
+			t.Fatal("new child binding missing after task restart")
+		}
+		mdl.handleChildBootstrap(multiRunChildBootstrapMsg{
+			RunID:    "child-task-new",
+			Snapshot: childSnapshotForTest(t, "child-task-new", "task_01", remoteRunStatusRunning, "new transcript"),
+		})
+		mdl.handleChildBootstrap(multiRunChildBootstrapMsg{
+			RunID: "child-task-old",
+			Snapshot: childSnapshotForTest(
+				t,
+				"child-task-old",
+				"task_01",
+				remoteRunStatusRunning,
+				"late old transcript",
+			),
+		})
+		if got := child.jobs[0].snapshot.Entries[0].Preview; got != "new transcript" {
+			t.Fatalf("task transcript after stale event = %q, want new transcript", got)
+		}
+	})
+
+	t.Run("Should keep concurrent child transcripts isolated by task selection", func(t *testing.T) {
+		mdl := newParallelAggregateStartedModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelPlanStarted,
+			kinds.TaskParallelPlanPayload{
+				Workflow:          "alpha",
+				IntegrationBranch: "compozy/parallel-x",
+				ParallelLimit:     2,
+				Tasks: []kinds.TaskParallelPlanTask{
+					{ID: "task_01", Number: 1, Title: "Task 1", File: "task_01.md", WaveIndex: 0},
+					{ID: "task_02", Number: 2, Title: "Task 2", File: "task_02.md", WaveIndex: 0},
+				},
+				Waves: []kinds.TaskParallelPlanWave{{Index: 0, TaskIDs: []string{"task_01", "task_02"}}},
+			},
+		))
+		for _, task := range []struct {
+			id      string
+			childID string
+			text    string
+		}{
+			{id: "task_01", childID: "child-task-01", text: "first task transcript"},
+			{id: "task_02", childID: "child-task-02", text: "second task transcript"},
+		} {
+			mdl.handleParentEvent(mustRuntimeEventUITest(
+				t,
+				eventspkg.EventKindTaskParallelTaskStarted,
+				kinds.TaskParallelPayload{WaveIndex: 0, WaveTotal: 1, TaskID: task.id, ChildRunID: task.childID},
+			))
+			mdl.handleChildBootstrap(multiRunChildBootstrapMsg{
+				RunID:    task.childID,
+				Snapshot: childSnapshotForTest(t, task.childID, task.id, remoteRunStatusRunning, task.text),
+			})
+		}
+		child := mdl.tabs[0].child
+		if child == nil || len(child.jobs) != 2 {
+			t.Fatalf("aggregate child jobs = %#v, want two task rows", child)
+		}
+		child.selectedJob = 0
+		view := xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "first task transcript") || strings.Contains(view, "second task transcript") {
+			t.Fatalf("task 1 selection rendered wrong transcript:\n%s", view)
+		}
+		mdl.handleKey(keyText("j"))
+		view = xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "second task transcript") || strings.Contains(view, "first task transcript") {
+			t.Fatalf("task 2 selection rendered wrong transcript:\n%s", view)
+		}
+	})
+
+	t.Run("Should advance spinner frames while a bound parallel child is running", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{WaveIndex: 0, WaveTotal: 1, TaskID: "task_01", ChildRunID: "child-task-01"},
+		))
+		before := child.frame
+		mdl.spinnerRunning = true
+		if cmd := mdl.handleSpinnerTick(spinnerTickMsg{at: mdl.now.Add(uiSpinnerTickInterval)}); cmd == nil {
+			t.Fatal("expected spinner loop to continue while bound parallel child is running")
+		}
+		if child.frame == before {
+			t.Fatalf("spinner frame did not advance: before=%d after=%d", before, child.frame)
 		}
 	})
 }

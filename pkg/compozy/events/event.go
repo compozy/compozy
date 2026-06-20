@@ -83,6 +83,7 @@ const (
 	// Parallel task execution events emitted by the ParallelExecutionOrchestrator.
 	EventKindTaskParallelPlanStarted       EventKind = "task.parallel.plan_started"
 	EventKindTaskParallelWaveStarted       EventKind = "task.parallel.wave_started"
+	EventKindTaskParallelTaskStarted       EventKind = "task.parallel.task_started"
 	EventKindTaskParallelWaveCompleted     EventKind = "task.parallel.wave_completed"
 	EventKindTaskParallelMergeStarted      EventKind = "task.parallel.merge_started"
 	EventKindTaskParallelConflictDetected  EventKind = "task.parallel.conflict_detected"

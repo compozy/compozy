@@ -616,10 +616,11 @@ func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *prep
 			workflowRootsBySlug: taskMultiWorkflowRootsBySlug(prepared.items),
 		},
 		parallelTaskLauncher{
-			manager:  m,
-			active:   active,
-			prepared: prepared,
-			item:     prepared.items[0],
+			manager:           m,
+			active:            active,
+			prepared:          prepared,
+			item:              prepared.items[0],
+			integrationBranch: integrationBranch,
 		},
 		runparallel.WithRecoveryStrategy(m.recoveryStrategy),
 		runparallel.WithEventEmitter(parallelEventEmitter{manager: m, active: active}),
@@ -795,10 +796,11 @@ func (l parallelWorktreeLifecycle) Prune(ctx context.Context, workspaceRoot stri
 }
 
 type parallelTaskLauncher struct {
-	manager  *RunManager
-	active   *activeRun
-	prepared *preparedTaskMulti
-	item     preparedTaskMultiItem
+	manager           *RunManager
+	active            *activeRun
+	prepared          *preparedTaskMulti
+	item              preparedTaskMultiItem
+	integrationBranch string
 }
 
 func (l parallelTaskLauncher) PrepareTask(
@@ -833,6 +835,7 @@ func (r *parallelPreparedTaskRun) Execute(ctx context.Context) (recovery.RunOutc
 		return recovery.RunOutcome{}, err
 	}
 	r.child = child
+	r.emitTaskStarted(ctx, child)
 	return r.awaitChild(ctx, child)
 }
 
@@ -857,7 +860,34 @@ func (r *parallelPreparedTaskRun) RestartFailed(
 		return recovery.RunOutcome{}, err
 	}
 	r.child = child
+	r.emitTaskStarted(ctx, child)
 	return r.awaitChild(ctx, child)
+}
+
+func (r *parallelPreparedTaskRun) emitTaskStarted(ctx context.Context, child taskWorktreeChildRun) {
+	if r == nil {
+		return
+	}
+	taskID := strings.TrimSpace(string(r.spec.Task.ID))
+	if taskID == "" && r.spec.Task.Number > 0 {
+		taskID = fmt.Sprintf("task_%02d", r.spec.Task.Number)
+	}
+	parallelEventEmitter{
+		manager: r.launcher.manager,
+		active:  r.launcher.active,
+	}.EmitParallelEvent(
+		ctx,
+		eventspkg.EventKindTaskParallelTaskStarted,
+		kinds.TaskParallelPayload{
+			WaveIndex:         r.spec.WaveIndex,
+			WaveTotal:         r.spec.WaveTotal,
+			TaskID:            taskID,
+			Phase:             runStatusRunning,
+			ChildRunID:        child.Run.RunID,
+			WorktreePath:      child.Allocation.Path,
+			IntegrationBranch: r.launcher.integrationBranch,
+		},
+	)
 }
 
 func (r *parallelPreparedTaskRun) Result() runparallel.TaskRunResult {

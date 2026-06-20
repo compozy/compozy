@@ -150,6 +150,8 @@ func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 		m.handleParallelPlanStarted(value)
 	case parallelWaveStartedMsg:
 		m.handleParallelWaveStarted(value)
+	case parallelTaskStartedMsg:
+		m.handleParallelTaskStarted(value)
 	case parallelMergeStartedMsg:
 		m.handleParallelMergeStarted(value)
 	case parallelConflictMsg:

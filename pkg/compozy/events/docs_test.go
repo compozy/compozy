@@ -58,6 +58,7 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindTaskRunMultipleQueueCompleted,
 		EventKindTaskParallelPlanStarted,
 		EventKindTaskParallelWaveStarted,
+		EventKindTaskParallelTaskStarted,
 		EventKindTaskParallelWaveCompleted,
 		EventKindTaskParallelMergeStarted,
 		EventKindTaskParallelConflictDetected,

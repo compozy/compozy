@@ -495,7 +495,7 @@ opt-in parallel PRD-tasks run (`[tasks.run.parallel]`). They are persisted in th
 parent run journal, streamed through the regular run stream APIs, and drive the
 wave-grouped sidebar and the persistent `INTEGRATION` pane in the run TUI. All
 parallel runs emit one plan event before execution starts. The plan event uses
-`kinds.TaskParallelPlanPayload`; the remaining seven lifecycle kinds share
+`kinds.TaskParallelPlanPayload`; the remaining eight lifecycle kinds share
 `kinds.TaskParallelPayload`.
 
 `kinds.TaskParallelPlanPayload` fields:
@@ -525,6 +525,7 @@ parallel runs emit one plan event before execution starts. The plan event uses
 `kinds.TaskParallelPayload` fields:
 
 - `run_id`: parent parallel-run id
+- `child_run_id`: child task run id emitted by `task_started`
 - `wave_index`: zero-based topological wave the event belongs to
 - `wave_total`: total number of waves in the run, emitted with `wave_started`
 - `task_id`: PRD task identity such as `task_01`; empty for wave-level events
@@ -536,10 +537,12 @@ parallel runs emit one plan event before execution starts. The plan event uses
 - `worktree_path`: per-task git worktree path
 - `status`: terminal per-task status, one of `merged`, `recovered`, `failed`, or `skipped`
 
-Per-task events (`wave_started`, `conflict_detected`, `conflict_resolving`,
-`merged`) carry `task_id` and `wave_index` so the TUI can assign each task card to
-its wave. Wave-level events (`wave_completed`, `merge_started`) leave `task_id`
-empty. Empty fields are treated as unknown so older event streams stay compatible.
+Per-task events (`wave_started`, `task_started`, `conflict_detected`,
+`conflict_resolving`, `merged`) carry `task_id` and `wave_index` so the TUI can
+assign each task card to its wave. `task_started` also carries `child_run_id` so
+remote UIs can attach the real child run transcript to the selected task card.
+Wave-level events (`wave_completed`, `merge_started`) leave `task_id` empty.
+Empty fields are treated as unknown so older event streams stay compatible.
 
 ### `task.parallel.plan_started`
 
@@ -555,6 +558,14 @@ Payload type: `kinds.TaskParallelPayload`
 
 A task entered a running wave. Carries `wave_index`, `wave_total`, `task_id`,
 `integration_branch`, `worktree_path`, and `phase` (`running`).
+
+### `task.parallel.task_started`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A task child run was created and can be observed. Carries `wave_index`,
+`wave_total`, `task_id`, `child_run_id`, `worktree_path`,
+`integration_branch`, and `phase` (`running`).
 
 ### `task.parallel.wave_completed`
 
