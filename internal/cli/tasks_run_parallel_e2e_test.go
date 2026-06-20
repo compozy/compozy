@@ -174,6 +174,7 @@ func TestTasksRunParallelTasksEndToEndRoutesSingleWorkflowThroughParallelOrchest
 
 		const slug = "demo"
 		client, _, workspaceRoot := newParallelTasksCLIEnv(t, slug)
+		assertNoCompozyTaskFilesTrackedForCLI(t, workspaceRoot)
 
 		stdout, stderr, err := runParallelMultiRunCLI(
 			t,
@@ -211,6 +212,7 @@ func TestTasksRunParallelTasksEndToEndRoutesSingleWorkflowThroughParallelOrchest
 			t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
 		}
 		if !hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelWaveStarted) ||
+			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelPlanStarted) ||
 			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelMerged) ||
 			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelWaveCompleted) {
 			t.Fatalf("parallel task events missing from parent run: %v", eventKindsFromCoreEvents(page.Events))
@@ -299,6 +301,7 @@ func newParallelTasksCLIEnv(
 	t.Helper()
 
 	workspaceRoot := t.TempDir()
+	writeParallelTasksGitignoreForCLI(t, workspaceRoot)
 	writeParallelTasksWorkflowForCLI(t, workspaceRoot, slug)
 	gitInitCommitCLIWorkspace(t, workspaceRoot)
 
@@ -348,19 +351,47 @@ func newParallelTasksCLIEnv(
 	return client, paths, workspaceRoot
 }
 
+func writeParallelTasksGitignoreForCLI(t *testing.T, workspaceRoot string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(workspaceRoot, ".gitignore"), []byte(".compozy/**\n"), 0o600); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+}
+
 func writeParallelTasksWorkflowForCLI(t *testing.T, workspaceRoot string, slug string) {
 	t.Helper()
 	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("mkdir task workflow %s: %v", slug, err)
 	}
+	writeRawTaskFileForCLI(t, tasksDir, "_tasks.md", strings.Join([]string{
+		"---",
+		"schema_version: \"compozy.tasks/v2\"",
+		"workflow: " + slug,
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"    - id: task_02",
+		"      file: task_02.md",
+		"    - id: task_03",
+		"      file: task_03.md",
+		"  edges:",
+		"    - from: task_01",
+		"      to: task_03",
+		"    - from: task_02",
+		"      to: task_03",
+		"---",
+		"",
+		"# " + slug + " Tasks",
+		"",
+	}, "\n"))
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
 		[]string{
 			"status: pending",
 			"title: First parallel task",
 			"type: backend",
 			"complexity: low",
-			"dependencies: []",
 		},
 		"# Task 1: First parallel task",
 	))
@@ -370,7 +401,6 @@ func writeParallelTasksWorkflowForCLI(t *testing.T, workspaceRoot string, slug s
 			"title: Second parallel task",
 			"type: backend",
 			"complexity: low",
-			"dependencies: []",
 		},
 		"# Task 2: Second parallel task",
 	))
@@ -380,9 +410,6 @@ func writeParallelTasksWorkflowForCLI(t *testing.T, workspaceRoot string, slug s
 			"title: Dependent parallel task",
 			"type: backend",
 			"complexity: low",
-			"dependencies:",
-			"  - task_01",
-			"  - task_02",
 		},
 		"# Task 3: Dependent parallel task",
 	))
@@ -534,11 +561,26 @@ func gitInitCommitCLIWorkspace(t *testing.T, root string) {
 	runGitForCLITests(t, root, "commit", "-q", "-m", "seed parallel multi-run workspace")
 }
 
+func assertNoCompozyTaskFilesTrackedForCLI(t *testing.T, root string) {
+	t.Helper()
+	names := runGitOutputForCLITests(t, root, "ls-tree", "-r", "--name-only", "HEAD")
+	if strings.Contains(names, ".compozy/tasks") {
+		t.Fatalf("parallel task fixture must keep .compozy/tasks untracked, got tree:\n%s", names)
+	}
+}
+
 func runGitForCLITests(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	_ = runGitOutputForCLITests(t, dir, args...)
+}
+
+func runGitOutputForCLITests(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.CommandContext(context.Background(), "git", args...)
 	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
 	}
+	return string(out)
 }

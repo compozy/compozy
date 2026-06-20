@@ -494,7 +494,33 @@ Parallel task events are emitted by the `ParallelExecutionOrchestrator` during a
 opt-in parallel PRD-tasks run (`[tasks.run.parallel]`). They are persisted in the
 parent run journal, streamed through the regular run stream APIs, and drive the
 wave-grouped sidebar and the persistent `INTEGRATION` pane in the run TUI. All
-seven kinds share one payload type, `kinds.TaskParallelPayload`.
+parallel runs emit one plan event before execution starts. The plan event uses
+`kinds.TaskParallelPlanPayload`; the remaining seven lifecycle kinds share
+`kinds.TaskParallelPayload`.
+
+`kinds.TaskParallelPlanPayload` fields:
+
+- `run_id`: parent parallel-run id
+- `workflow`: workflow slug for the task suite
+- `integration_branch`: dedicated integration branch `compozy/parallel-<run-id>`
+- `parallel_limit`: effective task concurrency limit
+- `tasks`: complete planned task list from `_tasks.md`
+- `waves`: deterministic topological waves derived from graph edges
+
+`kinds.TaskParallelPlanTask` fields:
+
+- `id`: task identity such as `task_01`
+- `number`: numeric task number
+- `title`: task title from the task file
+- `file`: task artifact file, such as `task_01.md`
+- `status`: task status when known
+- `dependencies`: direct predecessor task ids from graph edges
+- `wave_index`: zero-based planned wave index
+
+`kinds.TaskParallelPlanWave` fields:
+
+- `index`: zero-based planned wave index
+- `task_ids`: task ids scheduled in the wave
 
 `kinds.TaskParallelPayload` fields:
 
@@ -514,6 +540,14 @@ Per-task events (`wave_started`, `conflict_detected`, `conflict_resolving`,
 `merged`) carry `task_id` and `wave_index` so the TUI can assign each task card to
 its wave. Wave-level events (`wave_completed`, `merge_started`) leave `task_id`
 empty. Empty fields are treated as unknown so older event streams stay compatible.
+
+### `task.parallel.plan_started`
+
+Payload type: `kinds.TaskParallelPlanPayload`
+
+The full task DAG was validated and planned. Carries `workflow`,
+`parallel_limit`, `integration_branch`, `tasks`, and `waves` so remote UIs can
+render all task cards and pending waves before child task output exists.
 
 ### `task.parallel.wave_started`
 

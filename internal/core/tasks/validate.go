@@ -73,40 +73,76 @@ func ValidateWithOptions(
 		return report, nil
 	}
 
-	existingTasks := make(map[string]struct{}, len(names))
+	existingTasks := taskIdentitySet(names)
+	taskIssues, err := validateTaskFiles(ctx, resolvedDir, names, registry, existingTasks)
+	if err != nil {
+		return report, err
+	}
+	report.Issues = append(report.Issues, taskIssues...)
+	manifestIssues, err := validateTaskGraphManifestFile(ctx, resolvedDir)
+	if err != nil {
+		return report, err
+	}
+	report.Issues = append(report.Issues, manifestIssues...)
+	sortIssues(report.Issues)
+
+	return report, nil
+}
+
+func taskIdentitySet(names []string) map[string]struct{} {
+	existingTasks := make(map[string]struct{}, len(names)*2)
 	for _, name := range names {
 		existingTasks[strings.TrimSuffix(name, filepath.Ext(name))] = struct{}{}
 		existingTasks[strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))] = struct{}{}
 	}
+	return existingTasks
+}
 
+func validateTaskFiles(
+	ctx context.Context,
+	resolvedDir string,
+	names []string,
+	registry *TypeRegistry,
+	existingTasks map[string]struct{},
+) ([]Issue, error) {
+	issues := make([]Issue, 0)
 	for _, name := range names {
 		if err := context.Cause(ctx); err != nil {
-			return report, fmt.Errorf("validate tasks: %w", err)
+			return nil, fmt.Errorf("validate tasks: %w", err)
 		}
-
 		path := filepath.Join(resolvedDir, filepath.FromSlash(name))
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return report, fmt.Errorf("read %s: %w", name, err)
+			return nil, fmt.Errorf("read %s: %w", name, err)
 		}
-
 		task, body, legacyKeys, err := parseTaskForValidation(string(content))
 		if err != nil {
-			return report, fmt.Errorf("parse task %s: %w", name, err)
+			return nil, fmt.Errorf("parse task %s: %w", name, err)
 		}
-
-		report.Issues = append(
-			report.Issues,
-			validateTaskFile(path, task, body, legacyKeys, registry, existingTasks)...)
+		issues = append(issues, validateTaskFile(path, task, body, legacyKeys, registry, existingTasks)...)
 	}
-	slices.SortStableFunc(report.Issues, func(a, b Issue) int {
+	return issues, nil
+}
+
+func validateTaskGraphManifestFile(ctx context.Context, resolvedDir string) ([]Issue, error) {
+	manifest, err := ReadTaskGraphManifest(resolvedDir)
+	if errors.Is(err, ErrTaskGraphManifestMissing) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	_, issues, err := ValidateTaskGraphManifest(ctx, resolvedDir, filepath.Base(resolvedDir), manifest)
+	return issues, err
+}
+
+func sortIssues(issues []Issue) {
+	slices.SortStableFunc(issues, func(a, b Issue) int {
 		if cmp := strings.Compare(a.Path, b.Path); cmp != 0 {
 			return cmp
 		}
 		return strings.Compare(a.Field, b.Field)
 	})
-
-	return report, nil
 }
 
 func parseTaskForValidation(content string) (model.TaskEntry, string, []string, error) {

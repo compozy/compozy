@@ -66,6 +66,33 @@ type TaskRunMultiplePayload struct {
 	WorktreeStatus string   `json:"worktree_status,omitempty"`
 }
 
+// TaskParallelPlanPayload describes the full task DAG known before a parallel
+// task run starts executing waves. It is emitted once so remote UIs can render
+// every task and pending wave before the first child run streams output.
+type TaskParallelPlanPayload struct {
+	RunID             string                 `json:"run_id,omitempty"`
+	Workflow          string                 `json:"workflow,omitempty"`
+	IntegrationBranch string                 `json:"integration_branch,omitempty"`
+	ParallelLimit     int                    `json:"parallel_limit,omitempty"`
+	Tasks             []TaskParallelPlanTask `json:"tasks,omitempty"`
+	Waves             []TaskParallelPlanWave `json:"waves,omitempty"`
+}
+
+type TaskParallelPlanTask struct {
+	ID           string   `json:"id,omitempty"`
+	Number       int      `json:"number,omitempty"`
+	Title        string   `json:"title,omitempty"`
+	File         string   `json:"file,omitempty"`
+	Status       string   `json:"status,omitempty"`
+	Dependencies []string `json:"dependencies,omitempty"`
+	WaveIndex    int      `json:"wave_index,omitempty"`
+}
+
+type TaskParallelPlanWave struct {
+	Index   int      `json:"index,omitempty"`
+	TaskIDs []string `json:"task_ids,omitempty"`
+}
+
 // TaskParallelPayload describes one wave/merge/conflict transition emitted by the
 // ParallelExecutionOrchestrator during a parallel PRD-tasks run. Wave-level events
 // (wave_completed, merge_started) leave task_id empty; per-task events (wave_started,

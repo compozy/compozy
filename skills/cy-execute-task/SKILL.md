@@ -12,7 +12,7 @@ Execute one PRD task from exploration through tracking updates.
 - Task specification markdown.
 - PRD directory path.
 - Task file path.
-- Master tasks file path.
+- `_tasks.md` task graph manifest path.
 - Auto-commit mode.
 - Optional workflow memory directory path.
 - Optional shared workflow memory path.
@@ -47,11 +47,12 @@ Execute one PRD task from exploration through tracking updates.
 
 5. Update task tracking.
    - If workflow memory paths were provided, update the memory files first — record decisions, learnings, and touched surfaces before updating tracking status.
-   - Use the caller-provided task file path and master tasks file path.
+   - Use the caller-provided task file path and task graph manifest path.
    - Mark subtasks complete only when the implementation and evidence are actually complete.
    - Change task status to completed only after clean verification and self-review.
    - Read `references/tracking-checklist.md` when applying status, checklist, or commit updates.
-   - Sequence: memory update (if applicable) -> task file checkboxes -> task status -> master tasks file -> commit (if applicable).
+   - Do not edit `_tasks.md` during normal completion tracking; it owns graph topology, not per-task status.
+   - Sequence: memory update (if applicable) -> task file checkboxes -> task status -> commit (if applicable).
 
 6. Handle commit behavior.
    - If auto-commit is enabled, create one local commit after clean verification, self-review, and tracking updates.

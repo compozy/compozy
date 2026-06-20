@@ -27,8 +27,8 @@ The standard development pipeline follows these phases in order. Each phase prod
 2. **Ideation** (optional) -- install and enable the first-party `cy-idea-factory` extension, run `compozy setup`, then use `/cy-idea-factory` to expand a raw idea into a structured, research-backed spec at `.compozy/tasks/<slug>/_idea.md`.
 3. **Requirements** -- `/cy-create-prd` creates a business-focused Product Requirements Document at `.compozy/tasks/<slug>/_prd.md` with ADRs.
 4. **Technical Design** -- `/cy-create-techspec` translates the PRD into a technical specification at `.compozy/tasks/<slug>/_techspec.md` with ADRs.
-5. **Task Decomposition** -- `/cy-create-tasks` breaks down the PRD and TechSpec into independently implementable task files (`task_01.md`, `task_02.md`, etc.) and a master list at `_tasks.md`.
-6. **Execution** -- `compozy tasks run <slug> --ide <runtime>` dispatches task files sequentially to the configured AI agent for implementation.
+5. **Task Decomposition** -- `/cy-create-tasks` breaks down the PRD and TechSpec into independently implementable task files (`task_01.md`, `task_02.md`, etc.) and a canonical task graph manifest at `_tasks.md`.
+6. **Execution** -- `compozy tasks run <slug> --ide <runtime>` dispatches task files to the configured AI agent for implementation. Use `--parallel-tasks` to run one workflow by dependency waves from `_tasks.md` graph edges.
 7. **Review** -- `/cy-review-round` (manual AI review) or `compozy reviews fetch <slug> --provider coderabbit --pr <N>` (external provider) produces review issue files under `reviews-NNN/`.
 8. **Remediation** -- `compozy reviews fix <slug>` processes review issues, triages, fixes, and verifies each one.
 9. **Archive** -- `compozy archive --name <slug>` moves fully completed workflows to `.compozy/tasks/_archived/`.
@@ -73,7 +73,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | **Workflow Execution** | | |
 | `compozy daemon` | Manage the home-scoped daemon lifecycle | `start`, `status`, `stop` |
 | `compozy workspaces` | Inspect and manage daemon workspace registrations | `list`, `show`, `register`, `unregister`, `resolve` |
-| `compozy tasks run` | Execute PRD task files through the daemon | `--name`, `--multiple`, `--recursive` / `-r`, `--attach`, `--ui`, `--stream`, `--detach`, `--task-runtime` |
+| `compozy tasks run` | Execute PRD task files through the daemon | `--name`, `--multiple`, `--parallel`, `--parallel-limit`, `--parallel-tasks`, `--recursive` / `-r`, `--attach`, `--ui`, `--stream`, `--detach`, `--task-runtime` |
 | `compozy exec` | Execute an ad hoc prompt | `--agent`, `--format`, `--prompt-file`, `--tui`, `--persist`, `--run-id` |
 | `compozy runs` | Attach, watch, and purge daemon-managed runs | `attach`, `watch`, `purge` |
 | **Review** | | |
@@ -131,7 +131,7 @@ For detailed skill descriptions and inputs/outputs, read `references/skills-refe
       _idea.md                         # Idea spec (from cy-idea-factory)
       _prd.md                          # Product Requirements Document
       _techspec.md                     # Technical Specification
-      _tasks.md                        # Master task list
+      _tasks.md                        # Task graph manifest
       task_01.md ... task_N.md         # Individual task files
       adrs/
         adr-001.md ... adr-NNN.md      # Architecture Decision Records

@@ -56,6 +56,32 @@ func TestTaskParallelPayloadFieldsDocumented(t *testing.T) {
 	})
 }
 
+func TestTaskParallelPlanPayloadFieldsDocumented(t *testing.T) {
+	t.Parallel()
+	t.Run("Should document every TaskParallelPlan payload field", func(t *testing.T) {
+		t.Parallel()
+
+		content := readEventsDocumentation(t)
+		for _, payload := range []any{
+			TaskParallelPlanPayload{},
+			TaskParallelPlanTask{},
+			TaskParallelPlanWave{},
+		} {
+			payloadType := reflect.TypeOf(payload)
+			for i := range payloadType.NumField() {
+				tag := jsonFieldName(payloadType.Field(i).Tag.Get("json"))
+				if tag == "" || tag == "-" {
+					continue
+				}
+				want := "\x60" + tag + "\x60"
+				if !strings.Contains(content, want) {
+					t.Fatalf("expected docs/events.md to document %s field %s", payloadType.Name(), want)
+				}
+			}
+		}
+	})
+}
+
 func TestRunRecoveryPayloadFieldsDocumented(t *testing.T) {
 	t.Parallel()
 

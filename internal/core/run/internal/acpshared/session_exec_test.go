@@ -208,6 +208,7 @@ func TestResolveACPInitTimeoutScalesAndCapsActivityTimeout(t *testing.T) {
 		want time.Duration
 	}{
 		{name: "disabled", in: 0, want: 0},
+		{name: "uses minimum for small activity timeout", in: 1500 * time.Millisecond, want: 10 * time.Second},
 		{name: "scales", in: 5 * time.Minute, want: 15 * time.Minute},
 		{name: "caps", in: 20 * time.Minute, want: 30 * time.Minute},
 	}

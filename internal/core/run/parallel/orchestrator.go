@@ -77,6 +77,7 @@ type WorktreeLifecycle interface {
 	SquashMerge(ctx context.Context, integrationPath string, worktreeRef string, message string) (ConflictSet, error)
 	Head(ctx context.Context, path string) (string, error)
 	FastForward(ctx context.Context, workspaceRoot string, targetBranch string, integrationBranch string) error
+	SyncTaskArtifacts(ctx context.Context, workspaceRoot string, tasks []TaskOutcome) error
 	DiscardIntegrationBranch(
 		ctx context.Context,
 		workspaceRoot string,
@@ -257,6 +258,7 @@ func (o *ExecutionOrchestrator) Run(ctx context.Context, plan ParallelPlan) (Par
 	if err := o.validatePlan(plan); err != nil {
 		return ParallelOutcome{}, err
 	}
+	o.emitPlanStarted(ctx, plan)
 
 	machine := newParallelFSM()
 	outcome := Outcome{
@@ -420,6 +422,11 @@ func (o *ExecutionOrchestrator) finalize(
 	}
 	if err := o.worktrees.FastForward(ctx, plan.WorkspaceRoot, plan.BaseBranch, plan.IntegrationBranch); err != nil {
 		return fmt.Errorf("fast-forward %s to %s: %w", plan.BaseBranch, plan.IntegrationBranch, err)
+	}
+	if err := o.worktrees.SyncTaskArtifacts(ctx, plan.WorkspaceRoot, outcome.Tasks); err != nil {
+		// Best-effort: the integration branch is already fast-forwarded, so task
+		// artifact write-back must not turn a completed code merge into rollback.
+		o.log.Warn("sync completed task artifacts", "run_id", plan.RunID, "error", err)
 	}
 	if err := o.cleanupCompleted(ctx, plan, outcome.Tasks); err != nil {
 		return err

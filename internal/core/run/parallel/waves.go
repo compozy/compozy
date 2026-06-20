@@ -20,6 +20,12 @@ type Waves struct {
 	successors map[TaskID][]TaskID
 }
 
+// DependencyEdge is a directed graph edge: From must finish before To can start.
+type DependencyEdge struct {
+	From TaskID
+	To   TaskID
+}
+
 // ErrCyclicDependencies identifies a task dependency cycle.
 var ErrCyclicDependencies = errors.New("cyclic task dependencies")
 
@@ -66,6 +72,45 @@ func BuildWaves(entries []model.TaskEntry) (Waves, error) {
 	graph, err := buildGraph(entries)
 	if err != nil {
 		return Waves{}, err
+	}
+	return graph.waves()
+}
+
+// BuildWavesFromEdges groups explicit graph nodes and dependency edges into
+// dependency-safe topological levels.
+func BuildWavesFromEdges(nodes []TaskID, edges []DependencyEdge) (Waves, error) {
+	graph := &dependencyGraph{
+		ids:          make([]TaskID, 0, len(nodes)),
+		predecessors: make(map[TaskID]map[TaskID]struct{}, len(nodes)),
+		successors:   make(map[TaskID]map[TaskID]struct{}, len(nodes)),
+	}
+	for _, rawID := range nodes {
+		id := normalizeTaskID(string(rawID))
+		if id == "" {
+			continue
+		}
+		if _, exists := graph.predecessors[id]; exists {
+			return Waves{}, fmt.Errorf("duplicate task id %q", id)
+		}
+		graph.ids = append(graph.ids, id)
+		graph.predecessors[id] = map[TaskID]struct{}{}
+		graph.successors[id] = map[TaskID]struct{}{}
+	}
+	sortTaskIDs(graph.ids)
+	for _, edge := range edges {
+		from := normalizeTaskID(string(edge.From))
+		to := normalizeTaskID(string(edge.To))
+		if from == "" || to == "" {
+			continue
+		}
+		if _, exists := graph.predecessors[from]; !exists {
+			return Waves{}, &MissingDependencyError{TaskID: to, Dependency: from}
+		}
+		if _, exists := graph.predecessors[to]; !exists {
+			return Waves{}, &MissingDependencyError{TaskID: from, Dependency: to}
+		}
+		graph.predecessors[to][from] = struct{}{}
+		graph.successors[from][to] = struct{}{}
 	}
 	return graph.waves()
 }

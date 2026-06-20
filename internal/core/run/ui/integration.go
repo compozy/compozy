@@ -10,9 +10,9 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// integrationPhase is the INTEGRATION pane's current lifecycle phase. The pane is
-// collapsed (a single status line) while idle/running/merged and expands during
-// merging/conflict/resolving/rolled-back so the operator keeps full context.
+// integrationPhase is the INTEGRATION pane's current lifecycle phase. The pane
+// is omitted while idle/running/merged and renders during merging, conflicts,
+// resolver progress, and rollback so the operator keeps full context.
 type integrationPhase int
 
 const (
@@ -145,7 +145,7 @@ func (p *parallelView) waveOfJob(job *uiJob) int {
 }
 
 func (p *parallelView) grouped() bool {
-	return p != nil && p.waveTotal > 0 && len(p.taskWave) > 0
+	return p != nil && p.observedWaveCount() > 0 && len(p.taskWave) > 0
 }
 
 func (p *parallelView) expanded() bool {
@@ -163,6 +163,53 @@ func (p *parallelView) expanded() bool {
 // ---------------------------------------------------------------------------
 // Event handlers (invoked from update.go)
 // ---------------------------------------------------------------------------
+
+func (m *uiModel) handleParallelPlanStarted(v parallelPlanStartedMsg) {
+	p := m.parallelState()
+	if len(v.Waves) > 0 {
+		p.ensureWaves(len(v.Waves))
+	}
+	if strings.TrimSpace(v.IntegrationBranch) != "" {
+		p.integrationBranch = strings.TrimSpace(v.IntegrationBranch)
+	}
+	for _, wave := range v.Waves {
+		p.ensureWaveIndex(wave.Index)
+		for _, taskID := range wave.TaskIDs {
+			p.assignTask(taskID, wave.Index)
+		}
+	}
+	for _, task := range v.Tasks {
+		number := task.Number
+		if number <= 0 {
+			number = tasks.ExtractTaskIdentityNumber(firstNonEmpty(task.ID, task.File))
+		}
+		if number <= 0 {
+			continue
+		}
+		taskID := strings.TrimSpace(task.ID)
+		if taskID == "" {
+			taskID = fmt.Sprintf("task_%02d", number)
+		}
+		file := strings.TrimSpace(task.File)
+		if file == "" {
+			file = fmt.Sprintf("task_%02d.md", number)
+		}
+		p.assignTask(taskID, task.WaveIndex)
+		if !m.hasTaskNumber(number) {
+			m.handleJobQueued(&jobQueuedMsg{
+				Index:      len(m.jobs),
+				CodeFile:   file,
+				TaskNumber: number,
+				TaskTitle:  firstNonEmpty(task.Title, taskID),
+				SafeName:   taskID,
+			})
+		}
+	}
+	if p.phase == integrationPhaseIdle || p.phase == integrationPhaseDone {
+		p.phase = integrationPhaseRunning
+	}
+	m.sidebarDirty = true
+}
 
 func (m *uiModel) handleParallelWaveStarted(v parallelWaveStartedMsg) {
 	p := m.parallelState()
@@ -275,11 +322,12 @@ func allWavesMerged(p *parallelView) bool {
 // trailing ungrouped stack so nothing is dropped.
 func (m *uiModel) renderWaveGroupedSidebar(width int) (string, int) {
 	p := m.parallel
-	sections := make([]string, 0, p.waveTotal+1)
+	waveCount := p.observedWaveCount()
+	sections := make([]string, 0, waveCount+1)
 	rendered := make([]bool, len(m.jobs))
 	selectedOffset := 0
 	lineCount := 0
-	for waveIdx := 0; waveIdx < p.waveTotal; waveIdx++ {
+	for waveIdx := 0; waveIdx < waveCount; waveIdx++ {
 		header := m.renderWaveHeader(waveIdx, width)
 		items := make([]string, 0)
 		for i := range m.jobs {
@@ -399,7 +447,7 @@ func waveStatusLabel(status waveStatus) string {
 	case waveStatusMerged:
 		return "merged"
 	default:
-		return "blocked"
+		return "pending"
 	}
 }
 
@@ -422,20 +470,18 @@ func waveStatusColor(status waveStatus) color.Color {
 // INTEGRATION pane
 // ---------------------------------------------------------------------------
 
-// renderIntegrationContent renders the persistent INTEGRATION pane body. It returns
-// "" when the run is not parallel so the box is omitted entirely. Collapsed it is a
-// single status line (wave progress + integration branch); during merge/conflict it
-// expands with a banner, conflicted files, a rollback indicator, and any streamed
-// resolver transcript.
+// renderIntegrationContent renders the INTEGRATION pane body only when parallel
+// integration needs operator attention or merge context. It returns "" when the
+// run is not parallel or the phase is routine running/done state.
 func (m *uiModel) renderIntegrationContent(contentWidth int) string {
 	if m.parallel == nil {
 		return ""
 	}
 	p := m.parallel
-	lines := []string{m.renderIntegrationStatusLine(contentWidth)}
 	if !p.expanded() {
-		return strings.Join(lines, "\n")
+		return ""
 	}
+	lines := []string{m.renderIntegrationStatusLine(contentWidth)}
 	lines = append(lines, m.renderIntegrationDetailLines(contentWidth)...)
 	return strings.Join(lines, "\n")
 }
@@ -464,8 +510,9 @@ func (m *uiModel) renderIntegrationStatusLine(width int) string {
 // token colored by its wave status.
 func (m *uiModel) renderWaveProgress(width int) string {
 	p := m.parallel
-	tokens := make([]string, 0, p.waveTotal)
-	for i := 0; i < p.waveTotal; i++ {
+	waveCount := p.observedWaveCount()
+	tokens := make([]string, 0, waveCount)
+	for i := 0; i < waveCount; i++ {
 		status := p.waveStatusAt(i)
 		token := fmt.Sprintf("w%d%s", i+1, waveStatusGlyph(status))
 		tokens = append(tokens, lipgloss.NewStyle().Foreground(waveStatusColor(status)).Render(token))
@@ -562,11 +609,21 @@ func conflictFilesLine(files []string) string {
 }
 
 func (p *parallelView) waveProgressString() string {
-	tokens := make([]string, 0, p.waveTotal)
-	for i := 0; i < p.waveTotal; i++ {
+	waveCount := p.observedWaveCount()
+	tokens := make([]string, 0, waveCount)
+	for i := 0; i < waveCount; i++ {
 		tokens = append(tokens, fmt.Sprintf("w%d%s", i+1, waveStatusGlyph(p.waveStatusAt(i))))
 	}
 	return strings.Join(tokens, " ")
+}
+
+// observedWaveCount is the planned render count. The plan event seeds pending
+// future waves before any task starts so the sidebar reflects the full DAG.
+func (p *parallelView) observedWaveCount() int {
+	if p == nil {
+		return 0
+	}
+	return p.waveTotal
 }
 
 func (m *uiModel) integrationBorderColor() color.Color {

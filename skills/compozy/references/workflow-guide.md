@@ -61,10 +61,11 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 1. Invoke `/cy-create-tasks` with the feature name.
 2. The skill loads the PRD and TechSpec, then breaks them into granular tasks.
 3. Review the proposed task breakdown.
-4. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`, `dependencies`.
-5. Tasks are enriched with codebase patterns and implementation context.
-6. Validation runs via `compozy tasks validate`.
-7. Output: `task_01.md` through `task_N.md`, `_tasks.md` master list.
+4. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`.
+5. `_tasks.md` is generated as the canonical `compozy.tasks/v2` graph manifest with `graph.nodes` and `graph.edges`.
+6. Tasks are enriched with codebase patterns and implementation context.
+7. Validation runs via `compozy tasks validate`.
+8. Output: `task_01.md` through `task_N.md`, `_tasks.md` task graph manifest.
 
 **Task types:** `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`. Custom types can be registered in `.compozy/config.toml` under `[tasks].types`.
 
@@ -72,7 +73,7 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 
 **Command:** `compozy tasks run <slug> --ide <runtime>`
 
-1. Compozy reads task files from `.compozy/tasks/<slug>/` in order, respecting dependencies.
+1. Compozy reads task files from `.compozy/tasks/<slug>/`. Sequential runs use task order; `--parallel-tasks` derives dependency waves from `_tasks.md` graph edges.
 2. The CLI auto-starts the home-scoped daemon when needed and starts the run through daemon transport.
 3. For each pending task, Compozy constructs a prompt including the task spec, PRD, TechSpec, ADRs, and workflow memory.
 4. The configured ACP runtime executes the task using the `cy-execute-task` skill.
@@ -83,6 +84,9 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 - `--auto-commit` -- create a local commit after each task completes cleanly.
 - `--dry-run` -- generate prompts without running the IDE tool.
 - `--include-completed` -- re-process tasks already marked as completed.
+- `--parallel-tasks` -- execute one workflow by dependency waves from `_tasks.md` graph edges, using isolated worktrees.
+- `--parallel` -- with `--multiple`, run multiple workflow slugs concurrently.
+- `--parallel-limit <N>` -- with `--multiple --parallel`, bound how many workflow children run at once.
 - `--recursive` / `-r` -- discover `task_NNN.md` files in nested subdirectories (e.g., `features/auth/task_01.md`). Root tasks run first, then each subdirectory alphabetically, numerically within. Dot- and underscore-prefixed directories, `reviews-*`, `adrs/`, and `memory/` are skipped.
 
 **Interactive mode:** In interactive terminals, `tasks run` attaches to the TUI by default; use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.

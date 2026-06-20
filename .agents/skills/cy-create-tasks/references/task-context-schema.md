@@ -1,14 +1,47 @@
-# Task Frontmatter Schema
+# Task Metadata Schemas
 
-Task metadata is parsed from YAML frontmatter by Compozy's `ParseTaskFile()` function in `internal/core/prompt/common.go`.
+Task metadata is parsed from YAML frontmatter by Compozy's `ParseTaskFile()` function in `internal/core/tasks/parser.go`.
+Parallel task execution also reads the canonical `_tasks.md` graph manifest.
 
-## Required Fields
+## `_tasks.md` Graph Manifest
+
+The `_tasks.md` file owns dependency relationships for the whole task suite. It must start with frontmatter shaped like:
+
+```yaml
+schema_version: "compozy.tasks/v2"
+workflow: feature-name
+graph:
+  nodes:
+    - id: task_01
+      file: task_01.md
+  edges:
+    - from: task_01
+      to: task_02
+```
+
+Graph rules:
+
+- `schema_version` MUST be `compozy.tasks/v2`.
+- `workflow` MUST match the feature/task directory name.
+- `graph.nodes` MUST include every generated task exactly once.
+- Node `id` values MUST be canonical `task_NN` identities.
+- Node `file` values MUST match the node id, e.g. `task_01.md`.
+- `graph.edges` stores dependency relationships only. Each edge means `from` must finish before `to` can start.
+- Use `edges: []` when there are no dependencies.
+- The graph MUST be acyclic.
+
+## Individual Task Frontmatter
+
+Individual task files own task metadata only. They do not own graph topology.
+
+### Required Fields
 
 - `status`: Task lifecycle state.
 - `title`: Human-readable task title. It must match the first H1 in the task body.
 - `type`: Allowed work type slug. Use `[tasks].types` from `.compozy/config.toml` when configured; otherwise use the built-in defaults `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
 - `complexity`: Difficulty rating. Must be one of: `low`, `medium`, `high`, `critical`.
-- `dependencies`: YAML list of task file names that must be completed before this task. Use `[]` when there are no dependencies.
+
+Do not include `dependencies` in individual task frontmatter for `compozy.tasks/v2` suites. Dependencies belong only in `_tasks.md` under `graph.edges`.
 
 ## Status Values
 

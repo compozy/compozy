@@ -411,7 +411,8 @@ func TestTaskRunWizardModel(t *testing.T) {
 		wizard.execCursor = taskRunWizardFieldParallelTasks
 		wizard.syncTextFocus()
 
-		if strings.Contains(wizard.renderExecutionStep(), "Conflict resolver IDE") {
+		const renderHeight = 60
+		if strings.Contains(wizard.renderExecutionStep(renderHeight), "Conflict resolver IDE") {
 			t.Fatal("parallel resolver controls should be hidden while parallel tasks are disabled")
 		}
 
@@ -419,7 +420,7 @@ func TestTaskRunWizardModel(t *testing.T) {
 		if !wizard.inputs.parallelTasks {
 			t.Fatal("expected parallel task toggle to enable parallel tasks")
 		}
-		if !strings.Contains(wizard.renderExecutionStep(), "Conflict resolver IDE") {
+		if !strings.Contains(wizard.renderExecutionStep(renderHeight), "Conflict resolver IDE") {
 			t.Fatal("expected resolver controls when parallel tasks are enabled")
 		}
 
@@ -463,6 +464,80 @@ func TestTaskRunWizardModel(t *testing.T) {
 			taskRunParallelConflictResolverModelFlag,
 			taskRunParallelConflictResolverReasoningFlag,
 		} {
+			if !cmd.Flags().Changed(flag) {
+				t.Fatalf("expected %s to be marked explicit", flag)
+			}
+		}
+	})
+
+	t.Run("Should hide parallel workflow controls for a single workflow", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+			selectedWorkflows: []string{"alpha"},
+		})
+		wizard.step = taskRunWizardStepExecution
+
+		if slices.Contains(wizard.executionFields(), taskRunWizardFieldParallelWorkflows) {
+			t.Fatal("parallel workflow control should be hidden for a single workflow")
+		}
+		if strings.Contains(wizard.renderExecutionStep(60), "Run Parallel Workflows") {
+			t.Fatal("parallel workflow row should not render for a single workflow")
+		}
+	})
+
+	t.Run("Should configure parallel workflow controls", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha", "beta")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+			selectedWorkflows: []string{"alpha", "beta"},
+			ide:               "codex",
+			reasoningEffort:   "medium",
+			accessMode:        core.AccessModeFull,
+		})
+		wizard.step = taskRunWizardStepExecution
+		wizard.syncTextFocus()
+
+		if !slices.Contains(wizard.executionFields(), taskRunWizardFieldParallelWorkflows) {
+			t.Fatal("expected parallel workflow control for multiple workflows")
+		}
+		if strings.Contains(wizard.renderExecutionStep(60), "Max concurrent") {
+			t.Fatal("max concurrent should be hidden while parallel workflows are disabled")
+		}
+
+		wizard.execCursor = taskRunWizardFieldParallelWorkflows
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !wizard.inputs.parallelWorkflows {
+			t.Fatal("expected parallel workflow toggle to enable parallel workflows")
+		}
+		if !slices.Contains(wizard.executionFields(), taskRunWizardFieldParallelWorkflowLimit) {
+			t.Fatal("expected max concurrent control once parallel workflows are enabled")
+		}
+		if !strings.Contains(wizard.renderExecutionStep(60), "Max concurrent") {
+			t.Fatal("expected max concurrent row when parallel workflows are enabled")
+		}
+
+		wizard.execCursor = taskRunWizardFieldParallelWorkflowLimit
+		wizard.inputs.parallelWorkflowLimit = ""
+		wizard.textInputs.parallelWorkflowLimit.SetValue("")
+		wizard.syncTextFocus()
+		wizard = updateTaskRunWizardTestModel(t, wizard, "3")
+		if wizard.inputs.parallelWorkflowLimit != "3" {
+			t.Fatalf("max concurrent = %q, want 3", wizard.inputs.parallelWorkflowLimit)
+		}
+
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		if err := wizard.inputs.apply(cmd, appliedState); err != nil {
+			t.Fatalf("apply parallel workflow wizard inputs: %v", err)
+		}
+		if !appliedState.parallel || appliedState.parallelLimit != 3 {
+			t.Fatalf("unexpected applied parallel workflow state: parallel=%v limit=%d",
+				appliedState.parallel, appliedState.parallelLimit)
+		}
+		for _, flag := range []string{"parallel", "parallel-limit"} {
 			if !cmd.Flags().Changed(flag) {
 				t.Fatalf("expected %s to be marked explicit", flag)
 			}
@@ -517,6 +592,33 @@ func TestTaskRunWizardView(t *testing.T) {
 				typed.showHelp = true
 				assertTaskRunWizardViewFits(t, typed, dim.w, dim.h)
 			})
+		}
+	})
+
+	t.Run("Should fit bounds with every execution section expanded", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha", "beta")
+		dims := []struct {
+			w, h int
+		}{{72, 22}, {80, 24}, {120, 40}}
+		for _, dim := range dims {
+			wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+				selectedWorkflows: []string{"alpha", "beta"},
+				parallelTasks:     true,
+				parallelWorkflows: true,
+				recoveryEnabled:   true,
+			})
+			updated, _ := wizard.Update(tea.WindowSizeMsg{Width: dim.w, Height: dim.h})
+			typed, ok := updated.(*taskRunWizardModel)
+			if !ok {
+				t.Fatalf("resize model type = %T, want *taskRunWizardModel", updated)
+			}
+			typed.step = taskRunWizardStepExecution
+			// Focus the last field so the scroll window's lower bound is exercised.
+			typed.execCursor = taskRunWizardFieldDefineRuntime
+			typed.syncTextFocus()
+			assertTaskRunWizardViewFits(t, typed, dim.w, dim.h)
 		}
 	})
 }

@@ -13,6 +13,8 @@ import (
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/charmtheme"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
@@ -21,9 +23,10 @@ import (
 )
 
 const (
-	// multiRunTabsHeight reserves rows for the tab strip: the tab line, the
-	// active-tab worktree status line, and the separator.
-	multiRunTabsHeight = 3
+	// multiRunBaseTabsHeight reserves rows for the tab line and separator. The
+	// active-tab worktree status line is added only when meaningful metadata is
+	// available.
+	multiRunBaseTabsHeight = 2
 
 	taskMultiStatusQueued    = "queued"
 	taskMultiStatusRunning   = "running"
@@ -67,6 +70,7 @@ type multiRunTab struct {
 	worktreeStatus string
 	child          *uiModel
 	translator     *uiEventTranslator
+	aggregateChild bool
 	terminal       bool
 }
 
@@ -708,21 +712,44 @@ func (m *multiRunModel) hasAnyActiveTab() bool {
 }
 
 // ensureTabChild lazily creates a tab's embedded cockpit, reusing the parent's
-// config and job-control handlers. fallbackRunID seeds the child run id when the
-// tab has not yet learned its own.
-func (m *multiRunModel) ensureTabChild(tab *multiRunTab, fallbackRunID string) {
-	if tab == nil || tab.child != nil {
+// config and job-control handlers. The child cockpit must only be attached to a
+// real child run id; parent task_multi runs do not produce ACP transcripts.
+func (m *multiRunModel) ensureTabChild(tab *multiRunTab, runID string) {
+	if tab == nil {
 		return
 	}
+	childRunID := strings.TrimSpace(firstNonEmpty(tab.runID, runID))
+	if childRunID == "" {
+		return
+	}
+	if tab.child != nil {
+		tab.runID = childRunID
+		tab.aggregateChild = false
+		if tab.child.cfg != nil {
+			tab.child.cfg.RunID = childRunID
+		}
+		tab.child.onJobControl = newRemoteJobControlHandler(childRunID, m.pauseRunJob, m.sendRunJobMessage)
+		return
+	}
+	tab.runID = childRunID
 	tab.child = newPlaceholderChildModelWithControls(
 		tab.slug,
-		firstNonEmpty(tab.runID, fallbackRunID),
+		childRunID,
 		m.cfg,
 		m.childWidth(),
 		m.childHeight(),
 		m.pauseRunJob,
 		m.sendRunJobMessage,
 	)
+	tab.aggregateChild = false
+}
+
+func (m *multiRunModel) ensureParallelAggregateChild(tab *multiRunTab) {
+	if tab == nil || tab.child != nil {
+		return
+	}
+	tab.child = newParallelAggregateChildModel(m.cfg, m.childWidth(), m.childHeight())
+	tab.aggregateChild = true
 }
 
 // applyParallelParentEvent forwards a task.parallel.* parent event to the active
@@ -737,13 +764,218 @@ func (m *multiRunModel) applyParallelParentEvent(ev events.Event) {
 		}
 		tab = &m.tabs[0]
 	}
-	m.ensureTabChild(tab, m.parentRun.RunID)
+	if tab.child == nil {
+		m.ensureParallelAggregateChild(tab)
+	}
+	if tab.child == nil {
+		return
+	}
+	applyParallelAggregateTabStatus(tab, ev)
+	m.applyParallelEventToChild(tab, ev)
+}
+
+func applyParallelAggregateTabStatus(tab *multiRunTab, ev events.Event) {
+	if tab == nil {
+		return
+	}
+	switch ev.Kind {
+	case events.EventKindTaskParallelRolledBack:
+		tab.status = taskMultiStatusFailed
+		tab.terminal = true
+	case events.EventKindTaskParallelPlanStarted,
+		events.EventKindTaskParallelWaveStarted,
+		events.EventKindTaskParallelMergeStarted,
+		events.EventKindTaskParallelConflictDetected,
+		events.EventKindTaskParallelConflictResolving,
+		events.EventKindTaskParallelMerged,
+		events.EventKindTaskParallelWaveCompleted:
+		if !tab.terminal {
+			tab.status = taskMultiStatusRunning
+		}
+	}
+}
+
+func (m *multiRunModel) applyParallelEventToChild(tab *multiRunTab, ev events.Event) {
+	if tab == nil || tab.child == nil {
+		return
+	}
+	if tab.aggregateChild {
+		ensureParallelAggregateTask(tab.child, ev)
+		applyParallelAggregateTaskOutcome(tab.child, ev)
+	}
 	if tab.translator == nil {
 		tab.translator = newUIEventTranslator()
 	}
 	for _, uiMsg := range tab.translator.translateMessages(ev) {
 		applyChildUIMsg(tab, uiMsg)
 	}
+}
+
+func ensureParallelAggregateTask(child *uiModel, ev events.Event) {
+	if child == nil {
+		return
+	}
+	payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+	if !ok {
+		return
+	}
+	number := tasks.ExtractTaskIdentityNumber(payload.TaskID)
+	if number <= 0 {
+		return
+	}
+	taskID := strings.TrimSpace(payload.TaskID)
+	if taskID == "" {
+		taskID = fmt.Sprintf("task_%02d", number)
+	}
+	if index, ok := child.taskNumberIndex(number); ok {
+		if ev.Kind == events.EventKindTaskParallelWaveStarted && child.jobs[index].state == jobPending {
+			child.applyUIMsg(jobStartedMsg{Index: index, Attempt: 1, MaxAttempts: 1})
+			child.applyUIMsg(parallelAggregateTaskNotice(index, taskID))
+		}
+		return
+	}
+	index := len(child.jobs)
+	child.applyUIMsg(jobQueuedMsg{
+		Index:      index,
+		CodeFile:   fmt.Sprintf("task_%02d.md", number),
+		TaskNumber: number,
+		TaskTitle:  taskID,
+		SafeName:   taskID,
+	})
+	if ev.Kind == events.EventKindTaskParallelWaveStarted {
+		child.applyUIMsg(jobStartedMsg{Index: index, Attempt: 1, MaxAttempts: 1})
+		child.applyUIMsg(parallelAggregateTaskNotice(index, taskID))
+	}
+}
+
+func applyParallelAggregateTaskOutcome(child *uiModel, ev events.Event) {
+	if child == nil {
+		return
+	}
+	if ev.Kind == events.EventKindTaskParallelRolledBack {
+		failActiveParallelAggregateJobs(child)
+		return
+	}
+	if ev.Kind != events.EventKindTaskParallelMerged {
+		return
+	}
+	payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+	if !ok {
+		return
+	}
+	number := tasks.ExtractTaskIdentityNumber(payload.TaskID)
+	if number <= 0 {
+		return
+	}
+	for idx := range child.jobs {
+		if child.jobs[idx].taskNumber != number {
+			continue
+		}
+		finishParallelAggregateJob(child, idx, true)
+		return
+	}
+}
+
+func failActiveParallelAggregateJobs(child *uiModel) {
+	finishActiveParallelAggregateJobs(child, false)
+}
+
+func finishActiveParallelAggregateJobs(child *uiModel, success bool) {
+	if child == nil {
+		return
+	}
+	for idx := range child.jobs {
+		finishParallelAggregateJob(child, idx, success)
+	}
+}
+
+func finishParallelAggregateJob(child *uiModel, index int, success bool) {
+	if child == nil || index < 0 || index >= len(child.jobs) {
+		return
+	}
+	switch child.jobs[index].state {
+	case jobRunning, jobPausing, jobRetrying:
+	default:
+		return
+	}
+	taskID := parallelAggregateTaskID(&child.jobs[index], index)
+	child.applyUIMsg(jobFinishedMsg{Index: index, Success: success})
+	child.applyUIMsg(parallelAggregateTaskTerminalNotice(index, taskID, success))
+}
+
+func parallelAggregateTaskID(job *uiJob, index int) string {
+	if job == nil {
+		return fmt.Sprintf("task_%02d", index+1)
+	}
+	if taskID := strings.TrimSpace(job.safeName); taskID != "" {
+		return taskID
+	}
+	if taskID := strings.TrimSpace(job.taskTitle); taskID != "" {
+		return taskID
+	}
+	if job.taskNumber > 0 {
+		return fmt.Sprintf("task_%02d", job.taskNumber)
+	}
+	if codeFile := strings.TrimSpace(job.codeFile); codeFile != "" {
+		return strings.TrimSuffix(codeFile, ".md")
+	}
+	return fmt.Sprintf("task_%02d", index+1)
+}
+
+func parallelAggregateTaskNotice(index int, taskID string) jobUpdateMsg {
+	title := "Parallel task running"
+	if trimmed := strings.TrimSpace(taskID); trimmed != "" {
+		title = "Parallel task running: " + trimmed
+	}
+	return parallelAggregateTaskNoticeSnapshot(index, title, model.StatusRunning)
+}
+
+func parallelAggregateTaskTerminalNotice(index int, taskID string, success bool) jobUpdateMsg {
+	status := model.StatusCompleted
+	title := "Parallel task completed"
+	if !success {
+		status = model.StatusFailed
+		title = "Parallel task stopped"
+	}
+	if trimmed := strings.TrimSpace(taskID); trimmed != "" {
+		title += ": " + trimmed
+	}
+	return parallelAggregateTaskNoticeSnapshot(index, title, status)
+}
+
+func parallelAggregateTaskNoticeSnapshot(index int, title string, status model.SessionStatus) jobUpdateMsg {
+	return jobUpdateMsg{
+		Index: index,
+		Snapshot: SessionViewSnapshot{
+			Revision: 1,
+			Entries: []TranscriptEntry{{
+				ID:    fmt.Sprintf("parallel-%d-%s", index, status),
+				Kind:  transcriptEntryRuntimeNotice,
+				Title: title,
+			}},
+			Session: SessionMetaState{Status: status},
+		},
+	}
+}
+
+func (m *uiModel) hasTaskNumber(number int) bool {
+	if m == nil || number <= 0 {
+		return false
+	}
+	_, ok := m.taskNumberIndex(number)
+	return ok
+}
+
+func (m *uiModel) taskNumberIndex(number int) (int, bool) {
+	if m == nil || number <= 0 {
+		return -1, false
+	}
+	for i := range m.jobs {
+		if m.jobs[i].taskNumber == number {
+			return i, true
+		}
+	}
+	return -1, false
 }
 
 func (m *multiRunModel) handleParentEvent(ev events.Event) {
@@ -756,7 +988,8 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		events.EventKindTaskRunMultipleChildFailed,
 		events.EventKindTaskRunMultipleItemCanceled:
 		m.applyTaskMultiItem(ev)
-	case events.EventKindTaskParallelWaveStarted,
+	case events.EventKindTaskParallelPlanStarted,
+		events.EventKindTaskParallelWaveStarted,
 		events.EventKindTaskParallelWaveCompleted,
 		events.EventKindTaskParallelMergeStarted,
 		events.EventKindTaskParallelConflictDetected,
@@ -766,6 +999,7 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		m.applyParallelParentEvent(ev)
 	case events.EventKindTaskRunMultipleQueueCompleted:
 		m.parentRun.Status = remoteRunStatusCompleted
+		m.applyParentRunCompleted()
 		m.quitDialog.Close()
 		m.shutdown = shutdownState{}
 	case events.EventKindTaskRunMultipleQueueCanceled:
@@ -774,15 +1008,55 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		m.quitDialog.Close()
 	case events.EventKindRunCompleted:
 		m.parentRun.Status = remoteRunStatusCompleted
+		m.applyParentRunCompleted()
 		m.quitDialog.Close()
 	case events.EventKindRunFailed:
 		m.parentRun.Status = remoteRunStatusFailed
+		m.applyParentRunFailed(ev)
 		m.quitDialog.Close()
 	case events.EventKindRunCancelled:
 		m.parentRun.Status = remoteRunStatusCanceled
 		m.quitDialog.Close()
 	default:
 		return
+	}
+}
+
+func (m *multiRunModel) applyParentRunCompleted() {
+	for idx := range m.tabs {
+		tab := &m.tabs[idx]
+		if tab.terminal {
+			continue
+		}
+		if tab.aggregateChild {
+			finishActiveParallelAggregateJobs(tab.child, true)
+		}
+		tab.status = taskMultiStatusCompleted
+		tab.terminal = true
+	}
+}
+
+func (m *multiRunModel) applyParentRunFailed(ev events.Event) {
+	message := ""
+	if payload, ok := decodeUIEventPayload[kinds.RunFailedPayload](ev); ok {
+		message = strings.TrimSpace(payload.Error)
+	}
+	if message == "" {
+		message = "Parent run failed before a child run started."
+	}
+	for idx := range m.tabs {
+		tab := &m.tabs[idx]
+		if tab.terminal && tab.status != taskMultiStatusFailed {
+			continue
+		}
+		tab.status = taskMultiStatusFailed
+		tab.terminal = true
+		if strings.TrimSpace(tab.errorText) == "" {
+			tab.errorText = message
+		}
+		if tab.aggregateChild {
+			failActiveParallelAggregateJobs(tab.child)
+		}
 	}
 }
 
@@ -881,6 +1155,7 @@ func (m *multiRunModel) handleChildBootstrap(msg multiRunChildBootstrapMsg) {
 		m.tabs[idx].status = status
 		m.tabs[idx].terminal = isTerminalTaskMultiStatus(status)
 	}
+	m.tabs[idx].aggregateChild = false
 }
 
 func (m *multiRunModel) handleChildEvent(msg multiRunChildEventMsg) tea.Cmd {
@@ -952,27 +1227,36 @@ func (m *multiRunModel) renderTabs() string {
 	hint := charmtheme.Keycap("←→/hl") + renderGap(1) + styleMutedText.Render("TABS")
 	line := renderBrandTabsRow(m.width, chunks, hint)
 	separator := renderOwnedLineKnownOwned(m.width, styleSeparator.Render(strings.Repeat("─", m.width)))
-	return line + "\n" + m.renderActiveTabWorktreeLine() + "\n" + separator
+	worktreeLine := m.renderActiveTabWorktreeLine()
+	if worktreeLine == "" {
+		return line + "\n" + separator
+	}
+	return line + "\n" + worktreeLine + "\n" + separator
 }
 
 // renderActiveTabWorktreeLine renders the worktree handoff status for the active
-// tab below the tab strip. It always renders one owned line so the worktree path
-// and preservation status stay visible while a child transcript fills the body.
+// tab below the tab strip when there is meaningful handoff metadata. Empty
+// metadata is omitted so queued tabs do not add a low-signal `worktree —` row.
 func (m *multiRunModel) renderActiveTabWorktreeLine() string {
 	summary := formatMultiRunWorktreeSummary(m.activeTabState())
+	if summary == "" {
+		return ""
+	}
 	body := renderGap(1) + styleMutedText.Render(truncateString(summary, max(m.width-2, 1)))
 	return renderOwnedLineKnownOwned(m.width, body)
 }
 
-// formatMultiRunWorktreeSummary builds a single-line worktree handoff summary for
-// a tab. Missing metadata renders as an em dash so older snapshots without
-// worktree fields stay backward compatible.
+// formatMultiRunWorktreeSummary builds a single-line worktree handoff summary
+// for a tab. Missing metadata renders nothing, keeping queued tabs compact.
 func formatMultiRunWorktreeSummary(tab *multiRunTab) string {
 	if tab == nil {
-		return "worktree —"
+		return ""
 	}
 	segments := make([]string, 0, 3)
-	segments = append(segments, "worktree "+multiRunWorktreeLabel(tab))
+	label := multiRunWorktreeLabel(tab)
+	if label != "" {
+		segments = append(segments, "worktree "+label)
+	}
 	if branch := strings.TrimSpace(tab.baseBranch); branch != "" {
 		segments = append(segments, "branch "+branch)
 	}
@@ -982,8 +1266,7 @@ func formatMultiRunWorktreeSummary(tab *multiRunTab) string {
 	return strings.Join(segments, "   ")
 }
 
-// multiRunWorktreeLabel composes the preservation status and worktree path,
-// falling back to an em dash when neither is known.
+// multiRunWorktreeLabel composes the preservation status and worktree path.
 func multiRunWorktreeLabel(tab *multiRunTab) string {
 	status := strings.TrimSpace(tab.worktreeStatus)
 	path := strings.TrimSpace(tab.worktreePath)
@@ -995,7 +1278,7 @@ func multiRunWorktreeLabel(tab *multiRunTab) string {
 	case status != "":
 		return status
 	default:
-		return "—"
+		return ""
 	}
 }
 
@@ -1249,7 +1532,15 @@ func (m *multiRunModel) childWidth() int {
 }
 
 func (m *multiRunModel) childHeight() int {
-	return max(m.height-multiRunTabsHeight, 1)
+	return max(m.height-m.tabsHeight(), 1)
+}
+
+func (m *multiRunModel) tabsHeight() int {
+	height := multiRunBaseTabsHeight
+	if formatMultiRunWorktreeSummary(m.activeTabState()) != "" {
+		height++
+	}
+	return height
 }
 
 func (t *multiRunTab) applyChildSnapshot(
@@ -1306,6 +1597,20 @@ func childModelFromRunSnapshot(snapshot apicore.RunSnapshot, cfg *config, width 
 
 func newPlaceholderChildModel(slug string, cfg *config, width int, height int) *uiModel {
 	return newPlaceholderChildModelWithControls(slug, "", cfg, width, height, nil, nil)
+}
+
+func newParallelAggregateChildModel(cfg *config, width int, height int) *uiModel {
+	mdl := newUIModel(0)
+	localCfg := &config{}
+	if cfg != nil {
+		copied := *cfg
+		copied.RunID = ""
+		localCfg = &copied
+	}
+	mdl.cfg = localCfg
+	mdl.headerHidden = true
+	mdl.handleWindowSize(tea.WindowSizeMsg{Width: width, Height: height})
+	return mdl
 }
 
 func newPlaceholderChildModelWithControls(

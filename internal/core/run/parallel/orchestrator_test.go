@@ -214,6 +214,12 @@ func runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T)
 	) {
 		t.Fatalf("merge order = %#v, want task-number commit order", got)
 	}
+	if got := worktrees.syncedArtifactOrder(); !reflect.DeepEqual(
+		got,
+		[]TaskID{"task_01", "task_02", "task_03"},
+	) {
+		t.Fatalf("synced artifact tasks = %#v, want merged task order", got)
+	}
 }
 
 func runParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead(t *testing.T) {
@@ -551,6 +557,19 @@ func runParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
 	if outcome.Status != ParallelOutcomeCompleted {
 		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeCompleted)
 	}
+	plans := emitter.plans()
+	if len(plans) != 1 {
+		t.Fatalf("plan_started events = %d, want 1", len(plans))
+	}
+	if plans[0].RunID != plan.RunID || plans[0].IntegrationBranch != plan.IntegrationBranch {
+		t.Fatalf("plan_started payload = %#v, want run/integration metadata", plans[0])
+	}
+	if len(plans[0].Tasks) != 2 || len(plans[0].Waves) != 2 {
+		t.Fatalf("plan_started graph size = tasks:%d waves:%d, want 2/2", len(plans[0].Tasks), len(plans[0].Waves))
+	}
+	if plans[0].Tasks[1].ID != "task_02" || !reflect.DeepEqual(plans[0].Tasks[1].Dependencies, []string{"task_01"}) {
+		t.Fatalf("plan_started task_02 = %#v, want dependency on task_01", plans[0].Tasks[1])
+	}
 
 	started := emitter.byKind(events.EventKindTaskParallelWaveStarted)
 	startedWaves := map[string]int{}
@@ -688,6 +707,10 @@ func runParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
 func runNoopEventEmitterIsInert(t *testing.T) {
 	t.Parallel()
 	var emitter ParallelEventEmitter = noopEventEmitter{}
+	emitter.EmitParallelPlanEvent(
+		context.Background(),
+		kinds.TaskParallelPlanPayload{RunID: "run"},
+	)
 	emitter.EmitParallelEvent(
 		context.Background(),
 		events.EventKindTaskParallelMerged,
@@ -701,8 +724,18 @@ type recordedParallelEvent struct {
 }
 
 type fakeParallelEventEmitter struct {
-	mu       sync.Mutex
-	recorded []recordedParallelEvent
+	mu         sync.Mutex
+	planEvents []kinds.TaskParallelPlanPayload
+	recorded   []recordedParallelEvent
+}
+
+func (e *fakeParallelEventEmitter) EmitParallelPlanEvent(
+	_ context.Context,
+	payload kinds.TaskParallelPlanPayload,
+) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.planEvents = append(e.planEvents, payload)
 }
 
 func (e *fakeParallelEventEmitter) EmitParallelEvent(
@@ -713,6 +746,12 @@ func (e *fakeParallelEventEmitter) EmitParallelEvent(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.recorded = append(e.recorded, recordedParallelEvent{kind: kind, payload: payload})
+}
+
+func (e *fakeParallelEventEmitter) plans() []kinds.TaskParallelPlanPayload {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]kinds.TaskParallelPlanPayload(nil), e.planEvents...)
 }
 
 func (e *fakeParallelEventEmitter) byKind(kind events.EventKind) []kinds.TaskParallelPayload {
@@ -748,6 +787,7 @@ type fakeWorktreeLifecycle struct {
 	integrationCommits int
 	removed            []string
 	fastForwarded      bool
+	syncedArtifacts    []TaskID
 	discardedBranch    bool
 	pruned             bool
 }
@@ -811,6 +851,15 @@ func (f *fakeWorktreeLifecycle) FastForward(context.Context, string, string, str
 	return nil
 }
 
+func (f *fakeWorktreeLifecycle) SyncTaskArtifacts(_ context.Context, _ string, tasks []TaskOutcome) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range tasks {
+		f.syncedArtifacts = append(f.syncedArtifacts, tasks[i].Task.ID)
+	}
+	return nil
+}
+
 func (f *fakeWorktreeLifecycle) DiscardIntegrationBranch(context.Context, string, string, string) error {
 	f.mu.Lock()
 	f.discardedBranch = true
@@ -848,6 +897,12 @@ func (f *fakeWorktreeLifecycle) wasFastForwarded() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.fastForwarded
+}
+
+func (f *fakeWorktreeLifecycle) syncedArtifactOrder() []TaskID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]TaskID(nil), f.syncedArtifacts...)
 }
 
 func (f *fakeWorktreeLifecycle) wasDiscarded() bool {

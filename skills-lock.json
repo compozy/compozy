@@ -11,6 +11,12 @@
             "sourceType": "github",
             "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
         },
+        "cmux-orchestration": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/cmux-orchestration/SKILL.md",
+            "computedHash": "5ea0eccfcf5e08b2bd85841ab2183f77dfbfdda0732a8ff9285653cbef504264"
+        },
         "context7": {
             "source": "pedronauck/skills",
             "sourceType": "github",

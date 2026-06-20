@@ -2,6 +2,8 @@ package parallelrun
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
@@ -22,12 +24,16 @@ const (
 // must never block the FSM: event delivery is observability, not control flow, so
 // emit failures are absorbed (logged) by the implementation rather than returned.
 type ParallelEventEmitter interface {
+	EmitParallelPlanEvent(ctx context.Context, payload kinds.TaskParallelPlanPayload)
 	EmitParallelEvent(ctx context.Context, kind events.EventKind, payload kinds.TaskParallelPayload)
 }
 
 // noopEventEmitter is the default emitter used when no observability sink is wired
 // (unit tests, library callers without a journal).
 type noopEventEmitter struct{}
+
+func (noopEventEmitter) EmitParallelPlanEvent(context.Context, kinds.TaskParallelPlanPayload) {
+}
 
 func (noopEventEmitter) EmitParallelEvent(context.Context, events.EventKind, kinds.TaskParallelPayload) {
 }
@@ -52,6 +58,73 @@ func (o *ExecutionOrchestrator) emit(
 		payload.IntegrationBranch = strings.TrimSpace(plan.IntegrationBranch)
 	}
 	o.emitter.EmitParallelEvent(ctx, kind, payload)
+}
+
+func (o *ExecutionOrchestrator) emitPlanStarted(ctx context.Context, plan ParallelPlan) {
+	if o == nil || o.emitter == nil {
+		return
+	}
+	taskWave := make(map[TaskID]int)
+	levels := plan.Waves.Levels()
+	waves := make([]kinds.TaskParallelPlanWave, 0, len(levels))
+	for waveIndex, level := range levels {
+		wave := kinds.TaskParallelPlanWave{Index: waveIndex, TaskIDs: make([]string, 0, len(level))}
+		for _, taskID := range level {
+			taskWave[taskID] = waveIndex
+			wave.TaskIDs = append(wave.TaskIDs, string(taskID))
+		}
+		waves = append(waves, wave)
+	}
+	dependencies := dependenciesByTask(plan.Waves)
+	tasks := make([]kinds.TaskParallelPlanTask, 0, len(plan.Tasks))
+	orderedTasks := append([]TaskSpec(nil), plan.Tasks...)
+	sort.SliceStable(orderedTasks, func(i, j int) bool {
+		return orderedTasks[i].Number < orderedTasks[j].Number
+	})
+	for _, task := range orderedTasks {
+		deps := make([]string, 0, len(dependencies[task.ID]))
+		for _, dep := range dependencies[task.ID] {
+			deps = append(deps, string(dep))
+		}
+		tasks = append(tasks, kinds.TaskParallelPlanTask{
+			ID:           string(task.ID),
+			Number:       task.Number,
+			Title:        strings.TrimSpace(task.Title),
+			File:         fmt.Sprintf("task_%02d.md", task.Number),
+			Dependencies: deps,
+			WaveIndex:    taskWave[task.ID],
+		})
+	}
+	o.emitter.EmitParallelPlanEvent(ctx, kinds.TaskParallelPlanPayload{
+		RunID:             strings.TrimSpace(plan.RunID),
+		Workflow:          workflowFromTasks(plan.Tasks),
+		IntegrationBranch: strings.TrimSpace(plan.IntegrationBranch),
+		ParallelLimit:     maxConcurrency(plan.Config),
+		Tasks:             tasks,
+		Waves:             waves,
+	})
+}
+
+func dependenciesByTask(waves Waves) map[TaskID][]TaskID {
+	dependencies := make(map[TaskID][]TaskID)
+	for from, successors := range waves.successors {
+		for _, to := range successors {
+			dependencies[to] = append(dependencies[to], from)
+		}
+	}
+	for taskID := range dependencies {
+		sortTaskIDs(dependencies[taskID])
+	}
+	return dependencies
+}
+
+func workflowFromTasks(tasks []TaskSpec) string {
+	for _, task := range tasks {
+		if slug := strings.TrimSpace(task.Slug); slug != "" {
+			return slug
+		}
+	}
+	return ""
 }
 
 // emitWaveStarted announces one task entering a running wave so the TUI can assign

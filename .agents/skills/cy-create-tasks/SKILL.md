@@ -34,9 +34,9 @@ Decompose requirements into detailed, actionable task files with codebase-inform
 
 3. Break down into tasks.
    - Decompose implementation sections from the TechSpec into granular, independently implementable tasks.
-   - **Each task MUST be independently implementable when all of its declared dependencies are met.** No task may require undeclared work from another task. If two tasks share a tight coupling, either merge them or extract the shared piece into a dependency task.
+   - **Each task MUST be independently implementable when all dependencies declared in `_tasks.md` graph edges are met.** No task may require undeclared work from another task. If two tasks share a tight coupling, either merge them or extract the shared piece into a dependency task.
    - **No circular dependencies.** If task A depends on task B, task B must NOT depend on task A (directly or transitively).
-   - Each task must have: title, type, complexity, and dependencies.
+   - Each task must have: title, type, complexity, and dependency relationships in the graph plan.
    - Assign complexity using these criteria:
      - `low`: Single file change, no new interfaces, no concurrency, straightforward logic.
      - `medium`: 2-4 files, may introduce a new interface or struct, limited integration points.
@@ -54,19 +54,29 @@ Decompose requirements into detailed, actionable task files with codebase-inform
    - Iterate until the user explicitly approves.
 
 5. Generate task files.
-   - Write `_tasks.md` as the master task list using this exact markdown table format:
+   - Write `_tasks.md` as the canonical task graph manifest. It MUST start with this YAML frontmatter shape:
      ```markdown
-     # [Feature Name] — Task List
+     ---
+     schema_version: "compozy.tasks/v2"
+     workflow: [feature-name]
+     graph:
+       nodes:
+         - id: task_01
+           file: task_01.md
+       edges:
+         - from: task_01
+           to: task_02
+     ---
 
-     ## Tasks
-
-     | # | Title | Status | Complexity | Dependencies |
-     |---|-------|--------|------------|--------------|
-     | 01 | [Task title] | pending | [low/medium/high/critical] | [task_NN, ... or —] |
+     # [Feature Name] Task List
      ```
+   - `_tasks.md` is the only place dependency relationships are stored. Each edge means `from` must finish before `to` can start.
+   - Include every task in `graph.nodes`, using canonical sequential ids (`task_01`, `task_02`, ...) and matching files (`task_01.md`, `task_02.md`, ...).
+   - Use `edges: []` when there are no dependencies.
    - Write individual task files as `task_01.md`, `task_02.md`, through `task_N.md`.
    - Task files use the `task_` prefix without a leading underscore.
-   - Each file must start with YAML frontmatter containing `status`, `title`, `type`, `complexity`, and `dependencies`. Use `dependencies: []` when there are no dependencies — do not omit the field.
+   - Each file must start with YAML frontmatter containing only task-owned metadata: `status`, `title`, `type`, and `complexity`.
+   - Do NOT write `dependencies` in individual task frontmatter or duplicate dependency lists in the task body.
    - Task numbering must be sequential and consistent between `_tasks.md` and individual files.
 
 6. Enrich each task file.
@@ -100,6 +110,7 @@ Do NOT produce tasks with these defects:
 
 - **Mega-tasks.** If a task touches more than 7 files or has more than 7 subtasks, it is too broad. Split it into smaller tasks with explicit dependencies between them.
 - **TechSpec duplication.** Do NOT copy interface definitions, code snippets, or architectural diagrams from the TechSpec into task files. Reference the TechSpec section by name (e.g., "See TechSpec 'Core Interfaces' section") instead of reproducing its content.
+- **Graph duplication.** Do NOT duplicate dependency relationships in individual task frontmatter or task body prose. `_tasks.md` frontmatter is the canonical graph.
 - **Vague test cases.** Do NOT write test descriptions like "test the happy path" or "verify error handling." Each test case must name the specific input, condition, or behavior being verified (e.g., "POST /job/done with unknown job ID returns 404").
 
 ## Error Handling

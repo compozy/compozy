@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
 	tea "charm.land/bubbletea/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 )
 
 func TestMultiRunInitialSnapshotRendersQueuedTabsInOrder(t *testing.T) {
@@ -881,39 +882,80 @@ func TestMultiRunParentStartedAndQueueCanceledEvents(t *testing.T) {
 func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should forward parallel events to the active child tab", func(t *testing.T) {
-		mdl := &multiRunModel{
-			parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
-			width:      120,
-			height:     30,
-			cfg:        &config{},
-			quitDialog: newQuitDialogState(),
-		}
-		mdl.handleParentEvent(mustRuntimeEventUITest(
-			t,
-			eventspkg.EventKindTaskRunMultipleStarted,
-			kinds.TaskRunMultiplePayload{Status: taskMultiStatusRunning, Slugs: []string{"alpha"}, Total: 1},
-		))
-		if len(mdl.tabs) != 1 {
-			t.Fatalf("expected one tab, got %d", len(mdl.tabs))
-		}
+	t.Run("Should seed all aggregate tasks from the parent plan event", func(t *testing.T) {
+		t.Parallel()
 
+		mdl := newParallelAggregateStartedModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
-			eventspkg.EventKindTaskParallelWaveStarted,
-			kinds.TaskParallelPayload{
-				WaveIndex:         0,
-				WaveTotal:         1,
-				TaskID:            "task_01",
+			eventspkg.EventKindTaskParallelPlanStarted,
+			kinds.TaskParallelPlanPayload{
+				Workflow:          "alpha",
 				IntegrationBranch: "compozy/parallel-x",
+				ParallelLimit:     2,
+				Tasks: []kinds.TaskParallelPlanTask{
+					{ID: "task_01", Number: 1, Title: "Task 1", File: "task_01.md", WaveIndex: 0},
+					{
+						ID:           "task_02",
+						Number:       2,
+						Title:        "Task 2",
+						File:         "task_02.md",
+						Dependencies: []string{"task_01"},
+						WaveIndex:    1,
+					},
+				},
+				Waves: []kinds.TaskParallelPlanWave{
+					{Index: 0, TaskIDs: []string{"task_01"}},
+					{Index: 1, TaskIDs: []string{"task_02"}},
+				},
 			},
 		))
+
 		child := mdl.tabs[0].child
+		if child == nil || len(child.jobs) != 2 {
+			t.Fatalf("plan-seeded aggregate jobs = %#v, want two jobs", child)
+		}
+		for idx := range child.jobs {
+			if child.jobs[idx].state != jobPending {
+				t.Fatalf("plan-seeded job %d state = %v, want pending", idx, child.jobs[idx].state)
+			}
+		}
+		view := xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "WAVE 1") || !strings.Contains(view, "WAVE 2") ||
+			!strings.Contains(view, "Task 1") || !strings.Contains(view, "Task 2") {
+			t.Fatalf("expected seeded aggregate plan view, got:\n%s", view)
+		}
+	})
+
+	t.Run("Should render parent parallel events without a child run id", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		if child == nil || child.parallel == nil {
-			t.Fatal("expected parallel parent event to initialize the child parallel view")
+			t.Fatal("expected parent parallel event to create an aggregate parallel child")
+		}
+		if !mdl.tabs[0].aggregateChild {
+			t.Fatal("expected aggregate child marker while no real child run id exists")
+		}
+		if mdl.tabs[0].status != taskMultiStatusRunning {
+			t.Fatalf("aggregate tab status = %q, want running after parent parallel event", mdl.tabs[0].status)
+		}
+		if len(child.jobs) != 1 || child.jobs[0].taskNumber != 1 {
+			t.Fatalf("aggregate jobs = %#v, want only task_01", child.jobs)
 		}
 		if got := child.parallel.integrationBranch; got != "compozy/parallel-x" {
 			t.Fatalf("integration branch = %q, want compozy/parallel-x", got)
+		}
+		view := xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "WAVE 1") || !strings.Contains(view, "task_01") {
+			t.Fatalf("expected aggregate parallel view with wave and task, got:\n%s", view)
+		}
+		if !strings.Contains(view, "Parallel task running: task_01") {
+			t.Fatalf("expected aggregate task notice instead of empty ACP transcript, got:\n%s", view)
+		}
+		if strings.Contains(view, "Waiting for ACP updates") || strings.Contains(view, "No ACP transcript yet") {
+			t.Fatalf("aggregate parallel view must not render ACP waiting placeholders, got:\n%s", view)
+		}
+		if strings.Contains(view, "QUEUE.QUEUED") {
+			t.Fatalf("parallel-tasks tab must not stay on queued placeholder, got:\n%s", view)
 		}
 
 		mdl.handleParentEvent(mustRuntimeEventUITest(
@@ -932,6 +974,187 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		}
 		if !child.parallel.expanded() {
 			t.Fatal("expected the INTEGRATION pane to expand on conflict")
+		}
+
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelMerged,
+			kinds.TaskParallelPayload{WaveIndex: 0, TaskID: "task_01", Status: "merged"},
+		))
+		if child.jobs[0].state != jobSuccess {
+			t.Fatalf("aggregate task state = %v, want success after merged event", child.jobs[0].state)
+		}
+		if child.hasActiveJobs() {
+			t.Fatal("aggregate child must stop spinning after merged event")
+		}
+		if got := child.jobs[0].snapshot.Entries[0].Title; got != "Parallel task completed: task_01" {
+			t.Fatalf("aggregate task notice = %q, want completed", got)
+		}
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleQueueCompleted,
+			kinds.TaskRunMultiplePayload{Status: taskMultiStatusCompleted, Total: 1},
+		))
+		if mdl.tabs[0].status != taskMultiStatusCompleted || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after queue completion = %#v", mdl.tabs[0])
+		}
+	})
+
+	t.Run("Should complete active aggregate jobs when parent run completes", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunCompleted,
+			kinds.RunCompletedPayload{JobsTotal: 1, JobsSucceeded: 1},
+		))
+
+		if mdl.tabs[0].status != taskMultiStatusCompleted || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after parent completion = %#v", mdl.tabs[0])
+		}
+		if child.jobs[0].state != jobSuccess {
+			t.Fatalf("aggregate task state = %v, want success after parent completion", child.jobs[0].state)
+		}
+		if child.hasActiveJobs() {
+			t.Fatal("aggregate child must stop spinning after parent completion")
+		}
+		if got := child.jobs[0].snapshot.Entries[0].Title; got != "Parallel task completed: task_01" {
+			t.Fatalf("aggregate task notice = %q, want completed", got)
+		}
+	})
+
+	t.Run("Should fail aggregate jobs on rollback without a task id", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelRolledBack,
+			kinds.TaskParallelPayload{WaveIndex: 0},
+		))
+
+		if child.jobs[0].state != jobFailed {
+			t.Fatalf("aggregate task state = %v, want failed after rollback", child.jobs[0].state)
+		}
+		if child.hasActiveJobs() {
+			t.Fatal("aggregate child must stop spinning after rollback")
+		}
+		if mdl.tabs[0].status != taskMultiStatusFailed || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after rollback = %#v", mdl.tabs[0])
+		}
+		if got := child.jobs[0].snapshot.Entries[0].Title; got != "Parallel task stopped: task_01" {
+			t.Fatalf("aggregate task notice = %q, want stopped", got)
+		}
+	})
+
+	t.Run("Should fail aggregate jobs when parent run fails", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunFailed,
+			kinds.RunFailedPayload{Error: "merge failed"},
+		))
+
+		if mdl.tabs[0].status != taskMultiStatusFailed || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after parent failure = %#v", mdl.tabs[0])
+		}
+		if child.jobs[0].state != jobFailed {
+			t.Fatalf("aggregate task state = %v, want failed after parent run failure", child.jobs[0].state)
+		}
+		if child.hasActiveJobs() {
+			t.Fatal("aggregate child must stop spinning after parent run failure")
+		}
+		if mdl.tabs[0].errorText != "merge failed" {
+			t.Fatalf("tab failure text = %q, want merge failed", mdl.tabs[0].errorText)
+		}
+		if got := child.jobs[0].snapshot.Entries[0].Title; got != "Parallel task stopped: task_01" {
+			t.Fatalf("aggregate task notice = %q, want stopped", got)
+		}
+	})
+}
+
+func newParallelAggregateMultiRunTestModel(t *testing.T) (*multiRunModel, *uiModel) {
+	t.Helper()
+
+	mdl := newParallelAggregateStartedModel(t)
+	mdl.handleParentEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindTaskParallelPlanStarted,
+		kinds.TaskParallelPlanPayload{
+			Workflow:          "alpha",
+			IntegrationBranch: "compozy/parallel-x",
+			ParallelLimit:     1,
+			Tasks: []kinds.TaskParallelPlanTask{
+				{ID: "task_01", Number: 1, Title: "task_01", File: "task_01.md", WaveIndex: 0},
+			},
+			Waves: []kinds.TaskParallelPlanWave{
+				{Index: 0, TaskIDs: []string{"task_01"}},
+			},
+		},
+	))
+	mdl.handleParentEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindTaskParallelWaveStarted,
+		kinds.TaskParallelPayload{
+			WaveIndex:         0,
+			WaveTotal:         1,
+			TaskID:            "task_01",
+			IntegrationBranch: "compozy/parallel-x",
+		},
+	))
+	return mdl, mdl.tabs[0].child
+}
+
+func newParallelAggregateStartedModel(t *testing.T) *multiRunModel {
+	t.Helper()
+
+	mdl := &multiRunModel{
+		parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+		width:      120,
+		height:     30,
+		cfg:        &config{},
+		quitDialog: newQuitDialogState(),
+	}
+	mdl.handleParentEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindTaskRunMultipleStarted,
+		kinds.TaskRunMultiplePayload{Status: taskMultiStatusRunning, Slugs: []string{"alpha"}, Total: 1},
+	))
+	if len(mdl.tabs) != 1 {
+		t.Fatalf("expected one tab, got %d", len(mdl.tabs))
+	}
+	return mdl
+}
+
+func TestMultiRunParentRunFailedBeforeChildStartMarksQueuedTabFailed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should show the parent failure without creating a fake child cockpit", func(t *testing.T) {
+		t.Parallel()
+
+		mdl := &multiRunModel{
+			parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			width:      120,
+			height:     30,
+			cfg:        &config{},
+			quitDialog: newQuitDialogState(),
+		}
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleStarted,
+			kinds.TaskRunMultiplePayload{Status: taskMultiStatusRunning, Slugs: []string{"alpha"}, Total: 1},
+		))
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunFailed,
+			kinds.RunFailedPayload{Error: "missing task directory"},
+		))
+		if mdl.tabs[0].child != nil {
+			t.Fatalf("run.failed before child start created child placeholder: %#v", mdl.tabs[0].child)
+		}
+		if mdl.tabs[0].status != taskMultiStatusFailed || mdl.tabs[0].errorText != "missing task directory" {
+			t.Fatalf("tab after parent failure = %#v", mdl.tabs[0])
+		}
+		view := xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "QUEUE.FAILED") || !strings.Contains(view, "missing task directory") {
+			t.Fatalf("expected failed queued panel with error, got %q", view)
 		}
 	})
 }
@@ -1446,10 +1669,10 @@ func TestMultiRunChildStartedEventAppliesWorktreeMetadataToTab(t *testing.T) {
 	})
 }
 
-func TestMultiRunSnapshotWithoutWorktreeMetadataRendersDash(t *testing.T) {
+func TestMultiRunSnapshotWithoutWorktreeMetadataOmitsWorktreeRow(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should render an em dash and not panic when metadata is absent", func(t *testing.T) {
+	t.Run("Should omit the worktree row and not panic when metadata is absent", func(t *testing.T) {
 		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
 			Snapshot: apicore.TaskRunMultipleSnapshot{
 				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
@@ -1463,8 +1686,8 @@ func TestMultiRunSnapshotWithoutWorktreeMetadataRendersDash(t *testing.T) {
 		}
 		mdl.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
 
-		if view := mdl.View().Content; !strings.Contains(view, "worktree —") {
-			t.Fatalf("expected empty worktree to render as em dash, got %q", view)
+		if view := mdl.View().Content; strings.Contains(view, "worktree") {
+			t.Fatalf("expected empty worktree metadata row to be omitted, got %q", view)
 		}
 	})
 }
@@ -1477,8 +1700,8 @@ func TestFormatMultiRunWorktreeSummary(t *testing.T) {
 		tab  *multiRunTab
 		want string
 	}{
-		{name: "Should render dash for nil tab", tab: nil, want: "worktree —"},
-		{name: "Should render dash when no metadata", tab: &multiRunTab{slug: "alpha"}, want: "worktree —"},
+		{name: "Should render empty summary for nil tab", tab: nil, want: ""},
+		{name: "Should render empty summary when no metadata", tab: &multiRunTab{slug: "alpha"}, want: ""},
 		{
 			name: "Should render status and path",
 			tab:  &multiRunTab{worktreePath: "/wt/01", worktreeStatus: "preserved"},

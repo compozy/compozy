@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 )
 
 func newParallelTestModel(t *testing.T, size tea.WindowSizeMsg, taskNumbers ...int) *uiModel {
@@ -39,6 +40,15 @@ func taskParallelEvent(t *testing.T, kind events.EventKind, payload kinds.TaskPa
 		t.Fatalf("marshal payload: %v", err)
 	}
 	return events.Event{Kind: kind, Payload: raw}
+}
+
+func taskParallelPlanEvent(t *testing.T, payload kinds.TaskParallelPlanPayload) events.Event {
+	t.Helper()
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal plan payload: %v", err)
+	}
+	return events.Event{Kind: events.EventKindTaskParallelPlanStarted, Payload: raw}
 }
 
 func TestTranslateParallelEvent(t *testing.T) {
@@ -131,6 +141,41 @@ func TestTranslateParallelEvent(t *testing.T) {
 			tc.assert(t, msg)
 		})
 	}
+
+	t.Run("Should map plan_started to a full graph plan message", func(t *testing.T) {
+		t.Parallel()
+
+		msg, ok := translateParallelEvent(taskParallelPlanEvent(t, kinds.TaskParallelPlanPayload{
+			Workflow:          "demo",
+			IntegrationBranch: "compozy/parallel-x",
+			ParallelLimit:     2,
+			Tasks: []kinds.TaskParallelPlanTask{
+				{ID: "task_01", Number: 1, Title: "First", File: "task_01.md", WaveIndex: 0},
+				{
+					ID:           "task_02",
+					Number:       2,
+					Title:        "Second",
+					File:         "task_02.md",
+					Dependencies: []string{"task_01"},
+					WaveIndex:    1,
+				},
+			},
+			Waves: []kinds.TaskParallelPlanWave{
+				{Index: 0, TaskIDs: []string{"task_01"}},
+				{Index: 1, TaskIDs: []string{"task_02"}},
+			},
+		}))
+		if !ok {
+			t.Fatal("translateParallelEvent(plan_started) returned ok=false")
+		}
+		got, ok := msg.(parallelPlanStartedMsg)
+		if !ok {
+			t.Fatalf("msg type = %T, want parallelPlanStartedMsg", msg)
+		}
+		if got.Workflow != "demo" || got.ParallelLimit != 2 || len(got.Tasks) != 2 || len(got.Waves) != 2 {
+			t.Fatalf("unexpected plan message: %#v", got)
+		}
+	})
 }
 
 func TestParallelSidebarGroupsCardsByWave(t *testing.T) {
@@ -165,45 +210,90 @@ func TestParallelSidebarGroupsCardsByWave(t *testing.T) {
 	}
 }
 
-func TestParallelIntegrationPaneCollapsesUntilConflict(t *testing.T) {
+func TestParallelSidebarRendersPlannedFutureWaves(t *testing.T) {
 	t.Parallel()
 
-	m := newParallelTestModel(t, tea.WindowSizeMsg{Width: 120, Height: 30}, 1, 2)
-	m.applyUIMsg(
-		parallelWaveStartedMsg{WaveIndex: 0, WaveTotal: 2, TaskID: "task_01", IntegrationBranch: "compozy/parallel-x"},
-	)
+	t.Run("Should render pending waves from the plan before they emit task events", func(t *testing.T) {
+		t.Parallel()
 
-	collapsed := m.renderIntegrationContent(60)
-	if collapsed == "" {
-		t.Fatal("expected a collapsed INTEGRATION line during wave_running")
-	}
-	if strings.Contains(collapsed, "\n") {
-		t.Fatalf("INTEGRATION pane must be a single line while running, got:\n%s", collapsed)
-	}
-	if !strings.Contains(collapsed, "INTEGRATION") {
-		t.Fatalf("collapsed line missing label:\n%s", collapsed)
-	}
+		m := newParallelTestModel(t, tea.WindowSizeMsg{Width: 120, Height: 30}, 1)
+		m.applyUIMsg(parallelPlanStartedMsg{
+			IntegrationBranch: "compozy/parallel-x",
+			Tasks: []parallelPlanTask{
+				{ID: "task_01", Number: 1, Title: "Task 1", File: "task_01.md", WaveIndex: 0},
+				{
+					ID:           "task_02",
+					Number:       2,
+					Title:        "Task 2",
+					File:         "task_02.md",
+					Dependencies: []string{"task_01"},
+					WaveIndex:    1,
+				},
+			},
+			Waves: []parallelPlanWave{
+				{Index: 0, TaskIDs: []string{"task_01"}},
+				{Index: 1, TaskIDs: []string{"task_02"}},
+			},
+		})
+		m.applyUIMsg(parallelWaveStartedMsg{WaveIndex: 0, WaveTotal: 2, TaskID: "task_01"})
 
-	m.applyUIMsg(parallelConflictMsg{
-		WaveIndex:   0,
-		TaskID:      "task_01",
-		Files:       []string{"story.txt"},
-		Attempt:     1,
-		MaxAttempts: 3,
+		content := xansi.Strip(m.sidebarContent)
+		if !strings.Contains(content, "WAVE 1") || !strings.Contains(content, "WAVE 2") {
+			t.Fatalf("expected both planned waves, got:\n%s", content)
+		}
+		wave2 := strings.Index(content, "WAVE 2")
+		task2 := strings.Index(content, "Task 2")
+		if task2 <= wave2 {
+			t.Fatalf("planned task 2 must render under pending WAVE 2, got:\n%s", content)
+		}
+		if strings.Contains(strings.ToLower(content), "blocked") {
+			t.Fatalf("pending planned waves must not render as blocked, got:\n%s", content)
+		}
 	})
-	expanded := m.renderIntegrationContent(60)
-	if !strings.Contains(expanded, "\n") {
-		t.Fatalf("INTEGRATION pane must expand on conflict, got:\n%s", expanded)
-	}
-	if !strings.Contains(expanded, "CONFLICT") {
-		t.Fatalf("expanded pane missing conflict banner:\n%s", expanded)
-	}
-	if !strings.Contains(expanded, "story.txt") {
-		t.Fatalf("expanded pane missing conflicted files:\n%s", expanded)
-	}
-	if !strings.Contains(expanded, "1/3") {
-		t.Fatalf("expanded pane missing attempt counter:\n%s", expanded)
-	}
+}
+
+func TestParallelIntegrationPaneRendersOnlyWhenActionable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should hide the pane while running and expand on conflict", func(t *testing.T) {
+		t.Parallel()
+
+		m := newParallelTestModel(t, tea.WindowSizeMsg{Width: 120, Height: 30}, 1, 2)
+		m.applyUIMsg(
+			parallelWaveStartedMsg{
+				WaveIndex:         0,
+				WaveTotal:         2,
+				TaskID:            "task_01",
+				IntegrationBranch: "compozy/parallel-x",
+			},
+		)
+
+		collapsed := m.renderIntegrationContent(60)
+		if collapsed != "" {
+			t.Fatalf("INTEGRATION pane must be hidden during normal running, got:\n%s", collapsed)
+		}
+
+		m.applyUIMsg(parallelConflictMsg{
+			WaveIndex:   0,
+			TaskID:      "task_01",
+			Files:       []string{"story.txt"},
+			Attempt:     1,
+			MaxAttempts: 3,
+		})
+		expanded := m.renderIntegrationContent(60)
+		if !strings.Contains(expanded, "\n") {
+			t.Fatalf("INTEGRATION pane must expand on conflict, got:\n%s", expanded)
+		}
+		if !strings.Contains(expanded, "CONFLICT") {
+			t.Fatalf("expanded pane missing conflict banner:\n%s", expanded)
+		}
+		if !strings.Contains(expanded, "story.txt") {
+			t.Fatalf("expanded pane missing conflicted files:\n%s", expanded)
+		}
+		if !strings.Contains(expanded, "1/3") {
+			t.Fatalf("expanded pane missing attempt counter:\n%s", expanded)
+		}
+	})
 }
 
 func TestParallelConflictResolvingThenMergedUpdatesPaneAndWaveHeader(t *testing.T) {

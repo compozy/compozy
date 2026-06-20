@@ -146,6 +146,8 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 // to bound that switch's cyclomatic complexity.
 func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 	switch value := msg.(type) {
+	case parallelPlanStartedMsg:
+		m.handleParallelPlanStarted(value)
 	case parallelWaveStartedMsg:
 		m.handleParallelWaveStarted(value)
 	case parallelMergeStartedMsg:

@@ -238,6 +238,29 @@ type dispatchBatchMsg struct {
 
 // Parallel task execution messages translated from task.parallel.* events. They
 // drive the wave-grouped sidebar and the persistent INTEGRATION pane.
+type parallelPlanStartedMsg struct {
+	Workflow          string
+	IntegrationBranch string
+	ParallelLimit     int
+	Tasks             []parallelPlanTask
+	Waves             []parallelPlanWave
+}
+
+type parallelPlanTask struct {
+	ID           string
+	Number       int
+	Title        string
+	File         string
+	Status       string
+	Dependencies []string
+	WaveIndex    int
+}
+
+type parallelPlanWave struct {
+	Index   int
+	TaskIDs []string
+}
+
 type parallelWaveStartedMsg struct {
 	WaveIndex         int
 	WaveTotal         int

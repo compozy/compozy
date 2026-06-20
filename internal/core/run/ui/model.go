@@ -704,6 +704,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindShutdownRequested,
 			events.EventKindShutdownDraining,
 			events.EventKindShutdownTerminated,
+			events.EventKindTaskParallelPlanStarted,
 			events.EventKindTaskParallelWaveStarted,
 			events.EventKindTaskParallelWaveCompleted,
 			events.EventKindTaskParallelMergeStarted,
@@ -818,6 +819,18 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 
 func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 	switch ev.Kind {
+	case events.EventKindTaskParallelPlanStarted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPlanPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelPlanStartedMsg{
+			Workflow:          payload.Workflow,
+			IntegrationBranch: payload.IntegrationBranch,
+			ParallelLimit:     payload.ParallelLimit,
+			Tasks:             parallelPlanTasksFromPayload(payload.Tasks),
+			Waves:             parallelPlanWavesFromPayload(payload.Waves),
+		}, true
 	case events.EventKindTaskParallelWaveStarted:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
@@ -871,6 +884,33 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func parallelPlanTasksFromPayload(tasks []kinds.TaskParallelPlanTask) []parallelPlanTask {
+	out := make([]parallelPlanTask, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, parallelPlanTask{
+			ID:           task.ID,
+			Number:       task.Number,
+			Title:        task.Title,
+			File:         task.File,
+			Status:       task.Status,
+			Dependencies: append([]string(nil), task.Dependencies...),
+			WaveIndex:    task.WaveIndex,
+		})
+	}
+	return out
+}
+
+func parallelPlanWavesFromPayload(waves []kinds.TaskParallelPlanWave) []parallelPlanWave {
+	out := make([]parallelPlanWave, 0, len(waves))
+	for _, wave := range waves {
+		out = append(out, parallelPlanWave{
+			Index:   wave.Index,
+			TaskIDs: append([]string(nil), wave.TaskIDs...),
+		})
+	}
+	return out
 }
 
 func parallelConflictFromPayload(ev events.Event, resolving bool) (uiMsg, bool) {

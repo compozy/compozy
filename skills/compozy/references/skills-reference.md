@@ -58,10 +58,10 @@ Translates PRD business requirements into a technical implementation design.
 Decomposes PRDs and TechSpecs into detailed, independently implementable task files with codebase-informed enrichment.
 
 - **Inputs:** Existing `_prd.md` and `_techspec.md`.
-- **Outputs:** Individual task files (`task_01.md`, `task_02.md`, etc.), `_tasks.md` master list.
+- **Outputs:** Individual task files (`task_01.md`, `task_02.md`, etc.), `_tasks.md` task graph manifest.
 - **Pipeline position:** After TechSpec. Feeds into `compozy tasks run`.
 - **Process:** Load PRD+TechSpec context -> break into granular tasks -> user approval -> generate task files -> enrich with codebase patterns -> validate with `compozy tasks validate`.
-- **Task metadata:** Each task has YAML frontmatter with `status` (pending/in_progress/completed), `title`, `type`, `complexity`, and `dependencies`.
+- **Task metadata:** Each task has YAML frontmatter with `status` (pending/in_progress/completed), `title`, `type`, and `complexity`. Dependency relationships live only in `_tasks.md` under `graph.edges`.
 - **Use when:** A PRD and TechSpec exist and need to be broken into executable tasks.
 - **Do not use for:** Execution, review, or code implementation.
 
@@ -73,7 +73,7 @@ Decomposes PRDs and TechSpecs into detailed, independently implementable task fi
 
 Executes one PRD task end-to-end using the provided task file, PRD directory, and tracking file paths.
 
-- **Inputs:** Task specification, PRD directory path, task file path, master tasks file path, auto-commit mode. Optional workflow memory paths.
+- **Inputs:** Task specification, PRD directory path, task file path, `_tasks.md` task graph manifest path, auto-commit mode. Optional workflow memory paths.
 - **Outputs:** Implemented code changes, updated task tracking files, optional commit.
 - **Pipeline position:** Called by `compozy tasks run` for each task in sequence.
 - **Process:** Ground in PRD/TechSpec context -> build execution checklist -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
