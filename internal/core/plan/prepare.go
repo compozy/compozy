@@ -678,7 +678,7 @@ func resolveTaskRuntimeTarget(
 ) model.TaskRuntimeTarget {
 	workflow := ""
 	if cfg != nil {
-		workflow = strings.TrimSpace(cfg.Name)
+		workflow = taskRuntimeWorkflowName(cfg)
 	}
 	target := model.TaskRuntimeTarget{
 		Workflow: workflow,
@@ -693,6 +693,16 @@ func resolveTaskRuntimeTarget(
 		target.ID = batchIssues[0].CodeFile
 	}
 	return target
+}
+
+func taskRuntimeWorkflowName(cfg *model.RuntimeConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	if workflow := strings.TrimSpace(cfg.WorkflowName); workflow != "" {
+		return workflow
+	}
+	return strings.TrimSpace(cfg.Name)
 }
 
 func validateResolvedJobRuntime(cfg *model.RuntimeConfig) error {

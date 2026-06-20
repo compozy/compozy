@@ -32,6 +32,7 @@ type RunLifecycleSettings struct {
 	KeepTerminalDays     int
 	KeepMax              int
 	ShutdownDrainTimeout time.Duration
+	WorktreesRoot        string
 }
 
 // ReconcileConfig controls startup crash reconciliation.

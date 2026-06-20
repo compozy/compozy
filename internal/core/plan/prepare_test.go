@@ -502,7 +502,8 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	}
 
 	jobs, err := prepareJobs(context.Background(), &model.RuntimeConfig{
-		Name:            "demo",
+		Name:            "demo-task-02",
+		WorkflowName:    "demo",
 		WorkspaceRoot:   workspaceRoot,
 		TasksDir:        tasksDir,
 		IDE:             model.IDECodex,

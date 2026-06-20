@@ -373,7 +373,7 @@ func buildDaemonParallelTaskPlan(
 ) (runparallel.Waves, []runparallel.TaskSpec, error) {
 	manifest, taskFiles, err := taskscore.LoadValidatedTaskGraphManifest(ctx, tasksDir, strings.TrimSpace(workflowSlug))
 	if err != nil {
-		return runparallel.Waves{}, nil, fmt.Errorf("read parallel task graph manifest: %w", err)
+		return runparallel.Waves{}, nil, parallelTaskGraphManifestProblem(tasksDir, err)
 	}
 	executableIDs := make(map[string]struct{}, len(taskFiles))
 	taskSpecs := make([]runparallel.TaskSpec, 0, len(taskFiles))
@@ -412,6 +412,30 @@ func buildDaemonParallelTaskPlan(
 		return runparallel.Waves{}, nil, err
 	}
 	return waves, taskSpecs, nil
+}
+
+func parallelTaskGraphManifestProblem(tasksDir string, err error) error {
+	manifestPath := filepath.Join(strings.TrimSpace(tasksDir), taskscore.TaskGraphManifestFileName)
+	switch {
+	case errors.Is(err, taskscore.ErrTaskGraphManifestMissing):
+		return apicore.NewProblem(
+			http.StatusUnprocessableEntity,
+			"parallel_tasks_manifest_required",
+			"parallel task execution requires _tasks.md with schema compozy.tasks/v2",
+			map[string]any{"field": taskscore.TaskGraphManifestFileName, "path": manifestPath},
+			err,
+		)
+	case errors.Is(err, taskscore.ErrTaskGraphManifestInvalid):
+		return apicore.NewProblem(
+			http.StatusUnprocessableEntity,
+			"parallel_tasks_manifest_invalid",
+			err.Error(),
+			map[string]any{"field": taskscore.TaskGraphManifestFileName, "path": manifestPath},
+			err,
+		)
+	default:
+		return fmt.Errorf("read parallel task graph manifest: %w", err)
+	}
 }
 
 func parallelTaskMaxConcurrency(cfg workspacecfg.ParallelTasksConfig) int {
@@ -1546,6 +1570,9 @@ func remapTaskMultiChildRuntime(
 	}
 	remapped.WorkspaceRoot = trimmedPath
 	remapped.TasksDir = model.TaskDirectoryForWorkspace(trimmedPath, trimmedSlug)
+	if strings.TrimSpace(remapped.WorkflowName) == "" {
+		remapped.WorkflowName = trimmedSlug
+	}
 	remapped.ParentRunID = strings.TrimSpace(parentRunID)
 	remapped.RunID = ""
 	return remapped, nil

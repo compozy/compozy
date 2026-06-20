@@ -428,6 +428,120 @@ func (a *taskMultiWorktreeAllocator) DiscardIntegrationBranch(
 	return nil
 }
 
+// DiscardIntegrationBranchIfExists removes an integration worktree and branch
+// during explicit purge. Missing branches are acceptable because rollback may
+// already have discarded the integration branch while preserving task worktrees.
+func (a *taskMultiWorktreeAllocator) DiscardIntegrationBranchIfExists(
+	ctx context.Context,
+	workspaceRoot string,
+	worktreesRoot string,
+	integrationPath string,
+	integrationBranch string,
+) (string, bool, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return "", false, err
+	}
+	workspace, err := requireTaskMultiWorktreeValue(workspaceRoot, "workspace root")
+	if err != nil {
+		return "", false, err
+	}
+	path, err := requireTaskMultiWorktreeValue(integrationPath, "integration path")
+	if err != nil {
+		return "", false, err
+	}
+	branch, err := requireTaskMultiWorktreeValue(integrationBranch, "integration branch")
+	if err != nil {
+		return "", false, err
+	}
+	path, err = a.resolveIntegrationPurgePath(ctx, workspace, worktreesRoot, path, branch)
+	if err != nil {
+		return "", false, err
+	}
+	pathRemoved, err := a.removeIntegrationWorktreeForPurge(ctx, run, workspace, path)
+	if err != nil {
+		return "", false, err
+	}
+	if err := a.deleteIntegrationBranchIfExists(ctx, run, workspace, branch); err != nil {
+		return path, pathRemoved, err
+	}
+	return path, pathRemoved, nil
+}
+
+func (a *taskMultiWorktreeAllocator) resolveIntegrationPurgePath(
+	ctx context.Context,
+	workspaceRoot string,
+	worktreesRoot string,
+	plannedPath string,
+	branch string,
+) (string, error) {
+	registeredPath, err := a.integrationWorktreePathForBranch(ctx, workspaceRoot, branch)
+	if err != nil {
+		return "", err
+	}
+	if registeredPath != "" {
+		ownedPath, ok, err := cleanOwnedWorktreePath(worktreesRoot, registeredPath)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", fmt.Errorf(
+				"integration branch %s is checked out outside worktree root at %s",
+				branch,
+				registeredPath,
+			)
+		}
+		return ownedPath, nil
+	}
+	return plannedPath, nil
+}
+
+func (a *taskMultiWorktreeAllocator) removeIntegrationWorktreeForPurge(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	workspaceRoot string,
+	path string,
+) (bool, error) {
+	pathRemoved := false
+	if _, statErr := os.Stat(path); statErr == nil {
+		// Purge follows rollback semantics for integration worktrees: the branch
+		// is internal scratch state and may contain conflict index state.
+		if _, err := run(ctx, workspaceRoot, "worktree", "remove", "--force", path); err != nil {
+			return false, fmt.Errorf("remove integration worktree %s: %w", path, err)
+		}
+		if _, statErr := os.Stat(path); statErr == nil {
+			return false, fmt.Errorf("remove integration worktree %s: path still exists", path)
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return false, fmt.Errorf("stat integration worktree %s after removal: %w", path, statErr)
+		}
+		if _, err := run(ctx, workspaceRoot, "worktree", "prune", "--expire", "now"); err != nil {
+			return false, fmt.Errorf("prune integration worktree metadata for %s: %w", path, err)
+		}
+		pathRemoved = true
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return false, fmt.Errorf("stat integration worktree %s: %w", path, statErr)
+	}
+	return pathRemoved, nil
+}
+
+func (a *taskMultiWorktreeAllocator) deleteIntegrationBranchIfExists(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	workspaceRoot string,
+	branch string,
+) error {
+	branchExists, err := a.integrationBranchExists(ctx, workspaceRoot, branch)
+	if err != nil {
+		return err
+	}
+	if branchExists {
+		if _, err := run(ctx, workspaceRoot, "branch", "-D", branch); err != nil {
+			return fmt.Errorf("delete integration branch %s: %w", branch, err)
+		}
+	}
+	return nil
+}
+
 // Remove removes a clean task worktree without forcing away uncommitted changes.
 func (a *taskMultiWorktreeAllocator) Remove(ctx context.Context, workspaceRoot string, path string) error {
 	run, err := a.requireGitRunner()
@@ -451,6 +565,58 @@ func (a *taskMultiWorktreeAllocator) Remove(ctx context.Context, workspaceRoot s
 		return fmt.Errorf("remove worktree %s: %w", worktreePath, err)
 	}
 	return nil
+}
+
+func (a *taskMultiWorktreeAllocator) integrationBranchExists(
+	ctx context.Context,
+	workspaceRoot string,
+	branch string,
+) (bool, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return false, err
+	}
+	out, err := run(ctx, workspaceRoot, "branch", "--list", branch, "--format=%(refname:short)")
+	if err != nil {
+		return false, fmt.Errorf("inspect integration branch %s: %w", branch, err)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == branch {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (a *taskMultiWorktreeAllocator) integrationWorktreePathForBranch(
+	ctx context.Context,
+	workspaceRoot string,
+	branch string,
+) (string, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return "", err
+	}
+	out, err := run(ctx, workspaceRoot, "worktree", "list", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("inspect integration worktrees for branch %s: %w", branch, err)
+	}
+	wantRef := "refs/heads/" + branch
+	currentPath := ""
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "":
+			currentPath = ""
+		case strings.HasPrefix(line, "worktree "):
+			currentPath = strings.TrimSpace(strings.TrimPrefix(line, "worktree "))
+		case strings.HasPrefix(line, "branch "):
+			if strings.TrimSpace(strings.TrimPrefix(line, "branch ")) == wantRef {
+				return currentPath, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 // Prune removes stale git worktree administrative references.

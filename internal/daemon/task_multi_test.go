@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/core/run/journal"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -899,6 +900,15 @@ func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
 				TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
 				Mode:          model.ExecutionModePRDTasks,
 				DryRun:        true,
+				IDE:           model.IDEClaude,
+				Model:         "sonnet",
+				TaskRuntimeRules: []model.TaskRuntimeRule{{
+					Workflow:        stringPtr(workflowSlug),
+					Type:            stringPtr("backend"),
+					IDE:             stringPtr(model.IDECodex),
+					Model:           stringPtr("gpt-5.5"),
+					ReasoningEffort: stringPtr("xhigh"),
+				}},
 			},
 		}
 
@@ -915,6 +925,11 @@ func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
 		jobs := waitForPreparedJobs(t, preparedJobs)
 		if len(jobs) != 1 || jobs[0].TaskNumber != targetTaskNumber {
 			t.Fatalf("prepared jobs = %#v, want only task %d", jobs, targetTaskNumber)
+		}
+		if jobs[0].IDE != model.IDECodex ||
+			jobs[0].Model != "gpt-5.5" ||
+			jobs[0].ReasoningEffort != "xhigh" {
+			t.Fatalf("prepared job runtime = %#v, want workflow-scoped backend rule", jobs[0])
 		}
 		if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
 			t.Fatalf("TargetTaskNumber = %#v, want %d", cfg.TargetTaskNumber, targetTaskNumber)
@@ -2269,6 +2284,17 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			if parent.Status != runStatusCompleted {
 				t.Fatalf("parent status = %q error=%q, want completed", parent.Status, parent.ErrorText)
 			}
+			manifestPath := filepath.Join(
+				model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
+				"_tasks.md",
+			)
+			manifestBody, err := os.ReadFile(manifestPath)
+			if err != nil {
+				t.Fatalf("expected pre-run sync to preserve parallel task manifest %s: %v", manifestPath, err)
+			}
+			if !strings.Contains(string(manifestBody), "schema_version: \"compozy.tasks/v2\"") {
+				t.Fatalf("parallel task manifest lost schema version:\n%s", manifestBody)
+			}
 
 			for taskNumber := 1; taskNumber <= 5; taskNumber++ {
 				childID := fmt.Sprintf("child-%s-task-%02d", env.workflowSlug, taskNumber)
@@ -2754,6 +2780,42 @@ func TestBuildDaemonParallelTaskPlanRejectsDuplicateManifestNodes(t *testing.T) 
 		(!strings.Contains(err.Error(), "duplicate") && !strings.Contains(err.Error(), "already assigned")) {
 		t.Fatalf("buildDaemonParallelTaskPlan() error = %v, want duplicate manifest guard", err)
 	}
+}
+
+func TestRunManagerStartTaskRunParallelTasksRequiresGraphManifest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return validation problem instead of internal error", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
+
+		_, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"parallel_tasks":{"enabled":true}}`),
+			},
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("StartTaskRun() error = %v, want problem", err)
+		}
+		if problem.Status != http.StatusUnprocessableEntity || problem.Code != "parallel_tasks_manifest_required" {
+			t.Fatalf(
+				"problem = status:%d code:%q, want 422 parallel_tasks_manifest_required",
+				problem.Status,
+				problem.Code,
+			)
+		}
+		if got := problem.Details["field"]; got != taskscore.TaskGraphManifestFileName {
+			t.Fatalf("problem field = %#v, want %q", got, taskscore.TaskGraphManifestFileName)
+		}
+	})
 }
 
 func TestRunManagerTaskRunMultipleParallelIgnoresParallelTasksConfig(t *testing.T) {

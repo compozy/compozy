@@ -192,7 +192,7 @@ func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute runs purge: %v\noutput:\n%s", err, output)
 	}
-	if strings.TrimSpace(output) != "purged 2 run(s)" {
+	if strings.TrimSpace(output) != "purged 2 run(s), 0 worktree(s)" {
 		t.Fatalf("unexpected runs purge output: %q", output)
 	}
 

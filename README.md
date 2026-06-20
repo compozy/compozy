@@ -705,7 +705,7 @@ Resolution precedence:
 
 **Worktree isolation.** In parallel mode the parent workspace must be on a named git branch. Compozy resolves the current branch and `HEAD` once, then creates one detached git worktree per child under `~/.compozy/state/worktrees/`. Each child runs with its workspace root and task directory remapped into that worktree, so concurrent agents get isolated working trees, indexes, and `HEAD`s while sharing the repository object store. Worktrees do **not** isolate shared runtime resources such as ports, credentials, provider rate limits, caches, or external services — treat parallel batches as genuinely independent tasks.
 
-**Preservation and V1 non-goals.** Every child worktree is preserved for manual review regardless of child status. Compozy does not auto-merge, auto-push, branch, or delete worktrees, and it does not predict semantic conflicts; recombining results is a manual step. Each detached worktree records its base branch and commit so you can branch or merge from it yourself.
+**Preservation and V1 non-goals.** Every child worktree is preserved for manual review while the run settles, regardless of child status. Compozy does not auto-merge, auto-push, or branch those results, and it does not predict semantic conflicts; recombining results is a manual step. Each detached worktree records its base branch and commit so you can branch or merge from it yourself. Preserved worktrees are reclaimed only by explicit retention cleanup through `compozy runs purge`; dirty task worktrees make purge fail before run metadata is deleted.
 
 **Fail-late aggregation.** A child failure does not cancel its siblings. The parent reaches a terminal status only after every started child settles: `completed` when all children complete, or `failed` when any child fails, crashes, or cannot start (the parent error names the failed slugs). Canceling the parent cancels running children and marks not-started children canceled. In non-TUI runs the parent command exits non-zero when the aggregate status is failed, canceled, or crashed.
 
@@ -750,7 +750,7 @@ compozy runs watch <run-id>
 compozy runs purge
 ```
 
-Use `runs attach` to restore the interactive TUI for an existing run, `runs watch` for textual streaming observation, and `runs purge` to delete terminal run artifacts according to the configured retention policy.
+Use `runs attach` to restore the interactive TUI for an existing run, `runs watch` for textual streaming observation, and `runs purge` to delete terminal run artifacts according to the configured retention policy. Purge also removes clean Compozy-owned preserved worktrees recorded by terminal run events under `~/.compozy/state/worktrees/`; it ignores paths outside that root and stops before deleting run metadata if a task worktree is dirty.
 
 </details>
 

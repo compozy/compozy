@@ -900,6 +900,7 @@ func (m *RunManager) prepareTaskStart(
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:              workspaceRow.RootDir,
 		Name:                       strings.TrimSpace(workflowSlug),
+		WorkflowName:               strings.TrimSpace(workflowSlug),
 		TasksDir:                   tasksDir,
 		Mode:                       model.ExecutionModePRDTasks,
 		EnableExecutableExtensions: true,
