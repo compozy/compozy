@@ -331,3 +331,18 @@ func suppressWaitDelay(err error) error {
 	}
 	return err
 }
+
+// ConfigureCommandProcessGroup prepares cmd for process-tree lifecycle control.
+func ConfigureCommandProcessGroup(cmd *exec.Cmd) error {
+	return configureCommand(cmd)
+}
+
+// TerminateCommandProcessTree requests graceful termination for cmd and its children.
+func TerminateCommandProcessTree(cmd *exec.Cmd) error {
+	return terminateProcess(cmd)
+}
+
+// ForceTerminateCommandProcessTree forcefully terminates cmd and its children.
+func ForceTerminateCommandProcessTree(cmd *exec.Cmd) error {
+	return forceTerminateProcess(cmd)
+}

@@ -43,6 +43,10 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus,
 	)
 	t.Run(
+		"Should bound failed task recovery concurrency",
+		runParallelExecutionOrchestratorBoundsRecoveryConcurrency,
+	)
+	t.Run(
 		"Should skip dependent tasks after recovery exhaustion while finalizing independent work",
 		runParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinalizes,
 	)
@@ -53,6 +57,14 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 	t.Run(
 		"Should roll back after conflict-resolution exhaustion",
 		runParallelExecutionOrchestratorConflictExhaustionRollsBack,
+	)
+	t.Run(
+		"Should preserve integration state when conflict resolver setup fails",
+		runParallelExecutionOrchestratorConflictSetupFailureDoesNotRollback,
+	)
+	t.Run(
+		"Should preserve integration state when task commit scope validation fails",
+		runParallelExecutionOrchestratorTaskCommitScopeFailureDoesNotRollback,
 	)
 	t.Run(
 		"Should never commit unresolved conflict markers",
@@ -317,6 +329,11 @@ func runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus
 	strategy := &fakeParallelRecoveryStrategy{
 		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "fixed"}},
 	}
+	var recoveryEvents []events.EventKind
+	recoverySink := recovery.EventSinkFunc(func(_ context.Context, event events.Event) error {
+		recoveryEvents = append(recoveryEvents, event.Kind)
+		return nil
+	})
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	worktrees := newFakeWorktreeLifecycle()
@@ -325,6 +342,7 @@ func runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus
 		worktrees,
 		launcher,
 		WithRecoveryStrategy(strategy),
+		WithRecoveryEventSink(recoverySink),
 		WithLogger(logger),
 	).Run(context.Background(), plan)
 	if err != nil {
@@ -345,8 +363,60 @@ func runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus
 	if got := worktrees.mergeOrder(); !reflect.DeepEqual(got, []string{"commit-task-01"}) {
 		t.Fatalf("merge order = %#v, want recovered task merge", got)
 	}
+	wantRecoveryEvents := []events.EventKind{
+		events.EventKindRunRecoveryStarted,
+		events.EventKindRunRecoveryRestarting,
+		events.EventKindRunRecovered,
+	}
+	if !reflect.DeepEqual(recoveryEvents, wantRecoveryEvents) {
+		t.Fatalf("recovery events = %#v, want %#v", recoveryEvents, wantRecoveryEvents)
+	}
 	if !strings.Contains(logs.String(), string(parallelStateWaveRecovering)) {
 		t.Fatalf("fsm logs %q do not include %q", logs.String(), parallelStateWaveRecovering)
+	}
+}
+
+func runParallelExecutionOrchestratorBoundsRecoveryConcurrency(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+		testTaskEntry("task_02"),
+		testTaskEntry("task_03"),
+	}, 2)
+	plan.Recovery = enabledParallelRecoveryConfig(1)
+	launcher := &scriptedTaskLauncher{
+		prepared: map[TaskID]*fakePreparedTaskRun{
+			"task_01": failedPreparedTaskRun(taskLaunchSpecForTask(plan, "task_01"), "task 1 failed"),
+			"task_02": failedPreparedTaskRun(taskLaunchSpecForTask(plan, "task_02"), "task 2 failed"),
+			"task_03": failedPreparedTaskRun(taskLaunchSpecForTask(plan, "task_03"), "task 3 failed"),
+		},
+	}
+	strategy := newBlockingParallelRecoveryStrategy(3)
+	done := make(chan runResult, 1)
+	go func() {
+		outcome, err := NewParallelExecutionOrchestrator(
+			newFakeWorktreeLifecycle(),
+			launcher,
+			WithRecoveryStrategy(strategy),
+		).Run(context.Background(), plan)
+		done <- runResult{outcome: outcome, err: err}
+	}()
+
+	strategy.waitForEntered(t, 2)
+	if got := strategy.maxInFlight(); got != 2 {
+		t.Fatalf("recovery max in-flight before release = %d, want concurrency limit 2", got)
+	}
+	strategy.releaseAll()
+	result := waitRunResult(t, done)
+	if result.err != nil {
+		t.Fatalf("Run() error = %v", result.err)
+	}
+	if got := strategy.maxInFlight(); got > 2 {
+		t.Fatalf("recovery max in-flight = %d, want <= 2", got)
+	}
+	if got := len(strategy.inputsSnapshot()); got != 3 {
+		t.Fatalf("recovery strategy calls = %d, want every failed task attempted", got)
 	}
 }
 
@@ -492,6 +562,96 @@ func runParallelExecutionOrchestratorConflictExhaustionRollsBack(t *testing.T) {
 	}
 	if got := worktrees.integrationCommitCount(); got != 0 {
 		t.Fatalf("integration commits = %d, want 0", got)
+	}
+}
+
+func runParallelExecutionOrchestratorConflictSetupFailureDoesNotRollback(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+		testTaskEntry("task_02"),
+	}, 2)
+	worktrees := newFakeWorktreeLifecycle()
+	worktrees.squashResults = []ConflictSet{
+		{Clean: true},
+		{Clean: false, Files: []string{"story.txt"}},
+	}
+	resolver := &fakeConflictResolver{
+		errs: []error{newConflictResolverSetupError("prepare context: %w", errors.New("not regular"))},
+	}
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+	emitter := &fakeParallelEventEmitter{}
+
+	outcome, err := NewParallelExecutionOrchestrator(
+		worktrees,
+		launcher,
+		WithConflictResolver(resolver),
+		WithEventEmitter(emitter),
+	).Run(context.Background(), plan)
+	if err == nil {
+		t.Fatal("Run() error = nil, want setup failure")
+	}
+	if outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeFailed)
+	}
+	if worktrees.wasDiscarded() {
+		t.Fatal("integration branch was discarded for resolver setup failure")
+	}
+	if got := worktrees.integrationCommitCount(); got != 0 {
+		t.Fatalf("integration commits = %d, want 0", got)
+	}
+	failed := emitter.byKind(events.EventKindTaskParallelFailed)
+	if len(failed) != 1 {
+		t.Fatalf("failed events = %d, want 1", len(failed))
+	}
+	if failed[0].Status != string(ParallelOutcomeFailed) || !strings.Contains(failed[0].Error, "not regular") {
+		t.Fatalf("failed payload = %#v, want failed status and setup error", failed[0])
+	}
+}
+
+func runParallelExecutionOrchestratorTaskCommitScopeFailureDoesNotRollback(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+		testTaskEntry("task_02"),
+	}, 2)
+	worktrees := newFakeWorktreeLifecycle()
+	worktrees.commitErrs = map[int]error{
+		2: NewTaskCommitScopeError(errors.New("changed pre-existing dirty paths: .claude/skills/review")),
+	}
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+	emitter := &fakeParallelEventEmitter{}
+
+	outcome, err := NewParallelExecutionOrchestrator(
+		worktrees,
+		launcher,
+		WithEventEmitter(emitter),
+	).Run(context.Background(), plan)
+	if err == nil {
+		t.Fatal("Run() error = nil, want scope validation failure")
+	}
+	if outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeFailed)
+	}
+	if worktrees.wasDiscarded() {
+		t.Fatal("integration branch was discarded for scope validation failure")
+	}
+	if worktrees.wasFastForwarded() {
+		t.Fatal("working branch fast-forwarded despite scope validation failure")
+	}
+	failed := emitter.byKind(events.EventKindTaskParallelFailed)
+	if len(failed) != 1 {
+		t.Fatalf("failed events = %d, want 1", len(failed))
+	}
+	if failed[0].Status != string(ParallelOutcomeFailed) ||
+		!strings.Contains(failed[0].Error, ".claude/skills/review") {
+		t.Fatalf("failed payload = %#v, want failed status and scope error", failed[0])
 	}
 }
 
@@ -782,6 +942,7 @@ type fakeWorktreeLifecycle struct {
 	heads              []string
 	headCalls          int
 	committed          []int
+	commitErrs         map[int]error
 	merged             []string
 	squashResults      []ConflictSet
 	integrationCommits int
@@ -800,18 +961,27 @@ func (f *fakeWorktreeLifecycle) CreateIntegrationBranch(context.Context, Integra
 	return nil
 }
 
-func (f *fakeWorktreeLifecycle) Commit(_ context.Context, path string, _ string) (string, error) {
+func (f *fakeWorktreeLifecycle) CommitTask(_ context.Context, spec TaskCommitSpec) (string, error) {
+	path := spec.Path
+	number := taskNumberFromPath(path)
+	f.mu.Lock()
+	f.committed = append(f.committed, number)
+	f.mu.Unlock()
+	if err := f.commitErrs[number]; err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("commit-task-%02d", number), nil
+}
+
+func (f *fakeWorktreeLifecycle) CommitStaged(_ context.Context, spec StagedCommitSpec) (string, error) {
+	path := spec.Path
 	if strings.TrimSpace(path) == "/repo-integration" || strings.Contains(path, "integration") {
 		f.mu.Lock()
 		f.integrationCommits++
 		f.mu.Unlock()
 		return "integration-commit", nil
 	}
-	number := taskNumberFromPath(path)
-	f.mu.Lock()
-	f.committed = append(f.committed, number)
-	f.mu.Unlock()
-	return fmt.Sprintf("commit-task-%02d", number), nil
+	return "", fmt.Errorf("unexpected staged commit path %q", path)
 }
 
 func (f *fakeWorktreeLifecycle) SquashMerge(
@@ -1276,6 +1446,82 @@ func (s *fakeParallelRecoveryStrategy) Remediate(
 		return s.verdicts[idx], nil
 	}
 	return recovery.TriageVerdict{Decision: recovery.VerdictReject, Reason: "unrecoverable"}, nil
+}
+
+type blockingParallelRecoveryStrategy struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+
+	mu       sync.Mutex
+	inputs   []recovery.RemediationInput
+	inFlight int
+	maxSeen  int
+}
+
+func newBlockingParallelRecoveryStrategy(capacity int) *blockingParallelRecoveryStrategy {
+	return &blockingParallelRecoveryStrategy{
+		entered: make(chan struct{}, capacity),
+		release: make(chan struct{}),
+	}
+}
+
+func (s *blockingParallelRecoveryStrategy) Name() string {
+	return "blocking-parallel-recovery"
+}
+
+func (s *blockingParallelRecoveryStrategy) Remediate(
+	ctx context.Context,
+	in recovery.RemediationInput,
+) (recovery.TriageVerdict, error) {
+	s.mu.Lock()
+	s.inputs = append(s.inputs, in)
+	s.inFlight++
+	if s.inFlight > s.maxSeen {
+		s.maxSeen = s.inFlight
+	}
+	s.mu.Unlock()
+	s.entered <- struct{}{}
+	defer func() {
+		s.mu.Lock()
+		s.inFlight--
+		s.mu.Unlock()
+	}()
+	select {
+	case <-s.release:
+	case <-ctx.Done():
+		return recovery.TriageVerdict{}, ctx.Err()
+	}
+	return recovery.TriageVerdict{Decision: recovery.VerdictReject, Reason: "blocked test reject"}, nil
+}
+
+func (s *blockingParallelRecoveryStrategy) waitForEntered(t *testing.T, count int) {
+	t.Helper()
+	for range count {
+		select {
+		case <-s.entered:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for %d recovery attempts", count)
+		}
+	}
+}
+
+func (s *blockingParallelRecoveryStrategy) releaseAll() {
+	s.once.Do(func() {
+		close(s.release)
+	})
+}
+
+func (s *blockingParallelRecoveryStrategy) maxInFlight() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxSeen
+}
+
+func (s *blockingParallelRecoveryStrategy) inputsSnapshot() []recovery.RemediationInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]recovery.RemediationInput(nil), s.inputs...)
 }
 
 func taskNumberFromPath(path string) int {

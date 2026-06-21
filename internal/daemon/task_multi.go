@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -647,6 +649,7 @@ func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *prep
 			integrationBranch: integrationBranch,
 		},
 		runparallel.WithRecoveryStrategy(m.recoveryStrategy),
+		runparallel.WithRecoveryEventSink(parallelRecoveryEventSink{manager: m, active: active}),
 		runparallel.WithEventEmitter(parallelEventEmitter{manager: m, active: active}),
 	)
 	_, err = orchestrator.Run(active.ctx, runparallel.ParallelPlan{
@@ -709,6 +712,33 @@ func (e parallelEventEmitter) EmitParallelEvent(
 	}
 }
 
+type parallelRecoveryEventSink struct {
+	manager *RunManager
+	active  *activeRun
+}
+
+func (s parallelRecoveryEventSink) Submit(ctx context.Context, event eventspkg.Event) error {
+	if s.manager == nil || s.active == nil || s.active.scope == nil || s.active.scope.RunJournal() == nil {
+		return nil
+	}
+	if strings.TrimSpace(event.RunID) == "" {
+		event.RunID = s.active.runID
+	}
+	s.active.emitMu.Lock()
+	defer s.active.emitMu.Unlock()
+	if _, err := s.active.scope.RunJournal().SubmitWithSeq(detachContext(ctx), event); err != nil {
+		return err
+	}
+	s.manager.publishWorkspaceEvent(ctx, apicore.WorkspaceEvent{
+		WorkspaceID: s.active.workspaceID,
+		RunID:       s.active.runID,
+		Mode:        s.active.mode,
+		Status:      runStatusRunning,
+		Kind:        apicore.WorkspaceEventKindRunStatusChanged,
+	})
+	return nil
+}
+
 type parallelWorktreeLifecycle struct {
 	allocator           *taskMultiWorktreeAllocator
 	workflowRootsBySlug map[string]string
@@ -743,11 +773,21 @@ func (l parallelWorktreeLifecycle) CreateIntegrationBranch(
 	)
 }
 
-func (l parallelWorktreeLifecycle) Commit(ctx context.Context, path string, message string) (string, error) {
+func (l parallelWorktreeLifecycle) CommitTask(ctx context.Context, spec runparallel.TaskCommitSpec) (string, error) {
 	if l.allocator == nil {
 		return "", errors.New("daemon: task worktree allocator is not configured")
 	}
-	return l.allocator.Commit(ctx, path, message)
+	return l.allocator.CommitTask(ctx, spec)
+}
+
+func (l parallelWorktreeLifecycle) CommitStaged(
+	ctx context.Context,
+	spec runparallel.StagedCommitSpec,
+) (string, error) {
+	if l.allocator == nil {
+		return "", errors.New("daemon: task worktree allocator is not configured")
+	}
+	return l.allocator.CommitStaged(ctx, spec)
 }
 
 func (l parallelWorktreeLifecycle) SquashMerge(
@@ -763,7 +803,11 @@ func (l parallelWorktreeLifecycle) SquashMerge(
 	if err != nil {
 		return runparallel.ConflictSet{}, err
 	}
-	return runparallel.ConflictSet{Files: conflicts.Files, Clean: conflicts.Clean}, nil
+	return runparallel.ConflictSet{
+		Files:       conflicts.Files,
+		StagedFiles: conflicts.StagedFiles,
+		Clean:       conflicts.Clean,
+	}, nil
 }
 
 func (l parallelWorktreeLifecycle) Head(ctx context.Context, path string) (string, error) {
@@ -948,14 +992,96 @@ func (r *parallelPreparedTaskRun) awaitChild(
 	terminalErr := parallelTaskChildTerminalError(childRow, r.spec.Task.ID)
 	if readErr != nil {
 		if terminalErr != nil {
-			return recovery.RunOutcome{
-				RunID:  child.Run.RunID,
-				Status: recoveryStatusForRunStatus(childRow.Status),
-			}, terminalErr
+			return parallelTaskChildFallbackOutcome(childRow, r.spec.Task.ID, terminalErr), terminalErr
 		}
 		return recovery.RunOutcome{}, readErr
 	}
+	r.applyWorktreeScope(outcome)
 	return outcome, terminalErr
+}
+
+func (r *parallelPreparedTaskRun) applyWorktreeScope(outcome recovery.RunOutcome) {
+	scope, path, err := readParallelTaskWorktreeScope(outcome, r.spec.Task)
+	r.result.ScopeArtifactPath = path
+	if err != nil {
+		r.result.ScopeSupported = false
+		r.result.ScopeError = err.Error()
+		return
+	}
+	r.result.ScopeSupported = scope.Supported
+	r.result.ProducedPaths = append([]string(nil), scope.ProducedPaths...)
+	r.result.PreExistingChangedPaths = append([]string(nil), scope.PreExistingChangedPaths...)
+	r.result.ScopeError = strings.TrimSpace(scope.Error)
+	if !scope.Supported && r.result.ScopeError == "" {
+		r.result.ScopeError = strings.TrimSpace(scope.UnsupportedReason)
+	}
+}
+
+func readParallelTaskWorktreeScope(
+	outcome recovery.RunOutcome,
+	task runparallel.TaskSpec,
+) (worktree.Scope, string, error) {
+	runID := strings.TrimSpace(outcome.RunID)
+	if runID == "" {
+		return worktree.Scope{}, "", errors.New("parallel task child outcome missing run id")
+	}
+	artifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		return worktree.Scope{}, "", err
+	}
+	candidates := parallelTaskWorktreeScopeSafeNames(outcome, task)
+	var missing []string
+	for _, safeName := range candidates {
+		path := artifacts.JobArtifacts(safeName).WorktreeScopePath
+		scope, readErr := worktree.ReadScope(path)
+		if readErr == nil {
+			return scope, path, nil
+		}
+		if errors.Is(readErr, os.ErrNotExist) {
+			missing = append(missing, path)
+			continue
+		}
+		return worktree.Scope{}, path, readErr
+	}
+	return worktree.Scope{}, "", fmt.Errorf(
+		"parallel task child %s missing worktree scope artifact: %s",
+		runID,
+		strings.Join(missing, ", "),
+	)
+}
+
+func parallelTaskWorktreeScopeSafeNames(outcome recovery.RunOutcome, task runparallel.TaskSpec) []string {
+	candidates := make([]string, 0, len(outcome.Jobs)+4)
+	for _, job := range outcome.Jobs {
+		if safeName := strings.TrimSpace(job.SafeName); safeName != "" {
+			candidates = append(candidates, safeName)
+		}
+	}
+	if task.ID != "" {
+		candidates = append(candidates, string(task.ID))
+	}
+	if task.Number > 0 {
+		candidates = append(candidates, fmt.Sprintf("task-%02d", task.Number), fmt.Sprintf("task_%02d", task.Number))
+	}
+	candidates = append(candidates, runModeTask)
+	return uniqueTaskWorktreeScopeSafeNames(candidates)
+}
+
+func uniqueTaskWorktreeScopeSafeNames(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func readParallelTaskChildOutcome(runID string) (recovery.RunOutcome, error) {
@@ -987,13 +1113,56 @@ func parallelTaskChildTerminalError(row globaldb.Run, taskID runparallel.TaskID)
 	}
 }
 
+func parallelTaskChildFallbackOutcome(
+	row globaldb.Run,
+	taskID runparallel.TaskID,
+	cause error,
+) recovery.RunOutcome {
+	status := recoveryStatusForRunStatus(row.Status)
+	outcome := recovery.RunOutcome{
+		RunID:  strings.TrimSpace(row.RunID),
+		Status: status,
+	}
+	if outcome.RunID != "" {
+		if artifacts, err := model.ResolveHomeRunArtifacts(outcome.RunID); err == nil {
+			outcome.ArtifactsDir = artifacts.RunDir
+			outcome.ResultPath = artifacts.ResultPath
+		}
+	}
+	if status != recovery.StatusFailed {
+		return outcome
+	}
+	jobID := strings.TrimSpace(string(taskID))
+	if jobID == "" {
+		jobID = runModeTask
+	}
+	outcome.Jobs = []recovery.JobOutcome{{
+		SafeName: jobID,
+		Status:   recovery.StatusFailed,
+		ExitCode: 1,
+		Error:    parallelTaskChildFailureMessage(row, cause),
+	}}
+	return outcome
+}
+
+func parallelTaskChildFailureMessage(row globaldb.Run, cause error) string {
+	message := strings.TrimSpace(row.ErrorText)
+	if message != "" {
+		return message
+	}
+	if cause != nil {
+		return cause.Error()
+	}
+	return fmt.Sprintf("child run ended with status %s", row.Status)
+}
+
 func recoveryStatusForRunStatus(status string) recovery.RunStatus {
 	switch status {
 	case runStatusCompleted:
 		return recovery.StatusSucceeded
 	case runStatusCancelled:
 		return recovery.StatusCanceled
-	case runStatusFailed:
+	case runStatusFailed, runStatusCrashed:
 		return recovery.StatusFailed
 	default:
 		return recovery.StatusUnknown

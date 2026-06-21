@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -2539,6 +2540,16 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 		if !reflect.DeepEqual(task3Children, wantTask3Children) {
 			t.Fatalf("task 3 child bindings = %#v, want %#v", task3Children, wantTask3Children)
 		}
+		recoveryRunIDs := recoveryRunIDsByKind(t, run.RunID)
+		if got := recoveryRunIDs[eventspkg.EventKindRunRecoveryStarted]; got != wantTask3Children[0] {
+			t.Fatalf("recovery_started recovery_run_id = %q, want %q", got, wantTask3Children[0])
+		}
+		if got := recoveryRunIDs[eventspkg.EventKindRunRecoveryRestarting]; got != wantTask3Children[0] {
+			t.Fatalf("recovery_restarting recovery_run_id = %q, want %q", got, wantTask3Children[0])
+		}
+		if got := recoveryRunIDs[eventspkg.EventKindRunRecovered]; got != wantTask3Children[1] {
+			t.Fatalf("run.recovered recovery_run_id = %q, want %q", got, wantTask3Children[1])
+		}
 		for taskNumber := 1; taskNumber <= 5; taskNumber++ {
 			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
 			if _, err := os.Stat(outputPath); err != nil {
@@ -2560,6 +2571,119 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 			t.Fatalf("squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
 		}
 	})
+}
+
+func TestParallelTaskChildFallbackOutcomeTreatsCrashAsRecoverable(t *testing.T) {
+	t.Parallel()
+	cause := errors.New("peer disconnected before response")
+	artifacts, err := model.ResolveHomeRunArtifacts("child-crashed")
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts() error = %v", err)
+	}
+	outcome := parallelTaskChildFallbackOutcome(globaldb.Run{
+		RunID:     "child-crashed",
+		Status:    runStatusCrashed,
+		ErrorText: "transport disconnected",
+	}, runparallel.TaskID("task_06"), cause)
+	if outcome.Status != recovery.StatusFailed {
+		t.Fatalf("fallback status = %q, want %q", outcome.Status, recovery.StatusFailed)
+	}
+	if got := outcome.FailedJobIDs(); !reflect.DeepEqual(got, []string{"task_06"}) {
+		t.Fatalf("failed job ids = %#v, want task_06", got)
+	}
+	if len(outcome.Jobs) != 1 || outcome.Jobs[0].Error != "transport disconnected" {
+		t.Fatalf("fallback jobs = %#v, want crash error carried", outcome.Jobs)
+	}
+	if outcome.ArtifactsDir != artifacts.RunDir {
+		t.Fatalf("fallback artifacts dir = %q, want %q", outcome.ArtifactsDir, artifacts.RunDir)
+	}
+	if outcome.ResultPath != artifacts.ResultPath {
+		t.Fatalf("fallback result path = %q, want %q", outcome.ResultPath, artifacts.ResultPath)
+	}
+}
+
+func TestRunRecoveryOrchestratorRecoversCrashedParallelChildWithoutResult(t *testing.T) {
+	t.Parallel()
+	enabled := true
+	maxAttempts := 1
+	strategy := &daemonFakeRecoveryStrategy{
+		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "transport retry"}},
+	}
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+	}
+	childRunID := "child-crashed-recovery"
+	seedTerminalRunForPurge(t, env.globalDB, workspace.ID, childRunID, runStatusCrashed, time.Now().UTC())
+	artifacts, err := model.ResolveHomeRunArtifacts(childRunID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", childRunID, err)
+	}
+	if _, err := os.Stat(artifacts.ResultPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("result fixture exists before recovery: stat error = %v, want not exist", err)
+	}
+	parallelRun := &parallelPreparedTaskRun{
+		launcher: parallelTaskLauncher{manager: env.manager},
+		spec: runparallel.TaskLaunchSpec{Task: runparallel.TaskSpec{
+			ID:     runparallel.TaskID("task_06"),
+			Number: 6,
+			Title:  "Transport failure",
+			Slug:   "06-transport-failure",
+		}},
+	}
+	child := taskWorktreeChildRun{
+		Run: apicore.Run{RunID: childRunID},
+		Allocation: taskMultiWorktreeAllocation{
+			Path:           env.workspaceRoot,
+			BaseBranch:     "main",
+			BaseCommit:     "base",
+			WorktreeStatus: "preserved",
+		},
+	}
+	var restartJobIDs []string
+	prepared := daemonPreparedRecoveryRun{
+		execute: func(ctx context.Context) (recovery.RunOutcome, error) {
+			return parallelRun.awaitChild(ctx, child)
+		},
+		restart: func(_ context.Context, failedJobIDs []string) (recovery.RunOutcome, error) {
+			restartJobIDs = append([]string(nil), failedJobIDs...)
+			return recovery.RunOutcome{
+				RunID:        "child-crashed-recovery-retry",
+				Status:       recovery.StatusSucceeded,
+				ArtifactsDir: artifacts.RunDir,
+			}, nil
+		},
+	}
+	orchestrator := recovery.NewRunRecoveryOrchestrator(
+		strategy,
+		workspacecfg.AgentRecoveryConfig{Enabled: &enabled, MaxAttempts: &maxAttempts},
+	)
+	outcome, err := orchestrator.Run(context.Background(), prepared)
+	if err != nil {
+		t.Fatalf("Run(crashed child recovery) error = %v", err)
+	}
+	if outcome.Status != recovery.StatusSucceeded {
+		t.Fatalf("recovery outcome status = %q, want %q", outcome.Status, recovery.StatusSucceeded)
+	}
+	if !reflect.DeepEqual(restartJobIDs, []string{"task_06"}) {
+		t.Fatalf("restart failed job ids = %#v, want task_06", restartJobIDs)
+	}
+	strategy.mu.Lock()
+	inputs := append([]recovery.RemediationInput(nil), strategy.inputs...)
+	strategy.mu.Unlock()
+	if len(inputs) != 1 {
+		t.Fatalf("recovery strategy calls = %d, want 1", len(inputs))
+	}
+	if inputs[0].Outcome.Status != recovery.StatusFailed {
+		t.Fatalf("remediation outcome status = %q, want failed", inputs[0].Outcome.Status)
+	}
+	if inputs[0].Outcome.ArtifactsDir != artifacts.RunDir {
+		t.Fatalf("remediation artifacts dir = %q, want %q", inputs[0].Outcome.ArtifactsDir, artifacts.RunDir)
+	}
+	if inputs[0].Outcome.ResultPath != artifacts.ResultPath {
+		t.Fatalf("remediation result path = %q, want %q", inputs[0].Outcome.ResultPath, artifacts.ResultPath)
+	}
 }
 
 func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing.T) {
@@ -3058,6 +3182,28 @@ func (s *daemonFakeRecoveryStrategy) callCount() int {
 	return len(s.inputs)
 }
 
+type daemonPreparedRecoveryRun struct {
+	execute func(context.Context) (recovery.RunOutcome, error)
+	restart func(context.Context, []string) (recovery.RunOutcome, error)
+}
+
+func (r daemonPreparedRecoveryRun) Execute(ctx context.Context) (recovery.RunOutcome, error) {
+	if r.execute == nil {
+		return recovery.RunOutcome{}, errors.New("daemon prepared recovery run: missing execute")
+	}
+	return r.execute(ctx)
+}
+
+func (r daemonPreparedRecoveryRun) RestartFailed(
+	ctx context.Context,
+	failedJobIDs []string,
+) (recovery.RunOutcome, error) {
+	if r.restart == nil {
+		return recovery.RunOutcome{}, errors.New("daemon prepared recovery run: missing restart")
+	}
+	return r.restart(ctx, failedJobIDs)
+}
+
 func requireTargetTaskNumber(cfg *model.RuntimeConfig) (int, error) {
 	if cfg == nil || cfg.TargetTaskNumber == nil {
 		return 0, errors.New("parallel child run missing target task number")
@@ -3127,7 +3273,20 @@ func writeDaemonTaskResultFixture(
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(artifacts.ResultPath, raw, 0o600)
+	if err := os.WriteFile(artifacts.ResultPath, raw, 0o600); err != nil {
+		return err
+	}
+	if status == "succeeded" && cfg.TargetTaskNumber != nil {
+		scopePath := artifacts.JobArtifacts(safeName).WorktreeScopePath
+		scope := worktree.Scope{
+			Supported:     true,
+			ProducedPaths: []string{fmt.Sprintf("task-%02d-output.txt", *cfg.TargetTaskNumber)},
+		}
+		if err := worktree.WriteScope(scopePath, scope); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func taskParallelPayloads(
@@ -3148,6 +3307,40 @@ func taskParallelPayloads(
 		payloads = append(payloads, payload)
 	}
 	return payloads
+}
+
+func recoveryRunIDsByKind(t *testing.T, parentRunID string) map[eventspkg.EventKind]string {
+	t.Helper()
+	result := make(map[eventspkg.EventKind]string)
+	for _, event := range allRunEvents(t, parentRunID) {
+		switch event.Kind {
+		case eventspkg.EventKindRunRecoveryStarted:
+			var payload kinds.RunRecoveryStartedPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode recovery_started payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		case eventspkg.EventKindRunRecoveryRestarting:
+			var payload kinds.RunRecoveryRestartingPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode recovery_restarting payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		case eventspkg.EventKindRunRecovered:
+			var payload kinds.RunRecoveredPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode run.recovered payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		case eventspkg.EventKindRunRecoveryExhausted:
+			var payload kinds.RunRecoveryExhaustedPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode recovery_exhausted payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		}
+	}
+	return result
 }
 
 func taskParallelPlanPayloads(t *testing.T, runID string) []kinds.TaskParallelPlanPayload {

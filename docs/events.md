@@ -495,7 +495,7 @@ opt-in parallel PRD-tasks run (`[tasks.run.parallel]`). They are persisted in th
 parent run journal, streamed through the regular run stream APIs, and drive the
 wave-grouped sidebar and the persistent `INTEGRATION` pane in the run TUI. All
 parallel runs emit one plan event before execution starts. The plan event uses
-`kinds.TaskParallelPlanPayload`; the remaining eight lifecycle kinds share
+`kinds.TaskParallelPlanPayload`; the remaining nine lifecycle kinds share
 `kinds.TaskParallelPayload`.
 
 `kinds.TaskParallelPlanPayload` fields:
@@ -529,13 +529,14 @@ parallel runs emit one plan event before execution starts. The plan event uses
 - `wave_index`: zero-based topological wave the event belongs to
 - `wave_total`: total number of waves in the run, emitted with `wave_started`
 - `task_id`: PRD task identity such as `task_01`; empty for wave-level events
-- `phase`: lifecycle phase, one of `running`, `recovering`, `merging`, `resolving`, or `merged`
+- `phase`: lifecycle phase, one of `running`, `recovering`, `merging`, `resolving`, `merged`, or `failed`
 - `integration_branch`: dedicated integration branch `compozy/parallel-<run-id>`
 - `conflict_files`: relative paths with unresolved conflicts during a squash merge
 - `attempt`: current bounded conflict-resolution attempt
 - `max_attempts`: configured conflict-resolution attempt ceiling
 - `worktree_path`: per-task git worktree path
 - `status`: terminal per-task status, one of `merged`, `recovered`, `failed`, or `skipped`
+- `error`: terminal diagnostic for non-rollback parallel failures
 
 Per-task events (`wave_started`, `task_started`, `conflict_detected`,
 `conflict_resolving`, `merged`) carry `task_id` and `wave_index` so the TUI can
@@ -600,6 +601,14 @@ Payload type: `kinds.TaskParallelPayload`
 
 A task was integrated into the integration branch. Carries `task_id`,
 `wave_index`, `worktree_path`, and `status` (`merged` or `recovered`).
+
+### `task.parallel.failed`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The run hit an infrastructure/setup failure that preserves the integration
+branch for inspection instead of discarding it. Carries `integration_branch`,
+`wave_index`, `status` (`failed`), `phase` (`failed`), and `error`.
 
 ### `task.parallel.rolled_back`
 

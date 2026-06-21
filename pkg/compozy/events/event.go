@@ -89,6 +89,7 @@ const (
 	EventKindTaskParallelConflictDetected  EventKind = "task.parallel.conflict_detected"
 	EventKindTaskParallelConflictResolving EventKind = "task.parallel.conflict_resolving"
 	EventKindTaskParallelMerged            EventKind = "task.parallel.merged"
+	EventKindTaskParallelFailed            EventKind = "task.parallel.failed"
 	EventKindTaskParallelRolledBack        EventKind = "task.parallel.rolled_back"
 
 	// Artifact and extension events.

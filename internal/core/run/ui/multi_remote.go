@@ -792,6 +792,43 @@ func (m *multiRunModel) applyParallelParentEvent(ev events.Event) {
 	m.applyParallelEventToChild(tab, ev)
 }
 
+func (m *multiRunModel) applyParallelRecoveryParentEvent(ev events.Event) {
+	binding, ok := m.parallelChildBinding(ev.RunID)
+	if !ok {
+		binding, ok = m.parallelChildBinding(recoveryRunIDFromEvent(ev))
+	}
+	if !ok {
+		return
+	}
+	_ = m.handleParallelChildEvent(multiRunChildEventMsg{RunID: ev.RunID, Event: ev}, binding)
+}
+
+func recoveryRunIDFromEvent(ev events.Event) string {
+	switch ev.Kind {
+	case events.EventKindRunRecoveryStarted:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryStartedPayload](ev)
+		if ok {
+			return strings.TrimSpace(payload.RecoveryRunID)
+		}
+	case events.EventKindRunRecoveryRestarting:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryRestartingPayload](ev)
+		if ok {
+			return strings.TrimSpace(payload.RecoveryRunID)
+		}
+	case events.EventKindRunRecovered:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveredPayload](ev)
+		if ok {
+			return strings.TrimSpace(payload.RecoveryRunID)
+		}
+	case events.EventKindRunRecoveryExhausted:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryExhaustedPayload](ev)
+		if ok {
+			return strings.TrimSpace(payload.RecoveryRunID)
+		}
+	}
+	return ""
+}
+
 func (m *multiRunModel) parallelParentTabIndex() int {
 	if m == nil || len(m.tabs) == 0 {
 		return -1
@@ -807,7 +844,7 @@ func applyParallelAggregateTabStatus(tab *multiRunTab, ev events.Event) {
 		return
 	}
 	switch ev.Kind {
-	case events.EventKindTaskParallelRolledBack:
+	case events.EventKindTaskParallelFailed, events.EventKindTaskParallelRolledBack:
 		tab.status = taskMultiStatusFailed
 		tab.terminal = true
 	case events.EventKindTaskParallelPlanStarted,
@@ -954,7 +991,7 @@ func applyParallelAggregateTaskOutcome(child *uiModel, ev events.Event) {
 	if child == nil {
 		return
 	}
-	if ev.Kind == events.EventKindTaskParallelRolledBack {
+	if ev.Kind == events.EventKindTaskParallelFailed || ev.Kind == events.EventKindTaskParallelRolledBack {
 		failActiveParallelAggregateJobs(child)
 		return
 	}
@@ -1099,8 +1136,14 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		events.EventKindTaskParallelConflictDetected,
 		events.EventKindTaskParallelConflictResolving,
 		events.EventKindTaskParallelMerged,
+		events.EventKindTaskParallelFailed,
 		events.EventKindTaskParallelRolledBack:
 		m.applyParallelParentEvent(ev)
+	case events.EventKindRunRecoveryStarted,
+		events.EventKindRunRecoveryRestarting,
+		events.EventKindRunRecovered,
+		events.EventKindRunRecoveryExhausted:
+		m.applyParallelRecoveryParentEvent(ev)
 	case events.EventKindTaskRunMultipleQueueCompleted:
 		m.parentRun.Status = remoteRunStatusCompleted
 		m.applyParentRunCompleted()
@@ -1116,6 +1159,10 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		m.quitDialog.Close()
 	case events.EventKindRunFailed:
 		m.parentRun.Status = remoteRunStatusFailed
+		m.applyParentRunFailed(ev)
+		m.quitDialog.Close()
+	case events.EventKindRunCrashed:
+		m.parentRun.Status = remoteRunStatusCrashed
 		m.applyParentRunFailed(ev)
 		m.quitDialog.Close()
 	case events.EventKindRunCancelled:
@@ -1144,6 +1191,11 @@ func (m *multiRunModel) applyParentRunFailed(ev events.Event) {
 	message := ""
 	if payload, ok := decodeUIEventPayload[kinds.RunFailedPayload](ev); ok {
 		message = strings.TrimSpace(payload.Error)
+	}
+	if message == "" {
+		if payload, ok := decodeUIEventPayload[kinds.RunCrashedPayload](ev); ok {
+			message = strings.TrimSpace(payload.Error)
+		}
 	}
 	if message == "" {
 		message = "Parent run failed before a child run started."
@@ -2002,6 +2054,8 @@ func taskMultiStatusFromChildRunEvent(kind events.EventKind) string {
 	case events.EventKindRunCompleted:
 		return taskMultiStatusCompleted
 	case events.EventKindRunFailed:
+		return taskMultiStatusFailed
+	case events.EventKindRunCrashed:
 		return taskMultiStatusFailed
 	case events.EventKindRunCancelled:
 		return taskMultiStatusCanceled

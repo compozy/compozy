@@ -13,6 +13,7 @@ const (
 	parallelStateWaveDone       parallelState = "wave_done"
 	parallelStateFinalizing     parallelState = "finalizing"
 	parallelStateCompleted      parallelState = "completed"
+	parallelStateFailed         parallelState = "failed"
 	parallelStateRolledBack     parallelState = "rolled_back"
 	parallelStateCanceled       parallelState = "canceled"
 )
@@ -26,6 +27,7 @@ const (
 	parallelEventFinishWave  = "finish_wave"
 	parallelEventFinalize    = "finalize"
 	parallelEventComplete    = "complete"
+	parallelEventFail        = "fail"
 	parallelEventRollback    = "rollback"
 	parallelEventCancel      = "cancel"
 )
@@ -33,74 +35,67 @@ const (
 func newParallelFSM() *fsm.FSM {
 	return fsm.NewFSM(
 		string(parallelStatePlanning),
-		[]fsm.EventDesc{
-			{
-				Name: parallelEventStartWave,
-				Src:  []string{string(parallelStatePlanning), string(parallelStateWaveDone)},
-				Dst:  string(parallelStateWaveRunning),
-			},
-			{
-				Name: parallelEventRecoverWave,
-				Src:  []string{string(parallelStateWaveRunning)},
-				Dst:  string(parallelStateWaveRecovering),
-			},
-			{
-				Name: parallelEventMergeWave,
-				Src:  []string{string(parallelStateWaveRunning), string(parallelStateWaveRecovering)},
-				Dst:  string(parallelStateWaveMerging),
-			},
-			{
-				Name: parallelEventFinishWave,
-				Src:  []string{string(parallelStateWaveMerging)},
-				Dst:  string(parallelStateWaveDone),
-			},
-			{
-				Name: parallelEventResolve,
-				Src:  []string{string(parallelStateWaveMerging)},
-				Dst:  string(parallelStateResolving),
-			},
-			{
-				Name: parallelEventResolved,
-				Src:  []string{string(parallelStateResolving)},
-				Dst:  string(parallelStateWaveMerging),
-			},
-			{
-				Name: parallelEventFinalize,
-				Src:  []string{string(parallelStatePlanning), string(parallelStateWaveDone)},
-				Dst:  string(parallelStateFinalizing),
-			},
-			{
-				Name: parallelEventComplete,
-				Src:  []string{string(parallelStateFinalizing)},
-				Dst:  string(parallelStateCompleted),
-			},
-			{
-				Name: parallelEventCancel,
-				Src: []string{
-					string(parallelStatePlanning),
-					string(parallelStateWaveRunning),
-					string(parallelStateWaveRecovering),
-					string(parallelStateWaveMerging),
-					string(parallelStateResolving),
-					string(parallelStateWaveDone),
-					string(parallelStateFinalizing),
-				},
-				Dst: string(parallelStateCanceled),
-			},
-			{
-				Name: parallelEventRollback,
-				Src: []string{
-					string(parallelStatePlanning),
-					string(parallelStateWaveRunning),
-					string(parallelStateWaveRecovering),
-					string(parallelStateWaveMerging),
-					string(parallelStateResolving),
-					string(parallelStateWaveDone),
-					string(parallelStateFinalizing),
-				},
-				Dst: string(parallelStateRolledBack),
-			},
-		},
+		parallelFSMEvents(),
 		nil,
 	)
+}
+
+func parallelFSMEvents() []fsm.EventDesc {
+	return []fsm.EventDesc{
+		{
+			Name: parallelEventStartWave,
+			Src:  []string{string(parallelStatePlanning), string(parallelStateWaveDone)},
+			Dst:  string(parallelStateWaveRunning),
+		},
+		{
+			Name: parallelEventRecoverWave,
+			Src:  []string{string(parallelStateWaveRunning)},
+			Dst:  string(parallelStateWaveRecovering),
+		},
+		{
+			Name: parallelEventMergeWave,
+			Src:  []string{string(parallelStateWaveRunning), string(parallelStateWaveRecovering)},
+			Dst:  string(parallelStateWaveMerging),
+		},
+		{
+			Name: parallelEventFinishWave,
+			Src:  []string{string(parallelStateWaveMerging)},
+			Dst:  string(parallelStateWaveDone),
+		},
+		{
+			Name: parallelEventResolve,
+			Src:  []string{string(parallelStateWaveMerging)},
+			Dst:  string(parallelStateResolving),
+		},
+		{
+			Name: parallelEventResolved,
+			Src:  []string{string(parallelStateResolving)},
+			Dst:  string(parallelStateWaveMerging),
+		},
+		{
+			Name: parallelEventFinalize,
+			Src:  []string{string(parallelStatePlanning), string(parallelStateWaveDone)},
+			Dst:  string(parallelStateFinalizing),
+		},
+		{
+			Name: parallelEventComplete,
+			Src:  []string{string(parallelStateFinalizing)},
+			Dst:  string(parallelStateCompleted),
+		},
+		{Name: parallelEventCancel, Src: parallelTerminalSourceStates(), Dst: string(parallelStateCanceled)},
+		{Name: parallelEventFail, Src: parallelTerminalSourceStates(), Dst: string(parallelStateFailed)},
+		{Name: parallelEventRollback, Src: parallelTerminalSourceStates(), Dst: string(parallelStateRolledBack)},
+	}
+}
+
+func parallelTerminalSourceStates() []string {
+	return []string{
+		string(parallelStatePlanning),
+		string(parallelStateWaveRunning),
+		string(parallelStateWaveRecovering),
+		string(parallelStateWaveMerging),
+		string(parallelStateResolving),
+		string(parallelStateWaveDone),
+		string(parallelStateFinalizing),
+	}
 }

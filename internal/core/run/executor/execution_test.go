@@ -16,8 +16,8 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
-	"github.com/compozy/compozy/internal/core/run/internal/worktree"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/worktree"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -858,6 +858,110 @@ func TestAfterTaskJobSuccessMarksCompletedWhenWorkspaceChanged(t *testing.T) {
 	}
 	if got := emitted[1].Kind; got != eventspkg.EventKindTaskMetadataRefreshed {
 		t.Fatalf("expected task.metadata_refreshed event, got %s", got)
+	}
+}
+
+func TestAfterTaskJobSuccessWritesProducedWorktreeScope(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+
+	workspace := initTaskWorkspaceRepo(t)
+	tasksDir := filepath.Join(workspace, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	if _, err := tasks.RefreshTaskMeta(tasksDir); err != nil {
+		t.Fatalf("refresh initial task meta: %v", err)
+	}
+	originalWorkspace := t.TempDir()
+	skillTarget := filepath.Join(originalWorkspace, ".agents", "skills", "review")
+	if err := os.MkdirAll(skillTarget, 0o755); err != nil {
+		t.Fatalf("mkdir skill target: %v", err)
+	}
+	skillLink := filepath.Join(workspace, ".claude", "skills", "review")
+	if err := os.MkdirAll(filepath.Dir(skillLink), 0o755); err != nil {
+		t.Fatalf("mkdir skill link dir: %v", err)
+	}
+	if err := os.Symlink(skillTarget, skillLink); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	runWorkspaceGit(t, workspace, "add", ".")
+	runWorkspaceGit(t, workspace, "commit", "-q", "-m", "seed task and skills")
+
+	preSnapshot, err := worktree.Capture(context.Background(), workspace)
+	if err != nil {
+		t.Fatalf("capture pre snapshot: %v", err)
+	}
+	if !preSnapshot.IsSupported() {
+		t.Fatalf("expected supported pre snapshot")
+	}
+	rewrittenTarget := filepath.Join(workspace, ".agents", "skills", "review")
+	if err := os.MkdirAll(rewrittenTarget, 0o755); err != nil {
+		t.Fatalf("mkdir rewritten target: %v", err)
+	}
+	if err := os.Remove(skillLink); err != nil {
+		t.Fatalf("remove skill symlink: %v", err)
+	}
+	if err := os.Symlink(rewrittenTarget, skillLink); err != nil {
+		t.Fatalf("rewrite skill symlink: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "produced.txt"), []byte("agent output"), 0o600); err != nil {
+		t.Fatalf("write produced file: %v", err)
+	}
+
+	runID, runJournal, _, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+	runArtifacts := model.NewRunArtifactsForRunsDir(t.TempDir(), runID)
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	originalContent, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file: %v", err)
+	}
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			Mode:          model.ExecutionModePRDTasks,
+			TasksDir:      tasksDir,
+			WorkspaceRoot: workspace,
+			RunArtifacts:  runArtifacts,
+		},
+		journal: runJournal,
+	}
+	if err := execCtx.afterJobSuccess(context.Background(), &job{
+		SafeName: "task_01",
+		Groups: map[string][]model.IssueEntry{
+			"task_01": {{
+				Name:     "task_01.md",
+				AbsPath:  taskPath,
+				Content:  string(originalContent),
+				CodeFile: "task_01",
+			}},
+		},
+	}, preSnapshot); err != nil {
+		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	scopePath := runArtifacts.JobArtifacts("task_01").WorktreeScopePath
+	scope, err := worktree.ReadScope(scopePath)
+	if err != nil {
+		t.Fatalf("ReadScope(%s): %v", scopePath, err)
+	}
+	if !scope.Supported {
+		t.Fatalf("scope supported = false: %#v", scope)
+	}
+	if got, want := strings.Join(scope.ProducedPaths, ","), "produced.txt"; got != want {
+		t.Fatalf("produced paths = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(scope.PreExistingPaths, ","), ".claude/skills/review"; got != want {
+		t.Fatalf("pre-existing paths = %q, want %q", got, want)
+	}
+	if len(scope.PreExistingChangedPaths) != 0 {
+		t.Fatalf("pre-existing changed paths = %#v, want none", scope.PreExistingChangedPaths)
 	}
 }
 

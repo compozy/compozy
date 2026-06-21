@@ -1109,6 +1109,54 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		}
 	})
 
+	t.Run("Should route parent recovery events to the bound parallel task", func(t *testing.T) {
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{WaveIndex: 0, WaveTotal: 1, TaskID: "task_01", ChildRunID: "child-task-01"},
+		))
+		mdl.handleParentEvent(mustRuntimeEventWithRunIDUITest(
+			t,
+			"parent-run",
+			eventspkg.EventKindRunRecoveryStarted,
+			kinds.RunRecoveryStartedPayload{Attempt: 1, Strategy: "agentic", RecoveryRunID: "child-task-01"},
+		))
+		if child.jobs[0].state != jobRetrying || !child.jobs[0].retrying {
+			t.Fatalf("job after recovery_started = %#v, want retrying", child.jobs[0])
+		}
+		if !strings.Contains(child.jobs[0].retryReason, "agentic") {
+			t.Fatalf("retry reason = %q, want strategy", child.jobs[0].retryReason)
+		}
+		mdl.handleParentEvent(mustRuntimeEventWithRunIDUITest(
+			t,
+			"child-task-01",
+			eventspkg.EventKindRunRecovered,
+			kinds.RunRecoveredPayload{Attempts: 1},
+		))
+		if child.jobs[0].state != jobSuccess {
+			t.Fatalf("job after run.recovered = %v, want succeeded", child.jobs[0].state)
+		}
+
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{WaveIndex: 0, WaveTotal: 1, TaskID: "task_01", ChildRunID: "child-task-02"},
+		))
+		mdl.handleParentEvent(mustRuntimeEventWithRunIDUITest(
+			t,
+			"parent-run",
+			eventspkg.EventKindRunRecoveryExhausted,
+			kinds.RunRecoveryExhaustedPayload{Error: "still failing", RecoveryRunID: "child-task-02"},
+		))
+		if child.jobs[0].state != jobFailed {
+			t.Fatalf("job after recovery_exhausted = %v, want failed", child.jobs[0].state)
+		}
+		if len(child.failures) == 0 || !strings.Contains(child.failures[0].Err.Error(), "still failing") {
+			t.Fatalf("failures after recovery_exhausted = %#v, want recovery error", child.failures)
+		}
+	})
+
 	t.Run("Should drop stale child bindings when a parallel task restarts", func(t *testing.T) {
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
@@ -1307,6 +1355,38 @@ func TestMultiRunParentRunFailedBeforeChildStartMarksQueuedTabFailed(t *testing.
 		view := xansi.Strip(mdl.View().Content)
 		if !strings.Contains(view, "QUEUE.FAILED") || !strings.Contains(view, "missing task directory") {
 			t.Fatalf("expected failed queued panel with error, got %q", view)
+		}
+	})
+
+	t.Run("Should show a parent crash as a terminal failed queued tab", func(t *testing.T) {
+		t.Parallel()
+
+		mdl := &multiRunModel{
+			parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
+			width:      120,
+			height:     30,
+			cfg:        &config{},
+			quitDialog: newQuitDialogState(),
+		}
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleStarted,
+			kinds.TaskRunMultiplePayload{Status: taskMultiStatusRunning, Slugs: []string{"alpha"}, Total: 1},
+		))
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunCrashed,
+			kinds.RunCrashedPayload{Error: "daemon restarted"},
+		))
+		if mdl.parentRun.Status != remoteRunStatusCrashed {
+			t.Fatalf("parent status = %q, want crashed", mdl.parentRun.Status)
+		}
+		if mdl.tabs[0].status != taskMultiStatusFailed || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after parent crash = %#v, want terminal failed", mdl.tabs[0])
+		}
+		view := xansi.Strip(mdl.View().Content)
+		if !strings.Contains(view, "QUEUE.FAILED") || !strings.Contains(view, "daemon restarted") {
+			t.Fatalf("expected failed queued panel with crash error, got %q", view)
 		}
 	})
 }
@@ -1557,6 +1637,7 @@ func TestMultiRunStatusHelpersCoverAllStatuses(t *testing.T) {
 	}{
 		{input: eventspkg.EventKindRunCompleted, want: taskMultiStatusCompleted},
 		{input: eventspkg.EventKindRunFailed, want: taskMultiStatusFailed},
+		{input: eventspkg.EventKindRunCrashed, want: taskMultiStatusFailed},
 		{input: eventspkg.EventKindRunCancelled, want: taskMultiStatusCanceled},
 		{input: eventspkg.EventKindJobQueued, want: ""},
 	}

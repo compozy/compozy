@@ -815,6 +815,16 @@ func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 
 func mustRuntimeEventUITest(t *testing.T, kind eventspkg.EventKind, payload any) eventspkg.Event {
 	t.Helper()
+	return mustRuntimeEventWithRunIDUITest(t, "ui-adapter-test", kind, payload)
+}
+
+func mustRuntimeEventWithRunIDUITest(
+	t *testing.T,
+	runID string,
+	kind eventspkg.EventKind,
+	payload any,
+) eventspkg.Event {
+	t.Helper()
 
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -822,7 +832,7 @@ func mustRuntimeEventUITest(t *testing.T, kind eventspkg.EventKind, payload any)
 	}
 	return eventspkg.Event{
 		SchemaVersion: eventspkg.SchemaVersion,
-		RunID:         "ui-adapter-test",
+		RunID:         runID,
 		Timestamp:     time.Now().UTC(),
 		Kind:          kind,
 		Payload:       raw,

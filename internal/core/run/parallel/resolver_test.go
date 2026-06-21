@@ -36,6 +36,14 @@ func TestAgenticConflictResolutionScenarios(t *testing.T) {
 		"Should build the runtime config with the selected agent settings",
 		runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection,
 	)
+	t.Run(
+		"Should tolerate conflicted symlink-to-directory paths",
+		runAgenticConflictResolutionToleratesSymlinkToDirectoryConflict,
+	)
+	t.Run(
+		"Should return regular file read errors while scanning conflict markers",
+		runConflictMarkersPresentReturnsRegularFileReadErrors,
+	)
 }
 
 func runConflictResolverSystemPromptIncludesSkillAndConflictContext(t *testing.T) {
@@ -148,6 +156,32 @@ func runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *t
 				t.Fatalf("build calls = %d, want %d", runner.makeCalls, tt.wantBuilds)
 			}
 		})
+	}
+}
+
+func runConflictMarkersPresentReturnsRegularFileReadErrors(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root can read mode 000 files")
+	}
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "<<<<<<< HEAD\n")
+	path := filepath.Join(root, "story.txt")
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatalf("chmod unreadable file: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Fatalf("restore unreadable file mode: %v", err)
+		}
+	}()
+
+	present, err := conflictMarkersPresent(root, []string{"story.txt"})
+	if err == nil {
+		t.Fatalf("conflictMarkersPresent() error = nil, present=%t, want read error", present)
+	}
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("conflictMarkersPresent() error = %v, want permission error", err)
 	}
 }
 
@@ -301,6 +335,53 @@ func runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection(t *testin
 	}
 	if !strings.Contains(captured.SystemPrompt, "name: git-rebase") {
 		t.Fatalf("SystemPrompt missing embedded skill: %q", captured.SystemPrompt)
+	}
+}
+
+func runAgenticConflictResolutionToleratesSymlinkToDirectoryConflict(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	target := filepath.Join(root, ".agents", "skills", "review")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatalf("mkdir symlink target: %v", err)
+	}
+	link := filepath.Join(root, ".claude", "skills", "review")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatalf("mkdir symlink dir: %v", err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	var calls int
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(&fakeConflictCommandRunner{statuses: []string{" M .claude/skills/review\n"}}),
+		WithConflictPreparedPromptExecutor(func(
+			context.Context,
+			*model.RuntimeConfig,
+			string,
+			*reusableagents.ExecutionContext,
+			execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			calls++
+			return execpkg.PreparedPromptResult{RunID: "resolver-run"}, nil
+		}),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+	got, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{".claude/skills/review"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2},
+		MaxAttempts:         1,
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("prompt executor calls = %d, want 1", calls)
+	}
+	if got != (ConflictResult{Resolved: true, Builds: true, Attempts: 1}) {
+		t.Fatalf("Resolve() = %#v, want resolved build pass", got)
 	}
 }
 

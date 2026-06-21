@@ -31,6 +31,29 @@ type ConflictResolver interface {
 	Resolve(ctx context.Context, in ConflictInput) (ConflictResult, error)
 }
 
+type conflictResolverSetupError struct {
+	err error
+}
+
+func (e conflictResolverSetupError) Error() string {
+	return e.err.Error()
+}
+
+func (e conflictResolverSetupError) Unwrap() error {
+	return e.err
+}
+
+// IsConflictResolverSetupError reports whether conflict resolution failed
+// before an agent attempt could be prepared.
+func IsConflictResolverSetupError(err error) bool {
+	var setupErr conflictResolverSetupError
+	return errors.As(err, &setupErr)
+}
+
+func newConflictResolverSetupError(format string, args ...any) error {
+	return conflictResolverSetupError{err: fmt.Errorf(format, args...)}
+}
+
 // ConflictInput is the complete context for one bounded conflict-resolution
 // cycle.
 type ConflictInput struct {
@@ -136,7 +159,7 @@ func (r *AgenticConflictResolution) Resolve(ctx context.Context, in ConflictInpu
 		attemptInput.Attempt = attempt
 		systemPrompt, err := r.buildConflictSystemPrompt(attemptInput)
 		if err != nil {
-			return last, err
+			return last, newConflictResolverSetupError("prepare conflict resolver prompt: %w", err)
 		}
 		runtimeCfg := buildConflictRuntimeConfig(attemptInput, systemPrompt)
 		_, runErr := r.executePreparedPrompt(ctx, &runtimeCfg, buildConflictPrompt(), nil, nil)
@@ -324,12 +347,15 @@ func conflictHunksForFile(root string, file string) ([]string, error) {
 	if err != nil || !ok {
 		return nil, err
 	}
-	content, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
+	content, ok, err := readConflictTextFile(path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("read conflicted file %s: %w", file, err)
+	}
+	if !ok {
+		return nil, nil
 	}
 	return extractConflictHunks(string(content)), nil
 }
@@ -369,18 +395,40 @@ func conflictMarkersPresent(root string, files []string) (bool, error) {
 		if !ok {
 			continue
 		}
-		content, err := os.ReadFile(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
+		content, ok, err := readConflictTextFile(path)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return false, fmt.Errorf("read resolved conflict file %s: %w", file, err)
+		}
+		if !ok {
+			continue
 		}
 		if containsConflictMarker(content) {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+func readConflictTextFile(path string) ([]byte, bool, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, false, err
+	}
+	mode := info.Mode()
+	if mode&os.ModeSymlink != 0 || !mode.IsRegular() {
+		return nil, false, nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false, err
+	}
+	if bytes.IndexByte(content, 0) >= 0 {
+		return nil, false, nil
+	}
+	return content, true, nil
 }
 
 func containsConflictMarker(content []byte) bool {

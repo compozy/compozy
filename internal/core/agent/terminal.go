@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 
 	acp "github.com/coder/acp-go-sdk"
+
+	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 const (
@@ -62,11 +64,18 @@ func (c *clientImpl) createTerminal(
 	terminalCtx, cancel := context.WithCancel(context.Background())
 	// #nosec G204 -- ACP terminal execution is the requested session-scoped command runner.
 	cmd := exec.CommandContext(terminalCtx, params.Command, params.Args...)
+	cmd.Cancel = func() error {
+		return subprocess.ForceTerminateCommandProcessTree(cmd)
+	}
 	cmd.Dir = cwd
 	cmd.Env = terminalEnvironment(params.Env)
 	output := newTerminalOutputBuffer(params.OutputByteLimit)
 	cmd.Stdout = output
 	cmd.Stderr = output
+	if err := subprocess.ConfigureCommandProcessGroup(cmd); err != nil {
+		cancel()
+		return acp.CreateTerminalResponse{}, fmt.Errorf("configure terminal command %q: %w", params.Command, err)
+	}
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return acp.CreateTerminalResponse{}, fmt.Errorf("start terminal command %q: %w", params.Command, err)

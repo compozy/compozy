@@ -174,6 +174,49 @@ func TestRunManagerPurgeRemovesTerminalRunTaskWorktrees(t *testing.T) {
 	}
 }
 
+func TestRunManagerPurgeRemovesCrashedParallelTaskWorktree(t *testing.T) {
+	requireGitForTaskMulti(t)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+	}
+	runID := "purge-crashed-parallel-task"
+	seedTerminalRunForPurge(
+		t,
+		env.globalDB,
+		workspace.ID,
+		runID,
+		runStatusCrashed,
+		time.Now().UTC().Add(-time.Hour),
+	)
+	allocation := allocatePurgeTaskWorktree(t, env, runID, "parallel", 1)
+	appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskParallelTaskStarted, kinds.TaskParallelPayload{
+		RunID:        runID,
+		TaskID:       "task_01",
+		ChildRunID:   "child-task-01",
+		WorktreePath: allocation.Path,
+	})
+
+	result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
+		KeepTerminalDays: 0,
+		KeepMax:          0,
+	})
+	if err != nil {
+		t.Fatalf("Purge() error = %v", err)
+	}
+	if got, want := result.PurgedRunIDs, []string{runID}; !equalStrings(got, want) {
+		t.Fatalf("purged run ids = %v, want %v", got, want)
+	}
+	if got, want := result.PurgedWorktreePaths, []string{allocation.Path}; !equalStrings(got, want) {
+		t.Fatalf("purged worktree paths = %v, want %v", got, want)
+	}
+	assertPathMissing(t, allocation.Path)
+}
+
 func TestRunManagerPurgeRemovesTerminalRunIntegrationWorktree(t *testing.T) {
 	requireGitForTaskMulti(t)
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})

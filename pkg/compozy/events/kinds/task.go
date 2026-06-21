@@ -114,4 +114,5 @@ type TaskParallelPayload struct {
 	MaxAttempts       int      `json:"max_attempts,omitempty"`
 	WorktreePath      string   `json:"worktree_path,omitempty"`
 	Status            string   `json:"status,omitempty"`
+	Error             string   `json:"error,omitempty"`
 }

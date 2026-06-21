@@ -258,6 +258,12 @@ func TestPathHelpers(t *testing.T) {
 		); got != want {
 			t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
 		}
+		if got, want := jobArtifacts.WorktreeScopePath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.worktree_scope.json",
+		); got != want {
+			t.Fatalf("unexpected worktree scope path\nwant: %q\ngot:  %q", want, got)
+		}
 	})
 
 	t.Run("Should sanitize unsafe run identifiers", func(t *testing.T) {
@@ -294,6 +300,12 @@ func TestPathHelpers(t *testing.T) {
 			"nested-task-01.err.log",
 		); got != want {
 			t.Fatalf("unexpected sanitized stderr path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.WorktreeScopePath, filepath.Join(
+			runArtifacts.JobsDir,
+			"nested-task-01.worktree_scope.json",
+		); got != want {
+			t.Fatalf("unexpected sanitized worktree scope path\nwant: %q\ngot:  %q", want, got)
 		}
 	})
 

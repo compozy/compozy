@@ -17,6 +17,7 @@ const (
 	parallelPhaseMerging   = "merging"
 	parallelPhaseResolving = "resolving"
 	parallelPhaseMerged    = "merged"
+	parallelPhaseFailed    = "failed"
 )
 
 // ParallelEventEmitter publishes task.parallel.* lifecycle events for one parallel
@@ -214,5 +215,20 @@ func (o *ExecutionOrchestrator) emitWaveCompleted(ctx context.Context, plan Para
 func (o *ExecutionOrchestrator) emitRolledBack(ctx context.Context, plan ParallelPlan, waveIndex int) {
 	o.emit(ctx, plan, events.EventKindTaskParallelRolledBack, kinds.TaskParallelPayload{
 		WaveIndex: waveIndex,
+	})
+}
+
+// emitFailed announces a non-rollback terminal failure that preserves the
+// integration worktree for inspection.
+func (o *ExecutionOrchestrator) emitFailed(ctx context.Context, plan ParallelPlan, waveIndex int, cause error) {
+	message := ""
+	if cause != nil {
+		message = strings.TrimSpace(cause.Error())
+	}
+	o.emit(ctx, plan, events.EventKindTaskParallelFailed, kinds.TaskParallelPayload{
+		WaveIndex: waveIndex,
+		Status:    string(ParallelOutcomeFailed),
+		Error:     message,
+		Phase:     parallelPhaseFailed,
 	})
 }

@@ -135,6 +135,8 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		return nil
 	case jobControlResultMsg:
 		return m.handleJobControlResult(value)
+	case dispatchBatchMsg:
+		return m.handleDispatchBatch(value)
 	default:
 		cmd, _ := m.applyParallelUIMsg(value)
 		return cmd

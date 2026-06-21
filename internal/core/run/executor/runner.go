@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/run/internal/worktree"
+	"github.com/compozy/compozy/internal/core/worktree"
 )
 
 type jobRunner struct {

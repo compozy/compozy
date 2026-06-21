@@ -712,6 +712,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindTaskParallelConflictDetected,
 			events.EventKindTaskParallelConflictResolving,
 			events.EventKindTaskParallelMerged,
+			events.EventKindTaskParallelFailed,
 			events.EventKindTaskParallelRolledBack:
 			return true
 		default:
@@ -803,6 +804,9 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 	if msg, ok := translateRunEvent(ev); ok {
 		return msg, true
 	}
+	if msg, ok := translateRecoveryEvent(ev); ok {
+		return msg, true
+	}
 	if msg, ok := t.translateJobEvent(ev); ok {
 		return msg, true
 	}
@@ -891,7 +895,7 @@ func translateParallelPayloadEvent(ev events.Event) (uiMsg, bool) {
 			return nil, false
 		}
 		return parallelWaveCompletedMsg{WaveIndex: payload.WaveIndex, WaveTotal: payload.WaveTotal}, true
-	case events.EventKindTaskParallelRolledBack:
+	case events.EventKindTaskParallelFailed, events.EventKindTaskParallelRolledBack:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
 			return nil, false
@@ -962,6 +966,65 @@ func translateRunEvent(ev events.Event) (uiMsg, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func translateRecoveryEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
+	case events.EventKindRunRecoveryStarted:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryStartedPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return jobRetryMsg{
+			Index:       0,
+			Attempt:     payload.Attempt,
+			MaxAttempts: payload.Attempt,
+			Reason:      recoveryReason("recovery started", payload.Strategy),
+		}, true
+	case events.EventKindRunRecoveryRestarting:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryRestartingPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return jobRetryMsg{
+			Index:       0,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Reason:      recoveryRestartReason(payload.FailedJobIDs),
+		}, true
+	case events.EventKindRunRecovered:
+		return jobFinishedMsg{Index: 0, Success: true}, true
+	case events.EventKindRunRecoveryExhausted:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryExhaustedPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		message := strings.TrimSpace(payload.Error)
+		if message == "" {
+			message = "recovery exhausted"
+		}
+		return dispatchBatchMsg{msgs: []uiMsg{
+			jobFailureMsg{Failure: failInfo{ExitCode: 1, Err: errors.New(message)}},
+			jobFinishedMsg{Index: 0, Success: false, ExitCode: 1},
+		}}, true
+	default:
+		return nil, false
+	}
+}
+
+func recoveryReason(prefix string, strategy string) string {
+	strategy = strings.TrimSpace(strategy)
+	if strategy == "" {
+		return prefix
+	}
+	return prefix + ": " + strategy
+}
+
+func recoveryRestartReason(failedJobIDs []string) string {
+	if len(failedJobIDs) == 0 {
+		return "restarting recovered task"
+	}
+	return "restarting failed jobs: " + strings.Join(failedJobIDs, ", ")
 }
 
 func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {

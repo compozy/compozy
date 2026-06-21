@@ -15,6 +15,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -503,7 +504,18 @@ func writeCLITaskResultFixture(
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(artifacts.ResultPath, raw, 0o600)
+	if err := os.WriteFile(artifacts.ResultPath, raw, 0o600); err != nil {
+		return err
+	}
+	if status != "succeeded" {
+		return nil
+	}
+	scope := worktree.Scope{
+		Supported:     true,
+		ProducedPaths: []string{fmt.Sprintf("cli-task-%02d.txt", taskNumber)},
+	}
+	scopePath := artifacts.JobArtifacts(fmt.Sprintf("task-%02d", taskNumber)).WorktreeScopePath
+	return worktree.WriteScope(scopePath, scope)
 }
 
 func hasRunEventKind(events []eventspkg.Event, kind eventspkg.EventKind) bool {

@@ -224,7 +224,7 @@ func (o *RunRecoveryOrchestrator) startRecoveryAttempt(
 		ctx,
 		outcome,
 		events.EventKindRunRecoveryStarted,
-		kinds.RunRecoveryStartedPayload{Attempt: attempt, Strategy: o.strategy.Name()},
+		kinds.RunRecoveryStartedPayload{Attempt: attempt, Strategy: o.strategy.Name(), RecoveryRunID: outcome.RunID},
 	); err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (o *RunRecoveryOrchestrator) restartAfterFixedVerdict(
 		ctx,
 		outcome,
 		events.EventKindRunRecoveryRestarting,
-		kinds.RunRecoveryRestartingPayload{FailedJobIDs: failedJobIDs},
+		kinds.RunRecoveryRestartingPayload{FailedJobIDs: failedJobIDs, RecoveryRunID: outcome.RunID},
 	); err != nil {
 		return RunOutcome{}, nil, err
 	}
@@ -334,7 +334,7 @@ func (o *RunRecoveryOrchestrator) recoveredResult(
 		ctx,
 		outcome,
 		events.EventKindRunRecovered,
-		kinds.RunRecoveredPayload{Attempts: attempts},
+		kinds.RunRecoveredPayload{Attempts: attempts, RecoveryRunID: outcome.RunID},
 	); err != nil {
 		return terminalRecoveryResult(outcome, err)
 	}
@@ -425,8 +425,9 @@ func (o *RunRecoveryOrchestrator) exhaustRecovery(
 		outcome,
 		events.EventKindRunRecoveryExhausted,
 		kinds.RunRecoveryExhaustedPayload{
-			Error:      outcomeFailureMessage(outcome, cause),
-			ResultPath: outcome.ResultPath,
+			Error:         outcomeFailureMessage(outcome, cause),
+			ResultPath:    outcome.ResultPath,
+			RecoveryRunID: outcome.RunID,
 		},
 	); err != nil {
 		cause = errors.Join(cause, err)
