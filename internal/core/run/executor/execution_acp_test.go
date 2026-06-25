@@ -1536,6 +1536,10 @@ func (c *fakeACPClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (c *fakeACPClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (c *fakeACPClient) PromptSession(ctx context.Context, req agent.PromptSessionRequest) (agent.Session, error) {
 	c.promptCalls.Add(1)
 	if c.promptSessionFn == nil {

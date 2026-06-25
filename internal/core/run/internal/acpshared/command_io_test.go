@@ -661,6 +661,10 @@ func (*capturingCommandIOClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (*capturingCommandIOClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (*capturingCommandIOClient) PromptSession(
 	_ context.Context,
 	req agent.PromptSessionRequest,
@@ -694,6 +698,10 @@ func (*lifecycleCommandIOClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (*lifecycleCommandIOClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (c *lifecycleCommandIOClient) PromptSession(
 	context.Context,
 	agent.PromptSessionRequest,
@@ -720,6 +728,10 @@ func (*failingCommandIOClient) Close() error              { return nil }
 func (*failingCommandIOClient) Kill() error               { return nil }
 
 func (*failingCommandIOClient) CancelSession(context.Context, string) error {
+	return nil
+}
+
+func (*failingCommandIOClient) SetSessionModel(context.Context, string, string) error {
 	return nil
 }
 

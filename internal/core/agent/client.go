@@ -30,6 +30,8 @@ type Client interface {
 	CancelSession(ctx context.Context, sessionID string) error
 	// PromptSession sends a new prompt turn into an already active ACP session.
 	PromptSession(ctx context.Context, req PromptSessionRequest) (Session, error)
+	// SetSessionModel changes the active model for an ACP session via session/set_config_option.
+	SetSessionModel(ctx context.Context, sessionID string, modelID string) error
 	// SupportsLoadSession reports whether the connected ACP agent advertised session/load support.
 	SupportsLoadSession() bool
 	// Close terminates the agent subprocess.
@@ -530,6 +532,36 @@ func (c *clientImpl) CancelSession(ctx context.Context, sessionID string) error 
 		return errors.New("ACP client is not started")
 	}
 	if err := conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(sessionID)}); err != nil {
+		return wrapACPError(err)
+	}
+	return nil
+}
+
+// SetSessionModel changes the active model for an ACP session via setSessionConfigOption.
+func (c *clientImpl) SetSessionModel(ctx context.Context, sessionID string, modelID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	modelID = strings.TrimSpace(modelID)
+	if sessionID == "" || modelID == "" {
+		return nil
+	}
+	c.mu.Lock()
+	closed := c.closed
+	conn := c.conn
+	c.mu.Unlock()
+	if closed {
+		return errors.New("ACP client is already closed")
+	}
+	if conn == nil {
+		return errors.New("ACP client is not started")
+	}
+	_, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
+		ValueId: &acp.SetSessionConfigOptionValueId{
+			SessionId: acp.SessionId(sessionID),
+			ConfigId:  acp.SessionConfigId("model"),
+			Value:     acp.SessionConfigValueId(modelID),
+		},
+	})
+	if err != nil {
 		return wrapACPError(err)
 	}
 	return nil

@@ -494,6 +494,10 @@ func (c *pauseResumeClient) CancelSession(_ context.Context, sessionID string) e
 	return nil
 }
 
+func (c *pauseResumeClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (c *pauseResumeClient) PromptSession(
 	_ context.Context,
 	req agent.PromptSessionRequest,

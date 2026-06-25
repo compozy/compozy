@@ -371,11 +371,12 @@ func createACPSession(
 	cwd string,
 ) (agent.Session, error) {
 	prompt := composeSessionPrompt(job.Prompt, job.SystemPrompt)
+	modelName := jobModel(cfg, job)
 	if strings.TrimSpace(job.ResumeSession) == "" {
-		return client.CreateSession(ctx, agent.SessionRequest{
+		session, err := client.CreateSession(ctx, agent.SessionRequest{
 			Prompt:       prompt,
 			WorkingDir:   cwd,
-			Model:        jobModel(cfg, job),
+			Model:        modelName,
 			MCPServers:   model.CloneMCPServers(job.MCPServers),
 			ExtraEnv:     buildSessionEnvironment(),
 			SetupContext: setupCtx,
@@ -383,12 +384,19 @@ func createACPSession(
 			JobID:        safeJobID(job),
 			RuntimeMgr:   cfg.RuntimeManager,
 		})
+		if err != nil {
+			return nil, err
+		}
+		if err := client.SetSessionModel(ctx, session.ID(), modelName); err != nil {
+			return nil, err
+		}
+		return session, nil
 	}
 	return client.ResumeSession(ctx, agent.ResumeSessionRequest{
 		SessionID:    job.ResumeSession,
 		Prompt:       prompt,
 		WorkingDir:   cwd,
-		Model:        jobModel(cfg, job),
+		Model:        modelName,
 		MCPServers:   model.CloneMCPServers(job.MCPServers),
 		ExtraEnv:     buildSessionEnvironment(),
 		SetupContext: setupCtx,
