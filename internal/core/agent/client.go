@@ -402,6 +402,13 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		},
 	)
 
+	if modelID := strings.TrimSpace(req.Model); modelID != "" {
+		if err := c.SetSessionModel(ctx, session.id, modelID); err != nil {
+			c.removeSession(session.id)
+			return nil, fmt.Errorf("set session model before prompt: %w", err)
+		}
+	}
+
 	c.wg.Add(1)
 	go c.runPrompt(ctx, session, acp.PromptRequest{
 		SessionId: sessionResp.SessionId,
@@ -505,6 +512,13 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.resumeUpdates()
+
+	if modelID := strings.TrimSpace(req.Model); modelID != "" {
+		if err := c.SetSessionModel(ctx, session.id, modelID); err != nil {
+			c.removeSession(session.id)
+			return nil, fmt.Errorf("set session model before prompt: %w", err)
+		}
+	}
 
 	c.wg.Add(1)
 	go c.runPrompt(ctx, session, acp.PromptRequest{

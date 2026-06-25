@@ -205,6 +205,17 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	if got := firstClient.closeCalls.Load() + secondClient.closeCalls.Load(); got != 2 {
 		t.Fatalf("expected both clients to close, got %d", got)
 	}
+	if got := firstClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected first client SetSessionModel once, got %d", got)
+	}
+	if got := secondClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected second client SetSessionModel once, got %d", got)
+	}
+	secondClient.setModelMu.Lock()
+	if secondClient.lastSetModelID != "test-model" {
+		t.Fatalf("expected second client SetSessionModel model %q, got %q", "test-model", secondClient.lastSetModelID)
+	}
+	secondClient.setModelMu.Unlock()
 
 	outLog, err := os.ReadFile(job.OutLog)
 	if err != nil {
@@ -287,6 +298,12 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	}
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected one successful retry attempt, got %d", got)
+	}
+	if got := firstClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected first client SetSessionModel once, got %d", got)
+	}
+	if got := secondClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected second client SetSessionModel once, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs after timeout retry, got %d", got)
@@ -668,6 +685,12 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected retry attempt to create one successful session, got %d", got)
 	}
+	if got := firstClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no SetSessionModel on failed client, got %d", got)
+	}
+	if got := secondClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected retry client SetSessionModel once, got %d", got)
+	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs, got %d", got)
 	}
@@ -713,6 +736,9 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 	}
 	if got := secondClient.createCalls.Load(); got != 0 {
 		t.Fatalf("expected no retry after non-retryable setup failure, got %d", got)
+	}
+	if got := firstClient.setModelCalls.Load(); got != 0 {
+		t.Fatalf("expected no SetSessionModel on non-retryable failure, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
 		t.Fatalf("expected failed jobs counter to be 1, got %d", got)
@@ -857,6 +883,9 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
 		t.Fatalf("expected succeeded lifecycle state, got %s", got)
 	}
+	if got := successClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected SetSessionModel once on success, got %d", got)
+	}
 	updatedTask, err := os.ReadFile(taskPath)
 	if err != nil {
 		t.Fatalf("read updated task file: %v", err)
@@ -923,6 +952,9 @@ func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 	if got := cancelClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected exactly one attempt before cancellation, got %d", got)
 	}
+	if got := cancelClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected SetSessionModel once before cancellation, got %d", got)
+	}
 }
 
 func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
@@ -970,6 +1002,9 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	}
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
+	}
+	if got := timeoutClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected SetSessionModel once before timeout, got %d", got)
 	}
 }
 
@@ -1026,6 +1061,9 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 	if strings.Contains(string(errLog), "activity timeout") {
 		t.Fatalf("expected no activity-timeout error, got %q", string(errLog))
 	}
+	if got := activeClient.setModelCalls.Load(); got != 1 {
+		t.Fatalf("expected SetSessionModel once on successful session, got %d", got)
+	}
 }
 
 func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
@@ -1074,6 +1112,9 @@ func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
 				}
 				if got := blockingSetupClient.closeCalls.Load(); got != 1 {
 					t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
+				}
+				if got := blockingSetupClient.setModelCalls.Load(); got != 0 {
+					t.Fatalf("expected no SetSessionModel when setup times out, got %d", got)
 				}
 			},
 		},
@@ -1505,8 +1546,13 @@ type fakeACPClient struct {
 	resumeCalls     atomic.Int32
 	promptCalls     atomic.Int32
 	cancelCalls     atomic.Int32
+	setModelCalls   atomic.Int32
 	closeCalls      atomic.Int32
 	killCalls       atomic.Int32
+
+	setModelMu          sync.Mutex
+	lastSetModelSessID  string
+	lastSetModelID      string
 }
 
 func newFakeACPClient(
@@ -1536,7 +1582,12 @@ func (c *fakeACPClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
-func (c *fakeACPClient) SetSessionModel(context.Context, string, string) error {
+func (c *fakeACPClient) SetSessionModel(_ context.Context, sessionID string, modelID string) error {
+	c.setModelCalls.Add(1)
+	c.setModelMu.Lock()
+	c.lastSetModelSessID = sessionID
+	c.lastSetModelID = modelID
+	c.setModelMu.Unlock()
 	return nil
 }
 

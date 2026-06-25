@@ -373,7 +373,7 @@ func createACPSession(
 	prompt := composeSessionPrompt(job.Prompt, job.SystemPrompt)
 	modelName := jobModel(cfg, job)
 	if strings.TrimSpace(job.ResumeSession) == "" {
-		session, err := client.CreateSession(ctx, agent.SessionRequest{
+		return client.CreateSession(ctx, agent.SessionRequest{
 			Prompt:       prompt,
 			WorkingDir:   cwd,
 			Model:        modelName,
@@ -384,13 +384,6 @@ func createACPSession(
 			JobID:        safeJobID(job),
 			RuntimeMgr:   cfg.RuntimeManager,
 		})
-		if err != nil {
-			return nil, err
-		}
-		if err := client.SetSessionModel(ctx, session.ID(), modelName); err != nil {
-			return nil, err
-		}
-		return session, nil
 	}
 	return client.ResumeSession(ctx, agent.ResumeSessionRequest{
 		SessionID:    job.ResumeSession,
