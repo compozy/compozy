@@ -332,7 +332,7 @@ func validateParallelTasksConfig(scope string, cfg ParallelTasksConfig) error {
 	if cfg.ConflictResolver == nil {
 		return nil
 	}
-	return validateAgentRecoveryConfig(scope, "tasks.run.parallel.conflict_resolver", *cfg.ConflictResolver)
+	return validateConflictResolverConfig(scope, "tasks.run.parallel.conflict_resolver", *cfg.ConflictResolver)
 }
 
 func validateAgentRecoveryConfig(scope string, section string, cfg AgentRecoveryConfig) error {
@@ -351,6 +351,25 @@ func validateAgentRecoveryConfig(scope string, section string, cfg AgentRecovery
 	return validateAgentRecoveryMaxAttempts(scope, section, cfg.MaxAttempts)
 }
 
+func validateConflictResolverConfig(scope string, section string, cfg ConflictResolverConfig) error {
+	if err := validateConflictResolverIDE(scope, section, cfg); err != nil {
+		return err
+	}
+	if err := validateOptionalNonEmptyString(scope, section+".model", cfg.Model); err != nil {
+		return err
+	}
+	if err := validateReasoningEffortValue(
+		configFieldName(scope, section+".reasoning_effort"),
+		cfg.ReasoningEffort,
+	); err != nil {
+		return err
+	}
+	if err := validateAgentRecoveryMaxAttempts(scope, section, cfg.MaxAttempts); err != nil {
+		return err
+	}
+	return validateConflictResolverValidationCommand(scope, section, cfg.ValidationCommand)
+}
+
 func validateAgentRecoveryIDE(scope string, section string, cfg AgentRecoveryConfig) error {
 	if cfg.IDE == nil {
 		return nil
@@ -360,6 +379,35 @@ func validateAgentRecoveryIDE(scope string, section string, cfg AgentRecoveryCon
 	}
 	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
 		return fmt.Errorf("%s: %w", configFieldName(scope, section+".ide"), err)
+	}
+	return nil
+}
+
+func validateConflictResolverIDE(scope string, section string, cfg ConflictResolverConfig) error {
+	if cfg.IDE == nil {
+		return nil
+	}
+	if strings.TrimSpace(*cfg.IDE) == "" {
+		return fmt.Errorf("%s cannot be empty", configFieldName(scope, section+".ide"))
+	}
+	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
+		return fmt.Errorf("%s: %w", configFieldName(scope, section+".ide"), err)
+	}
+	return nil
+}
+
+func validateConflictResolverValidationCommand(scope string, section string, command *[]string) error {
+	if command == nil {
+		return nil
+	}
+	for idx, arg := range *command {
+		if strings.TrimSpace(arg) == "" {
+			return fmt.Errorf(
+				"%s[%d] cannot be empty",
+				configFieldName(scope, section+".validation_command"),
+				idx,
+			)
+		}
 	}
 	return nil
 }

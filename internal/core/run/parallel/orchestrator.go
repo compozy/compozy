@@ -666,16 +666,15 @@ func (o *ExecutionOrchestrator) mergeWave(
 				}
 				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
 			}
-			if !result.Resolved || !result.Builds {
-				err := fmt.Errorf(
-					"squash merge task %s conflict resolver exhausted after %d attempt(s): resolved=%t builds=%t files=%s",
-					run.Task.ID,
-					result.Attempts,
-					result.Resolved,
-					result.Builds,
-					strings.Join(conflicts.Files, ", "),
+			if !result.Resolved || !result.Validated {
+				return outcome, o.rollback(
+					ctx,
+					machine,
+					plan,
+					waveIndex,
+					runOutcome,
+					conflictResolverExhaustedError(run.Task.ID, result, conflicts),
 				)
-				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
 			}
 			if _, err := o.worktrees.CommitStaged(ctx, StagedCommitSpec{
 				Path:         plan.IntegrationPath,
@@ -705,6 +704,22 @@ func (o *ExecutionOrchestrator) mergeWave(
 		o.emitTaskOutcome(ctx, plan, taskOutcome)
 	}
 	return outcome, nil
+}
+
+func conflictResolverExhaustedError(taskID TaskID, result ConflictResult, conflicts ConflictSet) error {
+	details := strings.TrimSpace(result.ValidationError)
+	if details != "" {
+		details = ": validation_error=" + details
+	}
+	return fmt.Errorf(
+		"squash merge task %s conflict resolver exhausted after %d attempt(s): resolved=%t validated=%t files=%s%s",
+		taskID,
+		result.Attempts,
+		result.Resolved,
+		result.Validated,
+		strings.Join(conflicts.Files, ", "),
+		details,
+	)
 }
 
 func taskCommitSpec(run TaskRunResult) TaskCommitSpec {
@@ -750,7 +765,7 @@ func (o *ExecutionOrchestrator) resolveConflict(
 		result.Resolved = false
 		return result, nil
 	}
-	if result.Resolved && result.Builds {
+	if result.Resolved && result.Validated {
 		if err := o.transition(ctx, machine, parallelEventResolved, waveIndex); err != nil {
 			return result, err
 		}

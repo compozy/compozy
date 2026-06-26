@@ -188,6 +188,7 @@ ide = "codex"
 model = "gpt-5.5"
 reasoning_effort = "medium"
 max_attempts = 1
+validation_command = []
 
 [exec]
 output_format = "text"
@@ -231,7 +232,8 @@ Notes:
 - `run_multiple_mode = "parallel"` runs the batch concurrently, with each child in its own isolated git worktree. The CLI `--parallel` flag overrides this config value for a single invocation.
 - `[tasks.run] run_multiple_parallel_limit` caps how many children run at once in parallel mode. It must be a positive integer and defaults to `2`. The CLI `--parallel-limit <n>` flag overrides it for a single invocation. The limit has no effect in enqueued mode, which always runs one child at a time.
 - `[tasks.run.parallel] enabled = true` runs pending task files in one workflow by dependency waves. The CLI `--parallel-tasks` flag overrides this config value for a single invocation.
-- `[tasks.run.parallel] max_concurrency` caps concurrent task worktrees within a wave and defaults to `4`. The conflict resolver reuses the recovery-agent shape (`ide`, `model`, `reasoning_effort`, `max_attempts`) for bounded merge-conflict resolution.
+- `[tasks.run.parallel] max_concurrency` caps concurrent task worktrees within a wave and defaults to `4`. The conflict resolver uses `ide`, `model`, `reasoning_effort`, and `max_attempts` for bounded merge-conflict resolution.
+- `[tasks.run.parallel.conflict_resolver] validation_command` is optional and disabled by default. When set, it is an argv-style command such as `["go", "test", "./..."]`, runs without a shell after conflict markers and unmerged entries are gone, and must not modify the integration worktree. Omit it or set `[]` to rely only on universal git validation.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.

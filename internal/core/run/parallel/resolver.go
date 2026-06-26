@@ -21,9 +21,8 @@ import (
 )
 
 const (
-	gitRebaseSkillPath       = "git-rebase/SKILL.md"
-	conflictResolverMakeGoal = "verify"
-	maxConflictHunkBytes     = 24 * 1024
+	gitRebaseSkillPath   = "git-rebase/SKILL.md"
+	maxConflictHunkBytes = 24 * 1024
 )
 
 // ConflictResolver resolves an integration-branch squash conflict.
@@ -67,14 +66,16 @@ type ConflictInput struct {
 	IDE                 string
 	Model               string
 	ReasoningEffort     string
+	ValidationCommand   []string
 }
 
 // ConflictResult is derived after each resolver attempt from git status,
-// conflict-marker checks, and the build gate.
+// conflict-marker checks, and any configured validation command.
 type ConflictResult struct {
-	Resolved bool
-	Builds   bool
-	Attempts int
+	Resolved        bool
+	Validated       bool
+	Attempts        int
+	ValidationError string
 }
 
 type conflictPreparedPromptExecutor func(
@@ -87,7 +88,7 @@ type conflictPreparedPromptExecutor func(
 
 type conflictCommandRunner interface {
 	Git(ctx context.Context, dir string, args ...string) (string, error)
-	Make(ctx context.Context, dir string, args ...string) (string, error)
+	Run(ctx context.Context, dir string, command []string) (string, error)
 }
 
 // AgenticConflictResolution launches the configured agent through the exec
@@ -110,7 +111,7 @@ func WithConflictPreparedPromptExecutor(fn conflictPreparedPromptExecutor) Confl
 	}
 }
 
-// WithConflictCommandRunner overrides git and make commands for tests.
+// WithConflictCommandRunner overrides git and validation commands for tests.
 func WithConflictCommandRunner(runner conflictCommandRunner) ConflictResolutionOption {
 	return func(resolver *AgenticConflictResolution) {
 		if runner != nil {
@@ -172,7 +173,7 @@ func (r *AgenticConflictResolution) Resolve(ctx context.Context, in ConflictInpu
 		if runErr != nil {
 			lastErr = runErr
 		}
-		if result.Resolved && result.Builds {
+		if result.Resolved && result.Validated {
 			return result, nil
 		}
 		if err := ctx.Err(); err != nil {
@@ -204,6 +205,11 @@ func (r *AgenticConflictResolution) normalizeResolveInput(
 	}
 	in.MaxAttempts = boundedConflictAttempts(in.MaxAttempts)
 	in.Attempt = normalizeConflictAttempt(in.Attempt, in.MaxAttempts)
+	validationCommand, err := normalizeValidationCommand(in.ValidationCommand)
+	if err != nil {
+		return ConflictInput{}, err
+	}
+	in.ValidationCommand = validationCommand
 	return in, nil
 }
 
@@ -230,7 +236,7 @@ func (r *AgenticConflictResolution) buildConflictSystemPrompt(in ConflictInput) 
 			"- Do not commit; Compozy creates the squash commit after validation.",
 			"- Stage resolved files with git add so git status has no unmerged entries.",
 			"- Never leave conflict markers in any file.",
-			"- Run make verify and leave the conflict unresolved if it does not pass.",
+			"- Do not run project build, test, format, lint, or codegen commands unless explicitly instructed.",
 		}, "\n"),
 	}
 	return strings.Join(nonEmptyConflictSections(sections), "\n\n"), nil
@@ -240,7 +246,7 @@ func buildConflictPrompt() string {
 	return strings.Join([]string{
 		"Resolve the merge conflicts described in your system prompt.",
 		"Edit the integration worktree only.",
-		"Stage resolved files, run make verify, and do not commit.",
+		"Stage resolved files and do not commit.",
 		"If the resolution is unsafe, leave the conflict unresolved and explain why.",
 	}, "\n")
 }
@@ -283,19 +289,79 @@ func (r *AgenticConflictResolution) evaluateConflictResult(
 		return ConflictResult{}, fmt.Errorf("inspect conflict status: %w", err)
 	}
 	if len(unmergedFilesFromPorcelain(status)) > 0 {
-		return ConflictResult{Resolved: false, Builds: false}, nil
+		return ConflictResult{Resolved: false, Validated: false}, nil
 	}
 	hasMarkers, err := conflictMarkersPresent(in.IntegrationWorktree, in.Conflicts.Files)
 	if err != nil {
 		return ConflictResult{}, err
 	}
 	if hasMarkers {
-		return ConflictResult{Resolved: false, Builds: false}, nil
+		return ConflictResult{Resolved: false, Validated: false}, nil
 	}
-	if _, err := r.commands.Make(ctx, in.IntegrationWorktree, conflictResolverMakeGoal); err != nil {
-		return ConflictResult{Resolved: true, Builds: false}, nil
+	if len(in.ValidationCommand) == 0 {
+		return ConflictResult{Resolved: true, Validated: true}, nil
 	}
-	return ConflictResult{Resolved: true, Builds: true}, nil
+	beforeSnapshot, err := r.conflictValidationSnapshot(ctx, in.IntegrationWorktree, status)
+	if err != nil {
+		return ConflictResult{}, err
+	}
+	validationOutput, validationErr := r.commands.Run(ctx, in.IntegrationWorktree, in.ValidationCommand)
+	afterStatus, err := r.commands.Git(ctx, in.IntegrationWorktree, "status", "--porcelain")
+	if err != nil {
+		return ConflictResult{}, fmt.Errorf("inspect conflict status after validation command: %w", err)
+	}
+	afterSnapshot, err := r.conflictValidationSnapshot(ctx, in.IntegrationWorktree, afterStatus)
+	if err != nil {
+		return ConflictResult{}, err
+	}
+	if afterSnapshot != beforeSnapshot {
+		return ConflictResult{}, fmt.Errorf("conflict validation command modified the integration worktree")
+	}
+	if validationErr != nil {
+		return ConflictResult{
+			Resolved:        true,
+			Validated:       false,
+			ValidationError: validationFailureMessage(validationErr, validationOutput),
+		}, nil
+	}
+	return ConflictResult{Resolved: true, Validated: true}, nil
+}
+
+func validationFailureMessage(err error, output string) string {
+	if err == nil {
+		return strings.TrimSpace(output)
+	}
+	message := strings.TrimSpace(err.Error())
+	if trimmedOutput := strings.TrimSpace(output); trimmedOutput != "" {
+		message = strings.TrimSpace(message + ": " + trimmedOutput)
+	}
+	return message
+}
+
+type conflictValidationSnapshot struct {
+	Status       string
+	UnstagedDiff string
+	StagedDiff   string
+}
+
+func (r *AgenticConflictResolution) conflictValidationSnapshot(
+	ctx context.Context,
+	worktree string,
+	status string,
+) (conflictValidationSnapshot, error) {
+	unstagedDiff, err := r.commands.Git(ctx, worktree, "diff", "--no-ext-diff", "--binary")
+	if err != nil {
+		return conflictValidationSnapshot{}, fmt.Errorf("inspect conflict unstaged diff: %w", err)
+	}
+	stagedDiff, err := r.commands.Git(ctx, worktree, "diff", "--cached", "--no-ext-diff", "--binary")
+	if err != nil {
+		return conflictValidationSnapshot{}, fmt.Errorf("inspect conflict staged diff: %w", err)
+	}
+	return conflictValidationSnapshot{
+		Status:       status,
+		UnstagedDiff: unstagedDiff,
+		StagedDiff:   stagedDiff,
+	}, nil
 }
 
 func buildConflictContextSection(in ConflictInput) (string, error) {
@@ -554,7 +620,7 @@ func normalizeConflictAttempt(attempt int, maxAttempts int) int {
 // a plan, mirroring the value conflictResolverInput threads into the resolver.
 func resolverMaxAttempts(plan ParallelPlan) int {
 	cfg := plan.Config.ApplyDefaults()
-	resolver := workspace.DefaultAgentRecoveryConfig().ApplyDefaults()
+	resolver := workspace.DefaultConflictResolverConfig().ApplyDefaults()
 	if cfg.ConflictResolver != nil {
 		resolver = cfg.ConflictResolver.ApplyDefaults()
 	}
@@ -568,7 +634,7 @@ func conflictResolverInput(
 	message string,
 ) ConflictInput {
 	cfg := plan.Config.ApplyDefaults()
-	resolver := workspace.DefaultAgentRecoveryConfig().ApplyDefaults()
+	resolver := workspace.DefaultConflictResolverConfig().ApplyDefaults()
 	if cfg.ConflictResolver != nil {
 		resolver = cfg.ConflictResolver.ApplyDefaults()
 	}
@@ -583,6 +649,7 @@ func conflictResolverInput(
 		IDE:                 stringPtrValue(resolver.IDE),
 		Model:               stringPtrValue(resolver.Model),
 		ReasoningEffort:     stringPtrValue(resolver.ReasoningEffort),
+		ValidationCommand:   cloneValidationCommandPointer(resolver.ValidationCommand),
 	}
 }
 
@@ -598,6 +665,35 @@ func stringPtrValue(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
+}
+
+func normalizeValidationCommand(command []string) ([]string, error) {
+	if len(command) == 0 {
+		return nil, nil
+	}
+	normalized := make([]string, 0, len(command))
+	for idx, arg := range command {
+		trimmed := strings.TrimSpace(arg)
+		if trimmed == "" {
+			return nil, fmt.Errorf("conflict resolver: validation command argument %d is empty", idx)
+		}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized, nil
+}
+
+func cloneValidationCommand(command []string) []string {
+	if len(command) == 0 {
+		return nil
+	}
+	return append([]string(nil), command...)
+}
+
+func cloneValidationCommandPointer(command *[]string) []string {
+	if command == nil {
+		return nil
+	}
+	return cloneValidationCommand(*command)
 }
 
 func writeConflictContextLine(b *strings.Builder, key string, value string) {
@@ -628,8 +724,11 @@ func (osConflictCommandRunner) Git(ctx context.Context, dir string, args ...stri
 	return runConflictCommand(ctx, dir, "git", append([]string{"-C", strings.TrimSpace(dir)}, args...)...)
 }
 
-func (osConflictCommandRunner) Make(ctx context.Context, dir string, args ...string) (string, error) {
-	return runConflictCommand(ctx, dir, "make", args...)
+func (osConflictCommandRunner) Run(ctx context.Context, dir string, command []string) (string, error) {
+	if len(command) == 0 {
+		return "", errors.New("conflict resolver: validation command is required")
+	}
+	return runConflictCommand(ctx, dir, command[0], command[1:]...)
 }
 
 func runConflictCommand(ctx context.Context, dir string, name string, args ...string) (string, error) {

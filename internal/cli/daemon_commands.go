@@ -1481,7 +1481,7 @@ func (s *commandState) parallelTasksFlagOverrides(cmd *cobra.Command) (*workspac
 		cfg.Enabled = boolPointer(s.parallelTasks)
 		changed = true
 	}
-	resolver := workspacecfg.AgentRecoveryConfig{}
+	resolver := workspacecfg.ConflictResolverConfig{}
 	resolverChanged := false
 	if commandFlagChanged(cmd, taskRunParallelConflictResolverIDEFlag) {
 		resolver.IDE = stringPointer(s.parallelConflictResolverIDE)
@@ -1498,7 +1498,7 @@ func (s *commandState) parallelTasksFlagOverrides(cmd *cobra.Command) (*workspac
 	if resolverChanged {
 		cfg.ConflictResolver = &resolver
 		changed = true
-		if err := workspacecfg.ValidateAgentRecoveryConfig(
+		if err := workspacecfg.ValidateConflictResolverConfig(
 			"CLI parallel conflict resolver flags",
 			resolver,
 		); err != nil {

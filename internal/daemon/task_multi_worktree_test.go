@@ -1377,100 +1377,109 @@ func TestParallelOrchestratorConflictResolverIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should drive the real agentic resolver through real git status and make verify", func(t *testing.T) {
-		t.Parallel()
-		repo := initTaskMultiWorktreeRepo(t)
-		writeTaskMultiWorktreeFile(t, repo, "story.txt", "base\n")
-		writeTaskMultiWorktreeFile(t, repo, "Makefile", "verify:\n\t@test ! -f FAIL_VERIFY\n")
-		runGitOutput(t, repo, "add", "story.txt", "Makefile")
-		runGitOutput(t, repo, "commit", "-q", "-m", "add story and verify gate")
-		allocator := newTaskMultiWorktreeAllocator(t.TempDir())
-		base, err := allocator.ResolveBase(context.Background(), repo)
-		if err != nil {
-			t.Fatalf("ResolveBase() error = %v", err)
-		}
-		ctx := context.Background()
-		integrationPath := filepath.Join(t.TempDir(), "integration")
-		plan := parallelConflictIntegrationPlan(t, repo, base, integrationPath, "real-resolver")
-		launcher := &daemonConflictTaskLauncher{
-			allocator: allocator,
-			repo:      repo,
-			writes: map[runparallel.TaskID]string{
-				"task_01": "first\n",
-				"task_02": "first\nsecond\n",
-			},
-		}
-		executorCalls := 0
-		resolver := runparallel.NewAgenticConflictResolution(
-			runparallel.WithConflictPreparedPromptExecutor(func(
-				ctx context.Context,
-				cfg *model.RuntimeConfig,
-				_ string,
-				_ *reusableagents.ExecutionContext,
-				_ execpkg.SessionMCPBuilder,
-			) (execpkg.PreparedPromptResult, error) {
-				executorCalls++
-				if cfg == nil {
-					return execpkg.PreparedPromptResult{}, errors.New("conflict runtime config is required")
-				}
-				if cfg.WorkspaceRoot != integrationPath {
-					return execpkg.PreparedPromptResult{}, fmt.Errorf(
-						"resolver workspace = %q, want %q",
-						cfg.WorkspaceRoot,
-						integrationPath,
-					)
-				}
-				if cfg.ParentRunID != plan.RunID {
-					return execpkg.PreparedPromptResult{}, fmt.Errorf(
-						"parent run id = %q, want %q",
-						cfg.ParentRunID,
-						plan.RunID,
-					)
-				}
-				if !strings.Contains(cfg.SystemPrompt, "File: story.txt") ||
-					!strings.Contains(cfg.SystemPrompt, "<<<<<<<") {
-					return execpkg.PreparedPromptResult{}, fmt.Errorf(
-						"system prompt missing conflict hunk:\n%s",
-						cfg.SystemPrompt,
-					)
-				}
-				content := readTaskMultiWorktreeFile(t, integrationPath, "story.txt")
-				if !strings.Contains(content, "<<<<<<<") || !strings.Contains(content, ">>>>>>>") {
-					return execpkg.PreparedPromptResult{}, fmt.Errorf("story.txt has no conflict markers:\n%s", content)
-				}
-				writeTaskMultiWorktreeFile(t, integrationPath, "story.txt", "first\nsecond\n")
-				if _, err := runGitOutputContext(ctx, integrationPath, "add", "story.txt"); err != nil {
-					return execpkg.PreparedPromptResult{}, err
-				}
-				return execpkg.PreparedPromptResult{RunID: "conflict-resolver-run", Output: "resolved"}, nil
-			}),
-		)
+	t.Run(
+		"Should drive the real agentic resolver through git-native validation without make verify",
+		func(t *testing.T) {
+			t.Parallel()
+			repo := initTaskMultiWorktreeRepo(t)
+			writeTaskMultiWorktreeFile(t, repo, "story.txt", "base\n")
+			writeTaskMultiWorktreeFile(t, repo, "Makefile", "verify:\n\t@echo mutated > generated.txt\n\t@exit 1\n")
+			runGitOutput(t, repo, "add", "story.txt", "Makefile")
+			runGitOutput(t, repo, "commit", "-q", "-m", "add story and mutating verify gate")
+			allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+			base, err := allocator.ResolveBase(context.Background(), repo)
+			if err != nil {
+				t.Fatalf("ResolveBase() error = %v", err)
+			}
+			ctx := context.Background()
+			integrationPath := filepath.Join(t.TempDir(), "integration")
+			plan := parallelConflictIntegrationPlan(t, repo, base, integrationPath, "real-resolver")
+			launcher := &daemonConflictTaskLauncher{
+				allocator: allocator,
+				repo:      repo,
+				writes: map[runparallel.TaskID]string{
+					"task_01": "first\n",
+					"task_02": "first\nsecond\n",
+				},
+			}
+			executorCalls := 0
+			resolver := runparallel.NewAgenticConflictResolution(
+				runparallel.WithConflictPreparedPromptExecutor(func(
+					ctx context.Context,
+					cfg *model.RuntimeConfig,
+					_ string,
+					_ *reusableagents.ExecutionContext,
+					_ execpkg.SessionMCPBuilder,
+				) (execpkg.PreparedPromptResult, error) {
+					executorCalls++
+					if cfg == nil {
+						return execpkg.PreparedPromptResult{}, errors.New("conflict runtime config is required")
+					}
+					if cfg.WorkspaceRoot != integrationPath {
+						return execpkg.PreparedPromptResult{}, fmt.Errorf(
+							"resolver workspace = %q, want %q",
+							cfg.WorkspaceRoot,
+							integrationPath,
+						)
+					}
+					if cfg.ParentRunID != plan.RunID {
+						return execpkg.PreparedPromptResult{}, fmt.Errorf(
+							"parent run id = %q, want %q",
+							cfg.ParentRunID,
+							plan.RunID,
+						)
+					}
+					if !strings.Contains(cfg.SystemPrompt, "File: story.txt") ||
+						!strings.Contains(cfg.SystemPrompt, "<<<<<<<") {
+						return execpkg.PreparedPromptResult{}, fmt.Errorf(
+							"system prompt missing conflict hunk:\n%s",
+							cfg.SystemPrompt,
+						)
+					}
+					content := readTaskMultiWorktreeFile(t, integrationPath, "story.txt")
+					if !strings.Contains(content, "<<<<<<<") || !strings.Contains(content, ">>>>>>>") {
+						return execpkg.PreparedPromptResult{}, fmt.Errorf(
+							"story.txt has no conflict markers:\n%s",
+							content,
+						)
+					}
+					writeTaskMultiWorktreeFile(t, integrationPath, "story.txt", "first\nsecond\n")
+					if _, err := runGitOutputContext(ctx, integrationPath, "add", "story.txt"); err != nil {
+						return execpkg.PreparedPromptResult{}, err
+					}
+					return execpkg.PreparedPromptResult{RunID: "conflict-resolver-run", Output: "resolved"}, nil
+				}),
+			)
 
-		outcome, err := runparallel.NewParallelExecutionOrchestrator(
-			parallelWorktreeLifecycle{allocator: allocator},
-			launcher,
-			runparallel.WithConflictResolver(resolver),
-		).Run(ctx, plan)
-		if err != nil {
-			t.Fatalf("Run() error = %v", err)
-		}
-		if outcome.Status != runparallel.ParallelOutcomeCompleted {
-			t.Fatalf("status = %q, want completed", outcome.Status)
-		}
-		if executorCalls != 1 {
-			t.Fatalf("executor calls = %d, want 1", executorCalls)
-		}
-		if got := readTaskMultiWorktreeFile(t, repo, "story.txt"); got != "first\nsecond\n" {
-			t.Fatalf("main story = %q, want resolved content", got)
-		}
-		if got := runGitOutput(t, repo, "status", "--porcelain"); got != "" {
-			t.Fatalf("main status = %q, want clean", got)
-		}
-		messages := runGitOutput(t, repo, "log", "--reverse", "--format=%s", base.Commit+"..main")
-		if !strings.Contains(messages, "task 02: task_02") {
-			t.Fatalf("main log missing resolved squash commit:\n%s", messages)
-		}
-	})
+			outcome, err := runparallel.NewParallelExecutionOrchestrator(
+				parallelWorktreeLifecycle{allocator: allocator},
+				launcher,
+				runparallel.WithConflictResolver(resolver),
+			).Run(ctx, plan)
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if outcome.Status != runparallel.ParallelOutcomeCompleted {
+				t.Fatalf("status = %q, want completed", outcome.Status)
+			}
+			if executorCalls != 1 {
+				t.Fatalf("executor calls = %d, want 1", executorCalls)
+			}
+			if got := readTaskMultiWorktreeFile(t, repo, "story.txt"); got != "first\nsecond\n" {
+				t.Fatalf("main story = %q, want resolved content", got)
+			}
+			if _, err := os.Stat(filepath.Join(repo, "generated.txt")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("generated.txt stat error = %v, want file absent because make verify was not invoked", err)
+			}
+			if got := runGitOutput(t, repo, "status", "--porcelain"); got != "" {
+				t.Fatalf("main status = %q, want clean", got)
+			}
+			messages := runGitOutput(t, repo, "log", "--reverse", "--format=%s", base.Commit+"..main")
+			if !strings.Contains(messages, "task 02: task_02") {
+				t.Fatalf("main log missing resolved squash commit:\n%s", messages)
+			}
+		},
+	)
 
 	t.Run("Should roll back when the stub resolver exhausts", func(t *testing.T) {
 		t.Parallel()
@@ -1812,7 +1821,7 @@ func (r *daemonStubConflictResolver) Resolve(
 ) (runparallel.ConflictResult, error) {
 	r.calls++
 	if r.exhaust {
-		return runparallel.ConflictResult{Resolved: false, Builds: false, Attempts: in.MaxAttempts}, nil
+		return runparallel.ConflictResult{Resolved: false, Validated: false, Attempts: in.MaxAttempts}, nil
 	}
 	if err := os.WriteFile(
 		filepath.Join(in.IntegrationWorktree, "story.txt"),
@@ -1824,5 +1833,5 @@ func (r *daemonStubConflictResolver) Resolve(
 	if _, err := runGitOutputContext(ctx, in.IntegrationWorktree, "add", "story.txt"); err != nil {
 		return runparallel.ConflictResult{}, err
 	}
-	return runparallel.ConflictResult{Resolved: true, Builds: true, Attempts: 1}, nil
+	return runparallel.ConflictResult{Resolved: true, Validated: true, Attempts: 1}, nil
 }

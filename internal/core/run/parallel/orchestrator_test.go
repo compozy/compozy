@@ -493,7 +493,7 @@ func runParallelExecutionOrchestratorResolvesConflictAndCommitsSquash(t *testing
 		{Clean: false, Files: []string{"story.txt"}},
 	}
 	resolver := &fakeConflictResolver{
-		results: []ConflictResult{{Resolved: true, Builds: true, Attempts: 1}},
+		results: []ConflictResult{{Resolved: true, Validated: true, Attempts: 1}},
 	}
 	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
 		return successfulPreparedTaskRun(spec), nil
@@ -537,7 +537,7 @@ func runParallelExecutionOrchestratorConflictExhaustionRollsBack(t *testing.T) {
 		{Clean: false, Files: []string{"story.txt"}},
 	}
 	resolver := &fakeConflictResolver{
-		results: []ConflictResult{{Resolved: false, Builds: false, Attempts: 3}},
+		results: []ConflictResult{{Resolved: false, Validated: false, Attempts: 3}},
 	}
 	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
 		return successfulPreparedTaskRun(spec), nil
@@ -671,7 +671,7 @@ func runParallelExecutionOrchestratorNeverCommitsConflictMarkers(t *testing.T) {
 		{Clean: false, Files: []string{"story.txt"}},
 	}
 	resolver := &fakeConflictResolver{
-		results: []ConflictResult{{Resolved: true, Builds: true, Attempts: 1}},
+		results: []ConflictResult{{Resolved: true, Validated: true, Attempts: 1}},
 	}
 	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
 		return successfulPreparedTaskRun(spec), nil
@@ -785,7 +785,7 @@ func runParallelExecutionOrchestratorEmitsConflictAndResolveEvents(t *testing.T)
 		{Clean: true},
 		{Clean: false, Files: []string{"story.txt"}},
 	}
-	resolver := &fakeConflictResolver{results: []ConflictResult{{Resolved: true, Builds: true, Attempts: 1}}}
+	resolver := &fakeConflictResolver{results: []ConflictResult{{Resolved: true, Validated: true, Attempts: 1}}}
 	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
 		return successfulPreparedTaskRun(spec), nil
 	})
@@ -834,7 +834,7 @@ func runParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
 		{Clean: true},
 		{Clean: false, Files: []string{"story.txt"}},
 	}
-	resolver := &fakeConflictResolver{results: []ConflictResult{{Resolved: false, Builds: false, Attempts: 3}}}
+	resolver := &fakeConflictResolver{results: []ConflictResult{{Resolved: false, Validated: false, Attempts: 3}}}
 	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
 		return successfulPreparedTaskRun(spec), nil
 	})
@@ -1099,7 +1099,7 @@ func (r *fakeConflictResolver) Resolve(_ context.Context, in ConflictInput) (Con
 	if idx < len(r.results) {
 		return r.results[idx], errorAt(r.errs, idx)
 	}
-	return ConflictResult{Resolved: false, Builds: false, Attempts: in.MaxAttempts}, errorAt(r.errs, idx)
+	return ConflictResult{Resolved: false, Validated: false, Attempts: in.MaxAttempts}, errorAt(r.errs, idx)
 }
 
 type scriptedTaskLauncher struct {

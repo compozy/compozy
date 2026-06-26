@@ -220,23 +220,39 @@ func mergeParallelTasksConfig(base, overlay ParallelTasksConfig) ParallelTasksCo
 	return ParallelTasksConfig{
 		Enabled:          cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
 		MaxConcurrency:   cloneOptionalValue(preferOverlay(base.MaxConcurrency, overlay.MaxConcurrency)),
-		ConflictResolver: mergeAgentRecoveryConfigPointer(base.ConflictResolver, overlay.ConflictResolver),
+		ConflictResolver: mergeConflictResolverConfigPointer(base.ConflictResolver, overlay.ConflictResolver),
 	}
 }
 
-func mergeAgentRecoveryConfigPointer(base, overlay *AgentRecoveryConfig) *AgentRecoveryConfig {
+func mergeConflictResolverConfig(base, overlay ConflictResolverConfig) ConflictResolverConfig {
+	merged := ConflictResolverConfig{
+		Enabled:         cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
+		IDE:             cloneOptionalValue(preferOverlay(base.IDE, overlay.IDE)),
+		Model:           cloneOptionalValue(preferOverlay(base.Model, overlay.Model)),
+		ReasoningEffort: cloneOptionalValue(preferOverlay(base.ReasoningEffort, overlay.ReasoningEffort)),
+		MaxAttempts:     cloneOptionalValue(preferOverlay(base.MaxAttempts, overlay.MaxAttempts)),
+	}
+	if overlay.ValidationCommand != nil {
+		merged.ValidationCommand = cloneStringSlicePointer(overlay.ValidationCommand)
+	} else {
+		merged.ValidationCommand = cloneStringSlicePointer(base.ValidationCommand)
+	}
+	return merged
+}
+
+func mergeConflictResolverConfigPointer(base, overlay *ConflictResolverConfig) *ConflictResolverConfig {
 	if base == nil && overlay == nil {
 		return nil
 	}
-	baseConfig := AgentRecoveryConfig{}
+	baseConfig := ConflictResolverConfig{}
 	if base != nil {
 		baseConfig = *base
 	}
-	overlayConfig := AgentRecoveryConfig{}
+	overlayConfig := ConflictResolverConfig{}
 	if overlay != nil {
 		overlayConfig = *overlay
 	}
-	merged := mergeRecoveryConfig(baseConfig, overlayConfig)
+	merged := mergeConflictResolverConfig(baseConfig, overlayConfig)
 	return &merged
 }
 
@@ -427,6 +443,13 @@ func cloneStringSlicePointer(value *[]string) *[]string {
 	if value == nil {
 		return nil
 	}
-	cloned := append([]string(nil), (*value)...)
+	cloned := cloneStringSlice(*value)
 	return &cloned
+}
+
+func cloneStringSlice(value []string) []string {
+	if value == nil {
+		return nil
+	}
+	return append([]string(nil), value...)
 }

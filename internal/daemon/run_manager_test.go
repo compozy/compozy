@@ -1857,7 +1857,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 	t.Run("Should parse snake_case parallel task runtime overrides from JSON", func(t *testing.T) {
 		overrides, err := parseRuntimeOverrides(rawJSON(
 			t,
-			`{"parallel_tasks":{"enabled":true,"max_concurrency":3,"conflict_resolver":{"model":"gpt-5.5","reasoning_effort":"high","max_attempts":2}}}`,
+			`{"parallel_tasks":{"enabled":true,"max_concurrency":3,"conflict_resolver":{"model":"gpt-5.5","reasoning_effort":"high","max_attempts":2,"validation_command":["go","test","./..."]}}}`,
 		))
 		if err != nil {
 			t.Fatalf("parseRuntimeOverrides() error = %v", err)
@@ -1875,7 +1875,9 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		if cfg.ConflictResolver == nil ||
 			cfg.ConflictResolver.Model == nil || *cfg.ConflictResolver.Model != "gpt-5.5" ||
 			cfg.ConflictResolver.ReasoningEffort == nil || *cfg.ConflictResolver.ReasoningEffort != "high" ||
-			cfg.ConflictResolver.MaxAttempts == nil || *cfg.ConflictResolver.MaxAttempts != 2 {
+			cfg.ConflictResolver.MaxAttempts == nil || *cfg.ConflictResolver.MaxAttempts != 2 ||
+			cfg.ConflictResolver.ValidationCommand == nil ||
+			strings.Join(*cfg.ConflictResolver.ValidationCommand, " ") != "go test ./..." {
 			t.Fatalf("parallel conflict resolver = %#v", cfg.ConflictResolver)
 		}
 	})

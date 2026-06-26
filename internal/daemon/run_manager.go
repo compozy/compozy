@@ -2671,7 +2671,7 @@ func resolveDaemonParallelTasksConfig(
 		)
 	}
 	if cfg.ConflictResolver != nil {
-		if err := workspacecfg.ValidateAgentRecoveryConfig(
+		if err := workspacecfg.ValidateConflictResolverConfig(
 			"daemon parallel conflict resolver config",
 			*cfg.ConflictResolver,
 		); err != nil {
@@ -2714,12 +2714,37 @@ func mergeDaemonParallelTasksConfig(
 		base.MaxConcurrency = cloneIntPointer(overlay.MaxConcurrency)
 	}
 	if overlay.ConflictResolver != nil {
-		baseResolver := workspacecfg.AgentRecoveryConfig{}
+		baseResolver := workspacecfg.ConflictResolverConfig{}
 		if base.ConflictResolver != nil {
 			baseResolver = *base.ConflictResolver
 		}
-		mergedResolver := mergeDaemonRecoveryConfig(baseResolver, *overlay.ConflictResolver)
+		mergedResolver := mergeDaemonConflictResolverConfig(baseResolver, *overlay.ConflictResolver)
 		base.ConflictResolver = &mergedResolver
+	}
+	return base
+}
+
+func mergeDaemonConflictResolverConfig(
+	base workspacecfg.ConflictResolverConfig,
+	overlay workspacecfg.ConflictResolverConfig,
+) workspacecfg.ConflictResolverConfig {
+	if overlay.Enabled != nil {
+		base.Enabled = cloneBoolPointer(overlay.Enabled)
+	}
+	if overlay.IDE != nil {
+		base.IDE = cloneStringPointerRaw(overlay.IDE)
+	}
+	if overlay.Model != nil {
+		base.Model = cloneStringPointerRaw(overlay.Model)
+	}
+	if overlay.ReasoningEffort != nil {
+		base.ReasoningEffort = cloneStringPointerRaw(overlay.ReasoningEffort)
+	}
+	if overlay.MaxAttempts != nil {
+		base.MaxAttempts = cloneIntPointer(overlay.MaxAttempts)
+	}
+	if overlay.ValidationCommand != nil {
+		base.ValidationCommand = cloneStringSlicePointerRaw(overlay.ValidationCommand)
 	}
 	return base
 }
@@ -2740,10 +2765,21 @@ func cloneDaemonParallelTasksConfig(cfg workspacecfg.ParallelTasksConfig) worksp
 		MaxConcurrency: cloneIntPointer(cfg.MaxConcurrency),
 	}
 	if cfg.ConflictResolver != nil {
-		resolver := cloneDaemonRecoveryConfig(*cfg.ConflictResolver)
+		resolver := cloneDaemonConflictResolverConfig(*cfg.ConflictResolver)
 		cloned.ConflictResolver = &resolver
 	}
 	return cloned
+}
+
+func cloneDaemonConflictResolverConfig(cfg workspacecfg.ConflictResolverConfig) workspacecfg.ConflictResolverConfig {
+	return workspacecfg.ConflictResolverConfig{
+		Enabled:           cloneBoolPointer(cfg.Enabled),
+		IDE:               cloneStringPointerRaw(cfg.IDE),
+		Model:             cloneStringPointerRaw(cfg.Model),
+		ReasoningEffort:   cloneStringPointerRaw(cfg.ReasoningEffort),
+		MaxAttempts:       cloneIntPointer(cfg.MaxAttempts),
+		ValidationCommand: cloneStringSlicePointerRaw(cfg.ValidationCommand),
+	}
 }
 
 func cloneBoolPointer(value *bool) *bool {
@@ -2768,6 +2804,21 @@ func cloneStringPointerRaw(value *string) *string {
 	}
 	copied := *value
 	return &copied
+}
+
+func cloneStringSliceRaw(value []string) []string {
+	if value == nil {
+		return nil
+	}
+	return append([]string(nil), value...)
+}
+
+func cloneStringSlicePointerRaw(value *[]string) *[]string {
+	if value == nil {
+		return nil
+	}
+	cloned := cloneStringSliceRaw(*value)
+	return &cloned
 }
 
 func parseReviewBatching(raw json.RawMessage) (reviewBatchingInput, error) {

@@ -2810,9 +2810,11 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 		projectResolverModel := "sonnet"
 		projectResolverReasoning := "medium"
 		projectResolverAttempts := 1
+		projectValidationCommand := []string{"make", "verify"}
 		overrideEnabled := true
 		overrideResolverModel := "gpt-5.5"
 		overrideResolverReasoning := "high"
+		overrideValidationCommand := []string{"go", "test", "./..."}
 
 		cfg, err := resolveDaemonParallelTasksConfig(
 			workspacecfg.ProjectConfig{
@@ -2821,12 +2823,13 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 						Parallel: workspacecfg.ParallelTasksConfig{
 							Enabled:        &enabled,
 							MaxConcurrency: &maxConcurrency,
-							ConflictResolver: &workspacecfg.AgentRecoveryConfig{
-								Enabled:         &projectResolverEnabled,
-								IDE:             &projectResolverIDE,
-								Model:           &projectResolverModel,
-								ReasoningEffort: &projectResolverReasoning,
-								MaxAttempts:     &projectResolverAttempts,
+							ConflictResolver: &workspacecfg.ConflictResolverConfig{
+								Enabled:           &projectResolverEnabled,
+								IDE:               &projectResolverIDE,
+								Model:             &projectResolverModel,
+								ReasoningEffort:   &projectResolverReasoning,
+								MaxAttempts:       &projectResolverAttempts,
+								ValidationCommand: &projectValidationCommand,
 							},
 						},
 					},
@@ -2835,9 +2838,10 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 			runtimeOverrideInput{
 				ParallelTasks: &workspacecfg.ParallelTasksConfig{
 					Enabled: &overrideEnabled,
-					ConflictResolver: &workspacecfg.AgentRecoveryConfig{
-						Model:           &overrideResolverModel,
-						ReasoningEffort: &overrideResolverReasoning,
+					ConflictResolver: &workspacecfg.ConflictResolverConfig{
+						Model:             &overrideResolverModel,
+						ReasoningEffort:   &overrideResolverReasoning,
+						ValidationCommand: &overrideValidationCommand,
 					},
 				},
 			},
@@ -2862,7 +2866,9 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 			resolver.ReasoningEffort == nil ||
 			*resolver.ReasoningEffort != "high" ||
 			resolver.MaxAttempts == nil ||
-			*resolver.MaxAttempts != 1 {
+			*resolver.MaxAttempts != 1 ||
+			resolver.ValidationCommand == nil ||
+			strings.Join(*resolver.ValidationCommand, " ") != "go test ./..." {
 			t.Fatalf("merged resolver = %#v", resolver)
 		}
 	})

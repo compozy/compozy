@@ -524,6 +524,7 @@ ide = "claude"
 model = "sonnet"
 reasoning_effort = "medium"
 max_attempts = 1
+validation_command = ["make", "verify"]
 `)
 	writeWorkspaceConfig(t, root, `
 [tasks.run.parallel]
@@ -533,6 +534,7 @@ enabled = true
 model = "gpt-5.5"
 reasoning_effort = "high"
 max_attempts = 3
+validation_command = ["go", "test", "./..."]
 `)
 
 	cfg, _, err := LoadConfig(context.Background(), root)
@@ -542,14 +544,43 @@ max_attempts = 3
 	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, ParallelTasksConfig{
 		Enabled:        ptrBool(true),
 		MaxConcurrency: ptrInt(2),
-		ConflictResolver: &AgentRecoveryConfig{
-			Enabled:         ptrBool(false),
-			IDE:             ptrString("claude"),
-			Model:           ptrString("gpt-5.5"),
-			ReasoningEffort: ptrString("high"),
-			MaxAttempts:     ptrInt(3),
+		ConflictResolver: &ConflictResolverConfig{
+			Enabled:           ptrBool(false),
+			IDE:               ptrString("claude"),
+			Model:             ptrString("gpt-5.5"),
+			ReasoningEffort:   ptrString("high"),
+			MaxAttempts:       ptrInt(3),
+			ValidationCommand: ptrStringSlice("go", "test", "./..."),
 		},
 	})
+}
+
+func TestLoadConfigAllowsWorkspaceToDisableGlobalConflictValidationCommand(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[tasks.run.parallel.conflict_resolver]
+validation_command = ["make", "verify"]
+	`)
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel.conflict_resolver]
+validation_command = []
+	`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Tasks.Run.Parallel.ConflictResolver == nil {
+		t.Fatal("conflict resolver config = nil, want defaults")
+	}
+	got := cfg.Tasks.Run.Parallel.ConflictResolver.ValidationCommand
+	if got == nil {
+		t.Fatal("validation command = nil, want explicit empty override")
+	}
+	if len(*got) != 0 {
+		t.Fatalf("validation command = %#v, want empty", *got)
+	}
 }
 
 func TestLoadConfigParsesParallelTasksTOML(t *testing.T) {
@@ -565,6 +596,7 @@ ide = "codex"
 model = "gpt-5.5"
 reasoning_effort = "high"
 max_attempts = 3
+validation_command = ["go", "test", "./..."]
 `)
 
 	cfg, _, err := loadConfigWithIsolatedHome(t, root)
@@ -574,12 +606,13 @@ max_attempts = 3
 	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, ParallelTasksConfig{
 		Enabled:        ptrBool(true),
 		MaxConcurrency: ptrInt(6),
-		ConflictResolver: &AgentRecoveryConfig{
-			Enabled:         ptrBool(true),
-			IDE:             ptrString("codex"),
-			Model:           ptrString("gpt-5.5"),
-			ReasoningEffort: ptrString("high"),
-			MaxAttempts:     ptrInt(3),
+		ConflictResolver: &ConflictResolverConfig{
+			Enabled:           ptrBool(true),
+			IDE:               ptrString("codex"),
+			Model:             ptrString("gpt-5.5"),
+			ReasoningEffort:   ptrString("high"),
+			MaxAttempts:       ptrInt(3),
+			ValidationCommand: ptrStringSlice("go", "test", "./..."),
 		},
 	})
 }
@@ -611,8 +644,16 @@ reasoning_effort = "extreme"
 			content: `
 [tasks.run.parallel.conflict_resolver]
 max_attempts = 5
-`,
+	`,
 			wantErr: "tasks.run.parallel.conflict_resolver.max_attempts",
+		},
+		{
+			name: "resolver validation command empty argument",
+			content: `
+[tasks.run.parallel.conflict_resolver]
+validation_command = ["go", ""]
+	`,
+			wantErr: "tasks.run.parallel.conflict_resolver.validation_command[1]",
 		},
 	}
 
@@ -2081,6 +2122,11 @@ func ptrBool(b bool) *bool       { return &b }
 func ptrString(s string) *string { return &s }
 func ptrInt(i int) *int          { return &i }
 
+func ptrStringSlice(values ...string) *[]string {
+	copied := append([]string(nil), values...)
+	return &copied
+}
+
 func assertOptionalBool(t *testing.T, field string, got *bool, want *bool) {
 	t.Helper()
 	switch {
@@ -2120,13 +2166,28 @@ func assertParallelTasksConfig(t *testing.T, got ParallelTasksConfig, want Paral
 	case want.ConflictResolver != nil && got.ConflictResolver == nil:
 		t.Fatalf("tasks.run.parallel.conflict_resolver: expected %#v, got nil", *want.ConflictResolver)
 	case want.ConflictResolver != nil && got.ConflictResolver != nil:
-		assertAgentRecoveryConfig(
+		assertConflictResolverConfig(
 			t,
 			"tasks.run.parallel.conflict_resolver",
 			*got.ConflictResolver,
 			*want.ConflictResolver,
 		)
 	}
+}
+
+func assertConflictResolverConfig(
+	t *testing.T,
+	fieldPrefix string,
+	got ConflictResolverConfig,
+	want ConflictResolverConfig,
+) {
+	t.Helper()
+	assertOptionalBool(t, fieldPrefix+".enabled", got.Enabled, want.Enabled)
+	assertOptionalString(t, fieldPrefix+".ide", got.IDE, want.IDE)
+	assertOptionalString(t, fieldPrefix+".model", got.Model, want.Model)
+	assertOptionalString(t, fieldPrefix+".reasoning_effort", got.ReasoningEffort, want.ReasoningEffort)
+	assertOptionalInt(t, fieldPrefix+".max_attempts", got.MaxAttempts, want.MaxAttempts)
+	assertOptionalStringSlice(t, fieldPrefix+".validation_command", got.ValidationCommand, want.ValidationCommand)
 }
 
 func assertAgentRecoveryConfig(t *testing.T, fieldPrefix string, got AgentRecoveryConfig, want AgentRecoveryConfig) {
@@ -2136,6 +2197,18 @@ func assertAgentRecoveryConfig(t *testing.T, fieldPrefix string, got AgentRecove
 	assertOptionalString(t, fieldPrefix+".model", got.Model, want.Model)
 	assertOptionalString(t, fieldPrefix+".reasoning_effort", got.ReasoningEffort, want.ReasoningEffort)
 	assertOptionalInt(t, fieldPrefix+".max_attempts", got.MaxAttempts, want.MaxAttempts)
+}
+
+func assertOptionalStringSlice(t *testing.T, field string, got *[]string, want *[]string) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Fatalf("%s: expected nil, got %#v", field, *got)
+	case want != nil && got == nil:
+		t.Fatalf("%s: expected %#v, got nil", field, *want)
+	case want != nil && got != nil && strings.Join(*got, "\x00") != strings.Join(*want, "\x00"):
+		t.Fatalf("%s: expected %#v, got %#v", field, *want, *got)
+	}
 }
 
 func assertOptionalInt(t *testing.T, field string, got *int, want *int) {
