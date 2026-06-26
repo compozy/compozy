@@ -35,8 +35,8 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 1. Invoke `/cy-create-prd` with the feature name. If `_idea.md` exists, it is used as primary context.
 2. The skill runs parallel codebase and market research.
 3. Answer clarifying questions focused on WHAT and WHY (not HOW).
-4. Choose from 2-3 product approaches. An ADR is created for the decision.
-5. Review and approve the complete PRD draft.
+4. The skill decides the product direction and records an ADR for the decision.
+5. The PRD is written directly — request any changes afterward.
 6. Output: `.compozy/tasks/<slug>/_prd.md` + ADRs.
 
 **Key rule:** The PRD describes user capabilities and business outcomes only. No databases, APIs, frameworks, or architecture.
@@ -49,7 +49,7 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 2. The skill reads the existing `_prd.md` and explores the codebase architecture.
 3. Answer technical clarifying questions.
 4. Technical ADRs are created for architecture decisions.
-5. Review and approve the TechSpec draft.
+5. The TechSpec is written directly — request any changes afterward.
 6. Output: `.compozy/tasks/<slug>/_techspec.md` + ADRs.
 
 **Contains:** System architecture, data models, core interfaces, API design, development sequencing.

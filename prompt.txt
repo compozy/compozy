@@ -1,0 +1,175 @@
+==================================================================================
+COMPOZY — CONFLICT RESOLVER HARDCODES `make verify` AS A DETERMINISTIC VALIDATION
+GATE: BREAKS NON-MAKE PROJECTS AND MUTATES THE WORKTREE: BUG REPORT FOR REMEDIATION
+==================================================================================
+
+ROLE
+You are working on the Compozy Go codebase (single-binary CLI + local daemon that
+orchestrates AI coding agents across ANY language/IDE/project). Earlier defects in the
+parallel-merge pipeline were already fixed: (1) internal orchestration commits no longer
+get rejected by the consuming repo's husky/commitlint hooks; (2) non-task "noise"
+(tooling-managed `.claude/skills/*` symlinks) is no longer committed/merged; (3) a
+staged-paths guard now restricts internal commits to expected paths. With those fixed,
+the agentic conflict resolver now actually runs and resolves real conflicts — but the
+run still ends in a full ROLLBACK because of how the resolver VALIDATES the resolution.
+This document describes that problem and the current state. Decide the implementation
+yourself; this is intentionally WHAT-not-HOW.
+
+Hard project rules:
+- `make verify` (fmt + lint + test -race + build) MUST pass at 100% for THIS repo (Compozy).
+- `make lint` zero tolerance.
+- Root-cause fixes only — no workarounds.
+- Tests must encode real invariants, placed in the canonical suite for the owning layer.
+- Do NOT run destructive git commands without explicit permission.
+
+----------------------------------------------------------------------------------
+SYSTEM CONTEXT
+----------------------------------------------------------------------------------
+Parallel PRD-task execution runs tasks concurrently in isolated git worktrees, grouped
+into waves, and squash-merges each successful task's worktree into a dedicated
+"integration" worktree/branch. When a squash-merge conflicts, an AGENTIC conflict
+resolver runs an LLM agent inside the integration worktree to resolve the conflict, then
+VALIDATES the result and, if validation fails, ROLLS BACK the entire run (discarding the
+integration branch; the user's working branch is left untouched).
+
+Relevant files:
+- internal/core/run/parallel/resolver.go      (AgenticConflictResolution: prompt, run, validate)
+- internal/core/run/parallel/orchestrator.go  (mergeWave -> resolveConflict -> rollback)
+- internal/daemon/task_multi_worktree.go       (commit + staged-paths guard)
+- internal/core/workspace/config_types.go      (workspace config; NO verify-command setting exists)
+
+CRUCIAL DESIGN PREMISE: Compozy is meant to run against arbitrary projects in any
+language/toolchain (TypeScript/bun, Python, Rust, Go, etc.). It must not assume the
+presence of `make` or any specific build target.
+
+----------------------------------------------------------------------------------
+THE PROBLEM
+----------------------------------------------------------------------------------
+After the conflict-resolution agent finishes, the resolver runs a HARDCODED `make verify`
+as the deterministic "does it build?" gate, and treats any failure as a rollback.
+
+Current code:
+- internal/core/run/parallel/resolver.go:25
+    conflictResolverMakeGoal = "verify"
+- internal/core/run/parallel/resolver.go:631-633   (the command is literally `make`)
+    func (osConflictCommandRunner) Make(ctx context.Context, dir string, args ...string) (string, error) {
+        return runConflictCommand(ctx, dir, "make", args...)
+    }
+- internal/core/run/parallel/resolver.go:254-276  (evaluateConflictResult — the validation)
+    func (r *AgenticConflictResolution) evaluateConflictResult(ctx, in) (ConflictResult, error) {
+        status, err := r.commands.Git(ctx, in.IntegrationWorktree, "status", "--porcelain")   // git-native (universal)
+        ...
+        if len(unmergedFilesFromPorcelain(status)) > 0 { return {Resolved:false, Builds:false}, nil }
+        hasMarkers, err := conflictMarkersPresent(in.IntegrationWorktree, in.Conflicts.Files)  // git-marker check
+        ...
+        if hasMarkers { return {Resolved:false, Builds:false}, nil }
+        if _, err := r.commands.Make(ctx, in.IntegrationWorktree, conflictResolverMakeGoal); err != nil {  // <-- HARDCODED `make verify`
+            return {Resolved:true, Builds:false}, nil
+        }
+        return {Resolved:true, Builds:true}, nil
+    }
+- internal/core/run/parallel/resolver.go:204-211  (the AGENT PROMPT also instructs `make verify`)
+    "- Run make verify and leave the conflict unresolved if it does not pass."
+- internal/core/run/parallel/orchestrator.go (mergeWave): if !result.Resolved || !result.Builds -> rollback.
+- internal/core/workspace/config_types.go: there is NO configurable verify/validation
+  command anywhere; the goal is hardcoded to "verify".
+
+TWO FAILURE MODES RESULT:
+
+(1) PORTABILITY — breaks every non-Make project.
+A project without a Makefile (or without a `verify` target) makes `make verify` exit
+non-zero. The resolver then reports Builds=false and ROLLS BACK. Conflict resolution is
+therefore IMPOSSIBLE on any project that does not happen to use `make verify` — which
+contradicts Compozy's premise of orchestrating arbitrary projects.
+
+(2) MUTATION — `make verify` changes tracked files, which the staged-paths guard rejects.
+This is the EXACT failure observed in a real run. The consuming repo's `make verify` is:
+    verify: fmt → lint-fix → api-codegen-check → typecheck → knip → test
+`fmt`, `lint-fix`, and `api-codegen-check` MUTATE tracked files (reformat + regenerate
+the OpenAPI spec and generated types). Those regenerated files get staged. The internal
+commit's staged-paths guard then rejects them as "unexpected staged paths" and the run
+rolls back.
+
+OBSERVED FAILURE (parent run journal):
+  task.parallel.merged            task_id=task_13
+  task.parallel.conflict_detected task_id=task_14  conflict_files=[
+      packages/frontend/src/components/account/stories/account-cards.stories.tsx]
+  task.parallel.conflict_resolving task_id=task_14  attempt=1 max_attempts=1
+  (the resolver agent ran ~15 minutes inside the integration worktree and COMPLETED
+   successfully — it actually resolved the conflict)
+  task.parallel.rolled_back
+  run.failed
+    ERR: commit resolved squash merge for task task_14:
+         validate staged changes in .../integration:
+         unexpected staged paths: openapi/advos.json, packages/backend/.env.test,
+         packages/cli/src/openapi-spec.json, packages/frontend/src/generated/advos-openapi.d.ts
+The 4 rejected paths are all tracked files that `make verify` (fmt/lint-fix/codegen)
+regenerated as side effects — not the conflict resolution itself.
+
+CURRENT BEHAVIOR: The conflict resolver depends on a hardcoded, Make-specific, MUTATING
+command (`make verify`) to validate a resolution. On non-Make projects it always rolls
+back; on Make projects whose verify target mutates files it rolls back because the
+mutated files violate the staged-paths guard. Either way, a correctly-resolved conflict
+is discarded and the entire multi-task run is lost.
+
+----------------------------------------------------------------------------------
+EXPECTED BEHAVIOR / REQUIREMENTS
+----------------------------------------------------------------------------------
+- Conflict resolution must be PROJECT-AGNOSTIC. It must not assume `make`, a `verify`
+  target, or any specific toolchain.
+- The deterministic post-resolution validation must rely only on UNIVERSAL, NON-MUTATING
+  signals: the resolution agent completing successfully, plus git itself confirming there
+  are no unresolved/unmerged entries and no leftover conflict markers. These signals work
+  in any repository and do not modify the worktree.
+- If a project wants a heavier build/test validation after conflict resolution, that must
+  be OPTIONAL and CONFIGURABLE per workspace (a user-specified command), defaulting to
+  NONE. It must never be a hardcoded `make verify`.
+- The conflict-resolution flow must NOT mutate the worktree as a side effect of
+  validation (no fmt/lint-fix/codegen baked into the gate), so that the staged-paths
+  guard only ever sees the actual resolution.
+- The agent's instructions must not direct it to run `make verify` either (same
+  portability concern); they should direct it to produce a clean resolution (no markers,
+  no unmerged entries) that git can verify.
+
+----------------------------------------------------------------------------------
+RELATED / SECONDARY (be aware; may need addressing for robustness)
+----------------------------------------------------------------------------------
+- The leftover-conflict-marker check is currently done by reading files directly:
+    internal/core/run/parallel/resolver.go:363-384  conflictMarkersPresent -> os.ReadFile
+    internal/core/run/parallel/resolver.go:322-335  conflictHunksForFile     -> os.ReadFile
+  This is not robust to conflicted paths that are not regular text files (symlinks-to-
+  directories, directories, submodules, binaries); whatever universal validation replaces
+  `make verify` should detect markers/unresolved state in a way that does not crash on
+  such paths.
+- The conflict resolver currently allows only 1 attempt (attempt 1/1); any single failure
+  becomes a full rollback. Consider whether that is appropriate once validation no longer
+  depends on a mutating `make verify`.
+- The staged-paths guard lives at internal/daemon/task_multi_worktree.go:315 (call) and
+  :955 ("unexpected staged paths"). Its interaction with whatever the resolver leaves in
+  the worktree must remain consistent (the resolution commit should contain only the
+  resolution).
+
+----------------------------------------------------------------------------------
+REGRESSION COVERAGE EXPECTED
+----------------------------------------------------------------------------------
+- Conflict resolution succeeds in a repository that has NO Makefile / no `verify` target.
+- The conflict-resolution validation does not invoke `make` (or any hardcoded build tool)
+  and does not mutate the worktree.
+- A resolved conflict whose worktree is clean per git (no unmerged entries, no markers) is
+  committed and merged without being rejected by the staged-paths guard.
+- (If an optional configurable post-resolution command is added) it is off by default and,
+  when unset, conflict resolution proceeds on the agent + git-native signals alone.
+
+----------------------------------------------------------------------------------
+DEFINITION OF DONE
+----------------------------------------------------------------------------------
+- The agentic conflict resolver no longer depends on a hardcoded `make verify`; it
+  validates resolutions using project-agnostic, non-mutating signals (agent success + git
+  confirms no unresolved entries / no conflict markers), with any heavier validation being
+  optional/configurable and off by default.
+- A parallel run with a real, resolvable conflict completes the merge on a non-Make
+  project and on a Make project whose verify target mutates files.
+- Root-cause fixes with regression tests as above.
+- `make verify` passes at 100% for the Compozy repo (fmt + lint + test -race + build),
+  zero lint issues.
+==================================================================================

@@ -30,7 +30,7 @@ Creates a business-focused Product Requirements Document through structured brai
 - **Inputs:** Feature name or idea. Optional existing `_idea.md` or `_prd.md` for update mode.
 - **Outputs:** `.compozy/tasks/<slug>/_prd.md`, ADRs in `adrs/`.
 - **Pipeline position:** After ideation (optional). Feeds into `cy-create-techspec`.
-- **Process:** Context discovery (codebase + web) -> clarifying questions -> 2-3 product approaches -> ADR for chosen approach -> draft PRD -> user approval.
+- **Process:** Context discovery (codebase + web) -> clarifying questions -> decide direction + ADR -> write PRD directly.
 - **Use when:** Starting a new feature or product, building or updating a PRD.
 - **Do not use for:** Technical specifications, task breakdowns, or code implementation.
 
@@ -45,7 +45,7 @@ Translates PRD business requirements into a technical implementation design.
 - **Inputs:** Existing `_prd.md` from the previous stage.
 - **Outputs:** `.compozy/tasks/<slug>/_techspec.md`, ADRs in `adrs/`.
 - **Pipeline position:** After PRD. Feeds into `cy-create-tasks`.
-- **Process:** Codebase architecture exploration -> technical questions -> technical ADRs -> TechSpec draft -> user approval.
+- **Process:** Codebase architecture exploration -> technical questions -> technical ADRs -> write TechSpec directly.
 - **Use when:** A PRD exists and needs a technical implementation plan.
 - **Do not use for:** PRD creation, task execution, or code implementation.
 
