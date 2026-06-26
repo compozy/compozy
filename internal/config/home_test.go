@@ -240,3 +240,111 @@ func stubConfigUserHomeDir(t *testing.T, fn func() (string, error)) {
 		osUserHomeDir = original
 	})
 }
+
+func TestResolveHomeDirUsesCompozyHomeEnv(t *testing.T) {
+	override := filepath.Join(t.TempDir(), "custom-compozy")
+	t.Setenv(HomeEnvVar, override)
+
+	homeDir, err := ResolveHomeDir()
+	if err != nil {
+		t.Fatalf("ResolveHomeDir() error = %v", err)
+	}
+	if got, want := homeDir, override; got != want {
+		t.Fatalf("ResolveHomeDir() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveHomeDirCompozyHomeEnvTrimsWhitespace(t *testing.T) {
+	override := filepath.Join(t.TempDir(), "custom-compozy")
+	t.Setenv(HomeEnvVar, "  "+override+" \t")
+
+	homeDir, err := ResolveHomeDir()
+	if err != nil {
+		t.Fatalf("ResolveHomeDir() error = %v", err)
+	}
+	if got, want := homeDir, override; got != want {
+		t.Fatalf("ResolveHomeDir() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveHomeDirIgnoresEmptyCompozyHomeEnv(t *testing.T) {
+	homeDir := t.TempDir()
+	stubConfigUserHomeDir(t, func() (string, error) {
+		return homeDir, nil
+	})
+	t.Setenv(HomeEnvVar, "")
+
+	got, err := ResolveHomeDir()
+	if err != nil {
+		t.Fatalf("ResolveHomeDir() error = %v", err)
+	}
+	if want := filepath.Join(homeDir, DirName); got != want {
+		t.Fatalf("ResolveHomeDir() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveHomeDirIgnoresWhitespaceCompozyHomeEnv(t *testing.T) {
+	homeDir := t.TempDir()
+	stubConfigUserHomeDir(t, func() (string, error) {
+		return homeDir, nil
+	})
+	t.Setenv(HomeEnvVar, "   \t  ")
+
+	got, err := ResolveHomeDir()
+	if err != nil {
+		t.Fatalf("ResolveHomeDir() error = %v", err)
+	}
+	if want := filepath.Join(homeDir, DirName); got != want {
+		t.Fatalf("ResolveHomeDir() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveHomeDirCompozyHomeEnvExpandsTilde(t *testing.T) {
+	homeDir := t.TempDir()
+	stubConfigUserHomeDir(t, func() (string, error) {
+		return homeDir, nil
+	})
+	t.Setenv(HomeEnvVar, "~/alt-compozy")
+
+	got, err := ResolveHomeDir()
+	if err != nil {
+		t.Fatalf("ResolveHomeDir() error = %v", err)
+	}
+	if want := filepath.Join(homeDir, "alt-compozy"); got != want {
+		t.Fatalf("ResolveHomeDir() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveHomePathsUsesCompozyHomeEnv(t *testing.T) {
+	override := filepath.Join(t.TempDir(), "custom-compozy")
+	t.Setenv(HomeEnvVar, override)
+
+	paths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if got, want := paths.HomeDir, override; got != want {
+		t.Fatalf("paths.HomeDir = %q, want %q", got, want)
+	}
+	if got, want := paths.DaemonDir, filepath.Join(override, "daemon"); got != want {
+		t.Fatalf("paths.DaemonDir = %q, want %q", got, want)
+	}
+}
+
+func TestResolveHomeDirWithoutCompozyHomeFallsBackToUserHome(t *testing.T) {
+	homeDir := t.TempDir()
+	stubConfigUserHomeDir(t, func() (string, error) {
+		return homeDir, nil
+	})
+	if _, ok := osLookupEnv(HomeEnvVar); ok {
+		t.Fatalf("precondition: %s must be unset", HomeEnvVar)
+	}
+
+	got, err := ResolveHomeDir()
+	if err != nil {
+		t.Fatalf("ResolveHomeDir() error = %v", err)
+	}
+	if want := filepath.Join(homeDir, DirName); got != want {
+		t.Fatalf("ResolveHomeDir() = %q, want %q", got, want)
+	}
+}

@@ -26,9 +26,14 @@ const (
 	DaemonLockName   = "daemon.lock"
 	DaemonInfoName   = "daemon.json"
 	DaemonLogName    = "daemon.log"
+
+	HomeEnvVar = "COMPOZY_HOME"
 )
 
 var osUserHomeDir = os.UserHomeDir
+
+// osLookupEnv mirrors os.LookupEnv for tests that need to stub env resolution.
+var osLookupEnv = os.LookupEnv
 
 // HomePaths captures the stable home-scoped Compozy layout.
 type HomePaths struct {
@@ -50,13 +55,37 @@ type HomePaths struct {
 	CacheDir      string
 }
 
-// ResolveHomeDir returns the canonical Compozy home root under the current user's home directory.
+// ResolveHomeDir returns the canonical Compozy home root.
+//
+// Precedence:
+//  1. COMPOZY_HOME environment variable, when set to a non-empty value
+//     (whitespace trimmed). A leading "~" or "~/" is expanded against the
+//     current user's home directory.
+//  2. The current user's home directory, joined with DirName (".compozy").
 func ResolveHomeDir() (string, error) {
+	if override, ok := lookupHomeOverride(); ok {
+		return ResolvePath(override)
+	}
 	homeDir, err := osUserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve user home directory: %w", err)
 	}
 	return ResolvePath(filepath.Join(homeDir, DirName))
+}
+
+// lookupHomeOverride reads COMPOZY_HOME and returns a trimmed, non-empty
+// value when it is set. The boolean is false when the variable is unset or
+// contains only whitespace, so callers can fall back to the user home.
+func lookupHomeOverride() (string, bool) {
+	value, ok := osLookupEnv(HomeEnvVar)
+	if !ok {
+		return "", false
+	}
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", false
+	}
+	return trimmed, true
 }
 
 // ResolveHomePaths resolves the canonical Compozy home layout from the current user's home directory.
