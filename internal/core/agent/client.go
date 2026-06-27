@@ -404,7 +404,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 
 	if modelID := strings.TrimSpace(req.Model); modelID != "" {
 		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
-			c.cleanupCancelSession(setupCtx, session.id)
+			c.cleanupCloseSession(setupCtx, session.id)
 			c.removeSession(session.id)
 			return nil, fmt.Errorf("set session model before prompt: %w", err)
 		}
@@ -425,6 +425,38 @@ func (c *clientImpl) cleanupCancelSession(ctx context.Context, sessionID string)
 	if err := c.CancelSession(cancelCtx, sessionID); err != nil && c.logger != nil {
 		c.logger.Warn("failed to cancel ACP session during cleanup", "session_id", sessionID, "error", err)
 	}
+}
+
+func (c *clientImpl) cleanupCloseSession(ctx context.Context, sessionID string) {
+	closeCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+	if err := c.closeSession(closeCtx, sessionID); err != nil && c.logger != nil {
+		c.logger.Warn("failed to close ACP session during cleanup", "session_id", sessionID, "error", err)
+	}
+}
+
+func (c *clientImpl) closeSession(ctx context.Context, sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("close ACP session: missing session id")
+	}
+	c.mu.Lock()
+	closed := c.closed
+	conn := c.conn
+	c.mu.Unlock()
+	if closed {
+		return errors.New("ACP client is already closed")
+	}
+	if conn == nil {
+		return errors.New("ACP client is not started")
+	}
+	_, err := conn.CloseSession(ctx, acp.CloseSessionRequest{
+		SessionId: acp.SessionId(sessionID),
+	})
+	if err != nil {
+		return wrapACPError(err)
+	}
+	return nil
 }
 
 func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (SessionRequest, string, error) {
@@ -532,6 +564,8 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 
 	if modelID := strings.TrimSpace(req.Model); modelID != "" {
 		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
+			c.cleanupCloseSession(setupCtx, session.id)
+			c.removeSession(session.id)
 			return nil, fmt.Errorf("set session model before prompt: %w", err)
 		}
 	}
