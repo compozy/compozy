@@ -299,18 +299,18 @@ func (m *RunManager) Purge(ctx context.Context, settings RunLifecycleSettings) (
 		}
 		purgedWorktrees, err := m.purgeRunWorktrees(listCtx, run, settings)
 		if err != nil {
-			return result, err
+			return result, fmt.Errorf("purge worktrees for run %s: %w", run.RunID, err)
 		}
 
 		runArtifacts, err := model.ResolveHomeRunArtifacts(run.RunID)
 		if err != nil {
-			return result, err
+			return result, fmt.Errorf("resolve artifacts for run %s: %w", run.RunID, err)
 		}
 		if err := os.RemoveAll(runArtifacts.RunDir); err != nil {
-			return result, err
+			return result, fmt.Errorf("remove artifacts for run %s: %w", run.RunID, err)
 		}
 		if err := m.globalDB.DeleteRuns(listCtx, []string{run.RunID}); err != nil {
-			return result, err
+			return result, fmt.Errorf("delete metadata for run %s: %w", run.RunID, err)
 		}
 		result.PurgedRunIDs = append(result.PurgedRunIDs, run.RunID)
 		result.PurgedWorktreePaths = append(result.PurgedWorktreePaths, purgedWorktrees...)

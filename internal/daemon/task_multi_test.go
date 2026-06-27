@@ -442,6 +442,22 @@ func TestRemapTaskMultiChildRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should overwrite inherited WorkflowName with the child slug", func(t *testing.T) {
+		t.Parallel()
+		base := newBase()
+		base.WorkflowName = "parent-workflow"
+		got, err := remapTaskMultiChildRuntime(base, "/wt/01-alpha", "alpha", "parent-1")
+		if err != nil {
+			t.Fatalf("remapTaskMultiChildRuntime() error = %v", err)
+		}
+		if got.WorkflowName != "alpha" {
+			t.Fatalf("WorkflowName = %q, want alpha", got.WorkflowName)
+		}
+		if base.WorkflowName != "parent-workflow" {
+			t.Fatalf("base WorkflowName = %q, want parent-workflow", base.WorkflowName)
+		}
+	})
+
 	t.Run("Should set ParentRunID and preserve unrelated runtime overrides", func(t *testing.T) {
 		t.Parallel()
 		base := newBase()
@@ -555,6 +571,21 @@ func TestMirrorTaskMultiWorkflowArtifacts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject blank destination inputs before deriving artifact path", func(t *testing.T) {
+		t.Parallel()
+		workflowDir := filepath.Join(t.TempDir(), "workflow")
+		writeFileForTest(t, filepath.Join(workflowDir, "task_01.md"), "task\n")
+
+		err := mirrorTaskMultiWorkflowArtifacts(workflowDir, "  ", "alpha")
+		if err == nil || !strings.Contains(err.Error(), "worktree root") {
+			t.Fatalf("blank worktree root error = %v, want worktree root validation", err)
+		}
+		err = mirrorTaskMultiWorkflowArtifacts(workflowDir, t.TempDir(), "  ")
+		if err == nil || !strings.Contains(err.Error(), "slug") {
+			t.Fatalf("blank slug error = %v, want slug validation", err)
+		}
+	})
+
 	t.Run("Should reject symlinks in workflow artifacts", func(t *testing.T) {
 		t.Parallel()
 		parentRoot := t.TempDir()
@@ -574,6 +605,37 @@ func TestMirrorTaskMultiWorkflowArtifacts(t *testing.T) {
 		err := mirrorTaskMultiWorkflowArtifacts(workflowDir, worktreeRoot, slug)
 		if err == nil || !strings.Contains(err.Error(), "symlink") {
 			t.Fatalf("mirrorTaskMultiWorkflowArtifacts() error = %v, want symlink rejection", err)
+		}
+	})
+
+	t.Run("Should reject symlinked artifact destinations before writing", func(t *testing.T) {
+		t.Parallel()
+		parentRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		outsideRoot := t.TempDir()
+		slug := "alpha"
+		workflowDir := model.TaskDirectoryForWorkspace(parentRoot, slug)
+		writeFileForTest(t, filepath.Join(workflowDir, "task_01.md"), "updated\n")
+		destinationDir := model.TaskDirectoryForWorkspace(worktreeRoot, slug)
+		if err := os.MkdirAll(destinationDir, 0o755); err != nil {
+			t.Fatalf("mkdir destination dir: %v", err)
+		}
+		outsideTarget := filepath.Join(outsideRoot, "outside.md")
+		writeFileForTest(t, outsideTarget, "outside\n")
+		if err := os.Symlink(outsideTarget, filepath.Join(destinationDir, "task_01.md")); err != nil {
+			t.Skipf("symlink unavailable: %v", err)
+		}
+
+		err := mirrorTaskMultiWorkflowArtifacts(workflowDir, worktreeRoot, slug)
+		if err == nil || !strings.Contains(err.Error(), "destination") || !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("mirrorTaskMultiWorkflowArtifacts() error = %v, want destination symlink rejection", err)
+		}
+		got, readErr := os.ReadFile(outsideTarget)
+		if readErr != nil {
+			t.Fatalf("read outside target: %v", readErr)
+		}
+		if string(got) != "outside\n" {
+			t.Fatalf("outside target content = %q, want unchanged", got)
 		}
 	})
 }

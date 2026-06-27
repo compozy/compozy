@@ -25,7 +25,15 @@ func mirrorTaskMultiWorkflowArtifacts(sourceTaskDir, worktreeRoot, slug string) 
 	if source == "" {
 		return errors.New("daemon: workflow artifact source task directory is required")
 	}
-	destination := model.TaskDirectoryForWorkspace(strings.TrimSpace(worktreeRoot), strings.TrimSpace(slug))
+	root := strings.TrimSpace(worktreeRoot)
+	if root == "" {
+		return errors.New("daemon: workflow artifact destination worktree root is required")
+	}
+	trimmedSlug := strings.TrimSpace(slug)
+	if trimmedSlug == "" {
+		return errors.New("daemon: workflow artifact destination slug is required")
+	}
+	destination := model.TaskDirectoryForWorkspace(root, trimmedSlug)
 	if err := requireDirectory(source); err != nil {
 		return fmt.Errorf("mirror workflow artifacts for %q: source task directory %s: %w", slug, source, err)
 	}
@@ -91,6 +99,9 @@ func copyTaskMultiArtifactFile(source, destination string, mode os.FileMode) err
 	if err := os.MkdirAll(filepath.Dir(destination), taskMultiWorktreeDirPerm); err != nil {
 		return fmt.Errorf("create workflow artifact parent for %s: %w", destination, err)
 	}
+	if err := rejectTaskMultiArtifactDestinationSymlink(destination); err != nil {
+		return err
+	}
 	in, err := os.Open(source)
 	if err != nil {
 		return fmt.Errorf("open workflow artifact %s: %w", source, err)
@@ -109,6 +120,21 @@ func copyTaskMultiArtifactFile(source, destination string, mode os.FileMode) err
 		return fmt.Errorf("close workflow artifact %s: %w", destination, closeErr)
 	}
 	return nil
+}
+
+func rejectTaskMultiArtifactDestinationSymlink(path string) error {
+	info, err := os.Lstat(path)
+	switch {
+	case err == nil:
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("workflow artifact destination %s is a symlink", path)
+		}
+		return nil
+	case errors.Is(err, os.ErrNotExist):
+		return nil
+	default:
+		return fmt.Errorf("stat workflow artifact destination %s: %w", path, err)
+	}
 }
 
 func dirPerm(mode os.FileMode) os.FileMode {

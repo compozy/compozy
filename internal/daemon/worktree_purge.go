@@ -407,6 +407,13 @@ func cleanOwnedWorktreePath(worktreesRoot string, rawPath string) (string, bool,
 		return "", false, fmt.Errorf("relativize worktree path %s to %s: %w", cleanPath, cleanRoot, err)
 	}
 	if isRelativeChildPath(rel) {
+		insideResolvedRoot, err := isLexicallyOwnedWorktreeChild(cleanRoot, cleanPath)
+		if err != nil {
+			return "", false, err
+		}
+		if !insideResolvedRoot {
+			return "", false, nil
+		}
 		return cleanPath, true, nil
 	}
 	insideSymlinkRoot, err := isSymlinkEquivalentWorktreeChild(cleanRoot, cleanPath)
@@ -417,6 +424,43 @@ func cleanOwnedWorktreePath(worktreesRoot string, rawPath string) (string, bool,
 		return "", false, nil
 	}
 	return cleanPath, true, nil
+}
+
+func isLexicallyOwnedWorktreeChild(cleanRoot string, cleanPath string) (bool, error) {
+	evalRoot, rootErr := filepath.EvalSymlinks(cleanRoot)
+	if rootErr != nil {
+		return false, nil
+	}
+	cleanEvalRoot := filepath.Clean(evalRoot)
+	pathToEvaluate := cleanPath
+	for {
+		evalPath, pathErr := filepath.EvalSymlinks(pathToEvaluate)
+		if pathErr == nil {
+			evalRel, err := filepath.Rel(cleanEvalRoot, filepath.Clean(evalPath))
+			if err != nil {
+				return false, fmt.Errorf("relativize worktree path %s to %s: %w", evalPath, evalRoot, err)
+			}
+			if pathToEvaluate == cleanPath {
+				return isRelativeChildPath(evalRel), nil
+			}
+			return evalRel == "." || isRelativeChildPath(evalRel), nil
+		}
+		if !errors.Is(pathErr, os.ErrNotExist) {
+			return false, fmt.Errorf("resolve worktree path %s: %w", pathToEvaluate, pathErr)
+		}
+		parent := filepath.Dir(pathToEvaluate)
+		if parent == pathToEvaluate {
+			return false, nil
+		}
+		relToRoot, err := filepath.Rel(cleanRoot, parent)
+		if err != nil {
+			return false, fmt.Errorf("relativize worktree path %s to %s: %w", parent, cleanRoot, err)
+		}
+		if relToRoot != "." && !isRelativeChildPath(relToRoot) {
+			return false, nil
+		}
+		pathToEvaluate = parent
+	}
 }
 
 func isSymlinkEquivalentWorktreeChild(cleanRoot string, cleanPath string) (bool, error) {

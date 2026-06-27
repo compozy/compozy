@@ -334,6 +334,7 @@ func TestRunManagerPurgePreservesDirtyTaskWorktreeAndMetadata(t *testing.T) {
 			KeepMax:          0,
 		})
 		assertErrorContains(t, err, "uncommitted changes")
+		assertErrorContains(t, err, runID)
 		if len(result.PurgedRunIDs) != 0 {
 			t.Fatalf("purged run ids = %v, want none", result.PurgedRunIDs)
 		}
@@ -588,6 +589,75 @@ func TestRunManagerPurgeIgnoresWorktreePathsOutsideOwnedRoot(t *testing.T) {
 			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
 		}
 	})
+}
+
+func TestResolveIntegrationPurgePathRejectsFallbackOutsideWorktreeRoot(t *testing.T) {
+	t.Parallel()
+	worktreesRoot := filepath.Join(t.TempDir(), "worktrees")
+	if err := os.MkdirAll(worktreesRoot, 0o755); err != nil {
+		t.Fatalf("mkdir worktrees root: %v", err)
+	}
+	allocator := &taskMultiWorktreeAllocator{
+		run: func(_ context.Context, _ string, args ...string) (string, error) {
+			if strings.Join(args, " ") != "worktree list --porcelain" {
+				t.Fatalf("unexpected git command: %v", args)
+			}
+			return "", nil
+		},
+	}
+
+	outsidePath := filepath.Join(t.TempDir(), "integration")
+	_, err := allocator.resolveIntegrationPurgePath(
+		context.Background(),
+		t.TempDir(),
+		worktreesRoot,
+		outsidePath,
+		"compozy/integration/run-1",
+	)
+	assertErrorContains(t, err, "outside worktree root")
+}
+
+func TestCleanOwnedWorktreePathRejectsSymlinkEscapesWorktreeRoot(t *testing.T) {
+	t.Parallel()
+	worktreesRoot := filepath.Join(t.TempDir(), "worktrees")
+	outsideRoot := filepath.Join(t.TempDir(), "outside")
+	if err := os.MkdirAll(worktreesRoot, 0o755); err != nil {
+		t.Fatalf("mkdir worktrees root: %v", err)
+	}
+	if err := os.MkdirAll(outsideRoot, 0o755); err != nil {
+		t.Fatalf("mkdir outside root: %v", err)
+	}
+	if err := os.Symlink(outsideRoot, filepath.Join(worktreesRoot, "link")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	_, ok, err := cleanOwnedWorktreePath(worktreesRoot, filepath.Join(worktreesRoot, "link", "repo"))
+	if err != nil {
+		t.Fatalf("cleanOwnedWorktreePath() error = %v", err)
+	}
+	if ok {
+		t.Fatal("cleanOwnedWorktreePath() ok = true, want false for symlink escape")
+	}
+}
+
+func TestCleanOwnedWorktreePathAcceptsMissingChildUnderOwnedRoot(t *testing.T) {
+	t.Parallel()
+	worktreesRoot := filepath.Join(t.TempDir(), "worktrees")
+	if err := os.MkdirAll(worktreesRoot, 0o755); err != nil {
+		t.Fatalf("mkdir worktrees root: %v", err)
+	}
+	path := filepath.Join(worktreesRoot, "missing", "repo")
+
+	got, ok, err := cleanOwnedWorktreePath(worktreesRoot, path)
+	if err != nil {
+		t.Fatalf("cleanOwnedWorktreePath() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("cleanOwnedWorktreePath() ok = false, want true for missing child under root")
+	}
+	if got != path {
+		t.Fatalf("cleanOwnedWorktreePath() path = %q, want %q", got, path)
+	}
 }
 
 func assertErrorContains(t *testing.T, err error, want string) {

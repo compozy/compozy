@@ -153,6 +153,22 @@ func TestStartRemainsHealthyWhenInterruptedRunDBIsMissingOrCorrupt(t *testing.T)
 	}
 }
 
+func TestLoadRunLifecycleSettingsPopulatesWorktreesRoot(t *testing.T) {
+	paths := mustHomePaths(t)
+	t.Setenv("HOME", filepath.Dir(paths.HomeDir))
+	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	settings, _, err := LoadRunLifecycleSettings(context.Background())
+	if err != nil {
+		t.Fatalf("LoadRunLifecycleSettings() error = %v", err)
+	}
+	if settings.WorktreesRoot != paths.WorktreesDir {
+		t.Fatalf("WorktreesRoot = %q, want %q", settings.WorktreesRoot, paths.WorktreesDir)
+	}
+}
+
 func openDaemonGlobalDB(t *testing.T, paths compozyconfig.HomePaths) *globaldb.GlobalDB {
 	t.Helper()
 

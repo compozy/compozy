@@ -1739,9 +1739,7 @@ func remapTaskMultiChildRuntime(
 	}
 	remapped.WorkspaceRoot = trimmedPath
 	remapped.TasksDir = model.TaskDirectoryForWorkspace(trimmedPath, trimmedSlug)
-	if strings.TrimSpace(remapped.WorkflowName) == "" {
-		remapped.WorkflowName = trimmedSlug
-	}
+	remapped.WorkflowName = trimmedSlug
 	remapped.ParentRunID = strings.TrimSpace(parentRunID)
 	remapped.RunID = ""
 	return remapped, nil

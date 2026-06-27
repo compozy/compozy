@@ -61,7 +61,12 @@ func TestTaskParallelPlanPayloadFieldsDocumented(t *testing.T) {
 	t.Run("Should document every TaskParallelPlan payload field", func(t *testing.T) {
 		t.Parallel()
 
-		content := readEventsDocumentation(t)
+		content := docsSection(
+			t,
+			readEventsDocumentation(t),
+			"`kinds.TaskParallelPlanPayload` fields:",
+			"`kinds.TaskParallelPayload` fields:",
+		)
 		for _, payload := range []any{
 			TaskParallelPlanPayload{},
 			TaskParallelPlanTask{},
@@ -80,6 +85,20 @@ func TestTaskParallelPlanPayloadFieldsDocumented(t *testing.T) {
 			}
 		}
 	})
+}
+
+func docsSection(t *testing.T, content, startMarker, endMarker string) string {
+	t.Helper()
+	start := strings.Index(content, startMarker)
+	if start < 0 {
+		t.Fatalf("docs/events.md missing section marker %q", startMarker)
+	}
+	body := content[start:]
+	end := strings.Index(body, endMarker)
+	if end < 0 {
+		t.Fatalf("docs/events.md section %q missing end marker %q", startMarker, endMarker)
+	}
+	return body[:end]
 }
 
 func TestRunRecoveryPayloadFieldsDocumented(t *testing.T) {

@@ -574,7 +574,17 @@ func (a *taskMultiWorktreeAllocator) resolveIntegrationPurgePath(
 		}
 		return ownedPath, nil
 	}
-	return plannedPath, nil
+	ownedPath, ok, err := cleanOwnedWorktreePath(worktreesRoot, plannedPath)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf(
+			"integration purge path is outside worktree root at %s",
+			plannedPath,
+		)
+	}
+	return ownedPath, nil
 }
 
 func (a *taskMultiWorktreeAllocator) removeIntegrationWorktreeForPurge(
