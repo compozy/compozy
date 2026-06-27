@@ -562,14 +562,6 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.resumeUpdates()
 
-	if modelID := strings.TrimSpace(req.Model); modelID != "" {
-		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
-			c.cleanupCloseSession(setupCtx, session.id)
-			c.removeSession(session.id)
-			return nil, fmt.Errorf("set session model before prompt: %w", err)
-		}
-	}
-
 	c.wg.Add(1)
 	go c.runPrompt(ctx, session, acp.PromptRequest{
 		SessionId: acp.SessionId(sessionID),
