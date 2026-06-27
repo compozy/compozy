@@ -404,7 +404,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 
 	if modelID := strings.TrimSpace(req.Model); modelID != "" {
 		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
-			_ = c.CancelSession(setupCtx, session.id)
+			c.cleanupCancelSession(setupCtx, session.id)
 			c.removeSession(session.id)
 			return nil, fmt.Errorf("set session model before prompt: %w", err)
 		}
@@ -417,6 +417,14 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	})
 
 	return session, nil
+}
+
+func (c *clientImpl) cleanupCancelSession(ctx context.Context, sessionID string) {
+	cancelCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+	if err := c.CancelSession(cancelCtx, sessionID); err != nil && c.logger != nil {
+		c.logger.Warn("failed to cancel ACP session during cleanup", "session_id", sessionID, "error", err)
+	}
 }
 
 func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (SessionRequest, string, error) {
@@ -441,28 +449,36 @@ func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (Sessi
 	return req, workingDir, nil
 }
 
-// ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
-func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
+func prepareResumeSessionRequest(ctx context.Context, req ResumeSessionRequest) (ResumeSessionRequest, string, error) {
 	workingDir, err := resolveWorkingDir(req.WorkingDir)
 	if err != nil {
-		return nil, err
+		return ResumeSessionRequest{}, "", err
 	}
 	if strings.TrimSpace(req.SessionID) == "" {
-		return nil, errors.New("resume ACP session: missing session id")
+		return ResumeSessionRequest{}, "", errors.New("resume ACP session: missing session id")
 	}
 	req.Context = ctx
 	req.WorkingDir = workingDir
 	req, err = req.dispatchPreResumeHook()
 	if err != nil {
-		return nil, err
+		return ResumeSessionRequest{}, "", err
 	}
 	workingDir, err = resolveWorkingDir(req.WorkingDir)
 	if err != nil {
-		return nil, err
+		return ResumeSessionRequest{}, "", err
 	}
 	req.WorkingDir = workingDir
 	if strings.TrimSpace(req.SessionID) == "" {
-		return nil, errors.New("resume ACP session: missing session id")
+		return ResumeSessionRequest{}, "", errors.New("resume ACP session: missing session id")
+	}
+	return req, workingDir, nil
+}
+
+// ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
+func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
+	req, workingDir, err := prepareResumeSessionRequest(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
 	sessionReq := SessionRequest{
@@ -516,8 +532,6 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 
 	if modelID := strings.TrimSpace(req.Model); modelID != "" {
 		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
-			_ = c.CancelSession(setupCtx, session.id)
-			c.removeSession(session.id)
 			return nil, fmt.Errorf("set session model before prompt: %w", err)
 		}
 	}
@@ -855,6 +869,29 @@ func detachedContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return context.WithoutCancel(ctx)
+}
+
+// cleanupContext returns a detached context with a short deadline so that
+// best-effort cleanup RPCs (e.g. CancelSession) can still reach the ACP agent
+// even when the original setup context has already been canceled or expired.
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	detached := context.WithoutCancel(ctx)
+	timeout := 5 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		// Extend the deadline by 2 seconds beyond the original, capped at 5s
+		// from now, so the cleanup RPC has a reasonable window.
+		timeout = time.Until(deadline) + 2*time.Second
+		if timeout < 1*time.Second {
+			timeout = 1 * time.Second
+		}
+		if timeout > 5*time.Second {
+			timeout = 5 * time.Second
+		}
+	}
+	return context.WithTimeout(detached, timeout)
 }
 
 // launchEnvironment merges the spec environment, the launch-time model pin,
