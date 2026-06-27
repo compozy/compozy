@@ -403,7 +403,8 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	)
 
 	if modelID := strings.TrimSpace(req.Model); modelID != "" {
-		if err := c.SetSessionModel(ctx, session.id, modelID); err != nil {
+		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
+			_ = c.CancelSession(setupCtx, session.id)
 			c.removeSession(session.id)
 			return nil, fmt.Errorf("set session model before prompt: %w", err)
 		}
@@ -514,7 +515,8 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	session.resumeUpdates()
 
 	if modelID := strings.TrimSpace(req.Model); modelID != "" {
-		if err := c.SetSessionModel(ctx, session.id, modelID); err != nil {
+		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
+			_ = c.CancelSession(setupCtx, session.id)
 			c.removeSession(session.id)
 			return nil, fmt.Errorf("set session model before prompt: %w", err)
 		}

@@ -212,10 +212,11 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 		t.Fatalf("expected second client SetSessionModel once, got %d", got)
 	}
 	secondClient.setModelMu.Lock()
-	if secondClient.lastSetModelID != "test-model" {
-		t.Fatalf("expected second client SetSessionModel model %q, got %q", "test-model", secondClient.lastSetModelID)
-	}
+	gotModelID := secondClient.lastSetModelID
 	secondClient.setModelMu.Unlock()
+	if gotModelID != "test-model" {
+		t.Fatalf("expected second client SetSessionModel model %q, got %q", "test-model", gotModelID)
+	}
 
 	outLog, err := os.ReadFile(job.OutLog)
 	if err != nil {
@@ -1550,9 +1551,9 @@ type fakeACPClient struct {
 	closeCalls      atomic.Int32
 	killCalls       atomic.Int32
 
-	setModelMu          sync.Mutex
-	lastSetModelSessID  string
-	lastSetModelID      string
+	setModelMu         sync.Mutex
+	lastSetModelSessID string
+	lastSetModelID     string
 }
 
 func newFakeACPClient(
