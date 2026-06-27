@@ -509,6 +509,36 @@ func TestTaskRunWizardModel(t *testing.T) {
 		}
 	})
 
+	t.Run("Should clear stale parallel limit when parallel workflows are disabled", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		markInputFlagChanged(cmd, "parallel-limit")
+		appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		appliedState.parallel = true
+		appliedState.parallelLimit = 3
+
+		inputs := taskRunFormInputs{
+			selectedWorkflows:     []string{"alpha", "beta"},
+			parallelWorkflows:     false,
+			parallelWorkflowLimit: "3",
+		}
+		inputs.applyParallelControls(cmd, appliedState)
+		if appliedState.parallel || appliedState.parallelLimit != 0 {
+			t.Fatalf(
+				"parallel state = parallel:%v limit:%d, want serial mode with cleared limit",
+				appliedState.parallel,
+				appliedState.parallelLimit,
+			)
+		}
+		if !cmd.Flags().Changed("parallel") {
+			t.Fatal("serial multi-workflow mode should mark parallel as explicit")
+		}
+		if cmd.Flags().Changed("parallel-limit") {
+			t.Fatal("serial multi-workflow mode should clear stale parallel-limit flag state")
+		}
+	})
+
 	t.Run("Should configure parallel workflow controls", func(t *testing.T) {
 		t.Parallel()
 

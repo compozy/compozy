@@ -6,10 +6,10 @@
     {
       "name": "compozy",
       "sidecar_branch": "compozy/__branches__/fix-parallel",
-      "commit": "8a5934065c9f3a860569a34db8a10070f0f3d71b",
-      "digest": "sha256:0e20354dd540dc3cad5ddae5939b9b7d8d952f64c1d7ca778e1e9609163aea52",
-      "files": 1400,
-      "bytes": 11815757
+      "commit": "ade61057137a09fb9d40de0e065dfa003b1ac5b8",
+      "digest": "sha256:d5d7ee6daad42da43b08aa8f7fc2099decfd8adca55b9b6d127223ccaaf6ca84",
+      "files": 1403,
+      "bytes": 11819394
     }
   ]
 }

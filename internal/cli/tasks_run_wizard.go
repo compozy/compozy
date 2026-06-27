@@ -2431,16 +2431,31 @@ func (inputs *taskRunFormInputs) applyParallelControls(cmd *cobra.Command, state
 	if len(selectedTaskRunWizardWorkflows(*inputs)) <= 1 {
 		state.parallel = false
 		state.parallelLimit = 0
+		clearTaskRunWizardFlagChanged(cmd, "parallel-limit")
 		return
 	}
 	applyInput(cmd, "parallel", inputs.parallelWorkflows, passThroughInput[bool], func(value bool) {
 		state.parallel = value
 	})
-	if inputs.parallelWorkflows {
-		applyInput(cmd, "parallel-limit", inputs.parallelWorkflowLimit, parseIntInput, func(value int) {
-			state.parallelLimit = value
-		})
+	if !inputs.parallelWorkflows {
+		state.parallelLimit = 0
+		clearTaskRunWizardFlagChanged(cmd, "parallel-limit")
+		return
 	}
+	applyInput(cmd, "parallel-limit", inputs.parallelWorkflowLimit, parseIntInput, func(value int) {
+		state.parallelLimit = value
+	})
+}
+
+func clearTaskRunWizardFlagChanged(cmd *cobra.Command, flagName string) {
+	if cmd == nil || cmd.Flags() == nil {
+		return
+	}
+	flag := cmd.Flags().Lookup(flagName)
+	if flag == nil {
+		return
+	}
+	flag.Changed = false
 }
 
 func (inputs *taskRunFormInputs) applyWorkflowSelection(cmd *cobra.Command, state *commandState) error {
