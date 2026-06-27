@@ -107,7 +107,7 @@ func BuildWavesFromEdges(nodes []TaskID, edges []DependencyEdge) (Waves, error) 
 			return Waves{}, &MissingDependencyError{TaskID: to, Dependency: from}
 		}
 		if _, exists := graph.predecessors[to]; !exists {
-			return Waves{}, &MissingDependencyError{TaskID: from, Dependency: to}
+			return Waves{}, &MissingDependencyError{TaskID: to, Dependency: from}
 		}
 		graph.predecessors[to][from] = struct{}{}
 		graph.successors[from][to] = struct{}{}

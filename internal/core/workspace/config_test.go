@@ -556,31 +556,33 @@ validation_command = ["go", "test", "./..."]
 }
 
 func TestLoadConfigAllowsWorkspaceToDisableGlobalConflictValidationCommand(t *testing.T) {
-	homeDir := isolateWorkspaceConfigHome(t)
-	root := t.TempDir()
-	writeGlobalConfig(t, homeDir, `
+	t.Run("Should allow workspace to disable global conflict validation command", func(t *testing.T) {
+		homeDir := isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeGlobalConfig(t, homeDir, `
 [tasks.run.parallel.conflict_resolver]
 validation_command = ["make", "verify"]
 	`)
-	writeWorkspaceConfig(t, root, `
+		writeWorkspaceConfig(t, root, `
 [tasks.run.parallel.conflict_resolver]
 validation_command = []
 	`)
 
-	cfg, _, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.Tasks.Run.Parallel.ConflictResolver == nil {
-		t.Fatal("conflict resolver config = nil, want defaults")
-	}
-	got := cfg.Tasks.Run.Parallel.ConflictResolver.ValidationCommand
-	if got == nil {
-		t.Fatal("validation command = nil, want explicit empty override")
-	}
-	if len(*got) != 0 {
-		t.Fatalf("validation command = %#v, want empty", *got)
-	}
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if cfg.Tasks.Run.Parallel.ConflictResolver == nil {
+			t.Fatal("conflict resolver config = nil, want defaults")
+		}
+		got := cfg.Tasks.Run.Parallel.ConflictResolver.ValidationCommand
+		if got == nil {
+			t.Fatal("validation command = nil, want explicit empty override")
+		}
+		if len(*got) != 0 {
+			t.Fatalf("validation command = %#v, want empty", *got)
+		}
+	})
 }
 
 func TestLoadConfigParsesParallelTasksTOML(t *testing.T) {
@@ -624,7 +626,7 @@ func TestLoadConfigRejectsInvalidParallelTasksValues(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "zero max concurrency",
+			name: "Should reject zero max concurrency",
 			content: `
 [tasks.run.parallel]
 max_concurrency = 0
@@ -632,7 +634,7 @@ max_concurrency = 0
 			wantErr: "tasks.run.parallel.max_concurrency",
 		},
 		{
-			name: "invalid resolver reasoning effort",
+			name: "Should reject invalid resolver reasoning effort",
 			content: `
 [tasks.run.parallel.conflict_resolver]
 reasoning_effort = "extreme"
@@ -640,7 +642,7 @@ reasoning_effort = "extreme"
 			wantErr: "tasks.run.parallel.conflict_resolver.reasoning_effort",
 		},
 		{
-			name: "resolver max attempts above maximum",
+			name: "Should reject resolver max attempts above maximum",
 			content: `
 [tasks.run.parallel.conflict_resolver]
 max_attempts = 5
@@ -648,7 +650,7 @@ max_attempts = 5
 			wantErr: "tasks.run.parallel.conflict_resolver.max_attempts",
 		},
 		{
-			name: "resolver validation command empty argument",
+			name: "Should reject resolver validation command empty argument",
 			content: `
 [tasks.run.parallel.conflict_resolver]
 validation_command = ["go", ""]

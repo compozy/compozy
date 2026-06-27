@@ -578,9 +578,12 @@ func isAuthoredTaskList(content string) bool {
 func isTaskGraphManifest(content string) bool {
 	var manifest tasks.TaskGraphManifest
 	if _, err := frontmatter.Parse(content, &manifest); err != nil {
-		return false
+		return !errors.Is(err, frontmatter.ErrHeaderNotFound)
 	}
-	return strings.TrimSpace(manifest.SchemaVersion) == tasks.TaskGraphManifestVersion
+	return strings.TrimSpace(manifest.SchemaVersion) != "" ||
+		strings.TrimSpace(manifest.Workflow) != "" ||
+		len(manifest.Graph.Nodes) > 0 ||
+		len(manifest.Graph.Edges) > 0
 }
 
 func removeFileIfPresent(path string) (bool, error) {

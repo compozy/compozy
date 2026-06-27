@@ -114,8 +114,18 @@ func TestLoadValidatedTaskGraphManifest(t *testing.T) {
 		))
 
 		_, _, err := LoadValidatedTaskGraphManifest(context.Background(), tasksDir, "demo")
-		if err == nil || !strings.Contains(err.Error(), "cycle") {
-			t.Fatalf("LoadValidatedTaskGraphManifest() error = %v, want cycle validation", err)
+		var validationErr *TaskGraphManifestValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("LoadValidatedTaskGraphManifest() error = %v, want manifest validation error", err)
+		}
+		found := false
+		for _, issue := range validationErr.Issues {
+			if issue.Field == "graph.edges" && strings.Contains(issue.Message, "cycle") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("validation issues = %#v, want graph.edges cycle issue", validationErr.Issues)
 		}
 	})
 

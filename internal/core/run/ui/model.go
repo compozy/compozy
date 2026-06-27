@@ -700,6 +700,10 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindRunFailed,
 			events.EventKindRunCancelled,
 			events.EventKindRunCrashed,
+			events.EventKindRunRecoveryStarted,
+			events.EventKindRunRecoveryRestarting,
+			events.EventKindRunRecovered,
+			events.EventKindRunRecoveryExhausted,
 			events.EventKindSessionUpdate,
 			events.EventKindShutdownRequested,
 			events.EventKindShutdownDraining,
@@ -875,6 +879,13 @@ func translateParallelPayloadEvent(ev events.Event) (uiMsg, bool) {
 			WaveTotal:         payload.WaveTotal,
 			IntegrationBranch: payload.IntegrationBranch,
 		}, true
+	default:
+		return translateParallelProgressEvent(ev)
+	}
+}
+
+func translateParallelProgressEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
 	case events.EventKindTaskParallelConflictDetected:
 		return parallelConflictFromPayload(ev, false)
 	case events.EventKindTaskParallelConflictResolving:
@@ -895,7 +906,21 @@ func translateParallelPayloadEvent(ev events.Event) (uiMsg, bool) {
 			return nil, false
 		}
 		return parallelWaveCompletedMsg{WaveIndex: payload.WaveIndex, WaveTotal: payload.WaveTotal}, true
-	case events.EventKindTaskParallelFailed, events.EventKindTaskParallelRolledBack:
+	case events.EventKindTaskParallelFailed:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		message := strings.TrimSpace(payload.Error)
+		if message == "" {
+			message = "parallel task execution failed"
+		}
+		return parallelFailedMsg{
+			WaveIndex:         payload.WaveIndex,
+			IntegrationBranch: payload.IntegrationBranch,
+			Err:               errors.New(message),
+		}, true
+	case events.EventKindTaskParallelRolledBack:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
 			return nil, false

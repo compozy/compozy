@@ -196,16 +196,36 @@ func TestBuildWavesReportsCycleNodes(t *testing.T) {
 func TestBuildWavesReportsMissingDependencyDetails(t *testing.T) {
 	t.Parallel()
 
-	_, err := BuildWaves([]model.TaskEntry{
-		task("task_02", "task_01.md"),
+	t.Run("Should report missing source dependency from task frontmatter", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := BuildWaves([]model.TaskEntry{
+			task("task_02", "task_01.md"),
+		})
+		var missingErr *MissingDependencyError
+		if !errors.As(err, &missingErr) {
+			t.Fatalf("BuildWaves() error = %v, want MissingDependencyError", err)
+		}
+		if missingErr.TaskID != "task_02" || missingErr.Dependency != "task_01" {
+			t.Fatalf("unexpected missing dependency detail: %#v", missingErr)
+		}
 	})
-	var missingErr *MissingDependencyError
-	if !errors.As(err, &missingErr) {
-		t.Fatalf("BuildWaves() error = %v, want MissingDependencyError", err)
-	}
-	if missingErr.TaskID != "task_02" || missingErr.Dependency != "task_01" {
-		t.Fatalf("unexpected missing dependency detail: %#v", missingErr)
-	}
+
+	t.Run("Should report missing target node without reversing dependency", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := BuildWavesFromEdges(
+			[]TaskID{"task_01"},
+			[]DependencyEdge{{From: "task_01", To: "task_02"}},
+		)
+		var missingErr *MissingDependencyError
+		if !errors.As(err, &missingErr) {
+			t.Fatalf("BuildWavesFromEdges() error = %v, want MissingDependencyError", err)
+		}
+		if missingErr.TaskID != "task_02" || missingErr.Dependency != "task_01" {
+			t.Fatalf("unexpected missing target detail: %#v", missingErr)
+		}
+	})
 }
 
 func TestWavesBlockedByReturnsTransitiveDependents(t *testing.T) {

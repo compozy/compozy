@@ -2429,6 +2429,8 @@ func (inputs *taskRunFormInputs) applyParallelControls(cmd *cobra.Command, state
 			func(value string) { state.parallelConflictResolverReasoningEffort = value })
 	}
 	if len(selectedTaskRunWizardWorkflows(*inputs)) <= 1 {
+		state.parallel = false
+		state.parallelLimit = 0
 		return
 	}
 	applyInput(cmd, "parallel", inputs.parallelWorkflows, passThroughInput[bool], func(value bool) {

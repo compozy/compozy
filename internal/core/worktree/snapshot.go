@@ -501,12 +501,47 @@ func fingerprintEntry(ctx context.Context, root string, entry StatusEntry) (stri
 		h.Write(out)
 		h.Write([]byte{0})
 	}
+	if gitlinkDigest, ok, err := gitlinkFingerprint(ctx, root, entry.Path); err != nil {
+		return "", err
+	} else if ok {
+		h.Write([]byte(gitlinkDigest))
+		return hex.EncodeToString(h.Sum(nil)), nil
+	}
 	fileDigest, err := filesystemFingerprint(root, entry.Path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
 	h.Write([]byte(fileDigest))
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func gitlinkFingerprint(ctx context.Context, root string, rel string) (string, bool, error) {
+	out, err := runGit(ctx, root, "ls-files", "-s", "-z", "--", rel)
+	if err != nil {
+		return "", false, err
+	}
+	normalizedRel := filepath.ToSlash(filepath.Clean(rel))
+	for len(out) > 0 {
+		var record []byte
+		record, out = nextPorcelainToken(out)
+		if len(record) == 0 {
+			continue
+		}
+		mode, objectID, stage, path, ok := parseLsFilesRecord(record)
+		if !ok || mode != "160000" || stage != "0" {
+			continue
+		}
+		if filepath.ToSlash(filepath.Clean(path)) != normalizedRel {
+			continue
+		}
+		h := sha256.New()
+		for _, value := range []string{mode, objectID, stage, path} {
+			h.Write([]byte(value))
+			h.Write([]byte{0})
+		}
+		return hex.EncodeToString(h.Sum(nil)), true, nil
+	}
+	return "", false, nil
 }
 
 func filesystemFingerprint(root string, rel string) (string, error) {

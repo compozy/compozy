@@ -182,8 +182,9 @@ func wizardScrollWindow(total, focus, focusSpan, avail int) (start, end, up, dow
 		return 0, total, 0, 0
 	}
 	content := max(avail-2, 1) // reserve a row each for the up and down affordances
-	start = max(focus-1, 0)    // keep a line of leading context (often the section header)
-	if lastWanted := focus + focusSpan - 1; lastWanted >= start+content {
+	visibleSpan := min(max(focusSpan, 1), content)
+	start = max(focus-1, 0) // keep a line of leading context (often the section header)
+	if lastWanted := focus + visibleSpan - 1; lastWanted >= start+content {
 		start = lastWanted - content + 1
 	}
 	start = min(max(start, 0), total-content)

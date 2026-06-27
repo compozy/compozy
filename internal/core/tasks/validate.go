@@ -69,16 +69,14 @@ func ValidateWithOptions(
 		return report, err
 	}
 	report.Scanned = len(names)
-	if len(names) == 0 {
-		return report, nil
+	if len(names) > 0 {
+		existingTasks := taskIdentitySet(names)
+		taskIssues, err := validateTaskFiles(ctx, resolvedDir, names, registry, existingTasks)
+		if err != nil {
+			return report, err
+		}
+		report.Issues = append(report.Issues, taskIssues...)
 	}
-
-	existingTasks := taskIdentitySet(names)
-	taskIssues, err := validateTaskFiles(ctx, resolvedDir, names, registry, existingTasks)
-	if err != nil {
-		return report, err
-	}
-	report.Issues = append(report.Issues, taskIssues...)
 	manifestIssues, err := validateTaskGraphManifestFile(ctx, resolvedDir)
 	if err != nil {
 		return report, err

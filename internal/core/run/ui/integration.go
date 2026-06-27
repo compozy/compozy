@@ -212,29 +212,64 @@ func (m *uiModel) handleParallelPlanStarted(v parallelPlanStartedMsg) {
 }
 
 func (m *uiModel) handleParallelWaveStarted(v parallelWaveStartedMsg) {
-	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, v.IntegrationBranch)
+	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, "", "", v.IntegrationBranch)
 }
 
 func (m *uiModel) handleParallelTaskStarted(v parallelTaskStartedMsg) {
-	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, v.IntegrationBranch)
+	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, v.ChildRunID, v.WorktreePath, v.IntegrationBranch)
 }
 
 func (m *uiModel) markParallelTaskRunning(
 	waveTotal int,
 	waveIndex int,
 	taskID string,
+	childRunID string,
+	worktreePath string,
 	integrationBranch string,
 ) {
 	p := m.parallelState()
 	p.ensureWaves(waveTotal)
 	p.ensureWaveIndex(waveIndex)
 	p.assignTask(taskID, waveIndex)
+	m.markParallelTaskRuntimeLink(taskID, childRunID, worktreePath)
 	p.setWaveStatus(waveIndex, waveStatusRunning)
 	if strings.TrimSpace(integrationBranch) != "" {
 		p.integrationBranch = strings.TrimSpace(integrationBranch)
 	}
 	if p.phase == integrationPhaseIdle || p.phase == integrationPhaseDone {
 		p.phase = integrationPhaseRunning
+	}
+	m.sidebarDirty = true
+}
+
+func (m *uiModel) markParallelTaskRuntimeLink(taskID string, childRunID string, worktreePath string) {
+	childRunID = strings.TrimSpace(childRunID)
+	worktreePath = strings.TrimSpace(worktreePath)
+	if childRunID == "" && worktreePath == "" {
+		return
+	}
+	number := tasks.ExtractTaskIdentityNumber(taskID)
+	index, ok := m.taskNumberIndex(number)
+	if !ok {
+		return
+	}
+	if childRunID != "" {
+		m.jobs[index].childRunID = childRunID
+	}
+	if worktreePath != "" {
+		m.jobs[index].worktreePath = worktreePath
+	}
+}
+
+func (m *uiModel) handleParallelFailed(v parallelFailedMsg) {
+	p := m.parallelState()
+	p.ensureWaveIndex(v.WaveIndex)
+	if strings.TrimSpace(v.IntegrationBranch) != "" {
+		p.integrationBranch = strings.TrimSpace(v.IntegrationBranch)
+	}
+	p.phase = integrationPhaseDone
+	if v.Err != nil {
+		m.failures = append(m.failures, failInfo{ExitCode: 1, Err: v.Err})
 	}
 	m.sidebarDirty = true
 }

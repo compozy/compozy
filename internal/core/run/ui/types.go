@@ -72,6 +72,8 @@ type uiJob struct {
 	taskNumber           int
 	taskTitle            string
 	taskType             string
+	childRunID           string
+	worktreePath         string
 	safeName             string
 	ide                  string
 	model                string
@@ -306,6 +308,12 @@ type parallelWaveCompletedMsg struct {
 type parallelRolledBackMsg struct {
 	WaveIndex         int
 	IntegrationBranch string
+}
+
+type parallelFailedMsg struct {
+	WaveIndex         int
+	IntegrationBranch string
+	Err               error
 }
 
 type uiViewState string

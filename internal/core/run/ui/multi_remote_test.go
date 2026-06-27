@@ -928,6 +928,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should render parent parallel events without a child run id", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		if child == nil || child.parallel == nil {
 			t.Fatal("expected parent parallel event to create an aggregate parallel child")
@@ -998,6 +1000,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should complete active aggregate jobs when parent run completes", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1020,6 +1024,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should fail aggregate jobs on rollback without a task id", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1041,7 +1047,33 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fail aggregate jobs without marking rollback on parallel failure", func(t *testing.T) {
+		t.Parallel()
+
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelFailed,
+			kinds.TaskParallelPayload{WaveIndex: 0, Error: "resolver setup failed"},
+		))
+
+		if child.jobs[0].state != jobFailed {
+			t.Fatalf("aggregate task state = %v, want failed after parallel failure", child.jobs[0].state)
+		}
+		if child.parallel.phase == integrationPhaseRolledBack {
+			t.Fatal("parallel failure must not mark the integration branch as rolled back")
+		}
+		if len(child.failures) == 0 || !strings.Contains(child.failures[0].Err.Error(), "resolver setup failed") {
+			t.Fatalf("failures after parallel failure = %#v, want payload error", child.failures)
+		}
+		if mdl.tabs[0].status != taskMultiStatusFailed || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after parallel failure = %#v", mdl.tabs[0])
+		}
+	})
+
 	t.Run("Should fail aggregate jobs when parent run fails", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1067,6 +1099,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should bind parallel task child snapshot to the aggregate task row", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1082,6 +1116,10 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		))
 		if _, ok := mdl.parallelChildBinding("child-task-01"); !ok {
 			t.Fatal("expected child run id to be bound to the aggregate task row")
+		}
+		if child.jobs[0].childRunID != "child-task-01" || child.jobs[0].worktreePath != "/tmp/task-01" {
+			t.Fatalf("aggregate task runtime link = child:%q worktree:%q, want child-task-01 and /tmp/task-01",
+				child.jobs[0].childRunID, child.jobs[0].worktreePath)
 		}
 
 		mdl.handleChildBootstrap(multiRunChildBootstrapMsg{
@@ -1110,6 +1148,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should route parent recovery events to the bound parallel task", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1158,6 +1198,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should drop stale child bindings when a parallel task restarts", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1203,6 +1245,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should keep concurrent child transcripts isolated by task selection", func(t *testing.T) {
+		t.Parallel()
+
 		mdl := newParallelAggregateStartedModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1253,6 +1297,8 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 	})
 
 	t.Run("Should advance spinner frames while a bound parallel child is running", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, child := newParallelAggregateMultiRunTestModel(t)
 		mdl.handleParentEvent(mustRuntimeEventUITest(
 			t,
@@ -1268,6 +1314,26 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 			t.Fatalf("spinner frame did not advance: before=%d after=%d", before, child.frame)
 		}
 	})
+}
+
+func TestInputRequiresImmediateDispatchRecoveryEvents(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []eventspkg.EventKind{
+		eventspkg.EventKindRunRecoveryStarted,
+		eventspkg.EventKindRunRecoveryRestarting,
+		eventspkg.EventKindRunRecovered,
+		eventspkg.EventKindRunRecoveryExhausted,
+	} {
+		kind := kind
+		t.Run("Should dispatch "+string(kind)+" immediately", func(t *testing.T) {
+			t.Parallel()
+
+			if !inputRequiresImmediateDispatch(eventspkg.Event{Kind: kind}) {
+				t.Fatalf("inputRequiresImmediateDispatch(%q) = false, want true", kind)
+			}
+		})
+	}
 }
 
 func newParallelAggregateMultiRunTestModel(t *testing.T) (*multiRunModel, *uiModel) {
@@ -1868,6 +1934,8 @@ func TestMultiRunChildStartedEventAppliesWorktreeMetadataToTab(t *testing.T) {
 	})
 
 	t.Run("Should preserve worktree metadata when a later event omits it", func(t *testing.T) {
+		t.Parallel()
+
 		mdl := &multiRunModel{
 			parentRun:  apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
 			width:      200,
@@ -1906,6 +1974,8 @@ func TestMultiRunSnapshotWithoutWorktreeMetadataOmitsWorktreeRow(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should omit the worktree row and not panic when metadata is absent", func(t *testing.T) {
+		t.Parallel()
+
 		mdl, _, err := newRemoteMultiRunModel(context.Background(), RemoteMultiRunAttachOptions{
 			Snapshot: apicore.TaskRunMultipleSnapshot{
 				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},

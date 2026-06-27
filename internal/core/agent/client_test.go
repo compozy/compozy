@@ -1527,44 +1527,54 @@ func TestClientTerminalKillTerminatesCommandAndKeepsOutput(t *testing.T) {
 
 func TestClientTerminalKillTerminatesChildProcessTree(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("process-group terminal cleanup is implemented differently on Windows")
-	}
 
-	client, sessionID := newTerminalTestClient(t)
-	childPIDPath := filepath.Join(t.TempDir(), "child.pid")
-	env := append(
-		terminalHelperEnv("spawn-child", "tree-ready", "0"),
-		acp.EnvVariable{Name: "GO_TERMINAL_CHILD_PID_FILE", Value: childPIDPath},
-	)
-	resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
-		SessionId: acp.SessionId(sessionID),
-		Command:   os.Args[0],
-		Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
-		Env:       env,
+	t.Run("Should terminate child process tree when terminal is killed", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("process-group terminal cleanup is implemented differently on Windows")
+		}
+
+		client, sessionID := newTerminalTestClient(t)
+		childPIDPath := filepath.Join(t.TempDir(), "child.pid")
+		env := append(
+			terminalHelperEnv("spawn-child", "tree-ready", "0"),
+			acp.EnvVariable{Name: "GO_TERMINAL_CHILD_PID_FILE", Value: childPIDPath},
+		)
+		resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+			SessionId: acp.SessionId(sessionID),
+			Command:   os.Args[0],
+			Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+			Env:       env,
+		})
+		if err != nil {
+			t.Fatalf("create terminal: %v", err)
+		}
+		waitForTerminalOutput(t, client, sessionID, resp.TerminalId, "tree-ready")
+		childPID := readTerminalChildPID(t, childPIDPath)
+		defer killProcessByPID(childPID)
+
+		if _, err := client.KillTerminal(context.Background(), acp.KillTerminalRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: resp.TerminalId,
+		}); err != nil {
+			t.Fatalf("kill terminal: %v", err)
+		}
+		waitCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if _, err := client.WaitForTerminalExit(waitCtx, acp.WaitForTerminalExitRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: resp.TerminalId,
+		}); err != nil {
+			t.Fatalf("wait for killed terminal: %v", err)
+		}
+		if _, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: resp.TerminalId,
+		}); err != nil {
+			t.Fatalf("release killed terminal: %v", err)
+		}
+		waitForProcessExit(t, childPID)
 	})
-	if err != nil {
-		t.Fatalf("create terminal: %v", err)
-	}
-	waitForTerminalOutput(t, client, sessionID, resp.TerminalId, "tree-ready")
-	childPID := readTerminalChildPID(t, childPIDPath)
-	defer killProcessByPID(childPID)
-
-	if _, err := client.KillTerminal(context.Background(), acp.KillTerminalRequest{
-		SessionId:  acp.SessionId(sessionID),
-		TerminalId: resp.TerminalId,
-	}); err != nil {
-		t.Fatalf("kill terminal: %v", err)
-	}
-	waitCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if _, err := client.WaitForTerminalExit(waitCtx, acp.WaitForTerminalExitRequest{
-		SessionId:  acp.SessionId(sessionID),
-		TerminalId: resp.TerminalId,
-	}); err != nil {
-		t.Fatalf("wait for killed terminal: %v", err)
-	}
-	waitForProcessExit(t, childPID)
 }
 
 func TestClientReleaseTerminalRetainsTrackingWhenWaitContextExpires(t *testing.T) {
@@ -2687,7 +2697,20 @@ func processExists(pid int) bool {
 		return false
 	}
 	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	if err != nil {
+		return false
+	}
+	return !processIsZombie(pid)
+}
+
+func processIsZombie(pid int) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "stat=").Output()
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(string(out)), "Z")
 }
 
 func killProcessByPID(pid int) {

@@ -164,6 +164,8 @@ func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 		m.handleParallelWaveCompleted(value)
 	case parallelRolledBackMsg:
 		m.handleParallelRolledBack(value)
+	case parallelFailedMsg:
+		m.handleParallelFailed(value)
 	default:
 		return nil, false
 	}

@@ -58,11 +58,11 @@ func (j *jobExecutionContext) afterTaskJobSuccess(
 	if err != nil {
 		return fmt.Errorf("parse task file %s before completion: %w", entry.AbsPath, err)
 	}
-	scope, err := j.captureTaskWorktreeScope(ctx, jb, preSnapshot)
+	scope, captured, err := j.captureTaskWorktreeScope(ctx, jb, preSnapshot)
 	if err != nil {
 		return err
 	}
-	if scope.Unchanged() {
+	if captured && scope.Unchanged() {
 		j.recordTaskNoOp(entry, oldTask.Status)
 		return nil
 	}
@@ -116,7 +116,7 @@ func (j *jobExecutionContext) captureTaskWorktreeScope(
 	ctx context.Context,
 	jb *job,
 	preSnapshot worktree.Snapshot,
-) (worktree.Scope, error) {
+) (worktree.Scope, bool, error) {
 	scope, err := worktree.BuildScope(ctx, j.cfg.WorkspaceRoot, preSnapshot)
 	if err != nil {
 		j.runtimeLogger().Warn(
@@ -124,11 +124,12 @@ func (j *jobExecutionContext) captureTaskWorktreeScope(
 			"workspace_root", j.cfg.WorkspaceRoot,
 			"error", err,
 		)
+		return worktree.Scope{}, false, nil
 	}
 	if writeErr := j.writeTaskWorktreeScope(jb, scope); writeErr != nil {
-		return scope, writeErr
+		return scope, true, writeErr
 	}
-	return scope, nil
+	return scope, true, nil
 }
 
 func (j *jobExecutionContext) writeTaskWorktreeScope(jb *job, scope worktree.Scope) error {

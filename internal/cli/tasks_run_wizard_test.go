@@ -487,6 +487,28 @@ func TestTaskRunWizardModel(t *testing.T) {
 		}
 	})
 
+	t.Run("Should clear stale parallel workflow state for a single workflow", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		appliedState.parallel = true
+		appliedState.parallelLimit = 3
+
+		inputs := taskRunFormInputs{selectedWorkflows: []string{"alpha"}}
+		inputs.applyParallelControls(cmd, appliedState)
+		if appliedState.parallel || appliedState.parallelLimit != 0 {
+			t.Fatalf(
+				"parallel state = parallel:%v limit:%d, want cleared",
+				appliedState.parallel,
+				appliedState.parallelLimit,
+			)
+		}
+		if cmd.Flags().Changed("parallel") || cmd.Flags().Changed("parallel-limit") {
+			t.Fatal("single workflow should not mark inter-workflow parallel flags as changed")
+		}
+	})
+
 	t.Run("Should configure parallel workflow controls", func(t *testing.T) {
 		t.Parallel()
 
@@ -598,27 +620,45 @@ func TestTaskRunWizardView(t *testing.T) {
 	t.Run("Should fit bounds with every execution section expanded", func(t *testing.T) {
 		t.Parallel()
 
-		state := newTaskRunWizardTestState(t, "alpha", "beta")
 		dims := []struct {
+			name string
 			w, h int
-		}{{72, 22}, {80, 24}, {120, 40}}
+		}{
+			{name: "Should fit expanded execution sections at minimum terminal bounds", w: 72, h: 22},
+			{name: "Should fit expanded execution sections at standard terminal bounds", w: 80, h: 24},
+			{name: "Should fit expanded execution sections at wide terminal bounds", w: 120, h: 40},
+		}
 		for _, dim := range dims {
-			wizard := newTaskRunWizardModel(state, taskRunFormInputs{
-				selectedWorkflows: []string{"alpha", "beta"},
-				parallelTasks:     true,
-				parallelWorkflows: true,
-				recoveryEnabled:   true,
+			dim := dim
+			t.Run(dim.name, func(t *testing.T) {
+				t.Parallel()
+				state := newTaskRunWizardTestState(t, "alpha", "beta")
+				wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+					selectedWorkflows: []string{"alpha", "beta"},
+					parallelTasks:     true,
+					parallelWorkflows: true,
+					recoveryEnabled:   true,
+				})
+				updated, _ := wizard.Update(tea.WindowSizeMsg{Width: dim.w, Height: dim.h})
+				typed, ok := updated.(*taskRunWizardModel)
+				if !ok {
+					t.Fatalf("resize model type = %T, want *taskRunWizardModel", updated)
+				}
+				typed.step = taskRunWizardStepExecution
+				// Focus the last field so the scroll window's lower bound is exercised.
+				typed.execCursor = taskRunWizardFieldDefineRuntime
+				typed.syncTextFocus()
+				assertTaskRunWizardViewFits(t, typed, dim.w, dim.h)
 			})
-			updated, _ := wizard.Update(tea.WindowSizeMsg{Width: dim.w, Height: dim.h})
-			typed, ok := updated.(*taskRunWizardModel)
-			if !ok {
-				t.Fatalf("resize model type = %T, want *taskRunWizardModel", updated)
-			}
-			typed.step = taskRunWizardStepExecution
-			// Focus the last field so the scroll window's lower bound is exercised.
-			typed.execCursor = taskRunWizardFieldDefineRuntime
-			typed.syncTextFocus()
-			assertTaskRunWizardViewFits(t, typed, dim.w, dim.h)
+		}
+	})
+
+	t.Run("Should keep focus visible when focus span exceeds content height", func(t *testing.T) {
+		t.Parallel()
+
+		start, end, _, _ := wizardScrollWindow(20, 4, 8, 4)
+		if start > 4 || end <= 4 {
+			t.Fatalf("window [%d,%d) does not contain focus line 4", start, end)
 		}
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -778,6 +779,45 @@ func TestAfterTaskJobSuccessSkipsMarkCompletedWhenWorkspaceUnchanged(t *testing.
 	}
 
 	assertNoRuntimeEvents(t, eventsCh, 200*time.Millisecond)
+}
+
+func TestCaptureTaskWorktreeScopeSkipsArtifactWhenCaptureFails(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod permission failure is Unix-specific")
+	}
+
+	workspace := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workspace, ".git"), 0o755); err != nil {
+		t.Fatalf("mkdir .git: %v", err)
+	}
+	if err := os.Chmod(workspace, 0); err != nil {
+		t.Fatalf("chmod workspace: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(workspace, 0o755)
+	})
+
+	runArtifacts := model.RunArtifacts{JobsDir: t.TempDir()}
+	execCtx := &jobExecutionContext{cfg: &config{
+		WorkspaceRoot: workspace,
+		RunArtifacts:  runArtifacts,
+	}}
+	scope, captured, err := execCtx.captureTaskWorktreeScope(
+		context.Background(),
+		&job{SafeName: "task_01"},
+		worktree.Snapshot{},
+	)
+	if err != nil {
+		t.Fatalf("captureTaskWorktreeScope() error = %v", err)
+	}
+	if captured {
+		t.Fatalf("captured = true with failed workspace stat, scope = %#v", scope)
+	}
+	scopePath := runArtifacts.JobArtifacts("task_01").WorktreeScopePath
+	if _, err := os.Stat(scopePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("scope artifact stat error = %v, want os.ErrNotExist", err)
+	}
 }
 
 func TestAfterTaskJobSuccessMarksCompletedWhenWorkspaceChanged(t *testing.T) {
