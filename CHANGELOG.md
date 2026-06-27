@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 0.2.11 - 2026-06-27
+
+### 🎉 Features
+
+- Agentic runs (#212)
+### 🐛 Bug Fixes
+
+- Parallel execution (#217)
+### 📚 Documentation
+
+- Update skills
 ## 0.2.10 - 2026-06-18
 
 ### ♻️  Refactoring
@@ -341,6 +352,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
+[0.2.11]: https://github.com///compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com///compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com///compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com///compare/v0.2.7...v0.2.8
