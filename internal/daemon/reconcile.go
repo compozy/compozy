@@ -32,6 +32,7 @@ type RunLifecycleSettings struct {
 	KeepTerminalDays     int
 	KeepMax              int
 	ShutdownDrainTimeout time.Duration
+	WorktreesRoot        string
 }
 
 // ReconcileConfig controls startup crash reconciliation.
@@ -61,6 +62,11 @@ func LoadRunLifecycleSettings(ctx context.Context) (RunLifecycleSettings, string
 	if err != nil {
 		return RunLifecycleSettings{}, path, err
 	}
+	paths, err := resolveDaemonHomePaths()
+	if err != nil {
+		return RunLifecycleSettings{}, path, fmt.Errorf("daemon: resolve home paths: %w", err)
+	}
+	settings.WorktreesRoot = paths.WorktreesDir
 	return settings, path, nil
 }
 

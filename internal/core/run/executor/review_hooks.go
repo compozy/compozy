@@ -14,8 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/reviews"
-	"github.com/compozy/compozy/internal/core/run/internal/worktree"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -58,7 +58,11 @@ func (j *jobExecutionContext) afterTaskJobSuccess(
 	if err != nil {
 		return fmt.Errorf("parse task file %s before completion: %w", entry.AbsPath, err)
 	}
-	if j.workspaceUnchanged(ctx, preSnapshot) {
+	scope, captured, err := j.captureTaskWorktreeScope(ctx, jb, preSnapshot)
+	if err != nil {
+		return err
+	}
+	if captured && scope.Unchanged() {
 		j.recordTaskNoOp(entry, oldTask.Status)
 		return nil
 	}
@@ -105,25 +109,41 @@ func (j *jobExecutionContext) afterTaskJobSuccess(
 	return nil
 }
 
-// workspaceUnchanged compares the pre-dispatch snapshot to a fresh capture and
-// reports whether the agent left the workspace untouched. Both snapshots must
-// be supported (`worktree.Snapshot.IsSupported`) for the no-op detection to
-// apply; in any other case we preserve historical behavior and accept the
-// session as proof of work. See issue #144.
-func (j *jobExecutionContext) workspaceUnchanged(ctx context.Context, preSnapshot worktree.Snapshot) bool {
-	if !preSnapshot.IsSupported() {
-		return false
-	}
-	postSnapshot, err := worktree.Capture(ctx, j.cfg.WorkspaceRoot)
+// captureTaskWorktreeScope compares the pre-dispatch snapshot to a fresh
+// post-run snapshot, persists the produced path scope for the parent parallel
+// merger, and preserves legacy completion behavior for unsupported captures.
+func (j *jobExecutionContext) captureTaskWorktreeScope(
+	ctx context.Context,
+	jb *job,
+	preSnapshot worktree.Snapshot,
+) (worktree.Scope, bool, error) {
+	scope, err := worktree.BuildScope(ctx, j.cfg.WorkspaceRoot, preSnapshot)
 	if err != nil {
 		j.runtimeLogger().Warn(
-			"failed to capture post-run workspace snapshot; accepting completion to preserve legacy behavior",
+			"failed to capture post-run workspace scope; accepting completion to preserve legacy behavior",
 			"workspace_root", j.cfg.WorkspaceRoot,
 			"error", err,
 		)
-		return false
+		return worktree.Scope{}, false, nil
 	}
-	return preSnapshot.Equal(postSnapshot)
+	if writeErr := j.writeTaskWorktreeScope(jb, scope); writeErr != nil {
+		return scope, true, writeErr
+	}
+	return scope, true, nil
+}
+
+func (j *jobExecutionContext) writeTaskWorktreeScope(jb *job, scope worktree.Scope) error {
+	if j == nil || j.cfg == nil || jb == nil {
+		return nil
+	}
+	if strings.TrimSpace(j.cfg.RunArtifacts.JobsDir) == "" || strings.TrimSpace(jb.SafeName) == "" {
+		return nil
+	}
+	path := j.cfg.RunArtifacts.JobArtifacts(jb.SafeName).WorktreeScopePath
+	if err := worktree.WriteScope(path, scope); err != nil {
+		return fmt.Errorf("write task worktree scope: %w", err)
+	}
+	return nil
 }
 
 // recordTaskNoOp emits a task.file_skipped event and a runtime warning log

@@ -75,17 +75,16 @@ type taskRunWizardExecutionField int
 
 const (
 	taskRunWizardFieldTimeout taskRunWizardExecutionField = iota
-	taskRunWizardFieldTailLines
 	taskRunWizardFieldMaxRetries
 	taskRunWizardFieldRetryBackoff
-	taskRunWizardFieldDryRun
 	taskRunWizardFieldAutoCommit
-	taskRunWizardFieldIncludeCompleted
 	taskRunWizardFieldRecursive
 	taskRunWizardFieldParallelTasks
 	taskRunWizardFieldParallelResolverIDE
 	taskRunWizardFieldParallelResolverModel
 	taskRunWizardFieldParallelResolverReasoning
+	taskRunWizardFieldParallelWorkflows
+	taskRunWizardFieldParallelWorkflowLimit
 	taskRunWizardFieldRecoveryEnabled
 	taskRunWizardFieldRecoveryIDE
 	taskRunWizardFieldRecoveryModel
@@ -150,6 +149,8 @@ type taskRunFormInputs struct {
 	parallelResolverIDE       string
 	parallelResolverModel     string
 	parallelResolverReasoning string
+	parallelWorkflows         bool
+	parallelWorkflowLimit     string
 	recoveryEnabled           bool
 	recoveryIDE               string
 	recoveryModel             string
@@ -168,10 +169,10 @@ type taskRunWizardTextInputs struct {
 	model                 textinput.Model
 	addDirs               textinput.Model
 	timeout               textinput.Model
-	tailLines             textinput.Model
 	maxRetries            textinput.Model
 	retryBackoff          textinput.Model
 	parallelResolverModel textinput.Model
+	parallelWorkflowLimit textinput.Model
 	recoveryModel         textinput.Model
 }
 
@@ -300,6 +301,10 @@ func newTaskRunFormInputsFromState(state *commandState) *taskRunFormInputs {
 	inputs.parallelResolverIDE = state.parallelConflictResolverIDE
 	inputs.parallelResolverModel = state.parallelConflictResolverModel
 	inputs.parallelResolverReasoning = state.parallelConflictResolverReasoningEffort
+	inputs.parallelWorkflows = state.parallel
+	if state.parallelLimit > 0 {
+		inputs.parallelWorkflowLimit = strconv.Itoa(state.parallelLimit)
+	}
 	inputs.recoveryEnabled = state.recoveryEnabled
 	inputs.recoveryIDE = state.recoveryIDE
 	inputs.recoveryModel = state.recoveryModel
@@ -350,11 +355,14 @@ func newTaskRunWizardTextInputs(inputs taskRunFormInputs) taskRunWizardTextInput
 		model:                 newTaskRunWizardInput("auto", inputs.model),
 		addDirs:               newTaskRunWizardInput("../shared, ../docs", inputs.addDirs),
 		timeout:               newTaskRunWizardInput("10m", inputs.timeout),
-		tailLines:             newTaskRunWizardInput("0", inputs.tailLines),
 		maxRetries:            newTaskRunWizardInput("0", inputs.maxRetries),
 		retryBackoff:          newTaskRunWizardInput("1.5", inputs.retryBackoffMultiplier),
 		parallelResolverModel: newTaskRunWizardInput(workspace.DefaultRecoveryModel, inputs.parallelResolverModel),
-		recoveryModel:         newTaskRunWizardInput(workspace.DefaultRecoveryModel, inputs.recoveryModel),
+		parallelWorkflowLimit: newTaskRunWizardInput(
+			strconv.Itoa(workspace.DefaultRunMultipleParallelLimit),
+			inputs.parallelWorkflowLimit,
+		),
+		recoveryModel: newTaskRunWizardInput(workspace.DefaultRecoveryModel, inputs.recoveryModel),
 	}
 }
 
@@ -544,9 +552,9 @@ func (m *taskRunWizardModel) textInputFocused() bool {
 		m.textInputs.model.Focused() ||
 		m.textInputs.addDirs.Focused() ||
 		m.textInputs.timeout.Focused() ||
-		m.textInputs.tailLines.Focused() ||
 		m.textInputs.maxRetries.Focused() ||
 		m.textInputs.retryBackoff.Focused() ||
+		m.textInputs.parallelWorkflowLimit.Focused() ||
 		m.overrideModelInput.Focused()
 }
 
@@ -708,6 +716,7 @@ func (m *taskRunWizardModel) handleRuntimeKey(msg tea.KeyPressMsg) (tea.Model, t
 }
 
 func (m *taskRunWizardModel) handleExecutionKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	m.clampExecutionCursor()
 	key := strings.ToLower(msg.String())
 	if m.executionTextFieldFocused() && !taskRunWizardTextFieldNavigationKey(key) {
 		return m.updateExecutionText(msg)
@@ -750,12 +759,9 @@ func (m *taskRunWizardModel) handleExecutionKey(msg tea.KeyPressMsg) (tea.Model,
 func (m *taskRunWizardModel) executionFields() []taskRunWizardExecutionField {
 	fields := []taskRunWizardExecutionField{
 		taskRunWizardFieldTimeout,
-		taskRunWizardFieldTailLines,
 		taskRunWizardFieldMaxRetries,
 		taskRunWizardFieldRetryBackoff,
-		taskRunWizardFieldDryRun,
 		taskRunWizardFieldAutoCommit,
-		taskRunWizardFieldIncludeCompleted,
 		taskRunWizardFieldRecursive,
 		taskRunWizardFieldParallelTasks,
 	}
@@ -766,9 +772,13 @@ func (m *taskRunWizardModel) executionFields() []taskRunWizardExecutionField {
 			taskRunWizardFieldParallelResolverReasoning,
 		)
 	}
-	fields = append(fields,
-		taskRunWizardFieldRecoveryEnabled,
-	)
+	if m.multipleWorkflowsSelected() {
+		fields = append(fields, taskRunWizardFieldParallelWorkflows)
+		if m.inputs.parallelWorkflows {
+			fields = append(fields, taskRunWizardFieldParallelWorkflowLimit)
+		}
+	}
+	fields = append(fields, taskRunWizardFieldRecoveryEnabled)
 	if m.inputs.recoveryEnabled {
 		fields = append(fields,
 			taskRunWizardFieldRecoveryIDE,
@@ -778,6 +788,12 @@ func (m *taskRunWizardModel) executionFields() []taskRunWizardExecutionField {
 	}
 	fields = append(fields, taskRunWizardFieldDefineRuntime)
 	return fields
+}
+
+// multipleWorkflowsSelected reports whether the run targets 2+ workflows, the
+// only case where inter-workflow parallel execution (--parallel) is meaningful.
+func (m *taskRunWizardModel) multipleWorkflowsSelected() bool {
+	return len(selectedTaskRunWizardWorkflows(m.inputs)) > 1
 }
 
 func (m *taskRunWizardModel) clampExecutionCursor() {
@@ -923,10 +939,10 @@ func (m *taskRunWizardModel) executionTextFieldFocused() bool {
 	}
 	switch m.execCursor {
 	case taskRunWizardFieldTimeout,
-		taskRunWizardFieldTailLines,
 		taskRunWizardFieldMaxRetries,
 		taskRunWizardFieldRetryBackoff,
 		taskRunWizardFieldParallelResolverModel,
+		taskRunWizardFieldParallelWorkflowLimit,
 		taskRunWizardFieldRecoveryModel:
 		return true
 	default:
@@ -976,9 +992,6 @@ func (m *taskRunWizardModel) updateExecutionText(msg tea.KeyPressMsg) (tea.Model
 	case taskRunWizardFieldTimeout:
 		m.textInputs.timeout, cmd = m.textInputs.timeout.Update(msg)
 		m.inputs.timeout = m.textInputs.timeout.Value()
-	case taskRunWizardFieldTailLines:
-		m.textInputs.tailLines, cmd = m.textInputs.tailLines.Update(msg)
-		m.inputs.tailLines = m.textInputs.tailLines.Value()
 	case taskRunWizardFieldMaxRetries:
 		m.textInputs.maxRetries, cmd = m.textInputs.maxRetries.Update(msg)
 		m.inputs.maxRetries = m.textInputs.maxRetries.Value()
@@ -988,6 +1001,9 @@ func (m *taskRunWizardModel) updateExecutionText(msg tea.KeyPressMsg) (tea.Model
 	case taskRunWizardFieldParallelResolverModel:
 		m.textInputs.parallelResolverModel, cmd = m.textInputs.parallelResolverModel.Update(msg)
 		m.inputs.parallelResolverModel = m.textInputs.parallelResolverModel.Value()
+	case taskRunWizardFieldParallelWorkflowLimit:
+		m.textInputs.parallelWorkflowLimit, cmd = m.textInputs.parallelWorkflowLimit.Update(msg)
+		m.inputs.parallelWorkflowLimit = m.textInputs.parallelWorkflowLimit.Value()
 	case taskRunWizardFieldRecoveryModel:
 		m.textInputs.recoveryModel, cmd = m.textInputs.recoveryModel.Update(msg)
 		m.inputs.recoveryModel = m.textInputs.recoveryModel.Value()
@@ -1333,15 +1349,18 @@ func (m *taskRunWizardModel) validateSelection() error {
 }
 
 func (m *taskRunWizardModel) validateExecutionInputs() error {
-	if _, ok := parseIntInput(m.inputs.tailLines); !ok {
-		return errors.New("tail lines must be a number")
-	}
 	if _, ok := parseIntInput(m.inputs.maxRetries); !ok {
 		return errors.New("max retries must be a number")
 	}
 	if strings.TrimSpace(m.inputs.retryBackoffMultiplier) != "" {
 		if _, ok := parseFloatInput(m.inputs.retryBackoffMultiplier); !ok {
 			return errors.New("retry backoff multiplier must be greater than 0")
+		}
+	}
+	if m.inputs.parallelWorkflows && m.multipleWorkflowsSelected() &&
+		strings.TrimSpace(m.inputs.parallelWorkflowLimit) != "" {
+		if limit, ok := parseIntInput(m.inputs.parallelWorkflowLimit); !ok || limit <= 0 {
+			return errors.New("max concurrent must be greater than 0")
 		}
 	}
 	return nil
@@ -1466,16 +1485,15 @@ func cycleTaskRunWizardChoice(options []taskRunWizardChoice, current string, del
 
 func (m *taskRunWizardModel) toggleExecutionBool() {
 	switch m.execCursor {
-	case taskRunWizardFieldDryRun:
-		m.inputs.dryRun = !m.inputs.dryRun
 	case taskRunWizardFieldAutoCommit:
 		m.inputs.autoCommit = !m.inputs.autoCommit
-	case taskRunWizardFieldIncludeCompleted:
-		m.inputs.includeCompleted = !m.inputs.includeCompleted
 	case taskRunWizardFieldRecursive:
 		m.inputs.recursive = !m.inputs.recursive
 	case taskRunWizardFieldParallelTasks:
 		m.inputs.parallelTasks = !m.inputs.parallelTasks
+		m.clampExecutionCursor()
+	case taskRunWizardFieldParallelWorkflows:
+		m.inputs.parallelWorkflows = !m.inputs.parallelWorkflows
 		m.clampExecutionCursor()
 	case taskRunWizardFieldRecoveryEnabled:
 		m.inputs.recoveryEnabled = !m.inputs.recoveryEnabled
@@ -1497,10 +1515,10 @@ func (m *taskRunWizardModel) syncTextWidths() {
 	m.textInputs.model.SetWidth(width)
 	m.textInputs.addDirs.SetWidth(width)
 	m.textInputs.timeout.SetWidth(width)
-	m.textInputs.tailLines.SetWidth(width)
 	m.textInputs.maxRetries.SetWidth(width)
 	m.textInputs.retryBackoff.SetWidth(width)
 	m.textInputs.parallelResolverModel.SetWidth(width)
+	m.textInputs.parallelWorkflowLimit.SetWidth(width)
 	m.textInputs.recoveryModel.SetWidth(width)
 	m.overrideModelInput.SetWidth(width)
 }
@@ -1520,10 +1538,10 @@ func (m *taskRunWizardModel) blurTextInputs() {
 	m.textInputs.model.Blur()
 	m.textInputs.addDirs.Blur()
 	m.textInputs.timeout.Blur()
-	m.textInputs.tailLines.Blur()
 	m.textInputs.maxRetries.Blur()
 	m.textInputs.retryBackoff.Blur()
 	m.textInputs.parallelResolverModel.Blur()
+	m.textInputs.parallelWorkflowLimit.Blur()
 	m.textInputs.recoveryModel.Blur()
 	m.overrideModelInput.Blur()
 }
@@ -1552,14 +1570,14 @@ func (m *taskRunWizardModel) focusExecutionText() {
 		switch m.execCursor {
 		case taskRunWizardFieldTimeout:
 			m.textInputs.timeout.Focus()
-		case taskRunWizardFieldTailLines:
-			m.textInputs.tailLines.Focus()
 		case taskRunWizardFieldMaxRetries:
 			m.textInputs.maxRetries.Focus()
 		case taskRunWizardFieldRetryBackoff:
 			m.textInputs.retryBackoff.Focus()
 		case taskRunWizardFieldParallelResolverModel:
 			m.textInputs.parallelResolverModel.Focus()
+		case taskRunWizardFieldParallelWorkflowLimit:
+			m.textInputs.parallelWorkflowLimit.Focus()
 		case taskRunWizardFieldRecoveryModel:
 			m.textInputs.recoveryModel.Focus()
 		}
@@ -1610,7 +1628,7 @@ func (m *taskRunWizardModel) renderBody(width int, height int) string {
 	case taskRunWizardStepRuntime:
 		return m.renderRuntimeStep(width)
 	case taskRunWizardStepExecution:
-		return m.renderExecutionStep()
+		return m.renderExecutionStep(height)
 	case taskRunWizardStepOverrides:
 		return m.renderOverridesStep(width, height)
 	case taskRunWizardStepReview:
@@ -1758,116 +1776,159 @@ func (m *taskRunWizardModel) renderRuntimeStep(width int) string {
 	}, "\n")
 }
 
-func (m *taskRunWizardModel) renderExecutionStep() string {
-	lines := m.executionBaseLines()
-	lines = append(lines, m.parallelResolverExecutionLines()...)
-	lines = append(lines, m.recoveryExecutionLines()...)
-	lines = append(lines,
-		m.renderField(
-			"Runtime per task",
-			wizardBoolValue(m.inputs.defineTaskRuntime),
-			m.execCursor == taskRunWizardFieldDefineRuntime,
-		),
+// renderExecutionStep draws the grouped execution options. Sections carry an
+// always-visible muted description per option and a windowed view so the focused
+// field stays visible regardless of how many conditional sub-options are open.
+func (m *taskRunWizardModel) renderExecutionStep(height int) string {
+	subtitle := taskRunWizardSubtitleStyle().Render("Tune retry, timeout, and run behavior.")
+	lines, rowOf := m.executionBodyLines()
+	avail := max(1, height-2) // subtitle + blank separator
+	focus := 0
+	if idx, ok := rowOf[m.execCursor]; ok {
+		focus = idx
+	}
+	// focusSpan covers the field row plus its description line.
+	start, end, up, down := wizardScrollWindow(len(lines), focus, 2, avail)
+	body := make([]string, 0, avail)
+	if up > 0 {
+		body = append(body, taskRunWizardMutedStyle().Render(fmt.Sprintf("  ↑ %d more", up)))
+	}
+	body = append(body, lines[start:end]...)
+	if down > 0 {
+		body = append(body, taskRunWizardMutedStyle().Render(fmt.Sprintf("  ↓ %d more", down)))
+	}
+	out := make([]string, 0, len(body)+2)
+	out = append(out, subtitle, "")
+	out = append(out, body...)
+	return strings.Join(out, "\n")
+}
+
+// executionBodyLines builds the ordered, grouped render lines for the execution
+// step and a map from each navigable field to the index of its row line (used to
+// keep the focused field visible while scrolling). Conditional sub-options are
+// nested under their parent toggle with tree connectors.
+func (m *taskRunWizardModel) executionBodyLines() ([]string, map[taskRunWizardExecutionField]int) {
+	b := &execBodyBuilder{
+		m:     m,
+		rowOf: make(map[taskRunWizardExecutionField]int, taskRunWizardExecutionFieldCount),
+	}
+	b.timingSection()
+	b.runBehaviorSection()
+	b.parallelismSection()
+	b.recoverySection()
+	b.advancedSection()
+	return b.lines, b.rowOf
+}
+
+// execBodyBuilder accumulates the execution step's render lines while recording
+// where each navigable field row lands, so the scroll window can track focus.
+type execBodyBuilder struct {
+	m     *taskRunWizardModel
+	lines []string
+	rowOf map[taskRunWizardExecutionField]int
+}
+
+func (b *execBodyBuilder) header(title string) {
+	if len(b.lines) > 0 {
+		b.lines = append(b.lines, "")
+	}
+	b.lines = append(b.lines, wizardSectionHeader(title))
+}
+
+func (b *execBodyBuilder) field(f taskRunWizardExecutionField, label, value, desc string) {
+	b.rowOf[f] = len(b.lines)
+	b.lines = append(
+		b.lines,
+		b.m.renderField(label, value, b.m.execCursor == f),
+		wizardFieldDesc(desc, wizardDescIndent),
 	)
-	return strings.Join(lines, "\n")
 }
 
-func (m *taskRunWizardModel) executionBaseLines() []string {
-	return []string{
-		taskRunWizardSubtitleStyle().Render("Tune retry, timeout, and run behavior."),
-		"",
-		m.renderField("Activity timeout", m.textInputs.timeout.View(), m.execCursor == taskRunWizardFieldTimeout),
-		m.renderField("Tail lines", m.textInputs.tailLines.View(), m.execCursor == taskRunWizardFieldTailLines),
-		m.renderField("Max retries", m.textInputs.maxRetries.View(), m.execCursor == taskRunWizardFieldMaxRetries),
-		m.renderField(
-			"Retry backoff",
-			m.textInputs.retryBackoff.View(),
-			m.execCursor == taskRunWizardFieldRetryBackoff,
-		),
-		m.renderField("Dry run", wizardBoolValue(m.inputs.dryRun), m.execCursor == taskRunWizardFieldDryRun),
-		m.renderField(
-			"Auto commit",
-			wizardBoolValue(m.inputs.autoCommit),
-			m.execCursor == taskRunWizardFieldAutoCommit,
-		),
-		m.renderField(
-			"Include completed",
-			wizardBoolValue(m.inputs.includeCompleted),
-			m.execCursor == taskRunWizardFieldIncludeCompleted,
-		),
-		m.renderField("Recursive", wizardBoolValue(m.inputs.recursive), m.execCursor == taskRunWizardFieldRecursive),
-		m.renderField(
-			"Run Parallel Tasks",
-			wizardBoolValue(m.inputs.parallelTasks),
-			m.execCursor == taskRunWizardFieldParallelTasks,
-		),
+func (b *execBodyBuilder) nested(f taskRunWizardExecutionField, connector, label, value, desc string) {
+	b.rowOf[f] = len(b.lines)
+	b.lines = append(b.lines, wizardNestedField(connector, label, value, b.m.execCursor == f))
+	if d := wizardFieldDesc(desc, wizardNestedDescIndent); d != "" {
+		b.lines = append(b.lines, d)
 	}
 }
 
-func (m *taskRunWizardModel) parallelResolverExecutionLines() []string {
-	if !m.inputs.parallelTasks {
-		return nil
+func (b *execBodyBuilder) selectValue(
+	options []taskRunWizardChoice,
+	value string,
+	f taskRunWizardExecutionField,
+) string {
+	return wizardSelectValue(taskRunWizardChoiceLabel(options, value), b.m.execCursor == f)
+}
+
+func (b *execBodyBuilder) timingSection() {
+	b.header("TIMING & RETRIES")
+	b.field(taskRunWizardFieldTimeout, "Activity timeout", b.m.textInputs.timeout.View(),
+		"Max wall-clock time a single task may run.")
+	b.field(taskRunWizardFieldMaxRetries, "Max retries", b.m.textInputs.maxRetries.View(),
+		"Automatic retry attempts per task on failure.")
+	b.field(taskRunWizardFieldRetryBackoff, "Retry backoff", b.m.textInputs.retryBackoff.View(),
+		"Multiplier applied to the delay between retries.")
+}
+
+func (b *execBodyBuilder) runBehaviorSection() {
+	b.header("RUN BEHAVIOR")
+	b.field(taskRunWizardFieldAutoCommit, "Auto commit", wizardBoolValue(b.m.inputs.autoCommit),
+		"Commit each task's changes automatically.")
+	b.field(taskRunWizardFieldRecursive, "Recursive", wizardBoolValue(b.m.inputs.recursive),
+		"Discover task files in nested subdirectories.")
+}
+
+func (b *execBodyBuilder) parallelismSection() {
+	m := b.m
+	b.header("PARALLELISM")
+	b.field(taskRunWizardFieldParallelTasks, "Run Parallel Tasks", wizardBoolValue(m.inputs.parallelTasks),
+		"Run a workflow's pending tasks in dependency-aware waves.")
+	if m.inputs.parallelTasks {
+		b.nested(taskRunWizardFieldParallelResolverIDE, "├", "Conflict resolver IDE",
+			b.selectValue(m.ideOptions, m.inputs.parallelResolverIDE, taskRunWizardFieldParallelResolverIDE),
+			"Agent that resolves merge conflicts between parallel tasks.")
+		b.nested(taskRunWizardFieldParallelResolverModel, "├", "Conflict resolver model",
+			m.textInputs.parallelResolverModel.View(), "")
+		b.nested(taskRunWizardFieldParallelResolverReasoning, "└", "Conflict resolver reasoning",
+			b.selectValue(
+				m.reasoningOpts,
+				m.inputs.parallelResolverReasoning,
+				taskRunWizardFieldParallelResolverReasoning,
+			), "")
 	}
-	ideActive := m.execCursor == taskRunWizardFieldParallelResolverIDE
-	reasoningActive := m.execCursor == taskRunWizardFieldParallelResolverReasoning
-	return []string{
-		m.renderField(
-			"Conflict resolver IDE",
-			wizardSelectValue(
-				taskRunWizardChoiceLabel(m.ideOptions, m.inputs.parallelResolverIDE),
-				ideActive,
-			),
-			ideActive,
-		),
-		m.renderField(
-			"Conflict resolver model",
-			m.textInputs.parallelResolverModel.View(),
-			m.execCursor == taskRunWizardFieldParallelResolverModel,
-		),
-		m.renderField(
-			"Conflict resolver reasoning",
-			wizardSelectValue(
-				taskRunWizardChoiceLabel(m.reasoningOpts, m.inputs.parallelResolverReasoning),
-				reasoningActive,
-			),
-			reasoningActive,
-		),
+	if m.multipleWorkflowsSelected() {
+		b.field(taskRunWizardFieldParallelWorkflows, "Run Parallel Workflows",
+			wizardBoolValue(m.inputs.parallelWorkflows),
+			"Run the selected workflows at once in isolated git worktrees.")
+		if m.inputs.parallelWorkflows {
+			b.nested(taskRunWizardFieldParallelWorkflowLimit, "└", "Max concurrent",
+				m.textInputs.parallelWorkflowLimit.View(),
+				"How many workflows run at the same time.")
+		}
 	}
 }
 
-func (m *taskRunWizardModel) recoveryExecutionLines() []string {
-	lines := []string{
-		m.renderField(
-			"Recovery",
-			wizardBoolValue(m.inputs.recoveryEnabled),
-			m.execCursor == taskRunWizardFieldRecoveryEnabled,
-		),
-	}
+func (b *execBodyBuilder) recoverySection() {
+	m := b.m
+	b.header("RECOVERY")
+	b.field(taskRunWizardFieldRecoveryEnabled, "Recovery", wizardBoolValue(m.inputs.recoveryEnabled),
+		"Auto-recover failed tasks with a second agent pass.")
 	if !m.inputs.recoveryEnabled {
-		return lines
+		return
 	}
-	ideActive := m.execCursor == taskRunWizardFieldRecoveryIDE
-	reasoningActive := m.execCursor == taskRunWizardFieldRecoveryReasoning
-	return append(lines,
-		m.renderField(
-			"Recovery IDE",
-			wizardSelectValue(taskRunWizardChoiceLabel(m.ideOptions, m.inputs.recoveryIDE), ideActive),
-			ideActive,
-		),
-		m.renderField(
-			"Recovery model",
-			m.textInputs.recoveryModel.View(),
-			m.execCursor == taskRunWizardFieldRecoveryModel,
-		),
-		m.renderField(
-			"Recovery reasoning",
-			wizardSelectValue(
-				taskRunWizardChoiceLabel(m.reasoningOpts, m.inputs.recoveryReasoning),
-				reasoningActive,
-			),
-			reasoningActive,
-		),
-	)
+	b.nested(taskRunWizardFieldRecoveryIDE, "├", "Recovery IDE",
+		b.selectValue(m.ideOptions, m.inputs.recoveryIDE, taskRunWizardFieldRecoveryIDE),
+		"Agent used for recovery attempts.")
+	b.nested(taskRunWizardFieldRecoveryModel, "├", "Recovery model",
+		m.textInputs.recoveryModel.View(), "")
+	b.nested(taskRunWizardFieldRecoveryReasoning, "└", "Recovery reasoning",
+		b.selectValue(m.reasoningOpts, m.inputs.recoveryReasoning, taskRunWizardFieldRecoveryReasoning), "")
+}
+
+func (b *execBodyBuilder) advancedSection() {
+	b.header("ADVANCED")
+	b.field(taskRunWizardFieldDefineRuntime, "Runtime per task", wizardBoolValue(b.m.inputs.defineTaskRuntime),
+		"Override IDE/model/reasoning for specific task types or tasks.")
 }
 
 func (m *taskRunWizardModel) renderOverridesStep(width int, height int) string {
@@ -2050,6 +2111,12 @@ func (m *taskRunWizardModel) renderReviewStep(width int) string {
 			),
 		)
 	}
+	if m.inputs.parallelWorkflows && m.multipleWorkflowsSelected() {
+		lines = append(lines,
+			wizardSummaryRow("Parallel workflows", "on", width),
+			wizardSummaryRow("Max concurrent", m.reviewParallelWorkflowLimit(), width),
+		)
+	}
 	if m.inputs.recoveryEnabled {
 		lines = append(lines,
 			wizardSummaryRow("Recovery IDE", taskRunWizardChoiceLabel(m.ideOptions, m.inputs.recoveryIDE), width),
@@ -2084,20 +2151,17 @@ func (m *taskRunWizardModel) reviewOrderLines(selected []string, width int) []st
 
 func (m *taskRunWizardModel) reviewFlagsValue() string {
 	flags := make([]string, 0, 6)
-	if m.inputs.dryRun {
-		flags = append(flags, "dry-run")
-	}
 	if m.inputs.autoCommit {
 		flags = append(flags, "auto-commit")
-	}
-	if m.inputs.includeCompleted {
-		flags = append(flags, "include-completed")
 	}
 	if m.inputs.recursive {
 		flags = append(flags, "recursive")
 	}
 	if m.inputs.parallelTasks {
 		flags = append(flags, "parallel-tasks")
+	}
+	if m.inputs.parallelWorkflows && m.multipleWorkflowsSelected() {
+		flags = append(flags, "parallel-workflows")
 	}
 	if m.inputs.recoveryEnabled {
 		flags = append(flags, "recovery")
@@ -2109,6 +2173,15 @@ func (m *taskRunWizardModel) reviewFlagsValue() string {
 		return taskRunWizardMutedStyle().Render(noneValue)
 	}
 	return strings.Join(flags, ", ")
+}
+
+// reviewParallelWorkflowLimit shows the configured max concurrent workflows,
+// falling back to the package default when the field is left blank.
+func (m *taskRunWizardModel) reviewParallelWorkflowLimit() string {
+	if limit := strings.TrimSpace(m.inputs.parallelWorkflowLimit); limit != "" {
+		return limit
+	}
+	return strconv.Itoa(workspace.DefaultRunMultipleParallelLimit)
 }
 
 func (m *taskRunWizardModel) reviewOverrideLines(width int) []string {
@@ -2314,32 +2387,7 @@ func (inputs *taskRunFormInputs) apply(cmd *cobra.Command, state *commandState) 
 		state.includeCompleted = value
 	})
 	applyInput(cmd, "recursive", inputs.recursive, passThroughInput[bool], func(value bool) { state.recursive = value })
-	applyInput(cmd, taskRunParallelTasksFlag, inputs.parallelTasks, passThroughInput[bool], func(value bool) {
-		state.parallelTasks = value
-	})
-	if inputs.parallelTasks {
-		applyInput(
-			cmd,
-			taskRunParallelConflictResolverIDEFlag,
-			inputs.parallelResolverIDE,
-			passThroughInput[string],
-			func(value string) { state.parallelConflictResolverIDE = value },
-		)
-		applyInput(
-			cmd,
-			taskRunParallelConflictResolverModelFlag,
-			inputs.parallelResolverModel,
-			passThroughInput[string],
-			func(value string) { state.parallelConflictResolverModel = value },
-		)
-		applyInput(
-			cmd,
-			taskRunParallelConflictResolverReasoningFlag,
-			inputs.parallelResolverReasoning,
-			passThroughInput[string],
-			func(value string) { state.parallelConflictResolverReasoningEffort = value },
-		)
-	}
+	inputs.applyParallelControls(cmd, state)
 	applyInput(cmd, "recovery", inputs.recoveryEnabled, passThroughInput[bool], func(value bool) {
 		state.recoveryEnabled = value
 	})
@@ -2356,6 +2404,58 @@ func (inputs *taskRunFormInputs) apply(cmd *cobra.Command, state *commandState) 
 	state.executionTaskRuntimeRules = model.CloneTaskRuntimeRules(inputs.taskRuntimeRules)
 	markInputFlagChanged(cmd, "task-runtime")
 	return nil
+}
+
+// applyParallelControls forwards both intra-workflow (--parallel-tasks) and
+// inter-workflow (--parallel) settings. The inter-workflow flags only apply to
+// 2+ workflows; applying them to a single-workflow run would trip the
+// multiple-only guards in the run command.
+func (inputs *taskRunFormInputs) applyParallelControls(cmd *cobra.Command, state *commandState) {
+	applyInput(cmd, taskRunParallelTasksFlag, inputs.parallelTasks, passThroughInput[bool], func(value bool) {
+		state.parallelTasks = value
+	})
+	if inputs.parallelTasks {
+		applyInput(cmd, taskRunParallelConflictResolverIDEFlag, inputs.parallelResolverIDE, passThroughInput[string],
+			func(value string) { state.parallelConflictResolverIDE = value })
+		applyInput(
+			cmd,
+			taskRunParallelConflictResolverModelFlag,
+			inputs.parallelResolverModel,
+			passThroughInput[string],
+			func(value string) { state.parallelConflictResolverModel = value },
+		)
+		applyInput(cmd, taskRunParallelConflictResolverReasoningFlag, inputs.parallelResolverReasoning,
+			passThroughInput[string],
+			func(value string) { state.parallelConflictResolverReasoningEffort = value })
+	}
+	if len(selectedTaskRunWizardWorkflows(*inputs)) <= 1 {
+		state.parallel = false
+		state.parallelLimit = 0
+		clearTaskRunWizardFlagChanged(cmd, "parallel-limit")
+		return
+	}
+	applyInput(cmd, "parallel", inputs.parallelWorkflows, passThroughInput[bool], func(value bool) {
+		state.parallel = value
+	})
+	if !inputs.parallelWorkflows {
+		state.parallelLimit = 0
+		clearTaskRunWizardFlagChanged(cmd, "parallel-limit")
+		return
+	}
+	applyInput(cmd, "parallel-limit", inputs.parallelWorkflowLimit, parseIntInput, func(value int) {
+		state.parallelLimit = value
+	})
+}
+
+func clearTaskRunWizardFlagChanged(cmd *cobra.Command, flagName string) {
+	if cmd == nil || cmd.Flags() == nil {
+		return
+	}
+	flag := cmd.Flags().Lookup(flagName)
+	if flag == nil {
+		return
+	}
+	flag.Changed = false
 }
 
 func (inputs *taskRunFormInputs) applyWorkflowSelection(cmd *cobra.Command, state *commandState) error {

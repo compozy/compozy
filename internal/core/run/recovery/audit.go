@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/run/internal/worktree"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 

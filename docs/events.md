@@ -494,26 +494,64 @@ Parallel task events are emitted by the `ParallelExecutionOrchestrator` during a
 opt-in parallel PRD-tasks run (`[tasks.run.parallel]`). They are persisted in the
 parent run journal, streamed through the regular run stream APIs, and drive the
 wave-grouped sidebar and the persistent `INTEGRATION` pane in the run TUI. All
-seven kinds share one payload type, `kinds.TaskParallelPayload`.
+parallel runs emit one plan event before execution starts. The plan event uses
+`kinds.TaskParallelPlanPayload`; the remaining nine lifecycle kinds share
+`kinds.TaskParallelPayload`.
+
+`kinds.TaskParallelPlanPayload` fields:
+
+- `run_id`: parent parallel-run id
+- `workflow`: workflow slug for the task suite
+- `integration_branch`: dedicated integration branch `compozy/parallel-<run-id>`
+- `parallel_limit`: effective task concurrency limit
+- `tasks`: complete planned task list from `_tasks.md`
+- `waves`: deterministic topological waves derived from graph edges
+
+`kinds.TaskParallelPlanTask` fields:
+
+- `id`: task identity such as `task_01`
+- `number`: numeric task number
+- `title`: task title from the task file
+- `file`: task artifact file, such as `task_01.md`
+- `status`: task status when known
+- `dependencies`: direct predecessor task ids from graph edges
+- `wave_index`: zero-based planned wave index
+
+`kinds.TaskParallelPlanWave` fields:
+
+- `index`: zero-based planned wave index
+- `task_ids`: task ids scheduled in the wave
 
 `kinds.TaskParallelPayload` fields:
 
 - `run_id`: parent parallel-run id
+- `child_run_id`: child task run id emitted by `task_started`
 - `wave_index`: zero-based topological wave the event belongs to
 - `wave_total`: total number of waves in the run, emitted with `wave_started`
 - `task_id`: PRD task identity such as `task_01`; empty for wave-level events
-- `phase`: lifecycle phase, one of `running`, `recovering`, `merging`, `resolving`, or `merged`
+- `phase`: lifecycle phase, one of `running`, `recovering`, `merging`, `resolving`, `merged`, or `failed`
 - `integration_branch`: dedicated integration branch `compozy/parallel-<run-id>`
 - `conflict_files`: relative paths with unresolved conflicts during a squash merge
 - `attempt`: current bounded conflict-resolution attempt
 - `max_attempts`: configured conflict-resolution attempt ceiling
 - `worktree_path`: per-task git worktree path
 - `status`: terminal per-task status, one of `merged`, `recovered`, `failed`, or `skipped`
+- `error`: terminal diagnostic for non-rollback parallel failures
 
-Per-task events (`wave_started`, `conflict_detected`, `conflict_resolving`,
-`merged`) carry `task_id` and `wave_index` so the TUI can assign each task card to
-its wave. Wave-level events (`wave_completed`, `merge_started`) leave `task_id`
-empty. Empty fields are treated as unknown so older event streams stay compatible.
+Per-task events (`wave_started`, `task_started`, `conflict_detected`,
+`conflict_resolving`, `merged`) carry `task_id` and `wave_index` so the TUI can
+assign each task card to its wave. `task_started` also carries `child_run_id` so
+remote UIs can attach the real child run transcript to the selected task card.
+Wave-level events (`wave_completed`, `merge_started`) leave `task_id` empty.
+Empty fields are treated as unknown so older event streams stay compatible.
+
+### `task.parallel.plan_started`
+
+Payload type: `kinds.TaskParallelPlanPayload`
+
+The full task DAG was validated and planned. Carries `workflow`,
+`parallel_limit`, `integration_branch`, `tasks`, and `waves` so remote UIs can
+render all task cards and pending waves before child task output exists.
 
 ### `task.parallel.wave_started`
 
@@ -521,6 +559,14 @@ Payload type: `kinds.TaskParallelPayload`
 
 A task entered a running wave. Carries `wave_index`, `wave_total`, `task_id`,
 `integration_branch`, `worktree_path`, and `phase` (`running`).
+
+### `task.parallel.task_started`
+
+Payload type: `kinds.TaskParallelPayload`
+
+A task child run was created and can be observed. Carries `wave_index`,
+`wave_total`, `task_id`, `child_run_id`, `worktree_path`,
+`integration_branch`, and `phase` (`running`).
 
 ### `task.parallel.wave_completed`
 
@@ -555,6 +601,14 @@ Payload type: `kinds.TaskParallelPayload`
 
 A task was integrated into the integration branch. Carries `task_id`,
 `wave_index`, `worktree_path`, and `status` (`merged` or `recovered`).
+
+### `task.parallel.failed`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The run hit an infrastructure/setup failure that preserves the integration
+branch for inspection instead of discarding it. Carries `integration_branch`,
+`wave_index`, `status` (`failed`), `phase` (`failed`), and `error`.
 
 ### `task.parallel.rolled_back`
 

@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 )
 
 const (
@@ -44,13 +46,15 @@ const (
 
 // ConflictSet describes the unmerged files produced by a squash merge.
 type ConflictSet struct {
-	Files []string
-	Clean bool
+	Files       []string
+	StagedFiles []string
+	Clean       bool
 }
 
 // WorktreeLifecycle is the narrow git boundary for write-back operations.
 type WorktreeLifecycle interface {
-	Commit(ctx context.Context, path string, message string) (string, error)
+	CommitTask(ctx context.Context, spec runparallel.TaskCommitSpec) (string, error)
+	CommitStaged(ctx context.Context, spec runparallel.StagedCommitSpec) (string, error)
 	CreateIntegrationBranch(
 		ctx context.Context,
 		workspaceRoot string,
@@ -192,45 +196,107 @@ func (a *taskMultiWorktreeAllocator) Allocate(
 	}, nil
 }
 
-// Commit captures residual changes in a worktree and returns the resulting HEAD.
-// A clean worktree is a no-op that returns the current HEAD commit.
-func (a *taskMultiWorktreeAllocator) Commit(
+// CommitTask commits only the task-produced paths recorded by the child run's
+// worktree scope. A task with no produced paths is a no-op that returns HEAD.
+func (a *taskMultiWorktreeAllocator) CommitTask(
 	ctx context.Context,
-	path string,
-	message string,
+	spec runparallel.TaskCommitSpec,
 ) (string, error) {
 	run, err := a.requireGitRunner()
 	if err != nil {
 		return "", err
 	}
-	worktreePath, err := requireTaskMultiWorktreeValue(path, "worktree path")
+	worktreePath, err := requireTaskMultiWorktreeValue(spec.Path, "worktree path")
 	if err != nil {
 		return "", err
 	}
-	commitMessage, err := requireTaskMultiWorktreeValue(message, "commit message")
+	commitMessage, err := requireTaskMultiWorktreeValue(spec.Message, "commit message")
 	if err != nil {
 		return "", err
 	}
+	if !spec.ScopeSupported {
+		return "", runparallel.NewTaskCommitScopeError(fmt.Errorf(
+			"task worktree %s missing supported produced-change scope %s: %s",
+			worktreePath,
+			strings.TrimSpace(spec.ScopeArtifactPath),
+			strings.TrimSpace(spec.ScopeError),
+		))
+	}
+	if len(spec.PreExistingChangedPaths) > 0 {
+		return "", runparallel.NewTaskCommitScopeError(fmt.Errorf(
+			"task worktree %s changed pre-existing dirty paths: %s",
+			worktreePath,
+			strings.Join(spec.PreExistingChangedPaths, ", "),
+		))
+	}
+	paths, err := taskMultiNormalizeGitPaths(spec.ProducedPaths)
+	if err != nil {
+		return "", runparallel.NewTaskCommitScopeError(fmt.Errorf("validate task produced paths: %w", err))
+	}
+	if len(paths) == 0 {
+		return a.worktreeHead(ctx, worktreePath)
+	}
+	return a.commitExplicitPaths(ctx, run, worktreePath, commitMessage, paths, paths)
+}
+
+// CommitStaged commits a constrained integration index after conflict
+// resolution. StagePaths are added first; the final cached diff must be a
+// subset of AllowedPaths.
+func (a *taskMultiWorktreeAllocator) CommitStaged(
+	ctx context.Context,
+	spec runparallel.StagedCommitSpec,
+) (string, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return "", err
+	}
+	worktreePath, err := requireTaskMultiWorktreeValue(spec.Path, "integration worktree path")
+	if err != nil {
+		return "", err
+	}
+	commitMessage, err := requireTaskMultiWorktreeValue(spec.Message, "integration commit message")
+	if err != nil {
+		return "", err
+	}
+	allowed, err := taskMultiNormalizeGitPaths(spec.AllowedPaths)
+	if err != nil {
+		return "", fmt.Errorf("validate staged commit allowed paths: %w", err)
+	}
+	stagePaths, err := taskMultiNormalizeGitPaths(spec.StagePaths)
+	if err != nil {
+		return "", fmt.Errorf("validate staged commit paths: %w", err)
+	}
+	return a.commitExplicitPaths(ctx, run, worktreePath, commitMessage, allowed, stagePaths)
+}
+
+func (a *taskMultiWorktreeAllocator) commitExplicitPaths(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	worktreePath string,
+	commitMessage string,
+	allowedPaths []string,
+	stagePaths []string,
+) (string, error) {
 	status, err := run(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
 		return "", fmt.Errorf("inspect worktree status in %s: %w", worktreePath, err)
 	}
-	if conflicts := taskMultiWorktreeUnmergedFiles(status); len(conflicts) > 0 {
+	if conflicts := taskMultiWorktreeUnmergedFiles(status); len(conflicts) > 0 && len(stagePaths) == 0 {
 		return "", fmt.Errorf(
 			"worktree %s has unresolved merge conflicts: %s",
 			worktreePath,
 			strings.Join(conflicts, ", "),
 		)
 	}
-	if strings.TrimSpace(status) == "" {
-		return a.worktreeHead(ctx, worktreePath)
-	}
-	if _, err := run(ctx, worktreePath, "add", "-A"); err != nil {
-		return "", fmt.Errorf("stage residual changes in %s: %w", worktreePath, err)
+	if len(stagePaths) > 0 {
+		args := append([]string{"add", "-A", "--"}, stagePaths...)
+		if _, err := run(ctx, worktreePath, args...); err != nil {
+			return "", fmt.Errorf("stage explicit changes in %s: %w", worktreePath, err)
+		}
 	}
 	status, err = run(ctx, worktreePath, "status", "--porcelain")
 	if err != nil {
-		return "", fmt.Errorf("inspect staged residual changes in %s: %w", worktreePath, err)
+		return "", fmt.Errorf("inspect staged changes in %s: %w", worktreePath, err)
 	}
 	if conflicts := taskMultiWorktreeUnmergedFiles(status); len(conflicts) > 0 {
 		return "", fmt.Errorf(
@@ -239,11 +305,18 @@ func (a *taskMultiWorktreeAllocator) Commit(
 			strings.Join(conflicts, ", "),
 		)
 	}
-	if strings.TrimSpace(status) == "" {
+	cachedPaths, err := taskMultiCachedDiffPaths(ctx, run, worktreePath)
+	if err != nil {
+		return "", err
+	}
+	if len(cachedPaths) == 0 {
 		return a.worktreeHead(ctx, worktreePath)
 	}
-	if _, err := run(ctx, worktreePath, "commit", "-m", commitMessage); err != nil {
-		return "", fmt.Errorf("commit residual changes in %s: %w", worktreePath, err)
+	if err := taskMultiValidateStagedSubset(cachedPaths, allowedPaths); err != nil {
+		return "", fmt.Errorf("validate staged changes in %s: %w", worktreePath, err)
+	}
+	if _, err := run(ctx, worktreePath, "commit", "--no-verify", "-m", commitMessage); err != nil {
+		return "", fmt.Errorf("commit explicit changes in %s: %w", worktreePath, err)
 	}
 	return a.worktreeHead(ctx, worktreePath)
 }
@@ -319,7 +392,11 @@ func (a *taskMultiWorktreeAllocator) SquashMerge(
 	}
 	if strings.TrimSpace(status) != "" {
 		if conflicts := taskMultiWorktreeUnmergedFiles(status); len(conflicts) > 0 {
-			return ConflictSet{Files: conflicts, Clean: false}, nil
+			staged, stagedErr := taskMultiCachedDiffPaths(ctx, run, path)
+			if stagedErr != nil {
+				return ConflictSet{}, stagedErr
+			}
+			return ConflictSet{Files: conflicts, StagedFiles: staged, Clean: false}, nil
 		}
 		return ConflictSet{}, fmt.Errorf("integration worktree %s is dirty before squash merge", path)
 	}
@@ -332,11 +409,15 @@ func (a *taskMultiWorktreeAllocator) SquashMerge(
 			)
 		}
 		if conflicts := taskMultiWorktreeUnmergedFiles(status); len(conflicts) > 0 {
-			return ConflictSet{Files: conflicts, Clean: false}, nil
+			staged, stagedErr := taskMultiCachedDiffPaths(ctx, run, path)
+			if stagedErr != nil {
+				return ConflictSet{}, stagedErr
+			}
+			return ConflictSet{Files: conflicts, StagedFiles: staged, Clean: false}, nil
 		}
 		return ConflictSet{}, fmt.Errorf("squash merge %s into %s: %w", ref, path, err)
 	}
-	if _, err := run(ctx, path, "commit", "--allow-empty", "-m", commitMessage); err != nil {
+	if _, err := run(ctx, path, "commit", "--allow-empty", "--no-verify", "-m", commitMessage); err != nil {
 		return ConflictSet{}, fmt.Errorf("commit squash merge for %s in %s: %w", ref, path, err)
 	}
 	return ConflictSet{Clean: true}, nil
@@ -428,6 +509,130 @@ func (a *taskMultiWorktreeAllocator) DiscardIntegrationBranch(
 	return nil
 }
 
+// DiscardIntegrationBranchIfExists removes an integration worktree and branch
+// during explicit purge. Missing branches are acceptable because rollback may
+// already have discarded the integration branch while preserving task worktrees.
+func (a *taskMultiWorktreeAllocator) DiscardIntegrationBranchIfExists(
+	ctx context.Context,
+	workspaceRoot string,
+	worktreesRoot string,
+	integrationPath string,
+	integrationBranch string,
+) (string, bool, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return "", false, err
+	}
+	workspace, err := requireTaskMultiWorktreeValue(workspaceRoot, "workspace root")
+	if err != nil {
+		return "", false, err
+	}
+	path, err := requireTaskMultiWorktreeValue(integrationPath, "integration path")
+	if err != nil {
+		return "", false, err
+	}
+	branch, err := requireTaskMultiWorktreeValue(integrationBranch, "integration branch")
+	if err != nil {
+		return "", false, err
+	}
+	path, err = a.resolveIntegrationPurgePath(ctx, workspace, worktreesRoot, path, branch)
+	if err != nil {
+		return "", false, err
+	}
+	pathRemoved, err := a.removeIntegrationWorktreeForPurge(ctx, run, workspace, path)
+	if err != nil {
+		return "", false, err
+	}
+	if err := a.deleteIntegrationBranchIfExists(ctx, run, workspace, branch); err != nil {
+		return path, pathRemoved, err
+	}
+	return path, pathRemoved, nil
+}
+
+func (a *taskMultiWorktreeAllocator) resolveIntegrationPurgePath(
+	ctx context.Context,
+	workspaceRoot string,
+	worktreesRoot string,
+	plannedPath string,
+	branch string,
+) (string, error) {
+	registeredPath, err := a.integrationWorktreePathForBranch(ctx, workspaceRoot, branch)
+	if err != nil {
+		return "", err
+	}
+	if registeredPath != "" {
+		ownedPath, ok, err := cleanOwnedWorktreePath(worktreesRoot, registeredPath)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", fmt.Errorf(
+				"integration branch %s is checked out outside worktree root at %s",
+				branch,
+				registeredPath,
+			)
+		}
+		return ownedPath, nil
+	}
+	ownedPath, ok, err := cleanOwnedWorktreePath(worktreesRoot, plannedPath)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf(
+			"integration purge path is outside worktree root at %s",
+			plannedPath,
+		)
+	}
+	return ownedPath, nil
+}
+
+func (a *taskMultiWorktreeAllocator) removeIntegrationWorktreeForPurge(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	workspaceRoot string,
+	path string,
+) (bool, error) {
+	pathRemoved := false
+	if _, statErr := os.Stat(path); statErr == nil {
+		// Purge follows rollback semantics for integration worktrees: the branch
+		// is internal scratch state and may contain conflict index state.
+		if _, err := run(ctx, workspaceRoot, "worktree", "remove", "--force", path); err != nil {
+			return false, fmt.Errorf("remove integration worktree %s: %w", path, err)
+		}
+		if _, statErr := os.Stat(path); statErr == nil {
+			return false, fmt.Errorf("remove integration worktree %s: path still exists", path)
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return false, fmt.Errorf("stat integration worktree %s after removal: %w", path, statErr)
+		}
+		if _, err := run(ctx, workspaceRoot, "worktree", "prune", "--expire", "now"); err != nil {
+			return false, fmt.Errorf("prune integration worktree metadata for %s: %w", path, err)
+		}
+		pathRemoved = true
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return false, fmt.Errorf("stat integration worktree %s: %w", path, statErr)
+	}
+	return pathRemoved, nil
+}
+
+func (a *taskMultiWorktreeAllocator) deleteIntegrationBranchIfExists(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	workspaceRoot string,
+	branch string,
+) error {
+	branchExists, err := a.integrationBranchExists(ctx, workspaceRoot, branch)
+	if err != nil {
+		return err
+	}
+	if branchExists {
+		if _, err := run(ctx, workspaceRoot, "branch", "-D", branch); err != nil {
+			return fmt.Errorf("delete integration branch %s: %w", branch, err)
+		}
+	}
+	return nil
+}
+
 // Remove removes a clean task worktree without forcing away uncommitted changes.
 func (a *taskMultiWorktreeAllocator) Remove(ctx context.Context, workspaceRoot string, path string) error {
 	run, err := a.requireGitRunner()
@@ -451,6 +656,58 @@ func (a *taskMultiWorktreeAllocator) Remove(ctx context.Context, workspaceRoot s
 		return fmt.Errorf("remove worktree %s: %w", worktreePath, err)
 	}
 	return nil
+}
+
+func (a *taskMultiWorktreeAllocator) integrationBranchExists(
+	ctx context.Context,
+	workspaceRoot string,
+	branch string,
+) (bool, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return false, err
+	}
+	out, err := run(ctx, workspaceRoot, "branch", "--list", branch, "--format=%(refname:short)")
+	if err != nil {
+		return false, fmt.Errorf("inspect integration branch %s: %w", branch, err)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == branch {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (a *taskMultiWorktreeAllocator) integrationWorktreePathForBranch(
+	ctx context.Context,
+	workspaceRoot string,
+	branch string,
+) (string, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return "", err
+	}
+	out, err := run(ctx, workspaceRoot, "worktree", "list", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("inspect integration worktrees for branch %s: %w", branch, err)
+	}
+	wantRef := "refs/heads/" + branch
+	currentPath := ""
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "":
+			currentPath = ""
+		case strings.HasPrefix(line, "worktree "):
+			currentPath = strings.TrimSpace(strings.TrimPrefix(line, "worktree "))
+		case strings.HasPrefix(line, "branch "):
+			if strings.TrimSpace(strings.TrimPrefix(line, "branch ")) == wantRef {
+				return currentPath, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 // Prune removes stale git worktree administrative references.
@@ -645,6 +902,86 @@ func taskMultiWorktreeStatusPath(raw string) string {
 		path = unquoted
 	}
 	return path
+}
+
+func taskMultiCachedDiffPaths(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	worktreePath string,
+) ([]string, error) {
+	raw, err := run(ctx, worktreePath, "diff", "--cached", "--name-only", "-z")
+	if err != nil {
+		return nil, fmt.Errorf("inspect cached diff in %s: %w", worktreePath, err)
+	}
+	return taskMultiParseNULPaths(raw), nil
+}
+
+func taskMultiParseNULPaths(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, "\x00")
+	paths := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		paths = append(paths, part)
+	}
+	return taskMultiUniqueSorted(paths)
+}
+
+func taskMultiNormalizeGitPaths(paths []string) ([]string, error) {
+	normalized := make([]string, 0, len(paths))
+	for _, path := range paths {
+		value := strings.TrimSpace(path)
+		if value == "" {
+			continue
+		}
+		if filepath.IsAbs(value) {
+			return nil, fmt.Errorf("absolute path %q is not allowed", value)
+		}
+		clean := filepath.Clean(filepath.FromSlash(value))
+		if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("path %q escapes worktree", value)
+		}
+		normalized = append(normalized, filepath.ToSlash(clean))
+	}
+	return taskMultiUniqueSorted(normalized), nil
+}
+
+func taskMultiValidateStagedSubset(stagedPaths []string, allowedPaths []string) error {
+	allowed := make(map[string]struct{}, len(allowedPaths))
+	for _, path := range allowedPaths {
+		allowed[path] = struct{}{}
+	}
+	unexpected := make([]string, 0)
+	for _, path := range stagedPaths {
+		if _, ok := allowed[path]; !ok {
+			unexpected = append(unexpected, path)
+		}
+	}
+	if len(unexpected) > 0 {
+		return fmt.Errorf("unexpected staged paths: %s", strings.Join(unexpected, ", "))
+	}
+	return nil
+}
+
+func taskMultiUniqueSorted(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	sort.Strings(values)
+	result := values[:0]
+	var previous string
+	for idx, value := range values {
+		if idx > 0 && value == previous {
+			continue
+		}
+		result = append(result, value)
+		previous = value
+	}
+	return result
 }
 
 func runTaskMultiWorktreeGitCommand(ctx context.Context, dir string, args ...string) (string, error) {

@@ -16,7 +16,8 @@ import (
 
 // RunPurgeResult captures the terminal runs removed by one purge operation.
 type RunPurgeResult struct {
-	PurgedRunIDs []string
+	PurgedRunIDs        []string
+	PurgedWorktreePaths []string
 }
 
 type journalDropTotals struct {
@@ -199,6 +200,9 @@ func PurgeTerminalRuns(
 			return time.Now().UTC()
 		},
 	}
+	if strings.TrimSpace(settings.WorktreesRoot) != "" {
+		manager.worktreeAllocator = newTaskMultiWorktreeAllocator(settings.WorktreesRoot)
+	}
 	return manager.Purge(ctx, settings)
 }
 
@@ -288,26 +292,29 @@ func (m *RunManager) Purge(ctx context.Context, settings RunLifecycleSettings) (
 	}
 
 	result := RunPurgeResult{PurgedRunIDs: make([]string, 0, len(candidates))}
-	purgedRunIDs := make([]string, 0, len(candidates))
 	for i := range candidates {
 		run := &candidates[i]
 		if m.getActive(run.RunID) != nil {
 			continue
 		}
+		purgedWorktrees, err := m.purgeRunWorktrees(listCtx, run, settings)
+		if err != nil {
+			return result, fmt.Errorf("purge worktrees for run %s: %w", run.RunID, err)
+		}
 
 		runArtifacts, err := model.ResolveHomeRunArtifacts(run.RunID)
 		if err != nil {
-			return result, err
+			return result, fmt.Errorf("resolve artifacts for run %s: %w", run.RunID, err)
 		}
 		if err := os.RemoveAll(runArtifacts.RunDir); err != nil {
-			return result, err
+			return result, fmt.Errorf("remove artifacts for run %s: %w", run.RunID, err)
 		}
-		purgedRunIDs = append(purgedRunIDs, run.RunID)
+		if err := m.globalDB.DeleteRuns(listCtx, []string{run.RunID}); err != nil {
+			return result, fmt.Errorf("delete metadata for run %s: %w", run.RunID, err)
+		}
+		result.PurgedRunIDs = append(result.PurgedRunIDs, run.RunID)
+		result.PurgedWorktreePaths = append(result.PurgedWorktreePaths, purgedWorktrees...)
 	}
-	if err := m.globalDB.DeleteRuns(listCtx, purgedRunIDs); err != nil {
-		return result, err
-	}
-	result.PurgedRunIDs = append(result.PurgedRunIDs, purgedRunIDs...)
 	return result, nil
 }
 

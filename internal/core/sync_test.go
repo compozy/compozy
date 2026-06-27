@@ -496,6 +496,55 @@ func TestCleanupLegacyWorkflowMetadataPreservesCanonicalTaskList(t *testing.T) {
 	}
 }
 
+func TestCleanupLegacyWorkflowMetadataPreservesTaskGraphManifest(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "Should preserve canonical task graph manifest",
+			body: canonicalTaskGraphManifestBody("demo"),
+		},
+		{
+			name: "Should preserve forward version task graph manifest",
+			body: strings.Replace(canonicalTaskGraphManifestBody("demo"), "compozy.tasks/v2", "compozy.tasks/v3", 1),
+		},
+		{
+			name: "Should preserve malformed task graph manifest frontmatter",
+			body: strings.Join([]string{
+				"---",
+				"schema_version: [",
+				"---",
+				"# Task Graph",
+				"",
+			}, "\n"),
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workflowDir := t.TempDir()
+			writeSyncWorkflowFile(t, workflowDir, "_meta.md", legacyMetaBody())
+			writeSyncWorkflowFile(t, workflowDir, "_tasks.md", tc.body)
+
+			removed, err := cleanupLegacyWorkflowMetadata(workflowDir)
+			if err != nil {
+				t.Fatalf("cleanupLegacyWorkflowMetadata(): %v", err)
+			}
+			if !reflect.DeepEqual(removed, []string{"_meta.md"}) {
+				t.Fatalf("removed legacy files = %#v, want only _meta.md", removed)
+			}
+			if got := mustReadFile(t, filepath.Join(workflowDir, "_tasks.md")); got != tc.body {
+				t.Fatalf("expected task graph manifest to remain unchanged")
+			}
+		})
+	}
+}
+
 func TestCollectArtifactSnapshotsSkipsHiddenDirsAndClassifiesAuthoredTaskList(t *testing.T) {
 	t.Parallel()
 
@@ -911,6 +960,23 @@ func canonicalTaskListBody() string {
 		authoredTaskListHeader,
 		"|---|-------|--------|------------|--------------|",
 		"| 01 | Demo task | pending | low | — |",
+		"",
+	}, "\n")
+}
+
+func canonicalTaskGraphManifestBody(workflow string) string {
+	return strings.Join([]string{
+		"---",
+		"schema_version: \"compozy.tasks/v2\"",
+		"workflow: " + workflow,
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"  edges: []",
+		"---",
+		"",
+		"# " + workflow + " Tasks",
 		"",
 	}, "\n")
 }

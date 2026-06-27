@@ -51,12 +51,15 @@ Update the Compozy CLI to the latest release. No flags.
 
 ### `compozy tasks run`
 
-Execute PRD task files sequentially from a workflow directory through the shared daemon.
+Execute PRD task files from a workflow directory through the shared daemon. By default one workflow runs sequentially; `--parallel-tasks` runs a single workflow by dependency waves from `_tasks.md` graph edges.
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--name` | string | | Task workflow name (resolves to `.compozy/tasks/<name>`) |
 | `--multiple` | string | | Comma-separated task workflow slugs to run through one daemon-owned parent queue |
+| `--parallel` | bool | false | With `--multiple`, run child workflows concurrently instead of as an ordered queue |
+| `--parallel-limit` | int | 2 | With `--multiple --parallel`, maximum child workflows running at once |
+| `--parallel-tasks` | bool | false | Run one workflow by dependency waves from `_tasks.md` graph edges |
 | `--include-completed` | bool | false | Include tasks already marked as completed |
 | `--recursive`, `-r` | bool | false | Discover `task_NNN.md` files in nested subdirectories of the workflow root |
 | `--skip-validation` | bool | false | Skip task metadata preflight check |
@@ -72,6 +75,8 @@ Execute PRD task files sequentially from a workflow directory through the shared
 compozy tasks run multi-repo --ide claude
 compozy tasks run --name multi-repo --ide codex --auto-commit
 compozy tasks run --multiple alpha,beta --stream
+compozy tasks run --multiple alpha,beta --parallel --parallel-limit 2
+compozy tasks run multi-repo --parallel-tasks
 compozy tasks run multi-repo --stream
 ```
 

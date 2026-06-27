@@ -17,6 +17,7 @@ type ExplicitRuntimeFlags struct {
 type RuntimeConfig struct {
 	WorkspaceRoot              string
 	Name                       string
+	WorkflowName               string `json:"-"`
 	Round                      int
 	Provider                   string
 	PR                         string

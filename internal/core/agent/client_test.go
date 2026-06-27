@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1522,6 +1525,58 @@ func TestClientTerminalKillTerminatesCommandAndKeepsOutput(t *testing.T) {
 	}
 }
 
+func TestClientTerminalKillTerminatesChildProcessTree(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should terminate child process tree when terminal is killed", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("process-group terminal cleanup is implemented differently on Windows")
+		}
+
+		client, sessionID := newTerminalTestClient(t)
+		childPIDPath := filepath.Join(t.TempDir(), "child.pid")
+		env := append(
+			terminalHelperEnv("spawn-child", "tree-ready", "0"),
+			acp.EnvVariable{Name: "GO_TERMINAL_CHILD_PID_FILE", Value: childPIDPath},
+		)
+		resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+			SessionId: acp.SessionId(sessionID),
+			Command:   os.Args[0],
+			Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+			Env:       env,
+		})
+		if err != nil {
+			t.Fatalf("create terminal: %v", err)
+		}
+		waitForTerminalOutput(t, client, sessionID, resp.TerminalId, "tree-ready")
+		childPID := readTerminalChildPID(t, childPIDPath)
+		defer killProcessByPID(childPID)
+
+		if _, err := client.KillTerminal(context.Background(), acp.KillTerminalRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: resp.TerminalId,
+		}); err != nil {
+			t.Fatalf("kill terminal: %v", err)
+		}
+		waitCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if _, err := client.WaitForTerminalExit(waitCtx, acp.WaitForTerminalExitRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: resp.TerminalId,
+		}); err != nil {
+			t.Fatalf("wait for killed terminal: %v", err)
+		}
+		if _, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{
+			SessionId:  acp.SessionId(sessionID),
+			TerminalId: resp.TerminalId,
+		}); err != nil {
+			t.Fatalf("release killed terminal: %v", err)
+		}
+		waitForProcessExit(t, childPID)
+	})
+}
+
 func TestClientReleaseTerminalRetainsTrackingWhenWaitContextExpires(t *testing.T) {
 	t.Parallel()
 
@@ -2141,6 +2196,23 @@ func TestTerminalCommandHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_TERMINAL_HELPER_PROCESS") != "1" {
 		return
 	}
+	if os.Getenv("GO_TERMINAL_HELPER_MODE") == "spawn-child" {
+		child := exec.CommandContext(context.Background(), os.Args[0], "-test.run=TestTerminalChildHelperProcess", "--")
+		child.Env = append(os.Environ(), "GO_WANT_TERMINAL_CHILD_HELPER=1")
+		if err := child.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "start child helper: %v\n", err)
+			os.Exit(2)
+		}
+		pidPath := os.Getenv("GO_TERMINAL_CHILD_PID_FILE")
+		if pidPath != "" {
+			if err := os.WriteFile(pidPath, []byte(strconv.Itoa(child.Process.Pid)), 0o600); err != nil {
+				fmt.Fprintf(os.Stderr, "write child pid: %v\n", err)
+				os.Exit(2)
+			}
+		}
+		fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
+		select {}
+	}
 	fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
 	if os.Getenv("GO_TERMINAL_HELPER_MODE") == "block" {
 		select {}
@@ -2151,6 +2223,13 @@ func TestTerminalCommandHelperProcess(_ *testing.T) {
 		os.Exit(2)
 	}
 	os.Exit(code)
+}
+
+func TestTerminalChildHelperProcess(_ *testing.T) {
+	if os.Getenv("GO_WANT_TERMINAL_CHILD_HELPER") != "1" {
+		return
+	}
+	select {}
 }
 
 func TestProcessStderrHelperProcess(_ *testing.T) {
@@ -2578,6 +2657,66 @@ func waitForTerminalOutput(
 		case <-timer.C:
 			t.Fatalf("timed out waiting for terminal output %q, last output %q", want, output.Output)
 		}
+	}
+}
+
+func readTerminalChildPID(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read child pid file: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("parse child pid %q: %v", string(data), err)
+	}
+	return pid
+}
+
+func waitForProcessExit(t *testing.T, pid int) {
+	t.Helper()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for {
+		if !processExists(pid) {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			t.Fatalf("timed out waiting for child process %d to exit", pid)
+		}
+	}
+}
+
+func processExists(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err != nil {
+		return false
+	}
+	return !processIsZombie(pid)
+}
+
+func processIsZombie(pid int) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ps", "-p", strconv.Itoa(pid), "-o", "stat=").Output()
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(string(out)), "Z")
+}
+
+func killProcessByPID(pid int) {
+	process, err := os.FindProcess(pid)
+	if err == nil {
+		_ = process.Kill()
 	}
 }
 

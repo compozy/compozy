@@ -94,15 +94,15 @@ func (cfg TaskRunConfig) EffectiveRunMultipleParallelLimit() int {
 }
 
 type ParallelTasksConfig struct {
-	Enabled          *bool                `toml:"enabled"           json:"enabled,omitempty"`
-	MaxConcurrency   *int                 `toml:"max_concurrency"   json:"max_concurrency,omitempty"`
-	ConflictResolver *AgentRecoveryConfig `toml:"conflict_resolver" json:"conflict_resolver,omitempty"`
+	Enabled          *bool                   `toml:"enabled"           json:"enabled,omitempty"`
+	MaxConcurrency   *int                    `toml:"max_concurrency"   json:"max_concurrency,omitempty"`
+	ConflictResolver *ConflictResolverConfig `toml:"conflict_resolver" json:"conflict_resolver,omitempty"`
 }
 
 func DefaultParallelTasksConfig() ParallelTasksConfig {
 	enabled := DefaultParallelTasksEnabled
 	maxConcurrency := DefaultParallelTasksMaxConcurrency
-	conflictResolver := DefaultAgentRecoveryConfig()
+	conflictResolver := DefaultConflictResolverConfig()
 	return ParallelTasksConfig{
 		Enabled:          &enabled,
 		MaxConcurrency:   &maxConcurrency,
@@ -178,6 +178,15 @@ type AgentRecoveryConfig struct {
 	MaxAttempts     *int    `toml:"max_attempts"     json:"max_attempts,omitempty"`
 }
 
+type ConflictResolverConfig struct {
+	Enabled           *bool     `toml:"enabled"            json:"enabled,omitempty"`
+	IDE               *string   `toml:"ide"                json:"ide,omitempty"`
+	Model             *string   `toml:"model"              json:"model,omitempty"`
+	ReasoningEffort   *string   `toml:"reasoning_effort"   json:"reasoning_effort,omitempty"`
+	MaxAttempts       *int      `toml:"max_attempts"       json:"max_attempts,omitempty"`
+	ValidationCommand *[]string `toml:"validation_command" json:"validation_command,omitempty"`
+}
+
 func DefaultAgentRecoveryConfig() AgentRecoveryConfig {
 	enabled := DefaultRecoveryEnabled
 	ide := DefaultRecoveryIDE
@@ -190,6 +199,17 @@ func DefaultAgentRecoveryConfig() AgentRecoveryConfig {
 		Model:           &modelName,
 		ReasoningEffort: &reasoningEffort,
 		MaxAttempts:     &maxAttempts,
+	}
+}
+
+func DefaultConflictResolverConfig() ConflictResolverConfig {
+	recovery := DefaultAgentRecoveryConfig()
+	return ConflictResolverConfig{
+		Enabled:         recovery.Enabled,
+		IDE:             recovery.IDE,
+		Model:           recovery.Model,
+		ReasoningEffort: recovery.ReasoningEffort,
+		MaxAttempts:     recovery.MaxAttempts,
 	}
 }
 
@@ -213,8 +233,33 @@ func (cfg AgentRecoveryConfig) ApplyDefaults() AgentRecoveryConfig {
 	return cfg
 }
 
+func (cfg ConflictResolverConfig) ApplyDefaults() ConflictResolverConfig {
+	defaults := DefaultConflictResolverConfig()
+	if cfg.Enabled == nil {
+		cfg.Enabled = defaults.Enabled
+	}
+	if cfg.IDE == nil {
+		cfg.IDE = defaults.IDE
+	}
+	if cfg.Model == nil {
+		cfg.Model = defaults.Model
+	}
+	if cfg.ReasoningEffort == nil {
+		cfg.ReasoningEffort = defaults.ReasoningEffort
+	}
+	if cfg.MaxAttempts == nil {
+		cfg.MaxAttempts = defaults.MaxAttempts
+	}
+	cfg.ValidationCommand = cloneStringSlicePointer(cfg.ValidationCommand)
+	return cfg
+}
+
 func ValidateAgentRecoveryConfig(scope string, cfg AgentRecoveryConfig) error {
 	return validateRecovery(scope, cfg)
+}
+
+func ValidateConflictResolverConfig(scope string, cfg ConflictResolverConfig) error {
+	return validateConflictResolverConfig(scope, "conflict_resolver", cfg)
 }
 
 // SoundConfig controls optional audio notifications on run lifecycle events.

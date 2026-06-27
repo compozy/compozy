@@ -188,6 +188,7 @@ ide = "codex"
 model = "gpt-5.5"
 reasoning_effort = "medium"
 max_attempts = 1
+validation_command = []
 
 [exec]
 output_format = "text"
@@ -231,7 +232,8 @@ Notes:
 - `run_multiple_mode = "parallel"` runs the batch concurrently, with each child in its own isolated git worktree. The CLI `--parallel` flag overrides this config value for a single invocation.
 - `[tasks.run] run_multiple_parallel_limit` caps how many children run at once in parallel mode. It must be a positive integer and defaults to `2`. The CLI `--parallel-limit <n>` flag overrides it for a single invocation. The limit has no effect in enqueued mode, which always runs one child at a time.
 - `[tasks.run.parallel] enabled = true` runs pending task files in one workflow by dependency waves. The CLI `--parallel-tasks` flag overrides this config value for a single invocation.
-- `[tasks.run.parallel] max_concurrency` caps concurrent task worktrees within a wave and defaults to `4`. The conflict resolver reuses the recovery-agent shape (`ide`, `model`, `reasoning_effort`, `max_attempts`) for bounded merge-conflict resolution.
+- `[tasks.run.parallel] max_concurrency` caps concurrent task worktrees within a wave and defaults to `4`. The conflict resolver uses `ide`, `model`, `reasoning_effort`, and `max_attempts` for bounded merge-conflict resolution.
+- `[tasks.run.parallel.conflict_resolver] validation_command` is optional and disabled by default. When set, it is an argv-style command such as `["go", "test", "./..."]`, runs without a shell after conflict markers and unmerged entries are gone, and must not modify the integration worktree. Omit it or set `[]` to rely only on universal git validation.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
@@ -705,7 +707,7 @@ Resolution precedence:
 
 **Worktree isolation.** In parallel mode the parent workspace must be on a named git branch. Compozy resolves the current branch and `HEAD` once, then creates one detached git worktree per child under `~/.compozy/state/worktrees/`. Each child runs with its workspace root and task directory remapped into that worktree, so concurrent agents get isolated working trees, indexes, and `HEAD`s while sharing the repository object store. Worktrees do **not** isolate shared runtime resources such as ports, credentials, provider rate limits, caches, or external services — treat parallel batches as genuinely independent tasks.
 
-**Preservation and V1 non-goals.** Every child worktree is preserved for manual review regardless of child status. Compozy does not auto-merge, auto-push, branch, or delete worktrees, and it does not predict semantic conflicts; recombining results is a manual step. Each detached worktree records its base branch and commit so you can branch or merge from it yourself.
+**Preservation and V1 non-goals.** Every child worktree is preserved for manual review while the run settles, regardless of child status. Compozy does not auto-merge, auto-push, or branch those results, and it does not predict semantic conflicts; recombining results is a manual step. Each detached worktree records its base branch and commit so you can branch or merge from it yourself. Preserved worktrees are reclaimed only by explicit retention cleanup through `compozy runs purge`; dirty task worktrees make purge fail before run metadata is deleted.
 
 **Fail-late aggregation.** A child failure does not cancel its siblings. The parent reaches a terminal status only after every started child settles: `completed` when all children complete, or `failed` when any child fails, crashes, or cannot start (the parent error names the failed slugs). Canceling the parent cancels running children and marks not-started children canceled. In non-TUI runs the parent command exits non-zero when the aggregate status is failed, canceled, or crashed.
 
@@ -750,7 +752,7 @@ compozy runs watch <run-id>
 compozy runs purge
 ```
 
-Use `runs attach` to restore the interactive TUI for an existing run, `runs watch` for textual streaming observation, and `runs purge` to delete terminal run artifacts according to the configured retention policy.
+Use `runs attach` to restore the interactive TUI for an existing run, `runs watch` for textual streaming observation, and `runs purge` to delete terminal run artifacts according to the configured retention policy. Purge also removes clean Compozy-owned preserved worktrees recorded by terminal run events under `~/.compozy/state/worktrees/`; it ignores paths outside that root and stops before deleting run metadata if a task worktree is dirty.
 
 </details>
 

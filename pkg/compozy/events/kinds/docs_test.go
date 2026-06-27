@@ -56,6 +56,51 @@ func TestTaskParallelPayloadFieldsDocumented(t *testing.T) {
 	})
 }
 
+func TestTaskParallelPlanPayloadFieldsDocumented(t *testing.T) {
+	t.Parallel()
+	t.Run("Should document every TaskParallelPlan payload field", func(t *testing.T) {
+		t.Parallel()
+
+		content := docsSection(
+			t,
+			readEventsDocumentation(t),
+			"`kinds.TaskParallelPlanPayload` fields:",
+			"`kinds.TaskParallelPayload` fields:",
+		)
+		for _, payload := range []any{
+			TaskParallelPlanPayload{},
+			TaskParallelPlanTask{},
+			TaskParallelPlanWave{},
+		} {
+			payloadType := reflect.TypeOf(payload)
+			for i := range payloadType.NumField() {
+				tag := jsonFieldName(payloadType.Field(i).Tag.Get("json"))
+				if tag == "" || tag == "-" {
+					continue
+				}
+				want := "\x60" + tag + "\x60"
+				if !strings.Contains(content, want) {
+					t.Fatalf("expected docs/events.md to document %s field %s", payloadType.Name(), want)
+				}
+			}
+		}
+	})
+}
+
+func docsSection(t *testing.T, content, startMarker, endMarker string) string {
+	t.Helper()
+	start := strings.Index(content, startMarker)
+	if start < 0 {
+		t.Fatalf("docs/events.md missing section marker %q", startMarker)
+	}
+	body := content[start:]
+	end := strings.Index(body, endMarker)
+	if end < 0 {
+		t.Fatalf("docs/events.md section %q missing end marker %q", startMarker, endMarker)
+	}
+	return body[:end]
+}
+
 func TestRunRecoveryPayloadFieldsDocumented(t *testing.T) {
 	t.Parallel()
 

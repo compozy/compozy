@@ -115,6 +115,7 @@ func newRunsPurgeCommand() *cobra.Command {
 			if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
 				return err
 			}
+			settings.WorktreesRoot = paths.WorktreesDir
 
 			db, err := globaldb.Open(ctx, paths.GlobalDBPath)
 			if err != nil {
@@ -129,7 +130,12 @@ func newRunsPurgeCommand() *cobra.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "purged %d run(s)\n", len(result.PurgedRunIDs))
+			_, err = fmt.Fprintf(
+				cmd.OutOrStdout(),
+				"purged %d run(s), %d worktree(s)\n",
+				len(result.PurgedRunIDs),
+				len(result.PurgedWorktreePaths),
+			)
 			return err
 		},
 	}

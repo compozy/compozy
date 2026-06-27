@@ -26,9 +26,10 @@ type RunArtifacts struct {
 }
 
 type JobArtifacts struct {
-	PromptPath string
-	OutLogPath string
-	ErrLogPath string
+	PromptPath        string
+	OutLogPath        string
+	ErrLogPath        string
+	WorktreeScopePath string
 }
 
 func NewRunArtifacts(workspaceRoot, runID string) RunArtifacts {
@@ -113,9 +114,10 @@ func sanitizeRunID(runID string) string {
 func (artifacts RunArtifacts) JobArtifacts(safeName string) JobArtifacts {
 	sanitizedName := sanitizeJobArtifactName(safeName)
 	return JobArtifacts{
-		PromptPath: filepath.Join(artifacts.JobsDir, sanitizedName+".prompt.md"),
-		OutLogPath: filepath.Join(artifacts.JobsDir, sanitizedName+".out.log"),
-		ErrLogPath: filepath.Join(artifacts.JobsDir, sanitizedName+".err.log"),
+		PromptPath:        filepath.Join(artifacts.JobsDir, sanitizedName+".prompt.md"),
+		OutLogPath:        filepath.Join(artifacts.JobsDir, sanitizedName+".out.log"),
+		ErrLogPath:        filepath.Join(artifacts.JobsDir, sanitizedName+".err.log"),
+		WorktreeScopePath: filepath.Join(artifacts.JobsDir, sanitizedName+".worktree_scope.json"),
 	}
 }
 

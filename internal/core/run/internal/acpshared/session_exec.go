@@ -124,12 +124,16 @@ func (e *initTimeoutError) Error() string {
 
 const (
 	acpInitTimeoutMultiplier = 3
+	minACPInitTimeout        = 10 * time.Second
 	maxACPInitTimeout        = 30 * time.Minute
 )
 
 func ResolveACPInitTimeout(activityTimeout time.Duration) time.Duration {
 	if activityTimeout <= 0 {
 		return 0
+	}
+	if activityTimeout <= minACPInitTimeout/acpInitTimeoutMultiplier {
+		return minACPInitTimeout
 	}
 	if activityTimeout >= maxACPInitTimeout/acpInitTimeoutMultiplier {
 		return maxACPInitTimeout

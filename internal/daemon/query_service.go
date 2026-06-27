@@ -1086,7 +1086,14 @@ func buildTaskLanes(cards []TaskCard) []TaskLane {
 
 	orderedStatuses := make([]string, 0, len(grouped))
 	seen := make(map[string]struct{}, len(grouped))
-	for _, status := range []string{runStatusPending, "running", "retrying", runStatusCompleted, "failed", "canceled"} {
+	for _, status := range []string{
+		runStatusPending,
+		runStatusRunning,
+		runStatusRetrying,
+		runStatusCompleted,
+		runStatusFailed,
+		runStatusCancelled,
+	} {
 		if _, ok := grouped[status]; ok {
 			orderedStatuses = append(orderedStatuses, status)
 			seen[status] = struct{}{}
@@ -1129,7 +1136,7 @@ func laneTitle(status string) string {
 	switch normalizeLaneStatus(status) {
 	case runStatusPending:
 		return "Pending"
-	case "running", "in_progress", "in-progress":
+	case runStatusRunning, "in_progress", "in-progress":
 		return "In Progress"
 	case runStatusRetrying:
 		return "Retrying"

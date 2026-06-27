@@ -72,6 +72,8 @@ type uiJob struct {
 	taskNumber           int
 	taskTitle            string
 	taskType             string
+	childRunID           string
+	worktreePath         string
 	safeName             string
 	ide                  string
 	model                string
@@ -238,10 +240,42 @@ type dispatchBatchMsg struct {
 
 // Parallel task execution messages translated from task.parallel.* events. They
 // drive the wave-grouped sidebar and the persistent INTEGRATION pane.
+type parallelPlanStartedMsg struct {
+	Workflow          string
+	IntegrationBranch string
+	ParallelLimit     int
+	Tasks             []parallelPlanTask
+	Waves             []parallelPlanWave
+}
+
+type parallelPlanTask struct {
+	ID           string
+	Number       int
+	Title        string
+	File         string
+	Status       string
+	Dependencies []string
+	WaveIndex    int
+}
+
+type parallelPlanWave struct {
+	Index   int
+	TaskIDs []string
+}
+
 type parallelWaveStartedMsg struct {
 	WaveIndex         int
 	WaveTotal         int
 	TaskID            string
+	IntegrationBranch string
+}
+
+type parallelTaskStartedMsg struct {
+	WaveIndex         int
+	WaveTotal         int
+	TaskID            string
+	ChildRunID        string
+	WorktreePath      string
 	IntegrationBranch string
 }
 
@@ -274,6 +308,12 @@ type parallelWaveCompletedMsg struct {
 type parallelRolledBackMsg struct {
 	WaveIndex         int
 	IntegrationBranch string
+}
+
+type parallelFailedMsg struct {
+	WaveIndex         int
+	IntegrationBranch string
+	Err               error
 }
 
 type uiViewState string

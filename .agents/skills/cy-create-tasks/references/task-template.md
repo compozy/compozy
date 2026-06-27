@@ -8,9 +8,6 @@ status: pending
 title: [Task title]
 type: [one of frontend, backend, docs, test, infra, refactor, chore, bugfix, or a project-specific [tasks].types override]
 complexity: [low, medium, high, critical]
-dependencies:
-  - task_01
-  - task_02
 ---
 
 # Task N: [Title]
@@ -38,7 +35,7 @@ dependencies:
 - [ ] N.3 [Subtask description]
 
 ## Implementation Details
-[File paths to create or modify, integration points, and dependencies.
+[File paths to create or modify and integration points.
 Reference the TechSpec implementation section for code patterns and interface designs.]
 
 ### Relevant Files
@@ -75,7 +72,7 @@ Reference the TechSpec implementation section for code patterns and interface de
 
 ## Guidelines
 
-- Every task must be independently implementable when its dependencies are met.
+- Every task must be independently implementable when its dependencies from `_tasks.md` graph edges are met.
 - Every task MUST include a Tests section and test items in Deliverables.
 - Never create separate tasks dedicated solely to testing.
 - Subtasks describe WHAT needs to happen, not HOW to implement it.

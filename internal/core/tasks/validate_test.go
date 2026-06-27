@@ -269,6 +269,40 @@ func TestValidateEmptyDirectory(t *testing.T) {
 	}
 }
 
+func TestValidateTaskGraphManifest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate manifest when directory has no task files", func(t *testing.T) {
+		t.Parallel()
+
+		tasksDir := t.TempDir()
+		writeRawTaskFile(t, tasksDir, "_tasks.md", strings.Join([]string{
+			"---",
+			"schema_version: \"compozy.tasks/v2\"",
+			"workflow: " + filepath.Base(tasksDir),
+			"graph:",
+			"  nodes: []",
+			"  edges: []",
+			"---",
+			"# Task Graph",
+		}, "\n"))
+
+		report, err := Validate(context.Background(), tasksDir, mustTaskRegistry(t))
+		if err != nil {
+			t.Fatalf("validate: %v", err)
+		}
+		if report.Scanned != 0 {
+			t.Fatalf("scanned = %d, want 0", report.Scanned)
+		}
+		if report.OK() {
+			t.Fatal("expected manifest-only validation issue")
+		}
+		if len(report.Issues) != 1 || report.Issues[0].Field != "graph.nodes" {
+			t.Fatalf("issues = %#v, want graph.nodes issue", report.Issues)
+		}
+	})
+}
+
 func TestValidateRequiresRegistry(t *testing.T) {
 	t.Parallel()
 

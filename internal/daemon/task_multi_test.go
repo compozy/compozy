@@ -20,8 +20,12 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -438,6 +442,22 @@ func TestRemapTaskMultiChildRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should overwrite inherited WorkflowName with the child slug", func(t *testing.T) {
+		t.Parallel()
+		base := newBase()
+		base.WorkflowName = "parent-workflow"
+		got, err := remapTaskMultiChildRuntime(base, "/wt/01-alpha", "alpha", "parent-1")
+		if err != nil {
+			t.Fatalf("remapTaskMultiChildRuntime() error = %v", err)
+		}
+		if got.WorkflowName != "alpha" {
+			t.Fatalf("WorkflowName = %q, want alpha", got.WorkflowName)
+		}
+		if base.WorkflowName != "parent-workflow" {
+			t.Fatalf("base WorkflowName = %q, want parent-workflow", base.WorkflowName)
+		}
+	})
+
 	t.Run("Should set ParentRunID and preserve unrelated runtime overrides", func(t *testing.T) {
 		t.Parallel()
 		base := newBase()
@@ -501,6 +521,229 @@ func TestRequireTaskMultiWorktreeTaskDir(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "beta") || !strings.Contains(err.Error(), "missing task directory") {
 			t.Fatalf("error = %v, want slug-specific missing task directory error", err)
+		}
+	})
+}
+
+func TestMirrorTaskMultiWorkflowArtifacts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should copy ignored workflow artifacts into an empty worktree", func(t *testing.T) {
+		t.Parallel()
+		parentRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		slug := "alpha"
+		workflowDir := model.TaskDirectoryForWorkspace(parentRoot, slug)
+		writeFileForTest(t, filepath.Join(workflowDir, "_tasks.md"), "# Tasks\n")
+		writeFileForTest(t, filepath.Join(workflowDir, "task_01.md"), "task 1\n")
+		writeFileForTest(
+			t,
+			filepath.Join(workflowDir, "memory", "MEMORY.md"),
+			"memory\n",
+		)
+
+		if err := mirrorTaskMultiWorkflowArtifacts(workflowDir, worktreeRoot, slug); err != nil {
+			t.Fatalf("mirrorTaskMultiWorkflowArtifacts() error = %v", err)
+		}
+		for _, rel := range []string{"_tasks.md", "task_01.md", filepath.Join("memory", "MEMORY.md")} {
+			if _, err := os.Stat(filepath.Join(model.TaskDirectoryForWorkspace(worktreeRoot, slug), rel)); err != nil {
+				t.Fatalf("mirrored artifact %s missing: %v", rel, err)
+			}
+		}
+	})
+
+	t.Run("Should mirror a resolved workflow root outside the canonical workspace path", func(t *testing.T) {
+		t.Parallel()
+		workflowDir := filepath.Join(t.TempDir(), "custom", "parallel-alpha")
+		worktreeRoot := t.TempDir()
+		slug := "alpha"
+		writeFileForTest(t, filepath.Join(workflowDir, "task_01.md"), "custom task\n")
+
+		if err := mirrorTaskMultiWorkflowArtifacts(workflowDir, worktreeRoot, slug); err != nil {
+			t.Fatalf("mirrorTaskMultiWorkflowArtifacts() error = %v", err)
+		}
+		got, err := os.ReadFile(filepath.Join(model.TaskDirectoryForWorkspace(worktreeRoot, slug), "task_01.md"))
+		if err != nil {
+			t.Fatalf("read mirrored custom artifact: %v", err)
+		}
+		if string(got) != "custom task\n" {
+			t.Fatalf("mirrored custom artifact = %q", got)
+		}
+	})
+
+	t.Run("Should reject blank destination inputs before deriving artifact path", func(t *testing.T) {
+		t.Parallel()
+		workflowDir := filepath.Join(t.TempDir(), "workflow")
+		writeFileForTest(t, filepath.Join(workflowDir, "task_01.md"), "task\n")
+
+		err := mirrorTaskMultiWorkflowArtifacts(workflowDir, "  ", "alpha")
+		if err == nil || !strings.Contains(err.Error(), "worktree root") {
+			t.Fatalf("blank worktree root error = %v, want worktree root validation", err)
+		}
+		err = mirrorTaskMultiWorkflowArtifacts(workflowDir, t.TempDir(), "  ")
+		if err == nil || !strings.Contains(err.Error(), "slug") {
+			t.Fatalf("blank slug error = %v, want slug validation", err)
+		}
+	})
+
+	t.Run("Should reject symlinks in workflow artifacts", func(t *testing.T) {
+		t.Parallel()
+		parentRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		slug := "alpha"
+		workflowDir := model.TaskDirectoryForWorkspace(parentRoot, slug)
+		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		writeFileForTest(t, filepath.Join(parentRoot, "target.md"), "target\n")
+		if err := os.Symlink(
+			filepath.Join(parentRoot, "target.md"),
+			filepath.Join(workflowDir, "task_01.md"),
+		); err != nil {
+			t.Skipf("symlink unavailable: %v", err)
+		}
+		err := mirrorTaskMultiWorkflowArtifacts(workflowDir, worktreeRoot, slug)
+		if err == nil || !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("mirrorTaskMultiWorkflowArtifacts() error = %v, want symlink rejection", err)
+		}
+	})
+
+	t.Run("Should reject symlinked artifact destinations before writing", func(t *testing.T) {
+		t.Parallel()
+		parentRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		outsideRoot := t.TempDir()
+		slug := "alpha"
+		workflowDir := model.TaskDirectoryForWorkspace(parentRoot, slug)
+		writeFileForTest(t, filepath.Join(workflowDir, "task_01.md"), "updated\n")
+		destinationDir := model.TaskDirectoryForWorkspace(worktreeRoot, slug)
+		if err := os.MkdirAll(destinationDir, 0o755); err != nil {
+			t.Fatalf("mkdir destination dir: %v", err)
+		}
+		outsideTarget := filepath.Join(outsideRoot, "outside.md")
+		writeFileForTest(t, outsideTarget, "outside\n")
+		if err := os.Symlink(outsideTarget, filepath.Join(destinationDir, "task_01.md")); err != nil {
+			t.Skipf("symlink unavailable: %v", err)
+		}
+
+		err := mirrorTaskMultiWorkflowArtifacts(workflowDir, worktreeRoot, slug)
+		if err == nil || !strings.Contains(err.Error(), "destination") || !strings.Contains(err.Error(), "symlink") {
+			t.Fatalf("mirrorTaskMultiWorkflowArtifacts() error = %v, want destination symlink rejection", err)
+		}
+		got, readErr := os.ReadFile(outsideTarget)
+		if readErr != nil {
+			t.Fatalf("read outside target: %v", readErr)
+		}
+		if string(got) != "outside\n" {
+			t.Fatalf("outside target content = %q, want unchanged", got)
+		}
+	})
+}
+
+func TestSyncCompletedParallelTaskArtifacts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should sync merged tasks and skip failed tasks", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		slug := "alpha"
+		parentTask := filepath.Join(model.TaskDirectoryForWorkspace(workspaceRoot, slug), "task_01.md")
+		writeFileForTest(t, parentTask, "status: pending\n")
+		writeFileForTest(
+			t,
+			filepath.Join(model.TaskDirectoryForWorkspace(worktreeRoot, slug), "task_01.md"),
+			"status: completed\n",
+		)
+		writeFileForTest(
+			t,
+			filepath.Join(model.TaskDirectoryForWorkspace(worktreeRoot, slug), "task_02.md"),
+			"status: completed\n",
+		)
+
+		err := syncCompletedParallelTaskArtifacts(context.Background(), workspaceRoot, []runparallel.TaskOutcome{
+			{
+				Task:         runparallel.TaskSpec{ID: "task_01", Number: 1, Slug: slug},
+				WorktreePath: worktreeRoot,
+				Status:       runparallel.TaskOutcomeMerged,
+			},
+			{
+				Task:         runparallel.TaskSpec{ID: "task_02", Number: 2, Slug: slug},
+				WorktreePath: worktreeRoot,
+				Status:       runparallel.TaskOutcomeFailed,
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("syncCompletedParallelTaskArtifacts() error = %v", err)
+		}
+		got, err := os.ReadFile(parentTask)
+		if err != nil {
+			t.Fatalf("read parent task: %v", err)
+		}
+		if string(got) != "status: completed\n" {
+			t.Fatalf("parent task content = %q, want completed copy", got)
+		}
+		if _, err := os.Stat(
+			filepath.Join(model.TaskDirectoryForWorkspace(workspaceRoot, slug), "task_02.md"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("failed task artifact stat error = %v, want not synced", err)
+		}
+	})
+
+	t.Run("Should no-op when the parent artifact directory is absent", func(t *testing.T) {
+		t.Parallel()
+
+		err := syncCompletedParallelTaskArtifacts(context.Background(), t.TempDir(), []runparallel.TaskOutcome{{
+			Task:         runparallel.TaskSpec{ID: "task_01", Number: 1, Slug: "task_01"},
+			WorktreePath: t.TempDir(),
+			Status:       runparallel.TaskOutcomeMerged,
+		}}, nil)
+		if err != nil {
+			t.Fatalf("syncCompletedParallelTaskArtifacts() error = %v", err)
+		}
+	})
+
+	t.Run("Should sync back to the resolved parent workflow root when it is noncanonical", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		customWorkflowRoot := filepath.Join(t.TempDir(), "custom", "parallel-alpha")
+		slug := "alpha"
+		parentTask := filepath.Join(customWorkflowRoot, "task_01.md")
+		writeFileForTest(t, parentTask, "status: pending\n")
+		writeFileForTest(
+			t,
+			filepath.Join(model.TaskDirectoryForWorkspace(worktreeRoot, slug), "task_01.md"),
+			"status: completed\n",
+		)
+
+		err := syncCompletedParallelTaskArtifacts(context.Background(), workspaceRoot, []runparallel.TaskOutcome{{
+			Task:         runparallel.TaskSpec{ID: "task_01", Number: 1, Slug: slug},
+			WorktreePath: worktreeRoot,
+			Status:       runparallel.TaskOutcomeMerged,
+		}}, map[string]string{slug: customWorkflowRoot})
+		if err != nil {
+			t.Fatalf("syncCompletedParallelTaskArtifacts() error = %v", err)
+		}
+		got, err := os.ReadFile(parentTask)
+		if err != nil {
+			t.Fatalf("read custom parent task: %v", err)
+		}
+		if string(got) != "status: completed\n" {
+			t.Fatalf("custom parent task content = %q, want completed copy", got)
+		}
+		if _, err := os.Stat(
+			filepath.Join(model.TaskDirectoryForWorkspace(workspaceRoot, slug), "task_01.md"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("canonical parent task stat error = %v, want no write outside custom root", err)
 		}
 	})
 }
@@ -682,6 +925,7 @@ func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
 				return nil
 			},
 		})
+		writeCompozyTasksGitignore(t, env.workspaceRoot)
 		env.writeWorkflowFile(t, workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
 		env.writeWorkflowFile(t, workflowSlug, "task_02.md", daemonTaskBody("pending", "Task 2"))
 		env.writeWorkflowFile(t, workflowSlug, "task_03.md", daemonTaskBody("pending", "Task 3"))
@@ -719,6 +963,15 @@ func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
 				TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, workflowSlug),
 				Mode:          model.ExecutionModePRDTasks,
 				DryRun:        true,
+				IDE:           model.IDEClaude,
+				Model:         "sonnet",
+				TaskRuntimeRules: []model.TaskRuntimeRule{{
+					Workflow:        stringPtr(workflowSlug),
+					Type:            stringPtr("backend"),
+					IDE:             stringPtr(model.IDECodex),
+					Model:           stringPtr("gpt-5.5"),
+					ReasoningEffort: stringPtr("xhigh"),
+				}},
 			},
 		}
 
@@ -735,6 +988,11 @@ func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
 		jobs := waitForPreparedJobs(t, preparedJobs)
 		if len(jobs) != 1 || jobs[0].TaskNumber != targetTaskNumber {
 			t.Fatalf("prepared jobs = %#v, want only task %d", jobs, targetTaskNumber)
+		}
+		if jobs[0].IDE != model.IDECodex ||
+			jobs[0].Model != "gpt-5.5" ||
+			jobs[0].ReasoningEffort != "xhigh" {
+			t.Fatalf("prepared job runtime = %#v, want workflow-scoped backend rule", jobs[0])
 		}
 		if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
 			t.Fatalf("TargetTaskNumber = %#v, want %d", cfg.TargetTaskNumber, targetTaskNumber)
@@ -1367,29 +1625,6 @@ func writeTaskMultiWorkflow(t *testing.T, env *runManagerTestEnv, slug string, s
 	env.writeWorkflowFile(t, slug, "task_01.md", daemonTaskBody(status, "Task "+slug))
 }
 
-func daemonTaskBodyWithDependencies(status string, title string, dependencies ...string) string {
-	lines := []string{
-		"---",
-		"status: " + status,
-		"title: " + title,
-		"type: backend",
-		"complexity: low",
-	}
-	if len(dependencies) > 0 {
-		lines = append(lines, "dependencies:")
-		for _, dependency := range dependencies {
-			lines = append(lines, "  - "+dependency)
-		}
-	}
-	lines = append(lines,
-		"---",
-		"",
-		"# "+title,
-		"",
-	)
-	return strings.Join(lines, "\n")
-}
-
 func startTaskMultiRun(t *testing.T, env *runManagerTestEnv, runID string, slugs []string) apicore.Run {
 	t.Helper()
 	run, err := env.manager.StartTaskRunMultiple(
@@ -1505,7 +1740,7 @@ func requireGitForTaskMulti(t *testing.T) {
 
 // commitTaskMultiGitWorkspace turns a prepared workspace into a single-commit git
 // repository on branch main so parallel multi-run can resolve a named base branch
-// and HEAD commit and create detached worktrees that contain the task files.
+// and HEAD commit and create detached worktrees.
 func commitTaskMultiGitWorkspace(t *testing.T, root string) {
 	t.Helper()
 	runGitOutput(t, root, "init", "-q", "-b", "main")
@@ -1514,6 +1749,21 @@ func commitTaskMultiGitWorkspace(t *testing.T, root string) {
 	runGitOutput(t, root, "config", "commit.gpgsign", "false")
 	runGitOutput(t, root, "add", "-A")
 	runGitOutput(t, root, "commit", "-q", "-m", "seed parallel multi-run workspace")
+}
+
+func writeCompozyTasksGitignore(t *testing.T, root string) {
+	t.Helper()
+	writeFileForTest(t, filepath.Join(root, ".gitignore"), ".compozy/**\n")
+}
+
+func writeFileForTest(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
 }
 
 func startTaskMultiParallelRun(t *testing.T, env *runManagerTestEnv, runID string, slugs []string) apicore.Run {
@@ -1945,6 +2195,64 @@ func TestRunManagerTaskRunMultipleParallelEmitsSingleItemQueuedPerChild(t *testi
 	})
 }
 
+func TestParallelPreparedTaskRunEmitTaskStartedIsBestEffort(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	ctx := context.Background()
+	runID := "task-parallel-start-event-fails"
+	scope, err := model.OpenBaseRunScope(ctx, &model.RuntimeConfig{RunID: runID})
+	if err != nil {
+		t.Fatalf("OpenBaseRunScope() error = %v", err)
+	}
+	if scope.RunEventBus() != nil {
+		t.Cleanup(func() {
+			_ = scope.RunEventBus().Close(context.Background())
+		})
+	}
+	if err := scope.RunJournal().Close(ctx); err != nil {
+		t.Fatalf("close run journal: %v", err)
+	}
+	active := &activeRun{
+		runID: runID,
+		mode:  runModeTaskMulti,
+		scope: scope,
+		ctx:   ctx,
+	}
+	payload := kinds.TaskParallelPayload{
+		WaveIndex:  0,
+		WaveTotal:  1,
+		TaskID:     "task_01",
+		Phase:      runStatusRunning,
+		ChildRunID: "child-task-01",
+	}
+	if err := env.manager.emitTaskParallelEvent(
+		active,
+		eventspkg.EventKindTaskParallelTaskStarted,
+		payload,
+	); !errors.Is(err, journal.ErrClosed) {
+		t.Fatalf("emitTaskParallelEvent() error = %v, want journal.ErrClosed", err)
+	}
+
+	run := &parallelPreparedTaskRun{
+		launcher: parallelTaskLauncher{
+			manager:           env.manager,
+			active:            active,
+			integrationBranch: "compozy/parallel-x",
+		},
+		spec: runparallel.TaskLaunchSpec{
+			WaveIndex: 0,
+			WaveTotal: 1,
+			Task: runparallel.TaskSpec{
+				ID:     runparallel.TaskID("task_01"),
+				Number: 1,
+			},
+		},
+	}
+	run.emitTaskStarted(ctx, taskWorktreeChildRun{
+		Run:        apicore.Run{RunID: "child-task-01"},
+		Allocation: taskMultiWorktreeAllocation{Path: filepath.Join(t.TempDir(), "task-01")},
+	})
+}
+
 func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *testing.T) {
 	t.Parallel()
 	t.Run(
@@ -1974,6 +2282,15 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					if cfg.TargetTaskNumber == nil {
 						return errors.New("parallel child run missing target task number")
 					}
+					taskPath := filepath.Join(cfg.TasksDir, fmt.Sprintf("task_%02d.md", *cfg.TargetTaskNumber))
+					taskBody, err := os.ReadFile(taskPath)
+					if err != nil {
+						return err
+					}
+					updatedTaskBody := strings.Replace(string(taskBody), "status: pending", "status: completed", 1)
+					if err := os.WriteFile(taskPath, []byte(updatedTaskBody), 0o600); err != nil {
+						return err
+					}
 					name := fmt.Sprintf("task-%02d-output.txt", *cfg.TargetTaskNumber)
 					if err := os.WriteFile(
 						filepath.Join(cfg.WorkspaceRoot, name),
@@ -1985,37 +2302,27 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
 				},
 			})
-			env.writeWorkflowFile(
-				t,
-				env.workflowSlug,
-				"task_01.md",
-				daemonTaskBodyWithDependencies("pending", "Task 1"),
-			)
-			env.writeWorkflowFile(
-				t,
-				env.workflowSlug,
-				"task_02.md",
-				daemonTaskBodyWithDependencies("pending", "Task 2", "task_01"),
-			)
-			env.writeWorkflowFile(
-				t,
-				env.workflowSlug,
-				"task_03.md",
-				daemonTaskBodyWithDependencies("pending", "Task 3", "task_01"),
-			)
-			env.writeWorkflowFile(
-				t,
-				env.workflowSlug,
-				"task_04.md",
-				daemonTaskBodyWithDependencies("pending", "Task 4", "task_02", "task_03"),
-			)
-			env.writeWorkflowFile(
-				t,
-				env.workflowSlug,
-				"task_05.md",
-				daemonTaskBodyWithDependencies("pending", "Task 5", "task_04"),
-			)
+			writeCompozyTasksGitignore(t, env.workspaceRoot)
+			writeFiveTaskParallelWorkflow(t, env, map[int][]string{
+				2: {"task_01"},
+				3: {"task_01"},
+				4: {"task_02", "task_03"},
+				5: {"task_04"},
+			})
 			commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+			if names := runGitOutput(
+				t,
+				env.workspaceRoot,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				"HEAD",
+			); strings.Contains(
+				names,
+				".compozy/tasks",
+			) {
+				t.Fatalf("seed commit tracked ignored workflow artifacts: %q", names)
+			}
 			baseHead := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD")
 
 			run, err := env.manager.StartTaskRun(
@@ -2040,6 +2347,17 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			if parent.Status != runStatusCompleted {
 				t.Fatalf("parent status = %q error=%q, want completed", parent.Status, parent.ErrorText)
 			}
+			manifestPath := filepath.Join(
+				model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
+				"_tasks.md",
+			)
+			manifestBody, err := os.ReadFile(manifestPath)
+			if err != nil {
+				t.Fatalf("expected pre-run sync to preserve parallel task manifest %s: %v", manifestPath, err)
+			}
+			if !strings.Contains(string(manifestBody), "schema_version: \"compozy.tasks/v2\"") {
+				t.Fatalf("parallel task manifest lost schema version:\n%s", manifestBody)
+			}
 
 			for taskNumber := 1; taskNumber <= 5; taskNumber++ {
 				childID := fmt.Sprintf("child-%s-task-%02d", env.workflowSlug, taskNumber)
@@ -2047,6 +2365,17 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 				outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
 				if _, err := os.Stat(outputPath); err != nil {
 					t.Fatalf("output file %s missing after fast-forward: %v", outputPath, err)
+				}
+				parentTaskPath := filepath.Join(
+					model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
+					fmt.Sprintf("task_%02d.md", taskNumber),
+				)
+				parentTaskBody, err := os.ReadFile(parentTaskPath)
+				if err != nil {
+					t.Fatalf("read synced parent task %s: %v", parentTaskPath, err)
+				}
+				if !strings.Contains(string(parentTaskBody), "status: completed") {
+					t.Fatalf("parent task %d was not synced back as completed:\n%s", taskNumber, parentTaskBody)
 				}
 			}
 
@@ -2067,6 +2396,24 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			if got := runGitOutput(t, env.workspaceRoot, "status", "--porcelain"); got != "" {
 				t.Fatalf("workspace status after parallel run = %q, want clean", got)
 			}
+			plans := taskParallelPlanPayloads(t, run.RunID)
+			if len(plans) != 1 {
+				t.Fatalf("plan_started events = %d, want 1: %#v", len(plans), plans)
+			}
+			if plans[0].RunID != run.RunID || plans[0].Workflow != env.workflowSlug ||
+				plans[0].IntegrationBranch == "" || plans[0].ParallelLimit != maxConcurrency {
+				t.Fatalf("plan_started payload metadata = %#v", plans[0])
+			}
+			if len(plans[0].Tasks) != 5 || len(plans[0].Waves) != 4 {
+				t.Fatalf(
+					"plan_started graph size = tasks:%d waves:%d, want 5/4",
+					len(plans[0].Tasks),
+					len(plans[0].Waves),
+				)
+			}
+			if !reflect.DeepEqual(plans[0].Tasks[3].Dependencies, []string{"task_02", "task_03"}) {
+				t.Fatalf("task_04 plan dependencies = %#v", plans[0].Tasks[3].Dependencies)
+			}
 			started := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelWaveStarted)
 			if len(started) != 5 {
 				t.Fatalf("wave_started events = %d, want 5: %#v", len(started), started)
@@ -2081,6 +2428,37 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			for _, taskID := range []string{"task_01", "task_02", "task_03", "task_04", "task_05"} {
 				if !seenStarted[taskID] {
 					t.Fatalf("wave_started missing task %s: %#v", taskID, started)
+				}
+			}
+			taskStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelTaskStarted)
+			if len(taskStarted) != 5 {
+				t.Fatalf("task_started events = %d, want 5: %#v", len(taskStarted), taskStarted)
+			}
+			seenTaskStarted := map[string]bool{}
+			for _, payload := range taskStarted {
+				if payload.RunID != run.RunID || payload.WaveTotal != 4 || payload.Phase != "running" ||
+					payload.IntegrationBranch != plans[0].IntegrationBranch ||
+					strings.TrimSpace(payload.ChildRunID) == "" ||
+					!strings.HasPrefix(payload.WorktreePath, env.paths.WorktreesDir) {
+					t.Fatalf("task_started payload = %#v", payload)
+				}
+				var taskNumber int
+				if _, err := fmt.Sscanf(payload.TaskID, "task_%02d", &taskNumber); err != nil {
+					t.Fatalf("task_started task id = %q: %v", payload.TaskID, err)
+				}
+				wantChildID := fmt.Sprintf("child-%s-task-%02d", env.workflowSlug, taskNumber)
+				if payload.ChildRunID != wantChildID {
+					t.Fatalf("task_started child run id for %s = %q, want %q",
+						payload.TaskID,
+						payload.ChildRunID,
+						wantChildID,
+					)
+				}
+				seenTaskStarted[payload.TaskID] = true
+			}
+			for _, taskID := range []string{"task_01", "task_02", "task_03", "task_04", "task_05"} {
+				if !seenTaskStarted[taskID] {
+					t.Fatalf("task_started missing task %s: %#v", taskID, taskStarted)
 				}
 			}
 			mergeStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelMergeStarted)
@@ -2165,6 +2543,7 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 				return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
 			},
 		})
+		writeCompozyTasksGitignore(t, env.workspaceRoot)
 		writeFiveTaskParallelWorkflow(t, env, map[int][]string{
 			2: {"task_01"},
 			3: {"task_01"},
@@ -2199,6 +2578,40 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 		if got := attempts.count(3); got != 2 {
 			t.Fatalf("task 3 execute attempts = %d, want initial + recovery restart", got)
 		}
+		taskStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelTaskStarted)
+		if len(taskStarted) != 6 {
+			t.Fatalf(
+				"task_started events = %d, want five initial launches plus one restart: %#v",
+				len(taskStarted),
+				taskStarted,
+			)
+		}
+		var task3Children []string
+		for _, payload := range taskStarted {
+			if payload.TaskID == "task_03" {
+				task3Children = append(task3Children, payload.ChildRunID)
+			}
+			if strings.TrimSpace(payload.ChildRunID) == "" {
+				t.Fatalf("task_started payload missing child run id: %#v", payload)
+			}
+		}
+		wantTask3Children := []string{
+			"child-" + env.workflowSlug + "-task-03",
+			"child-" + env.workflowSlug + "-task-03-retry-2",
+		}
+		if !reflect.DeepEqual(task3Children, wantTask3Children) {
+			t.Fatalf("task 3 child bindings = %#v, want %#v", task3Children, wantTask3Children)
+		}
+		recoveryRunIDs := recoveryRunIDsByKind(t, run.RunID)
+		if got := recoveryRunIDs[eventspkg.EventKindRunRecoveryStarted]; got != wantTask3Children[0] {
+			t.Fatalf("recovery_started recovery_run_id = %q, want %q", got, wantTask3Children[0])
+		}
+		if got := recoveryRunIDs[eventspkg.EventKindRunRecoveryRestarting]; got != wantTask3Children[0] {
+			t.Fatalf("recovery_restarting recovery_run_id = %q, want %q", got, wantTask3Children[0])
+		}
+		if got := recoveryRunIDs[eventspkg.EventKindRunRecovered]; got != wantTask3Children[1] {
+			t.Fatalf("run.recovered recovery_run_id = %q, want %q", got, wantTask3Children[1])
+		}
 		for taskNumber := 1; taskNumber <= 5; taskNumber++ {
 			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
 			if _, err := os.Stat(outputPath); err != nil {
@@ -2220,6 +2633,119 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 			t.Fatalf("squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
 		}
 	})
+}
+
+func TestParallelTaskChildFallbackOutcomeTreatsCrashAsRecoverable(t *testing.T) {
+	t.Parallel()
+	cause := errors.New("peer disconnected before response")
+	artifacts, err := model.ResolveHomeRunArtifacts("child-crashed")
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts() error = %v", err)
+	}
+	outcome := parallelTaskChildFallbackOutcome(globaldb.Run{
+		RunID:     "child-crashed",
+		Status:    runStatusCrashed,
+		ErrorText: "transport disconnected",
+	}, runparallel.TaskID("task_06"), cause)
+	if outcome.Status != recovery.StatusFailed {
+		t.Fatalf("fallback status = %q, want %q", outcome.Status, recovery.StatusFailed)
+	}
+	if got := outcome.FailedJobIDs(); !reflect.DeepEqual(got, []string{"task_06"}) {
+		t.Fatalf("failed job ids = %#v, want task_06", got)
+	}
+	if len(outcome.Jobs) != 1 || outcome.Jobs[0].Error != "transport disconnected" {
+		t.Fatalf("fallback jobs = %#v, want crash error carried", outcome.Jobs)
+	}
+	if outcome.ArtifactsDir != artifacts.RunDir {
+		t.Fatalf("fallback artifacts dir = %q, want %q", outcome.ArtifactsDir, artifacts.RunDir)
+	}
+	if outcome.ResultPath != artifacts.ResultPath {
+		t.Fatalf("fallback result path = %q, want %q", outcome.ResultPath, artifacts.ResultPath)
+	}
+}
+
+func TestRunRecoveryOrchestratorRecoversCrashedParallelChildWithoutResult(t *testing.T) {
+	t.Parallel()
+	enabled := true
+	maxAttempts := 1
+	strategy := &daemonFakeRecoveryStrategy{
+		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictFixed, Reason: "transport retry"}},
+	}
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+	}
+	childRunID := "child-crashed-recovery"
+	seedTerminalRunForPurge(t, env.globalDB, workspace.ID, childRunID, runStatusCrashed, time.Now().UTC())
+	artifacts, err := model.ResolveHomeRunArtifacts(childRunID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", childRunID, err)
+	}
+	if _, err := os.Stat(artifacts.ResultPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("result fixture exists before recovery: stat error = %v, want not exist", err)
+	}
+	parallelRun := &parallelPreparedTaskRun{
+		launcher: parallelTaskLauncher{manager: env.manager},
+		spec: runparallel.TaskLaunchSpec{Task: runparallel.TaskSpec{
+			ID:     runparallel.TaskID("task_06"),
+			Number: 6,
+			Title:  "Transport failure",
+			Slug:   "06-transport-failure",
+		}},
+	}
+	child := taskWorktreeChildRun{
+		Run: apicore.Run{RunID: childRunID},
+		Allocation: taskMultiWorktreeAllocation{
+			Path:           env.workspaceRoot,
+			BaseBranch:     "main",
+			BaseCommit:     "base",
+			WorktreeStatus: "preserved",
+		},
+	}
+	var restartJobIDs []string
+	prepared := daemonPreparedRecoveryRun{
+		execute: func(ctx context.Context) (recovery.RunOutcome, error) {
+			return parallelRun.awaitChild(ctx, child)
+		},
+		restart: func(_ context.Context, failedJobIDs []string) (recovery.RunOutcome, error) {
+			restartJobIDs = append([]string(nil), failedJobIDs...)
+			return recovery.RunOutcome{
+				RunID:        "child-crashed-recovery-retry",
+				Status:       recovery.StatusSucceeded,
+				ArtifactsDir: artifacts.RunDir,
+			}, nil
+		},
+	}
+	orchestrator := recovery.NewRunRecoveryOrchestrator(
+		strategy,
+		workspacecfg.AgentRecoveryConfig{Enabled: &enabled, MaxAttempts: &maxAttempts},
+	)
+	outcome, err := orchestrator.Run(context.Background(), prepared)
+	if err != nil {
+		t.Fatalf("Run(crashed child recovery) error = %v", err)
+	}
+	if outcome.Status != recovery.StatusSucceeded {
+		t.Fatalf("recovery outcome status = %q, want %q", outcome.Status, recovery.StatusSucceeded)
+	}
+	if !reflect.DeepEqual(restartJobIDs, []string{"task_06"}) {
+		t.Fatalf("restart failed job ids = %#v, want task_06", restartJobIDs)
+	}
+	strategy.mu.Lock()
+	inputs := append([]recovery.RemediationInput(nil), strategy.inputs...)
+	strategy.mu.Unlock()
+	if len(inputs) != 1 {
+		t.Fatalf("recovery strategy calls = %d, want 1", len(inputs))
+	}
+	if inputs[0].Outcome.Status != recovery.StatusFailed {
+		t.Fatalf("remediation outcome status = %q, want failed", inputs[0].Outcome.Status)
+	}
+	if inputs[0].Outcome.ArtifactsDir != artifacts.RunDir {
+		t.Fatalf("remediation artifacts dir = %q, want %q", inputs[0].Outcome.ArtifactsDir, artifacts.RunDir)
+	}
+	if inputs[0].Outcome.ResultPath != artifacts.ResultPath {
+		t.Fatalf("remediation result path = %q, want %q", inputs[0].Outcome.ResultPath, artifacts.ResultPath)
+	}
 }
 
 func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing.T) {
@@ -2270,6 +2796,7 @@ func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing
 				return writeDaemonTaskResultFixture(cfg, "succeeded", 0, "")
 			},
 		})
+		writeCompozyTasksGitignore(t, env.workspaceRoot)
 		writeFiveTaskParallelWorkflow(t, env, map[int][]string{
 			4: {"task_03"},
 			5: {"task_04"},
@@ -2345,9 +2872,11 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 		projectResolverModel := "sonnet"
 		projectResolverReasoning := "medium"
 		projectResolverAttempts := 1
+		projectValidationCommand := []string{"make", "verify"}
 		overrideEnabled := true
 		overrideResolverModel := "gpt-5.5"
 		overrideResolverReasoning := "high"
+		overrideValidationCommand := []string{"go", "test", "./..."}
 
 		cfg, err := resolveDaemonParallelTasksConfig(
 			workspacecfg.ProjectConfig{
@@ -2356,12 +2885,13 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 						Parallel: workspacecfg.ParallelTasksConfig{
 							Enabled:        &enabled,
 							MaxConcurrency: &maxConcurrency,
-							ConflictResolver: &workspacecfg.AgentRecoveryConfig{
-								Enabled:         &projectResolverEnabled,
-								IDE:             &projectResolverIDE,
-								Model:           &projectResolverModel,
-								ReasoningEffort: &projectResolverReasoning,
-								MaxAttempts:     &projectResolverAttempts,
+							ConflictResolver: &workspacecfg.ConflictResolverConfig{
+								Enabled:           &projectResolverEnabled,
+								IDE:               &projectResolverIDE,
+								Model:             &projectResolverModel,
+								ReasoningEffort:   &projectResolverReasoning,
+								MaxAttempts:       &projectResolverAttempts,
+								ValidationCommand: &projectValidationCommand,
 							},
 						},
 					},
@@ -2370,9 +2900,10 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 			runtimeOverrideInput{
 				ParallelTasks: &workspacecfg.ParallelTasksConfig{
 					Enabled: &overrideEnabled,
-					ConflictResolver: &workspacecfg.AgentRecoveryConfig{
-						Model:           &overrideResolverModel,
-						ReasoningEffort: &overrideResolverReasoning,
+					ConflictResolver: &workspacecfg.ConflictResolverConfig{
+						Model:             &overrideResolverModel,
+						ReasoningEffort:   &overrideResolverReasoning,
+						ValidationCommand: &overrideValidationCommand,
 					},
 				},
 			},
@@ -2397,33 +2928,86 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 			resolver.ReasoningEffort == nil ||
 			*resolver.ReasoningEffort != "high" ||
 			resolver.MaxAttempts == nil ||
-			*resolver.MaxAttempts != 1 {
+			*resolver.MaxAttempts != 1 ||
+			resolver.ValidationCommand == nil ||
+			strings.Join(*resolver.ValidationCommand, " ") != "go test ./..." {
 			t.Fatalf("merged resolver = %#v", resolver)
 		}
 	})
 }
 
-func TestBuildDaemonParallelTaskPlanRejectsDuplicateTaskNumbersInRecursiveMode(t *testing.T) {
+func TestBuildDaemonParallelTaskPlanRejectsDuplicateManifestNodes(t *testing.T) {
 	t.Parallel()
 
 	tasksDir := t.TempDir()
-	for relPath, title := range map[string]string{
-		filepath.Join("api", "task_01.md"): "API Task 1",
-		filepath.Join("web", "task_01.md"): "Web Task 1",
-	} {
-		absPath := filepath.Join(tasksDir, relPath)
-		if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", absPath, err)
-		}
-		if err := os.WriteFile(absPath, []byte(daemonTaskBodyWithDependencies("pending", title)), 0o600); err != nil {
-			t.Fatalf("write %s: %v", absPath, err)
-		}
+	if err := os.WriteFile(
+		filepath.Join(tasksDir, "task_01.md"),
+		[]byte(daemonTaskBody("pending", "Task 1")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write task_01.md: %v", err)
+	}
+	manifest := strings.Join([]string{
+		"---",
+		"schema_version: \"compozy.tasks/v2\"",
+		"workflow: daemon-workflow",
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"  edges: []",
+		"---",
+		"",
+		"# daemon-workflow Tasks",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(tasksDir, "_tasks.md"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write _tasks.md: %v", err)
 	}
 
-	_, _, err := buildDaemonParallelTaskPlan(tasksDir, "daemon-workflow", false, true)
-	if err == nil || !strings.Contains(err.Error(), `share task number 1`) {
-		t.Fatalf("buildDaemonParallelTaskPlan() error = %v, want duplicate task-number guard", err)
+	_, _, err := buildDaemonParallelTaskPlan(context.Background(), tasksDir, "daemon-workflow", false)
+	if err == nil ||
+		(!strings.Contains(err.Error(), "duplicate") && !strings.Contains(err.Error(), "already assigned")) {
+		t.Fatalf("buildDaemonParallelTaskPlan() error = %v, want duplicate manifest guard", err)
 	}
+}
+
+func TestRunManagerStartTaskRunParallelTasksRequiresGraphManifest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return validation problem instead of internal error", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
+
+		_, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"parallel_tasks":{"enabled":true}}`),
+			},
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("StartTaskRun() error = %v, want problem", err)
+		}
+		if problem.Status != http.StatusUnprocessableEntity || problem.Code != "parallel_tasks_manifest_required" {
+			t.Fatalf(
+				"problem = status:%d code:%q, want 422 parallel_tasks_manifest_required",
+				problem.Status,
+				problem.Code,
+			)
+		}
+		if got := problem.Details["field"]; got != taskscore.TaskGraphManifestFileName {
+			t.Fatalf("problem field = %#v, want %q", got, taskscore.TaskGraphManifestFileName)
+		}
+	})
 }
 
 func TestRunManagerTaskRunMultipleParallelIgnoresParallelTasksConfig(t *testing.T) {
@@ -2523,18 +3107,70 @@ func TestTaskRunMultipleItemStatusesMatchOpenAPIEnum(t *testing.T) {
 
 func writeFiveTaskParallelWorkflow(t *testing.T, env *runManagerTestEnv, deps map[int][]string) {
 	t.Helper()
+	writeTaskGraphManifest(t, env, env.workflowSlug, 5, deps)
 	for taskNumber := 1; taskNumber <= 5; taskNumber++ {
 		env.writeWorkflowFile(
 			t,
 			env.workflowSlug,
 			fmt.Sprintf("task_%02d.md", taskNumber),
-			daemonTaskBodyWithDependencies(
-				"pending",
-				fmt.Sprintf("Task %d", taskNumber),
-				deps[taskNumber]...,
-			),
+			daemonTaskBody("pending", fmt.Sprintf("Task %d", taskNumber)),
 		)
 	}
+}
+
+func writeTaskGraphManifest(
+	t *testing.T,
+	env *runManagerTestEnv,
+	workflowSlug string,
+	total int,
+	deps map[int][]string,
+) {
+	t.Helper()
+	lines := []string{
+		"---",
+		"schema_version: \"compozy.tasks/v2\"",
+		"workflow: " + workflowSlug,
+		"graph:",
+		"  nodes:",
+	}
+	for taskNumber := 1; taskNumber <= total; taskNumber++ {
+		taskID := fmt.Sprintf("task_%02d", taskNumber)
+		lines = append(lines,
+			"    - id: "+taskID,
+			"      file: "+taskID+".md",
+		)
+	}
+	edgeLines := make([]string, 0)
+	taskNumbers := make([]int, 0, len(deps))
+	for taskNumber := range deps {
+		taskNumbers = append(taskNumbers, taskNumber)
+	}
+	slices.Sort(taskNumbers)
+	for _, taskNumber := range taskNumbers {
+		for _, dependency := range deps[taskNumber] {
+			dependency = strings.TrimSpace(dependency)
+			if dependency == "" {
+				continue
+			}
+			edgeLines = append(edgeLines,
+				"    - from: "+dependency,
+				fmt.Sprintf("      to: task_%02d", taskNumber),
+			)
+		}
+	}
+	if len(edgeLines) == 0 {
+		lines = append(lines, "  edges: []")
+	} else {
+		lines = append(lines, "  edges:")
+		lines = append(lines, edgeLines...)
+	}
+	lines = append(lines,
+		"---",
+		"",
+		"# "+workflowSlug+" Tasks",
+		"",
+	)
+	env.writeWorkflowFile(t, workflowSlug, "_tasks.md", strings.Join(lines, "\n"))
 }
 
 func taskParallelRecoveryRunIDBuilder(parentRunID string) func(*model.RuntimeConfig) (string, error) {
@@ -2614,6 +3250,28 @@ func (s *daemonFakeRecoveryStrategy) callCount() int {
 	return len(s.inputs)
 }
 
+type daemonPreparedRecoveryRun struct {
+	execute func(context.Context) (recovery.RunOutcome, error)
+	restart func(context.Context, []string) (recovery.RunOutcome, error)
+}
+
+func (r daemonPreparedRecoveryRun) Execute(ctx context.Context) (recovery.RunOutcome, error) {
+	if r.execute == nil {
+		return recovery.RunOutcome{}, errors.New("daemon prepared recovery run: missing execute")
+	}
+	return r.execute(ctx)
+}
+
+func (r daemonPreparedRecoveryRun) RestartFailed(
+	ctx context.Context,
+	failedJobIDs []string,
+) (recovery.RunOutcome, error) {
+	if r.restart == nil {
+		return recovery.RunOutcome{}, errors.New("daemon prepared recovery run: missing restart")
+	}
+	return r.restart(ctx, failedJobIDs)
+}
+
 func requireTargetTaskNumber(cfg *model.RuntimeConfig) (int, error) {
 	if cfg == nil || cfg.TargetTaskNumber == nil {
 		return 0, errors.New("parallel child run missing target task number")
@@ -2683,7 +3341,20 @@ func writeDaemonTaskResultFixture(
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(artifacts.ResultPath, raw, 0o600)
+	if err := os.WriteFile(artifacts.ResultPath, raw, 0o600); err != nil {
+		return err
+	}
+	if status == "succeeded" && cfg.TargetTaskNumber != nil {
+		scopePath := artifacts.JobArtifacts(safeName).WorktreeScopePath
+		scope := worktree.Scope{
+			Supported:     true,
+			ProducedPaths: []string{fmt.Sprintf("task-%02d-output.txt", *cfg.TargetTaskNumber)},
+		}
+		if err := worktree.WriteScope(scopePath, scope); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func taskParallelPayloads(
@@ -2700,6 +3371,56 @@ func taskParallelPayloads(
 		var payload kinds.TaskParallelPayload
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			t.Fatalf("decode %s payload: %v", kind, err)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func recoveryRunIDsByKind(t *testing.T, parentRunID string) map[eventspkg.EventKind]string {
+	t.Helper()
+	result := make(map[eventspkg.EventKind]string)
+	for _, event := range allRunEvents(t, parentRunID) {
+		switch event.Kind {
+		case eventspkg.EventKindRunRecoveryStarted:
+			var payload kinds.RunRecoveryStartedPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode recovery_started payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		case eventspkg.EventKindRunRecoveryRestarting:
+			var payload kinds.RunRecoveryRestartingPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode recovery_restarting payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		case eventspkg.EventKindRunRecovered:
+			var payload kinds.RunRecoveredPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode run.recovered payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		case eventspkg.EventKindRunRecoveryExhausted:
+			var payload kinds.RunRecoveryExhaustedPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatalf("decode recovery_exhausted payload: %v", err)
+			}
+			result[event.Kind] = payload.RecoveryRunID
+		}
+	}
+	return result
+}
+
+func taskParallelPlanPayloads(t *testing.T, runID string) []kinds.TaskParallelPlanPayload {
+	t.Helper()
+	payloads := make([]kinds.TaskParallelPlanPayload, 0)
+	for _, event := range allRunEvents(t, runID) {
+		if event.Kind != eventspkg.EventKindTaskParallelPlanStarted {
+			continue
+		}
+		var payload kinds.TaskParallelPlanPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode task.parallel.plan_started payload: %v", err)
 		}
 		payloads = append(payloads, payload)
 	}

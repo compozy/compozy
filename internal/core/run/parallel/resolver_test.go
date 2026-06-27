@@ -23,8 +23,20 @@ func TestAgenticConflictResolutionScenarios(t *testing.T) {
 		runConflictResolverSystemPromptIncludesSkillAndConflictContext,
 	)
 	t.Run(
-		"Should derive the conflict result from git status, markers, and the build gate",
-		runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate,
+		"Should derive the conflict result from git status, markers, and optional validation",
+		runAgenticConflictResolutionDerivesResultFromStatusMarkersAndValidation,
+	)
+	t.Run(
+		"Should reject validation commands that add paths to the worktree",
+		runAgenticConflictResolutionRejectsMutatingValidationCommand,
+	)
+	t.Run(
+		"Should reject validation commands that mutate an existing diff",
+		runAgenticConflictResolutionRejectsValidationCommandThatMutatesExistingDiff,
+	)
+	t.Run(
+		"Should reject real validation commands that mutate the git worktree",
+		runAgenticConflictResolutionRejectsRealMutatingValidationCommand,
 	)
 	t.Run("Should bound resolver attempts at three", runAgenticConflictResolutionBoundsAttemptsAtThree)
 	t.Run(
@@ -35,6 +47,14 @@ func TestAgenticConflictResolutionScenarios(t *testing.T) {
 	t.Run(
 		"Should build the runtime config with the selected agent settings",
 		runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection,
+	)
+	t.Run(
+		"Should tolerate conflicted symlink-to-directory paths",
+		runAgenticConflictResolutionToleratesSymlinkToDirectoryConflict,
+	)
+	t.Run(
+		"Should return regular file read errors while scanning conflict markers",
+		runConflictMarkersPresentReturnsRegularFileReadErrors,
 	)
 }
 
@@ -73,59 +93,77 @@ func runConflictResolverSystemPromptIncludesSkillAndConflictContext(t *testing.T
 			t.Fatalf("system prompt missing %q\nprompt:\n%s", want, prompt)
 		}
 	}
+	for _, forbidden := range []string{"make verify", "Run make verify"} {
+		if strings.Contains(prompt, forbidden) {
+			t.Fatalf("system prompt contains hardcoded validation %q\nprompt:\n%s", forbidden, prompt)
+		}
+	}
 }
 
-func runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *testing.T) {
+func runAgenticConflictResolutionDerivesResultFromStatusMarkersAndValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		status     string
-		file       string
-		buildErr   error
-		want       ConflictResult
-		wantBuilds int
+		name              string
+		statuses          []string
+		file              string
+		validationCommand []string
+		validationErr     error
+		want              ConflictResult
+		wantRuns          int
 	}{
 		{
-			name:       "Should resolve when git status is clean and the build passes",
-			status:     " M story.txt\n",
-			file:       "resolved\n",
-			want:       ConflictResult{Resolved: true, Builds: true, Attempts: 1},
-			wantBuilds: 1,
+			name:     "Should resolve without running project validation by default",
+			statuses: []string{" M story.txt\n"},
+			file:     "resolved\n",
+			want:     ConflictResult{Resolved: true, Validated: true, Attempts: 1},
 		},
 		{
-			name:       "Should stay unresolved when git status still reports unmerged files",
-			status:     "UU story.txt\n",
-			file:       "resolved\n",
-			want:       ConflictResult{Resolved: false, Builds: false, Attempts: 1},
-			wantBuilds: 0,
+			name:     "Should stay unresolved when git status still reports unmerged files",
+			statuses: []string{"UU story.txt\n"},
+			file:     "resolved\n",
+			want:     ConflictResult{Resolved: false, Validated: false, Attempts: 1},
 		},
 		{
-			name:       "Should stay unresolved when conflict markers remain in the file",
-			status:     " M story.txt\n",
-			file:       "<<<<<<< HEAD\nfirst\n=======\nsecond\n>>>>>>> task\n",
-			want:       ConflictResult{Resolved: false, Builds: false, Attempts: 1},
-			wantBuilds: 0,
+			name:     "Should stay unresolved when conflict markers remain in the file",
+			statuses: []string{" M story.txt\n"},
+			file:     "<<<<<<< HEAD\nfirst\n=======\nsecond\n>>>>>>> task\n",
+			want:     ConflictResult{Resolved: false, Validated: false, Attempts: 1},
 		},
 		{
-			name:       "Should report unresolved builds when git status is clean but verify fails",
-			status:     " M story.txt\n",
-			file:       "resolved\n",
-			buildErr:   errors.New("verify failed"),
-			want:       ConflictResult{Resolved: true, Builds: false, Attempts: 1},
-			wantBuilds: 1,
+			name:              "Should run optional validation when configured",
+			statuses:          []string{" M story.txt\n", " M story.txt\n"},
+			file:              "resolved\n",
+			validationCommand: []string{"go", "test", "./..."},
+			want:              ConflictResult{Resolved: true, Validated: true, Attempts: 1},
+			wantRuns:          1,
+		},
+		{
+			name:              "Should report failed validation when the optional command fails",
+			statuses:          []string{" M story.txt\n", " M story.txt\n"},
+			file:              "resolved\n",
+			validationCommand: []string{"go", "test", "./..."},
+			validationErr:     errors.New("validation failed"),
+			want: ConflictResult{
+				Resolved:        true,
+				Validated:       false,
+				Attempts:        1,
+				ValidationError: "validation failed",
+			},
+			wantRuns: 1,
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+	for idx := range tests {
+		idx := idx
+		t.Run(tests[idx].name, func(t *testing.T) {
 			t.Parallel()
+			tt := &tests[idx]
 			root := t.TempDir()
 			writeResolverTestFile(t, root, "story.txt", tt.file)
 			runner := &fakeConflictCommandRunner{
-				statuses: []string{tt.status},
-				makeErrs: []error{tt.buildErr},
+				statuses: tt.statuses,
+				runErrs:  []error{tt.validationErr},
 			}
 			resolver := NewAgenticConflictResolution(
 				WithConflictCommandRunner(runner),
@@ -137,6 +175,7 @@ func runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *t
 				Conflicts:           ConflictSet{Files: []string{"story.txt"}},
 				Task:                TaskSpec{ID: "task_02", Number: 2, Title: "Story"},
 				MaxAttempts:         1,
+				ValidationCommand:   tt.validationCommand,
 			})
 			if err != nil {
 				t.Fatalf("Resolve() error = %v", err)
@@ -144,10 +183,133 @@ func runAgenticConflictResolutionDerivesResultFromStatusMarkersAndBuildGate(t *t
 			if got != tt.want {
 				t.Fatalf("Resolve() = %#v, want %#v", got, tt.want)
 			}
-			if runner.makeCalls != tt.wantBuilds {
-				t.Fatalf("build calls = %d, want %d", runner.makeCalls, tt.wantBuilds)
+			if runner.runCalls != tt.wantRuns {
+				t.Fatalf("validation calls = %d, want %d", runner.runCalls, tt.wantRuns)
 			}
 		})
+	}
+}
+
+func runAgenticConflictResolutionRejectsMutatingValidationCommand(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+	runner := &fakeConflictCommandRunner{
+		statuses: []string{" M story.txt\n", " M story.txt\n M generated.txt\n"},
+	}
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(runner),
+		WithConflictPreparedPromptExecutor(successfulConflictPromptExecutor),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+	_, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{"story.txt"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2, Title: "Story"},
+		MaxAttempts:         1,
+		ValidationCommand:   []string{"go", "generate", "./..."},
+	})
+	if err == nil {
+		t.Fatal("Resolve() error = nil, want mutating validation rejection")
+	}
+	if !strings.Contains(err.Error(), "modified the integration worktree") {
+		t.Fatalf("Resolve() error = %v, want mutation rejection", err)
+	}
+}
+
+func runAgenticConflictResolutionRejectsValidationCommandThatMutatesExistingDiff(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+	runner := &fakeConflictCommandRunner{
+		statuses: []string{" M story.txt\n", " M story.txt\n"},
+		gitOutputs: map[string][]string{
+			"diff --no-ext-diff --binary": {
+				"diff --git a/story.txt b/story.txt\n--- a/story.txt\n+++ b/story.txt\n@@\n-resolved\n+resolved\n",
+				"diff --git a/story.txt b/story.txt\n--- a/story.txt\n+++ b/story.txt\n@@\n-resolved\n+rewritten\n",
+			},
+		},
+	}
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(runner),
+		WithConflictPreparedPromptExecutor(successfulConflictPromptExecutor),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+	_, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{"story.txt"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2, Title: "Story"},
+		MaxAttempts:         1,
+		ValidationCommand:   []string{"go", "generate", "./..."},
+	})
+	if err == nil {
+		t.Fatal("Resolve() error = nil, want mutating validation rejection")
+	}
+	if !strings.Contains(err.Error(), "modified the integration worktree") {
+		t.Fatalf("Resolve() error = %v, want mutation rejection", err)
+	}
+}
+
+func runAgenticConflictResolutionRejectsRealMutatingValidationCommand(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	runResolverTestGit(t, root, "init", "-b", "main")
+	runResolverTestGit(t, root, "config", "user.email", "resolver@example.test")
+	runResolverTestGit(t, root, "config", "user.name", "Resolver Test")
+	writeResolverTestFile(t, root, "story.txt", "base\n")
+	runResolverTestGit(t, root, "add", "story.txt")
+	runResolverTestGit(t, root, "commit", "-m", "base")
+	writeResolverTestFile(t, root, "story.txt", "resolved\n")
+	runResolverTestGit(t, root, "add", "story.txt")
+	script := filepath.Join(t.TempDir(), "mutate-validation.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho generated > generated.txt\n"), 0o700); err != nil {
+		t.Fatalf("write validation script: %v", err)
+	}
+	resolver := NewAgenticConflictResolution(
+		WithConflictPreparedPromptExecutor(successfulConflictPromptExecutor),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+	_, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{"story.txt"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2, Title: "Story"},
+		MaxAttempts:         1,
+		ValidationCommand:   []string{script},
+	})
+	if err == nil {
+		t.Fatal("Resolve() error = nil, want mutating validation rejection")
+	}
+	if !strings.Contains(err.Error(), "modified the integration worktree") {
+		t.Fatalf("Resolve() error = %v, want mutation rejection", err)
+	}
+}
+
+func runConflictMarkersPresentReturnsRegularFileReadErrors(t *testing.T) {
+	t.Parallel()
+	if os.Geteuid() == 0 {
+		t.Skip("root can read mode 000 files")
+	}
+	root := t.TempDir()
+	writeResolverTestFile(t, root, "story.txt", "<<<<<<< HEAD\n")
+	path := filepath.Join(root, "story.txt")
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatalf("chmod unreadable file: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Fatalf("restore unreadable file mode: %v", err)
+		}
+	}()
+
+	present, err := conflictMarkersPresent(root, []string{"story.txt"})
+	if err == nil {
+		t.Fatalf("conflictMarkersPresent() error = nil, present=%t, want read error", present)
+	}
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("conflictMarkersPresent() error = %v, want permission error", err)
 	}
 }
 
@@ -304,32 +466,91 @@ func runAgenticConflictResolutionBuildsRuntimeConfigWithAgentSelection(t *testin
 	}
 }
 
-type fakeConflictCommandRunner struct {
-	statuses []string
-	gitErrs  []error
-	makeErrs []error
+func runAgenticConflictResolutionToleratesSymlinkToDirectoryConflict(t *testing.T) {
+	t.Parallel()
 
-	gitCalls  int
-	makeCalls int
+	root := t.TempDir()
+	target := filepath.Join(root, ".agents", "skills", "review")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatalf("mkdir symlink target: %v", err)
+	}
+	link := filepath.Join(root, ".claude", "skills", "review")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatalf("mkdir symlink dir: %v", err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	var calls int
+	resolver := NewAgenticConflictResolution(
+		WithConflictCommandRunner(&fakeConflictCommandRunner{statuses: []string{" M .claude/skills/review\n"}}),
+		WithConflictPreparedPromptExecutor(func(
+			context.Context,
+			*model.RuntimeConfig,
+			string,
+			*reusableagents.ExecutionContext,
+			execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			calls++
+			return execpkg.PreparedPromptResult{RunID: "resolver-run"}, nil
+		}),
+		WithConflictSkillFS(minimalGitRebaseSkillFS()),
+	)
+	got, err := resolver.Resolve(context.Background(), ConflictInput{
+		IntegrationWorktree: root,
+		Conflicts:           ConflictSet{Files: []string{".claude/skills/review"}},
+		Task:                TaskSpec{ID: "task_02", Number: 2},
+		MaxAttempts:         1,
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("prompt executor calls = %d, want 1", calls)
+	}
+	if got != (ConflictResult{Resolved: true, Validated: true, Attempts: 1}) {
+		t.Fatalf("Resolve() = %#v, want resolved validation pass", got)
+	}
+}
+
+type fakeConflictCommandRunner struct {
+	statuses   []string
+	gitOutputs map[string][]string
+	gitErrs    []error
+	runOutputs []string
+	runErrs    []error
+
+	gitCalls       int
+	gitCallsByArgs map[string]int
+	runCalls       int
 }
 
 func (r *fakeConflictCommandRunner) Git(_ context.Context, _ string, args ...string) (string, error) {
-	if strings.Join(args, " ") != "status --porcelain" {
+	key := strings.Join(args, " ")
+	if key == "status --porcelain" {
+		idx := r.gitCalls
+		r.gitCalls++
+		status := valueAt(r.statuses, idx)
+		return status, errorAtIndex(r.gitErrs, idx)
+	}
+	if key != "diff --no-ext-diff --binary" && key != "diff --cached --no-ext-diff --binary" {
 		return "", errors.New("unexpected git call")
 	}
-	idx := r.gitCalls
-	r.gitCalls++
-	status := valueAt(r.statuses, idx)
-	return status, errorAtIndex(r.gitErrs, idx)
+	if r.gitCallsByArgs == nil {
+		r.gitCallsByArgs = make(map[string]int)
+	}
+	idx := r.gitCallsByArgs[key]
+	r.gitCallsByArgs[key] = idx + 1
+	return valueAt(r.gitOutputs[key], idx), nil
 }
 
-func (r *fakeConflictCommandRunner) Make(_ context.Context, _ string, args ...string) (string, error) {
-	if strings.Join(args, " ") != "verify" {
-		return "", errors.New("unexpected make call")
+func (r *fakeConflictCommandRunner) Run(_ context.Context, _ string, command []string) (string, error) {
+	if len(command) == 0 {
+		return "", errors.New("unexpected empty validation command")
 	}
-	idx := r.makeCalls
-	r.makeCalls++
-	return "verify ok", errorAtIndex(r.makeErrs, idx)
+	idx := r.runCalls
+	r.runCalls++
+	return valueAt(r.runOutputs, idx), errorAtIndex(r.runErrs, idx)
 }
 
 func successfulConflictPromptExecutor(
@@ -359,6 +580,15 @@ func writeResolverTestFile(t *testing.T, root string, name string, content strin
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
+}
+
+func runResolverTestGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := runConflictCommand(context.Background(), dir, "git", args...)
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+	return out
 }
 
 func valueAt(values []string, idx int) string {

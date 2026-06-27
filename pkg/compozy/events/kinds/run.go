@@ -69,16 +69,19 @@ type RunRecoveryStartedPayload struct {
 
 // RunRecoveryRestartingPayload describes a restart after remediation.
 type RunRecoveryRestartingPayload struct {
-	FailedJobIDs []string `json:"failed_job_ids,omitempty"`
+	FailedJobIDs  []string `json:"failed_job_ids,omitempty"`
+	RecoveryRunID string   `json:"recovery_run_id,omitempty"`
 }
 
 // RunRecoveredPayload describes a run recovered after remediation.
 type RunRecoveredPayload struct {
-	Attempts int `json:"attempts,omitempty"`
+	Attempts      int    `json:"attempts,omitempty"`
+	RecoveryRunID string `json:"recovery_run_id,omitempty"`
 }
 
 // RunRecoveryExhaustedPayload describes a recovery lifecycle that exhausted its attempts.
 type RunRecoveryExhaustedPayload struct {
-	Error      string `json:"error,omitempty"`
-	ResultPath string `json:"result_path,omitempty"`
+	Error         string `json:"error,omitempty"`
+	ResultPath    string `json:"result_path,omitempty"`
+	RecoveryRunID string `json:"recovery_run_id,omitempty"`
 }

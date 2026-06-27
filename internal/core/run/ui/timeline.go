@@ -41,9 +41,8 @@ func (m *uiModel) renderMainPanels() string {
 }
 
 // renderTimelinePanel renders the page content as a vertical stack of boxes:
-// header, streaming messages, an optional persistent INTEGRATION pane (parallel
-// runs only), and the composer textbox. The transcript viewport height is budgeted
-// against the INTEGRATION pane so the panel never overflows the available height.
+// header, streaming messages, an actionable INTEGRATION pane, and the composer
+// textbox. Routine parallel progress stays out of the transcript stack.
 func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	contentWidth := panelContentWidth(panelWidth)
 	integrationBox := m.renderIntegrationBox(panelWidth, contentWidth)

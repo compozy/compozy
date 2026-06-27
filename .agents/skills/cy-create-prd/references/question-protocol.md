@@ -20,29 +20,20 @@ Deepen knowledge of requirements and constraints.
 - What are the success criteria?
 - What are the known constraints (timeline, budget, compliance)?
 
-### 3. Options
+### 3. Direction
 
-Present product approaches for the user to evaluate.
-- Offer 2-3 distinct approaches with clear trade-offs.
-- Lead with the recommended approach and explain why.
-- Each approach should differ meaningfully in scope, phasing, or strategy.
-- Wait for the user to select before proceeding.
+Decide the product approach from the gathered context.
+- Weigh 2-3 distinct directions internally, considering trade-offs in scope, phasing, or strategy.
+- Choose the strongest direction yourself; do NOT present a menu for the user to select.
+- Record the chosen direction — with the alternatives you weighed — as an ADR.
 
 ### 4. Refinement
 
-Refine the selected approach with targeted follow-ups.
-- Clarify scope boundaries for the chosen approach.
+Refine the chosen direction with targeted follow-ups only when something is genuinely ambiguous.
+- Clarify scope boundaries for the chosen direction.
 - Confirm phasing and priority of features.
 - Validate success criteria and metrics.
 - Resolve any remaining open questions.
-
-### 4b. Incremental Design Validation
-
-Present the product design section by section for user approval.
-- Scale each section to its complexity: brief for straightforward topics, detailed for nuanced ones.
-- Present one section at a time; ask whether it looks right before moving on.
-- Apply YAGNI: challenge every feature against MVP necessity.
-- Be ready to revise any section before proceeding to the next.
 
 ### 5. Creation
 
@@ -64,9 +55,9 @@ Generate the PRD document using the gathered context.
 - Wait for the user's answer before asking the next question.
 
 ### Progression Gates
-- Must complete at least one full Understanding round before presenting Options.
-- Must have clarity on purpose, constraints, and success criteria before presenting approaches.
-- Must have user approval of an approach before entering Refinement.
+- Must complete at least one full Understanding round before deciding the direction.
+- Must have clarity on purpose, constraints, and success criteria before deciding the direction.
+- Must record the chosen direction as an ADR before generating the PRD. Do not present a draft for section-by-section approval; write the file directly and let the user request changes afterward.
 
 ### Focus Boundaries
 - Questions must focus on WHAT, WHY, and WHO.

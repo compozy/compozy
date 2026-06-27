@@ -56,9 +56,10 @@ func TestRunRecoveryOrchestratorRejectsNilContext(t *testing.T) {
 	t.Run("Should reject a nil context before executing the prepared run", func(t *testing.T) {
 		prepared := &fakePreparedRun{}
 		strategy := &fakeRemediationStrategy{}
+		var nilCtx context.Context
 
 		got, err := newTestOrchestrator(strategy, enabledRecoveryConfig(1), &model.RuntimeConfig{}, nil).
-			Run(nil, prepared)
+			Run(nilCtx, prepared)
 		if !errors.Is(err, errNilRecoveryContext) {
 			t.Fatalf("Run() error = %v, want errNilRecoveryContext", err)
 		}

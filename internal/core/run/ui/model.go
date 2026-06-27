@@ -700,16 +700,23 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindRunFailed,
 			events.EventKindRunCancelled,
 			events.EventKindRunCrashed,
+			events.EventKindRunRecoveryStarted,
+			events.EventKindRunRecoveryRestarting,
+			events.EventKindRunRecovered,
+			events.EventKindRunRecoveryExhausted,
 			events.EventKindSessionUpdate,
 			events.EventKindShutdownRequested,
 			events.EventKindShutdownDraining,
 			events.EventKindShutdownTerminated,
+			events.EventKindTaskParallelPlanStarted,
 			events.EventKindTaskParallelWaveStarted,
+			events.EventKindTaskParallelTaskStarted,
 			events.EventKindTaskParallelWaveCompleted,
 			events.EventKindTaskParallelMergeStarted,
 			events.EventKindTaskParallelConflictDetected,
 			events.EventKindTaskParallelConflictResolving,
 			events.EventKindTaskParallelMerged,
+			events.EventKindTaskParallelFailed,
 			events.EventKindTaskParallelRolledBack:
 			return true
 		default:
@@ -801,6 +808,9 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 	if msg, ok := translateRunEvent(ev); ok {
 		return msg, true
 	}
+	if msg, ok := translateRecoveryEvent(ev); ok {
+		return msg, true
+	}
 	if msg, ok := t.translateJobEvent(ev); ok {
 		return msg, true
 	}
@@ -817,6 +827,23 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 }
 
 func translateParallelEvent(ev events.Event) (uiMsg, bool) {
+	if ev.Kind == events.EventKindTaskParallelPlanStarted {
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPlanPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelPlanStartedMsg{
+			Workflow:          payload.Workflow,
+			IntegrationBranch: payload.IntegrationBranch,
+			ParallelLimit:     payload.ParallelLimit,
+			Tasks:             parallelPlanTasksFromPayload(payload.Tasks),
+			Waves:             parallelPlanWavesFromPayload(payload.Waves),
+		}, true
+	}
+	return translateParallelPayloadEvent(ev)
+}
+
+func translateParallelPayloadEvent(ev events.Event) (uiMsg, bool) {
 	switch ev.Kind {
 	case events.EventKindTaskParallelWaveStarted:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
@@ -829,6 +856,19 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 			TaskID:            payload.TaskID,
 			IntegrationBranch: payload.IntegrationBranch,
 		}, true
+	case events.EventKindTaskParallelTaskStarted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelTaskStartedMsg{
+			WaveIndex:         payload.WaveIndex,
+			WaveTotal:         payload.WaveTotal,
+			TaskID:            payload.TaskID,
+			ChildRunID:        payload.ChildRunID,
+			WorktreePath:      payload.WorktreePath,
+			IntegrationBranch: payload.IntegrationBranch,
+		}, true
 	case events.EventKindTaskParallelMergeStarted:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
@@ -839,6 +879,13 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 			WaveTotal:         payload.WaveTotal,
 			IntegrationBranch: payload.IntegrationBranch,
 		}, true
+	default:
+		return translateParallelProgressEvent(ev)
+	}
+}
+
+func translateParallelProgressEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
 	case events.EventKindTaskParallelConflictDetected:
 		return parallelConflictFromPayload(ev, false)
 	case events.EventKindTaskParallelConflictResolving:
@@ -859,6 +906,20 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 			return nil, false
 		}
 		return parallelWaveCompletedMsg{WaveIndex: payload.WaveIndex, WaveTotal: payload.WaveTotal}, true
+	case events.EventKindTaskParallelFailed:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		message := strings.TrimSpace(payload.Error)
+		if message == "" {
+			message = "parallel task execution failed"
+		}
+		return parallelFailedMsg{
+			WaveIndex:         payload.WaveIndex,
+			IntegrationBranch: payload.IntegrationBranch,
+			Err:               errors.New(message),
+		}, true
 	case events.EventKindTaskParallelRolledBack:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
@@ -871,6 +932,33 @@ func translateParallelEvent(ev events.Event) (uiMsg, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func parallelPlanTasksFromPayload(tasks []kinds.TaskParallelPlanTask) []parallelPlanTask {
+	out := make([]parallelPlanTask, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, parallelPlanTask{
+			ID:           task.ID,
+			Number:       task.Number,
+			Title:        task.Title,
+			File:         task.File,
+			Status:       task.Status,
+			Dependencies: append([]string(nil), task.Dependencies...),
+			WaveIndex:    task.WaveIndex,
+		})
+	}
+	return out
+}
+
+func parallelPlanWavesFromPayload(waves []kinds.TaskParallelPlanWave) []parallelPlanWave {
+	out := make([]parallelPlanWave, 0, len(waves))
+	for _, wave := range waves {
+		out = append(out, parallelPlanWave{
+			Index:   wave.Index,
+			TaskIDs: append([]string(nil), wave.TaskIDs...),
+		})
+	}
+	return out
 }
 
 func parallelConflictFromPayload(ev events.Event, resolving bool) (uiMsg, bool) {
@@ -903,6 +991,65 @@ func translateRunEvent(ev events.Event) (uiMsg, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func translateRecoveryEvent(ev events.Event) (uiMsg, bool) {
+	switch ev.Kind {
+	case events.EventKindRunRecoveryStarted:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryStartedPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return jobRetryMsg{
+			Index:       0,
+			Attempt:     payload.Attempt,
+			MaxAttempts: payload.Attempt,
+			Reason:      recoveryReason("recovery started", payload.Strategy),
+		}, true
+	case events.EventKindRunRecoveryRestarting:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryRestartingPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return jobRetryMsg{
+			Index:       0,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Reason:      recoveryRestartReason(payload.FailedJobIDs),
+		}, true
+	case events.EventKindRunRecovered:
+		return jobFinishedMsg{Index: 0, Success: true}, true
+	case events.EventKindRunRecoveryExhausted:
+		payload, ok := decodeUIEventPayload[kinds.RunRecoveryExhaustedPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		message := strings.TrimSpace(payload.Error)
+		if message == "" {
+			message = "recovery exhausted"
+		}
+		return dispatchBatchMsg{msgs: []uiMsg{
+			jobFailureMsg{Failure: failInfo{ExitCode: 1, Err: errors.New(message)}},
+			jobFinishedMsg{Index: 0, Success: false, ExitCode: 1},
+		}}, true
+	default:
+		return nil, false
+	}
+}
+
+func recoveryReason(prefix string, strategy string) string {
+	strategy = strings.TrimSpace(strategy)
+	if strategy == "" {
+		return prefix
+	}
+	return prefix + ": " + strategy
+}
+
+func recoveryRestartReason(failedJobIDs []string) string {
+	if len(failedJobIDs) == 0 {
+		return "restarting recovered task"
+	}
+	return "restarting failed jobs: " + strings.Join(failedJobIDs, ", ")
 }
 
 func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {

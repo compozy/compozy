@@ -135,6 +135,8 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		return nil
 	case jobControlResultMsg:
 		return m.handleJobControlResult(value)
+	case dispatchBatchMsg:
+		return m.handleDispatchBatch(value)
 	default:
 		cmd, _ := m.applyParallelUIMsg(value)
 		return cmd
@@ -146,8 +148,12 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 // to bound that switch's cyclomatic complexity.
 func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 	switch value := msg.(type) {
+	case parallelPlanStartedMsg:
+		m.handleParallelPlanStarted(value)
 	case parallelWaveStartedMsg:
 		m.handleParallelWaveStarted(value)
+	case parallelTaskStartedMsg:
+		m.handleParallelTaskStarted(value)
 	case parallelMergeStartedMsg:
 		m.handleParallelMergeStarted(value)
 	case parallelConflictMsg:
@@ -158,6 +164,8 @@ func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 		m.handleParallelWaveCompleted(value)
 	case parallelRolledBackMsg:
 		m.handleParallelRolledBack(value)
+	case parallelFailedMsg:
+		m.handleParallelFailed(value)
 	default:
 		return nil, false
 	}

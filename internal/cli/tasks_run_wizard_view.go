@@ -16,6 +16,14 @@ import (
 const (
 	wizardFieldLabelWidth    = 18
 	wizardOverrideLabelWidth = 12
+	// wizardNestedLabelWidth is 2 less than wizardFieldLabelWidth so that a
+	// nested row's "├ " connector keeps its value column aligned with top-level
+	// rows (marker 2 + connector 2 + label 16 == marker 2 + label 18).
+	wizardNestedLabelWidth = 16
+	// Description indents sit just past the label so the muted help text reads as
+	// subordinate to its option without colliding with the cursor marker column.
+	wizardDescIndent       = 6
+	wizardNestedDescIndent = 8
 )
 
 var wizardStepLabels = []string{"Workflows", "Runtime", "Execution", "Overrides", "Review"}
@@ -133,6 +141,55 @@ func wizardField(label string, value string, active bool, labelWidth int) string
 		labelStyle = taskRunWizardActiveStyle()
 	}
 	return marker + labelStyle.Render(wizardPadRight(label, labelWidth)) + " " + value
+}
+
+// wizardSectionHeader renders a grouped-options header in the wizard's olive
+// accent so related execution options read as one category.
+func wizardSectionHeader(title string) string {
+	return lipgloss.NewStyle().Bold(true).Foreground(charmtheme.ColorAccentDeep).Render(title)
+}
+
+// wizardNestedField renders a sub-option indented under its parent toggle with a
+// tree connector. The value column stays aligned with top-level fields.
+func wizardNestedField(connector string, label string, value string, active bool) string {
+	marker := "  "
+	labelStyle := taskRunWizardMutedStyle()
+	if active {
+		marker = taskRunWizardActiveStyle().Render("▸ ")
+		labelStyle = taskRunWizardActiveStyle()
+	}
+	conn := taskRunWizardMutedStyle().Render(connector + " ")
+	return marker + conn + labelStyle.Render(wizardPadRight(label, wizardNestedLabelWidth)) + " " + value
+}
+
+// wizardFieldDesc renders a muted, indented description line under an option, or
+// an empty string when there is nothing to describe.
+func wizardFieldDesc(text string, indent int) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	return strings.Repeat(" ", indent) + taskRunWizardMutedStyle().Render(text)
+}
+
+// wizardScrollWindow returns the [start, end) slice of body lines to render so
+// that the focus line (and the focusSpan lines beginning at it, e.g. a field row
+// plus its description) stay visible within avail rows. up/down report how many
+// lines are hidden above/below so the caller can render scroll affordances. When
+// everything fits, it returns the full range with no hidden lines.
+func wizardScrollWindow(total, focus, focusSpan, avail int) (start, end, up, down int) {
+	avail = max(avail, 1)
+	if total <= avail {
+		return 0, total, 0, 0
+	}
+	content := max(avail-2, 1) // reserve a row each for the up and down affordances
+	visibleSpan := min(max(focusSpan, 1), content)
+	start = max(focus-1, 0) // keep a line of leading context (often the section header)
+	if lastWanted := focus + visibleSpan - 1; lastWanted >= start+content {
+		start = lastWanted - content + 1
+	}
+	start = min(max(start, 0), total-content)
+	end = start + content
+	return start, end, start, total - end
 }
 
 func wizardPaneTitle(title string, focused bool, suffix string) string {

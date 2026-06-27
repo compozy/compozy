@@ -1,0 +1,4 @@
+interface:
+  display_name: "cmux Orchestration"
+  short_description: "Coordinate Claude and Codex in cmux"
+  default_prompt: "Use $cmux-orchestration to coordinate Claude Opus and Codex GPT-5.5 workers for this task."

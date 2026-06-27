@@ -2,6 +2,7 @@ package parallelrun
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,8 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // WorktreeBase identifies the branch/ref a task worktree should branch from.
@@ -35,17 +38,23 @@ type TaskSpec struct {
 type TaskLaunchSpec struct {
 	RunID     string
 	WaveIndex int
+	WaveTotal int
 	Task      TaskSpec
 	Base      WorktreeBase
 }
 
 // TaskRunResult is the daemon-neutral metadata for one child task run.
 type TaskRunResult struct {
-	Task         TaskSpec
-	RunID        string
-	WorktreePath string
-	BaseBranch   string
-	BaseCommit   string
+	Task                    TaskSpec
+	RunID                   string
+	WorktreePath            string
+	BaseBranch              string
+	BaseCommit              string
+	ScopeSupported          bool
+	ProducedPaths           []string
+	PreExistingChangedPaths []string
+	ScopeError              string
+	ScopeArtifactPath       string
 }
 
 // PreparedTaskRun is the daemon-neutral task execution seam. It executes one
@@ -73,10 +82,12 @@ type IntegrationSpec struct {
 // WorktreeLifecycle is the orchestrator's git/write-back boundary.
 type WorktreeLifecycle interface {
 	CreateIntegrationBranch(ctx context.Context, spec IntegrationSpec) error
-	Commit(ctx context.Context, path string, message string) (string, error)
+	CommitTask(ctx context.Context, spec TaskCommitSpec) (string, error)
+	CommitStaged(ctx context.Context, spec StagedCommitSpec) (string, error)
 	SquashMerge(ctx context.Context, integrationPath string, worktreeRef string, message string) (ConflictSet, error)
 	Head(ctx context.Context, path string) (string, error)
 	FastForward(ctx context.Context, workspaceRoot string, targetBranch string, integrationBranch string) error
+	SyncTaskArtifacts(ctx context.Context, workspaceRoot string, tasks []TaskOutcome) error
 	DiscardIntegrationBranch(
 		ctx context.Context,
 		workspaceRoot string,
@@ -87,10 +98,59 @@ type WorktreeLifecycle interface {
 	Prune(ctx context.Context, workspaceRoot string) error
 }
 
+// TaskCommitSpec constrains a task worktree commit to paths the child run
+// proved it produced after its pre-agent baseline snapshot.
+type TaskCommitSpec struct {
+	Path                    string
+	Message                 string
+	ScopeSupported          bool
+	ProducedPaths           []string
+	PreExistingChangedPaths []string
+	ScopeError              string
+	ScopeArtifactPath       string
+}
+
+type taskCommitScopeError struct {
+	err error
+}
+
+func (e taskCommitScopeError) Error() string {
+	return e.err.Error()
+}
+
+func (e taskCommitScopeError) Unwrap() error {
+	return e.err
+}
+
+// NewTaskCommitScopeError marks a task commit failure caused by invalid or
+// contaminated produced-path scope metadata.
+func NewTaskCommitScopeError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return taskCommitScopeError{err: err}
+}
+
+// IsTaskCommitScopeError reports whether err came from produced-path scope validation.
+func IsTaskCommitScopeError(err error) bool {
+	var scopeErr taskCommitScopeError
+	return errors.As(err, &scopeErr)
+}
+
+// StagedCommitSpec constrains an integration commit to already-staged clean
+// merge paths plus explicitly staged conflict paths.
+type StagedCommitSpec struct {
+	Path         string
+	Message      string
+	AllowedPaths []string
+	StagePaths   []string
+}
+
 // ConflictSet describes a squash merge result.
 type ConflictSet struct {
-	Files []string
-	Clean bool
+	Files       []string
+	StagedFiles []string
+	Clean       bool
 }
 
 // Plan contains the complete happy-path execution input.
@@ -116,6 +176,7 @@ type OutcomeStatus string
 const (
 	ParallelOutcomeCompleted  OutcomeStatus = "completed"
 	ParallelOutcomeCanceled   OutcomeStatus = "canceled"
+	ParallelOutcomeFailed     OutcomeStatus = "failed"
 	ParallelOutcomeRolledBack OutcomeStatus = "rolled_back"
 )
 
@@ -172,12 +233,13 @@ type ParallelOutcome = Outcome
 
 // ExecutionOrchestrator drives the parallel task FSM happy path.
 type ExecutionOrchestrator struct {
-	worktrees        WorktreeLifecycle
-	launcher         TaskLauncher
-	recoveryStrategy recovery.RemediationStrategy
-	conflictResolver ConflictResolver
-	emitter          ParallelEventEmitter
-	log              *slog.Logger
+	worktrees         WorktreeLifecycle
+	launcher          TaskLauncher
+	recoveryStrategy  recovery.RemediationStrategy
+	recoveryEventSink recovery.EventSink
+	conflictResolver  ConflictResolver
+	emitter           ParallelEventEmitter
+	log               *slog.Logger
 }
 
 // ParallelExecutionOrchestrator preserves the task-specified public API name.
@@ -202,6 +264,13 @@ func WithLogger(log *slog.Logger) ExecutionOrchestratorOption {
 func WithRecoveryStrategy(strategy recovery.RemediationStrategy) ExecutionOrchestratorOption {
 	return func(o *ExecutionOrchestrator) {
 		o.recoveryStrategy = strategy
+	}
+}
+
+// WithRecoveryEventSink supplies the sink for run.recovery_* lifecycle events.
+func WithRecoveryEventSink(sink recovery.EventSink) ExecutionOrchestratorOption {
+	return func(o *ExecutionOrchestrator) {
+		o.recoveryEventSink = sink
 	}
 }
 
@@ -257,6 +326,7 @@ func (o *ExecutionOrchestrator) Run(ctx context.Context, plan ParallelPlan) (Par
 	if err := o.validatePlan(plan); err != nil {
 		return ParallelOutcome{}, err
 	}
+	o.emitPlanStarted(ctx, plan)
 
 	machine := newParallelFSM()
 	outcome := Outcome{
@@ -347,7 +417,7 @@ func (o *ExecutionOrchestrator) runOneWave(
 	runnable, skipped := splitRunnableLevel(waveIndex, level, tasksByID, *blockedBy)
 	o.emitWaveTasksStarted(ctx, plan, waveIndex, waveTotal, runnable, tasksByID)
 	waveOutcome := WaveOutcome{Index: waveIndex, Tasks: skipped}
-	executions, err := o.runWave(ctx, plan, waveIndex, runnable, currentBase, tasksByID)
+	executions, err := o.runWave(ctx, plan, waveIndex, waveTotal, runnable, currentBase, tasksByID)
 	if err != nil {
 		return o.wrapCancelError(ctx, machine, outcome, err)
 	}
@@ -421,6 +491,11 @@ func (o *ExecutionOrchestrator) finalize(
 	if err := o.worktrees.FastForward(ctx, plan.WorkspaceRoot, plan.BaseBranch, plan.IntegrationBranch); err != nil {
 		return fmt.Errorf("fast-forward %s to %s: %w", plan.BaseBranch, plan.IntegrationBranch, err)
 	}
+	if err := o.worktrees.SyncTaskArtifacts(ctx, plan.WorkspaceRoot, outcome.Tasks); err != nil {
+		// Best-effort: the integration branch is already fast-forwarded, so task
+		// artifact write-back must not turn a completed code merge into rollback.
+		o.log.Warn("sync completed task artifacts", "run_id", plan.RunID, "error", err)
+	}
 	if err := o.cleanupCompleted(ctx, plan, outcome.Tasks); err != nil {
 		return err
 	}
@@ -479,6 +554,7 @@ func (o *ExecutionOrchestrator) runWave(
 	ctx context.Context,
 	plan ParallelPlan,
 	waveIndex int,
+	waveTotal int,
 	level []TaskID,
 	base WorktreeBase,
 	tasksByID map[TaskID]TaskSpec,
@@ -513,6 +589,7 @@ func (o *ExecutionOrchestrator) runWave(
 			prepared, err := o.launcher.PrepareTask(ctx, TaskLaunchSpec{
 				RunID:     strings.TrimSpace(plan.RunID),
 				WaveIndex: waveIndex,
+				WaveTotal: waveTotal,
 				Task:      task,
 				Base:      base,
 			})
@@ -568,9 +645,13 @@ func (o *ExecutionOrchestrator) mergeWave(
 		}
 		execution := &orderedRuns[index]
 		run := execution.result
-		commit, err := o.worktrees.Commit(ctx, run.WorktreePath, commitMessage(run.Task))
+		commit, err := o.worktrees.CommitTask(ctx, taskCommitSpec(run))
 		if err != nil {
-			return outcome, fmt.Errorf("commit task %s worktree: %w", run.Task.ID, err)
+			err = fmt.Errorf("commit task %s worktree: %w", run.Task.ID, err)
+			if IsTaskCommitScopeError(err) {
+				return outcome, o.fail(ctx, machine, plan, waveIndex, runOutcome, err)
+			}
+			return outcome, err
 		}
 		conflicts, err := o.worktrees.SquashMerge(ctx, plan.IntegrationPath, commit, commitMessage(run.Task))
 		if err != nil {
@@ -580,20 +661,27 @@ func (o *ExecutionOrchestrator) mergeWave(
 			o.emitConflictDetected(ctx, plan, waveIndex, run.Task, conflicts, 1, resolverMaxAttempts(plan))
 			result, err := o.resolveConflict(ctx, machine, plan, waveIndex, run.Task, conflicts)
 			if err != nil {
+				if IsConflictResolverSetupError(err) {
+					return outcome, o.fail(ctx, machine, plan, waveIndex, runOutcome, err)
+				}
 				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
 			}
-			if !result.Resolved || !result.Builds {
-				err := fmt.Errorf(
-					"squash merge task %s conflict resolver exhausted after %d attempt(s): resolved=%t builds=%t files=%s",
-					run.Task.ID,
-					result.Attempts,
-					result.Resolved,
-					result.Builds,
-					strings.Join(conflicts.Files, ", "),
+			if !result.Resolved || !result.Validated {
+				return outcome, o.rollback(
+					ctx,
+					machine,
+					plan,
+					waveIndex,
+					runOutcome,
+					conflictResolverExhaustedError(run.Task.ID, result, conflicts),
 				)
-				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
 			}
-			if _, err := o.worktrees.Commit(ctx, plan.IntegrationPath, commitMessage(run.Task)); err != nil {
+			if _, err := o.worktrees.CommitStaged(ctx, StagedCommitSpec{
+				Path:         plan.IntegrationPath,
+				Message:      commitMessage(run.Task),
+				AllowedPaths: conflictCommitAllowedPaths(conflicts),
+				StagePaths:   normalizedConflictFiles(conflicts.Files),
+			}); err != nil {
 				return outcome, o.rollback(
 					ctx,
 					machine,
@@ -616,6 +704,40 @@ func (o *ExecutionOrchestrator) mergeWave(
 		o.emitTaskOutcome(ctx, plan, taskOutcome)
 	}
 	return outcome, nil
+}
+
+func conflictResolverExhaustedError(taskID TaskID, result ConflictResult, conflicts ConflictSet) error {
+	details := strings.TrimSpace(result.ValidationError)
+	if details != "" {
+		details = ": validation_error=" + details
+	}
+	return fmt.Errorf(
+		"squash merge task %s conflict resolver exhausted after %d attempt(s): resolved=%t validated=%t files=%s%s",
+		taskID,
+		result.Attempts,
+		result.Resolved,
+		result.Validated,
+		strings.Join(conflicts.Files, ", "),
+		details,
+	)
+}
+
+func taskCommitSpec(run TaskRunResult) TaskCommitSpec {
+	return TaskCommitSpec{
+		Path:                    strings.TrimSpace(run.WorktreePath),
+		Message:                 commitMessage(run.Task),
+		ScopeSupported:          run.ScopeSupported,
+		ProducedPaths:           append([]string(nil), run.ProducedPaths...),
+		PreExistingChangedPaths: append([]string(nil), run.PreExistingChangedPaths...),
+		ScopeError:              strings.TrimSpace(run.ScopeError),
+		ScopeArtifactPath:       strings.TrimSpace(run.ScopeArtifactPath),
+	}
+}
+
+func conflictCommitAllowedPaths(conflicts ConflictSet) []string {
+	allowed := append([]string(nil), conflicts.StagedFiles...)
+	allowed = append(allowed, conflicts.Files...)
+	return normalizedConflictFiles(allowed)
 }
 
 func (o *ExecutionOrchestrator) resolveConflict(
@@ -643,7 +765,7 @@ func (o *ExecutionOrchestrator) resolveConflict(
 		result.Resolved = false
 		return result, nil
 	}
-	if result.Resolved && result.Builds {
+	if result.Resolved && result.Validated {
 		if err := o.transition(ctx, machine, parallelEventResolved, waveIndex); err != nil {
 			return result, err
 		}
@@ -673,6 +795,23 @@ func (o *ExecutionOrchestrator) rollback(
 	transitionErr := o.transition(rollbackCtx, machine, parallelEventRollback, -1)
 	o.emitRolledBack(rollbackCtx, plan, waveIndex)
 	return errors.Join(cause, discardErr, pruneErr, transitionErr)
+}
+
+func (o *ExecutionOrchestrator) fail(
+	ctx context.Context,
+	machine *fsm.FSM,
+	plan ParallelPlan,
+	waveIndex int,
+	outcome *ParallelOutcome,
+	cause error,
+) error {
+	failCtx := context.WithoutCancel(ctx)
+	if outcome != nil {
+		outcome.Status = ParallelOutcomeFailed
+	}
+	transitionErr := o.transition(failCtx, machine, parallelEventFail, waveIndex)
+	o.emitFailed(failCtx, plan, waveIndex, cause)
+	return errors.Join(cause, transitionErr)
 }
 
 func (o *ExecutionOrchestrator) cleanupCompleted(
@@ -779,22 +918,66 @@ func (o *ExecutionOrchestrator) recoverFailedExecutions(
 	plan ParallelPlan,
 	executions []taskExecution,
 ) {
+	failedIndexes := make([]int, 0)
 	for idx := range executions {
-		if executions[idx].outcome.Status != recovery.StatusFailed {
+		if executions[idx].outcome.Status != recovery.StatusFailed || executions[idx].prepared == nil {
 			continue
 		}
-		prepared := executions[idx].prepared
-		if prepared == nil {
-			continue
-		}
-		recoveredOutcome, err := o.recoverTask(ctx, plan, prepared, executions[idx].outcome, executions[idx].err)
-		executions[idx].outcome = recoveredOutcome
-		executions[idx].err = err
-		if recoveredOutcome.Status == recovery.StatusSucceeded && err == nil {
-			executions[idx].recovered = true
-			if runID := strings.TrimSpace(recoveredOutcome.RunID); runID != "" {
-				executions[idx].result.RunID = runID
+		failedIndexes = append(failedIndexes, idx)
+	}
+	if len(failedIndexes) == 0 {
+		return
+	}
+	workerCount := min(maxConcurrency(plan.Config), len(failedIndexes))
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				o.recoverExecutionAt(ctx, plan, executions, idx)
 			}
+		}()
+	}
+	for _, idx := range failedIndexes {
+		if err := ctx.Err(); err != nil {
+			break
+		}
+		select {
+		case jobs <- idx:
+		case <-ctx.Done():
+			close(jobs)
+			wg.Wait()
+			return
+		}
+	}
+	close(jobs)
+	wg.Wait()
+}
+
+func (o *ExecutionOrchestrator) recoverExecutionAt(
+	ctx context.Context,
+	plan ParallelPlan,
+	executions []taskExecution,
+	idx int,
+) {
+	prepared := executions[idx].prepared
+	recoveredOutcome, err := o.recoverTask(ctx, plan, prepared, executions[idx].outcome, executions[idx].err)
+	executions[idx].outcome = recoveredOutcome
+	executions[idx].err = err
+	result := prepared.Result()
+	if result.Task.ID == "" {
+		result.Task = executions[idx].result.Task
+	}
+	if result.RunID == "" {
+		result.RunID = executions[idx].result.RunID
+	}
+	executions[idx].result = result
+	if recoveredOutcome.Status == recovery.StatusSucceeded && err == nil {
+		executions[idx].recovered = true
+		if runID := strings.TrimSpace(recoveredOutcome.RunID); runID != "" {
+			executions[idx].result.RunID = runID
 		}
 	}
 }
@@ -810,6 +993,7 @@ func (o *ExecutionOrchestrator) recoverTask(
 		o.recoveryStrategy,
 		plan.Recovery,
 		recovery.WithFailedRunConfig(prepared.FailedConfig()),
+		recovery.WithRecoveryEventSink(taskRecoveryEventSink{delegate: o.recoveryEventSink, prepared: prepared}),
 		recovery.WithRecoveryLogger(o.log),
 	)
 	return orchestrator.Run(ctx, cachedPreparedRun{
@@ -817,6 +1001,72 @@ func (o *ExecutionOrchestrator) recoverTask(
 		outcome:  initial,
 		err:      initialErr,
 	})
+}
+
+type taskRecoveryEventSink struct {
+	delegate recovery.EventSink
+	prepared PreparedTaskRun
+}
+
+func (s taskRecoveryEventSink) Submit(ctx context.Context, event events.Event) error {
+	if s.delegate == nil {
+		return nil
+	}
+	runID := ""
+	if s.prepared != nil {
+		if runID = strings.TrimSpace(s.prepared.Result().RunID); runID != "" {
+			event.RunID = runID
+			event = withTaskRecoveryRunID(event, runID)
+		}
+	}
+	return s.delegate.Submit(ctx, event)
+}
+
+func withTaskRecoveryRunID(event events.Event, runID string) events.Event {
+	if strings.TrimSpace(runID) == "" || len(event.Payload) == 0 {
+		return event
+	}
+	switch event.Kind {
+	case events.EventKindRunRecoveryStarted:
+		var payload kinds.RunRecoveryStartedPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			return event
+		}
+		payload.RecoveryRunID = runID
+		return withRecoveryPayload(event, payload)
+	case events.EventKindRunRecoveryRestarting:
+		var payload kinds.RunRecoveryRestartingPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			return event
+		}
+		payload.RecoveryRunID = runID
+		return withRecoveryPayload(event, payload)
+	case events.EventKindRunRecovered:
+		var payload kinds.RunRecoveredPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			return event
+		}
+		payload.RecoveryRunID = runID
+		return withRecoveryPayload(event, payload)
+	case events.EventKindRunRecoveryExhausted:
+		var payload kinds.RunRecoveryExhaustedPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			return event
+		}
+		payload.RecoveryRunID = runID
+		return withRecoveryPayload(event, payload)
+	default:
+		return event
+	}
+}
+
+func withRecoveryPayload(event events.Event, payload any) events.Event {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return event
+	}
+	event.Payload = raw
+	return event
 }
 
 type cachedPreparedRun struct {
