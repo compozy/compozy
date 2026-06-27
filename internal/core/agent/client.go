@@ -402,14 +402,6 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		},
 	)
 
-	if modelID := strings.TrimSpace(req.Model); modelID != "" {
-		if err := c.SetSessionModel(setupCtx, session.id, modelID); err != nil {
-			c.cleanupCloseSession(setupCtx, session.id)
-			c.removeSession(session.id)
-			return nil, fmt.Errorf("set session model before prompt: %w", err)
-		}
-	}
-
 	c.wg.Add(1)
 	go c.runPrompt(ctx, session, acp.PromptRequest{
 		SessionId: sessionResp.SessionId,
@@ -417,46 +409,6 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	})
 
 	return session, nil
-}
-
-func (c *clientImpl) cleanupCancelSession(ctx context.Context, sessionID string) {
-	cancelCtx, cancel := cleanupContext(ctx)
-	defer cancel()
-	if err := c.CancelSession(cancelCtx, sessionID); err != nil && c.logger != nil {
-		c.logger.Warn("failed to cancel ACP session during cleanup", "session_id", sessionID, "error", err)
-	}
-}
-
-func (c *clientImpl) cleanupCloseSession(ctx context.Context, sessionID string) {
-	closeCtx, cancel := cleanupContext(ctx)
-	defer cancel()
-	if err := c.closeSession(closeCtx, sessionID); err != nil && c.logger != nil {
-		c.logger.Warn("failed to close ACP session during cleanup", "session_id", sessionID, "error", err)
-	}
-}
-
-func (c *clientImpl) closeSession(ctx context.Context, sessionID string) error {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return errors.New("close ACP session: missing session id")
-	}
-	c.mu.Lock()
-	closed := c.closed
-	conn := c.conn
-	c.mu.Unlock()
-	if closed {
-		return errors.New("ACP client is already closed")
-	}
-	if conn == nil {
-		return errors.New("ACP client is not started")
-	}
-	_, err := conn.CloseSession(ctx, acp.CloseSessionRequest{
-		SessionId: acp.SessionId(sessionID),
-	})
-	if err != nil {
-		return wrapACPError(err)
-	}
-	return nil
 }
 
 func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (SessionRequest, string, error) {
@@ -895,29 +847,6 @@ func detachedContext(ctx context.Context) context.Context {
 		return context.Background()
 	}
 	return context.WithoutCancel(ctx)
-}
-
-// cleanupContext returns a detached context with a short deadline so that
-// best-effort cleanup RPCs (e.g. CancelSession) can still reach the ACP agent
-// even when the original setup context has already been canceled or expired.
-func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	detached := context.WithoutCancel(ctx)
-	timeout := 5 * time.Second
-	if deadline, ok := ctx.Deadline(); ok {
-		// Extend the deadline by 2 seconds beyond the original, capped at 5s
-		// from now, so the cleanup RPC has a reasonable window.
-		timeout = time.Until(deadline) + 2*time.Second
-		if timeout < 1*time.Second {
-			timeout = 1 * time.Second
-		}
-		if timeout > 5*time.Second {
-			timeout = 5 * time.Second
-		}
-	}
-	return context.WithTimeout(detached, timeout)
 }
 
 // launchEnvironment merges the spec environment, the launch-time model pin,
