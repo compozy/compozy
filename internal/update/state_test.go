@@ -55,6 +55,7 @@ func TestReadStateWriteStateRoundTrip(t *testing.T) {
 	}
 	if got == nil {
 		t.Fatal("expected state entry, got nil")
+		return
 	}
 	if !got.CheckedForUpdateAt.Equal(want.CheckedForUpdateAt) {
 		t.Fatalf("unexpected checked time: want %s, got %s", want.CheckedForUpdateAt, got.CheckedForUpdateAt)

@@ -314,6 +314,7 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 
 	if got == nil {
 		t.Fatal("expected runtime config")
+		return
 	}
 	if got.WorkspaceRoot != want.WorkspaceRoot {
 		t.Fatalf("unexpected workspace root: %q", got.WorkspaceRoot)

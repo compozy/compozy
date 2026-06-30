@@ -54,6 +54,7 @@ func TestReadRunOutcomeFromExecutorPersistedResult(t *testing.T) {
 		}
 		if outcome == nil {
 			t.Fatal("expected outcome")
+			return
 		}
 		if outcome.RunID != runArtifacts.RunID {
 			t.Fatalf("unexpected run ID: %q", outcome.RunID)

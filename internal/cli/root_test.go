@@ -931,6 +931,7 @@ func TestAddCommonFlagsUseOptInRetryDefaults(t *testing.T) {
 		flag := cmd.Flags().Lookup("max-retries")
 		if flag == nil {
 			t.Fatal("expected max-retries flag to be registered")
+			return
 		}
 		if got, want := flag.DefValue, strconv.Itoa(defaultMaxRetries); got != want {
 			t.Fatalf("unexpected max-retries flag default: got %q want %q", got, want)

@@ -126,6 +126,7 @@ func TestNewRunWorkflowDispatchesStartCommand(t *testing.T) {
 	runtime := handler.got.RuntimeConfig()
 	if runtime == nil {
 		t.Fatal("expected runtime config")
+		return
 	}
 	if runtime.WorkspaceRoot != "/workspace" {
 		t.Fatalf("unexpected workspace root: %q", runtime.WorkspaceRoot)
@@ -181,6 +182,7 @@ func TestNewRunWorkflowPassesRecursiveFlagThroughKernel(t *testing.T) {
 	runtime := handler.got.RuntimeConfig()
 	if runtime == nil {
 		t.Fatal("expected runtime config")
+		return
 	}
 	if !runtime.Recursive {
 		t.Fatalf("expected runtime.Recursive=true, got %#v", runtime)
@@ -218,6 +220,7 @@ func TestNewRunWorkflowUsesPRReviewModeForFixReviews(t *testing.T) {
 	runtime := handler.got.RuntimeConfig()
 	if runtime == nil {
 		t.Fatal("expected runtime config")
+		return
 	}
 	if runtime.Mode != model.ExecutionModePRReview {
 		t.Fatalf("unexpected mode: %q", runtime.Mode)
@@ -299,6 +302,7 @@ func TestNewRunWorkflowDispatchesExecPromptSources(t *testing.T) {
 			runtime := handler.got.RuntimeConfig()
 			if runtime == nil {
 				t.Fatal("expected runtime config")
+				return
 			}
 			if runtime.Mode != model.ExecutionModeExec {
 				t.Fatalf("unexpected mode: %q", runtime.Mode)

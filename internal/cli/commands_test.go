@@ -89,6 +89,7 @@ func TestNewExecCommandRegistersExtensionsFlag(t *testing.T) {
 	flag := cmd.Flags().Lookup("extensions")
 	if flag == nil {
 		t.Fatal("expected exec command to register --extensions")
+		return
 	}
 	if flag.DefValue != "false" {
 		t.Fatalf("expected --extensions default false, got %q", flag.DefValue)
@@ -102,6 +103,7 @@ func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 	flag := cmd.Flags().Lookup("attach")
 	if flag == nil {
 		t.Fatal("expected --attach flag")
+		return
 	}
 	if flag.DefValue != attachModeAuto {
 		t.Fatalf("expected --attach default %q, got %q", attachModeAuto, flag.DefValue)
@@ -133,6 +135,7 @@ func TestNewTasksCommandDoesNotRegisterRunMultiple(t *testing.T) {
 		flag := run.Flags().Lookup("attach")
 		if flag == nil {
 			t.Fatal("expected run --attach flag")
+			return
 		}
 		if flag.DefValue != attachModeAuto {
 			t.Fatalf("expected --attach default %q, got %q", attachModeAuto, flag.DefValue)
@@ -147,6 +150,7 @@ func TestNewTasksRunCommandRegistersRecursiveFlag(t *testing.T) {
 	flag := cmd.Flags().Lookup("recursive")
 	if flag == nil {
 		t.Fatal("expected --recursive flag on tasks run")
+		return
 	}
 	if flag.Shorthand != "r" {
 		t.Fatalf("expected --recursive shorthand %q, got %q", "r", flag.Shorthand)
@@ -166,6 +170,7 @@ func TestReviewsFixCommandDefaultsTUIToTrue(t *testing.T) {
 	flag := cmd.Flags().Lookup("tui")
 	if flag == nil {
 		t.Fatal("expected --tui flag")
+		return
 	}
 	if flag.DefValue != "true" {
 		t.Fatalf("expected --tui default true, got %q", flag.DefValue)
