@@ -3905,6 +3905,10 @@ func (*cliCapturingACPClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (*cliCapturingACPClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (*cliCapturingACPClient) PromptSession(
 	_ context.Context,
 	req agent.PromptSessionRequest,

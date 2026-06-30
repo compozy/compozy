@@ -629,6 +629,10 @@ func (*kernelBoundaryACP) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (*kernelBoundaryACP) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (*kernelBoundaryACP) PromptSession(context.Context, agent.PromptSessionRequest) (agent.Session, error) {
 	return nil, errors.New("prompt not supported in kernel boundary fake")
 }

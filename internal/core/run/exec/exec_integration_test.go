@@ -699,6 +699,10 @@ func (*capturingExecACPClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (*capturingExecACPClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (*capturingExecACPClient) PromptSession(context.Context, agent.PromptSessionRequest) (agent.Session, error) {
 	return nil, nil
 }

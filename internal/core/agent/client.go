@@ -30,6 +30,8 @@ type Client interface {
 	CancelSession(ctx context.Context, sessionID string) error
 	// PromptSession sends a new prompt turn into an already active ACP session.
 	PromptSession(ctx context.Context, req PromptSessionRequest) (Session, error)
+	// SetSessionModel changes the active model for an ACP session via session/set_config_option.
+	SetSessionModel(ctx context.Context, sessionID string, modelID string) error
 	// SupportsLoadSession reports whether the connected ACP agent advertised session/load support.
 	SupportsLoadSession() bool
 	// Close terminates the agent subprocess.
@@ -431,28 +433,36 @@ func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (Sessi
 	return req, workingDir, nil
 }
 
-// ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
-func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
+func prepareResumeSessionRequest(ctx context.Context, req ResumeSessionRequest) (ResumeSessionRequest, string, error) {
 	workingDir, err := resolveWorkingDir(req.WorkingDir)
 	if err != nil {
-		return nil, err
+		return ResumeSessionRequest{}, "", err
 	}
 	if strings.TrimSpace(req.SessionID) == "" {
-		return nil, errors.New("resume ACP session: missing session id")
+		return ResumeSessionRequest{}, "", errors.New("resume ACP session: missing session id")
 	}
 	req.Context = ctx
 	req.WorkingDir = workingDir
 	req, err = req.dispatchPreResumeHook()
 	if err != nil {
-		return nil, err
+		return ResumeSessionRequest{}, "", err
 	}
 	workingDir, err = resolveWorkingDir(req.WorkingDir)
 	if err != nil {
-		return nil, err
+		return ResumeSessionRequest{}, "", err
 	}
 	req.WorkingDir = workingDir
 	if strings.TrimSpace(req.SessionID) == "" {
-		return nil, errors.New("resume ACP session: missing session id")
+		return ResumeSessionRequest{}, "", errors.New("resume ACP session: missing session id")
+	}
+	return req, workingDir, nil
+}
+
+// ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
+func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
+	req, workingDir, err := prepareResumeSessionRequest(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
 	sessionReq := SessionRequest{
@@ -530,6 +540,36 @@ func (c *clientImpl) CancelSession(ctx context.Context, sessionID string) error 
 		return errors.New("ACP client is not started")
 	}
 	if err := conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(sessionID)}); err != nil {
+		return wrapACPError(err)
+	}
+	return nil
+}
+
+// SetSessionModel changes the active model for an ACP session via setSessionConfigOption.
+func (c *clientImpl) SetSessionModel(ctx context.Context, sessionID string, modelID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	modelID = strings.TrimSpace(modelID)
+	if sessionID == "" || modelID == "" {
+		return nil
+	}
+	c.mu.Lock()
+	closed := c.closed
+	conn := c.conn
+	c.mu.Unlock()
+	if closed {
+		return errors.New("ACP client is already closed")
+	}
+	if conn == nil {
+		return errors.New("ACP client is not started")
+	}
+	_, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
+		ValueId: &acp.SetSessionConfigOptionValueId{
+			SessionId: acp.SessionId(sessionID),
+			ConfigId:  acp.SessionConfigId("model"),
+			Value:     acp.SessionConfigValueId(modelID),
+		},
+	})
+	if err != nil {
 		return wrapACPError(err)
 	}
 	return nil

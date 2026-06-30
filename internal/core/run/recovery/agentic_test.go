@@ -417,6 +417,10 @@ func (*recoveryFakeACPClient) CancelSession(context.Context, string) error {
 	return nil
 }
 
+func (*recoveryFakeACPClient) SetSessionModel(context.Context, string, string) error {
+	return nil
+}
+
 func (*recoveryFakeACPClient) PromptSession(context.Context, agent.PromptSessionRequest) (agent.Session, error) {
 	return nil, errors.New("prompt not supported in recovery fake")
 }
