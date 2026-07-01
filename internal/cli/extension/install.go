@@ -127,7 +127,7 @@ func runUninstallCommand(cmd *cobra.Command, deps commandDeps, rawName string) e
 		return err
 	}
 
-	userPath := filepath.Join(userExtensionsRoot(env.homeDir), name)
+	userPath := filepath.Join(userExtensionsRoot(env.compozyHome), name)
 	exists, err := deps.pathExists(userPath)
 	if err != nil {
 		return fmt.Errorf("inspect user extension path %q: %w", userPath, err)
@@ -254,7 +254,7 @@ func prepareInstallRequest(
 		)
 	}
 
-	installPath := filepath.Join(userExtensionsRoot(env.homeDir), manifest.Extension.Name)
+	installPath := filepath.Join(userExtensionsRoot(env.compozyHome), manifest.Extension.Name)
 	if sameInstallPath(resolvedSource.SourcePath, installPath) {
 		return nil, "", installPrompt{}, fmt.Errorf(
 			"extension %q is already installed at %s",
@@ -402,8 +402,8 @@ func ensureInstallTargetAvailable(deps commandDeps, installPath string, name str
 	return nil
 }
 
-func userExtensionsRoot(homeDir string) string {
-	return filepath.Join(homeDir, ".compozy", "extensions")
+func userExtensionsRoot(compozyHome string) string {
+	return filepath.Join(compozyHome, "extensions")
 }
 
 func sameInstallPath(left string, right string) bool {

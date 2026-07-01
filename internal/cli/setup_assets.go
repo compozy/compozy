@@ -14,14 +14,15 @@ func loadEffectiveSetupCatalog(
 	ctx context.Context,
 	resolver setup.ResolverOptions,
 ) (setup.EffectiveCatalog, error) {
-	workspaceRoot, homeDir, err := resolveSetupAssetRoots(resolver)
+	workspaceRoot, err := resolveSetupWorkspaceRoot(resolver)
 	if err != nil {
 		return setup.EffectiveCatalog{}, err
 	}
 
+	// Discovery resolves the Compozy home root internally (honoring COMPOZY_HOME),
+	// so setup asset discovery tracks the same root as the rest of the runtime.
 	discovery, err := extensions.Discovery{
 		WorkspaceRoot: workspaceRoot,
-		HomeDir:       homeDir,
 	}.Discover(ctx)
 	if err != nil {
 		return setup.EffectiveCatalog{}, fmt.Errorf("discover setup extension assets: %w", err)
@@ -66,24 +67,15 @@ func effectiveExtensionSkillSources(discovery extensions.DiscoveryResult) ([]set
 	return setup.ExtensionSkillPackSources(catalog.Skills), nil
 }
 
-func resolveSetupAssetRoots(options setup.ResolverOptions) (string, string, error) {
+func resolveSetupWorkspaceRoot(options setup.ResolverOptions) (string, error) {
 	workspaceRoot := strings.TrimSpace(options.CWD)
 	if workspaceRoot == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return "", "", fmt.Errorf("resolve setup workspace root: %w", err)
+			return "", fmt.Errorf("resolve setup workspace root: %w", err)
 		}
 		workspaceRoot = cwd
 	}
 
-	homeDir := strings.TrimSpace(options.HomeDir)
-	if homeDir == "" {
-		resolvedHomeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", "", fmt.Errorf("resolve setup home directory: %w", err)
-		}
-		homeDir = resolvedHomeDir
-	}
-
-	return workspaceRoot, homeDir, nil
+	return workspaceRoot, nil
 }

@@ -7,12 +7,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
-)
 
-var workspaceUserHomeDirMu sync.Mutex
+	compozyconfig "github.com/compozy/compozy/internal/config"
+)
 
 func TestDiscoverFindsNearestWorkspaceRoot(t *testing.T) {
 	t.Parallel()
@@ -53,10 +52,7 @@ func TestDiscoverFallsBackToStartDirectoryWhenWorkspaceIsMissing(t *testing.T) {
 }
 
 func TestDiscoverIgnoresGlobalHomeCompozyMarker(t *testing.T) {
-	homeDir := t.TempDir()
-	stubWorkspaceUserHomeDir(t, func() (string, error) {
-		return homeDir, nil
-	})
+	homeDir := isolateWorkspaceConfigHome(t)
 	if err := os.MkdirAll(filepath.Join(homeDir, ".compozy"), 0o755); err != nil {
 		t.Fatalf("mkdir global .compozy: %v", err)
 	}
@@ -2038,41 +2034,15 @@ func TestLoadConfigReturnsErrorWhenHomeLookupFails(t *testing.T) {
 [defaults]
 ide = "claude"
 `)
-	homeErr := errors.New("home unavailable")
-	stubWorkspaceUserHomeDir(t, func() (string, error) {
-		return "", homeErr
-	})
+	// Force ResolveHomeDir to fail: no override and an undefined OS home.
+	t.Setenv(compozyconfig.HomeEnvVar, "")
+	t.Setenv("HOME", "")
 
 	_, _, err := LoadConfig(context.Background(), root)
 	if err == nil {
 		t.Fatal("expected load config error")
 	}
-	if !errors.Is(err, homeErr) {
-		t.Fatalf("expected home lookup error, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "resolve config paths: lookup user home directory") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestLoadConfigReturnsErrorWhenGlobalBaseDirCannotBeResolved(t *testing.T) {
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, `
-[defaults]
-ide = "claude"
-`)
-	stubWorkspaceUserHomeDir(t, func() (string, error) {
-		return " ", nil
-	})
-
-	_, _, err := LoadConfig(context.Background(), root)
-	if err == nil {
-		t.Fatal("expected load config error")
-	}
-	if !strings.Contains(err.Error(), "resolve config paths: resolve global config base dir") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(err.Error(), "base directory is empty") {
+	if !strings.Contains(err.Error(), "resolve user home directory") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -2181,37 +2151,16 @@ func isolateWorkspaceConfigHome(t *testing.T) string {
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	// Neutralize any ambient COMPOZY_HOME so the global root tracks the temp HOME.
+	t.Setenv(compozyconfig.HomeEnvVar, "")
 	return homeDir
 }
 
 func loadConfigWithIsolatedHome(t *testing.T, workspaceRoot string) (ProjectConfig, string, error) {
 	t.Helper()
 
-	homeDir := t.TempDir()
-	workspaceUserHomeDirMu.Lock()
-	defer workspaceUserHomeDirMu.Unlock()
-
-	original := osUserHomeDir
-	osUserHomeDir = func() (string, error) {
-		return homeDir, nil
-	}
-	defer func() {
-		osUserHomeDir = original
-	}()
-
+	isolateWorkspaceConfigHome(t)
 	return LoadConfig(context.Background(), workspaceRoot)
-}
-
-func stubWorkspaceUserHomeDir(t *testing.T, fn func() (string, error)) {
-	t.Helper()
-
-	workspaceUserHomeDirMu.Lock()
-	original := osUserHomeDir
-	osUserHomeDir = fn
-	t.Cleanup(func() {
-		osUserHomeDir = original
-		workspaceUserHomeDirMu.Unlock()
-	})
 }
 
 func mustEvalSymlinksWorkspaceTest(t *testing.T, path string) string {

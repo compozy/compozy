@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestEnablementStoreDefaults(t *testing.T) {
@@ -16,7 +18,7 @@ func TestEnablementStoreDefaults(t *testing.T) {
 	homeDir := t.TempDir()
 	workspaceRoot := t.TempDir()
 
-	store, err := NewEnablementStore(context.Background(), homeDir)
+	store, err := NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
 	}
@@ -98,7 +100,7 @@ func TestEnablementStorePersistsRoundTrip(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			store, err := NewEnablementStore(context.Background(), homeDir)
+			store, err := NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 			if err != nil {
 				t.Fatalf("NewEnablementStore() error = %v", err)
 			}
@@ -106,7 +108,7 @@ func TestEnablementStorePersistsRoundTrip(t *testing.T) {
 				t.Fatalf("Enable() error = %v", err)
 			}
 
-			reloadedStore, err := NewEnablementStore(context.Background(), homeDir)
+			reloadedStore, err := NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 			if err != nil {
 				t.Fatalf("NewEnablementStore() reload error = %v", err)
 			}
@@ -122,7 +124,7 @@ func TestEnablementStorePersistsRoundTrip(t *testing.T) {
 				t.Fatalf("Disable() error = %v", err)
 			}
 
-			finalStore, err := NewEnablementStore(context.Background(), homeDir)
+			finalStore, err := NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 			if err != nil {
 				t.Fatalf("NewEnablementStore() final error = %v", err)
 			}
@@ -148,7 +150,7 @@ func TestEnablementStoreLoadsWorkspaceStateAcrossCanonicalRootAliases(t *testing
 	legacyRoot := filepath.Clean("/Users/pedronauck/dev/compozy/agh2")
 	canonicalRoot := filepath.Clean("/Users/pedronauck/Dev/compozy/agh2")
 	store := &EnablementStore{
-		homeDir: homeDir,
+		homeDir: filepath.Join(homeDir, ".compozy"),
 		normalizeWorkspaceRoot: func(root string) (string, error) {
 			switch filepath.Clean(root) {
 			case legacyRoot, canonicalRoot:
@@ -232,22 +234,15 @@ func TestEnablementStoreRejectsBundledMutations(t *testing.T) {
 }
 
 func TestNewEnablementStoreResolvesHomeDir(t *testing.T) {
-	homeDir := t.TempDir()
-
-	previous := osUserHomeDir
-	osUserHomeDir = func() (string, error) {
-		return homeDir, nil
-	}
-	t.Cleanup(func() {
-		osUserHomeDir = previous
-	})
+	compozyHome := filepath.Join(t.TempDir(), ".compozy")
+	t.Setenv(compozyconfig.HomeEnvVar, compozyHome)
 
 	store, err := NewEnablementStore(context.Background(), "")
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
 	}
-	if store.homeDir != homeDir {
-		t.Fatalf("homeDir = %q, want %q", store.homeDir, homeDir)
+	if store.homeDir != filepath.Clean(compozyHome) {
+		t.Fatalf("homeDir = %q, want %q", store.homeDir, filepath.Clean(compozyHome))
 	}
 }
 
@@ -300,7 +295,7 @@ func TestEnablementStoreRejectsCorruptState(t *testing.T) {
 	homeDir := t.TempDir()
 	workspaceRoot := t.TempDir()
 
-	store, err := NewEnablementStore(context.Background(), homeDir)
+	store, err := NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
 	}

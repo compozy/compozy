@@ -403,7 +403,9 @@ func installSDKReviewProviderExtension(
 
 	writeJSONFile(t, filepath.Join(extensionDir, extensions.ManifestFileNameJSON), manifest)
 
-	store, err := extensions.NewEnablementStore(context.Background(), homeDir)
+	// homeDir is the OS-home temp; the enablement store roots at the Compozy home,
+	// matching how the daemon's discovery resolves it via config.ResolveHomeDir.
+	store, err := extensions.NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
 	}

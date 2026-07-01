@@ -516,7 +516,8 @@ func TestDiscoverSurfacesMalformedAgentWithoutCorruptingValidOnes(t *testing.T) 
 func newTestRegistry(homeDir string, env map[string]string) *Registry {
 	return New(
 		WithHomeDir(func() (string, error) {
-			return homeDir, nil
+			// homeDir is the OS-home temp; the registry expects the Compozy home root.
+			return filepath.Join(homeDir, model.WorkflowRootDirName), nil
 		}),
 		WithLookupEnv(func(key string) (string, bool) {
 			value, ok := env[key]

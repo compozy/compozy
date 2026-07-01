@@ -357,7 +357,9 @@ func assertBootstrapFileExists(t *testing.T, path string) {
 func enableBootstrapWorkspaceExtension(t *testing.T, homeDir string, workspaceRoot string, name string) {
 	t.Helper()
 
-	store, err := extensions.NewEnablementStore(context.Background(), homeDir)
+	// homeDir is the OS-home temp; the store roots at the Compozy home so it
+	// matches how the runtime resolves it via config.ResolveHomeDir.
+	store, err := extensions.NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 	if err != nil {
 		t.Fatalf("create enablement store: %v", err)
 	}
