@@ -1124,9 +1124,10 @@ func translateJobCompletedEvent(ev events.Event) (uiMsg, bool) {
 		return nil, false
 	}
 	return jobFinishedMsg{
-		Index:    payload.Index,
-		Success:  true,
-		ExitCode: payload.ExitCode,
+		Index:      payload.Index,
+		Success:    true,
+		ExitCode:   payload.ExitCode,
+		DurationMs: payload.DurationMs,
 	}, true
 }
 

@@ -947,9 +947,23 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 			job.exitCode = v.ExitCode
 			m.failed++
 		}
-		if !job.startedAt.IsZero() {
+		// The sidebar timer is driven by job.duration. Prefer the authoritative
+		// duration reported with the completion, since the UI otherwise recomputes
+		// elapsed time from startedAt — which is never seeded when a job's first
+		// observed lifecycle message is a retry (retry attempts emit no fresh
+		// start). Without this, the timer stays blank after a retried job succeeds.
+		if v.DurationMs > 0 || !job.startedAt.IsZero() {
 			job.completedAt = finishedAt
-			job.duration = job.completedAt.Sub(job.startedAt)
+			if v.DurationMs > 0 {
+				job.duration = time.Duration(v.DurationMs) * time.Millisecond
+				// Backfill startedAt so the startedAt/completedAt/duration triple
+				// stays coherent for consumers other than the sidebar timer.
+				if job.startedAt.IsZero() {
+					job.startedAt = job.completedAt.Add(-job.duration)
+				}
+			} else {
+				job.duration = job.completedAt.Sub(job.startedAt)
+			}
 		}
 		if finishedAt.After(m.now) {
 			m.now = finishedAt

@@ -41,6 +41,34 @@ func TestTranslateEventJobStarted(t *testing.T) {
 	}
 }
 
+func TestTranslateEventJobCompletedThreadsDuration(t *testing.T) {
+	t.Parallel()
+
+	// Guards the translator edit the real remote/multi-run path depends on: the
+	// authoritative DurationMs must survive into jobFinishedMsg so the sidebar
+	// timer can be restored even when the UI never observed the job's start.
+	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindJobCompleted,
+		kinds.JobCompletedPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 2, MaxAttempts: 3},
+			ExitCode:       0,
+			DurationMs:     90_000,
+		},
+	))
+	if !ok {
+		t.Fatal("expected job.completed to translate")
+	}
+
+	finished, ok := msg.(jobFinishedMsg)
+	if !ok {
+		t.Fatalf("expected jobFinishedMsg, got %T", msg)
+	}
+	if !finished.Success || finished.DurationMs != 90_000 {
+		t.Fatalf("expected threaded DurationMs=90000 on success, got %#v", finished)
+	}
+}
+
 func TestTranslateEventJobQueued(t *testing.T) {
 	t.Parallel()
 
