@@ -15,21 +15,21 @@ func TestRunSnapshotJobResolveDurationMs(t *testing.T) {
 	t.Parallel()
 	base := time.Date(2026, 4, 20, 22, 0, 0, 0, time.UTC)
 
-	t.Run("prefers the authoritative payload duration", func(t *testing.T) {
+	t.Run("Should prefer the authoritative payload duration", func(t *testing.T) {
 		t.Parallel()
 		job := &runSnapshotJob{startedAt: base}
 		if got := job.resolveDurationMs(90_000, base.Add(2*time.Second)); got != 90_000 {
 			t.Fatalf("want payload duration 90000, got %d", got)
 		}
 	})
-	t.Run("falls back to the started->terminal timestamp span", func(t *testing.T) {
+	t.Run("Should fall back to the started-to-terminal timestamp span", func(t *testing.T) {
 		t.Parallel()
 		job := &runSnapshotJob{startedAt: base}
 		if got := job.resolveDurationMs(0, base.Add(3*time.Second)); got != 3000 {
 			t.Fatalf("want fallback duration 3000, got %d", got)
 		}
 	})
-	t.Run("reports zero when the job never started", func(t *testing.T) {
+	t.Run("Should report zero when the job never started", func(t *testing.T) {
 		t.Parallel()
 		job := &runSnapshotJob{}
 		if got := job.resolveDurationMs(0, base.Add(3*time.Second)); got != 0 {

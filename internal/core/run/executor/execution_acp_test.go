@@ -1461,7 +1461,8 @@ func TestJobLifecycleTerminalEventsCarryDuration(t *testing.T) {
 		return newJobLifecycle(0, &job{CodeFiles: []string{"task_01"}}, execCtx)
 	}
 
-	t.Run("failed job carries elapsed duration", func(t *testing.T) {
+	t.Run("Should carry elapsed duration for a failed job", func(t *testing.T) {
+		t.Parallel()
 		runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 		defer cleanup()
 		lifecycle := newLifecycle(runID, runJournal)
@@ -1478,7 +1479,8 @@ func TestJobLifecycleTerminalEventsCarryDuration(t *testing.T) {
 		}
 	})
 
-	t.Run("canceled job carries elapsed duration", func(t *testing.T) {
+	t.Run("Should carry elapsed duration for a canceled job", func(t *testing.T) {
+		t.Parallel()
 		runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 		defer cleanup()
 		lifecycle := newLifecycle(runID, runJournal)
@@ -1497,7 +1499,8 @@ func TestJobLifecycleTerminalEventsCarryDuration(t *testing.T) {
 		}
 	})
 
-	t.Run("job terminated before any attempt reports zero duration", func(t *testing.T) {
+	t.Run("Should report zero duration when terminated before any attempt", func(t *testing.T) {
+		t.Parallel()
 		runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 		defer cleanup()
 		lifecycle := newLifecycle(runID, runJournal)
