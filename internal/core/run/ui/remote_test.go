@@ -42,6 +42,7 @@ func TestRemoteSnapshotBootstrapHydratesUIStateBeforeLiveEvents(t *testing.T) {
 				Attempt:         1,
 				MaxAttempts:     1,
 				ExitCode:        0,
+				DurationMs:      90_000,
 				Usage:           kinds.Usage{InputTokens: 7, OutputTokens: 3, TotalTokens: 10},
 				Session:         apiSessionSnapshot(summarySnapshot),
 			},
@@ -62,6 +63,9 @@ func TestRemoteSnapshotBootstrapHydratesUIStateBeforeLiveEvents(t *testing.T) {
 	}
 	if got := mdl.jobs[0].state; got != jobSuccess {
 		t.Fatalf("expected restored completed job state, got %v", got)
+	}
+	if got := mdl.jobs[0].duration; got != 90*time.Second {
+		t.Fatalf("expected restored elapsed duration 90s from summary, got %v", got)
 	}
 	if got := mdl.aggregateUsage.TotalTokens; got != 10 {
 		t.Fatalf("expected restored aggregate usage total 10, got %d", got)
@@ -576,4 +580,27 @@ func eventPointer(event eventspkg.Event, seq uint64, ts time.Time) *eventspkg.Ev
 	event.Seq = seq
 	event.Timestamp = ts.UTC()
 	return &event
+}
+
+func TestRemoteBootstrapTerminalMsgsThreadsDuration(t *testing.T) {
+	t.Parallel()
+
+	// Every terminal bootstrap arm must carry the summary's authoritative duration
+	// so a remote tab attaching to an already-finished job renders the real elapsed
+	// time instead of a bogus ~00:00 measured from the bootstrap instant.
+	summary := &apicore.RunJobSummary{DurationMs: 90_000, ExitCode: 7}
+	terminalDuration := func(msgs []uiMsg) int64 {
+		for _, m := range msgs {
+			if fin, ok := m.(jobFinishedMsg); ok {
+				return fin.DurationMs
+			}
+		}
+		t.Fatalf("no jobFinishedMsg produced, got %#v", msgs)
+		return 0
+	}
+	for _, status := range []string{remoteRunStatusCompleted, remoteRunStatusFailed, remoteRunStatusCanceled} {
+		if got := terminalDuration(remoteBootstrapTerminalMsgs(0, status, summary)); got != 90_000 {
+			t.Fatalf("status %q: expected DurationMs 90000 threaded, got %d", status, got)
+		}
+	}
 }

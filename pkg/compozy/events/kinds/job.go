@@ -83,15 +83,17 @@ type JobCompletedPayload struct {
 // JobFailedPayload describes a failed job.
 type JobFailedPayload struct {
 	JobAttemptInfo
-	CodeFile string `json:"code_file,omitempty"`
-	ExitCode int    `json:"exit_code,omitempty"`
-	OutLog   string `json:"out_log,omitempty"`
-	ErrLog   string `json:"err_log,omitempty"`
-	Error    string `json:"error,omitempty"`
+	CodeFile   string `json:"code_file,omitempty"`
+	ExitCode   int    `json:"exit_code,omitempty"`
+	OutLog     string `json:"out_log,omitempty"`
+	ErrLog     string `json:"err_log,omitempty"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
 }
 
 // JobCancelledPayload describes a canceled job.
 type JobCancelledPayload struct {
 	JobAttemptInfo
-	Reason string `json:"reason,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
 }

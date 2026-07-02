@@ -114,11 +114,12 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 				Attempt:     l.attempt,
 				MaxAttempts: l.maxAttempts(),
 			},
-			CodeFile: l.job.CodeFileLabel(),
-			ExitCode: l.lastExitCode,
-			OutLog:   l.job.OutLog,
-			ErrLog:   l.job.ErrLog,
-			Error:    l.job.Failure,
+			CodeFile:   l.job.CodeFileLabel(),
+			ExitCode:   l.lastExitCode,
+			OutLog:     l.job.OutLog,
+			ErrLog:     l.job.ErrLog,
+			Error:      l.job.Failure,
+			DurationMs: l.elapsedMs(),
 		},
 	)
 	if l.lastFailure != nil && l.humanOutputEnabled() {
@@ -193,7 +194,8 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 				Attempt:     l.attempt,
 				MaxAttempts: l.maxAttempts(),
 			},
-			Reason: reason,
+			Reason:     reason,
+			DurationMs: l.elapsedMs(),
 		},
 	)
 	if l.lastFailure != nil && l.humanOutputEnabled() {
@@ -205,6 +207,17 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 			l.lastFailure.Err,
 		)
 	}
+}
+
+// elapsedMs reports the wall-clock duration since the job's first attempt began,
+// or 0 when the job was terminated before any attempt started (l.startedAt is the
+// zero time). Mirrors the duration markSuccess reports on the completed path so
+// failed and canceled jobs carry an authoritative elapsed time too.
+func (l *jobLifecycle) elapsedMs() int64 {
+	if l.startedAt.IsZero() {
+		return 0
+	}
+	return time.Since(l.startedAt).Milliseconds()
 }
 
 func (l *jobLifecycle) execConfig() *config {

@@ -193,9 +193,10 @@ type jobResumedMsg struct {
 }
 
 type jobFinishedMsg struct {
-	Index    int
-	Success  bool
-	ExitCode int
+	Index      int
+	Success    bool
+	ExitCode   int
+	DurationMs int64
 }
 
 type jobUpdateMsg struct {
