@@ -12,6 +12,7 @@ import (
 
 	huh "charm.land/huh/v2"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/workspace"
@@ -27,6 +28,7 @@ type discoverRequest struct {
 
 type commandDeps struct {
 	resolveHomeDir       func() (string, error)
+	resolveCompozyHome   func() (string, error)
 	resolveWorkspaceRoot func(context.Context) (string, error)
 	isInteractive        func() bool
 	confirmInstall       func(*cobra.Command, installPrompt) (bool, error)
@@ -42,7 +44,12 @@ type commandDeps struct {
 }
 
 type commandEnv struct {
-	homeDir       string
+	// homeDir is the OS user home, used only for setup.ResolverOptions
+	// (.claude/.codex/.config detection).
+	homeDir string
+	// compozyHome is the Compozy home root (".compozy" or COMPOZY_HOME), used for
+	// extension install, enablement state, and discovery.
+	compozyHome   string
 	workspaceRoot string
 	store         *extensions.EnablementStore
 }
@@ -57,7 +64,8 @@ type installPrompt struct {
 
 func defaultCommandDeps() commandDeps {
 	return commandDeps{
-		resolveHomeDir: os.UserHomeDir,
+		resolveHomeDir:     os.UserHomeDir,
+		resolveCompozyHome: compozyconfig.ResolveHomeDir,
 		resolveWorkspaceRoot: func(ctx context.Context) (string, error) {
 			root, err := workspace.Discover(ctx, "")
 			if err != nil {
@@ -94,18 +102,23 @@ func (d commandDeps) resolveEnv(ctx context.Context) (commandEnv, error) {
 	if err != nil {
 		return commandEnv{}, fmt.Errorf("resolve home directory: %w", err)
 	}
+	compozyHome, err := d.resolveCompozyHome()
+	if err != nil {
+		return commandEnv{}, fmt.Errorf("resolve compozy home directory: %w", err)
+	}
 	workspaceRoot, err := d.resolveWorkspaceRoot(ctx)
 	if err != nil {
 		return commandEnv{}, err
 	}
 
-	store, err := d.newEnablementStore(ctx, homeDir)
+	store, err := d.newEnablementStore(ctx, compozyHome)
 	if err != nil {
 		return commandEnv{}, fmt.Errorf("create enablement store: %w", err)
 	}
 
 	return commandEnv{
 		homeDir:       filepath.Clean(homeDir),
+		compozyHome:   filepath.Clean(compozyHome),
 		workspaceRoot: workspaceRoot,
 		store:         store,
 	}, nil
@@ -113,7 +126,7 @@ func (d commandDeps) resolveEnv(ctx context.Context) (commandEnv, error) {
 
 func (d commandDeps) discoverAll(ctx context.Context, env commandEnv) (extensions.DiscoveryResult, error) {
 	return d.discover(ctx, discoverRequest{
-		HomeDir:         env.homeDir,
+		HomeDir:         env.compozyHome,
 		WorkspaceRoot:   env.workspaceRoot,
 		IncludeDisabled: true,
 		Store:           env.store,

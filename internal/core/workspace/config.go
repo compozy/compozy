@@ -15,7 +15,6 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 )
 
-var osUserHomeDir = os.UserHomeDir
 var discoverWorkspaceRoot = discoverWorkspaceRootFromStart
 var discoverCache sync.Map
 
@@ -141,16 +140,12 @@ func discoverWorkspaceRootFromStart(ctx context.Context, startDir string) (strin
 }
 
 func discoverGlobalWorkspaceMarkerDir() (string, bool) {
-	homeDir, err := osUserHomeDir()
-	if err != nil {
-		return "", false
-	}
-	resolvedHomeDir, err := resolveConfigBaseDir(homeDir)
+	// The home-scoped marker is the global Compozy root, which honors COMPOZY_HOME.
+	markerDir, err := compozyconfig.ResolveHomeDir()
 	if err != nil {
 		return "", false
 	}
 
-	markerDir := filepath.Join(resolvedHomeDir, model.WorkflowRootDirName)
 	resolvedMarkerDir, err := filepath.EvalSymlinks(markerDir)
 	if err == nil {
 		return filepath.Clean(resolvedMarkerDir), true
@@ -271,21 +266,15 @@ func resolveConfigPaths(workspaceRoot string) (configPaths, error) {
 		workspacePath: model.ConfigPathForWorkspace(workspaceRoot),
 	}
 
-	homeDir, err := osUserHomeDir()
+	// ResolveHomePaths honors COMPOZY_HOME so global config tracks the same root
+	// the daemon isolates under. globalRoot stays the parent of the Compozy home
+	// (the user home in the default layout) to preserve relative add_dirs bases.
+	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
-		return configPaths{}, fmt.Errorf("lookup user home directory: %w", err)
-	}
-	resolvedHomeDir, err := resolveConfigBaseDir(homeDir)
-	if err != nil {
-		return configPaths{}, fmt.Errorf("resolve global config base dir: %w", err)
-	}
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(resolvedHomeDir, compozyconfig.DirName))
-	if err != nil {
-		return configPaths{}, fmt.Errorf("resolve global config base dir: %w", err)
+		return configPaths{}, fmt.Errorf("resolve compozy home paths: %w", err)
 	}
 
-	paths.globalRoot = resolvedHomeDir
+	paths.globalRoot = filepath.Dir(homePaths.HomeDir)
 	paths.globalPath = homePaths.ConfigFile
 	return paths, nil
 }

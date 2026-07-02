@@ -678,6 +678,7 @@ func TestPathExistsAndRenderHooksHelpers(t *testing.T) {
 func TestDefaultCommandDepsAndHelperFunctions(t *testing.T) {
 	deps := defaultCommandDeps()
 	if deps.resolveHomeDir == nil ||
+		deps.resolveCompozyHome == nil ||
 		deps.resolveWorkspaceRoot == nil ||
 		deps.isInteractive == nil ||
 		deps.confirmInstall == nil ||
@@ -993,6 +994,7 @@ func newTestDeps(t *testing.T) testDeps {
 
 	deps := defaultCommandDeps()
 	deps.resolveHomeDir = func() (string, error) { return homeDir, nil }
+	deps.resolveCompozyHome = func() (string, error) { return filepath.Join(homeDir, ".compozy"), nil }
 	deps.resolveWorkspaceRoot = func(context.Context) (string, error) { return workspaceRoot, nil }
 	deps.isInteractive = func() bool { return false }
 	deps.confirmInstall = func(*cobra.Command, installPrompt) (bool, error) { return true, nil }
@@ -1127,7 +1129,9 @@ func writeTestFile(t *testing.T, path string, content string) {
 func mustEnablementStore(t *testing.T, homeDir string) *extensions.EnablementStore {
 	t.Helper()
 
-	store, err := extensions.NewEnablementStore(context.Background(), homeDir)
+	// homeDir is the OS-home temp; the store roots at the Compozy home, matching
+	// how the CLI resolves it via resolveCompozyHome (config.ResolveHomeDir).
+	store, err := extensions.NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 	if err != nil {
 		t.Fatalf("create enablement store: %v", err)
 	}

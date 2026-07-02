@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	runtimeagent "github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
@@ -165,7 +166,8 @@ func (c Catalog) Resolve(name string) (ResolvedAgent, error) {
 // Option configures a Registry.
 type Option func(*Registry)
 
-// WithHomeDir overrides how the registry resolves the global agent root.
+// WithHomeDir overrides how the registry resolves the Compozy home root that
+// anchors the global agents directory.
 func WithHomeDir(fn func() (string, error)) Option {
 	return func(r *Registry) {
 		if fn != nil {
@@ -192,7 +194,7 @@ type Registry struct {
 // New constructs a reusable agent registry with optional test hooks.
 func New(opts ...Option) *Registry {
 	registry := &Registry{
-		homeDir:   os.UserHomeDir,
+		homeDir:   compozyconfig.ResolveHomeDir,
 		lookupEnv: os.LookupEnv,
 	}
 	for _, opt := range opts {
@@ -614,9 +616,11 @@ func looksLikePath(command string) bool {
 }
 
 func (r *Registry) globalAgentsRoot() (string, error) {
+	// homeDir resolves the Compozy home root (".compozy" or COMPOZY_HOME), so the
+	// global agents directory tracks the same root the daemon isolates under.
 	home, err := r.homeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve global agents root: %w", err)
 	}
-	return filepath.Join(home, model.WorkflowRootDirName, agentDirName), nil
+	return filepath.Join(home, agentDirName), nil
 }

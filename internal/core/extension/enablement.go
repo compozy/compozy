@@ -9,14 +9,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
 	userEnablementStateFileName      = ".compozy-state.json"
 	workspaceEnablementStateFileName = "workspace-extensions.json"
 )
-
-var osUserHomeDir = os.UserHomeDir
 
 // Ref identifies an extension instance for local enablement resolution.
 type Ref struct {
@@ -37,7 +37,11 @@ type EnablementStore struct {
 	normalizeWorkspaceRoot func(string) (string, error)
 }
 
-// NewEnablementStore constructs a store rooted at homeDir or the current user's home.
+// NewEnablementStore constructs a store rooted at the Compozy home directory.
+//
+// homeDir is the Compozy home root (the ".compozy" directory or the COMPOZY_HOME
+// override), not the OS user home. When empty, it is resolved via
+// config.ResolveHomeDir so the store honors COMPOZY_HOME consistently.
 func NewEnablementStore(ctx context.Context, homeDir string) (*EnablementStore, error) {
 	if err := contextError(ctx, "create enablement store"); err != nil {
 		return nil, err
@@ -45,9 +49,9 @@ func NewEnablementStore(ctx context.Context, homeDir string) (*EnablementStore, 
 
 	resolvedHome := strings.TrimSpace(homeDir)
 	if resolvedHome == "" {
-		value, err := osUserHomeDir()
+		value, err := compozyconfig.ResolveHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("resolve home directory: %w", err)
+			return nil, fmt.Errorf("resolve compozy home directory: %w", err)
 		}
 		resolvedHome = strings.TrimSpace(value)
 	}
@@ -171,11 +175,11 @@ func (s *EnablementStore) Disable(ctx context.Context, ref Ref) error {
 }
 
 func (s *EnablementStore) userStatePath(name string) string {
-	return filepath.Join(s.homeDir, ".compozy", "extensions", name, userEnablementStateFileName)
+	return filepath.Join(s.homeDir, "extensions", name, userEnablementStateFileName)
 }
 
 func (s *EnablementStore) workspaceStatePath() string {
-	return filepath.Join(s.homeDir, ".compozy", "state", workspaceEnablementStateFileName)
+	return filepath.Join(s.homeDir, "state", workspaceEnablementStateFileName)
 }
 
 func defaultEnabled(source Source) bool {

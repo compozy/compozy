@@ -15,7 +15,10 @@ import (
 
 // Discovery scans bundled, user, and workspace extension roots.
 type Discovery struct {
-	WorkspaceRoot   string
+	WorkspaceRoot string
+	// HomeDir is the Compozy home root (the ".compozy" directory or the
+	// COMPOZY_HOME override), not the OS user home. When empty it is resolved
+	// via config.ResolveHomeDir, so discovery honors COMPOZY_HOME.
 	HomeDir         string
 	IncludeDisabled bool
 	Enablement      *EnablementStore
@@ -164,7 +167,7 @@ func (d Discovery) scanDiscovered(
 		return nil, nil, err
 	}
 
-	userRoot := filepath.Join(homeDir, ".compozy", "extensions")
+	userRoot := filepath.Join(homeDir, "extensions")
 	discovered, failures, err = d.scanFilesystemRoot(
 		ctx,
 		store,

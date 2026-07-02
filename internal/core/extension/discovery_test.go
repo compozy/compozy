@@ -414,7 +414,8 @@ func TestDiscoveryUsesDefaultStoreAndBundledFS(t *testing.T) {
 
 	homeDir := t.TempDir()
 	workspaceRoot := t.TempDir()
-	store, err := NewEnablementStore(context.Background(), homeDir)
+	compozyHome := filepath.Join(homeDir, ".compozy")
+	store, err := NewEnablementStore(context.Background(), compozyHome)
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
 	}
@@ -423,7 +424,7 @@ func TestDiscoveryUsesDefaultStoreAndBundledFS(t *testing.T) {
 	enableUserExtension(t, store, "user-enabled")
 
 	discovery := Discovery{
-		HomeDir:       homeDir,
+		HomeDir:       compozyHome,
 		WorkspaceRoot: workspaceRoot,
 	}
 
@@ -508,14 +509,15 @@ func newTestDiscovery(
 	workspaceRoot := t.TempDir()
 	bundledRoot := t.TempDir()
 
-	store, err := NewEnablementStore(context.Background(), homeDir)
+	compozyHome := filepath.Join(homeDir, ".compozy")
+	store, err := NewEnablementStore(context.Background(), compozyHome)
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
 	}
 
 	return Discovery{
 		WorkspaceRoot:   workspaceRoot,
-		HomeDir:         homeDir,
+		HomeDir:         compozyHome,
 		IncludeDisabled: includeDisabled,
 		Enablement:      store,
 		BundledFS:       os.DirFS(bundledRoot),

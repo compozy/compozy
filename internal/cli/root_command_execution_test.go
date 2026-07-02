@@ -4064,7 +4064,9 @@ capabilities = ["tasks.read"]
 		t.Fatalf("write extension manifest: %v", err)
 	}
 
-	store, err := extensions.NewEnablementStore(context.Background(), homeDir)
+	// homeDir is the OS-home temp; the store roots at the Compozy home so it
+	// matches how the runtime resolves it via config.ResolveHomeDir.
+	store, err := extensions.NewEnablementStore(context.Background(), filepath.Join(homeDir, ".compozy"))
 	if err != nil {
 		t.Fatalf("create enablement store: %v", err)
 	}
