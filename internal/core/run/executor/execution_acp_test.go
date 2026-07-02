@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -1448,6 +1449,69 @@ func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
 	if payload.Error != "boom" {
 		t.Fatalf("expected job.failed payload error to carry failure reason, got %#v", payload)
 	}
+}
+
+func TestJobLifecycleTerminalEventsCarryDuration(t *testing.T) {
+	newLifecycle := func(runID string, runJournal *journal.Journal) *jobLifecycle {
+		execCtx := &jobExecutionContext{
+			ctx:     context.Background(),
+			cfg:     &config{MaxRetries: 2, RunArtifacts: model.RunArtifacts{RunID: runID}},
+			journal: runJournal,
+		}
+		return newJobLifecycle(0, &job{CodeFiles: []string{"task_01"}}, execCtx)
+	}
+
+	t.Run("failed job carries elapsed duration", func(t *testing.T) {
+		runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+		defer cleanup()
+		lifecycle := newLifecycle(runID, runJournal)
+		lifecycle.startAttempt(1, 3, time.Second)
+		// Backdate the start so the reported elapsed is deterministically non-zero.
+		lifecycle.startedAt = lifecycle.startedAt.Add(-2 * time.Second)
+		lifecycle.markGiveUp(failInfo{CodeFile: "task_01", ExitCode: 23, Err: errors.New("boom")})
+
+		events := collectRuntimeEvents(t, eventsCh, 2)
+		var payload kinds.JobFailedPayload
+		decodeRuntimeEventPayload(t, events[1], &payload)
+		if payload.DurationMs <= 0 {
+			t.Fatalf("expected failed payload to carry elapsed duration, got %d", payload.DurationMs)
+		}
+	})
+
+	t.Run("canceled job carries elapsed duration", func(t *testing.T) {
+		runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+		defer cleanup()
+		lifecycle := newLifecycle(runID, runJournal)
+		lifecycle.startAttempt(1, 1, time.Second)
+		lifecycle.startedAt = lifecycle.startedAt.Add(-2 * time.Second)
+		lifecycle.markCanceled(exitCodeCanceled)
+
+		events := collectRuntimeEvents(t, eventsCh, 2)
+		if got := events[1].Kind; got != eventspkg.EventKindJobCancelled {
+			t.Fatalf("expected job.cancelled event, got %s", got)
+		}
+		var payload kinds.JobCancelledPayload
+		decodeRuntimeEventPayload(t, events[1], &payload)
+		if payload.DurationMs <= 0 {
+			t.Fatalf("expected canceled payload to carry elapsed duration, got %d", payload.DurationMs)
+		}
+	})
+
+	t.Run("job terminated before any attempt reports zero duration", func(t *testing.T) {
+		runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+		defer cleanup()
+		lifecycle := newLifecycle(runID, runJournal)
+		// No startAttempt: startedAt is the zero time, so elapsedMs must report 0
+		// rather than a bogus duration measured from Go's year-1 zero time.
+		lifecycle.markGiveUp(failInfo{CodeFile: "task_01", ExitCode: 1, Err: errors.New("early")})
+
+		events := collectRuntimeEvents(t, eventsCh, 1)
+		var payload kinds.JobFailedPayload
+		decodeRuntimeEventPayload(t, events[0], &payload)
+		if payload.DurationMs != 0 {
+			t.Fatalf("expected zero duration when no attempt started, got %d", payload.DurationMs)
+		}
+	})
 }
 
 func TestHandleNilExecutionReturnsSetupFailure(t *testing.T) {

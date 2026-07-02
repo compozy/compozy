@@ -277,6 +277,7 @@ func TestUIEventTranslatorAddsFailureTerminalMessage(t *testing.T) {
 			CodeFile:       "task_01.md",
 			ExitCode:       23,
 			Error:          "boom",
+			DurationMs:     90_000,
 		},
 	))
 	if len(msgs) != 2 {
@@ -291,6 +292,35 @@ func TestUIEventTranslatorAddsFailureTerminalMessage(t *testing.T) {
 	}
 	if finished.Success || finished.ExitCode != 23 {
 		t.Fatalf("unexpected terminal failure message: %#v", finished)
+	}
+	if finished.DurationMs != 90_000 {
+		t.Fatalf("expected failed terminal message to thread DurationMs=90000, got %#v", finished)
+	}
+}
+
+func TestTranslateEventJobCancelledThreadsDuration(t *testing.T) {
+	t.Parallel()
+
+	// The cancel arm must carry the authoritative duration so the sidebar timer
+	// is restored for a retried job that ends up canceled, mirroring success.
+	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindJobCancelled,
+		kinds.JobCancelledPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 2, MaxAttempts: 3},
+			Reason:         "canceled by shutdown",
+			DurationMs:     90_000,
+		},
+	))
+	if !ok {
+		t.Fatal("expected job.cancelled to translate")
+	}
+	finished, ok := msg.(jobFinishedMsg)
+	if !ok {
+		t.Fatalf("expected jobFinishedMsg, got %T", msg)
+	}
+	if finished.Success || finished.ExitCode != exitCodeCanceled || finished.DurationMs != 90_000 {
+		t.Fatalf("expected canceled terminal message with threaded DurationMs=90000, got %#v", finished)
 	}
 }
 

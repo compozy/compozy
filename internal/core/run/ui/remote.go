@@ -484,24 +484,27 @@ func remoteBootstrapTerminalMsgs(index int, status string, summary *apicore.RunJ
 	switch status {
 	case remoteRunStatusCompleted:
 		return []uiMsg{jobFinishedMsg{
-			Index:    index,
-			Success:  true,
-			ExitCode: summaryExitCode(summary),
+			Index:      index,
+			Success:    true,
+			ExitCode:   summaryExitCode(summary),
+			DurationMs: summaryDurationMs(summary),
 		}}
 	case remoteRunStatusFailed:
 		return []uiMsg{
 			jobFailureMsg{Failure: remoteFailureInfo(summary)},
 			jobFinishedMsg{
-				Index:    index,
-				Success:  false,
-				ExitCode: summaryExitCode(summary),
+				Index:      index,
+				Success:    false,
+				ExitCode:   summaryExitCode(summary),
+				DurationMs: summaryDurationMs(summary),
 			},
 		}
 	case remoteRunStatusCanceled:
 		return []uiMsg{jobFinishedMsg{
-			Index:    index,
-			Success:  false,
-			ExitCode: exitCodeCanceled,
+			Index:      index,
+			Success:    false,
+			ExitCode:   exitCodeCanceled,
+			DurationMs: summaryDurationMs(summary),
 		}}
 	default:
 		return nil
@@ -608,6 +611,13 @@ func summaryExitCode(summary *apicore.RunJobSummary) int {
 		return 0
 	}
 	return summary.ExitCode
+}
+
+func summaryDurationMs(summary *apicore.RunJobSummary) int64 {
+	if summary == nil {
+		return 0
+	}
+	return summary.DurationMs
 }
 
 func summaryString(summary *apicore.RunJobSummary, read func(*apicore.RunJobSummary) string) string {

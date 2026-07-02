@@ -409,6 +409,7 @@ type RunJobSummary struct {
 	ErrorText       string              `json:"error_text,omitempty"`
 	Session         SessionViewSnapshot `json:"session,omitempty"`
 	Usage           kinds.Usage         `json:"usage,omitempty"`
+	DurationMs      int64               `json:"duration_ms,omitempty"`
 }
 
 type RunJobState struct {

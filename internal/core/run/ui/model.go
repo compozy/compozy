@@ -796,9 +796,10 @@ func (t *uiEventTranslator) translateMessages(ev events.Event) []uiMsg {
 			return msgs
 		}
 		msgs = append(msgs, jobFinishedMsg{
-			Index:    payload.Index,
-			Success:  false,
-			ExitCode: payload.ExitCode,
+			Index:      payload.Index,
+			Success:    false,
+			ExitCode:   payload.ExitCode,
+			DurationMs: payload.DurationMs,
 		})
 	}
 	return msgs
@@ -1182,9 +1183,10 @@ func translateJobCancelledEvent(ev events.Event) (uiMsg, bool) {
 		return nil, false
 	}
 	return jobFinishedMsg{
-		Index:    payload.Index,
-		Success:  false,
-		ExitCode: exitCodeCanceled,
+		Index:      payload.Index,
+		Success:    false,
+		ExitCode:   exitCodeCanceled,
+		DurationMs: payload.DurationMs,
 	}, true
 }
 

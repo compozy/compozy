@@ -11,6 +11,33 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+func TestRunSnapshotJobResolveDurationMs(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 4, 20, 22, 0, 0, 0, time.UTC)
+
+	t.Run("prefers the authoritative payload duration", func(t *testing.T) {
+		t.Parallel()
+		job := &runSnapshotJob{startedAt: base}
+		if got := job.resolveDurationMs(90_000, base.Add(2*time.Second)); got != 90_000 {
+			t.Fatalf("want payload duration 90000, got %d", got)
+		}
+	})
+	t.Run("falls back to the started->terminal timestamp span", func(t *testing.T) {
+		t.Parallel()
+		job := &runSnapshotJob{startedAt: base}
+		if got := job.resolveDurationMs(0, base.Add(3*time.Second)); got != 3000 {
+			t.Fatalf("want fallback duration 3000, got %d", got)
+		}
+	})
+	t.Run("reports zero when the job never started", func(t *testing.T) {
+		t.Parallel()
+		job := &runSnapshotJob{}
+		if got := job.resolveDurationMs(0, base.Add(3*time.Second)); got != 0 {
+			t.Fatalf("want zero duration without a start, got %d", got)
+		}
+	})
+}
+
 func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 	t.Parallel()
 
@@ -189,6 +216,11 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 	}
 	if states[0].Summary.Usage.TotalTokens != 7 {
 		t.Fatalf("job 1 usage = %#v, want session usage total 7", states[0].Summary.Usage)
+	}
+	// Failed job carried no duration in its payload, so the builder derives it from
+	// the JobStarted(+1s)->JobFailed(+4s) timestamp span.
+	if states[0].Summary.DurationMs != 3000 {
+		t.Fatalf("job 1 duration = %d, want 3000ms from timestamp fallback", states[0].Summary.DurationMs)
 	}
 
 	if states[1].Status != runStatusCancelled || states[1].Summary == nil ||
