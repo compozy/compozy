@@ -256,8 +256,11 @@ func runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup(t *testing.T
 	if outcome.Status != ParallelOutcomeCompleted {
 		t.Fatalf("status = %q, want completed", outcome.Status)
 	}
-	if worktrees.wasPruned() {
-		t.Fatal("completed scoped cleanup invoked repo-wide worktree prune")
+	if got := worktrees.removedPaths(); !reflect.DeepEqual(got, []string{"/worktree/task_01"}) {
+		t.Fatalf("removed worktrees = %#v, want scoped task worktree only", got)
+	}
+	if !worktrees.wasDiscarded() {
+		t.Fatal("expected completed cleanup to discard integration branch")
 	}
 }
 
@@ -977,7 +980,6 @@ type fakeWorktreeLifecycle struct {
 	fastForwarded      bool
 	syncedArtifacts    []TaskID
 	discardedBranch    bool
-	pruned             bool
 }
 
 func newFakeWorktreeLifecycle() *fakeWorktreeLifecycle {
@@ -1071,13 +1073,6 @@ func (f *fakeWorktreeLifecycle) Remove(_ context.Context, _ string, path string)
 	return nil
 }
 
-func (f *fakeWorktreeLifecycle) Prune(context.Context, string) error {
-	f.mu.Lock()
-	f.pruned = true
-	f.mu.Unlock()
-	return nil
-}
-
 func (f *fakeWorktreeLifecycle) commitOrder() []int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1108,10 +1103,10 @@ func (f *fakeWorktreeLifecycle) wasDiscarded() bool {
 	return f.discardedBranch
 }
 
-func (f *fakeWorktreeLifecycle) wasPruned() bool {
+func (f *fakeWorktreeLifecycle) removedPaths() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.pruned
+	return append([]string(nil), f.removed...)
 }
 
 func (f *fakeWorktreeLifecycle) integrationCommitCount() int {

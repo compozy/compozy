@@ -682,9 +682,8 @@ func gitAvailable() bool {
 }
 
 func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = root
-	cmd.Env = append(gitenv.SanitizedEnv(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	cmd := gitenv.Command(ctx, root, args...)
+	cmd.Env = append(cmd.Env, "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

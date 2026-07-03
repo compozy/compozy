@@ -1810,32 +1810,34 @@ func TestRunTaskMultiWorktreeGitCommandIgnoresInheritedGitEnv(t *testing.T) {
 		fmt.Fprintln(os.Stdout, out)
 		os.Exit(0)
 	}
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git binary not available")
-	}
-	wrongRepo := initTaskMultiWorktreeRepo(t)
-	targetRepo := initTaskMultiWorktreeRepo(t)
-	cmd := exec.CommandContext(
-		t.Context(),
-		os.Args[0],
-		"-test.run",
-		"^TestRunTaskMultiWorktreeGitCommandIgnoresInheritedGitEnv$",
-	)
-	cmd.Env = append(os.Environ(),
-		"COMPOZY_TASK_MULTI_GIT_HELPER=1",
-		"COMPOZY_TASK_MULTI_GIT_HELPER_DIR="+targetRepo,
-		"GIT_DIR="+filepath.Join(wrongRepo, ".git"),
-		"GIT_WORK_TREE="+wrongRepo,
-		"GIT_INDEX_FILE="+filepath.Join(wrongRepo, ".git", "index"),
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("helper git command error = %v\n%s", err, out)
-	}
-	want := runGitOutput(t, targetRepo, "rev-parse", "--show-toplevel")
-	if got := strings.TrimSpace(string(out)); got != want {
-		t.Fatalf("git helper top-level = %q, want target repo %q", got, want)
-	}
+	t.Run("Should ignore inherited git repository env vars", func(t *testing.T) {
+		if _, err := exec.LookPath("git"); err != nil {
+			t.Skip("git binary not available")
+		}
+		wrongRepo := initTaskMultiWorktreeRepo(t)
+		targetRepo := initTaskMultiWorktreeRepo(t)
+		cmd := exec.CommandContext(
+			t.Context(),
+			os.Args[0],
+			"-test.run",
+			"^TestRunTaskMultiWorktreeGitCommandIgnoresInheritedGitEnv$",
+		)
+		cmd.Env = append(os.Environ(),
+			"COMPOZY_TASK_MULTI_GIT_HELPER=1",
+			"COMPOZY_TASK_MULTI_GIT_HELPER_DIR="+targetRepo,
+			"GIT_DIR="+filepath.Join(wrongRepo, ".git"),
+			"GIT_WORK_TREE="+wrongRepo,
+			"GIT_INDEX_FILE="+filepath.Join(wrongRepo, ".git", "index"),
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("helper git command error = %v\n%s", err, out)
+		}
+		want := runGitOutput(t, targetRepo, "rev-parse", "--show-toplevel")
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Fatalf("git helper top-level = %q, want target repo %q", got, want)
+		}
+	})
 }
 
 type linkedTaskMultiWorktreeFixture struct {

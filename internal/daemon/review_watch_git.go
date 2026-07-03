@@ -1,11 +1,9 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -111,25 +109,7 @@ func (g *execReviewWatchGit) Push(
 }
 
 func runReviewWatchGitCommand(ctx context.Context, workspaceRoot string, args ...string) (string, error) {
-	cmdArgs := append([]string{"-C", strings.TrimSpace(workspaceRoot)}, args...)
-	cmd := exec.CommandContext(ctx, "git")
-	cmd.Args = append([]string{"git"}, cmdArgs...)
-	cmd.Env = gitenv.SanitizedEnv()
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = strings.TrimSpace(stdout.String())
-		}
-		if message != "" {
-			return "", fmt.Errorf("%w: %s", err, message)
-		}
-		return "", err
-	}
-	return strings.TrimSpace(stdout.String()), nil
+	return gitenv.Run(ctx, workspaceRoot, args...)
 }
 
 func splitGitUpstream(value string) (string, string) {

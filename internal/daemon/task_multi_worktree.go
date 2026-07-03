@@ -1,14 +1,12 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -966,22 +964,5 @@ func taskMultiUniqueSorted(values []string) []string {
 }
 
 func runTaskMultiWorktreeGitCommand(ctx context.Context, dir string, args ...string) (string, error) {
-	cmdArgs := append([]string{"-C", strings.TrimSpace(dir)}, args...)
-	cmd := exec.CommandContext(ctx, "git")
-	cmd.Args = append([]string{"git"}, cmdArgs...)
-	cmd.Env = gitenv.SanitizedEnv()
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = strings.TrimSpace(stdout.String())
-		}
-		if message != "" {
-			return "", fmt.Errorf("%w: %s", err, message)
-		}
-		return "", err
-	}
-	return strings.TrimSpace(stdout.String()), nil
+	return gitenv.Run(ctx, dir, args...)
 }
