@@ -909,6 +909,38 @@ func TestSelectNextRunningJobPrefersRunningThenPending(t *testing.T) {
 	}
 }
 
+func TestHandleJobFinishedRestoresTimerAfterRetrySuccess(t *testing.T) {
+	t.Parallel()
+
+	// Reproduces the multi-run/remote scenario where the UI first observes a job
+	// while it is retrying (a bootstrapped tab emits only a retry message, so
+	// startedAt is never seeded) and then receives the live JobCompleted event
+	// carrying the authoritative duration. The sidebar timer must reappear on
+	// success instead of staying blank.
+	m := newUIModel(1)
+	m.total = 1
+
+	m.handleJobRetry(jobRetryMsg{Index: 0, Attempt: 2, MaxAttempts: 3, Reason: "boom"})
+	if !m.jobs[0].startedAt.IsZero() {
+		t.Fatalf("precondition: expected zero startedAt after a retry-only bootstrap")
+	}
+	if got := m.jobs[0].state; got != jobRetrying {
+		t.Fatalf("precondition: expected jobRetrying state, got %v", got)
+	}
+
+	m.handleJobFinished(jobFinishedMsg{Index: 0, Success: true, DurationMs: 90_000})
+
+	if got := m.jobs[0].state; got != jobSuccess {
+		t.Fatalf("expected success state, got %v", got)
+	}
+	if got := m.jobs[0].duration; got <= 0 {
+		t.Fatalf("expected duration recorded from authoritative DurationMs, got %v", got)
+	}
+	if got := m.sidebarTimeString(&m.jobs[0]); got != "01:30" {
+		t.Fatalf("expected sidebar timer %q after retry-success, got %q", "01:30", got)
+	}
+}
+
 func TestHandleJobFinishedUpdatesCountsAndViewState(t *testing.T) {
 	t.Parallel()
 

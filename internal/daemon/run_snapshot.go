@@ -28,9 +28,27 @@ type runSnapshotBuilder struct {
 const snapshotJobStatusQueued = "queued"
 
 type runSnapshotJob struct {
-	state   apicore.RunJobState
-	summary apicore.RunJobSummary
-	session *transcript.ViewModel
+	state     apicore.RunJobState
+	summary   apicore.RunJobSummary
+	session   *transcript.ViewModel
+	startedAt time.Time
+}
+
+// resolveDurationMs prefers the authoritative duration carried in the terminal
+// payload and falls back to the wall-clock span between the JobStarted event and
+// the terminal event, so historical journals (recorded before failed/canceled
+// payloads carried a duration) still render a real elapsed time.
+func (j *runSnapshotJob) resolveDurationMs(payloadMs int64, endedAt time.Time) int64 {
+	if payloadMs > 0 {
+		return payloadMs
+	}
+	if j.startedAt.IsZero() {
+		return 0
+	}
+	if d := endedAt.Sub(j.startedAt).Milliseconds(); d > 0 {
+		return d
+	}
+	return 0
 }
 
 func newRunSnapshotBuilder() *runSnapshotBuilder {
@@ -197,6 +215,9 @@ func (b *runSnapshotBuilder) applyJobStarted(item events.Event) error {
 	job.state.Status = runStatusRunning
 	job.state.AgentName = firstNonEmpty(strings.TrimSpace(payload.IDE), job.state.AgentName)
 	job.state.UpdatedAt = item.Timestamp.UTC()
+	if job.startedAt.IsZero() {
+		job.startedAt = item.Timestamp.UTC()
+	}
 
 	job.summary.Attempt = payload.Attempt
 	job.summary.MaxAttempts = payload.MaxAttempts
@@ -269,6 +290,7 @@ func (b *runSnapshotBuilder) applyJobCompleted(item events.Event) error {
 	job.summary.Attempt = payload.Attempt
 	job.summary.MaxAttempts = payload.MaxAttempts
 	job.summary.ExitCode = payload.ExitCode
+	job.summary.DurationMs = job.resolveDurationMs(payload.DurationMs, item.Timestamp.UTC())
 	return nil
 }
 
@@ -289,6 +311,7 @@ func (b *runSnapshotBuilder) applyJobFailed(item events.Event) error {
 	job.summary.OutLog = firstNonEmpty(strings.TrimSpace(payload.OutLog), job.summary.OutLog)
 	job.summary.ErrLog = firstNonEmpty(strings.TrimSpace(payload.ErrLog), job.summary.ErrLog)
 	job.summary.ErrorText = strings.TrimSpace(payload.Error)
+	job.summary.DurationMs = job.resolveDurationMs(payload.DurationMs, item.Timestamp.UTC())
 	return nil
 }
 
@@ -303,6 +326,7 @@ func (b *runSnapshotBuilder) applyJobCancelled(item events.Event) error {
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
 	job.summary.ErrorText = strings.TrimSpace(payload.Reason)
+	job.summary.DurationMs = job.resolveDurationMs(payload.DurationMs, item.Timestamp.UTC())
 	return nil
 }
 
