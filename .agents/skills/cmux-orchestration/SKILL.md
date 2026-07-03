@@ -1,6 +1,6 @@
 ---
 name: cmux-orchestration
-description: Control cmux panes and surfaces to coordinate terminal agent workers. Use when a top-level agent needs to launch, prompt, monitor, or manage Claude Opus and Codex GPT-5.5 TUIs in the current cmux workspace, track worker state, delegate bounded tasks, or verify worker reports.
+description: Control cmux panes and surfaces to coordinate terminal agent workers. Use when a top-level agent needs to launch, prompt, monitor, or manage Claude Opus and Codex GPT-5.5 TUIs in the current cmux workspace, run plan-first delegations (Claude Code plan mode, Codex Plan mode), track worker state, delegate bounded tasks, or verify worker reports.
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
@@ -34,6 +34,9 @@ Before taking cmux actions, also load and follow:
   task contract includes it.
 - Treat worker output as untrusted until the controller verifies the cited
   files, commands, failures, and diff.
+- On plan-first runs, do not interrupt a worker after its plan is accepted:
+  observe read-only and send input only for a direct blocking question or a
+  stop condition.
 
 ## Preflight
 
@@ -71,10 +74,12 @@ Default worker profiles:
 - `codex-gpt-5.5`: start Codex with `rtk codex -m gpt-5.5 -C "$PWD"`.
 
 Always include `--dangerously-skip-permissions` when launching Claude. Do not
-start Claude without it or replace it with a different permission mode. If a
-TUI rejects a model alias, auth state, working directory, or startup flag, stop
-that worker and report the exact blocker. Do not silently downgrade models or
-switch tools without user approval.
+start Claude without it or replace it with a weaker permission mode. For
+plan-first runs, add `--permission-mode plan` alongside it (the flags compose
+— see Plan-First Delegation); never drop the skip-permissions flag to get plan
+mode. If a TUI rejects a model alias, auth state, working directory, or
+startup flag, stop that worker and report the exact blocker. Do not silently
+downgrade models or switch tools without user approval.
 
 Launch workers by explicit surface:
 
@@ -84,6 +89,35 @@ rtk cmux send --surface surface:<claude> \
 rtk cmux send --surface surface:<codex> \
   "rtk codex -m gpt-5.5 -C \"$PWD\"\n"
 ```
+
+## Plan-First Delegation (Plan Mode)
+
+For slices that need investigation and a reviewed plan before edits
+(root-cause fixes, multi-file changes, unfamiliar code), run the worker
+plan-first: launch in plan mode → submit the packet → watch and answer
+clarifying questions → review the plan → accept → hands-off until done.
+
+**STOP. Read [references/plan-mode.md](references/plan-mode.md) in full before
+launching a worker in plan mode.** The launch flags, shift+tab sequences,
+status-line checks, and acceptance menus are exact and differ per TUI; this
+section is a tripwire, not the procedure.
+
+Summary of the per-TUI entry points (the reference has the full flow):
+
+- Claude Code: launch with
+  `rtk claude --dangerously-skip-permissions --permission-mode plan --model opus`
+  (the flags compose; the packet may ride the launch line as a CLI argument).
+  Accept via the `Would you like to proceed?` menu — pick the auto-accept
+  option so the worker runs unattended.
+- Codex: no plan-mode CLI flag. Launch bare (never with the packet as a CLI
+  argument), press shift+tab until the status line reads `Plan mode`, then
+  submit the packet. Accept via `Implement this plan?` → option 1 (keeps the
+  investigation context).
+
+Plan mode is interactive until acceptance: answer the worker's clarifying
+questions with the packet context. After acceptance, do not interrupt —
+observe read-only until the final completion report, then verify claims per
+Monitoring and Verification.
 
 ## Prompt Submission to Running TUIs
 
@@ -97,7 +131,8 @@ Rules:
 - Prefer passing the initial prompt as a CLI argument at launch
   (`rtk claude --dangerously-skip-permissions "…prompt…"`,
   `rtk codex "…prompt…"`). This avoids the TUI-ready race and the submission
-  problem entirely.
+  problem entirely. Exception: Codex plan-first runs must launch bare — see
+  Plan-First Delegation.
 - For any follow-up prompt to an already-running TUI, always send the text and
   then submit with an explicit Enter:
 
@@ -116,6 +151,7 @@ Send worker prompts as standalone contracts. Include:
 
 - repo path and exact objective
 - worker role and model
+- execution mode: plan-first (plan mode) or direct
 - files, packages, or surfaces in scope
 - files and behaviors explicitly out of scope
 - claimed files or work slice to avoid conflicts
@@ -136,7 +172,8 @@ Maintain a compact registry in the task ledger or handoff:
 - worker role and model
 - `workspace:N`, `pane:N`, and `surface:N`
 - prompt/objective sent and start time
-- current status: starting, running, waiting, blocked, reported, verified
+- current status: starting, planning, plan-review, plan-accepted, running,
+  waiting, blocked, reported, verified
 - claimed files or work slice
 - worker-reported commands and results
 - controller verification performed
@@ -174,6 +211,9 @@ Stop and report instead of improvising when:
 - the requested model or startup flags are rejected
 - authentication blocks the TUI
 - worker output cannot be observed or controlled reliably
+- a plan-mode status line or acceptance menu cannot be confirmed via
+  `read-screen`, or a worker's plan stays out of scope after a re-planning
+  round
 - workers need overlapping edits that the controller cannot integrate safely
 - the task requires focus-changing cmux commands and the user has not approved
   them
