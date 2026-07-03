@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "fix-parallel",
+  "source_branch": "worktree-fix",
   "namespaces": [
     {
       "name": "compozy",
-      "sidecar_branch": "compozy/__branches__/fix-parallel",
-      "commit": "ade61057137a09fb9d40de0e065dfa003b1ac5b8",
-      "digest": "sha256:d5d7ee6daad42da43b08aa8f7fc2099decfd8adca55b9b6d127223ccaaf6ca84",
-      "files": 1403,
-      "bytes": 11819394
+      "sidecar_branch": "compozy/__branches__/worktree-fix",
+      "commit": "656eb3d96f44a76eabfd90a9ad4ca3dfa08073eb",
+      "digest": "sha256:6aacafb049d6579dd024a5426bde4c61c7e5e44f39c56448a4b6d793b47c469e",
+      "files": 1414,
+      "bytes": 11856803
     }
   ]
 }

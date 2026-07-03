@@ -30,6 +30,10 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder,
 	)
 	t.Run(
+		"Should not prune the repo family during completed scoped cleanup",
+		runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup,
+	)
+	t.Run(
 		"Should allocate the next wave from the post-merge integration head",
 		runParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead,
 	)
@@ -231,6 +235,32 @@ func runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T)
 		[]TaskID{"task_01", "task_02", "task_03"},
 	) {
 		t.Fatalf("synced artifact tasks = %#v, want merged task order", got)
+	}
+}
+
+func runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+	}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+
+	outcome, err := NewParallelExecutionOrchestrator(worktrees, launcher).Run(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if outcome.Status != ParallelOutcomeCompleted {
+		t.Fatalf("status = %q, want completed", outcome.Status)
+	}
+	if got := worktrees.removedPaths(); !reflect.DeepEqual(got, []string{"/worktree/task_01"}) {
+		t.Fatalf("removed worktrees = %#v, want scoped task worktree only", got)
+	}
+	if !worktrees.wasDiscarded() {
+		t.Fatal("expected completed cleanup to discard integration branch")
 	}
 }
 
@@ -950,7 +980,6 @@ type fakeWorktreeLifecycle struct {
 	fastForwarded      bool
 	syncedArtifacts    []TaskID
 	discardedBranch    bool
-	pruned             bool
 }
 
 func newFakeWorktreeLifecycle() *fakeWorktreeLifecycle {
@@ -1044,13 +1073,6 @@ func (f *fakeWorktreeLifecycle) Remove(_ context.Context, _ string, path string)
 	return nil
 }
 
-func (f *fakeWorktreeLifecycle) Prune(context.Context, string) error {
-	f.mu.Lock()
-	f.pruned = true
-	f.mu.Unlock()
-	return nil
-}
-
 func (f *fakeWorktreeLifecycle) commitOrder() []int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1079,6 +1101,12 @@ func (f *fakeWorktreeLifecycle) wasDiscarded() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.discardedBranch
+}
+
+func (f *fakeWorktreeLifecycle) removedPaths() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.removed...)
 }
 
 func (f *fakeWorktreeLifecycle) integrationCommitCount() int {

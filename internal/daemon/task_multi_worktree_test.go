@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
@@ -676,10 +677,6 @@ func TestTaskMultiWorktreeAllocatorLifecycleValidationUnit(t *testing.T) {
 			!strings.Contains(err.Error(), "worktree path is required") {
 			t.Fatalf("Remove(empty path) error = %v, want path validation", err)
 		}
-		if err := allocator.Prune(context.Background(), " "); err == nil ||
-			!strings.Contains(err.Error(), "workspace root is required") {
-			t.Fatalf("Prune(empty workspace) error = %v, want workspace validation", err)
-		}
 	})
 }
 
@@ -932,6 +929,23 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve a named linked worktree branch and HEAD", func(t *testing.T) {
+		t.Parallel()
+		fixture := initTaskMultiLinkedWorktreeRepo(t)
+		wantCommit := runGitOutput(t, fixture.Linked, "rev-parse", "HEAD")
+		allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+		base, err := allocator.ResolveBase(context.Background(), fixture.Linked)
+		if err != nil {
+			t.Fatalf("ResolveBase(linked) error = %v", err)
+		}
+		if base.Branch != fixture.Branch {
+			t.Fatalf("base.Branch = %q, want %q", base.Branch, fixture.Branch)
+		}
+		if base.Commit != wantCommit {
+			t.Fatalf("base.Commit = %q, want %q", base.Commit, wantCommit)
+		}
+	})
+
 	t.Run("Should reject a detached parent checkout", func(t *testing.T) {
 		t.Parallel()
 		repo := initTaskMultiWorktreeRepo(t)
@@ -940,6 +954,50 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 		_, err := allocator.ResolveBase(context.Background(), repo)
 		if err == nil || !strings.Contains(err.Error(), "detached HEAD") {
 			t.Fatalf("ResolveBase() error = %v, want detached HEAD validation", err)
+		}
+	})
+
+	t.Run("Should create a detached child worktree from a linked worktree root", func(t *testing.T) {
+		t.Parallel()
+		fixture := initTaskMultiLinkedWorktreeRepo(t)
+		root := t.TempDir()
+		allocator := newTaskMultiWorktreeAllocator(root)
+		base, err := allocator.ResolveBase(context.Background(), fixture.Linked)
+		if err != nil {
+			t.Fatalf("ResolveBase(linked) error = %v", err)
+		}
+		spec := taskMultiWorktreeSpec{
+			WorkspaceRoot: fixture.Linked,
+			ParentRunID:   "task-multi-linked-root",
+			Slug:          "task_01",
+			Index:         0,
+			TaskNumber:    1,
+			Base:          base,
+		}
+		alloc, err := allocator.Allocate(context.Background(), spec)
+		if err != nil {
+			t.Fatalf("Allocate(linked) error = %v", err)
+		}
+		if !strings.HasPrefix(alloc.Path, filepath.Join(root, taskMultiWorkspaceHash(fixture.Linked))) {
+			t.Fatalf("allocation path = %q, want keyed by linked root %q", alloc.Path, fixture.Linked)
+		}
+		if strings.HasPrefix(alloc.Path, filepath.Join(root, taskMultiWorkspaceHash(fixture.Primary))) {
+			t.Fatalf("allocation path = %q, must not be keyed by primary root %q", alloc.Path, fixture.Primary)
+		}
+		if gotHead := runGitOutput(t, alloc.Path, "rev-parse", "HEAD"); gotHead != base.Commit {
+			t.Fatalf("worktree HEAD = %q, want %q", gotHead, base.Commit)
+		}
+		if list := runGitOutput(
+			t,
+			fixture.Primary,
+			"worktree",
+			"list",
+			"--porcelain",
+		); !strings.Contains(
+			list,
+			alloc.Path,
+		) {
+			t.Fatalf("primary common git dir worktree list missing allocation %q:\n%s", alloc.Path, list)
 		}
 	})
 
@@ -987,6 +1045,59 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 		if _, err := allocator.Allocate(context.Background(), spec); err == nil ||
 			!strings.Contains(err.Error(), "already exists") {
 			t.Fatalf("second Allocate() error = %v, want collision error", err)
+		}
+	})
+
+	t.Run("Should fast-forward a linked worktree branch without touching main checkout files", func(t *testing.T) {
+		t.Parallel()
+		fixture := initTaskMultiLinkedWorktreeRepo(t)
+		ctx := context.Background()
+		allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+		base, err := allocator.ResolveBase(ctx, fixture.Linked)
+		if err != nil {
+			t.Fatalf("ResolveBase(linked) error = %v", err)
+		}
+		initialMain := runGitOutput(t, fixture.Primary, "rev-parse", "main")
+		integrationBranch := "compozy/parallel-linked-ff"
+		integrationPath := filepath.Join(t.TempDir(), "integration")
+		if err := allocator.CreateIntegrationBranch(
+			ctx,
+			fixture.Linked,
+			integrationPath,
+			integrationBranch,
+			base.Commit,
+		); err != nil {
+			t.Fatalf("CreateIntegrationBranch(linked) error = %v", err)
+		}
+		worktree := allocateTaskMultiWorktreeForTest(t, allocator, fixture.Linked, base, "task_01", 1)
+		writeTaskMultiWorktreeFile(t, worktree.Path, "linked-output.txt", "from linked branch\n")
+		ref, err := allocator.CommitTask(ctx, runparallel.TaskCommitSpec{
+			Path:           worktree.Path,
+			Message:        "capture linked task",
+			ScopeSupported: true,
+			ProducedPaths:  []string{"linked-output.txt"},
+		})
+		if err != nil {
+			t.Fatalf("CommitTask(linked) error = %v", err)
+		}
+		conflicts, err := allocator.SquashMerge(ctx, integrationPath, ref, "task 01: linked output")
+		if err != nil {
+			t.Fatalf("SquashMerge(linked) error = %v", err)
+		}
+		if !conflicts.Clean {
+			t.Fatalf("SquashMerge(linked) conflicts = %#v, want clean", conflicts)
+		}
+		if err := allocator.FastForward(ctx, fixture.Linked, fixture.Branch, integrationBranch); err != nil {
+			t.Fatalf("FastForward(linked) error = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(fixture.Linked, "linked-output.txt")); err != nil {
+			t.Fatalf("linked worktree output missing after fast-forward: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(fixture.Primary, "linked-output.txt")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("main checkout output stat = %v, want absent", err)
+		}
+		if got := runGitOutput(t, fixture.Primary, "rev-parse", "main"); got != initialMain {
+			t.Fatalf("main branch head = %q, want unchanged %q", got, initialMain)
 		}
 	})
 
@@ -1088,9 +1199,6 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 		}
 		if err := allocator.DiscardIntegrationBranch(ctx, repo, integrationPath, integrationBranch); err != nil {
 			t.Fatalf("DiscardIntegrationBranch() error = %v", err)
-		}
-		if err := allocator.Prune(ctx, repo); err != nil {
-			t.Fatalf("Prune() error = %v", err)
 		}
 		for _, path := range []string{first.Path, second.Path, integrationPath} {
 			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
@@ -1331,6 +1439,102 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 			t.Fatalf("Remove(second) error = %v", err)
 		}
 	})
+}
+
+func TestTaskMultiWorktreeAllocatorConcurrentLinkedFamilyLifecycle(t *testing.T) {
+	t.Run(
+		"Should preserve sibling worktree metadata across concurrent linked-family allocation and cleanup",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := initTaskMultiLinkedWorktreeRepo(t)
+			allocator := newTaskMultiWorktreeAllocator(t.TempDir())
+			ctx := context.Background()
+			primaryBase, err := allocator.ResolveBase(ctx, fixture.Primary)
+			if err != nil {
+				t.Fatalf("ResolveBase(primary) error = %v", err)
+			}
+			linkedBase, err := allocator.ResolveBase(ctx, fixture.Linked)
+			if err != nil {
+				t.Fatalf("ResolveBase(linked) error = %v", err)
+			}
+			specs := []taskMultiWorktreeSpec{
+				{
+					WorkspaceRoot: fixture.Primary,
+					ParentRunID:   "concurrent-primary",
+					Slug:          "alpha",
+					Index:         0,
+					TaskNumber:    1,
+					Base:          primaryBase,
+				},
+				{
+					WorkspaceRoot: fixture.Linked,
+					ParentRunID:   "concurrent-linked",
+					Slug:          "beta",
+					Index:         0,
+					TaskNumber:    1,
+					Base:          linkedBase,
+				},
+			}
+
+			allocations := make([]taskMultiWorktreeAllocation, len(specs))
+			errs := make([]error, len(specs))
+			var wg sync.WaitGroup
+			for idx := range specs {
+				idx := idx
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					allocations[idx], errs[idx] = allocator.Allocate(ctx, specs[idx])
+				}()
+			}
+			wg.Wait()
+			if err := errors.Join(errs...); err != nil {
+				t.Fatalf("concurrent Allocate() error = %v", err)
+			}
+
+			if err := allocator.Remove(ctx, fixture.Primary, allocations[0].Path); err != nil {
+				t.Fatalf("Remove(primary allocation) error = %v", err)
+			}
+			if _, err := os.Stat(allocations[0].Path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("primary allocation stat error = %v, want missing after remove", err)
+			}
+			if _, err := os.Stat(allocations[1].Path); err != nil {
+				t.Fatalf("linked allocation stat error = %v, want still present after sibling remove", err)
+			}
+			list := runGitOutput(t, fixture.Primary, "worktree", "list", "--porcelain")
+			if !taskMultiWorktreeListContainsPath(t, list, allocations[1].Path) {
+				t.Fatalf("linked allocation missing from worktree list after sibling remove:\n%s", list)
+			}
+			if _, err := runGitOutputContext(ctx, allocations[1].Path, "rev-parse", "HEAD"); err != nil {
+				t.Fatalf("linked allocation git metadata unusable after sibling remove: %v", err)
+			}
+			if err := allocator.Remove(ctx, fixture.Linked, allocations[1].Path); err != nil {
+				t.Fatalf("Remove(linked allocation) error = %v", err)
+			}
+		},
+	)
+}
+
+func taskMultiWorktreeListContainsPath(t *testing.T, list string, want string) bool {
+	t.Helper()
+	wantPath, err := cleanContainmentPath(want)
+	if err != nil {
+		t.Fatalf("canonicalize expected worktree path %q: %v", want, err)
+	}
+	for _, line := range strings.Split(list, "\n") {
+		path, ok := strings.CutPrefix(line, "worktree ")
+		if !ok {
+			continue
+		}
+		gotPath, err := cleanContainmentPath(path)
+		if err != nil {
+			t.Fatalf("canonicalize listed worktree path %q: %v", path, err)
+		}
+		if gotPath == wantPath {
+			return true
+		}
+	}
+	return false
 }
 
 func TestParallelOrchestratorConflictResolverIntegration(t *testing.T) {
@@ -1589,6 +1793,66 @@ func TestRunTaskMultiWorktreeGitCommand(t *testing.T) {
 	); err == nil {
 		t.Fatal("runTaskMultiWorktreeGitCommand(invalid) error = nil, want error")
 	}
+}
+
+func TestRunTaskMultiWorktreeGitCommandIgnoresInheritedGitEnv(t *testing.T) {
+	if os.Getenv("COMPOZY_TASK_MULTI_GIT_HELPER") == "1" {
+		out, err := runTaskMultiWorktreeGitCommand(
+			context.Background(),
+			os.Getenv("COMPOZY_TASK_MULTI_GIT_HELPER_DIR"),
+			"rev-parse",
+			"--show-toplevel",
+		)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		fmt.Fprintln(os.Stdout, out)
+		os.Exit(0)
+	}
+	t.Run("Should ignore inherited git repository env vars", func(t *testing.T) {
+		if _, err := exec.LookPath("git"); err != nil {
+			t.Skip("git binary not available")
+		}
+		wrongRepo := initTaskMultiWorktreeRepo(t)
+		targetRepo := initTaskMultiWorktreeRepo(t)
+		cmd := exec.CommandContext(
+			t.Context(),
+			os.Args[0],
+			"-test.run",
+			"^TestRunTaskMultiWorktreeGitCommandIgnoresInheritedGitEnv$",
+		)
+		cmd.Env = append(os.Environ(),
+			"COMPOZY_TASK_MULTI_GIT_HELPER=1",
+			"COMPOZY_TASK_MULTI_GIT_HELPER_DIR="+targetRepo,
+			"GIT_DIR="+filepath.Join(wrongRepo, ".git"),
+			"GIT_WORK_TREE="+wrongRepo,
+			"GIT_INDEX_FILE="+filepath.Join(wrongRepo, ".git", "index"),
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("helper git command error = %v\n%s", err, out)
+		}
+		want := runGitOutput(t, targetRepo, "rev-parse", "--show-toplevel")
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Fatalf("git helper top-level = %q, want target repo %q", got, want)
+		}
+	})
+}
+
+type linkedTaskMultiWorktreeFixture struct {
+	Primary string
+	Linked  string
+	Branch  string
+}
+
+func initTaskMultiLinkedWorktreeRepo(t *testing.T) linkedTaskMultiWorktreeFixture {
+	t.Helper()
+	primary := initTaskMultiWorktreeRepo(t)
+	linked := filepath.Join(t.TempDir(), "linked")
+	branch := "feature-linked"
+	runGitOutput(t, primary, "worktree", "add", "-q", "-b", branch, linked)
+	return linkedTaskMultiWorktreeFixture{Primary: primary, Linked: linked, Branch: branch}
 }
 
 // initTaskMultiWorktreeRepo prepares a temporary git repository on branch main

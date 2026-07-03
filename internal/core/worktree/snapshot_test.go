@@ -144,6 +144,46 @@ func TestBuildScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should capture produced paths from linked worktree gitfile roots", func(t *testing.T) {
+		t.Parallel()
+		requireScopeGit(t)
+
+		primary := initScopeGitRepo(t)
+		linked := filepath.Join(t.TempDir(), "linked")
+		mustScopeGit(t, primary, "worktree", "add", "-q", "-b", "feature-scope", linked)
+		gitFile, err := os.ReadFile(filepath.Join(linked, ".git"))
+		if err != nil {
+			t.Fatalf("read linked .git file: %v", err)
+		}
+		if !strings.HasPrefix(string(gitFile), "gitdir: ") {
+			t.Fatalf("linked .git file = %q, want gitdir pointer", gitFile)
+		}
+		baseline, err := Capture(context.Background(), linked)
+		if err != nil {
+			t.Fatalf("Capture linked baseline: %v", err)
+		}
+		if !baseline.Document().Supported {
+			t.Fatalf("baseline supported = false: %#v", baseline.Document())
+		}
+		if err := os.WriteFile(filepath.Join(linked, "produced.txt"), []byte("agent output"), 0o600); err != nil {
+			t.Fatalf("write produced: %v", err)
+		}
+
+		scope, err := BuildScope(context.Background(), linked, baseline)
+		if err != nil {
+			t.Fatalf("BuildScope linked: %v", err)
+		}
+		if !scope.Supported {
+			t.Fatalf("scope supported = false: %#v", scope)
+		}
+		if got, want := strings.Join(scope.ProducedPaths, ","), "produced.txt"; got != want {
+			t.Fatalf("produced paths = %q, want %q", got, want)
+		}
+		if len(scope.PreExistingChangedPaths) != 0 {
+			t.Fatalf("pre-existing changed paths = %#v, want none", scope.PreExistingChangedPaths)
+		}
+	})
+
 	t.Run("Should fingerprint dirty submodules from gitlink state", func(t *testing.T) {
 		t.Parallel()
 		requireScopeGit(t)

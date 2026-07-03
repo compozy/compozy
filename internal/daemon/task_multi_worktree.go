@@ -1,19 +1,18 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/core/gitenv"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 )
 
@@ -71,7 +70,6 @@ type WorktreeLifecycle interface {
 		integrationBranch string,
 	) error
 	Remove(ctx context.Context, workspaceRoot string, path string) error
-	Prune(ctx context.Context, workspaceRoot string) error
 }
 
 // taskMultiWorktreeBase captures the parent workspace branch and commit resolved
@@ -605,9 +603,6 @@ func (a *taskMultiWorktreeAllocator) removeIntegrationWorktreeForPurge(
 		} else if !errors.Is(statErr, os.ErrNotExist) {
 			return false, fmt.Errorf("stat integration worktree %s after removal: %w", path, statErr)
 		}
-		if _, err := run(ctx, workspaceRoot, "worktree", "prune", "--expire", "now"); err != nil {
-			return false, fmt.Errorf("prune integration worktree metadata for %s: %w", path, err)
-		}
 		pathRemoved = true
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return false, fmt.Errorf("stat integration worktree %s: %w", path, statErr)
@@ -708,22 +703,6 @@ func (a *taskMultiWorktreeAllocator) integrationWorktreePathForBranch(
 		}
 	}
 	return "", nil
-}
-
-// Prune removes stale git worktree administrative references.
-func (a *taskMultiWorktreeAllocator) Prune(ctx context.Context, workspaceRoot string) error {
-	run, err := a.requireGitRunner()
-	if err != nil {
-		return err
-	}
-	workspace, err := requireTaskMultiWorktreeValue(workspaceRoot, "workspace root")
-	if err != nil {
-		return err
-	}
-	if _, err := run(ctx, workspace, "worktree", "prune"); err != nil {
-		return fmt.Errorf("prune worktrees for %s: %w", workspace, err)
-	}
-	return nil
 }
 
 // Head resolves HEAD in the supplied worktree path.
@@ -985,20 +964,5 @@ func taskMultiUniqueSorted(values []string) []string {
 }
 
 func runTaskMultiWorktreeGitCommand(ctx context.Context, dir string, args ...string) (string, error) {
-	cmdArgs := append([]string{"-C", strings.TrimSpace(dir)}, args...)
-	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = strings.TrimSpace(stdout.String())
-		}
-		if message != "" {
-			return "", fmt.Errorf("%w: %s", err, message)
-		}
-		return "", err
-	}
-	return strings.TrimSpace(stdout.String()), nil
+	return gitenv.Run(ctx, dir, args...)
 }

@@ -856,13 +856,6 @@ func (l parallelWorktreeLifecycle) Remove(ctx context.Context, workspaceRoot str
 	return l.allocator.Remove(ctx, workspaceRoot, path)
 }
 
-func (l parallelWorktreeLifecycle) Prune(ctx context.Context, workspaceRoot string) error {
-	if l.allocator == nil {
-		return errors.New("daemon: task worktree allocator is not configured")
-	}
-	return l.allocator.Prune(ctx, workspaceRoot)
-}
-
 type parallelTaskLauncher struct {
 	manager           *RunManager
 	active            *activeRun

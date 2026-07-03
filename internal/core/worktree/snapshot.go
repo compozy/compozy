@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/core/gitenv"
 )
 
 const (
@@ -680,9 +682,8 @@ func gitAvailable() bool {
 }
 
 func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = root
-	cmd.Env = append(sanitizedGitEnv(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	cmd := gitenv.Command(ctx, root, args...)
+	cmd.Env = append(cmd.Env, "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -690,23 +691,6 @@ func runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("git %s: %w (%s)", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
-}
-
-func sanitizedGitEnv() []string {
-	env := os.Environ()
-	filtered := make([]string, 0, len(env))
-	for _, kv := range env {
-		switch {
-		case strings.HasPrefix(kv, "GIT_DIR="),
-			strings.HasPrefix(kv, "GIT_WORK_TREE="),
-			strings.HasPrefix(kv, "GIT_COMMON_DIR="),
-			strings.HasPrefix(kv, "GIT_INDEX_FILE="),
-			strings.HasPrefix(kv, "GIT_NAMESPACE="):
-			continue
-		}
-		filtered = append(filtered, kv)
-	}
-	return filtered
 }
 
 func isExecLookupError(err error) bool {

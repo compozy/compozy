@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.26.3"
+  GO_VERSION: "1.26.4"
   INITIAL_VERSION: "v0.1.0"
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

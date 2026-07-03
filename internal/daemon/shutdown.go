@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -299,6 +300,10 @@ func (m *RunManager) Purge(ctx context.Context, settings RunLifecycleSettings) (
 		}
 		purgedWorktrees, err := m.purgeRunWorktrees(listCtx, run, settings)
 		if err != nil {
+			if errors.Is(err, errRunPurgeDeferred) {
+				slog.Default().Warn("daemon: run purge deferred", "run_id", run.RunID, "error", err)
+				continue
+			}
 			return result, fmt.Errorf("purge worktrees for run %s: %w", run.RunID, err)
 		}
 
