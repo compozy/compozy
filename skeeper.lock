@@ -6,10 +6,10 @@
     {
       "name": "compozy",
       "sidecar_branch": "compozy/__branches__/worktree-fix",
-      "commit": "8d6be147a5ef530311ee08fc8af5bd6d5162bf87",
-      "digest": "sha256:f7072d2d35bc86740a4385f9be26ae82e406b2897309575cb04a203658945dc5",
-      "files": 1410,
-      "bytes": 11849399
+      "commit": "656eb3d96f44a76eabfd90a9ad4ca3dfa08073eb",
+      "digest": "sha256:6aacafb049d6579dd024a5426bde4c61c7e5e44f39c56448a4b6d793b47c469e",
+      "files": 1414,
+      "bytes": 11856803
     }
   ]
 }

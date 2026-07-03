@@ -32,24 +32,37 @@ func TestIsRepositoryEnvName(t *testing.T) {
 	t.Run("Should identify repository-scoped git env vars", func(t *testing.T) {
 		tests := []struct {
 			name string
+			env  string
 			want bool
 		}{
-			{name: "GIT_DIR", want: true},
-			{name: " GIT_WORK_TREE ", want: true},
-			{name: "GIT_INDEX_FILE", want: true},
-			{name: "GIT_COMMON_DIR", want: true},
-			{name: "GIT_OBJECT_DIRECTORY", want: true},
-			{name: "GIT_ALTERNATE_OBJECT_DIRECTORIES", want: true},
-			{name: "GIT_NAMESPACE", want: true},
-			{name: "GIT_PREFIX", want: true},
-			{name: "GIT_SSH_COMMAND", want: false},
-			{name: "HOME", want: false},
-			{name: "", want: false},
+			{name: "Should identify GIT_DIR as repository scoped", env: "GIT_DIR", want: true},
+			{name: "Should trim and identify GIT_WORK_TREE as repository scoped", env: " GIT_WORK_TREE ", want: true},
+			{name: "Should identify GIT_INDEX_FILE as repository scoped", env: "GIT_INDEX_FILE", want: true},
+			{name: "Should identify GIT_COMMON_DIR as repository scoped", env: "GIT_COMMON_DIR", want: true},
+			{
+				name: "Should identify GIT_OBJECT_DIRECTORY as repository scoped",
+				env:  "GIT_OBJECT_DIRECTORY",
+				want: true,
+			},
+			{
+				name: "Should identify GIT_ALTERNATE_OBJECT_DIRECTORIES as repository scoped",
+				env:  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+				want: true,
+			},
+			{name: "Should identify GIT_NAMESPACE as repository scoped", env: "GIT_NAMESPACE", want: true},
+			{name: "Should identify GIT_PREFIX as repository scoped", env: "GIT_PREFIX", want: true},
+			{name: "Should preserve GIT_SSH_COMMAND as transport scoped", env: "GIT_SSH_COMMAND", want: false},
+			{name: "Should ignore HOME as unrelated", env: "HOME", want: false},
+			{name: "Should ignore an empty env name", env: "", want: false},
 		}
 		for _, tt := range tests {
-			if got := IsRepositoryEnvName(tt.name); got != tt.want {
-				t.Fatalf("IsRepositoryEnvName(%q) = %t, want %t", tt.name, got, tt.want)
-			}
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := IsRepositoryEnvName(tt.env); got != tt.want {
+					t.Fatalf("IsRepositoryEnvName(%q) = %t, want %t", tt.env, got, tt.want)
+				}
+			})
 		}
 	})
 }
@@ -78,6 +91,8 @@ func TestRun(t *testing.T) {
 	}
 
 	t.Run("Should return trimmed stdout on success", func(t *testing.T) {
+		t.Parallel()
+
 		dir := t.TempDir()
 		if _, err := Run(context.Background(), dir, "init", "-q"); err != nil {
 			t.Fatalf("Run(init) error = %v", err)
@@ -96,6 +111,8 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("Should wrap error with stderr message on failure", func(t *testing.T) {
+		t.Parallel()
+
 		dir := t.TempDir()
 		if _, err := Run(context.Background(), dir, "init", "-q"); err != nil {
 			t.Fatalf("Run(init) error = %v", err)
@@ -114,6 +131,8 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("Should wrap empty output errors with command context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 

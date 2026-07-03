@@ -47,10 +47,7 @@ func Run(ctx context.Context, dir string, args ...string) (string, error) {
 		if message == "" {
 			message = strings.TrimSpace(stdout.String())
 		}
-		command := "git"
-		if len(args) > 0 {
-			command += " " + strings.Join(args, " ")
-		}
+		command := strings.Join(cmd.Args, " ")
 		if message != "" {
 			return "", fmt.Errorf("%s in %q failed: %w: %s", command, cmd.Dir, err, message)
 		}
