@@ -1410,6 +1410,7 @@ func runTasksRunMultipleParallelStubScenario(
 ) (apicore.TaskRunMultipleRequest, string, string) {
 	t.Helper()
 
+	requireGitForCLITests(t)
 	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
 	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -1424,6 +1425,7 @@ func runTasksRunMultipleParallelStubScenario(
 	if strings.TrimSpace(config) != "" {
 		writeCLIWorkspaceConfig(t, workspaceRoot, config)
 	}
+	gitInitCommitCLIWorkspace(t, workspaceRoot)
 	withWorkingDir(t, workspaceRoot)
 
 	readyClient := &stubDaemonCommandClient{
@@ -1593,6 +1595,7 @@ func runTasksRunMultipleStreamScenario(
 ) (string, string, error) {
 	t.Helper()
 
+	requireGitForCLITests(t)
 	workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
 	writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -1604,6 +1607,7 @@ func runTasksRunMultipleStreamScenario(
 		"# Task 1: Alpha Task",
 	))
 	writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+	gitInitCommitCLIWorkspace(t, workspaceRoot)
 	withWorkingDir(t, workspaceRoot)
 
 	readyClient := &stubDaemonCommandClient{
@@ -1900,6 +1904,7 @@ func TestTasksRunCommandStillCallsSingleRunClient(t *testing.T) {
 func TestTasksRunCommandForwardsParallelTasksOverride(t *testing.T) {
 	t.Run("Should forward --parallel-tasks on a single workflow run", func(t *testing.T) {
 		t.Parallel()
+		requireGitForCLITests(t)
 
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
@@ -1911,6 +1916,7 @@ func TestTasksRunCommandForwardsParallelTasksOverride(t *testing.T) {
 			},
 			"# Task 1: Demo Task",
 		))
+		gitInitCommitCLIWorkspace(t, workspaceRoot)
 		withWorkingDir(t, workspaceRoot)
 
 		readyClient := &stubDaemonCommandClient{
@@ -1953,6 +1959,194 @@ func TestTasksRunCommandForwardsParallelTasksOverride(t *testing.T) {
 			overrides.ParallelTasks.Enabled == nil ||
 			!*overrides.ParallelTasks.Enabled {
 			t.Fatalf("parallel task override = %#v, want enabled true", overrides.ParallelTasks)
+		}
+	})
+}
+
+func TestTasksRunCommandPreflightsParallelWorktreeBranch(t *testing.T) {
+	cases := []struct {
+		name      string
+		args      []string
+		workflows []string
+	}{
+		{
+			name:      "parallel tasks",
+			args:      []string{"tasks", "run", "demo", "--parallel-tasks", "--detach"},
+			workflows: []string{"demo"},
+		},
+		{
+			name:      "parallel multiple",
+			args:      []string{"tasks", "run", "--multiple", "demo,beta", "--parallel", "--detach"},
+			workflows: []string{"demo", "beta"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run("Should reject detached HEAD before daemon start for "+tc.name, func(t *testing.T) {
+			requireGitForCLITests(t)
+			workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+			writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+				[]string{
+					"status: pending",
+					"title: Demo Task",
+					"type: backend",
+					"complexity: low",
+				},
+				"# Task 1: Demo Task",
+			))
+			if len(tc.workflows) > 1 {
+				writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+			}
+			gitInitCommitCLIWorkspace(t, workspaceRoot)
+			runGitForCLITests(t, workspaceRoot, "checkout", "-q", "--detach")
+			withWorkingDir(t, workspaceRoot)
+			installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+				resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+					t.Fatal("daemon bootstrap should not run when parallel worktree preflight rejects detached HEAD")
+					return compozyconfig.HomePaths{}, nil
+				},
+			})
+
+			defaults := allowBundledSkillsForExecutionTests()
+			defaults.isInteractive = func() bool { return false }
+			cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+			stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, tc.args...)
+			if err == nil {
+				t.Fatalf("expected detached HEAD preflight rejection\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+			}
+			var exitErr *commandExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+				t.Fatalf("expected exit code 2 for preflight rejection, got %v", err)
+			}
+			if stdout != "" {
+				t.Fatalf("stdout = %q, want empty", stdout)
+			}
+			for _, want := range []string{workspaceRoot, "detached HEAD", "checkout a branch"} {
+				if !strings.Contains(stderr, want) {
+					t.Fatalf("stderr = %q, want substring %q", stderr, want)
+				}
+			}
+		})
+	}
+}
+
+func TestTasksRunCommandPreflightsManagedWorktreeRecursion(t *testing.T) {
+	t.Run("Should reject parallel mode inside Compozy-managed worktree before daemon start", func(t *testing.T) {
+		requireGitForCLITests(t)
+		prepareInProcessCLIDaemonHome(t)
+		paths, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			t.Fatalf("ResolveHomePaths() error = %v", err)
+		}
+		workspaceRoot := filepath.Join(paths.WorktreesDir, "owned", "repo")
+		tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+		if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir tasks dir: %v", err)
+		}
+		writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Demo Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Demo Task",
+		))
+		gitInitCommitCLIWorkspace(t, workspaceRoot)
+		withWorkingDir(t, workspaceRoot)
+		installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+			resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+				t.Fatal("daemon bootstrap should not run when managed-worktree recursion is rejected")
+				return compozyconfig.HomePaths{}, nil
+			},
+		})
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"demo",
+			"--parallel-tasks",
+			"--detach",
+		)
+		if err == nil {
+			t.Fatalf("expected managed-worktree recursion rejection\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+			t.Fatalf("expected exit code 2 for recursion preflight rejection, got %v", err)
+		}
+		if stdout != "" {
+			t.Fatalf("stdout = %q, want empty", stdout)
+		}
+		for _, want := range []string{workspaceRoot, "Compozy-managed worktree", "parallel"} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("stderr = %q, want substring %q", stderr, want)
+			}
+		}
+	})
+
+	t.Run("Should allow non-parallel task run inside Compozy-managed worktree", func(t *testing.T) {
+		requireGitForCLITests(t)
+		prepareInProcessCLIDaemonHome(t)
+		paths, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			t.Fatalf("ResolveHomePaths() error = %v", err)
+		}
+		workspaceRoot := filepath.Join(paths.WorktreesDir, "owned", "repo")
+		tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+		if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir tasks dir: %v", err)
+		}
+		writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Demo Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Demo Task",
+		))
+		gitInitCommitCLIWorkspace(t, workspaceRoot)
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startRun: apicore.Run{
+				RunID:            "run-task-managed-nonparallel",
+				Mode:             string(core.ModePRDTasks),
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 7, 30, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"demo",
+			"--detach",
+		)
+		if err != nil {
+			t.Fatalf("execute non-parallel managed-worktree run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if readyClient.startCalls != 1 {
+			t.Fatalf("StartTaskRun calls = %d, want 1", readyClient.startCalls)
+		}
+		if !strings.Contains(stdout, "task run started: run-task-managed-nonparallel") {
+			t.Fatalf("stdout = %q, want task run started", stdout)
 		}
 	})
 }
@@ -2022,66 +2216,65 @@ func TestTasksRunMultipleCommandInProcessStreamReconstructsParentQueueState(t *t
 }
 
 func TestTasksRunMultipleCommandInProcessParallelModeRequiresGitWorkspace(t *testing.T) {
-	t.Run("Should attempt worktree-backed parallel execution and fail outside a git repo", func(t *testing.T) {
-		workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
-		writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
-			[]string{
-				"status: pending",
-				"title: Alpha Task",
-				"type: backend",
-				"complexity: low",
-			},
-			"# Task 1: Alpha Task",
-		))
-		writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
-		writeCLIWorkspaceConfig(t, workspaceRoot, `
+	t.Run(
+		"Should reject worktree-backed parallel execution outside a git repo before daemon start",
+		func(t *testing.T) {
+			workspaceRoot, alphaDir := makeValidateTasksWorkspace(t, "alpha")
+			writeRawTaskFileForCLI(t, alphaDir, "task_01.md", cliTaskMarkdown(
+				[]string{
+					"status: pending",
+					"title: Alpha Task",
+					"type: backend",
+					"complexity: low",
+				},
+				"# Task 1: Alpha Task",
+			))
+			writeTaskWorkflowForCLI(t, workspaceRoot, "beta")
+			writeCLIWorkspaceConfig(t, workspaceRoot, `
 [tasks.run]
 run_multiple_mode = "parallel"
 `)
-		withWorkingDir(t, workspaceRoot)
+			withWorkingDir(t, workspaceRoot)
+			installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+				resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+					t.Fatal("daemon bootstrap should not run when git preflight rejects a non-git workspace")
+					return compozyconfig.HomePaths{}, nil
+				},
+			})
 
-		installInProcessCLIDaemonBootstrapWithConfig(t, daemon.RunManagerConfig{})
-
-		defaults := allowBundledSkillsForExecutionTests()
-		defaults.isInteractive = func() bool { return false }
-		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
-		stdout, stderr, err := executeCommandCapturingProcessIO(
-			t,
-			cmd,
-			nil,
-			"tasks",
-			"run",
-			"--multiple",
-			"alpha,beta",
-			"--stream",
-			"--dry-run",
-		)
-		// task_07 wires worktree-backed parallel execution: the daemon accepts the
-		// parallel mode, queues the items, and resolves the parent base branch before
-		// launching children. This workspace is not a git repository, so base
-		// resolution fails and the parent run fails cleanly instead of starting
-		// children in an ambiguous tree.
-		if err == nil {
-			t.Fatalf(
-				"expected parent run to fail without a git workspace\nstdout:\n%s\nstderr:\n%s",
-				stdout,
-				stderr,
+			defaults := allowBundledSkillsForExecutionTests()
+			defaults.isInteractive = func() bool { return false }
+			cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+			stdout, stderr, err := executeCommandCapturingProcessIO(
+				t,
+				cmd,
+				nil,
+				"tasks",
+				"run",
+				"--multiple",
+				"alpha,beta",
+				"--stream",
+				"--dry-run",
 			)
-		}
-		var exitErr *commandExitError
-		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-			t.Fatalf("expected exit code 1 for failed parent, got %v", err)
-		}
-		if !containsAll(
-			stdout,
-			"task multi-run started:",
-			"task queue started | mode=parallel total=2",
-			"resolve parent branch",
-			"run failed",
-		) {
-			t.Fatalf("expected parallel base-resolution failure output, got %q\nstderr:\n%s", stdout, stderr)
-		}
-	})
+			if err == nil {
+				t.Fatalf(
+					"expected preflight rejection without a git workspace\nstdout:\n%s\nstderr:\n%s",
+					stdout,
+					stderr,
+				)
+			}
+			var exitErr *commandExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+				t.Fatalf("expected exit code 2 for preflight rejection, got %v", err)
+			}
+			if stdout != "" {
+				t.Fatalf("stdout = %q, want empty", stdout)
+			}
+			if !containsAll(stderr, workspaceRoot, "git workspace", "named branch") {
+				t.Fatalf("expected git workspace preflight failure, got stderr %q", stderr)
+			}
+		},
+	)
 }
 
 func TestTasksRunMultipleCommandStreamReturnsNonZeroOnParentFailure(t *testing.T) {

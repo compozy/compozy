@@ -221,6 +221,122 @@ func TestTasksRunParallelTasksEndToEndRoutesSingleWorkflowThroughParallelOrchest
 	})
 }
 
+func TestTasksRunParallelTasksEndToEndFromLinkedWorktree(t *testing.T) {
+	t.Run("Should merge parallel task output back into the linked worktree branch", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		const slug = "demo"
+		client, paths, primaryRoot, linkedRoot, _ := newLinkedParallelTasksCLIEnv(t, slug)
+		assertNoCompozyTaskFilesTrackedForCLI(t, linkedRoot)
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", slug,
+			"--parallel-tasks",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute linked --parallel-tasks run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(stdout, "task run started:", "(mode=stream)", "run completed") {
+			t.Fatalf("expected started and completed output, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		runID := taskRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		if snapshot.Run.Mode != "task_multi" || snapshot.Run.Status != "completed" {
+			t.Fatalf(
+				"snapshot run = (mode=%q,status=%q), want (task_multi,completed)",
+				snapshot.Run.Mode,
+				snapshot.Run.Status,
+			)
+		}
+		for taskNumber := 1; taskNumber <= 3; taskNumber++ {
+			linkedPath := filepath.Join(linkedRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber))
+			if _, err := os.Stat(linkedPath); err != nil {
+				t.Fatalf("expected merged linked task output %s: %v", linkedPath, err)
+			}
+			primaryPath := filepath.Join(primaryRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber))
+			if _, err := os.Stat(primaryPath); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("primary checkout task output %s stat = %v, want absent", primaryPath, err)
+			}
+		}
+		if got := strings.TrimSpace(runGitOutputForCLITests(t, primaryRoot, "status", "--porcelain")); got != "" {
+			t.Fatalf("primary checkout status = %q, want clean", got)
+		}
+		assertNoCLIWorktreesUnderRoot(t, primaryRoot, paths.WorktreesDir)
+	})
+}
+
+func TestTasksRunMultipleParallelEndToEndFromLinkedWorktree(t *testing.T) {
+	t.Run("Should run multiple workflows in linked worktree and purge owned worktrees", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		client, paths, primaryRoot, linkedRoot, branch := newLinkedParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream", "--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute linked parallel multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=parallel total=2",
+			"task multi-run handoff:",
+			"branch="+branch,
+		) {
+			t.Fatalf("expected linked parallel start + worktree handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		if snapshot.Run.Mode != "task_multi" || snapshot.Run.Status != "completed" {
+			t.Fatalf("snapshot parent = (mode=%q,status=%q), want (task_multi,completed)",
+				snapshot.Run.Mode, snapshot.Run.Status)
+		}
+		if len(snapshot.Items) != 2 {
+			t.Fatalf("snapshot item count = %d, want 2: %#v", len(snapshot.Items), snapshot.Items)
+		}
+		for i := range snapshot.Items {
+			item := &snapshot.Items[i]
+			if item.BaseBranch != branch {
+				t.Fatalf("snapshot item %q base branch = %q, want %q", item.Slug, item.BaseBranch, branch)
+			}
+			if !strings.HasPrefix(item.WorktreePath, paths.WorktreesDir) {
+				t.Fatalf("snapshot item %q worktree path = %q, want under %q",
+					item.Slug, item.WorktreePath, paths.WorktreesDir)
+			}
+		}
+		if got := strings.TrimSpace(runGitOutputForCLITests(t, primaryRoot, "status", "--porcelain")); got != "" {
+			t.Fatalf("primary checkout status = %q, want clean", got)
+		}
+		if got := strings.TrimSpace(runGitOutputForCLITests(t, linkedRoot, "status", "--porcelain")); got != "" {
+			t.Fatalf("linked checkout status = %q, want clean", got)
+		}
+
+		result, err := client.manager.Purge(context.Background(), daemon.RunLifecycleSettings{
+			KeepTerminalDays: 0,
+			KeepMax:          0,
+		})
+		if err != nil {
+			t.Fatalf("Purge() error = %v", err)
+		}
+		if !containsCLIString(result.PurgedRunIDs, runID) {
+			t.Fatalf("purged run ids = %v, want parent run %q included", result.PurgedRunIDs, runID)
+		}
+		assertNoCLIWorktreesUnderRoot(t, primaryRoot, paths.WorktreesDir)
+	})
+}
+
 func assertParallelWorktreeSnapshot(
 	t *testing.T,
 	snapshot apicore.TaskRunMultipleSnapshot,
@@ -350,6 +466,106 @@ func newParallelTasksCLIEnv(
 		},
 	})
 	return client, paths, workspaceRoot
+}
+
+func newLinkedParallelTasksCLIEnv(
+	t *testing.T,
+	slug string,
+) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string, string, string) {
+	t.Helper()
+
+	primaryRoot, linkedRoot, branch := initLinkedCLIWorkspace(t)
+	writeParallelTasksWorkflowForCLI(t, linkedRoot, slug)
+
+	prepareInProcessCLIDaemonHome(t)
+	paths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	withWorkingDir(t, linkedRoot)
+
+	client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{
+		WorktreesRoot: paths.WorktreesDir,
+		Prepare: func(
+			_ context.Context,
+			cfg *model.RuntimeConfig,
+			scope model.RunScope,
+		) (*model.SolvePreparation, error) {
+			taskNumber, err := requireCLITargetTaskNumber(cfg)
+			if err != nil {
+				return nil, err
+			}
+			if scope == nil {
+				return nil, errors.New("run scope is required")
+			}
+			return &model.SolvePreparation{
+				Jobs: []model.Job{{
+					SafeName: fmt.Sprintf("task-%02d", taskNumber),
+				}},
+				RunArtifacts: scope.RunArtifacts(),
+			}, nil
+		},
+		Execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			taskNumber, err := requireCLITargetTaskNumber(cfg)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(
+				filepath.Join(cfg.WorkspaceRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber)),
+				[]byte(fmt.Sprintf("task %02d\n", taskNumber)),
+				0o600,
+			); err != nil {
+				return err
+			}
+			return writeCLITaskResultFixture(cfg, "succeeded", 0, "")
+		},
+	})
+	return client, paths, primaryRoot, linkedRoot, branch
+}
+
+func newLinkedParallelMultiRunCLIEnv(
+	t *testing.T,
+	slugs []string,
+) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string, string, string) {
+	t.Helper()
+
+	primaryRoot, linkedRoot, branch := initLinkedCLIWorkspace(t)
+	for _, slug := range slugs {
+		writeTaskWorkflowForCLI(t, linkedRoot, slug)
+	}
+
+	prepareInProcessCLIDaemonHome(t)
+	paths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	withWorkingDir(t, linkedRoot)
+
+	client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{
+		WorktreesRoot: paths.WorktreesDir,
+		Prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		Execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			return nil
+		},
+	})
+	return client, paths, primaryRoot, linkedRoot, branch
+}
+
+func initLinkedCLIWorkspace(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	primaryRoot := t.TempDir()
+	writeParallelTasksGitignoreForCLI(t, primaryRoot)
+	if err := os.WriteFile(filepath.Join(primaryRoot, "README.md"), []byte("primary\n"), 0o600); err != nil {
+		t.Fatalf("write primary README: %v", err)
+	}
+	gitInitCommitCLIWorkspace(t, primaryRoot)
+	linkedRoot := filepath.Join(t.TempDir(), "linked")
+	branch := "feature-cli-linked"
+	runGitForCLITests(t, primaryRoot, "worktree", "add", "-q", "-b", branch, linkedRoot)
+	return primaryRoot, linkedRoot, branch
 }
 
 func writeParallelTasksGitignoreForCLI(t *testing.T, workspaceRoot string) {
@@ -595,4 +811,28 @@ func runGitOutputForCLITests(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
 	}
 	return string(out)
+}
+
+func assertNoCLIWorktreesUnderRoot(t *testing.T, repo string, worktreesRoot string) {
+	t.Helper()
+	list := runGitOutputForCLITests(t, repo, "worktree", "list", "--porcelain")
+	for _, line := range strings.Split(list, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "worktree ") {
+			continue
+		}
+		path := strings.TrimSpace(strings.TrimPrefix(line, "worktree "))
+		if strings.HasPrefix(path, worktreesRoot) {
+			t.Fatalf("found leaked Compozy worktree under %s in list:\n%s", worktreesRoot, list)
+		}
+	}
+}
+
+func containsCLIString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

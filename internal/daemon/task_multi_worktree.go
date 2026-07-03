@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/core/gitenv"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 )
 
@@ -71,7 +72,6 @@ type WorktreeLifecycle interface {
 		integrationBranch string,
 	) error
 	Remove(ctx context.Context, workspaceRoot string, path string) error
-	Prune(ctx context.Context, workspaceRoot string) error
 }
 
 // taskMultiWorktreeBase captures the parent workspace branch and commit resolved
@@ -605,9 +605,6 @@ func (a *taskMultiWorktreeAllocator) removeIntegrationWorktreeForPurge(
 		} else if !errors.Is(statErr, os.ErrNotExist) {
 			return false, fmt.Errorf("stat integration worktree %s after removal: %w", path, statErr)
 		}
-		if _, err := run(ctx, workspaceRoot, "worktree", "prune", "--expire", "now"); err != nil {
-			return false, fmt.Errorf("prune integration worktree metadata for %s: %w", path, err)
-		}
 		pathRemoved = true
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return false, fmt.Errorf("stat integration worktree %s: %w", path, statErr)
@@ -708,22 +705,6 @@ func (a *taskMultiWorktreeAllocator) integrationWorktreePathForBranch(
 		}
 	}
 	return "", nil
-}
-
-// Prune removes stale git worktree administrative references.
-func (a *taskMultiWorktreeAllocator) Prune(ctx context.Context, workspaceRoot string) error {
-	run, err := a.requireGitRunner()
-	if err != nil {
-		return err
-	}
-	workspace, err := requireTaskMultiWorktreeValue(workspaceRoot, "workspace root")
-	if err != nil {
-		return err
-	}
-	if _, err := run(ctx, workspace, "worktree", "prune"); err != nil {
-		return fmt.Errorf("prune worktrees for %s: %w", workspace, err)
-	}
-	return nil
 }
 
 // Head resolves HEAD in the supplied worktree path.
@@ -986,7 +967,9 @@ func taskMultiUniqueSorted(values []string) []string {
 
 func runTaskMultiWorktreeGitCommand(ctx context.Context, dir string, args ...string) (string, error) {
 	cmdArgs := append([]string{"-C", strings.TrimSpace(dir)}, args...)
-	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "git")
+	cmd.Args = append([]string{"git"}, cmdArgs...)
+	cmd.Env = gitenv.SanitizedEnv()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

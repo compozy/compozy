@@ -18,6 +18,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/gitenv"
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
@@ -772,6 +773,11 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
 		return err
 	}
+	if s.parallelTasks {
+		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
+			return err
+		}
+	}
 
 	presentationMode, err := s.resolveTaskPresentationMode(cmd)
 	if err != nil {
@@ -846,6 +852,11 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		return withExitCode(2, errors.New(
 			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
 		))
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
+			return err
+		}
 	}
 	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
@@ -928,6 +939,108 @@ func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
 		return errors.New("--parallel-limit is only valid with --multiple")
 	}
 	return nil
+}
+
+func (s *commandState) preflightParallelWorktreeMode(ctx context.Context) error {
+	root := strings.TrimSpace(s.workspaceRoot)
+	if root == "" {
+		return withExitCode(2, errors.New("parallel worktree-backed task runs require a workspace root"))
+	}
+	paths, err := resolveCLIDaemonHomePaths()
+	if err != nil {
+		return withExitCode(2, fmt.Errorf("resolve daemon home paths for parallel worktree preflight: %w", err))
+	}
+	inside, err := cliPathEqualOrInside(paths.WorktreesDir, root)
+	if err != nil {
+		return withExitCode(2, fmt.Errorf("inspect Compozy-managed worktree root for %s: %w", root, err))
+	}
+	if inside {
+		return withExitCode(
+			2,
+			fmt.Errorf(
+				"workspace %s is inside Compozy-managed worktree root %s; "+
+					"parallel task runs are not supported from a Compozy-managed worktree",
+				root,
+				paths.WorktreesDir,
+			),
+		)
+	}
+	branch, err := runTaskRunGitPreflight(ctx, root, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return withExitCode(
+			2,
+			fmt.Errorf(
+				"parallel worktree-backed task runs require a git workspace with a named branch at %s: %w",
+				root,
+				err,
+			),
+		)
+	}
+	branch = strings.TrimSpace(branch)
+	if branch == "" || branch == "HEAD" {
+		return withExitCode(
+			2,
+			fmt.Errorf(
+				"workspace %s is on a detached HEAD; checkout a branch before starting parallel worktree-backed task runs",
+				root,
+			),
+		)
+	}
+	return nil
+}
+
+func runTaskRunGitPreflight(ctx context.Context, workspaceRoot string, args ...string) (string, error) {
+	cmdArgs := append([]string{"-C", strings.TrimSpace(workspaceRoot)}, args...)
+	cmd := exec.CommandContext(ctx, "git")
+	cmd.Args = append([]string{"git"}, cmdArgs...)
+	cmd.Env = gitenv.SanitizedEnv()
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = strings.TrimSpace(stdout.String())
+		}
+		if message != "" {
+			return "", fmt.Errorf("%w: %s", err, message)
+		}
+		return "", err
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func cliPathEqualOrInside(parent string, child string) (bool, error) {
+	parentPath, err := cliCleanContainmentPath(parent)
+	if err != nil {
+		return false, err
+	}
+	childPath, err := cliCleanContainmentPath(child)
+	if err != nil {
+		return false, err
+	}
+	rel, err := filepath.Rel(parentPath, childPath)
+	if err != nil {
+		return false, fmt.Errorf("relativize path %s to %s: %w", childPath, parentPath, err)
+	}
+	return rel == "." || (rel != "" && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))), nil
+}
+
+func cliCleanContainmentPath(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", errors.New("path is required")
+	}
+	absolute, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("resolve path %s: %w", trimmed, err)
+	}
+	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+		absolute = resolved
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("resolve symlinks for %s: %w", absolute, err)
+	}
+	return filepath.Clean(absolute), nil
 }
 
 // resolveTaskRunMultipleMode resolves the multi-run scheduling mode with

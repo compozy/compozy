@@ -21,6 +21,8 @@ const (
 	taskParallelEventPrefix = "task.parallel."
 )
 
+var errRunPurgeDeferred = errors.New("daemon: run purge deferred")
+
 type runWorktreePurgePlan struct {
 	taskWorktrees []taskWorktreePurgeTarget
 	integration   *integrationWorktreePurgeTarget
@@ -37,6 +39,7 @@ type integrationWorktreePurgeTarget struct {
 }
 
 type preparedRunWorktreePurge struct {
+	manager       *RunManager
 	allocator     *taskMultiWorktreeAllocator
 	workspaceRoot string
 	worktreesRoot string
@@ -82,7 +85,11 @@ func (m *RunManager) prepareRunWorktreePurge(
 	if len(plan.taskWorktrees) == 0 && plan.integration == nil {
 		return nil, false, nil
 	}
+	if err := ensurePurgeWorkspaceRootAvailable(workspace.RootDir); err != nil {
+		return nil, false, err
+	}
 	return &preparedRunWorktreePurge{
+		manager:       m,
 		allocator:     allocator,
 		workspaceRoot: workspace.RootDir,
 		worktreesRoot: worktreesRoot,
@@ -91,6 +98,11 @@ func (m *RunManager) prepareRunWorktreePurge(
 }
 
 func (p preparedRunWorktreePurge) execute(ctx context.Context, runID string) ([]string, error) {
+	if path, activeRunID, blocked, err := p.taskWorktreeHostingActiveRun(ctx, runID); err != nil {
+		return nil, err
+	} else if blocked {
+		return nil, deferRunPurge("worktree %s hosts active run %s", path, activeRunID)
+	}
 	purged, err := p.removeTaskWorktrees(ctx, runID)
 	if err != nil {
 		return purged, err
@@ -157,6 +169,119 @@ func (p preparedRunWorktreePurge) removeIntegrationWorktree(ctx context.Context,
 	}
 	removeEmptyWorktreeParents(p.worktreesRoot, removedPath)
 	return removedPath, nil
+}
+
+func (p preparedRunWorktreePurge) taskWorktreeHostingActiveRun(
+	ctx context.Context,
+	parentRunID string,
+) (string, string, bool, error) {
+	if p.manager == nil || len(p.plan.taskWorktrees) == 0 {
+		return "", "", false, nil
+	}
+	activeRoots, err := p.manager.activeRunWorkspaceRoots(ctx)
+	if err != nil {
+		return "", "", false, err
+	}
+	if len(activeRoots) == 0 {
+		return "", "", false, nil
+	}
+	parentRunID = strings.TrimSpace(parentRunID)
+	for _, target := range p.plan.taskWorktrees {
+		for _, active := range activeRoots {
+			if active.runID == "" || active.runID == parentRunID || strings.TrimSpace(active.rootDir) == "" {
+				continue
+			}
+			inside, err := pathEqualOrInside(target.Path, active.rootDir)
+			if err != nil {
+				return "", "", false, err
+			}
+			if inside {
+				return target.Path, active.runID, true, nil
+			}
+		}
+	}
+	return "", "", false, nil
+}
+
+type activeRunWorkspaceRoot struct {
+	runID   string
+	rootDir string
+}
+
+func (m *RunManager) activeRunWorkspaceRoots(ctx context.Context) ([]activeRunWorkspaceRoot, error) {
+	if m == nil || m.globalDB == nil {
+		return nil, nil
+	}
+	activeRuns := m.activeSnapshot()
+	roots := make([]activeRunWorkspaceRoot, 0, len(activeRuns))
+	for _, active := range activeRuns {
+		if active == nil || strings.TrimSpace(active.workspaceID) == "" {
+			continue
+		}
+		workspace, err := m.globalDB.Get(ctx, active.workspaceID)
+		if err != nil {
+			if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("load active workspace for run %s: %w", active.runID, err)
+		}
+		roots = append(roots, activeRunWorkspaceRoot{
+			runID:   strings.TrimSpace(active.runID),
+			rootDir: strings.TrimSpace(workspace.RootDir),
+		})
+	}
+	return roots, nil
+}
+
+func ensurePurgeWorkspaceRootAvailable(workspaceRoot string) error {
+	root := strings.TrimSpace(workspaceRoot)
+	if root == "" {
+		return deferRunPurge("workspace root is empty")
+	}
+	if _, err := os.Stat(root); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return deferRunPurge("workspace root %s is missing", root)
+		}
+		return fmt.Errorf("stat workspace root %s for purge: %w", root, err)
+	}
+	return nil
+}
+
+func deferRunPurge(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", errRunPurgeDeferred, fmt.Sprintf(format, args...))
+}
+
+func pathEqualOrInside(parent string, child string) (bool, error) {
+	parentPath, err := cleanContainmentPath(parent)
+	if err != nil {
+		return false, err
+	}
+	childPath, err := cleanContainmentPath(child)
+	if err != nil {
+		return false, err
+	}
+	rel, err := filepath.Rel(parentPath, childPath)
+	if err != nil {
+		return false, fmt.Errorf("relativize path %s to %s: %w", childPath, parentPath, err)
+	}
+	return rel == "." || isRelativeChildPath(rel), nil
+}
+
+func cleanContainmentPath(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", errors.New("path is required")
+	}
+	absolute, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("resolve path %s: %w", trimmed, err)
+	}
+	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+		absolute = resolved
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("resolve symlinks for %s: %w", absolute, err)
+	}
+	return filepath.Clean(absolute), nil
 }
 
 func (m *RunManager) purgeWorktreeAllocator(

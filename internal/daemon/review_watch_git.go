@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/compozy/compozy/internal/core/gitenv"
 )
 
 // ReviewWatchGit is the narrow git boundary used by daemon review-watch runs.
@@ -110,7 +112,9 @@ func (g *execReviewWatchGit) Push(
 
 func runReviewWatchGitCommand(ctx context.Context, workspaceRoot string, args ...string) (string, error) {
 	cmdArgs := append([]string{"-C", strings.TrimSpace(workspaceRoot)}, args...)
-	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "git")
+	cmd.Args = append([]string{"git"}, cmdArgs...)
+	cmd.Env = gitenv.SanitizedEnv()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

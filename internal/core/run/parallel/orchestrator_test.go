@@ -30,6 +30,10 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder,
 	)
 	t.Run(
+		"Should not prune the repo family during completed scoped cleanup",
+		runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup,
+	)
+	t.Run(
 		"Should allocate the next wave from the post-merge integration head",
 		runParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead,
 	)
@@ -231,6 +235,29 @@ func runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T)
 		[]TaskID{"task_01", "task_02", "task_03"},
 	) {
 		t.Fatalf("synced artifact tasks = %#v, want merged task order", got)
+	}
+}
+
+func runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{
+		testTaskEntry("task_01"),
+	}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+
+	outcome, err := NewParallelExecutionOrchestrator(worktrees, launcher).Run(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if outcome.Status != ParallelOutcomeCompleted {
+		t.Fatalf("status = %q, want completed", outcome.Status)
+	}
+	if worktrees.wasPruned() {
+		t.Fatal("completed scoped cleanup invoked repo-wide worktree prune")
 	}
 }
 
@@ -1079,6 +1106,12 @@ func (f *fakeWorktreeLifecycle) wasDiscarded() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.discardedBranch
+}
+
+func (f *fakeWorktreeLifecycle) wasPruned() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.pruned
 }
 
 func (f *fakeWorktreeLifecycle) integrationCommitCount() int {

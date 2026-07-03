@@ -95,7 +95,6 @@ type WorktreeLifecycle interface {
 		integrationBranch string,
 	) error
 	Remove(ctx context.Context, workspaceRoot string, path string) error
-	Prune(ctx context.Context, workspaceRoot string) error
 }
 
 // TaskCommitSpec constrains a task worktree commit to paths the child run
@@ -791,10 +790,9 @@ func (o *ExecutionOrchestrator) rollback(
 		plan.IntegrationPath,
 		plan.IntegrationBranch,
 	)
-	pruneErr := o.worktrees.Prune(rollbackCtx, plan.WorkspaceRoot)
 	transitionErr := o.transition(rollbackCtx, machine, parallelEventRollback, -1)
 	o.emitRolledBack(rollbackCtx, plan, waveIndex)
-	return errors.Join(cause, discardErr, pruneErr, transitionErr)
+	return errors.Join(cause, discardErr, transitionErr)
 }
 
 func (o *ExecutionOrchestrator) fail(
@@ -835,9 +833,6 @@ func (o *ExecutionOrchestrator) cleanupCompleted(
 		plan.IntegrationBranch,
 	); err != nil {
 		return fmt.Errorf("discard integration branch %s: %w", plan.IntegrationBranch, err)
-	}
-	if err := o.worktrees.Prune(ctx, plan.WorkspaceRoot); err != nil {
-		return fmt.Errorf("prune worktrees for %s: %w", plan.WorkspaceRoot, err)
 	}
 	return nil
 }
