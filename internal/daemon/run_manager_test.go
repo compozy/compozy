@@ -2008,6 +2008,138 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		assertProblemStatus(t, err, 422)
 	})
 
+	t.Run("Should apply stall overrides with per-run precedence over project", func(t *testing.T) {
+		cfg := &model.RuntimeConfig{}
+		if err := applyRuntimeOverridesFromProject(cfg, workspacecfg.RuntimeOverrides{
+			Stall: workspacecfg.StallOverrides{
+				Enabled:      boolPtr(true),
+				Timeout:      stringPtr("2m"),
+				ChildTimeout: stringPtr("5m"),
+				Retries:      intPtr(3),
+			},
+		}, "defaults"); err != nil {
+			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
+		}
+		if cfg.StallTimeout != 2*time.Minute {
+			t.Fatalf("project stall timeout = %v, want 2m", cfg.StallTimeout)
+		}
+		if err := applyRuntimeOverrideInput(cfg, runtimeOverrideInput{
+			Stall: &workspacecfg.StallOverrides{
+				Timeout:                stringPtr("5m"),
+				TerminalCommandTimeout: stringPtr("20m"),
+				Enabled:                boolPtr(false),
+			},
+		}); err != nil {
+			t.Fatalf("applyRuntimeOverrideInput() error = %v", err)
+		}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if policy.IdleTimeout != 5*time.Minute {
+			t.Fatalf("per-run stall timeout precedence failed: %v, want 5m", policy.IdleTimeout)
+		}
+		if policy.Enabled {
+			t.Fatal("per-run stall disable did not take precedence")
+		}
+		if policy.TerminalCap != 20*time.Minute {
+			t.Fatalf("terminal cap = %v, want 20m", policy.TerminalCap)
+		}
+		if policy.Retries != 3 {
+			t.Fatalf("project retries not retained: %d, want 3", policy.Retries)
+		}
+		if policy.ChildTimeout <= policy.IdleTimeout {
+			t.Fatalf("child %v must exceed idle %v after correction", policy.ChildTimeout, policy.IdleTimeout)
+		}
+	})
+
+	t.Run("Should surface an invalid stall duration parse error", func(t *testing.T) {
+		cfg := &model.RuntimeConfig{}
+		err := applyRuntimeOverridesFromProject(cfg, workspacecfg.RuntimeOverrides{
+			Stall: workspacecfg.StallOverrides{Timeout: stringPtr("not-a-duration")},
+		}, "defaults")
+		if err == nil {
+			t.Fatal("applyRuntimeOverridesFromProject(invalid stall.timeout) error = nil, want non-nil")
+		}
+		assertProblemStatus(t, err, 422)
+
+		perRunErr := applyRuntimeOverrideInput(cfg, runtimeOverrideInput{
+			Stall: &workspacecfg.StallOverrides{ChildTimeout: stringPtr("bogus")},
+		})
+		if perRunErr == nil {
+			t.Fatal("applyRuntimeOverrideInput(invalid stall.child_timeout) error = nil, want non-nil")
+		}
+		assertProblemStatus(t, perRunErr, 422)
+
+		terminalErr := applyRuntimeOverridesFromProject(cfg, workspacecfg.RuntimeOverrides{
+			Stall: workspacecfg.StallOverrides{TerminalCommandTimeout: stringPtr("nope")},
+		}, "defaults")
+		if terminalErr == nil {
+			t.Fatal(
+				"applyRuntimeOverridesFromProject(invalid stall.terminal_command_timeout) error = nil, want non-nil",
+			)
+		}
+		assertProblemStatus(t, terminalErr, 422)
+	})
+
+	t.Run("Should resolve the parked sound override", func(t *testing.T) {
+		cfg := &model.RuntimeConfig{}
+		applySoundConfig(cfg, workspacecfg.SoundConfig{OnParked: stringPtr("  ping  ")})
+		if cfg.SoundOnParked != "ping" {
+			t.Fatalf("parked sound override = %q, want trimmed ping", cfg.SoundOnParked)
+		}
+	})
+
+	t.Run("Should resolve a loaded stall config through the daemon apply path", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv(compozyconfig.HomeEnvVar, "")
+		root := t.TempDir()
+		configDir := filepath.Join(root, ".compozy")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("mkdir config dir: %v", err)
+		}
+		content := "[defaults.stall]\n" +
+			"timeout = \"2m\"\n" +
+			"child_timeout = \"9m\"\n" +
+			"terminal_command_timeout = \"30m\"\n" +
+			"retries = 2\n\n" +
+			"[sound]\n" +
+			"on_parked = \"ping\"\n"
+		if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o600); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+
+		projectCfg, _, err := workspacecfg.LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("LoadConfig() error = %v", err)
+		}
+
+		cfg := &model.RuntimeConfig{}
+		applySoundConfig(cfg, projectCfg.Sound)
+		if err := applyRuntimeOverridesFromProject(
+			cfg,
+			workspacecfg.RuntimeOverrides(projectCfg.Defaults),
+			"defaults",
+		); err != nil {
+			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
+		}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if !policy.Enabled {
+			t.Fatalf("expected enabled-by-default when unset, got %#v", policy)
+		}
+		if policy.IdleTimeout != 2*time.Minute || policy.ChildTimeout != 9*time.Minute {
+			t.Fatalf("resolved timeouts = %v / %v, want 2m / 9m", policy.IdleTimeout, policy.ChildTimeout)
+		}
+		if policy.TerminalCap != 30*time.Minute || policy.Retries != 2 {
+			t.Fatalf("resolved cap/retries = %v / %d, want 30m / 2", policy.TerminalCap, policy.Retries)
+		}
+		if cfg.SoundOnParked != "ping" {
+			t.Fatalf("resolved parked sound = %q, want ping", cfg.SoundOnParked)
+		}
+	})
+
 	t.Run("Should detach context and normalize raw helper values", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
