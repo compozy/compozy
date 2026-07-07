@@ -14,6 +14,8 @@ GOFMT=gofmt -s -w
 BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
+# Standalone Go extension modules (own go.mod, excluded from the root ./...).
+EXTENSION_GO_MODULES=extensions/cy-qa-workflow
 GOLANGCI_LINT_VERSION=v2.11.4
 GOTESTSUM_VERSION=v1.13.0
 LINTCMD=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
@@ -39,7 +41,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build verify-extensions frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -154,8 +156,20 @@ frontend-verify: frontend-lint frontend-typecheck frontend-test frontend-build
 # -----------------------------------------------------------------------------
 # Verification Pipeline (BLOCKING GATE for any change)
 # -----------------------------------------------------------------------------
-verify: frontend-verify fmt lint test go-build frontend-e2e
+verify: frontend-verify fmt lint test go-build verify-extensions frontend-e2e
 	@echo "$(GREEN)All verification checks passed$(NC)"
+
+# Standalone extension modules ship their own go.mod and are excluded from the
+# root ./..., so build/test/lint them here to keep them covered by verify.
+verify-extensions:
+	@for dir in $(EXTENSION_GO_MODULES); do \
+		echo "Verifying extension module $$dir"; \
+		( cd $$dir && \
+			$(GOBUILD) -o /dev/null ./... && \
+			$(GOTEST) -race ./... && \
+			$(LINTCMD) run ) || exit 1; \
+	done
+	@echo "$(GREEN)Extension modules verified$(NC)"
 
 # -----------------------------------------------------------------------------
 # Development & Dependencies
