@@ -41,6 +41,8 @@ const (
 	EventKindJobAttemptStarted  EventKind = "job.attempt_started"
 	EventKindJobAttemptFinished EventKind = "job.attempt_finished"
 	EventKindJobRetryScheduled  EventKind = "job.retry_scheduled"
+	EventKindJobStalled         EventKind = "job.stalled"
+	EventKindJobParked          EventKind = "job.parked"
 	EventKindJobPausing         EventKind = "job.pausing"
 	EventKindJobPaused          EventKind = "job.paused"
 	EventKindJobResumed         EventKind = "job.resumed"

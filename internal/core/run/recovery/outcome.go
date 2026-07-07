@@ -17,6 +17,9 @@ const (
 	StatusFailed RunStatus = "failed"
 	// StatusCanceled marks a run or job that was canceled.
 	StatusCanceled RunStatus = "canceled"
+	// StatusParked marks a job that stalled again after its clean-state retry and
+	// was parked for triage. It is terminal and distinct from failed and canceled.
+	StatusParked RunStatus = "parked"
 	// StatusUnknown marks a job whose terminal state was unavailable.
 	StatusUnknown RunStatus = "unknown"
 )

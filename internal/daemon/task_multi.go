@@ -1155,6 +1155,8 @@ func recoveryStatusForRunStatus(status string) recovery.RunStatus {
 		return recovery.StatusSucceeded
 	case runStatusCancelled:
 		return recovery.StatusCanceled
+	case runStatusParked:
+		return recovery.StatusParked
 	case runStatusFailed, runStatusCrashed:
 		return recovery.StatusFailed
 	default:

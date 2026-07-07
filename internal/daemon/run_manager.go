@@ -46,6 +46,7 @@ const (
 	runStatusFailed    = "failed"
 	runStatusCancelled = "canceled"
 	runStatusCrashed   = "crashed"
+	runStatusParked    = "parked"
 
 	defaultRunListLimit       = 100
 	defaultPresentationMode   = "stream"
@@ -2595,7 +2596,7 @@ func cancelledTerminalState(err error) terminalState {
 
 func isTerminalRunStatus(status string) bool {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case runStatusCompleted, runStatusFailed, runStatusCancelled, runStatusCrashed:
+	case runStatusCompleted, runStatusFailed, runStatusCancelled, runStatusCrashed, runStatusParked:
 		return true
 	default:
 		return false

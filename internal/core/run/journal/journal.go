@@ -758,7 +758,8 @@ func isTerminalEvent(kind events.EventKind) bool {
 	case events.EventKindRunCrashed,
 		events.EventKindRunCompleted,
 		events.EventKindRunFailed,
-		events.EventKindRunCancelled:
+		events.EventKindRunCancelled,
+		events.EventKindJobParked:
 		return true
 	default:
 		return false
