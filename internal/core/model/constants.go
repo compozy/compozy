@@ -21,7 +21,7 @@ const (
 	DefaultPiModel           = "anthropic/claude-opus-4-6"
 	DefaultGeminiModel       = "gemini-2.5-pro"
 	DefaultCopilotModel      = "claude-sonnet-4.6"
-	DefaultKiroModel         = "anthropic/claude-opus-4-6"
+	DefaultKiroModel         = "claude-opus-4.6"
 	DefaultDevinModel        = "anthropic/claude-opus-4-6"
 	DefaultActivityTimeout   = 10 * time.Minute
 	WorkflowRootDirName      = ".compozy"
