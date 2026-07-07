@@ -44,6 +44,7 @@ type Config struct {
 	SoundEnabled           bool
 	SoundOnCompleted       string
 	SoundOnFailed          string
+	Stall                  model.StallPolicy
 	JobControls            *model.JobControlRegistry
 }
 
@@ -148,6 +149,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		SoundEnabled:           src.SoundEnabled,
 		SoundOnCompleted:       src.SoundOnCompleted,
 		SoundOnFailed:          src.SoundOnFailed,
+		Stall:                  src.StallPolicy(),
 		JobControls:            src.JobControls,
 	}
 }

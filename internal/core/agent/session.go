@@ -63,6 +63,10 @@ type sessionImpl struct {
 	updatesSeen                 int
 	lastUpdateWasFailedToolCall bool
 	lastDropLogAt               time.Time
+	// runCtx is the cancellable run/attempt context driving this session's
+	// prompt turn. Terminal commands are parented to it so that canceling the
+	// attempt (or shutting the run down) propagates to the subprocess tree.
+	runCtx context.Context
 }
 
 var _ Session = (*sessionImpl)(nil)
@@ -96,6 +100,20 @@ func newLoadedSession(id string, workingDir string, allowedRoots []string) *sess
 
 func (s *sessionImpl) Updates() <-chan model.SessionUpdate {
 	return s.updates
+}
+
+// setRunContext records the cancellable run/attempt context for this session.
+func (s *sessionImpl) setRunContext(ctx context.Context) {
+	s.mu.Lock()
+	s.runCtx = ctx
+	s.mu.Unlock()
+}
+
+// runContext returns the session's run/attempt context, or nil if unset.
+func (s *sessionImpl) runContext() context.Context {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.runCtx
 }
 
 func (s *sessionImpl) ID() string {

@@ -49,6 +49,10 @@ type ClientConfig struct {
 	AccessMode      string
 	Logger          *slog.Logger
 	ShutdownTimeout time.Duration
+	// TerminalCommandTimeout is the absolute wall-clock cap applied to each
+	// terminal command as a last-resort backstop. Zero falls back to the
+	// resolved stall-policy default.
+	TerminalCommandTimeout time.Duration
 }
 
 // SessionRequest contains the parameters for creating a new ACP session.
@@ -289,11 +293,22 @@ func (e *SessionError) toolCallID() string {
 	return strings.TrimSpace(payload.ToolCallID)
 }
 
+// defaultAgentHandlerDeadline bounds the fast agent-facing handlers we own
+// (permission and filesystem requests) so a wedged handler returns a structured
+// failure instead of hanging the ACP dispatch goroutine forever.
+const defaultAgentHandlerDeadline = 30 * time.Second
+
 type clientImpl struct {
 	spec            Spec
 	cfg             ClientConfig
 	logger          *slog.Logger
 	shutdownTimeout time.Duration
+	// terminalCommandTimeout caps each terminal command's absolute wall-clock
+	// runtime. Zero falls back to model.DefaultStallTerminalCap.
+	terminalCommandTimeout time.Duration
+	// handlerDeadline bounds the permission/filesystem handlers. Zero disables
+	// the deadline (used by focused tests that build the struct directly).
+	handlerDeadline time.Duration
 
 	mu             sync.Mutex
 	process        *subprocess.Process
@@ -329,11 +344,13 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 	}
 
 	return &clientImpl{
-		spec:            spec,
-		cfg:             cfg,
-		logger:          cfg.Logger,
-		shutdownTimeout: shutdownTimeout,
-		sessions:        make(map[string]*sessionImpl),
+		spec:                   spec,
+		cfg:                    cfg,
+		logger:                 cfg.Logger,
+		shutdownTimeout:        shutdownTimeout,
+		terminalCommandTimeout: cfg.TerminalCommandTimeout,
+		handlerDeadline:        defaultAgentHandlerDeadline,
+		sessions:               make(map[string]*sessionImpl),
 	}, nil
 }
 
@@ -655,22 +672,27 @@ func (c *clientImpl) Kill() error {
 }
 
 // ReadTextFile handles ACP file read requests from the agent.
-func (c *clientImpl) ReadTextFile(_ context.Context, params acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
+func (c *clientImpl) ReadTextFile(
+	ctx context.Context,
+	params acp.ReadTextFileRequest,
+) (acp.ReadTextFileResponse, error) {
 	path, err := c.resolveSessionFilePath(params.SessionId, params.Path)
 	if err != nil {
 		return acp.ReadTextFileResponse{}, err
 	}
 
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return acp.ReadTextFileResponse{}, err
-	}
-	return acp.ReadTextFileResponse{Content: string(content)}, nil
+	return runWithDeadline(ctx, c.handlerDeadline, "read text file", func() (acp.ReadTextFileResponse, error) {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return acp.ReadTextFileResponse{}, err
+		}
+		return acp.ReadTextFileResponse{Content: string(content)}, nil
+	})
 }
 
 // WriteTextFile handles ACP file write requests from the agent.
 func (c *clientImpl) WriteTextFile(
-	_ context.Context,
+	ctx context.Context,
 	params acp.WriteTextFileRequest,
 ) (acp.WriteTextFileResponse, error) {
 	path, err := c.resolveSessionFilePath(params.SessionId, params.Path)
@@ -678,32 +700,85 @@ func (c *clientImpl) WriteTextFile(
 		return acp.WriteTextFileResponse{}, err
 	}
 
-	mode := os.FileMode(0o600)
-	if info, statErr := os.Stat(path); statErr == nil {
-		mode = info.Mode().Perm()
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return acp.WriteTextFileResponse{}, fmt.Errorf("stat session file %q: %w", path, statErr)
-	}
-
-	if err := os.WriteFile(path, []byte(params.Content), mode); err != nil {
-		return acp.WriteTextFileResponse{}, err
-	}
-	return acp.WriteTextFileResponse{}, nil
+	return runWithDeadline(ctx, c.handlerDeadline, "write text file", func() (acp.WriteTextFileResponse, error) {
+		mode := os.FileMode(0o600)
+		if info, statErr := os.Stat(path); statErr == nil {
+			mode = info.Mode().Perm()
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return acp.WriteTextFileResponse{}, fmt.Errorf("stat session file %q: %w", path, statErr)
+		}
+		if err := os.WriteFile(path, []byte(params.Content), mode); err != nil {
+			return acp.WriteTextFileResponse{}, err
+		}
+		return acp.WriteTextFileResponse{}, nil
+	})
 }
 
 // RequestPermission auto-approves the first offered option to match the current non-interactive runtime.
 func (c *clientImpl) RequestPermission(
-	_ context.Context,
+	ctx context.Context,
 	params acp.RequestPermissionRequest,
 ) (acp.RequestPermissionResponse, error) {
+	return runWithDeadline(
+		ctx,
+		c.handlerDeadline,
+		"request permission",
+		func() (acp.RequestPermissionResponse, error) {
+			return defaultPermissionOutcome(params), nil
+		},
+	)
+}
+
+// defaultPermissionOutcome auto-approves the first offered option, or cancels
+// when the agent offered no options.
+func defaultPermissionOutcome(params acp.RequestPermissionRequest) acp.RequestPermissionResponse {
 	if len(params.Options) == 0 {
 		return acp.RequestPermissionResponse{
 			Outcome: acp.NewRequestPermissionOutcomeCancelled(),
-		}, nil
+		}
 	}
 	return acp.RequestPermissionResponse{
 		Outcome: acp.NewRequestPermissionOutcomeSelected(params.Options[0].OptionId),
-	}, nil
+	}
+}
+
+// runWithDeadline runs fn under an absolute deadline. When timeout is positive
+// and fn does not return within it, a structured failure carrying the deadline
+// cause is returned instead of hanging the ACP dispatch goroutine. A zero
+// timeout runs fn inline with no deadline.
+func runWithDeadline[T any](
+	ctx context.Context,
+	timeout time.Duration,
+	op string,
+	fn func() (T, error),
+) (T, error) {
+	if timeout <= 0 {
+		return fn()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	type outcome struct {
+		value T
+		err   error
+	}
+	// Buffered so the worker never blocks on send after we return on deadline.
+	resultCh := make(chan outcome, 1)
+	go func() {
+		value, err := fn()
+		resultCh <- outcome{value: value, err: err}
+	}()
+
+	select {
+	case res := <-resultCh:
+		return res.value, res.err
+	case <-ctx.Done():
+		var zero T
+		return zero, fmt.Errorf("%s deadline exceeded after %s: %w", op, timeout, ctx.Err())
+	}
 }
 
 // SessionUpdate routes streamed ACP notifications to the correct Compozy session.
@@ -1062,6 +1137,10 @@ func shouldDowngradePromptErrorAfterToolFailure(session *sessionImpl, err error)
 }
 
 func (c *clientImpl) storeSession(ctx context.Context, session *sessionImpl) {
+	// Parent terminal commands created during this session's prompt turn to the
+	// cancellable run/attempt context so cancellation and shutdown propagate.
+	session.setRunContext(ctx)
+
 	c.mu.Lock()
 	c.sessions[session.id] = session
 	pending := append([]model.SessionUpdate(nil), c.pendingUpdates[session.id]...)
