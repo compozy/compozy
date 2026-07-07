@@ -190,6 +190,100 @@ func TestSessionPublishBehavior(t *testing.T) {
 		}
 	})
 
+	t.Run("critical completed update is delivered under saturated buffer", func(t *testing.T) {
+		// A backpressure window that would immediately drop a non-critical update.
+		setSessionPublishBackpressureTimeout(t, time.Millisecond)
+
+		session := newTestSessionWithBuffer("sess-critical", 1)
+		session.updates <- model.SessionUpdate{Kind: model.UpdateKindPlanUpdated}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		critical := model.SessionUpdate{
+			Kind:          model.UpdateKindToolCallUpdated,
+			ToolCallState: model.ToolCallStateCompleted,
+		}
+		go func() {
+			session.publish(ctx, critical)
+			close(done)
+		}()
+
+		waitForActivePublish(t, session)
+		// Prove the critical publish blocks past the backpressure window instead
+		// of dropping the completion.
+		select {
+		case <-done:
+			t.Fatal("expected critical publish to block until the drain accepts it")
+		case <-time.After(20 * time.Millisecond):
+		}
+
+		buffered := mustReceiveSessionUpdate(t, session.updates)
+		if buffered.Kind != model.UpdateKindPlanUpdated {
+			t.Fatalf("unexpected saturating update kind: %q", buffered.Kind)
+		}
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("critical publish did not complete after the drain freed the buffer")
+		}
+
+		got := mustReceiveSessionUpdate(t, session.updates)
+		if got.Kind != model.UpdateKindToolCallUpdated || got.ToolCallState != model.ToolCallStateCompleted {
+			t.Fatalf("unexpected delivered critical update: kind=%q state=%q", got.Kind, got.ToolCallState)
+		}
+		if session.DroppedUpdates() != 0 {
+			t.Fatalf("critical update must never drop, got dropped=%d", session.DroppedUpdates())
+		}
+		if session.SlowPublishes() != 1 {
+			t.Fatalf("expected one slow publish for the blocked critical update, got %d", session.SlowPublishes())
+		}
+	})
+
+	t.Run("non-critical updates drop under sustained backpressure but critical never drops", func(t *testing.T) {
+		setSessionPublishBackpressureTimeout(t, 0)
+
+		session := newTestSessionWithBuffer("sess-mixed", 1)
+		session.updates <- model.SessionUpdate{Kind: model.UpdateKindPlanUpdated}
+
+		const chatter = 50
+		for i := 0; i < chatter; i++ {
+			session.publish(context.Background(), model.SessionUpdate{Kind: model.UpdateKindAgentThoughtChunk})
+		}
+		if got := session.DroppedUpdates(); got != chatter {
+			t.Fatalf("expected %d non-critical drops, got %d", chatter, got)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan struct{})
+		go func() {
+			session.publish(ctx, model.SessionUpdate{Kind: model.UpdateKindToolCallStarted})
+			close(done)
+		}()
+		waitForActivePublish(t, session)
+
+		buffered := mustReceiveSessionUpdate(t, session.updates)
+		if buffered.Kind != model.UpdateKindPlanUpdated {
+			t.Fatalf("unexpected saturating update kind: %q", buffered.Kind)
+		}
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("critical publish did not complete after the buffer was freed")
+		}
+
+		got := mustReceiveSessionUpdate(t, session.updates)
+		if got.Kind != model.UpdateKindToolCallStarted {
+			t.Fatalf("unexpected critical update delivered: %q", got.Kind)
+		}
+		if session.DroppedUpdates() != chatter {
+			t.Fatalf("critical update must not increment drops, got %d", session.DroppedUpdates())
+		}
+	})
+
 	t.Run("accessors expose atomic counters", func(t *testing.T) {
 		session := newTestSessionWithBuffer("sess-metrics", 1)
 		session.slowPublishes.Store(7)
@@ -249,6 +343,79 @@ func TestSessionPublishBehavior(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestIsCriticalSessionUpdate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		update model.SessionUpdate
+		want   bool
+	}{
+		{
+			name:   "tool call started is critical",
+			update: model.SessionUpdate{Kind: model.UpdateKindToolCallStarted},
+			want:   true,
+		},
+		{
+			name:   "tool call updated is critical",
+			update: model.SessionUpdate{Kind: model.UpdateKindToolCallUpdated},
+			want:   true,
+		},
+		{
+			name: "tool call completed transition is critical",
+			update: model.SessionUpdate{
+				Kind:          model.UpdateKindToolCallUpdated,
+				ToolCallState: model.ToolCallStateCompleted,
+			},
+			want: true,
+		},
+		{
+			name: "terminal completed status is critical",
+			update: model.SessionUpdate{
+				Kind:   model.UpdateKindAgentMessageChunk,
+				Status: model.StatusCompleted,
+			},
+			want: true,
+		},
+		{
+			name:   "terminal failed status is critical",
+			update: model.SessionUpdate{Status: model.StatusFailed},
+			want:   true,
+		},
+		{
+			name:   "agent message chunk is non-critical",
+			update: model.SessionUpdate{Kind: model.UpdateKindAgentMessageChunk},
+			want:   false,
+		},
+		{
+			name:   "agent thought chunk is non-critical",
+			update: model.SessionUpdate{Kind: model.UpdateKindAgentThoughtChunk},
+			want:   false,
+		},
+		{
+			name:   "plan update is non-critical",
+			update: model.SessionUpdate{Kind: model.UpdateKindPlanUpdated},
+			want:   false,
+		},
+		{
+			name: "running message chunk is non-critical",
+			update: model.SessionUpdate{
+				Kind:   model.UpdateKindAgentMessageChunk,
+				Status: model.StatusRunning,
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isCriticalSessionUpdate(tt.update); got != tt.want {
+				t.Fatalf("isCriticalSessionUpdate(%+v) = %v, want %v", tt.update, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestClientSessionBufferHandlesThousandUpdatesWithoutDrops(t *testing.T) {
@@ -311,6 +478,66 @@ func TestClientSessionBufferHandlesThousandUpdatesWithoutDrops(t *testing.T) {
 	}
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestSessionUpdateNeverDropsCompletionWhenDrainBrieflyStalls(t *testing.T) {
+	// A backpressure window that would immediately drop a non-critical update,
+	// proving the completion survives because it is critical, not because the
+	// window is generous.
+	setSessionPublishBackpressureTimeout(t, time.Millisecond)
+
+	sessionID := "sess-integration"
+	session := newSession(sessionID)
+	session.updates = make(chan model.SessionUpdate, 1)
+	// Saturate the buffer so the incoming completion cannot land until the drain
+	// resumes.
+	session.updates <- model.SessionUpdate{Kind: model.UpdateKindAgentMessageChunk}
+
+	client := &clientImpl{sessions: map[string]*sessionImpl{sessionID: session}}
+
+	notification := acp.SessionNotification{
+		SessionId: acp.SessionId(sessionID),
+		Update: acp.UpdateToolCall(
+			acp.ToolCallId("tool-1"),
+			acp.WithUpdateStatus(acp.ToolCallStatusCompleted),
+		),
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- client.SessionUpdate(context.Background(), notification)
+	}()
+
+	// The completion is critical: with the buffer saturated it must block (the
+	// drain is stalled) rather than drop.
+	waitForActivePublish(t, session)
+
+	first := mustReceiveSessionUpdate(t, session.updates)
+	if first.Kind != model.UpdateKindAgentMessageChunk {
+		t.Fatalf("unexpected first drained update: %q", first.Kind)
+	}
+	completion := mustReceiveSessionUpdate(t, session.updates)
+	if completion.Kind != model.UpdateKindToolCallUpdated ||
+		completion.ToolCallState != model.ToolCallStateCompleted {
+		t.Fatalf(
+			"completion not delivered downstream: kind=%q state=%q",
+			completion.Kind,
+			completion.ToolCallState,
+		)
+	}
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("SessionUpdate returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("SessionUpdate did not return after the completion was delivered")
+	}
+
+	if got := session.DroppedUpdates(); got != 0 {
+		t.Fatalf("completion must never drop, got dropped=%d", got)
 	}
 }
 

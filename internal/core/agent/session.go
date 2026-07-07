@@ -152,6 +152,31 @@ func (s *sessionImpl) publish(ctx context.Context, update model.SessionUpdate) {
 	default:
 	}
 
+	if isCriticalSessionUpdate(update) {
+		s.publishCritical(ctx, update)
+		return
+	}
+	s.publishNonCritical(ctx, update)
+}
+
+// publishCritical delivers an update that must never be dropped: a tool-call
+// state transition or a session-terminal status. It applies backpressure by
+// blocking until the drain accepts the update; the only exit is context
+// cancellation, which signals the run itself is tearing down. Dropping a
+// critical update would strand a tool call in PENDING forever.
+func (s *sessionImpl) publishCritical(ctx context.Context, update model.SessionUpdate) {
+	select {
+	case s.updates <- update:
+		s.slowPublishes.Add(1)
+	case <-ctx.Done():
+	}
+}
+
+// publishNonCritical delivers thoughts and chatter with the bounded
+// backpressure-then-drop policy: it waits up to the backpressure window and, if
+// the drain still has not accepted the update, drops it and emits a
+// rate-limited warning.
+func (s *sessionImpl) publishNonCritical(ctx context.Context, update model.SessionUpdate) {
 	timer := time.NewTimer(sessionPublishBackpressureTimeout)
 	defer timer.Stop()
 
@@ -162,8 +187,23 @@ func (s *sessionImpl) publish(ctx context.Context, update model.SessionUpdate) {
 		droppedTotal := s.droppedUpdates.Add(1)
 		s.warnDroppedUpdate(update.Kind, droppedTotal)
 	case <-ctx.Done():
-		return
 	}
+}
+
+// isCriticalSessionUpdate reports whether an update carries progress that must
+// never be dropped. Tool-call lifecycle transitions and session-terminal
+// statuses are critical; message chunks, thoughts, plan/mode/command updates
+// are not.
+func isCriticalSessionUpdate(update model.SessionUpdate) bool {
+	switch update.Kind {
+	case model.UpdateKindToolCallStarted, model.UpdateKindToolCallUpdated:
+		return true
+	}
+	switch update.Status {
+	case model.StatusCompleted, model.StatusFailed:
+		return true
+	}
+	return false
 }
 
 func (s *sessionImpl) warnDroppedUpdate(kind model.SessionUpdateKind, droppedTotal uint64) {
