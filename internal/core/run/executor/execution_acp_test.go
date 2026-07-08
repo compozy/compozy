@@ -281,6 +281,10 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 			MaxRetries:             1,
 			RetryBackoffMultiplier: 2,
 			Timeout:                25 * time.Millisecond,
+			// The activity watchdog keys off the resolved stall policy's idle
+			// window, independent of Timeout; arm it with a tiny idle window so
+			// the silent first attempt trips it.
+			Stall: model.StallPolicy{Enabled: true, IdleTimeout: 25 * time.Millisecond},
 			RunArtifacts: model.RunArtifacts{
 				RunID: runID,
 			},
@@ -981,6 +985,9 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 			Model:                  "test-model",
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 2,
+			// Arm the activity watchdog via the stall policy idle window; the
+			// 25ms timeout arg now only drives the init timeout.
+			Stall: model.StallPolicy{Enabled: true, IdleTimeout: 25 * time.Millisecond},
 		},
 		&job,
 		tmpDir,

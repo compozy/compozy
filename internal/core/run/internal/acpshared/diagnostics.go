@@ -2,6 +2,7 @@ package acpshared
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
 )
@@ -42,4 +43,27 @@ func logProgressSignalDiagnostics(
 		)
 	}
 	logger.Info("acp progress-signal diagnostics", args...)
+}
+
+// logIdleThresholdDiagnostic emits a structured record when the stall watchdog's
+// idle window crosses a warning threshold (50% / 80%), reusing the per-run
+// progress-signal diagnostics channel so a stalling run is observable before it
+// is actually canceled. Emitted at most once per threshold per attempt.
+func logIdleThresholdDiagnostic(
+	logger *slog.Logger,
+	sessionID string,
+	thresholdPct int,
+	idle time.Duration,
+	idleTimeout time.Duration,
+) {
+	if logger == nil {
+		return
+	}
+	logger.Info(
+		"acp stall watchdog idle threshold crossed",
+		"session_id", sessionID,
+		"threshold_pct", thresholdPct,
+		"idle", idle,
+		"idle_timeout", idleTimeout,
+	)
 }

@@ -15,6 +15,7 @@ type job = runshared.Job
 type failInfo = runshared.FailInfo
 type jobAttemptResult = runshared.JobAttemptResult
 type activityMonitor = runshared.ActivityMonitor
+type clock = runshared.Clock
 type lineBuffer = runshared.LineBuffer
 type reusableAgentExecution = runshared.ReusableAgentExecution
 type SessionViewSnapshot = transcript.SessionViewSnapshot
@@ -35,8 +36,33 @@ const (
 	attemptStatusSetupFailed = runshared.AttemptStatusSetupFailed
 )
 
+// activityClock is the clock powering the activity monitor and the stall
+// watchdog. It is a package var so tests can drive idle windows deterministically
+// via SetActivityClockForTest, mirroring the newAgentClient override seam.
+var activityClock clock = runshared.RealClock{}
+
+// SetActivityClockForTest overrides the clock used by newly created activity
+// monitors and stall watchdogs, returning a restore func. Test-only seam.
+func SetActivityClockForTest(c clock) func() {
+	previous := activityClock
+	if c == nil {
+		c = runshared.RealClock{}
+	}
+	activityClock = c
+	return func() {
+		activityClock = previous
+	}
+}
+
 func newActivityMonitor() *activityMonitor {
-	return runshared.NewActivityMonitor()
+	return runshared.NewActivityMonitorWithClock(activityClock)
+}
+
+// terminalCloser is the optional capability the watchdog uses to reap a stalled
+// session's terminal commands on fire. *agent clientImpl satisfies it; fakes that
+// do not implement it simply skip terminal teardown.
+type terminalCloser interface {
+	CloseTerminals() error
 }
 
 func appendLinesToBuffer(buf *lineBuffer, lines []string) {

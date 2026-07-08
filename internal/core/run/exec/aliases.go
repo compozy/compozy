@@ -73,7 +73,16 @@ func startACPActivityWatchdog(
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
 ) func() {
-	return acpshared.StartACPActivityWatchdog(ctx, monitor, timeout, cancel)
+	// The ad-hoc single-prompt pipeline keeps its existing behavior: the idle
+	// window is the activity Timeout and there is no terminal reap. The stall
+	// policy's IdleTimeout / terminal-kill applies to the batch executor path
+	// (acpshared.ExecuteJobWithTimeout); wiring it here is a separate follow-up.
+	return acpshared.StartACPActivityWatchdog(acpshared.ActivityWatchdogConfig{
+		Ctx:         ctx,
+		Monitor:     monitor,
+		IdleTimeout: timeout,
+		Cancel:      cancel,
+	})
 }
 
 func setupSessionExecution(req sessionSetupRequest) (*sessionExecution, error) {

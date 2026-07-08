@@ -280,6 +280,22 @@ func (c *clientImpl) removeTerminal(sessionID acp.SessionId, terminalID string) 
 	return terminal, nil
 }
 
+// terminalReaper is the capability the stall watchdog asserts on the client to
+// reap a session's terminal commands on fire; *clientImpl satisfies it.
+type terminalReaper interface {
+	CloseTerminals() error
+}
+
+var _ terminalReaper = (*clientImpl)(nil)
+
+// CloseTerminals gracefully tears down every terminal command opened during this
+// client's sessions, running the SIGTERM/SIGKILL process-group kill ladder on
+// each. It is exported so the stall watchdog can reap a hung command's process
+// tree on fire without adding a parallel kill path.
+func (c *clientImpl) CloseTerminals() error {
+	return c.closeTerminals()
+}
+
 func (c *clientImpl) closeTerminals() error {
 	terminals := c.drainTerminals()
 	if len(terminals) == 0 {
