@@ -1223,7 +1223,7 @@ func TestRunManagerTaskRunMultipleChildPollReturnsRunLookupErrors(t *testing.T) 
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		_, err := env.manager.waitForTaskMultiChild(ctx, "child-alpha")
+		_, err := env.manager.waitForTaskMultiChild(ctx, "child-alpha", model.StallPolicy{})
 		if err == nil {
 			t.Fatal("waitForTaskMultiChild() error = nil, want run lookup error")
 		}

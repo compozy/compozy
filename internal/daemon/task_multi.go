@@ -966,7 +966,11 @@ func (r *parallelPreparedTaskRun) awaitChild(
 	ctx context.Context,
 	child taskWorktreeChildRun,
 ) (recovery.RunOutcome, error) {
-	childRow, err := r.launcher.manager.waitForTaskMultiChild(ctx, child.Run.RunID)
+	childRow, err := r.launcher.manager.waitForTaskMultiChild(
+		ctx,
+		child.Run.RunID,
+		childStallPolicy(child.RuntimeConfig),
+	)
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1289,7 +1293,7 @@ func (m *RunManager) runTaskMultiParallelChild(
 		)
 		return errors.Join(fmt.Errorf("start child %s: %w", item.slug, err), emitErr)
 	}
-	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
+	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1440,7 +1444,7 @@ func (m *RunManager) awaitTaskMultiChild(
 	total int,
 	childRun apicore.Run,
 ) error {
-	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
+	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1827,10 +1831,23 @@ func (m *RunManager) finishTaskMultiChild(
 	}
 }
 
-func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (globaldb.Run, error) {
+// waitForTaskMultiChild polls one child run until it reaches a terminal status. It
+// is the single choke point through which the parent observes children in the
+// enqueued, parallel-multi and parallel-tasks modes, so it also carries the
+// durable per-child liveness backstop (ADR-003): a child whose journal high-water
+// sequence stops advancing for the backstop budget is canceled, terminates, and
+// releases the batch join instead of wedging it forever.
+func (m *RunManager) waitForTaskMultiChild(
+	ctx context.Context,
+	runID string,
+	policy model.StallPolicy,
+) (globaldb.Run, error) {
 	trimmedRunID := strings.TrimSpace(runID)
 	ticker := time.NewTicker(taskMultiChildPollInterval)
 	defer ticker.Stop()
+
+	backstop := m.newChildBackstop(trimmedRunID, policy)
+	defer backstop.close()
 
 	for {
 		row, err := m.globalDB.GetRun(detachContext(ctx), trimmedRunID)
@@ -1840,6 +1857,7 @@ func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (g
 		if isTerminalRunStatus(row.Status) {
 			return row, nil
 		}
+		backstop.check(ctx)
 		select {
 		case <-ctx.Done():
 			if cancelErr := m.Cancel(detachContext(ctx), runID); cancelErr != nil {

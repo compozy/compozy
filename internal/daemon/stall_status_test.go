@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -96,7 +97,7 @@ func TestWaitForTaskMultiChildObservesParkedAsTerminal(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	row, err := manager.waitForTaskMultiChild(ctx, childRunID)
+	row, err := manager.waitForTaskMultiChild(ctx, childRunID, model.StallPolicy{})
 	if err != nil {
 		t.Fatalf("waitForTaskMultiChild(%q) error = %v", childRunID, err)
 	}
