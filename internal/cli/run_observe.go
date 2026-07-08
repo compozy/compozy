@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -991,6 +992,10 @@ func renderObservedJobStalled(event eventspkg.Event) string {
 	return strings.Join(segments, " | ") + "\n"
 }
 
+// renderObservedJobParked prints the parked job's full triage detail. A park is
+// terminal and needs a human, so the line carries everything needed to rerun or
+// inspect without hunting: the plain reason, what the agent was last doing, how
+// far it got, and the preserved worktree and log.
 func renderObservedJobParked(event eventspkg.Event) string {
 	payload, ok := decodeObservedPayload[kinds.JobParkedPayload](event)
 	if !ok {
@@ -1000,8 +1005,17 @@ func renderObservedJobParked(event eventspkg.Event) string {
 	if reason := strings.TrimSpace(payload.Reason); reason != "" {
 		segments = append(segments, reason)
 	}
+	if lastToolCall := strings.TrimSpace(payload.LastToolCall); lastToolCall != "" {
+		segments = append(segments, "last tool call: "+lastToolCall)
+	}
+	if payload.LastProgressSeq > 0 {
+		segments = append(segments, "last_progress_seq="+strconv.FormatUint(payload.LastProgressSeq, 10))
+	}
 	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
 		segments = append(segments, "worktree="+worktreePath)
+	}
+	if logPath := strings.TrimSpace(payload.LogPath); logPath != "" {
+		segments = append(segments, "log="+logPath)
 	}
 	return strings.Join(segments, " | ") + "\n"
 }

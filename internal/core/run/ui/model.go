@@ -1177,13 +1177,14 @@ func translateJobParkedEvent(ev events.Event) (uiMsg, bool) {
 		return nil, false
 	}
 	return jobParkedMsg{
-		Index:        payload.Index,
-		Attempt:      payload.Attempt,
-		MaxAttempts:  payload.MaxAttempts,
-		Reason:       payload.Reason,
-		LastToolCall: payload.LastToolCall,
-		WorktreePath: payload.WorktreePath,
-		LogPath:      payload.LogPath,
+		Index:           payload.Index,
+		Attempt:         payload.Attempt,
+		MaxAttempts:     payload.MaxAttempts,
+		Reason:          payload.Reason,
+		LastToolCall:    payload.LastToolCall,
+		LastProgressSeq: payload.LastProgressSeq,
+		WorktreePath:    payload.WorktreePath,
+		LogPath:         payload.LogPath,
 	}, true
 }
 

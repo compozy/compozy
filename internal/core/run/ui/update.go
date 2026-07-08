@@ -888,7 +888,8 @@ func (m *uiModel) handleJobStalled(v jobStalledMsg) {
 		m.persistSelectedViewportState()
 		job.state = jobStalled
 		job.stalled = true
-		job.stallReason = stallDetailText(v.Reason, v.LastToolCall)
+		job.stallReason = strings.TrimSpace(v.Reason)
+		job.stallLastToolCall = strings.TrimSpace(v.LastToolCall)
 		job.retrying = false
 		job.retryReason = ""
 		if v.Attempt > 0 {
@@ -910,16 +911,19 @@ func (m *uiModel) handleJobParked(v jobParkedMsg) tea.Cmd {
 		m.persistSelectedViewportState()
 		job.state = jobParked
 		job.stalled = true
-		job.stallReason = stallDetailText(v.Reason, v.LastToolCall)
+		job.stallReason = strings.TrimSpace(v.Reason)
+		job.stallLastToolCall = strings.TrimSpace(v.LastToolCall)
+		job.parkProgressSeq = v.LastProgressSeq
 		job.retrying = false
 		job.retryReason = ""
 		if v.Attempt > 0 {
 			job.attempt = v.Attempt
 		}
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
-		if strings.TrimSpace(v.WorktreePath) != "" {
-			job.worktreePath = v.WorktreePath
+		if worktreePath := strings.TrimSpace(v.WorktreePath); worktreePath != "" {
+			job.worktreePath = worktreePath
 		}
+		job.parkLogPath = strings.TrimSpace(v.LogPath)
 		if !job.startedAt.IsZero() {
 			job.completedAt = parkedAt
 			job.duration = job.completedAt.Sub(job.startedAt)

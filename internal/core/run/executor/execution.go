@@ -425,6 +425,10 @@ type jobExecutionContext struct {
 	clientsMu      sync.Mutex
 	activeClients  map[agent.Client]struct{}
 	cancelJobs     context.CancelCauseFunc
+	// alertPlayer plays the parked alert. It is nil in every production path, where
+	// sound.New() supplies the platform player; tests inject a recorder so the alert
+	// is observable without shelling out to afplay.
+	alertPlayer sound.Player
 }
 
 func newJobExecutionContext(
@@ -478,19 +482,58 @@ func resolveWorkflowSessionCWD(cfg *config) (string, error) {
 	return filepath.Clean(cwd), nil
 }
 
-// notifySoundForKind plays the configured sound for a terminal lifecycle
-// event kind. It runs synchronously so the audio finishes before run
-// cleanup tears state down. When the [sound] feature flag is off this
-// is a no-op.
+// notifySoundForKind plays the configured sound for a lifecycle event kind. It
+// runs synchronously so the audio finishes before run cleanup tears state down.
+// When the [sound] feature flag is off this is a no-op.
+//
+// Beyond the terminal run kinds, EventKindJobParked maps to the proactive parked
+// alert. Every other job kind (job.retry_scheduled included) resolves to an empty
+// sound name in pickSound and is silently ignored.
 func notifySoundForKind(ctx context.Context, cfg *config, kind events.EventKind, logger *slog.Logger) {
-	if cfg == nil || !cfg.SoundEnabled {
+	notifySoundWithPlayer(ctx, cfg, nil, kind, logger)
+}
+
+func notifySoundWithPlayer(
+	ctx context.Context,
+	cfg *config,
+	player sound.Player,
+	kind events.EventKind,
+	logger *slog.Logger,
+) {
+	soundCfg, enabled := soundConfigFor(cfg, player)
+	if !enabled {
 		return
 	}
-	sound.Notify(ctx, sound.Config{
-		Player:      sound.New(),
+	sound.Notify(ctx, soundCfg, kind, logger)
+}
+
+// soundConfigFor resolves the run's audio configuration. The second result is
+// false when sound is disabled, which is the single gate that keeps every
+// notification path — the parked alert included — a clean no-op for users who
+// never opted in. A nil player selects the platform default.
+func soundConfigFor(cfg *config, player sound.Player) (sound.Config, bool) {
+	if cfg == nil || !cfg.SoundEnabled {
+		return sound.Config{}, false
+	}
+	if player == nil {
+		player = sound.New()
+	}
+	return sound.Config{
+		Player:      player,
 		OnCompleted: cfg.SoundOnCompleted,
 		OnFailed:    cfg.SoundOnFailed,
-	}, kind, logger)
+		OnParked:    cfg.SoundOnParked,
+	}, true
+}
+
+// notifyParkedAlert fires the proactive alert that pulls a walked-away user back
+// when a job parks. It runs on the parked job's own goroutine, so siblings keep
+// executing, and it is a clean no-op when sound is disabled.
+func (j *jobExecutionContext) notifyParkedAlert() {
+	if j == nil {
+		return
+	}
+	notifySoundWithPlayer(j.ctx, j.cfg, j.alertPlayer, events.EventKindJobParked, j.runtimeLogger())
 }
 
 // terminalEventKindFor maps an executor result status to the lifecycle event

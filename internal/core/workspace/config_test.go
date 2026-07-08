@@ -1991,6 +1991,7 @@ func TestLoadConfigSoundSection(t *testing.T) {
 		wantEnabled   *bool
 		wantCompleted *string
 		wantFailed    *string
+		wantParked    *string
 	}{
 		{
 			name: "Should parse a fully populated [sound] section",
@@ -1999,10 +2000,12 @@ func TestLoadConfigSoundSection(t *testing.T) {
 enabled = true
 on_completed = "glass"
 on_failed = "basso"
+on_parked = "funk"
 `,
 			wantEnabled:   ptrBool(true),
 			wantCompleted: ptrString("glass"),
 			wantFailed:    ptrString("basso"),
+			wantParked:    ptrString("funk"),
 		},
 		{
 			name:    "Should leave [sound] fields nil when the section is absent",
@@ -2023,6 +2026,14 @@ on_completed = "   "
 on_failed = "\t"
 `,
 			wantErr: "sound.on_failed",
+		},
+		{
+			name: "Should reject whitespace-only sound.on_parked",
+			content: `
+[sound]
+on_parked = " "
+`,
+			wantErr: "sound.on_parked",
 		},
 	}
 
@@ -2048,6 +2059,7 @@ on_failed = "\t"
 			assertOptionalBool(t, "sound.enabled", cfg.Sound.Enabled, tc.wantEnabled)
 			assertOptionalString(t, "sound.on_completed", cfg.Sound.OnCompleted, tc.wantCompleted)
 			assertOptionalString(t, "sound.on_failed", cfg.Sound.OnFailed, tc.wantFailed)
+			assertOptionalString(t, "sound.on_parked", cfg.Sound.OnParked, tc.wantParked)
 		})
 	}
 }

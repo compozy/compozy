@@ -347,14 +347,18 @@ func (m *uiModel) timelineAttemptMeta(job *uiJob, base string) string {
 // stallMetaLabel renders the stall explanation on the timeline meta line for the
 // two states where the user needs it: the live stall, and the terminal park.
 func stallMetaLabel(job *uiJob) string {
-	if job == nil || strings.TrimSpace(job.stallReason) == "" {
+	if job == nil {
+		return ""
+	}
+	detail := stallDetailText(job.stallReason, job.stallLastToolCall)
+	if detail == "" {
 		return ""
 	}
 	switch job.state {
 	case jobStalled:
-		return "stalled: " + truncateString(job.stallReason, 72)
+		return "stalled: " + truncateString(detail, 72)
 	case jobParked:
-		return "parked: " + truncateString(job.stallReason, 72)
+		return "parked: " + truncateString(detail, 72)
 	default:
 		return ""
 	}

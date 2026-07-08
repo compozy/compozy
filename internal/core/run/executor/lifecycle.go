@@ -147,6 +147,9 @@ func (l *jobLifecycle) markParked(failure failInfo, detail parkDetail) {
 			detail.WorktreePath,
 		)
 	}
+	// A park is the only job transition that alerts. Routine stall retries stay
+	// silent so an alert always means "a job needs you".
+	l.execCtx.notifyParkedAlert()
 }
 
 func (l *jobLifecycle) markRetry(failure failInfo, nextAttempt int, maxAttempts int) {

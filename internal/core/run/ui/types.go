@@ -100,8 +100,17 @@ type uiJob struct {
 	retryReason     string
 	// stalled is sticky for the whole run: it records that the job stalled at least
 	// once, which is what separates a "recovered" completion from a plain one.
-	stalled              bool
-	stallReason          string
+	stalled bool
+	// stallReason is the plain-language cause, stored raw. stallLastToolCall holds
+	// what the agent was last doing. Renderers compose the two via stallDetailText
+	// rather than storing pre-joined prose.
+	stallReason       string
+	stallLastToolCall string
+	// parkLogPath and parkProgressSeq complete the parked job's triage detail: the
+	// preserved log and the journal high-water mark reached before the silence. The
+	// preserved worktree rides the shared worktreePath field.
+	parkLogPath          string
+	parkProgressSeq      uint64
 	tokenUsage           *model.Usage
 	snapshot             SessionViewSnapshot
 	selectedEntry        int
@@ -201,15 +210,17 @@ type jobStalledMsg struct {
 }
 
 // jobParkedMsg reports the terminal parked outcome for a job that stalled again
-// after its clean-state retry.
+// after its clean-state retry. It carries the full triage detail so the returning
+// user can rerun or inspect without searching for the preserved artifacts.
 type jobParkedMsg struct {
-	Index        int
-	Attempt      int
-	MaxAttempts  int
-	Reason       string
-	LastToolCall string
-	WorktreePath string
-	LogPath      string
+	Index           int
+	Attempt         int
+	MaxAttempts     int
+	Reason          string
+	LastToolCall    string
+	LastProgressSeq uint64
+	WorktreePath    string
+	LogPath         string
 }
 
 type jobPausingMsg struct {

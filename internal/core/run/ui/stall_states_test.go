@@ -89,9 +89,15 @@ func TestStalledJobRendersStalledThenRetryingState(t *testing.T) {
 		if got := m.sidebarTimeString(job); got != "stalled" {
 			t.Fatalf("expected sidebar time string %q, got %q", "stalled", got)
 		}
-		if !strings.Contains(job.stallReason, "no output for 3m0s") ||
-			!strings.Contains(job.stallReason, "Bash go test ./...") {
-			t.Fatalf("expected reason and last tool call in %q", job.stallReason)
+		if got, want := job.stallReason, "no output for 3m0s"; got != want {
+			t.Fatalf("expected raw stall reason %q, got %q", want, got)
+		}
+		if got, want := job.stallLastToolCall, "Bash go test ./..."; got != want {
+			t.Fatalf("expected last tool call %q, got %q", want, got)
+		}
+		if got := stallMetaLabel(job); !strings.Contains(got, "no output for 3m0s") ||
+			!strings.Contains(got, "Bash go test ./...") {
+			t.Fatalf("expected reason and last tool call in meta label %q", got)
 		}
 	})
 
