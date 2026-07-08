@@ -271,9 +271,15 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 	defer cleanup()
 
+	// A tripped idle window is a stall, so recovery draws on the stall budget and
+	// requires a worktree this job can reset to a clean state on its own.
+	requireStallGit(t)
+	workspaceRoot := initStallGitRepo(t)
+
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
-		ctx: context.Background(),
+		ctx:   context.Background(),
+		total: 1,
 		cfg: &config{
 			IDE:                    model.IDECodex,
 			Model:                  "test-model",
@@ -281,10 +287,11 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 			MaxRetries:             1,
 			RetryBackoffMultiplier: 2,
 			Timeout:                25 * time.Millisecond,
+			WorkspaceRoot:          workspaceRoot,
 			// The activity watchdog keys off the resolved stall policy's idle
 			// window, independent of Timeout; arm it with a tiny idle window so
 			// the silent first attempt trips it.
-			Stall: model.StallPolicy{Enabled: true, IdleTimeout: 25 * time.Millisecond},
+			Stall: model.StallPolicy{Enabled: true, IdleTimeout: 25 * time.Millisecond, Retries: 1},
 			RunArtifacts: model.RunArtifacts{
 				RunID: runID,
 			},

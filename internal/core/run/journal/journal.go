@@ -59,6 +59,7 @@ type Journal struct {
 	afterSync     func()
 
 	eventsWritten    atomic.Uint64
+	lastSeq          atomic.Uint64
 	dropsOnSubmit    atomic.Uint64
 	terminalDrops    atomic.Uint64
 	nonTerminalDrops atomic.Uint64
@@ -336,6 +337,16 @@ func (j *Journal) DBPath() string {
 	return j.dbPath
 }
 
+// LastSequence reports the sequence number of the most recently encoded event,
+// or 0 when nothing has been written yet. It is the durable progress marker a
+// parked job records so triage can locate the last signal the run produced.
+func (j *Journal) LastSequence() uint64 {
+	if j == nil {
+		return 0
+	}
+	return j.lastSeq.Load()
+}
+
 // DropsOnSubmit reports the number of submits dropped after backpressure timeout.
 func (j *Journal) DropsOnSubmit() uint64 {
 	if j == nil {
@@ -485,6 +496,7 @@ func (j *Journal) handleEvent(state *writeState, ev events.Event, seq *uint64) (
 	if err != nil {
 		return 0, err
 	}
+	j.lastSeq.Store(enriched.Seq)
 	state.pending = append(state.pending, enriched)
 	if !j.shouldFlushAfterAppend(state.pending, enriched.Kind) {
 		return enriched.Seq, nil

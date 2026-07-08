@@ -216,6 +216,52 @@ func TestJournalSubmitWithSeqReturnsAssignedSequence(t *testing.T) {
 	}
 }
 
+func TestJournalLastSequenceTracksMostRecentEvent(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runID := "journal-last-seq"
+	prepareRunLayout(t, workspaceRoot, runID)
+
+	bus := events.New[events.Event](16)
+	_, _, unsubscribe := bus.Subscribe()
+	defer unsubscribe()
+
+	journal, _ := openTestJournal(t, workspaceRoot, runID, bus, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+
+	var nilJournal *Journal
+	if got := nilJournal.LastSequence(); got != 0 {
+		t.Fatalf("nil journal LastSequence() = %d, want 0", got)
+	}
+	if got := journal.LastSequence(); got != 0 {
+		t.Fatalf("LastSequence() before any event = %d, want 0", got)
+	}
+	if _, err := journal.SubmitWithSeq(
+		context.Background(),
+		testJournalEvent(runID, events.EventKindJobStarted, 1),
+	); err != nil {
+		t.Fatalf("SubmitWithSeq(first) error = %v", err)
+	}
+	if got := journal.LastSequence(); got != 1 {
+		t.Fatalf("LastSequence() = %d, want 1", got)
+	}
+	if _, err := journal.SubmitWithSeq(
+		context.Background(),
+		testJournalEvent(runID, events.EventKindJobParked, 2),
+	); err != nil {
+		t.Fatalf("SubmitWithSeq(second) error = %v", err)
+	}
+	if got := journal.LastSequence(); got != 2 {
+		t.Fatalf("LastSequence() = %d, want 2", got)
+	}
+	if err := journal.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
 	t.Parallel()
 

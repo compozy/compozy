@@ -1273,7 +1273,7 @@ func TestJobRunnerPreRetryHookCanAbortRetry(t *testing.T) {
 	_, _, continueLoop := runner.handleResult(
 		context.Background(),
 		1,
-		2,
+		&attemptBudget{ordinary: 1, total: 2},
 		time.Second,
 		jobAttemptResult{
 			ExitCode:  42,

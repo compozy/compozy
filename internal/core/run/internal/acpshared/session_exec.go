@@ -363,7 +363,11 @@ func ExecuteSessionAndResolve(
 		unregister = cfg.JobControls.Register(cfg.RunArtifacts.RunID, index, safeJobID(j), controller)
 	}
 	defer unregister()
-	return controller.run()
+	result := controller.run()
+	if result.Stalled {
+		result.LastToolCall = execution.Handler.LastToolCall()
+	}
+	return result
 }
 
 func executeSingleSessionTurn(
@@ -931,11 +935,14 @@ func HandleSessionTimeout(
 		ErrLog:   j.ErrLog,
 		Err:      timeoutErr,
 	}
+	// Only an idle-window expiry is a stall. An init timeout means the agent never
+	// came up, which stays on the ordinary retry path.
 	return jobAttemptResult{
 		Status:    attemptStatusTimeout,
 		ExitCode:  exitCodeTimeout,
 		Failure:   &failure,
 		Retryable: true,
+		Stalled:   IsActivityTimeout(timeoutErr),
 	}
 }
 
