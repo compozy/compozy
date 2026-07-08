@@ -141,6 +141,8 @@ func (m *uiModel) runChipStatus() (string, string, color.Color) {
 		return glyphActiveDot, "STOPPING", colorWarning
 	case m.isRunComplete() && m.failed > 0:
 		return jobIconFailed, statusLabelFailed, colorError
+	case m.isRunComplete() && m.parked > 0:
+		return jobIconParked, statusLabelParked, colorAccent
 	case m.isRunComplete():
 		return jobIconSuccess, statusLabelDone, colorSuccess
 	default:
@@ -149,7 +151,7 @@ func (m *uiModel) runChipStatus() (string, string, color.Color) {
 }
 
 func (m *uiModel) shutdownHeaderLabel() string {
-	progress := fmt.Sprintf("%d/%d", m.completed+m.failed, m.total)
+	progress := fmt.Sprintf("%d/%d", m.settledJobs(), m.total)
 	switch m.shutdown.Phase {
 	case shutdownPhaseDraining:
 		countdown := m.shutdownCountdownLabel()

@@ -52,9 +52,15 @@ const (
 	jobRunning
 	jobPausing
 	jobPaused
+	// jobStalled is the transient state between a detected stall and the recovery
+	// decision that follows it: a clean-state retry (jobRetrying) or a park.
+	jobStalled
 	jobRetrying
 	jobSuccess
 	jobFailed
+	// jobParked is terminal. The job stalled again after its clean-state retry and
+	// its worktree and log are preserved for triage.
+	jobParked
 )
 
 const (
@@ -63,34 +69,39 @@ const (
 	statusLabelCrashed  = "CRASHED"
 	statusLabelCanceled = "CANCELED"
 	statusLabelDone     = "DONE"
+	statusLabelParked   = "PARKED"
 )
 
 type uiJob struct {
-	codeFile             string
-	codeFiles            []string
-	issues               int
-	taskNumber           int
-	taskTitle            string
-	taskType             string
-	childRunID           string
-	worktreePath         string
-	safeName             string
-	ide                  string
-	model                string
-	reasoningEffort      string
-	outLog               string
-	errLog               string
-	state                jobState
-	exitCode             int
-	outBuffer            *lineBuffer
-	errBuffer            *lineBuffer
-	startedAt            time.Time
-	completedAt          time.Time
-	duration             time.Duration
-	attempt              int
-	maxAttempts          int
-	retrying             bool
-	retryReason          string
+	codeFile        string
+	codeFiles       []string
+	issues          int
+	taskNumber      int
+	taskTitle       string
+	taskType        string
+	childRunID      string
+	worktreePath    string
+	safeName        string
+	ide             string
+	model           string
+	reasoningEffort string
+	outLog          string
+	errLog          string
+	state           jobState
+	exitCode        int
+	outBuffer       *lineBuffer
+	errBuffer       *lineBuffer
+	startedAt       time.Time
+	completedAt     time.Time
+	duration        time.Duration
+	attempt         int
+	maxAttempts     int
+	retrying        bool
+	retryReason     string
+	// stalled is sticky for the whole run: it records that the job stalled at least
+	// once, which is what separates a "recovered" completion from a plain one.
+	stalled              bool
+	stallReason          string
 	tokenUsage           *model.Usage
 	snapshot             SessionViewSnapshot
 	selectedEntry        int
@@ -177,6 +188,28 @@ type jobRetryMsg struct {
 	Attempt     int
 	MaxAttempts int
 	Reason      string
+}
+
+// jobStalledMsg reports a detected stall, before the recovery decision. It is
+// always followed by a jobRetryMsg (clean-state retry) or a jobParkedMsg.
+type jobStalledMsg struct {
+	Index        int
+	Attempt      int
+	MaxAttempts  int
+	Reason       string
+	LastToolCall string
+}
+
+// jobParkedMsg reports the terminal parked outcome for a job that stalled again
+// after its clean-state retry.
+type jobParkedMsg struct {
+	Index        int
+	Attempt      int
+	MaxAttempts  int
+	Reason       string
+	LastToolCall string
+	WorktreePath string
+	LogPath      string
 }
 
 type jobPausingMsg struct {

@@ -1231,6 +1231,9 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 	}
 	sem := make(chan struct{}, limit)
 	childErrs := make([]error, len(prepared.items))
+	// Indexed by queue position and written by exactly one worker each, so the
+	// finalizer can read every launched child's journal without extra locking.
+	childRunIDs := make([]string, len(prepared.items))
 	var wg sync.WaitGroup
 	launched := 0
 	var cancelCause error
@@ -1254,7 +1257,9 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			childErrs[index] = m.runTaskMultiParallelChild(active, prepared, item, index, total, base)
+			childErrs[index] = m.runTaskMultiParallelChild(
+				active, prepared, item, index, total, base, &childRunIDs[index],
+			)
 		}()
 	}
 	wg.Wait()
@@ -1263,7 +1268,7 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 			cancelCause = cause
 		}
 	}
-	return m.finalizeTaskMultiParallel(active, prepared, total, childErrs, launched, cancelCause)
+	return m.finalizeTaskMultiParallel(active, prepared, total, childErrs, childRunIDs, launched, cancelCause)
 }
 
 // runTaskMultiParallelChild starts one parallel child in its allocated worktree
@@ -1271,6 +1276,9 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 // path, a start failure or non-completed terminal status is recorded and returned
 // for aggregation while healthy siblings keep running (fail-late). Parent
 // cancellation still cancels the in-flight child via the shared wait helper.
+// runIDOut receives the child's run id as soon as it exists, so finalization can
+// read the child's journal for the end-of-run recovery summary even when the
+// child ended parked, failed, or canceled.
 func (m *RunManager) runTaskMultiParallelChild(
 	active *activeRun,
 	prepared *preparedTaskMulti,
@@ -1278,6 +1286,7 @@ func (m *RunManager) runTaskMultiParallelChild(
 	index int,
 	total int,
 	base taskMultiWorktreeBase,
+	runIDOut *string,
 ) error {
 	childRun, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
 	if err != nil {
@@ -1292,6 +1301,9 @@ func (m *RunManager) runTaskMultiParallelChild(
 			err.Error(),
 		)
 		return errors.Join(fmt.Errorf("start child %s: %w", item.slug, err), emitErr)
+	}
+	if runIDOut != nil {
+		*runIDOut = childRun.RunID
 	}
 	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
@@ -1333,22 +1345,61 @@ func (m *RunManager) runTaskMultiParallelChild(
 // launched child has settled. When the parent was canceled it marks the
 // not-started items canceled and returns the cancellation cause; otherwise it
 // returns the aggregate child failure (if any) or emits the queue-completed event.
+// The recovery summary is emitted first, on every path, because a batch that
+// parked or failed a child is exactly the batch whose closing counts the user
+// needs.
 func (m *RunManager) finalizeTaskMultiParallel(
 	active *activeRun,
 	prepared *preparedTaskMulti,
 	total int,
 	childErrs []error,
+	childRunIDs []string,
 	launched int,
 	cancelCause error,
 ) error {
+	summaryErr := m.emitTaskMultiRecoverySummary(active, prepared, total, childRunIDs)
 	if cancelCause != nil {
 		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, launched, total, cancelCause)
-		return errors.Join(cancelCause, errors.Join(childErrs...), cancelErr)
+		return errors.Join(cancelCause, errors.Join(childErrs...), cancelErr, summaryErr)
 	}
 	if aggErr := aggregateTaskMultiParallelResult(prepared.items, childErrs); aggErr != nil {
-		return aggErr
+		return errors.Join(aggErr, summaryErr)
+	}
+	if summaryErr != nil {
+		return summaryErr
 	}
 	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+}
+
+// emitTaskMultiRecoverySummary aggregates the batch's completed, recovered, and
+// parked counts from the children's durable journals and publishes them as the
+// end-of-run summary event.
+func (m *RunManager) emitTaskMultiRecoverySummary(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	total int,
+	childRunIDs []string,
+) error {
+	if active == nil {
+		return nil
+	}
+	summary := m.collectTaskMultiRecoverySummary(active.ctx, total, childRunIDs)
+	slog.Default().Info(
+		"daemon: multi-run recovery summary",
+		"run_id", active.runID,
+		"total", summary.Total,
+		"completed", summary.Completed,
+		"recovered", summary.Recovered,
+		"parked", summary.Parked,
+	)
+	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleSummary, kinds.TaskRunMultiplePayload{
+		Mode:      prepared.mode,
+		Slugs:     preparedTaskMultiSlugs(prepared.items),
+		Total:     summary.Total,
+		Completed: summary.Completed,
+		Recovered: summary.Recovered,
+		Parked:    summary.Parked,
+	})
 }
 
 // aggregateTaskMultiParallelResult returns nil when every child completed

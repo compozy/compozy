@@ -69,10 +69,14 @@ type Job struct {
 	ErrLog          string
 	Status          string
 	Failure         string
-	ExitCode        int
-	Usage           model.Usage
-	OutBuffer       *LineBuffer
-	ErrBuffer       *LineBuffer
+	// Stalled records that the job stalled at least once. It is sticky across the
+	// clean-state retry, so a later success is reported as a recovery rather than a
+	// plain completion.
+	Stalled   bool
+	ExitCode  int
+	Usage     model.Usage
+	OutBuffer *LineBuffer
+	ErrBuffer *LineBuffer
 }
 
 func (j Job) CodeFileLabel() string {

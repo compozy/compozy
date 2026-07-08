@@ -635,19 +635,7 @@ func renderObservedRunEvent(event eventspkg.Event) string {
 func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 	switch event.Kind {
 	case eventspkg.EventKindTaskRunMultipleStarted:
-		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
-		if !ok {
-			return "task queue started\n", true
-		}
-		total := payload.Total
-		if total <= 0 {
-			total = len(payload.Slugs)
-		}
-		return fmt.Sprintf(
-			"task queue started | mode=%s total=%d\n",
-			firstNonEmpty(payload.Mode, "enqueued"),
-			total,
-		), true
+		return renderObservedTaskMultiStarted(event), true
 	case eventspkg.EventKindTaskRunMultipleItemQueued:
 		return renderObservedTaskMultiItem(event, "queued")
 	case eventspkg.EventKindTaskRunMultipleChildStarted:
@@ -658,15 +646,37 @@ func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 		return renderObservedTaskMultiItem(event, "failed")
 	case eventspkg.EventKindTaskRunMultipleItemCanceled:
 		return renderObservedTaskMultiItem(event, "canceled")
+	default:
+		return renderObservedTaskMultiTerminal(event)
+	}
+}
+
+func renderObservedTaskMultiStarted(event eventspkg.Event) string {
+	payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+	if !ok {
+		return "task queue started\n"
+	}
+	total := payload.Total
+	if total <= 0 {
+		total = len(payload.Slugs)
+	}
+	return fmt.Sprintf(
+		"task queue started | mode=%s total=%d\n",
+		firstNonEmpty(payload.Mode, "enqueued"),
+		total,
+	)
+}
+
+// renderObservedTaskMultiTerminal renders the three events that close a parent
+// queue: the queue outcome, its cancellation, and the recovery summary.
+func renderObservedTaskMultiTerminal(event eventspkg.Event) (string, bool) {
+	switch event.Kind {
 	case eventspkg.EventKindTaskRunMultipleQueueCompleted:
 		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
-		if !ok {
+		if !ok || payload.Total <= 0 {
 			return "task queue completed\n", true
 		}
-		if payload.Total > 0 {
-			return fmt.Sprintf("task queue completed | total=%d\n", payload.Total), true
-		}
-		return "task queue completed\n", true
+		return fmt.Sprintf("task queue completed | total=%d\n", payload.Total), true
 	case eventspkg.EventKindTaskRunMultipleQueueCanceled:
 		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
 		if !ok {
@@ -676,9 +686,29 @@ func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 			return fmt.Sprintf("task queue canceled | %s\n", message), true
 		}
 		return "task queue canceled\n", true
+	case eventspkg.EventKindTaskRunMultipleSummary:
+		return renderObservedTaskMultiSummary(event)
 	default:
 		return "", false
 	}
+}
+
+// renderObservedTaskMultiSummary renders the end-of-run recovery summary line:
+// what completed, what recovered after a stall, and what parked for triage. It is
+// printed for every batch, so a run with no stalls closes with zeroes rather than
+// with nothing.
+func renderObservedTaskMultiSummary(event eventspkg.Event) (string, bool) {
+	payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+	if !ok {
+		return "task queue summary\n", true
+	}
+	return fmt.Sprintf(
+		"task queue summary | total=%d completed=%d recovered=%d parked=%d\n",
+		payload.Total,
+		payload.Completed,
+		payload.Recovered,
+		payload.Parked,
+	), true
 }
 
 func renderObservedTaskMultiItem(event eventspkg.Event, fallbackStatus string) (string, bool) {
@@ -826,6 +856,10 @@ func renderObservedJobLifecycle(event eventspkg.Event) (string, bool) {
 		return renderObservedJobStarted(event), true
 	case eventspkg.EventKindJobRetryScheduled:
 		return renderObservedJobRetryScheduled(event), true
+	case eventspkg.EventKindJobStalled:
+		return renderObservedJobStalled(event), true
+	case eventspkg.EventKindJobParked:
+		return renderObservedJobParked(event), true
 	case eventspkg.EventKindJobCompleted:
 		return renderObservedJobCompleted(event), true
 	case eventspkg.EventKindJobFailed:
@@ -940,6 +974,36 @@ func renderObservedJobRetryScheduled(event eventspkg.Event) string {
 		max(payload.Attempt, 1),
 		max(payload.MaxAttempts, max(payload.Attempt, 1)),
 	)
+}
+
+func renderObservedJobStalled(event eventspkg.Event) string {
+	payload, ok := decodeObservedPayload[kinds.JobStalledPayload](event)
+	if !ok {
+		return "job stalled\n"
+	}
+	segments := []string{observedJobLabel(payload.Index) + " stalled"}
+	if reason := strings.TrimSpace(payload.Reason); reason != "" {
+		segments = append(segments, reason)
+	}
+	if lastToolCall := strings.TrimSpace(payload.LastToolCall); lastToolCall != "" {
+		segments = append(segments, "last tool call: "+lastToolCall)
+	}
+	return strings.Join(segments, " | ") + "\n"
+}
+
+func renderObservedJobParked(event eventspkg.Event) string {
+	payload, ok := decodeObservedPayload[kinds.JobParkedPayload](event)
+	if !ok {
+		return "job parked\n"
+	}
+	segments := []string{observedJobLabel(payload.Index) + " parked"}
+	if reason := strings.TrimSpace(payload.Reason); reason != "" {
+		segments = append(segments, reason)
+	}
+	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
+		segments = append(segments, "worktree="+worktreePath)
+	}
+	return strings.Join(segments, " | ") + "\n"
 }
 
 func renderObservedJobCompleted(event eventspkg.Event) string {

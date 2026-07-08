@@ -410,7 +410,7 @@ Payload type: `kinds.TaskMemoryUpdatedPayload`
 Multi-run events are emitted by the daemon-owned parent run created by
 `compozy tasks run --multiple`. They are persisted in the parent run journal,
 streamed through the regular run stream APIs, and reconstructed into the
-`TaskRunMultipleSnapshot` returned by the multi-run snapshot endpoint. All eight
+`TaskRunMultipleSnapshot` returned by the multi-run snapshot endpoint. All nine
 kinds share one payload type, `kinds.TaskRunMultiplePayload`.
 
 `kinds.TaskRunMultiplePayload` fields:
@@ -429,12 +429,18 @@ kinds share one payload type, `kinds.TaskRunMultiplePayload`.
 - `base_branch`: parent branch the child worktree was created from
 - `base_commit`: parent `HEAD` commit the child worktree was created from
 - `worktree_status`: worktree preservation status, currently always `preserved`
+- `completed`: children that finished successfully, emitted on the summary event
+- `recovered`: children that stalled and then completed, emitted on the summary event
+- `parked`: children parked for triage after a second stall, emitted on the summary event
 
 `parallel_limit` and the `worktree_*` fields are additive and optional. They are
 populated only for parallel-mode runs once a child worktree is planned, and they
 stay empty for enqueued runs and for older parent events emitted before this
 metadata existed. Snapshot reconstruction treats any empty field as unknown so
 older event streams stay compatible.
+
+`completed`, `recovered`, and `parked` are populated only on
+`task.multi.summary`; every other kind leaves them at zero.
 
 ### `task.multi.started`
 
@@ -487,6 +493,20 @@ The parent queue was canceled. Carries the aggregate summary `error` when presen
 Payload type: `kinds.TaskRunMultiplePayload`
 
 The parent queue settled. Carries `total` and, on aggregate failure, the summary `error`.
+
+### `task.multi.summary`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+The end-of-run recovery summary for a parallel parent run, emitted once every
+launched child has settled and before the parent reports its own outcome. It is
+emitted whether the batch succeeded, failed, parked a child, or was canceled, so
+the closing counts are always available.
+
+Carries `total`, `completed`, `recovered`, and `parked`. A child counts as
+`recovered` when it emitted `job.stalled` and then completed; a plain completion
+counts as `completed` only. A child that emitted `job.parked` counts as `parked`
+and never as `completed`.
 
 ## Parallel Task Events
 

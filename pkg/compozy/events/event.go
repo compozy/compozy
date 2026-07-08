@@ -81,6 +81,7 @@ const (
 	EventKindTaskRunMultipleItemCanceled   EventKind = "task.multi.item_canceled"
 	EventKindTaskRunMultipleQueueCanceled  EventKind = "task.multi.queue_canceled"
 	EventKindTaskRunMultipleQueueCompleted EventKind = "task.multi.queue_completed"
+	EventKindTaskRunMultipleSummary        EventKind = "task.multi.summary"
 
 	// Parallel task execution events emitted by the ParallelExecutionOrchestrator.
 	EventKindTaskParallelPlanStarted       EventKind = "task.parallel.plan_started"

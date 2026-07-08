@@ -1662,7 +1662,6 @@ func TestFinalizeExecutionWaitsForObserverHooksWithoutCanceledRunContext(t *test
 		internalCfg,
 		nil,
 		result,
-		0,
 		nil,
 		0,
 		time.Now().Add(-time.Second),

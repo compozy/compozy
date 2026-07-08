@@ -62,7 +62,7 @@ func Execute(
 	}
 
 	normalCompletionFinalized := false
-	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(
+	_, failures, total, shutdownErr := executeJobsWithGracefulShutdown(
 		ctx,
 		internalJobs,
 		internalCfg,
@@ -87,7 +87,6 @@ func Execute(
 			internalCfg,
 			internalJobs,
 			result,
-			failed,
 			failures,
 			total,
 			startedAt,
@@ -117,7 +116,7 @@ func buildNormalCompletionHook(
 	startedAt time.Time,
 	finalized *bool,
 ) normalCompletionHook {
-	return func(failed int32, failures []failInfo, total int) error {
+	return func(_ int32, failures []failInfo, total int) error {
 		result := buildExecutionResult(internalCfg, internalJobs, failures, nil)
 		if err := finalizeExecution(
 			ctx,
@@ -126,7 +125,6 @@ func buildNormalCompletionHook(
 			internalCfg,
 			internalJobs,
 			result,
-			failed,
 			failures,
 			total,
 			startedAt,
@@ -216,7 +214,6 @@ func finalizeExecution(
 	internalCfg *config,
 	internalJobs []job,
 	result executionResult,
-	failed int32,
 	failures []failInfo,
 	total int,
 	startedAt time.Time,
@@ -238,7 +235,7 @@ func finalizeExecution(
 		return err
 	}
 	if internalCfg.HumanOutputEnabled() {
-		summarizeResults(failed, failures, total)
+		summarizeResults(internalJobs, failures, total)
 	}
 	refreshTaskMetaOnExit(internalCfg)
 	if err := emitRunTerminalEvent(ctx, runJournal, result, internalJobs, startedAt); err != nil {
@@ -767,12 +764,46 @@ func printAggregateUsage(usage *model.Usage) {
 	fmt.Println(strings.Repeat("=", 60))
 }
 
-func summarizeResults(failed int32, failures []failInfo, total int) {
+// runRecoveryCounts is the end-of-run breakdown the walked-away user reads:
+// how many jobs completed, how many of those needed a stall recovery to get
+// there, and how many parked for triage.
+type runRecoveryCounts struct {
+	total     int
+	succeeded int
+	recovered int
+	parked    int
+	failed    int
+}
+
+// countRunRecovery buckets the settled jobs. Parked is its own bucket, never
+// folded into failed, and recovered is the subset of succeeded that stalled at
+// least once. Failed absorbs every remaining job so the buckets sum to total.
+func countRunRecovery(jobs []job, total int) runRecoveryCounts {
+	counts := runRecoveryCounts{total: total}
+	for idx := range jobs {
+		switch jobs[idx].Status {
+		case runStatusSucceeded:
+			counts.succeeded++
+			if jobs[idx].Stalled {
+				counts.recovered++
+			}
+		case runStatusParked:
+			counts.parked++
+		}
+	}
+	counts.failed = max(total-counts.succeeded-counts.parked, 0)
+	return counts
+}
+
+func summarizeResults(jobs []job, failures []failInfo, total int) {
+	counts := countRunRecovery(jobs, total)
 	fmt.Printf(
-		"\nExecution Summary:\n- Total Groups: %d\n- Success: %d\n- Failed: %d\n",
-		total,
-		total-int(failed),
-		int(failed),
+		"\nExecution Summary:\n- Total Groups: %d\n- Success: %d\n- Recovered: %d\n- Parked: %d\n- Failed: %d\n",
+		counts.total,
+		counts.succeeded,
+		counts.recovered,
+		counts.parked,
+		counts.failed,
 	)
 	if len(failures) == 0 {
 		return

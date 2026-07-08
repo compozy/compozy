@@ -23,11 +23,15 @@ import (
 )
 
 type uiModel struct {
-	ctx                          context.Context
-	jobs                         []uiJob
-	total                        int
-	completed                    int
-	failed                       int
+	ctx       context.Context
+	jobs      []uiJob
+	total     int
+	completed int
+	failed    int
+	// recovered counts completed jobs that stalled at least once; it is a subset of
+	// completed, not a separate terminal bucket.
+	recovered                    int
+	parked                       int
 	runStatus                    string
 	frame                        int
 	now                          time.Time
@@ -677,6 +681,8 @@ func inputRequiresImmediateDispatch(msg any) bool {
 	case jobQueuedMsg,
 		jobStartedMsg,
 		jobRetryMsg,
+		jobStalledMsg,
+		jobParkedMsg,
 		jobFinishedMsg,
 		jobUpdateMsg,
 		runStatusMsg,
@@ -694,6 +700,8 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindJobResumed,
 			events.EventKindJobCompleted,
 			events.EventKindJobRetryScheduled,
+			events.EventKindJobStalled,
+			events.EventKindJobParked,
 			events.EventKindJobFailed,
 			events.EventKindJobCancelled,
 			events.EventKindRunCompleted,
@@ -1063,6 +1071,10 @@ func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {
 		return translateJobCompletedEvent(ev)
 	case events.EventKindJobRetryScheduled:
 		return translateJobRetryScheduledEvent(ev)
+	case events.EventKindJobStalled:
+		return translateJobStalledEvent(ev)
+	case events.EventKindJobParked:
+		return translateJobParkedEvent(ev)
 	case events.EventKindJobPausing:
 		return translateJobPausingEvent(ev)
 	case events.EventKindJobPaused:
@@ -1142,6 +1154,36 @@ func translateJobRetryScheduledEvent(ev events.Event) (uiMsg, bool) {
 		Attempt:     payload.Attempt,
 		MaxAttempts: payload.MaxAttempts,
 		Reason:      payload.Reason,
+	}, true
+}
+
+func translateJobStalledEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobStalledPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobStalledMsg{
+		Index:        payload.Index,
+		Attempt:      payload.Attempt,
+		MaxAttempts:  payload.MaxAttempts,
+		Reason:       payload.Reason,
+		LastToolCall: payload.LastToolCall,
+	}, true
+}
+
+func translateJobParkedEvent(ev events.Event) (uiMsg, bool) {
+	payload, ok := decodeUIEventPayload[kinds.JobParkedPayload](ev)
+	if !ok {
+		return nil, false
+	}
+	return jobParkedMsg{
+		Index:        payload.Index,
+		Attempt:      payload.Attempt,
+		MaxAttempts:  payload.MaxAttempts,
+		Reason:       payload.Reason,
+		LastToolCall: payload.LastToolCall,
+		WorktreePath: payload.WorktreePath,
+		LogPath:      payload.LogPath,
 	}, true
 }
 

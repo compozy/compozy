@@ -94,6 +94,7 @@ func (l *jobLifecycle) markStalled(failure failInfo, lastToolCall string, maxAtt
 	l.lastFailure = &failure
 	l.lastExitCode = failure.ExitCode
 	l.state = jobPhaseStalled
+	l.job.Stalled = true
 	l.attemptBudget = maxAttempts
 	l.execCtx.submitEventOrWarn(
 		events.EventKindJobStalled,
