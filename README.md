@@ -100,7 +100,14 @@ Execution runtimes are separate from skill installation. To run `compozy exec`, 
 | Gemini CLI         | `gemini`       | `gemini --acp`                   |
 | Kiro CLI           | `kiro`         | `kiro-cli acp`                   |
 
-When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally. Codex defaults to `gpt-5.5`; using that model with a local `codex-acp` binary requires `@zed-industries/codex-acp >= 0.12.0`. Update with `npm install -g @zed-industries/codex-acp@latest`, or explicitly choose a model supported by your installed adapter.
+When the direct ACP command is not installed, Compozy can fall back to supported launchers such as `npx --yes @agentclientprotocol/codex-acp`. Codex and Droid default to `gpt-5.6-sol`; GPT-5.6 models and the `max`/`ultra` reasoning levels require `@agentclientprotocol/codex-acp >= 1.1.2`. Update with `npm install -g @agentclientprotocol/codex-acp@latest`. The legacy `@zed-industries/codex-acp` package remains compatible only with older combinations such as GPT-5.5 with reasoning through `xhigh`.
+
+Compozy negotiates each runtime from the model, reasoning, and mode options advertised by ACP `session/new` or `session/load`, and applies the resolved configuration before sending the first prompt:
+
+- Codex supports `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` when the installed adapter advertises them. The built-in default is `gpt-5.6-sol` with `medium` reasoning.
+- Cursor model names resolve against its ACP catalog. For example, `--model grok-4.5` resolves to the advertised `grok-4.5[effort=high,fast=true]`; the exact ID is also accepted when shell-quoted. Cursor does not receive a separate reasoning option when its ACP session does not advertise one.
+- Claude Fable 5 accepts `--model fable`, `--model fable-5`, or `--model claude-fable-5`. Compozy always selects Claude's `auto` permission mode for Fable, even when `--access-mode full` was requested, so it never sends `bypassPermissions` for that model.
+- Claude's `max` reasoning is an advertised ACP effort value, not a system-prompt instruction. `ultracode` is an interactive Claude Code workflow rather than an ACP reasoning value, so Compozy does not emulate it with a parameter or prompt. If a requested effort such as `ultra` is not advertised by Claude, Compozy stops before the prompt and lists the valid choices.
 
 ## 🔄 How It Works
 
@@ -161,7 +168,7 @@ Example:
 ```toml
 [defaults]
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 access_mode = "full"
 timeout = "10m"
@@ -185,7 +192,7 @@ max_concurrency = 4
 
 [tasks.run.parallel.conflict_resolver]
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 max_attempts = 1
 validation_command = []
@@ -196,7 +203,7 @@ output_format = "text"
 [recovery]
 enabled = false
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 max_attempts = 1
 
@@ -642,28 +649,28 @@ compozy tasks run <slug> [flags]
 
 The CLI resolves workspace defaults locally, validates the task metadata, auto-starts the daemon when needed, and then starts the workflow through the daemon transport.
 
-| Flag                      | Default   | Description                                                                                      |
-| ------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| `--name`                  |           | Workflow slug (defaults to the positional slug)                                                  |
-| `--multiple`              |           | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
-| `--parallel`              | `false`   | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
-| `--parallel-limit`        | `2`       | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
-| `--parallel-tasks`        | `false`   | Run task files inside one PRD workflow in dependency-aware parallel mode                         |
-| `--include-completed`     | `false`   | Re-run completed tasks                                                                           |
-| `--recursive`, `-r`       | `false`   | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
-| `--skip-validation`       | `false`   | Skip task metadata preflight; use only when validation already ran elsewhere                     |
-| `--force`                 | `false`   | Continue after task metadata validation fails in non-interactive mode                            |
-| `--attach`                | `auto`    | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
-| `--ui`                    | `false`   | Force interactive TUI attach mode                                                                |
-| `--stream`                | `false`   | Force textual stream attach mode                                                                 |
-| `--detach`                | `false`   | Start the run without attaching a client                                                         |
-| `--task-runtime`          |           | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
-| `--recovery`              | `false`   | Enable agentic recovery for failed runs                                                          |
-| `--no-recovery`           | `false`   | Disable agentic recovery for this invocation                                                     |
-| `--recovery-ide`          | `codex`   | Runtime used by the recovery agent                                                               |
-| `--recovery-model`        | `gpt-5.5` | Model used by the recovery agent                                                                 |
-| `--recovery-reasoning`    | `medium`  | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                             |
-| `--recovery-max-attempts` | `1`       | Recovery remediation plus restart cycles; must be between `1` and `3`                            |
+| Flag                      | Default       | Description                                                                                      |
+| ------------------------- | ------------- | ------------------------------------------------------------------------------------------------ |
+| `--name`                  |               | Workflow slug (defaults to the positional slug)                                                  |
+| `--multiple`              |               | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
+| `--parallel`              | `false`       | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
+| `--parallel-limit`        | `2`           | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
+| `--parallel-tasks`        | `false`       | Run task files inside one PRD workflow in dependency-aware parallel mode                         |
+| `--include-completed`     | `false`       | Re-run completed tasks                                                                           |
+| `--recursive`, `-r`       | `false`       | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
+| `--skip-validation`       | `false`       | Skip task metadata preflight; use only when validation already ran elsewhere                     |
+| `--force`                 | `false`       | Continue after task metadata validation fails in non-interactive mode                            |
+| `--attach`                | `auto`        | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
+| `--ui`                    | `false`       | Force interactive TUI attach mode                                                                |
+| `--stream`                | `false`       | Force textual stream attach mode                                                                 |
+| `--detach`                | `false`       | Start the run without attaching a client                                                         |
+| `--task-runtime`          |               | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
+| `--recovery`              | `false`       | Enable agentic recovery for failed runs                                                          |
+| `--no-recovery`           | `false`       | Disable agentic recovery for this invocation                                                     |
+| `--recovery-ide`          | `codex`       | Runtime used by the recovery agent                                                               |
+| `--recovery-model`        | `gpt-5.6-sol` | Model used by the recovery agent                                                                 |
+| `--recovery-reasoning`    | `medium`      | Recovery agent reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`, or `ultra`             |
+| `--recovery-max-attempts` | `1`           | Recovery remediation plus restart cycles; must be between `1` and `3`                            |
 
 When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
@@ -678,7 +685,7 @@ compozy tasks run my-feature --parallel-tasks
 The `--multiple` flag takes one comma-separated slug list:
 
 ```bash
-compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
+compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.6-sol
 compozy tasks run --multiple alpha,beta --stream
 compozy tasks run --multiple alpha,beta --detach
 ```
@@ -782,32 +789,32 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 
 `compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `~/.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
-| Flag                         | Default     | Description                                                                                |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                                             |
-| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
-| `--prompt-file`              |             | Read prompt text from a file                                                               |
-| `--format`                   | `text`      | Output contract: `text`, `json`, or `raw-json`                                             |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
-| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--recovery`                 | `false`     | Enable agentic recovery for failed exec runs                                               |
-| `--no-recovery`              | `false`     | Disable agentic recovery for this invocation                                               |
-| `--recovery-ide`             | `codex`     | Runtime used by the recovery agent                                                         |
-| `--recovery-model`           | `gpt-5.5`   | Model used by the recovery agent                                                           |
-| `--recovery-reasoning`       | `medium`    | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                       |
-| `--recovery-max-attempts`    | `1`         | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
-| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
-| `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes                |
-| `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                                        |
-| `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                                 |
-| `--persist`                  | `false`     | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
-| `--run-id`                   |             | Resume a previously persisted exec session by run id                                       |
-| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
+| Flag                         | Default       | Description                                                                                |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `--ide`                      | `codex`       | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
+| `--model`                    | _(per IDE)_   | Model override                                                                             |
+| `--agent`                    |               | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
+| `--prompt-file`              |               | Read prompt text from a file                                                               |
+| `--format`                   | `text`        | Output contract: `text`, `json`, or `raw-json`                                             |
+| `--reasoning-effort`         | `medium`      | `low`, `medium`, `high`, `xhigh`, `max`, `ultra`                                           |
+| `--access-mode`              | `full`        | `default` or `full` runtime access policy                                                  |
+| `--timeout`                  | `10m`         | Activity timeout per job                                                                   |
+| `--recovery`                 | `false`       | Enable agentic recovery for failed exec runs                                               |
+| `--no-recovery`              | `false`       | Disable agentic recovery for this invocation                                               |
+| `--recovery-ide`             | `codex`       | Runtime used by the recovery agent                                                         |
+| `--recovery-model`           | `gpt-5.6-sol` | Model used by the recovery agent                                                           |
+| `--recovery-reasoning`       | `medium`      | Recovery agent reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`, or `ultra`       |
+| `--recovery-max-attempts`    | `1`           | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
+| `--max-retries`              | `2`           | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--retry-backoff-multiplier` | `1.5`         | Multiplier applied to the next timeout after each retry                                    |
+| `--tail-lines`               | `0`           | Maximum log lines retained per job in UI (`0` = full history)                              |
+| `--add-dir`                  |               | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
+| `--auto-commit`              | `false`       | Include automatic commit instructions when the prompt asks for code changes                |
+| `--verbose`                  | `false`       | Emit operational runtime logs to stderr during exec                                        |
+| `--tui`                      | `false`       | Open the interactive TUI instead of headless stdout output                                 |
+| `--persist`                  | `false`       | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
+| `--run-id`                   |               | Resume a previously persisted exec session by run id                                       |
+| `--dry-run`                  | `false`       | Preview prompts without executing                                                          |
 
 </details>
 

@@ -600,6 +600,17 @@ func TestTaskRunWizardModel(t *testing.T) {
 	})
 }
 
+func TestTaskRunWizardReasoningOptionsIncludeModernEfforts(t *testing.T) {
+	t.Parallel()
+
+	options := taskRunWizardReasoningOptions()
+	for _, effort := range []string{"max", "ultra"} {
+		if !taskRunWizardChoiceContains(options, effort) {
+			t.Fatalf("reasoning options do not contain %q: %#v", effort, options)
+		}
+	}
+}
+
 // TestTaskRunWizardViewFitsTerminalBounds guards the layout invariant that the
 // rendered wizard never emits a line wider than the terminal nor more lines than
 // the terminal height. A regression here produces wrapped dividers and vertical

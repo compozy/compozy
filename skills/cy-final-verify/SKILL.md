@@ -48,7 +48,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 
 **If in doubt, run the full pipeline.** Over-verification wastes minutes. Under-verification wastes hours.
 
-**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption.
+**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
 
 ## Common Failures
 
@@ -61,6 +61,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 | Regression test works | Red-green cycle verified        | Test passes once               |
 | Agent completed       | VCS diff shows changes          | Agent reports "success"        |
 | Requirements met      | Line-by-line checklist          | Tests passing                  |
+| Matches spec contract | Field-by-field diff vs canonical spec artifacts | Task-file paraphrase satisfied, checkboxes ticked |
 
 ## Red Flags
 
@@ -71,6 +72,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 - Relying on partial verification
 - Thinking "just this once"
 - Any wording that implies success without current evidence
+- Verifying against a task file's paraphrase when a canonical contract artifact exists in the spec directory
 
 ## Rationalization Prevention
 
@@ -112,6 +114,17 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 
 If the full pipeline has not passed in this session after the last code change, the commit or PR must not proceed.
 
+## Spec Contract Parity (PRD/spec workflows)
+
+A green pipeline and ticked task checkboxes do not prove the deliverable matches the spec. When the work executes a task from a spec directory (PRD/TechSpec plus sibling artifacts), a "task complete" claim additionally requires:
+
+1. List the canonical contract artifacts for this task found during grounding (e.g. `_examples.md`, `_qa.md` input tables, `_tests.md` contracts, parity maps). If none are known, survey the spec directory now — absence must be proven, not assumed.
+2. Compare the deliverable to each artifact field by field: names, types, defaults, required flags, shapes, topologies, behaviors. Paraphrase-level similarity is not parity.
+3. Any mismatch fails the completion claim — fix the deliverable or report the conflict; never reinterpret the canonical artifact to match what was built.
+4. Cite the compared artifacts in the Verification Report (`Contract parity:` line).
+
+Failure mode this section exists to prevent (real incident): a task shipped "green" through seven peer-review rounds while contradicting the spec's canonical example document — every check measured engineering quality against the task file's paraphrase, and nothing ever compared the deliverable to the canonical contract.
+
 ## Verification Report Template
 
 Verification is not complete until the agent **cites actual command output** in their response. "I ran it and it passed" is not evidence. If the verification output is not shown, the verification did not happen.
@@ -128,6 +141,7 @@ Exit code: [0 or non-zero]
 Output summary: [Key lines from output — pass count, error count, build result]
 Warnings: [Any warnings, or "none"]
 Errors: [Any errors, or "none"]
+Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
 Verdict: PASS or FAIL
 ```
 

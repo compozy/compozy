@@ -422,7 +422,7 @@ func (fb *formBuilder) addModelField(target *string) {
 			Key("model").
 			Title("Model (optional)").
 			Placeholder("auto").
-			Description("Model override (defaults: codex/droid=gpt-5.5, " +
+			Description("Model override (defaults: codex/droid=gpt-5.6-sol, " +
 				"claude=opus, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)").
 			Value(target)
 	})
@@ -452,6 +452,8 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 				huh.NewOption("Medium", "medium"),
 				huh.NewOption("High", "high"),
 				huh.NewOption("Extra High", "xhigh"),
+				huh.NewOption("Maximum", "max"),
+				huh.NewOption("Ultra", "ultra"),
 			).
 			Value(target)
 	})

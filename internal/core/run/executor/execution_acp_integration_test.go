@@ -1283,8 +1283,10 @@ func (a *runACPHelperAgent) NewSession(_ context.Context, _ acp.NewSessionReques
 		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
 	}
 	return acp.NewSessionResponse{
-		SessionId: acp.SessionId(a.sessionID),
-		Meta:      a.scenario.SessionMeta,
+		SessionId:     acp.SessionId(a.sessionID),
+		Meta:          a.scenario.SessionMeta,
+		ConfigOptions: runACPHelperConfigOptions(),
+		Modes:         runACPHelperModes(),
 	}, nil
 }
 
@@ -1306,7 +1308,11 @@ func (a *runACPHelperAgent) LoadSession(
 			return acp.LoadSessionResponse{}, err
 		}
 	}
-	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
+	return acp.LoadSessionResponse{
+		Meta:          a.scenario.SessionMeta,
+		ConfigOptions: runACPHelperConfigOptions(),
+		Modes:         runACPHelperModes(),
+	}, nil
 }
 
 func (a *runACPHelperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -1377,7 +1383,7 @@ func (*runACPHelperAgent) SetSessionConfigOption(
 	context.Context,
 	acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: runACPHelperConfigOptions()}, nil
 }
 
 func (a *runACPHelperAgent) SetSessionMode(
@@ -1385,6 +1391,65 @@ func (a *runACPHelperAgent) SetSessionMode(
 	acp.SetSessionModeRequest,
 ) (acp.SetSessionModeResponse, error) {
 	return acp.SetSessionModeResponse{}, nil
+}
+
+func runACPHelperConfigOptions() []acp.SessionConfigOption {
+	modelCategory := acp.SessionConfigOptionCategoryModel
+	reasoningCategory := acp.SessionConfigOptionCategoryThoughtLevel
+	return []acp.SessionConfigOption{
+		runACPHelperSelectOption(
+			"model",
+			modelCategory,
+			model.DefaultCodexModel,
+			[]string{
+				model.DefaultCodexModel,
+				"gpt-5.5",
+				"test-model",
+				"cli-model",
+				"codex-fast",
+				model.DefaultOpenCodeModel,
+			},
+		),
+		runACPHelperSelectOption(
+			"reasoning_effort",
+			reasoningCategory,
+			"medium",
+			[]string{"low", "medium", "high", "xhigh", "max", "ultra", "workspace-reasoning"},
+		),
+	}
+}
+
+func runACPHelperSelectOption(
+	id string,
+	category acp.SessionConfigOptionCategory,
+	current string,
+	values []string,
+) acp.SessionConfigOption {
+	selectValues := make(acp.SessionConfigSelectOptionsUngrouped, 0, len(values))
+	for _, value := range values {
+		selectValues = append(selectValues, acp.SessionConfigSelectOption{
+			Value: acp.SessionConfigValueId(value),
+			Name:  value,
+		})
+	}
+	return acp.SessionConfigOption{Select: &acp.SessionConfigOptionSelect{
+		Id:           acp.SessionConfigId(id),
+		Name:         id,
+		Category:     &category,
+		CurrentValue: acp.SessionConfigValueId(current),
+		Type:         "select",
+		Options:      acp.SessionConfigSelectOptions{Ungrouped: &selectValues},
+	}}
+}
+
+func runACPHelperModes() *acp.SessionModeState {
+	return &acp.SessionModeState{
+		CurrentModeId: "agent",
+		AvailableModes: []acp.SessionMode{
+			{Id: "agent", Name: "Agent"},
+			{Id: "agent-full-access", Name: "Agent (full access)"},
+		},
+	}
 }
 
 func (e *runACPHelperRequestError) toACPError() error {

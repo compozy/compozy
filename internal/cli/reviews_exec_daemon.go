@@ -1370,6 +1370,12 @@ func (s *commandState) resolveReviewRound(ctx context.Context) error {
 	if s.round > 0 {
 		return nil
 	}
+	if round, ok, err := latestLocalReviewRound(s.workspaceRoot, s.name); err != nil {
+		return err
+	} else if ok {
+		s.round = round
+		return nil
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
@@ -1381,6 +1387,68 @@ func (s *commandState) resolveReviewRound(ctx context.Context) error {
 	}
 	s.round = review.RoundNumber
 	return nil
+}
+
+func latestLocalReviewRound(workspaceRoot string, workflowSlug string) (int, bool, error) {
+	if strings.TrimSpace(workspaceRoot) == "" || strings.TrimSpace(workflowSlug) == "" {
+		return 0, false, nil
+	}
+	workflowDir := filepathJoin(workspaceRoot, ".compozy", "tasks", workflowSlug)
+	entries, err := os.ReadDir(workflowDir)
+	if os.IsNotExist(err) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("read review workflow directory %s: %w", workflowDir, err)
+	}
+
+	latest := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		round, ok := parseReviewRoundDirName(entry.Name())
+		if !ok {
+			continue
+		}
+		hasIssueFile, err := reviewRoundHasIssueFile(filepath.Join(workflowDir, entry.Name()))
+		if err != nil {
+			return 0, false, err
+		}
+		if hasIssueFile && round > latest {
+			latest = round
+		}
+	}
+	return latest, latest > 0, nil
+}
+
+func parseReviewRoundDirName(name string) (int, bool) {
+	trimmed := strings.TrimSpace(name)
+	if !strings.HasPrefix(trimmed, "reviews-") {
+		return 0, false
+	}
+	round, err := strconv.Atoi(strings.TrimPrefix(trimmed, "reviews-"))
+	if err != nil || round <= 0 {
+		return 0, false
+	}
+	return round, true
+}
+
+func reviewRoundHasIssueFile(reviewDir string) (bool, error) {
+	entries, err := os.ReadDir(reviewDir)
+	if err != nil {
+		return false, fmt.Errorf("read review round directory %s: %w", reviewDir, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasPrefix(name, "issue_") && strings.HasSuffix(name, ".md") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func reviewRoundDirForWorkflow(workspaceRoot string, workflowSlug string, round int) string {

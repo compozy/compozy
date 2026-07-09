@@ -35,10 +35,9 @@ latency there.
   installed version (`rtk claude --version` / `rtk codex --version`). If a
   newer build renames a mode or menu, adapt the keys/labels before relying on
   the flow rather than failing mid-loop.
-- Inside a running TUI a trailing `\n` is a soft newline and does NOT submit.
-  Send the packet as text, then `send-key enter`, then confirm with
-  `read-screen` (input line empty + working indicator active). Treat an
-  unconfirmed send as not delivered.
+- Submit inside a running TUI per the parent skill's *Sending prompts to
+  running TUIs* rule: send the packet as text, then `send-key enter`, then
+  confirm with `read-screen` (a trailing `\n` alone does not submit).
 - Plan mode is interactive. The worker may ask clarifying questions before
   presenting a plan — watch for them and answer with the task context. Do not
   answer questions it did not ask.

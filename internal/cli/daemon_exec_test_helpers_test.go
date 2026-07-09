@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -49,6 +50,7 @@ func installInProcessCLIDaemonBootstrapWithConfigClient(
 ) *inProcessDaemonCommandClient {
 	t.Helper()
 	prepareInProcessCLIDaemonHome(t)
+	installInProcessCLITestCodexACP(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -95,6 +97,33 @@ func installInProcessCLIDaemonBootstrapWithConfigClient(
 	}
 	installTestCLIReadyDaemonBootstrap(t, client)
 	return client
+}
+
+func installInProcessCLITestCodexACP(t *testing.T) {
+	t.Helper()
+
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "lib", "node_modules", "@agentclientprotocol", "codex-acp")
+	binDir := filepath.Join(packageDir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create test codex-acp package: %v", err)
+	}
+	packageJSON := []byte(`{"name":"@agentclientprotocol/codex-acp","version":"1.1.2"}`)
+	if err := os.WriteFile(filepath.Join(packageDir, "package.json"), packageJSON, 0o600); err != nil {
+		t.Fatalf("write test codex-acp package metadata: %v", err)
+	}
+	target := filepath.Join(binDir, "codex-acp.js")
+	if err := os.WriteFile(target, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatalf("write test codex-acp executable: %v", err)
+	}
+	pathDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(pathDir, 0o755); err != nil {
+		t.Fatalf("create test codex-acp path directory: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(pathDir, "codex-acp")); err != nil {
+		t.Fatalf("link test codex-acp executable: %v", err)
+	}
+	t.Setenv("PATH", pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func prepareInProcessCLIDaemonHome(t *testing.T) {

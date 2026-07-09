@@ -30,8 +30,6 @@ type Client interface {
 	CancelSession(ctx context.Context, sessionID string) error
 	// PromptSession sends a new prompt turn into an already active ACP session.
 	PromptSession(ctx context.Context, req PromptSessionRequest) (Session, error)
-	// SetSessionModel changes the active model for an ACP session via session/set_config_option.
-	SetSessionModel(ctx context.Context, sessionID string, modelID string) error
 	// SupportsLoadSession reports whether the connected ACP agent advertised session/load support.
 	SupportsLoadSession() bool
 	// Close terminates the agent subprocess.
@@ -235,6 +233,10 @@ const (
 	SessionSetupStageNewSession SessionSetupStage = "new_session"
 	// SessionSetupStageLoadSession indicates that ACP session loading failed.
 	SessionSetupStageLoadSession SessionSetupStage = "load_session"
+	// SessionSetupStageSetModel indicates that ACP session model configuration failed.
+	SessionSetupStageSetModel SessionSetupStage = "set_model"
+	// SessionSetupStageSetReasoning indicates that ACP session reasoning configuration failed.
+	SessionSetupStageSetReasoning SessionSetupStage = "set_reasoning"
 	// SessionSetupStageSetMode indicates that ACP session mode configuration failed.
 	SessionSetupStageSetMode SessionSetupStage = "set_mode"
 )
@@ -375,19 +377,15 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	session.setAgentSessionID(extractAgentSessionID(sessionResp.Meta))
 	c.storeSession(ctx, session)
 
-	if modeID := c.spec.sessionModeForAccess(c.cfg.AccessMode); modeID != "" {
-		if _, err := c.conn.SetSessionMode(setupCtx, acp.SetSessionModeRequest{
-			SessionId: sessionResp.SessionId,
-			ModeId:    acp.SessionModeId(modeID),
-		}); err != nil {
-			c.removeSession(session.id)
-			return nil, c.wrapACPSetupErrorWithDiagnostics(
-				setupCtx,
-				SessionSetupStageSetMode,
-				"set ACP session mode",
-				err,
-			)
-		}
+	if err := c.configureSession(
+		setupCtx,
+		sessionResp.SessionId,
+		req.Model,
+		sessionResp.ConfigOptions,
+		sessionResp.Modes,
+	); err != nil {
+		c.removeSession(session.id)
+		return nil, err
 	}
 
 	model.DispatchObserverHook(
@@ -511,6 +509,16 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 		return nil, c.wrapACPSetupErrorWithDiagnostics(setupCtx, SessionSetupStageLoadSession, "load ACP session", err)
 	}
 	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
+	if err := c.configureSession(
+		setupCtx,
+		acp.SessionId(sessionID),
+		req.Model,
+		loadResp.ConfigOptions,
+		loadResp.Modes,
+	); err != nil {
+		c.removeSession(session.id)
+		return nil, err
+	}
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.resumeUpdates()
 
@@ -540,36 +548,6 @@ func (c *clientImpl) CancelSession(ctx context.Context, sessionID string) error 
 		return errors.New("ACP client is not started")
 	}
 	if err := conn.Cancel(ctx, acp.CancelNotification{SessionId: acp.SessionId(sessionID)}); err != nil {
-		return wrapACPError(err)
-	}
-	return nil
-}
-
-// SetSessionModel changes the active model for an ACP session via setSessionConfigOption.
-func (c *clientImpl) SetSessionModel(ctx context.Context, sessionID string, modelID string) error {
-	sessionID = strings.TrimSpace(sessionID)
-	modelID = strings.TrimSpace(modelID)
-	if sessionID == "" || modelID == "" {
-		return nil
-	}
-	c.mu.Lock()
-	closed := c.closed
-	conn := c.conn
-	c.mu.Unlock()
-	if closed {
-		return errors.New("ACP client is already closed")
-	}
-	if conn == nil {
-		return errors.New("ACP client is not started")
-	}
-	_, err := conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
-		ValueId: &acp.SetSessionConfigOptionValueId{
-			SessionId: acp.SessionId(sessionID),
-			ConfigId:  acp.SessionConfigId("model"),
-			Value:     acp.SessionConfigValueId(modelID),
-		},
-	})
-	if err != nil {
 		return wrapACPError(err)
 	}
 	return nil
@@ -885,7 +863,7 @@ func (c *clientImpl) resolveStartCommand(ctx context.Context, req SessionRequest
 	if err != nil {
 		return "", nil, err
 	}
-	if err := validateRuntimeModelCompatibility(c.spec, requestedModel, command); err != nil {
+	if err := validateRuntimeCompatibility(c.spec, requestedModel, c.cfg.ReasoningEffort, command); err != nil {
 		return "", nil, wrapSessionSetupError(SessionSetupStageStartProcess, err)
 	}
 	return startModel, command, nil

@@ -612,7 +612,7 @@ dependency-aware waves using the resolved [tasks.run.parallel] config.`,
   compozy tasks run --multiple alpha,beta --detach
   compozy tasks run --multiple alpha,beta --parallel
   compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3
-  compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
+  compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.6-sol
   compozy tasks run my-feature --stream
   compozy tasks run my-feature --detach
   compozy tasks run --name my-feature --dry-run`,
@@ -712,7 +712,7 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 	cmd.Flags().Var(
 		newTaskRuntimeFlagValue(&state.executionTaskRuntimeRules),
 		"task-runtime",
-		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.5 or id=task_01,reasoning-effort=xhigh`,
+		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.6-sol or id=task_01,reasoning-effort=xhigh`,
 	)
 }
 

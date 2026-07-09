@@ -1,8 +1,11 @@
 ---
 name: git-rebase
-description: Intelligently handle git rebase operations and resolve merge conflicts while preserving features and maintaining code quality. Use when rebasing feature branches, resolving conflicts across commits, and ensuring clean linear history without losing changes.
+description: Intelligently handle git rebase operations and resolve merge conflicts while preserving features and maintaining code quality. Use when rebasing feature branches, resolving conflicts across commits, and ensuring clean linear history without losing changes. Don't use for merge-commit workflows, cherry-picking individual commits, or initial repository setup.
+metadata:
+  author: Pedro Nauck
+  github: https://github.com/pedronauck
+  repository: https://github.com/pedronauck/skills
 ---
-
 # Git Rebase with Intelligent Conflict Resolution
 
 ## Quick Start

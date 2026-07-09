@@ -124,6 +124,20 @@ func TestDiscoverParsesValidAgentDefinition(t *testing.T) {
 	}
 }
 
+func TestValidateRuntimeDefaultsAcceptsModernReasoningEfforts(t *testing.T) {
+	t.Parallel()
+
+	for _, effort := range []string{"max", "ultra"} {
+		effort := effort
+		t.Run(effort, func(t *testing.T) {
+			t.Parallel()
+			if err := validateRuntimeDefaults("AGENT.md", RuntimeDefaults{ReasoningEffort: effort}); err != nil {
+				t.Fatalf("validateRuntimeDefaults(%q): %v", effort, err)
+			}
+		})
+	}
+}
+
 func TestDiscoverRejectsReservedAndInvalidAgentNames(t *testing.T) {
 	t.Parallel()
 

@@ -43,24 +43,8 @@ func TestAgentRegistryEntries(t *testing.T) {
 			addDirs:             []string{"../shared", "../docs"},
 			accessMode:          model.AccessModeFull,
 			wantSupportsAddDirs: true,
-			wantLaunch: []string{
-				"codex-acp",
-				"-c",
-				`model="` + model.DefaultCodexModel + `"`,
-				"-c",
-				`model_reasoning_effort="medium"`,
-				"-c",
-				"features.code_mode=false",
-				"-c",
-				"features.code_mode_only=false",
-				"-c",
-				`approval_policy="never"`,
-				"-c",
-				`sandbox_mode="danger-full-access"`,
-				"-c",
-				`web_search="live"`,
-			},
-			wantProbe: []string{"codex-acp", "--help"},
+			wantLaunch:          []string{"codex-acp"},
+			wantProbe:           []string{"codex-acp", "--help"},
 		},
 		{
 			name:                "Should expose Droid ACP commands",
@@ -383,14 +367,6 @@ func TestResolveRuntimeModelTreatsAutoAsRuntimeDefault(t *testing.T) {
 func TestCodexBootstrapArgsSetManagedRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 
-	spec, err := lookupAgentSpec(model.IDECodex)
-	if err != nil {
-		t.Fatalf("lookup codex spec: %v", err)
-	}
-	if !spec.UsesBootstrapModel {
-		t.Fatal("expected codex to use bootstrap model configuration")
-	}
-
 	cases := []struct {
 		name            string
 		reasoningEffort string
@@ -402,7 +378,6 @@ func TestCodexBootstrapArgsSetManagedRuntimeOverrides(t *testing.T) {
 			reasoningEffort: "high",
 			accessMode:      model.AccessModeFull,
 			want: []string{
-				"codex-acp",
 				"-c", `model="gpt-5.5"`,
 				"-c", `model_reasoning_effort="high"`,
 				"-c", "features.code_mode=false",
@@ -417,7 +392,6 @@ func TestCodexBootstrapArgsSetManagedRuntimeOverrides(t *testing.T) {
 			reasoningEffort: "low",
 			accessMode:      model.AccessModeDefault,
 			want: []string{
-				"codex-acp",
 				"-c", `model="gpt-5.5"`,
 				"-c", `model_reasoning_effort="low"`,
 				"-c", "features.code_mode=false",
@@ -431,7 +405,7 @@ func TestCodexBootstrapArgsSetManagedRuntimeOverrides(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			command := spec.launchCommand("gpt-5.5", tc.reasoningEffort, nil, tc.accessMode)
+			command := codexBootstrapArgs("gpt-5.5", tc.reasoningEffort, nil, tc.accessMode)
 			if !slices.Equal(command, tc.want) {
 				t.Fatalf("codex launch command = %#v, want %#v", command, tc.want)
 			}
@@ -451,8 +425,9 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 			t.Fatal("expected codex-acp compatibility error")
 		}
 		for _, want := range []string{
-			"gpt-5.5 requires codex-acp >= 0.12.0",
-			"found 0.11.1",
+			"gpt-5.5 requires @agentclientprotocol/codex-acp >= 1.1.2",
+			"legacy @zed-industries/codex-acp >= 0.12.0",
+			"@zed-industries/codex-acp 0.11.1",
 			"Choose a model supported by your installed codex-acp",
 		} {
 			if !strings.Contains(err.Error(), want) {
@@ -475,6 +450,99 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject gpt-5.6 on the legacy codex acp package", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.16.0")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.6-sol",
+			ReasoningEffort: "medium",
+		})
+		if err == nil {
+			t.Fatal("expected official codex-acp compatibility error")
+		}
+		for _, want := range []string{
+			"gpt-5.6-sol requires @agentclientprotocol/codex-acp >= 1.1.2",
+			"found legacy package @zed-industries/codex-acp 0.16.0",
+			"npm install -g @agentclientprotocol/codex-acp@latest",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("compatibility error = %q, want %q", err, want)
+			}
+		}
+	})
+
+	t.Run("Should reject parameterized gpt-5.6 IDs on the legacy codex acp package", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.16.0")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.6-sol[context=272k]",
+			ReasoningEffort: "medium",
+		})
+		if err == nil {
+			t.Fatal("expected official codex-acp compatibility error")
+		}
+		if !strings.Contains(err.Error(), "requires @agentclientprotocol/codex-acp >= 1.1.2") {
+			t.Fatalf("compatibility error = %q", err)
+		}
+	})
+
+	t.Run("Should reject gpt-5.6 when the official codex acp is too old", func(t *testing.T) {
+		installOfficialCodexACPNPMPackage(t, "1.1.1")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.6-terra",
+			ReasoningEffort: "high",
+		})
+		if err == nil {
+			t.Fatal("expected codex-acp version compatibility error")
+		}
+		for _, want := range []string{
+			"gpt-5.6-terra requires codex-acp >= 1.1.2",
+			"found 1.1.1",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("compatibility error = %q, want %q", err, want)
+			}
+		}
+	})
+
+	t.Run("Should accept gpt-5.6 with ultra on the verified official codex acp", func(t *testing.T) {
+		installOfficialCodexACPNPMPackage(t, codexACPMinimumVersion)
+		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.6-luna",
+			ReasoningEffort: "ultra",
+		}); err != nil {
+			t.Fatalf("ensure available: %v", err)
+		}
+	})
+
+	t.Run("Should reject max reasoning on the legacy codex acp package", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.16.0")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "max",
+		})
+		if err == nil {
+			t.Fatal("expected max reasoning compatibility error")
+		}
+		if !strings.Contains(err.Error(), "requires @agentclientprotocol/codex-acp >= 1.1.2") {
+			t.Fatalf("compatibility error = %q", err)
+		}
+	})
+
+	t.Run("Should accept max reasoning on the verified official codex acp", func(t *testing.T) {
+		installOfficialCodexACPNPMPackage(t, codexACPMinimumVersion)
+		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "max",
+		}); err != nil {
+			t.Fatalf("ensure available: %v", err)
+		}
+	})
+
 	t.Run("Should reject gpt-5.5 when codex acp is only a prerelease of the minimum", func(t *testing.T) {
 		installCodexACPNPMPackage(t, "0.12.0-beta.1")
 		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
@@ -486,8 +554,8 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 			t.Fatal("expected codex-acp prerelease compatibility error")
 		}
 		for _, want := range []string{
-			"gpt-5.5 requires codex-acp >= 0.12.0",
-			"found 0.12.0-beta.1",
+			"legacy @zed-industries/codex-acp >= 0.12.0",
+			"@zed-industries/codex-acp 0.12.0-beta.1",
 		} {
 			if !strings.Contains(err.Error(), want) {
 				t.Fatalf("compatibility error = %q, want %q", err, want)
@@ -501,6 +569,17 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 			IDE:             model.IDECodex,
 			Model:           "gpt-5.5",
 			ReasoningEffort: "low",
+		}); err != nil {
+			t.Fatalf("ensure available: %v", err)
+		}
+	})
+
+	t.Run("Should defer gpt-5.6 validation to ACP when standalone version is unknown", func(t *testing.T) {
+		installExecutableOnPath(t, "codex-acp", "#!/bin/sh\nexit 0\n")
+		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.6-sol",
+			ReasoningEffort: "ultra",
 		}); err != nil {
 			t.Fatalf("ensure available: %v", err)
 		}
@@ -652,7 +731,7 @@ func TestBuildShellCommandStringUsesFallbackLauncherWhenPrimaryMissing(t *testin
 	}
 }
 
-func TestCodexFallbackLaunchBootstrapsDefaultModel(t *testing.T) {
+func TestCodexFallbackLaunchUsesOfficialAdapter(t *testing.T) {
 	tmpDir := t.TempDir()
 	npxPath := filepath.Join(tmpDir, "npx")
 	script := "#!/bin/sh\nexit 0\n"
@@ -662,12 +741,25 @@ func TestCodexFallbackLaunchBootstrapsDefaultModel(t *testing.T) {
 
 	t.Setenv("PATH", tmpDir)
 	got := BuildShellCommandString(model.IDECodex, "", nil, "medium", model.AccessModeDefault)
+	want := "npx --yes @agentclientprotocol/codex-acp"
+	if got != want {
+		t.Fatalf("BuildShellCommandString() = %q, want %q", got, want)
+	}
+}
+
+func TestCodexLegacyAdapterKeepsBootstrapOverrides(t *testing.T) {
+	installCodexACPNPMPackage(t, "0.12.0")
+
+	got := BuildShellCommandString(model.IDECodex, "gpt-5.5", nil, "high", model.AccessModeFull)
 	for _, want := range []string{
-		"npx --yes @zed-industries/codex-acp",
+		"codex-acp",
 		"-c",
-		`'model="` + model.DefaultCodexModel + `"'`,
+		`'model="gpt-5.5"'`,
+		`'model_reasoning_effort="high"'`,
 		"features.code_mode=false",
 		"features.code_mode_only=false",
+		`'approval_policy="never"'`,
+		`'sandbox_mode="danger-full-access"'`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("BuildShellCommandString() = %q, want to contain %q", got, want)
@@ -1193,20 +1285,34 @@ func TestDisplayNameReturnsCorrectDisplayNames(t *testing.T) {
 
 func installCodexACPNPMPackage(t *testing.T, version string) {
 	t.Helper()
+	installCodexACPNPMPackageNamed(t, legacyCodexACPNPMPackageName, version)
+}
+
+func installOfficialCodexACPNPMPackage(t *testing.T, version string) {
+	t.Helper()
+	installCodexACPNPMPackageNamed(t, codexACPNPMPackageName, version)
+}
+
+func installCodexACPNPMPackageNamed(t *testing.T, packageName string, version string) {
+	t.Helper()
 
 	tmpDir := t.TempDir()
+	scope, packageBase, ok := strings.Cut(strings.TrimPrefix(packageName, "@"), "/")
+	if !ok || scope == "" || packageBase == "" {
+		t.Fatalf("invalid scoped npm package name %q", packageName)
+	}
 	packageDir := filepath.Join(
 		tmpDir,
 		"lib",
 		"node_modules",
-		"@zed-industries",
-		"codex-acp",
+		"@"+scope,
+		packageBase,
 	)
 	binDir := filepath.Join(packageDir, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("create codex-acp package dir: %v", err)
 	}
-	packageJSON := fmt.Sprintf(`{"name":%q,"version":%q}`, codexACPNPMPackageName, version)
+	packageJSON := fmt.Sprintf(`{"name":%q,"version":%q}`, packageName, version)
 	if err := os.WriteFile(filepath.Join(packageDir, "package.json"), []byte(packageJSON), 0o600); err != nil {
 		t.Fatalf("write codex-acp package json: %v", err)
 	}

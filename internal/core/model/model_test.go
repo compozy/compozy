@@ -11,6 +11,14 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
+func TestDefaultCodexModelUsesGPT56Sol(t *testing.T) {
+	t.Parallel()
+
+	if model.DefaultCodexModel != "gpt-5.6-sol" {
+		t.Fatalf("DefaultCodexModel = %q, want %q", model.DefaultCodexModel, "gpt-5.6-sol")
+	}
+}
+
 func TestRuntimeConfigApplyDefaults(t *testing.T) {
 	t.Parallel()
 

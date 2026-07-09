@@ -13,7 +13,11 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
-const codexACPNPMPackageName = "@zed-industries/codex-acp"
+const (
+	codexACPNPMPackageName       = "@agentclientprotocol/codex-acp"
+	legacyCodexACPNPMPackageName = "@zed-industries/codex-acp"
+	codexACPMinimumVersion       = "1.1.2"
+)
 
 var absoluteCodexACPPathPattern = regexp.MustCompile(`/[^\s"']*/codex-acp(?:\.js)?`)
 
@@ -22,6 +26,8 @@ type runtimeModelRequirement struct {
 	RuntimeDisplayName string
 	PackageName        string
 	MinVersion         string
+	LegacyPackageName  string
+	LegacyMinVersion   string
 	UpgradeCommand     string
 	UnavailableReason  string
 }
@@ -31,14 +37,30 @@ var codexModelRequirements = map[string]runtimeModelRequirement{
 		RuntimeCommand:     "codex-acp",
 		RuntimeDisplayName: "codex-acp",
 		PackageName:        codexACPNPMPackageName,
-		MinVersion:         "0.12.0",
-		UpgradeCommand:     "npm install -g @zed-industries/codex-acp@latest",
+		MinVersion:         codexACPMinimumVersion,
+		LegacyPackageName:  legacyCodexACPNPMPackageName,
+		LegacyMinVersion:   "0.12.0",
+		UpgradeCommand:     "npm install -g @agentclientprotocol/codex-acp@latest",
 	},
+	"gpt-5.6":       modernCodexRuntimeRequirement(),
+	"gpt-5.6-sol":   modernCodexRuntimeRequirement(),
+	"gpt-5.6-terra": modernCodexRuntimeRequirement(),
+	"gpt-5.6-luna":  modernCodexRuntimeRequirement(),
 }
 
-func validateRuntimeModelCompatibility(spec Spec, modelName string, command []string) error {
+func modernCodexRuntimeRequirement() runtimeModelRequirement {
+	return runtimeModelRequirement{
+		RuntimeCommand:     "codex-acp",
+		RuntimeDisplayName: "codex-acp",
+		PackageName:        codexACPNPMPackageName,
+		MinVersion:         codexACPMinimumVersion,
+		UpgradeCommand:     "npm install -g @agentclientprotocol/codex-acp@latest",
+	}
+}
+
+func validateRuntimeCompatibility(spec Spec, modelName string, reasoningEffort string, command []string) error {
 	resolvedModel := strings.TrimSpace(modelName)
-	req, ok := runtimeModelRequirementFor(spec.ID, resolvedModel)
+	req, ok := runtimeRequirementForConfig(spec.ID, resolvedModel, reasoningEffort)
 	if !ok {
 		return nil
 	}
@@ -55,22 +77,61 @@ func validateRuntimeModelCompatibility(spec Spec, modelName string, command []st
 		return nil
 	}
 
-	version, ok := detectCodexACPVersion(command[0])
+	installation, ok := detectCodexACPInstallation(command[0])
 	if !ok {
 		return nil
 	}
-	if compareSemver(version, req.MinVersion) >= 0 {
+	if packageSatisfiesRuntimeRequirement(installation, req) {
 		return nil
+	}
+	if installation.PackageName == req.LegacyPackageName && strings.TrimSpace(req.LegacyMinVersion) != "" {
+		return fmt.Errorf(
+			"%s requires %s >= %s or legacy %s >= %s, but found legacy package %s %s. Update with: %s. %s",
+			resolvedModel,
+			req.PackageName,
+			req.MinVersion,
+			req.LegacyPackageName,
+			req.LegacyMinVersion,
+			installation.PackageName,
+			installation.Version,
+			req.UpgradeCommand,
+			supportedModelMessage(req),
+		)
+	}
+	if installation.PackageName != req.PackageName {
+		return fmt.Errorf(
+			"%s requires %s >= %s, but found legacy package %s %s. Update with: %s. %s",
+			resolvedModel,
+			req.PackageName,
+			req.MinVersion,
+			installation.PackageName,
+			installation.Version,
+			req.UpgradeCommand,
+			supportedModelMessage(req),
+		)
 	}
 	return fmt.Errorf(
 		"%s requires %s >= %s, but found %s. Update with: %s. %s",
 		resolvedModel,
 		req.RuntimeDisplayName,
 		req.MinVersion,
-		version,
+		installation.Version,
 		req.UpgradeCommand,
 		supportedModelMessage(req),
 	)
+}
+
+func packageSatisfiesRuntimeRequirement(
+	installation codexACPInstallation,
+	req runtimeModelRequirement,
+) bool {
+	if installation.PackageName == req.PackageName {
+		return compareSemver(installation.Version, req.MinVersion) >= 0
+	}
+	if installation.PackageName == req.LegacyPackageName && strings.TrimSpace(req.LegacyMinVersion) != "" {
+		return compareSemver(installation.Version, req.LegacyMinVersion) >= 0
+	}
+	return false
 }
 
 func codexModelCompatibilityHint(spec Spec, modelName string, err error) error {
@@ -102,8 +163,28 @@ func runtimeModelRequirementFor(ide string, modelName string) (runtimeModelRequi
 	if ide != model.IDECodex {
 		return runtimeModelRequirement{}, false
 	}
-	req, ok := codexModelRequirements[strings.TrimSpace(modelName)]
+	normalized := normalizeRuntimeModel(Spec{ID: model.IDECodex}, modelName)
+	if base, _, parameterized := strings.Cut(normalized, "["); parameterized {
+		normalized = strings.TrimSpace(base)
+	}
+	req, ok := codexModelRequirements[normalized]
 	return req, ok
+}
+
+func runtimeRequirementForConfig(
+	ide string,
+	modelName string,
+	reasoningEffort string,
+) (runtimeModelRequirement, bool) {
+	if ide != model.IDECodex {
+		return runtimeModelRequirement{}, false
+	}
+	switch strings.ToLower(strings.TrimSpace(reasoningEffort)) {
+	case reasoningEffortMax, reasoningEffortUltra:
+		return modernCodexRuntimeRequirement(), true
+	default:
+		return runtimeModelRequirementFor(ide, modelName)
+	}
 }
 
 func supportedModelMessage(req runtimeModelRequirement) string {
@@ -114,35 +195,43 @@ func supportedModelMessage(req runtimeModelRequirement) string {
 	return fmt.Sprintf("Choose a model supported by your installed %s.", displayName)
 }
 
-func detectCodexACPVersion(command string) (string, bool) {
-	path, err := exec.LookPath(command)
-	if err != nil {
-		return "", false
-	}
-	return detectCodexACPVersionFromPath(path)
+type codexACPInstallation struct {
+	PackageName string
+	Version     string
 }
 
-func detectCodexACPVersionFromPath(path string) (string, bool) {
-	if version, ok := codexACPVersionNearPath(path); ok {
-		return version, true
+func detectCodexACPInstallation(command string) (codexACPInstallation, bool) {
+	path, err := exec.LookPath(command)
+	if err != nil {
+		return codexACPInstallation{}, false
+	}
+	return detectCodexACPInstallationFromPath(path)
+}
+
+func detectCodexACPInstallationFromPath(path string) (codexACPInstallation, bool) {
+	if installation, ok := codexACPInstallationNearPath(path); ok {
+		return installation, true
 	}
 	target, ok := codexACPWrapperTarget(path)
 	if !ok {
-		return "", false
+		return codexACPInstallation{}, false
 	}
-	return codexACPVersionNearPath(target)
+	return codexACPInstallationNearPath(target)
 }
 
-func codexACPVersionNearPath(path string) (string, bool) {
+func codexACPInstallationNearPath(path string) (codexACPInstallation, bool) {
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		resolvedPath = path
 	}
 	dir := filepath.Dir(resolvedPath)
 	for i := 0; i < 8; i++ {
-		version, ok := readNPMVersion(filepath.Join(dir, "package.json"), codexACPNPMPackageName)
-		if ok {
-			return version, true
+		packagePath := filepath.Join(dir, "package.json")
+		for _, packageName := range []string{codexACPNPMPackageName, legacyCodexACPNPMPackageName} {
+			version, ok := readNPMVersion(packagePath, packageName)
+			if ok {
+				return codexACPInstallation{PackageName: packageName, Version: version}, true
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -150,7 +239,7 @@ func codexACPVersionNearPath(path string) (string, bool) {
 		}
 		dir = parent
 	}
-	return "", false
+	return codexACPInstallation{}, false
 }
 
 func codexACPWrapperTarget(path string) (string, bool) {

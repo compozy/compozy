@@ -123,7 +123,7 @@ func TestRuntimeForTaskSelectsQARuntimes(t *testing.T) {
 		{
 			name: "execution",
 			task: extension.TaskRuntimeTask{Title: "Daemon QA execution and operator-flow validation", Type: "test"},
-			want: extension.TaskRuntime{IDE: "codex", Model: "gpt-5.5", ReasoningEffort: "xhigh"},
+			want: extension.TaskRuntime{IDE: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "xhigh"},
 			ok:   true,
 		},
 		{

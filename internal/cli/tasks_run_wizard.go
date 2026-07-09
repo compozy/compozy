@@ -395,6 +395,8 @@ func taskRunWizardReasoningOptions() []taskRunWizardChoice {
 		{Label: "Medium", Value: taskRunWizardDefaultReasoning},
 		{Label: "High", Value: "high"},
 		{Label: "Extra High", Value: "xhigh"},
+		{Label: "Maximum", Value: "max"},
+		{Label: "Ultra", Value: "ultra"},
 	}
 }
 

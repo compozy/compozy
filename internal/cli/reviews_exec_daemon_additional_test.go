@@ -1196,6 +1196,34 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		}
 	})
 
+	t.Run("resolve review round uses latest local review round before daemon", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+		for _, dir := range []string{"reviews-001", "reviews-003", "reviews-004", "reviews-invalid"} {
+			if err := os.MkdirAll(filepath.Join(workflowDir, dir), 0o755); err != nil {
+				t.Fatalf("mkdir %s: %v", dir, err)
+			}
+		}
+		for _, issuePath := range []string{
+			filepath.Join(workflowDir, "reviews-001", "issue_001.md"),
+			filepath.Join(workflowDir, "reviews-003", "issue_001.md"),
+		} {
+			if err := os.WriteFile(issuePath, []byte("# issue\n"), 0o644); err != nil {
+				t.Fatalf("write issue file %s: %v", issuePath, err)
+			}
+		}
+
+		state := newCommandState(commandKindFixReviews, core.ModePRReview)
+		state.workspaceRoot = workspaceRoot
+		state.name = "demo"
+		if err := state.resolveReviewRound(context.Background()); err != nil {
+			t.Fatalf("resolveReviewRound() error = %v", err)
+		}
+		if state.round != 3 {
+			t.Fatalf("state.round = %d, want latest local round 3", state.round)
+		}
+	})
+
 	t.Run("resolve workflow name and round args validates positionals", func(t *testing.T) {
 		state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 		cmd := &cobra.Command{Use: "fetch [slug]"}

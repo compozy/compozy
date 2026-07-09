@@ -387,9 +387,6 @@ func createACPSession(
 		if err != nil {
 			return nil, err
 		}
-		if err := client.SetSessionModel(ctx, session.ID(), modelName); err != nil {
-			return nil, err
-		}
 		return session, nil
 	}
 	return client.ResumeSession(ctx, agent.ResumeSessionRequest{

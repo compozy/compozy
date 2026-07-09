@@ -3009,8 +3009,9 @@ func TestReviewsFixCommandNoFlagsUsesInteractiveForm(t *testing.T) {
 
 	client := &reviewExecCaptureClient{
 		stubDaemonCommandClient: &stubDaemonCommandClient{
-			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
-			health: apicore.DaemonHealth{Ready: true},
+			target:          apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health:          apicore.DaemonHealth{Ready: true},
+			reviewLatestErr: errors.New("review round was not found"),
 			reviewRun: apicore.Run{
 				RunID:            "run-review-form-001",
 				Mode:             string(core.ModePRReview),
@@ -3057,7 +3058,6 @@ func TestReviewsFixCommandNoFlagsUsesInteractiveForm(t *testing.T) {
 	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
 		collectFormCalls++
 		state.name = "demo"
-		state.round = 1
 		return nil
 	}
 
