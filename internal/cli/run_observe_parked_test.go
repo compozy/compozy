@@ -22,21 +22,23 @@ func mustObservedParkedEvent(t *testing.T, payload kinds.JobParkedPayload) event
 func TestRenderObservedJobParkedCarriesFullTriageDetail(t *testing.T) {
 	t.Parallel()
 
-	event := mustObservedParkedEvent(t, kinds.JobParkedPayload{
-		JobAttemptInfo:  kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 2},
-		Reason:          "stalled again after clean-state retry",
-		LastToolCall:    "Bash go test ./...",
-		LastProgressSeq: 1284,
-		WorktreePath:    "/tmp/wt/task_02",
-		LogPath:         "/tmp/logs/task_02.out.log",
-	})
+	t.Run("Should carry full triage detail on a parked line", func(t *testing.T) {
+		event := mustObservedParkedEvent(t, kinds.JobParkedPayload{
+			JobAttemptInfo:  kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 2},
+			Reason:          "stalled again after clean-state retry",
+			LastToolCall:    "Bash go test ./...",
+			LastProgressSeq: 1284,
+			WorktreePath:    "/tmp/wt/task_02",
+			LogPath:         "/tmp/logs/task_02.out.log",
+		})
 
-	want := "job[2] parked | stalled again after clean-state retry | " +
-		"last tool call: Bash go test ./... | last_progress_seq=1284 | " +
-		"worktree=/tmp/wt/task_02 | log=/tmp/logs/task_02.out.log\n"
-	if got := renderObservedRunEvent(event); got != want {
-		t.Fatalf("renderObservedRunEvent()\n got = %q\nwant = %q", got, want)
-	}
+		want := "job[2] parked | stalled again after clean-state retry | " +
+			"last tool call: Bash go test ./... | last_progress_seq=1284 | " +
+			"worktree=/tmp/wt/task_02 | log=/tmp/logs/task_02.out.log\n"
+		if got := renderObservedRunEvent(event); got != want {
+			t.Fatalf("renderObservedRunEvent()\n got = %q\nwant = %q", got, want)
+		}
+	})
 }
 
 // Absent detail must never render a dangling key: a park with no durable progress
@@ -44,25 +46,29 @@ func TestRenderObservedJobParkedCarriesFullTriageDetail(t *testing.T) {
 func TestRenderObservedJobParkedSkipsEmptyDetail(t *testing.T) {
 	t.Parallel()
 
-	event := mustObservedParkedEvent(t, kinds.JobParkedPayload{
-		JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
-		Reason:         "no output for 3m0s",
-	})
+	t.Run("Should skip empty detail without a dangling key", func(t *testing.T) {
+		event := mustObservedParkedEvent(t, kinds.JobParkedPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
+			Reason:         "no output for 3m0s",
+		})
 
-	want := "job[1] parked | no output for 3m0s\n"
-	if got := renderObservedRunEvent(event); got != want {
-		t.Fatalf("renderObservedRunEvent()\n got = %q\nwant = %q", got, want)
-	}
+		want := "job[1] parked | no output for 3m0s\n"
+		if got := renderObservedRunEvent(event); got != want {
+			t.Fatalf("renderObservedRunEvent()\n got = %q\nwant = %q", got, want)
+		}
+	})
 }
 
 func TestRenderObservedJobParkedFallsBackOnUndecodablePayload(t *testing.T) {
 	t.Parallel()
 
-	got := renderObservedRunEvent(eventspkg.Event{
-		Kind:    eventspkg.EventKindJobParked,
-		Payload: []byte("{"),
+	t.Run("Should fall back when the parked payload is undecodable", func(t *testing.T) {
+		got := renderObservedRunEvent(eventspkg.Event{
+			Kind:    eventspkg.EventKindJobParked,
+			Payload: []byte("{"),
+		})
+		if want := "job parked\n"; got != want {
+			t.Fatalf("renderObservedRunEvent() = %q, want %q", got, want)
+		}
 	})
-	if want := "job parked\n"; got != want {
-		t.Fatalf("renderObservedRunEvent() = %q, want %q", got, want)
-	}
 }

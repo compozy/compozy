@@ -144,38 +144,45 @@ func TestClientTerminalCompletesNormallyWithinCap(t *testing.T) {
 func TestResolveTerminalCapFallsBackToStallDefault(t *testing.T) {
 	t.Parallel()
 
-	client := &clientImpl{}
-	if got := client.resolveTerminalCap(); got != model.DefaultStallTerminalCap {
-		t.Fatalf("resolveTerminalCap() = %s, want default %s", got, model.DefaultStallTerminalCap)
-	}
-	client.terminalCommandTimeout = 5 * time.Minute
-	if got := client.resolveTerminalCap(); got != 5*time.Minute {
-		t.Fatalf("resolveTerminalCap() = %s, want 5m", got)
-	}
+	t.Run("Should fall back to the stall default and honor a configured cap", func(t *testing.T) {
+		client := &clientImpl{}
+		if got := client.resolveTerminalCap(); got != model.DefaultStallTerminalCap {
+			t.Fatalf("resolveTerminalCap() = %s, want default %s", got, model.DefaultStallTerminalCap)
+		}
+		client.terminalCommandTimeout = 5 * time.Minute
+		if got := client.resolveTerminalCap(); got != 5*time.Minute {
+			t.Fatalf("resolveTerminalCap() = %s, want 5m", got)
+		}
+	})
 }
 
 func TestTerminalBaseContextPrefersSessionRunContext(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	session := newSessionWithAccess("sess", dir, []string{dir})
-	type ctxKey string
-	const key ctxKey = "k"
-	runCtx := context.WithValue(context.Background(), key, "run")
-	session.setRunContext(runCtx)
-	if got := terminalBaseContext(context.Background(), session); got.Value(key) != "run" {
-		t.Fatalf("terminalBaseContext did not prefer the session run context")
-	}
+	t.Run(
+		"Should prefer the session run context and fall back to the request or background context",
+		func(t *testing.T) {
+			dir := t.TempDir()
+			session := newSessionWithAccess("sess", dir, []string{dir})
+			type ctxKey string
+			const key ctxKey = "k"
+			runCtx := context.WithValue(context.Background(), key, "run")
+			session.setRunContext(runCtx)
+			if got := terminalBaseContext(context.Background(), session); got.Value(key) != "run" {
+				t.Fatalf("terminalBaseContext did not prefer the session run context")
+			}
 
-	bare := newSessionWithAccess("sess2", dir, []string{dir})
-	fallback := context.WithValue(context.Background(), key, "fallback")
-	if got := terminalBaseContext(fallback, bare); got.Value(key) != "fallback" {
-		t.Fatalf("terminalBaseContext did not fall back to the request context")
-	}
-	var nilCtx context.Context
-	if got := terminalBaseContext(nilCtx, nil); got == nil {
-		t.Fatalf("terminalBaseContext with no contexts = nil, want background context")
-	}
+			bare := newSessionWithAccess("sess2", dir, []string{dir})
+			fallback := context.WithValue(context.Background(), key, "fallback")
+			if got := terminalBaseContext(fallback, bare); got.Value(key) != "fallback" {
+				t.Fatalf("terminalBaseContext did not fall back to the request context")
+			}
+			var nilCtx context.Context
+			if got := terminalBaseContext(nilCtx, nil); got == nil {
+				t.Fatalf("terminalBaseContext with no contexts = nil, want background context")
+			}
+		},
+	)
 }
 
 func TestRunWithDeadlineReturnsStructuredFailureWhenBlocked(t *testing.T) {
@@ -286,23 +293,25 @@ func TestClientReadTextFileHonorsHandlerDeadline(t *testing.T) {
 func TestClientRequestPermissionReturnsWithinDeadline(t *testing.T) {
 	t.Parallel()
 
-	client := &clientImpl{handlerDeadline: time.Second}
-	resp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
-		Options: []acp.PermissionOption{{OptionId: "allow"}},
-	})
-	if err != nil {
-		t.Fatalf("request permission: %v", err)
-	}
-	if resp.Outcome.Selected == nil || resp.Outcome.Selected.OptionId != "allow" {
-		t.Fatalf("unexpected permission selection: %#v", resp.Outcome)
-	}
+	t.Run("Should select the offered option and cancel within the deadline when none is offered", func(t *testing.T) {
+		client := &clientImpl{handlerDeadline: time.Second}
+		resp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+			Options: []acp.PermissionOption{{OptionId: "allow"}},
+		})
+		if err != nil {
+			t.Fatalf("request permission: %v", err)
+		}
+		if resp.Outcome.Selected == nil || resp.Outcome.Selected.OptionId != "allow" {
+			t.Fatalf("unexpected permission selection: %#v", resp.Outcome)
+		}
 
-	empty, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
-	if err != nil {
-		t.Fatalf("request permission without options: %v", err)
-	}
-	// Concatenate the variant name so misspell does not rewrite the acp field.
-	if !outcomeHasVariant(empty.Outcome, "Cancel"+"led") {
-		t.Fatalf("expected canceled outcome, got %#v", empty.Outcome)
-	}
+		empty, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
+		if err != nil {
+			t.Fatalf("request permission without options: %v", err)
+		}
+		// Concatenate the variant name so misspell does not rewrite the acp field.
+		if !outcomeHasVariant(empty.Outcome, "Cancel"+"led") {
+			t.Fatalf("expected canceled outcome, got %#v", empty.Outcome)
+		}
+	})
 }

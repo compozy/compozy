@@ -214,168 +214,180 @@ func TestJobRunnerStallRetryIsIndependentOfMaxRetries(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	root := initStallGitRepo(t)
-	harness := newStallHarness(
-		t,
-		stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
-		stallResult(&job{SafeName: "task_01"}, "tool-call-7"),
-		successResult(),
-	)
+	t.Run("Should retry a stalled job once even when MaxRetries is zero", func(t *testing.T) {
+		root := initStallGitRepo(t)
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+			stallResult(&job{SafeName: "task_01"}, "tool-call-7"),
+			successResult(),
+		)
 
-	harness.runner.executeAttempts(context.Background())
+		harness.runner.executeAttempts(context.Background())
 
-	if got := harness.job.Status; got != runStatusSucceeded {
-		t.Fatalf("job status = %q, want %q", got, runStatusSucceeded)
-	}
-	if got := harness.runner.lifecycle.attempt; got != 2 {
-		t.Fatalf("attempts = %d, want exactly one stall retry (2) with MaxRetries=0", got)
-	}
-	evs := harness.drain(t, 4)
-	if !hasEvent(evs, eventspkg.EventKindJobStalled) {
-		t.Fatalf("missing job.stalled in %v", eventKinds(evs))
-	}
-	if !hasEvent(evs, eventspkg.EventKindJobRetryScheduled) {
-		t.Fatalf("missing job.retry_scheduled in %v", eventKinds(evs))
-	}
-	if hasEvent(evs, eventspkg.EventKindJobParked) {
-		t.Fatalf("unexpected job.parked in %v", eventKinds(evs))
-	}
-	if got := atomic.LoadInt32(&harness.execCtx.failed); got != 0 {
-		t.Fatalf("failed counter = %d, want 0 for a recovered job", got)
-	}
+		if got := harness.job.Status; got != runStatusSucceeded {
+			t.Fatalf("job status = %q, want %q", got, runStatusSucceeded)
+		}
+		if got := harness.runner.lifecycle.attempt; got != 2 {
+			t.Fatalf("attempts = %d, want exactly one stall retry (2) with MaxRetries=0", got)
+		}
+		evs := harness.drain(t, 4)
+		if !hasEvent(evs, eventspkg.EventKindJobStalled) {
+			t.Fatalf("missing job.stalled in %v", eventKinds(evs))
+		}
+		if !hasEvent(evs, eventspkg.EventKindJobRetryScheduled) {
+			t.Fatalf("missing job.retry_scheduled in %v", eventKinds(evs))
+		}
+		if hasEvent(evs, eventspkg.EventKindJobParked) {
+			t.Fatalf("unexpected job.parked in %v", eventKinds(evs))
+		}
+		if got := atomic.LoadInt32(&harness.execCtx.failed); got != 0 {
+			t.Fatalf("failed counter = %d, want 0 for a recovered job", got)
+		}
+	})
 }
 
 func TestJobRunnerStalledStallOrderEmitsStalledBeforeRetry(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	root := initStallGitRepo(t)
-	harness := newStallHarness(
-		t,
-		stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
-		stallResult(&job{SafeName: "task_01"}, "tool-call-7"),
-		successResult(),
-	)
-	harness.runner.executeAttempts(context.Background())
+	t.Run("Should emit job.stalled before job.retry_scheduled", func(t *testing.T) {
+		root := initStallGitRepo(t)
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+			stallResult(&job{SafeName: "task_01"}, "tool-call-7"),
+			successResult(),
+		)
+		harness.runner.executeAttempts(context.Background())
 
-	evs := harness.drain(t, 4)
-	stalledAt, retryAt := -1, -1
-	for idx, ev := range evs {
-		switch ev.Kind {
-		case eventspkg.EventKindJobStalled:
-			stalledAt = idx
-		case eventspkg.EventKindJobRetryScheduled:
-			retryAt = idx
+		evs := harness.drain(t, 4)
+		stalledAt, retryAt := -1, -1
+		for idx, ev := range evs {
+			switch ev.Kind {
+			case eventspkg.EventKindJobStalled:
+				stalledAt = idx
+			case eventspkg.EventKindJobRetryScheduled:
+				retryAt = idx
+			}
 		}
-	}
-	if stalledAt < 0 || retryAt < 0 || stalledAt > retryAt {
-		t.Fatalf("expected job.stalled before job.retry_scheduled, got %v", eventKinds(evs))
-	}
-	var payload kinds.JobStalledPayload
-	decodeRuntimeEventPayload(t, evs[stalledAt], &payload)
-	if payload.LastToolCall != "tool-call-7" {
-		t.Fatalf("job.stalled last tool call = %q, want tool-call-7", payload.LastToolCall)
-	}
-	if !strings.Contains(payload.Reason, "activity timeout") {
-		t.Fatalf("job.stalled reason = %q, want the activity timeout reason", payload.Reason)
-	}
+		if stalledAt < 0 || retryAt < 0 || stalledAt > retryAt {
+			t.Fatalf("expected job.stalled before job.retry_scheduled, got %v", eventKinds(evs))
+		}
+		var payload kinds.JobStalledPayload
+		decodeRuntimeEventPayload(t, evs[stalledAt], &payload)
+		if payload.LastToolCall != "tool-call-7" {
+			t.Fatalf("job.stalled last tool call = %q, want tool-call-7", payload.LastToolCall)
+		}
+		if !strings.Contains(payload.Reason, "activity timeout") {
+			t.Fatalf("job.stalled reason = %q, want the activity timeout reason", payload.Reason)
+		}
+	})
 }
 
 func TestJobRunnerSecondStallParksWithPopulatedPayload(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	root := initStallGitRepo(t)
-	harness := newStallHarness(
-		t,
-		stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
-		stallResult(&job{SafeName: "task_01"}, "tool-call-7"),
-		stallResult(&job{SafeName: "task_01"}, "tool-call-9"),
-	)
+	t.Run("Should park with a populated payload after a second stall", func(t *testing.T) {
+		root := initStallGitRepo(t)
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+			stallResult(&job{SafeName: "task_01"}, "tool-call-7"),
+			stallResult(&job{SafeName: "task_01"}, "tool-call-9"),
+		)
 
-	harness.runner.executeAttempts(context.Background())
+		harness.runner.executeAttempts(context.Background())
 
-	if got := harness.job.Status; got != runStatusParked {
-		t.Fatalf("job status = %q, want %q", got, runStatusParked)
-	}
-	if got := harness.runner.lifecycle.state; got != jobPhaseParked {
-		t.Fatalf("lifecycle state = %q, want %q", got, jobPhaseParked)
-	}
-	if got := harness.runner.lifecycle.attempt; got != 2 {
-		t.Fatalf("attempts = %d, want exactly 2 (one stall retry, then park)", got)
-	}
-	evs := harness.drain(t, 5)
-	if hasEvent(evs, eventspkg.EventKindJobFailed) {
-		t.Fatalf("a stalled job must park, not fail: %v", eventKinds(evs))
-	}
-	var payload kinds.JobParkedPayload
-	decodeRuntimeEventPayload(t, findEvent(t, evs, eventspkg.EventKindJobParked), &payload)
-	if !strings.Contains(payload.Reason, "stalled again") {
-		t.Fatalf("parked reason = %q, want the second-stall reason", payload.Reason)
-	}
-	if payload.LastToolCall != "tool-call-9" {
-		t.Fatalf("parked last tool call = %q, want tool-call-9", payload.LastToolCall)
-	}
-	if payload.WorktreePath != root {
-		t.Fatalf("parked worktree path = %q, want %q", payload.WorktreePath, root)
-	}
-	if payload.LogPath != harness.job.OutLog {
-		t.Fatalf("parked log path = %q, want %q", payload.LogPath, harness.job.OutLog)
-	}
-	if payload.LastProgressSeq == 0 {
-		t.Fatal("parked payload must carry the last journal progress sequence")
-	}
-	if got := atomic.LoadInt32(&harness.execCtx.failed); got != 1 {
-		t.Fatalf("failed counter = %d, want 1 so the run still exits non-zero", got)
-	}
+		if got := harness.job.Status; got != runStatusParked {
+			t.Fatalf("job status = %q, want %q", got, runStatusParked)
+		}
+		if got := harness.runner.lifecycle.state; got != jobPhaseParked {
+			t.Fatalf("lifecycle state = %q, want %q", got, jobPhaseParked)
+		}
+		if got := harness.runner.lifecycle.attempt; got != 2 {
+			t.Fatalf("attempts = %d, want exactly 2 (one stall retry, then park)", got)
+		}
+		evs := harness.drain(t, 5)
+		if hasEvent(evs, eventspkg.EventKindJobFailed) {
+			t.Fatalf("a stalled job must park, not fail: %v", eventKinds(evs))
+		}
+		var payload kinds.JobParkedPayload
+		decodeRuntimeEventPayload(t, findEvent(t, evs, eventspkg.EventKindJobParked), &payload)
+		if !strings.Contains(payload.Reason, "stalled again") {
+			t.Fatalf("parked reason = %q, want the second-stall reason", payload.Reason)
+		}
+		if payload.LastToolCall != "tool-call-9" {
+			t.Fatalf("parked last tool call = %q, want tool-call-9", payload.LastToolCall)
+		}
+		if payload.WorktreePath != root {
+			t.Fatalf("parked worktree path = %q, want %q", payload.WorktreePath, root)
+		}
+		if payload.LogPath != harness.job.OutLog {
+			t.Fatalf("parked log path = %q, want %q", payload.LogPath, harness.job.OutLog)
+		}
+		if payload.LastProgressSeq == 0 {
+			t.Fatal("parked payload must carry the last journal progress sequence")
+		}
+		if got := atomic.LoadInt32(&harness.execCtx.failed); got != 1 {
+			t.Fatalf("failed counter = %d, want 1 so the run still exits non-zero", got)
+		}
+	})
 }
 
 func TestJobRunnerStallRetryRunsFromACleanWorktree(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	root := initStallGitRepo(t)
-	harness := newStallHarness(
-		t,
-		stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
-	)
+	t.Run("Should run the stall retry from a clean worktree", func(t *testing.T) {
+		root := initStallGitRepo(t)
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+		)
 
-	var secondAttemptDirty []string
-	var calls int
-	harness.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
-		calls++
-		switch calls {
-		case 1:
-			// The stalled attempt commits work and leaves scratch files behind.
-			if err := os.WriteFile(filepath.Join(root, "migration.sql"), []byte("DROP TABLE x;"), 0o600); err != nil {
-				t.Errorf("write migration: %v", err)
+		var secondAttemptDirty []string
+		var calls int
+		harness.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
+			calls++
+			switch calls {
+			case 1:
+				// The stalled attempt commits work and leaves scratch files behind.
+				if err := os.WriteFile(
+					filepath.Join(root, "migration.sql"),
+					[]byte("DROP TABLE x;"),
+					0o600,
+				); err != nil {
+					t.Errorf("write migration: %v", err)
+				}
+				mustStallGit(t, root, "add", ".")
+				mustStallGit(t, root, "commit", "-q", "-m", "half-applied migration")
+				if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
+					t.Errorf("write scratch: %v", err)
+				}
+				return stallResult(harness.job, "tool-call-1")
+			default:
+				secondAttemptDirty = dirtyPaths(t, root)
+				return successResult()
 			}
-			mustStallGit(t, root, "add", ".")
-			mustStallGit(t, root, "commit", "-q", "-m", "half-applied migration")
-			if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
-				t.Errorf("write scratch: %v", err)
-			}
-			return stallResult(harness.job, "tool-call-1")
-		default:
-			secondAttemptDirty = dirtyPaths(t, root)
-			return successResult()
 		}
-	}
 
-	harness.runner.executeAttempts(context.Background())
+		harness.runner.executeAttempts(context.Background())
 
-	if calls != 2 {
-		t.Fatalf("attempts = %d, want 2", calls)
-	}
-	if len(secondAttemptDirty) != 0 {
-		t.Fatalf("stall retry started with a dirty worktree: %v", secondAttemptDirty)
-	}
-	if _, err := os.Stat(filepath.Join(root, "migration.sql")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("stalled attempt's committed side effect survived the reset: %v", err)
-	}
-	if harness.job.Status != runStatusSucceeded {
-		t.Fatalf("job status = %q, want %q", harness.job.Status, runStatusSucceeded)
-	}
+		if calls != 2 {
+			t.Fatalf("attempts = %d, want 2", calls)
+		}
+		if len(secondAttemptDirty) != 0 {
+			t.Fatalf("stall retry started with a dirty worktree: %v", secondAttemptDirty)
+		}
+		if _, err := os.Stat(filepath.Join(root, "migration.sql")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("stalled attempt's committed side effect survived the reset: %v", err)
+		}
+		if harness.job.Status != runStatusSucceeded {
+			t.Fatalf("job status = %q, want %q", harness.job.Status, runStatusSucceeded)
+		}
+	})
 }
 
 func dirtyPaths(t *testing.T, root string) []string {
@@ -516,34 +528,36 @@ func TestJobRunnerZeroStallBudgetParksOnFirstStall(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	harness := newStallHarness(
-		t,
-		stallHarnessOptions{
-			workspaceRoot: initStallGitRepo(t),
-			maxRetries:    0,
-			stallRetries:  0,
-			stallEnabled:  true,
-		},
-		stallResult(&job{SafeName: "task_01"}, "tool-call-1"),
-	)
+	t.Run("Should park on the first stall when the stall budget is zero", func(t *testing.T) {
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{
+				workspaceRoot: initStallGitRepo(t),
+				maxRetries:    0,
+				stallRetries:  0,
+				stallEnabled:  true,
+			},
+			stallResult(&job{SafeName: "task_01"}, "tool-call-1"),
+		)
 
-	harness.runner.executeAttempts(context.Background())
+		harness.runner.executeAttempts(context.Background())
 
-	if got := harness.job.Status; got != runStatusParked {
-		t.Fatalf("job status = %q, want %q", got, runStatusParked)
-	}
-	if got := harness.runner.lifecycle.attempt; got != 1 {
-		t.Fatalf("attempts = %d, want 1 when the stall budget is zero", got)
-	}
-	evs := harness.drain(t, 3)
-	var payload kinds.JobParkedPayload
-	decodeRuntimeEventPayload(t, findEvent(t, evs, eventspkg.EventKindJobParked), &payload)
-	if !strings.Contains(payload.Reason, "no stall retry budget remains") {
-		t.Fatalf("parked reason = %q, want it to report the empty stall budget", payload.Reason)
-	}
-	if strings.Contains(payload.Reason, "stalled again") {
-		t.Fatalf("parked reason = %q, must not claim a retry that never happened", payload.Reason)
-	}
+		if got := harness.job.Status; got != runStatusParked {
+			t.Fatalf("job status = %q, want %q", got, runStatusParked)
+		}
+		if got := harness.runner.lifecycle.attempt; got != 1 {
+			t.Fatalf("attempts = %d, want 1 when the stall budget is zero", got)
+		}
+		evs := harness.drain(t, 3)
+		var payload kinds.JobParkedPayload
+		decodeRuntimeEventPayload(t, findEvent(t, evs, eventspkg.EventKindJobParked), &payload)
+		if !strings.Contains(payload.Reason, "no stall retry budget remains") {
+			t.Fatalf("parked reason = %q, want it to report the empty stall budget", payload.Reason)
+		}
+		if strings.Contains(payload.Reason, "stalled again") {
+			t.Fatalf("parked reason = %q, must not claim a retry that never happened", payload.Reason)
+		}
+	})
 }
 
 // An ordinary retryable failure must never draw on the stall budget, so a job
@@ -552,28 +566,30 @@ func TestJobRunnerOrdinaryFailureDoesNotConsumeStallBudget(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	jb := &job{SafeName: "task_01"}
-	harness := newStallHarness(
-		t,
-		stallHarnessOptions{
-			workspaceRoot: initStallGitRepo(t),
-			maxRetries:    1,
-			stallRetries:  1,
-			stallEnabled:  true,
-		},
-		ordinaryFailureResult(jb),
-		stallResult(jb, "tool-call-1"),
-		successResult(),
-	)
+	t.Run("Should not consume the stall budget on an ordinary failure", func(t *testing.T) {
+		jb := &job{SafeName: "task_01"}
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{
+				workspaceRoot: initStallGitRepo(t),
+				maxRetries:    1,
+				stallRetries:  1,
+				stallEnabled:  true,
+			},
+			ordinaryFailureResult(jb),
+			stallResult(jb, "tool-call-1"),
+			successResult(),
+		)
 
-	harness.runner.executeAttempts(context.Background())
+		harness.runner.executeAttempts(context.Background())
 
-	if got := harness.job.Status; got != runStatusSucceeded {
-		t.Fatalf("job status = %q, want %q", got, runStatusSucceeded)
-	}
-	if got := harness.runner.lifecycle.attempt; got != 3 {
-		t.Fatalf("attempts = %d, want 3 (one ordinary retry, then one stall retry)", got)
-	}
+		if got := harness.job.Status; got != runStatusSucceeded {
+			t.Fatalf("job status = %q, want %q", got, runStatusSucceeded)
+		}
+		if got := harness.runner.lifecycle.attempt; got != 3 {
+			t.Fatalf("attempts = %d, want 3 (one ordinary retry, then one stall retry)", got)
+		}
+	})
 }
 
 func TestJobRunnerOrdinaryFailureNeverParks(t *testing.T) {
@@ -633,53 +649,55 @@ func TestJobRunnerStalledJobDoesNotAffectSiblings(t *testing.T) {
 	t.Parallel()
 	requireStallGit(t)
 
-	stalling := newStallHarness(
-		t,
-		stallHarnessOptions{workspaceRoot: initStallGitRepo(t), maxRetries: 0, stallRetries: 1, stallEnabled: true},
-		stallResult(&job{SafeName: "task_01"}, "tool-call-1"),
-		stallResult(&job{SafeName: "task_01"}, "tool-call-2"),
-	)
-	siblingRoot := initStallGitRepo(t)
-	sibling := newStallHarness(
-		t,
-		stallHarnessOptions{workspaceRoot: siblingRoot, maxRetries: 0, stallRetries: 1, stallEnabled: true},
-	)
-	siblingProduced := filepath.Join(siblingRoot, "sibling-output.txt")
-	sibling.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
-		if err := os.WriteFile(siblingProduced, []byte("sibling work"), 0o600); err != nil {
-			t.Errorf("write sibling output: %v", err)
+	t.Run("Should park without affecting a sibling job", func(t *testing.T) {
+		stalling := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: initStallGitRepo(t), maxRetries: 0, stallRetries: 1, stallEnabled: true},
+			stallResult(&job{SafeName: "task_01"}, "tool-call-1"),
+			stallResult(&job{SafeName: "task_01"}, "tool-call-2"),
+		)
+		siblingRoot := initStallGitRepo(t)
+		sibling := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: siblingRoot, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+		)
+		siblingProduced := filepath.Join(siblingRoot, "sibling-output.txt")
+		sibling.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
+			if err := os.WriteFile(siblingProduced, []byte("sibling work"), 0o600); err != nil {
+				t.Errorf("write sibling output: %v", err)
+			}
+			return successResult()
 		}
-		return successResult()
-	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		stalling.runner.executeAttempts(context.Background())
-	}()
-	go func() {
-		defer wg.Done()
-		sibling.runner.executeAttempts(context.Background())
-	}()
-	wg.Wait()
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			stalling.runner.executeAttempts(context.Background())
+		}()
+		go func() {
+			defer wg.Done()
+			sibling.runner.executeAttempts(context.Background())
+		}()
+		wg.Wait()
 
-	if got := stalling.job.Status; got != runStatusParked {
-		t.Fatalf("stalling job status = %q, want %q", got, runStatusParked)
-	}
-	if got := sibling.job.Status; got != runStatusSucceeded {
-		t.Fatalf("sibling job status = %q, want %q", got, runStatusSucceeded)
-	}
-	if _, err := os.Stat(siblingProduced); err != nil {
-		t.Fatalf("sibling work was destroyed by the parked job's reset: %v", err)
-	}
-	if got := atomic.LoadInt32(&sibling.execCtx.failed); got != 0 {
-		t.Fatalf("sibling failed counter = %d, want 0", got)
-	}
-	// The parked worktree is preserved for triage, not reset a second time.
-	if _, err := os.Stat(filepath.Join(stalling.root, "README.md")); err != nil {
-		t.Fatalf("parked worktree was not preserved: %v", err)
-	}
+		if got := stalling.job.Status; got != runStatusParked {
+			t.Fatalf("stalling job status = %q, want %q", got, runStatusParked)
+		}
+		if got := sibling.job.Status; got != runStatusSucceeded {
+			t.Fatalf("sibling job status = %q, want %q", got, runStatusSucceeded)
+		}
+		if _, err := os.Stat(siblingProduced); err != nil {
+			t.Fatalf("sibling work was destroyed by the parked job's reset: %v", err)
+		}
+		if got := atomic.LoadInt32(&sibling.execCtx.failed); got != 0 {
+			t.Fatalf("sibling failed counter = %d, want 0", got)
+		}
+		// The parked worktree is preserved for triage, not reset a second time.
+		if _, err := os.Stat(filepath.Join(stalling.root, "README.md")); err != nil {
+			t.Fatalf("parked worktree was not preserved: %v", err)
+		}
+	})
 }
 
 func TestDeriveRunStatusKeepsParkedDistinctFromFailed(t *testing.T) {

@@ -239,12 +239,22 @@ func StartACPActivityWatchdog(cfg ActivityWatchdogConfig) func() {
 		cfg.Logger = silentLogger()
 	}
 	stopCh := make(chan struct{})
-	var stopOnce sync.Once
-	go runActivityWatchdog(cfg, watchdogInterval(cfg.IdleTimeout), stopCh)
+	var (
+		stopOnce sync.Once
+		wg       sync.WaitGroup
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runActivityWatchdog(cfg, watchdogInterval(cfg.IdleTimeout), stopCh)
+	}()
+	// The stop closure waits for the goroutine to return so no watchdog tick can
+	// still reap terminals or cancel the attempt after the caller has torn down.
 	return func() {
 		stopOnce.Do(func() {
 			close(stopCh)
 		})
+		wg.Wait()
 	}
 }
 

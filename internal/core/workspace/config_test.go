@@ -485,9 +485,10 @@ func TestLoadConfigMergesRecoveryWorkspaceOverGlobalConfig(t *testing.T) {
 }
 
 func TestLoadConfigParsesStallSection(t *testing.T) {
-	isolateWorkspaceConfigHome(t)
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, `
+	t.Run("Should parse the defaults.stall and sound sections", func(t *testing.T) {
+		isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
 	[defaults.stall]
 	enabled = false
 	timeout = "2m"
@@ -499,64 +500,67 @@ func TestLoadConfigParsesStallSection(t *testing.T) {
 	on_parked = "ping"
 	`)
 
-	cfg, _, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	stall := cfg.Defaults.Stall
-	if stall.Enabled == nil || *stall.Enabled {
-		t.Fatalf("unexpected stall.enabled: %#v", stall.Enabled)
-	}
-	if stall.Timeout == nil || *stall.Timeout != "2m" {
-		t.Fatalf("unexpected stall.timeout: %#v", stall.Timeout)
-	}
-	if stall.ChildTimeout == nil || *stall.ChildTimeout != "8m" {
-		t.Fatalf("unexpected stall.child_timeout: %#v", stall.ChildTimeout)
-	}
-	if stall.TerminalCommandTimeout == nil || *stall.TerminalCommandTimeout != "30m" {
-		t.Fatalf("unexpected stall.terminal_command_timeout: %#v", stall.TerminalCommandTimeout)
-	}
-	if stall.Retries == nil || *stall.Retries != 2 {
-		t.Fatalf("unexpected stall.retries: %#v", stall.Retries)
-	}
-	if cfg.Sound.OnParked == nil || *cfg.Sound.OnParked != "ping" {
-		t.Fatalf("unexpected sound.on_parked: %#v", cfg.Sound.OnParked)
-	}
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		stall := cfg.Defaults.Stall
+		if stall.Enabled == nil || *stall.Enabled {
+			t.Fatalf("unexpected stall.enabled: %#v", stall.Enabled)
+		}
+		if stall.Timeout == nil || *stall.Timeout != "2m" {
+			t.Fatalf("unexpected stall.timeout: %#v", stall.Timeout)
+		}
+		if stall.ChildTimeout == nil || *stall.ChildTimeout != "8m" {
+			t.Fatalf("unexpected stall.child_timeout: %#v", stall.ChildTimeout)
+		}
+		if stall.TerminalCommandTimeout == nil || *stall.TerminalCommandTimeout != "30m" {
+			t.Fatalf("unexpected stall.terminal_command_timeout: %#v", stall.TerminalCommandTimeout)
+		}
+		if stall.Retries == nil || *stall.Retries != 2 {
+			t.Fatalf("unexpected stall.retries: %#v", stall.Retries)
+		}
+		if cfg.Sound.OnParked == nil || *cfg.Sound.OnParked != "ping" {
+			t.Fatalf("unexpected sound.on_parked: %#v", cfg.Sound.OnParked)
+		}
+	})
 }
 
 func TestLoadConfigMergesStallWorkspaceOverGlobalConfig(t *testing.T) {
-	homeDir := isolateWorkspaceConfigHome(t)
-	root := t.TempDir()
-	writeGlobalConfig(t, homeDir, `
+	t.Run("Should prefer workspace stall values over global and inherit the rest", func(t *testing.T) {
+		homeDir := isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeGlobalConfig(t, homeDir, `
 	[defaults.stall]
 	enabled = true
 	timeout = "3m"
 	child_timeout = "6m"
 	retries = 1
 	`)
-	writeWorkspaceConfig(t, root, `
+		writeWorkspaceConfig(t, root, `
 	[defaults.stall]
 	timeout = "5m"
 	retries = 2
 	`)
 
-	cfg, _, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	stall := cfg.Defaults.Stall
-	if stall.Timeout == nil || *stall.Timeout != "5m" {
-		t.Fatalf("workspace stall.timeout did not win: %#v", stall.Timeout)
-	}
-	if stall.Retries == nil || *stall.Retries != 2 {
-		t.Fatalf("workspace stall.retries did not win: %#v", stall.Retries)
-	}
-	if stall.ChildTimeout == nil || *stall.ChildTimeout != "6m" {
-		t.Fatalf("global stall.child_timeout not inherited: %#v", stall.ChildTimeout)
-	}
-	if stall.Enabled == nil || !*stall.Enabled {
-		t.Fatalf("global stall.enabled not inherited: %#v", stall.Enabled)
-	}
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		stall := cfg.Defaults.Stall
+		if stall.Timeout == nil || *stall.Timeout != "5m" {
+			t.Fatalf("workspace stall.timeout did not win: %#v", stall.Timeout)
+		}
+		if stall.Retries == nil || *stall.Retries != 2 {
+			t.Fatalf("workspace stall.retries did not win: %#v", stall.Retries)
+		}
+		if stall.ChildTimeout == nil || *stall.ChildTimeout != "6m" {
+			t.Fatalf("global stall.child_timeout not inherited: %#v", stall.ChildTimeout)
+		}
+		if stall.Enabled == nil || !*stall.Enabled {
+			t.Fatalf("global stall.enabled not inherited: %#v", stall.Enabled)
+		}
+	})
 }
 
 func TestLoadConfigRejectsInvalidRecoveryValues(t *testing.T) {

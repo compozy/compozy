@@ -746,6 +746,13 @@ func defaultPermissionOutcome(params acp.RequestPermissionRequest) acp.RequestPe
 // and fn does not return within it, a structured failure carrying the deadline
 // cause is returned instead of hanging the ACP dispatch goroutine. A zero
 // timeout runs fn inline with no deadline.
+//
+// The worker goroutine that runs fn is not cancellable: on deadline it is
+// abandoned to finish (or block) on its own. Callers must therefore pass only
+// short-lived, non-cancellable operations (local filesystem I/O, pure
+// computation). A caller that hands fn a call which can block indefinitely (a
+// hung network filesystem, a blocking network read) would leak one goroutine
+// per timed-out invocation for the lifetime of the client.
 func runWithDeadline[T any](
 	ctx context.Context,
 	timeout time.Duration,

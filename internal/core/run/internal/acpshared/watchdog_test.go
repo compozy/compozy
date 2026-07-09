@@ -127,12 +127,12 @@ func TestWatchdogIdleTimeoutArmsIndependentlyOfTimeout(t *testing.T) {
 		want time.Duration
 	}{
 		{
-			name: "armed with Timeout=0 when stall enabled",
+			name: "Should arm with Timeout=0 when stall enabled",
 			cfg:  &config{Timeout: 0, Stall: model.StallPolicy{Enabled: true, IdleTimeout: 3 * time.Minute}},
 			want: 3 * time.Minute,
 		},
 		{
-			name: "disabled stall never arms even with a positive Timeout",
+			name: "Should never arm when stall disabled even with a positive Timeout",
 			cfg: &config{
 				Timeout: 10 * time.Minute,
 				Stall:   model.StallPolicy{Enabled: false, IdleTimeout: 3 * time.Minute},
@@ -140,12 +140,12 @@ func TestWatchdogIdleTimeoutArmsIndependentlyOfTimeout(t *testing.T) {
 			want: 0,
 		},
 		{
-			name: "zero idle window never arms",
+			name: "Should never arm with a zero idle window",
 			cfg:  &config{Stall: model.StallPolicy{Enabled: true, IdleTimeout: 0}},
 			want: 0,
 		},
 		{
-			name: "nil config never arms",
+			name: "Should never arm with a nil config",
 			cfg:  nil,
 			want: 0,
 		},

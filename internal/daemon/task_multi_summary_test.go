@@ -28,17 +28,17 @@ func TestClassifyChildOutcome(t *testing.T) {
 		want childOutcome
 	}{
 		{
-			name: "plain completion is completed, not recovered",
+			name: "Should classify a plain completion as completed, not recovered",
 			evs:  recordedChild(eventspkg.EventKindJobCompleted),
 			want: childOutcomeCompleted,
 		},
 		{
-			name: "stalled then completed is recovered",
+			name: "Should classify stalled then completed as recovered",
 			evs:  recordedChild(eventspkg.EventKindJobStalled, eventspkg.EventKindJobCompleted),
 			want: childOutcomeRecovered,
 		},
 		{
-			name: "stalled twice then parked is parked",
+			name: "Should classify stalled twice then parked as parked",
 			evs: recordedChild(
 				eventspkg.EventKindJobStalled,
 				eventspkg.EventKindJobStalled,
@@ -47,7 +47,7 @@ func TestClassifyChildOutcome(t *testing.T) {
 			want: childOutcomeParked,
 		},
 		{
-			name: "park wins over a completion recorded for another attempt",
+			name: "Should let a park win over a completion recorded for another attempt",
 			evs: recordedChild(
 				eventspkg.EventKindJobCompleted,
 				eventspkg.EventKindJobStalled,
@@ -56,12 +56,12 @@ func TestClassifyChildOutcome(t *testing.T) {
 			want: childOutcomeParked,
 		},
 		{
-			name: "a stall with no terminal job event is neither completed nor parked",
+			name: "Should classify a stall with no terminal job event as neither completed nor parked",
 			evs:  recordedChild(eventspkg.EventKindJobStalled),
 			want: childOutcomeOther,
 		},
 		{
-			name: "an empty stream is neither completed nor parked",
+			name: "Should classify an empty stream as neither completed nor parked",
 			evs:  nil,
 			want: childOutcomeOther,
 		},

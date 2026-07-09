@@ -127,39 +127,41 @@ func TestStalledJobRendersStalledThenRetryingState(t *testing.T) {
 func TestParkedJobRendersTerminalParkedState(t *testing.T) {
 	t.Parallel()
 
-	m, translator := newStallTestModel(1)
-	applyEventToModel(t, m, translator, jobStalledEvent(t, 0, 1))
-	applyEventToModel(t, m, translator, jobRetryEvent(t, 0, 2))
-	applyEventToModel(t, m, translator, jobParkedEvent(t, 0))
+	t.Run("Should render the terminal parked state after a park settles the run", func(t *testing.T) {
+		m, translator := newStallTestModel(1)
+		applyEventToModel(t, m, translator, jobStalledEvent(t, 0, 1))
+		applyEventToModel(t, m, translator, jobRetryEvent(t, 0, 2))
+		applyEventToModel(t, m, translator, jobParkedEvent(t, 0))
 
-	job := &m.jobs[0]
-	if job.state != jobParked {
-		t.Fatalf("expected jobParked, got %v", job.state)
-	}
-	if got, want := m.jobStateIcon(job.state), jobIconParked; got != want {
-		t.Fatalf("expected icon %q, got %q", want, got)
-	}
-	if got := m.sidebarTimeString(job); got != "parked" {
-		t.Fatalf("expected sidebar time string %q, got %q", "parked", got)
-	}
-	if got, want := job.worktreePath, "/tmp/wt/task_02"; got != want {
-		t.Fatalf("expected preserved worktree %q, got %q", want, got)
-	}
-	if m.parked != 1 {
-		t.Fatalf("expected parked=1, got %d", m.parked)
-	}
-	if m.completed != 0 || m.failed != 0 {
-		t.Fatalf("parked must not count as completed or failed, got completed=%d failed=%d", m.completed, m.failed)
-	}
-	if !m.isRunComplete() {
-		t.Fatal("expected a parked job to settle the run")
-	}
-	if m.hasActiveJobs() {
-		t.Fatal("expected no active jobs after a park")
-	}
-	if got := m.composerDisabledLabel(job); got != "Task parked - needs attention" {
-		t.Fatalf("unexpected composer label %q", got)
-	}
+		job := &m.jobs[0]
+		if job.state != jobParked {
+			t.Fatalf("expected jobParked, got %v", job.state)
+		}
+		if got, want := m.jobStateIcon(job.state), jobIconParked; got != want {
+			t.Fatalf("expected icon %q, got %q", want, got)
+		}
+		if got := m.sidebarTimeString(job); got != "parked" {
+			t.Fatalf("expected sidebar time string %q, got %q", "parked", got)
+		}
+		if got, want := job.worktreePath, "/tmp/wt/task_02"; got != want {
+			t.Fatalf("expected preserved worktree %q, got %q", want, got)
+		}
+		if m.parked != 1 {
+			t.Fatalf("expected parked=1, got %d", m.parked)
+		}
+		if m.completed != 0 || m.failed != 0 {
+			t.Fatalf("parked must not count as completed or failed, got completed=%d failed=%d", m.completed, m.failed)
+		}
+		if !m.isRunComplete() {
+			t.Fatal("expected a parked job to settle the run")
+		}
+		if m.hasActiveJobs() {
+			t.Fatal("expected no active jobs after a park")
+		}
+		if got := m.composerDisabledLabel(job); got != "Task parked - needs attention" {
+			t.Fatalf("unexpected composer label %q", got)
+		}
+	})
 }
 
 func TestSummaryCountsRecoveredSeparatelyFromPlainCompletion(t *testing.T) {
@@ -271,18 +273,20 @@ func TestSummaryBoxReportsRecoveredAndParked(t *testing.T) {
 func TestZeroStallRunLeavesPerJobLayoutUnchanged(t *testing.T) {
 	t.Parallel()
 
-	m, translator := newStallTestModel(2)
-	before := m.renderSidebarItem(0, &m.jobs[0], true)
-	applyEventToModel(t, m, translator, jobCompletedEvent(t, 1))
-	m.jobs[0].sidebarCacheValid = false
-	after := m.renderSidebarItem(0, &m.jobs[0], true)
+	t.Run("Should leave an untouched job card unchanged for a zero-stall run", func(t *testing.T) {
+		m, translator := newStallTestModel(2)
+		before := m.renderSidebarItem(0, &m.jobs[0], true)
+		applyEventToModel(t, m, translator, jobCompletedEvent(t, 1))
+		m.jobs[0].sidebarCacheValid = false
+		after := m.renderSidebarItem(0, &m.jobs[0], true)
 
-	if before != after {
-		t.Fatalf("expected an untouched job card to render identically:\nbefore=%q\nafter=%q", before, after)
-	}
-	if m.recovered != 0 || m.parked != 0 {
-		t.Fatalf("expected recovered=0 parked=0, got recovered=%d parked=%d", m.recovered, m.parked)
-	}
+		if before != after {
+			t.Fatalf("expected an untouched job card to render identically:\nbefore=%q\nafter=%q", before, after)
+		}
+		if m.recovered != 0 || m.parked != 0 {
+			t.Fatalf("expected recovered=0 parked=0, got recovered=%d parked=%d", m.recovered, m.parked)
+		}
+	})
 }
 
 func TestStallDetailText(t *testing.T) {

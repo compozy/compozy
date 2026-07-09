@@ -40,7 +40,7 @@ func (j diagnosticsFakeJournal) DroppedEventCounts() (uint64, uint64) {
 func TestLogProgressSignalDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	t.Run("logs non-zero drop and backpressure counters when drops occurred", func(t *testing.T) {
+	t.Run("Should log non-zero drop and backpressure counters when drops occurred", func(t *testing.T) {
 		t.Parallel()
 		logger, buf := newBufferLogger()
 
@@ -62,7 +62,7 @@ func TestLogProgressSignalDiagnostics(t *testing.T) {
 		}
 	})
 
-	t.Run("logs zero counters for a clean run", func(t *testing.T) {
+	t.Run("Should log zero counters for a clean run", func(t *testing.T) {
 		t.Parallel()
 		logger, buf := newBufferLogger()
 
@@ -79,7 +79,7 @@ func TestLogProgressSignalDiagnostics(t *testing.T) {
 		assertLogUint(t, record, "journal_drops_on_submit", 0)
 	})
 
-	t.Run("omits journal fields when submitter is not a journal", func(t *testing.T) {
+	t.Run("Should omit journal fields when submitter is not a journal", func(t *testing.T) {
 		t.Parallel()
 		logger, buf := newBufferLogger()
 
@@ -92,7 +92,7 @@ func TestLogProgressSignalDiagnostics(t *testing.T) {
 		}
 	})
 
-	t.Run("no-ops on nil session", func(t *testing.T) {
+	t.Run("Should no-op on nil session", func(t *testing.T) {
 		t.Parallel()
 		logger, buf := newBufferLogger()
 

@@ -45,17 +45,17 @@ func TestSoundConfigForGatesOnTheSoundFeatureFlag(t *testing.T) {
 		wantParked  string
 	}{
 		{
-			name:        "nil config is silent",
+			name:        "Should stay silent for a nil config",
 			cfg:         nil,
 			wantEnabled: false,
 		},
 		{
-			name:        "sound disabled is silent even with a parked preset",
+			name:        "Should stay silent when sound is disabled despite a parked preset",
 			cfg:         &config{SoundEnabled: false, SoundOnParked: "funk"},
 			wantEnabled: false,
 		},
 		{
-			name:        "sound enabled carries the parked preset",
+			name:        "Should carry the parked preset when sound is enabled",
 			cfg:         &config{SoundEnabled: true, SoundOnCompleted: "glass", SoundOnParked: "funk"},
 			wantEnabled: true,
 			wantParked:  "funk",
@@ -81,32 +81,37 @@ func TestSoundConfigForGatesOnTheSoundFeatureFlag(t *testing.T) {
 func TestNotifyParkedAlertIsANoOpWhenSoundIsDisabled(t *testing.T) {
 	t.Parallel()
 
-	player := &recordingPlayer{}
-	execCtx := &jobExecutionContext{
-		ctx:         context.Background(),
-		cfg:         &config{SoundEnabled: false, SoundOnParked: "funk"},
-		alertPlayer: player,
-	}
+	t.Run("Should not play a sound or block the caller when sound is disabled", func(t *testing.T) {
+		player := &recordingPlayer{}
+		execCtx := &jobExecutionContext{
+			ctx:         context.Background(),
+			cfg:         &config{SoundEnabled: false, SoundOnParked: "funk"},
+			alertPlayer: player,
+		}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		execCtx.notifyParkedAlert()
-	}()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("parked alert blocked the caller while sound was disabled")
-	}
-	if got := player.snapshot(); len(got) != 0 {
-		t.Fatalf("expected no playback when sound is disabled, got %#v", got)
-	}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			execCtx.notifyParkedAlert()
+		}()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatal("parked alert blocked the caller while sound was disabled")
+		}
+		if got := player.snapshot(); len(got) != 0 {
+			t.Fatalf("expected no playback when sound is disabled, got %#v", got)
+		}
+	})
 }
 
 func TestNotifyParkedAlertOnNilExecutionContextDoesNotPanic(t *testing.T) {
 	t.Parallel()
-	var execCtx *jobExecutionContext
-	execCtx.notifyParkedAlert()
+
+	t.Run("Should not panic on a nil execution context", func(_ *testing.T) {
+		var execCtx *jobExecutionContext
+		execCtx.notifyParkedAlert()
+	})
 }
 
 // The end-to-end contract: a job that stalls, retries, then stalls again alerts
