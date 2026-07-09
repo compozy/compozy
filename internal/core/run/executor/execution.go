@@ -241,12 +241,18 @@ func finalizeExecution(
 	if err := emitRunTerminalEvent(ctx, runJournal, result, internalJobs, startedAt); err != nil {
 		return err
 	}
-	notifySoundForKind(
-		ctx,
-		internalCfg,
-		terminalEventKindFor(result.Status),
-		runtimeLoggerFor(internalCfg, internalCfg.UIEnabled()),
-	)
+	// A parked run already alerted per parked job via notifyParkedAlert (OnParked).
+	// terminalEventKindFor maps parked to run.failed, so emitting the terminal
+	// sound too would play OnFailed right after OnParked - a double alert for one
+	// outcome. The parked alert is the signal; suppress the redundant terminal one.
+	if result.Status != runStatusParked {
+		notifySoundForKind(
+			ctx,
+			internalCfg,
+			terminalEventKindFor(result.Status),
+			runtimeLoggerFor(internalCfg, internalCfg.UIEnabled()),
+		)
+	}
 	model.DispatchObserverHook(
 		ctx,
 		internalCfg.RuntimeManager,

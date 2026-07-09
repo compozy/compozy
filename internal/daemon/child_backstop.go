@@ -156,10 +156,15 @@ func (b *childBackstop) close() {
 // without a resolved runtime config falls back to the on-by-default policy rather
 // than silently running without a backstop.
 func childStallPolicy(cfg *model.RuntimeConfig) model.StallPolicy {
+	resolved := model.RuntimeConfig{}
 	if cfg != nil {
-		return cfg.StallPolicy()
+		resolved = *cfg
 	}
-	defaults := &model.RuntimeConfig{}
-	defaults.ApplyDefaults()
-	return defaults.StallPolicy()
+	// ApplyDefaults on a copy so an un-defaulted child config still resolves to
+	// the on-by-default policy (idle/child timeouts populated) instead of a zero
+	// policy that childBackstopBudget would read as "disarmed". Working on the
+	// copy leaves the shared runtime config untouched, and ApplyDefaults only
+	// fills unset values so an explicit StallEnabled=false override is preserved.
+	resolved.ApplyDefaults()
+	return resolved.StallPolicy()
 }

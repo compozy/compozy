@@ -237,10 +237,13 @@ func (r *jobRunner) handleStall(
 	}
 	budget.stall--
 	budget.stallUsed++
+	// A stall retry grants one attempt beyond the ordinary ceiling, so widen the
+	// reported budget by exactly one. Bumping total up to nextAttempt alone
+	// under-counts when ordinary retries still follow a stall retry (it would
+	// report "3/2"); incrementing keeps total == (MaxRetries+1)+stallUsed on
+	// every interleaving of ordinary and stall retries.
+	budget.total++
 	nextAttempt := attempt + 1
-	if budget.total < nextAttempt {
-		budget.total = nextAttempt
-	}
 	r.lifecycle.markRetry(failure, nextAttempt, budget.total)
 	r.logRetry(nextAttempt, budget.total, timeout)
 	return timeout, time.Duration(retryDecision.DelayMS) * time.Millisecond, true
