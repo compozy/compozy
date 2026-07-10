@@ -125,6 +125,13 @@ func wizardBoolValue(on bool) string {
 	return wizardPendingStyle().Render("✗ off")
 }
 
+func wizardMultiWorkflowModeValue(parallel bool) string {
+	if parallel {
+		return wizardSuccessStyle().Render("Parallel workflows (git worktrees)")
+	}
+	return taskRunWizardSubtitleStyle().Render("Serial queue (no worktrees)")
+}
+
 func wizardPadRight(s string, width int) string {
 	pad := width - lipgloss.Width(s)
 	if pad <= 0 {

@@ -129,7 +129,7 @@ func TestValidateRuntimeDefaultsAcceptsModernReasoningEfforts(t *testing.T) {
 
 	for _, effort := range []string{"max", "ultra"} {
 		effort := effort
-		t.Run(effort, func(t *testing.T) {
+		t.Run("Should accept "+effort+" as a valid reasoning effort", func(t *testing.T) {
 			t.Parallel()
 			if err := validateRuntimeDefaults("AGENT.md", RuntimeDefaults{ReasoningEffort: effort}); err != nil {
 				t.Fatalf("validateRuntimeDefaults(%q): %v", effort, err)

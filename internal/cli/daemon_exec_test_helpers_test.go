@@ -49,8 +49,7 @@ func installInProcessCLIDaemonBootstrapWithConfigClient(
 	cfg daemon.RunManagerConfig,
 ) *inProcessDaemonCommandClient {
 	t.Helper()
-	prepareInProcessCLIDaemonHome(t)
-	installInProcessCLITestCodexACP(t)
+	setupInProcessCLITestEnv(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -99,7 +98,29 @@ func installInProcessCLIDaemonBootstrapWithConfigClient(
 	return client
 }
 
-func installInProcessCLITestCodexACP(t *testing.T) {
+// setupInProcessCLITestEnv configures HOME/XDG/PATH for in-process CLI daemon tests.
+// It must run on a non-parallel testing.T (or the parent before any t.Parallel()).
+func setupInProcessCLITestEnv(t *testing.T) {
+	t.Helper()
+
+	homeDir := strings.TrimSpace(os.Getenv(testCLIDaemonHomeEnv))
+	xdgConfigHome := strings.TrimSpace(os.Getenv(testCLIXDGHomeEnv))
+	if homeDir == "" {
+		homeDir = t.TempDir()
+	}
+	if xdgConfigHome == "" {
+		xdgConfigHome = t.TempDir()
+	}
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
+	t.Setenv("HOME", homeDir)
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+
+	pathDir := installInProcessCLITestCodexACP(t)
+	t.Setenv("PATH", pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func installInProcessCLITestCodexACP(t *testing.T) string {
 	t.Helper()
 
 	root := t.TempDir()
@@ -123,24 +144,12 @@ func installInProcessCLITestCodexACP(t *testing.T) {
 	if err := os.Symlink(target, filepath.Join(pathDir, "codex-acp")); err != nil {
 		t.Fatalf("link test codex-acp executable: %v", err)
 	}
-	t.Setenv("PATH", pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return pathDir
 }
 
 func prepareInProcessCLIDaemonHome(t *testing.T) {
 	t.Helper()
-
-	homeDir := strings.TrimSpace(os.Getenv(testCLIDaemonHomeEnv))
-	xdgConfigHome := strings.TrimSpace(os.Getenv(testCLIXDGHomeEnv))
-	if homeDir == "" {
-		homeDir = t.TempDir()
-		t.Setenv(testCLIDaemonHomeEnv, homeDir)
-	}
-	if xdgConfigHome == "" {
-		xdgConfigHome = t.TempDir()
-		t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
-	}
-	t.Setenv("HOME", homeDir)
-	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+	setupInProcessCLITestEnv(t)
 }
 
 func executeDaemonBackedRootCommandCapturingProcessIO(

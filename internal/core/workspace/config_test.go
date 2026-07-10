@@ -1611,7 +1611,7 @@ func TestValidateReasoningEffortValueAcceptsModernEfforts(t *testing.T) {
 
 	for _, effort := range []string{"max", "ultra"} {
 		effort := effort
-		t.Run(effort, func(t *testing.T) {
+		t.Run("Should accept "+effort+" as a valid reasoning effort", func(t *testing.T) {
 			t.Parallel()
 			if err := validateReasoningEffortValue("defaults.reasoning_effort", &effort); err != nil {
 				t.Fatalf("validateReasoningEffortValue(%q): %v", effort, err)
@@ -1623,9 +1623,11 @@ func TestValidateReasoningEffortValueAcceptsModernEfforts(t *testing.T) {
 func TestRecoveryDefaultTracksCurrentCodexModel(t *testing.T) {
 	t.Parallel()
 
-	if DefaultRecoveryModel != "gpt-5.6-sol" {
-		t.Fatalf("DefaultRecoveryModel = %q, want %q", DefaultRecoveryModel, "gpt-5.6-sol")
-	}
+	t.Run("Should track the current default recovery model", func(t *testing.T) {
+		if DefaultRecoveryModel != "gpt-5.6-sol" {
+			t.Fatalf("DefaultRecoveryModel = %q, want %q", DefaultRecoveryModel, "gpt-5.6-sol")
+		}
+	})
 }
 
 func TestLoadConfigRejectsInvalidFixReviewsValues(t *testing.T) {

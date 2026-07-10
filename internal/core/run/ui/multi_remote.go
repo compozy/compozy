@@ -68,6 +68,8 @@ type multiRunTab struct {
 	baseBranch     string
 	baseCommit     string
 	worktreeStatus string
+	worktreeReason string
+	resultBranch   string
 	child          *uiModel
 	translator     *uiEventTranslator
 	aggregateChild bool
@@ -172,13 +174,14 @@ func AttachRemoteMultiple(ctx context.Context, opts RemoteMultiRunAttachOptions)
 		observeChild(child.runID, child.cursor, false)
 	}
 	if opts.OpenParentStream != nil && !isTerminalRunStatus(opts.Snapshot.Run.Status) {
-		stream, err := opts.OpenParentStream(ctx, apicore.StreamCursor{})
+		parentCursor := streamCursorOrZero(opts.Snapshot.NextCursor)
+		stream, err := opts.OpenParentStream(ctx, parentCursor)
 		if err != nil {
 			session.Shutdown()
 			return nil, fmt.Errorf("open remote multi-run parent stream: %w", err)
 		}
 		startRemoteWorker(session, func(workerCtx context.Context) {
-			followRemoteMultiRunParent(workerCtx, session, opts, stream, observeChild)
+			followRemoteMultiRunParent(workerCtx, session, opts, stream, parentCursor, observeChild)
 		})
 	}
 	return session, nil
@@ -210,9 +213,19 @@ func newRemoteMultiRunModel(
 		pauseRunJob:       opts.PauseRunJob,
 		sendRunJobMessage: opts.SendRunJobMessage,
 	}
-	children := make([]initialMultiRunChild, 0, len(opts.Snapshot.Items))
-	for i := range opts.Snapshot.Items {
-		tab := newMultiRunTab(&opts.Snapshot.Items[i])
+	if len(opts.Snapshot.LifecycleEvents) > 0 {
+		for _, event := range opts.Snapshot.LifecycleEvents {
+			mdl.handleParentEvent(event)
+		}
+	} else {
+		for i := range opts.Snapshot.Items {
+			tab := newMultiRunTab(&opts.Snapshot.Items[i])
+			mdl.tabs = append(mdl.tabs, tab)
+		}
+	}
+	children := make([]initialMultiRunChild, 0, len(mdl.tabs))
+	for i := range mdl.tabs {
+		tab := &mdl.tabs[i]
 		if tab.runID != "" && opts.LoadChildSnapshot != nil {
 			snapshot, err := opts.LoadChildSnapshot(ctx, tab.runID)
 			if err != nil {
@@ -232,7 +245,6 @@ func newRemoteMultiRunModel(
 				terminal: isTerminalRunStatus(snapshot.Run.Status),
 			})
 		}
-		mdl.tabs = append(mdl.tabs, tab)
 	}
 	mdl.activeTab = mdl.initialActiveTab()
 	return mdl, nonTerminalInitialChildren(children), nil
@@ -262,6 +274,8 @@ func newMultiRunTab(item *apicore.TaskRunMultipleItem) multiRunTab {
 		baseBranch:     strings.TrimSpace(item.BaseBranch),
 		baseCommit:     strings.TrimSpace(item.BaseCommit),
 		worktreeStatus: strings.TrimSpace(item.WorktreeStatus),
+		worktreeReason: strings.TrimSpace(item.WorktreeReason),
+		resultBranch:   strings.TrimSpace(item.ResultBranch),
 		translator:     newUIEventTranslator(),
 		terminal:       isTerminalTaskMultiStatus(status),
 	}
@@ -390,6 +404,7 @@ func followRemoteMultiRunParent(
 	session Session,
 	opts RemoteMultiRunAttachOptions,
 	stream apiclient.RunStream,
+	cursor apicore.StreamCursor,
 	observeChild func(string, apicore.StreamCursor, bool),
 ) {
 	parentSession := multiRunParentSession{
@@ -399,19 +414,24 @@ func followRemoteMultiRunParent(
 	followOpts := RemoteAttachOptions{
 		LoadSnapshot: func(loadCtx context.Context) (apicore.RunSnapshot, error) {
 			if opts.LoadSnapshot == nil {
-				return apicore.RunSnapshot{Run: opts.Snapshot.Run}, nil
+				return apicore.RunSnapshot{Run: opts.Snapshot.Run, NextCursor: opts.Snapshot.NextCursor}, nil
 			}
 			snapshot, err := opts.LoadSnapshot(loadCtx)
 			if err != nil {
 				return apicore.RunSnapshot{}, err
 			}
-			return apicore.RunSnapshot{Run: snapshot.Run}, nil
+			return apicore.RunSnapshot{
+				Run:               snapshot.Run,
+				Incomplete:        snapshot.Incomplete,
+				IncompleteReasons: append([]string(nil), snapshot.IncompleteReasons...),
+				NextCursor:        snapshot.NextCursor,
+			}, nil
 		},
 		OpenStream:        opts.OpenParentStream,
 		PauseRunJob:       opts.PauseRunJob,
 		SendRunJobMessage: opts.SendRunJobMessage,
 	}
-	followRemoteRun(ctx, parentSession, followOpts, stream, apicore.StreamCursor{})
+	followRemoteRun(ctx, parentSession, followOpts, stream, cursor)
 }
 
 type multiRunParentSession struct {
@@ -847,9 +867,17 @@ func applyParallelAggregateTabStatus(tab *multiRunTab, ev events.Event) {
 	case events.EventKindTaskParallelFailed, events.EventKindTaskParallelRolledBack:
 		tab.status = taskMultiStatusFailed
 		tab.terminal = true
+	case events.EventKindTaskParallelCanceled:
+		tab.status = taskMultiStatusCanceled
+		tab.terminal = true
+	case events.EventKindTaskParallelCompleted:
+		tab.status = taskMultiStatusCompleted
+		tab.terminal = true
 	case events.EventKindTaskParallelPlanStarted,
 		events.EventKindTaskParallelWaveStarted,
 		events.EventKindTaskParallelTaskStarted,
+		events.EventKindTaskParallelTaskCompleted,
+		events.EventKindTaskParallelPhaseChanged,
 		events.EventKindTaskParallelMergeStarted,
 		events.EventKindTaskParallelConflictDetected,
 		events.EventKindTaskParallelConflictResolving,
@@ -995,7 +1023,7 @@ func applyParallelAggregateTaskOutcome(child *uiModel, ev events.Event) {
 		failActiveParallelAggregateJobs(child)
 		return
 	}
-	if ev.Kind != events.EventKindTaskParallelMerged {
+	if ev.Kind != events.EventKindTaskParallelMerged && ev.Kind != events.EventKindTaskParallelTaskCompleted {
 		return
 	}
 	payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
@@ -1006,12 +1034,30 @@ func applyParallelAggregateTaskOutcome(child *uiModel, ev events.Event) {
 	if number <= 0 {
 		return
 	}
+	success := ev.Kind == events.EventKindTaskParallelMerged ||
+		payload.Status == "merged" || payload.Status == "recovered"
 	for idx := range child.jobs {
 		if child.jobs[idx].taskNumber != number {
 			continue
 		}
-		finishParallelAggregateJob(child, idx, true)
+		finishParallelAggregateTask(child, idx, success)
 		return
+	}
+}
+
+func finishParallelAggregateTask(child *uiModel, index int, success bool) {
+	if child == nil || index < 0 || index >= len(child.jobs) {
+		return
+	}
+	switch child.jobs[index].state {
+	case jobPending, jobRunning, jobPausing, jobRetrying:
+	default:
+		return
+	}
+	taskID := parallelAggregateTaskID(&child.jobs[index], index)
+	child.applyUIMsg(jobFinishedMsg{Index: index, Success: success})
+	if !parallelAggregateJobHasTranscript(&child.jobs[index]) {
+		child.applyUIMsg(parallelAggregateTaskTerminalNotice(index, taskID, success))
 	}
 }
 
@@ -1131,11 +1177,15 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 	case events.EventKindTaskParallelPlanStarted,
 		events.EventKindTaskParallelWaveStarted,
 		events.EventKindTaskParallelTaskStarted,
+		events.EventKindTaskParallelTaskCompleted,
+		events.EventKindTaskParallelPhaseChanged,
 		events.EventKindTaskParallelWaveCompleted,
 		events.EventKindTaskParallelMergeStarted,
 		events.EventKindTaskParallelConflictDetected,
 		events.EventKindTaskParallelConflictResolving,
 		events.EventKindTaskParallelMerged,
+		events.EventKindTaskParallelCompleted,
+		events.EventKindTaskParallelCanceled,
 		events.EventKindTaskParallelFailed,
 		events.EventKindTaskParallelRolledBack:
 		m.applyParallelParentEvent(ev)
@@ -1145,14 +1195,11 @@ func (m *multiRunModel) handleParentEvent(ev events.Event) {
 		events.EventKindRunRecoveryExhausted:
 		m.applyParallelRecoveryParentEvent(ev)
 	case events.EventKindTaskRunMultipleQueueCompleted:
-		m.parentRun.Status = remoteRunStatusCompleted
-		m.applyParentRunCompleted()
-		m.quitDialog.Close()
-		m.shutdown = shutdownState{}
+		m.applyTaskMultiQueueCompleted()
+	case events.EventKindTaskRunMultipleQueueFailed:
+		m.applyTaskMultiQueueFailed(ev)
 	case events.EventKindTaskRunMultipleQueueCanceled:
-		m.parentRun.Status = remoteRunStatusCanceled
 		m.applyTaskMultiQueueCanceled(ev)
-		m.quitDialog.Close()
 	case events.EventKindRunCompleted:
 		m.parentRun.Status = remoteRunStatusCompleted
 		m.applyParentRunCompleted()
@@ -1274,6 +1321,39 @@ func applyTaskMultiWorktreeMetadata(tab *multiRunTab, payload kinds.TaskRunMulti
 	}
 	if status := strings.TrimSpace(payload.WorktreeStatus); status != "" {
 		tab.worktreeStatus = status
+	}
+	if reason := strings.TrimSpace(payload.WorktreeReason); reason != "" {
+		tab.worktreeReason = reason
+	}
+	if branch := strings.TrimSpace(payload.ResultBranch); branch != "" {
+		tab.resultBranch = branch
+	}
+}
+
+func (m *multiRunModel) applyTaskMultiQueueCompleted() {
+	for idx := range m.tabs {
+		if !isTerminalTaskMultiStatus(m.tabs[idx].status) {
+			m.tabs[idx].status = taskMultiStatusCompleted
+			m.tabs[idx].terminal = true
+		}
+	}
+}
+
+func (m *multiRunModel) applyTaskMultiQueueFailed(ev events.Event) {
+	payload, ok := decodeTaskMultiPayload(ev)
+	if !ok {
+		return
+	}
+	message := strings.TrimSpace(payload.Error)
+	for idx := range m.tabs {
+		if isTerminalTaskMultiStatus(m.tabs[idx].status) {
+			continue
+		}
+		m.tabs[idx].status = taskMultiStatusFailed
+		m.tabs[idx].terminal = true
+		if m.tabs[idx].errorText == "" {
+			m.tabs[idx].errorText = message
+		}
 	}
 }
 
@@ -1584,13 +1664,19 @@ func formatMultiRunWorktreeSummary(tab *multiRunTab) string {
 	if tab == nil {
 		return ""
 	}
-	segments := make([]string, 0, 3)
+	segments := make([]string, 0, 5)
 	label := multiRunWorktreeLabel(tab)
 	if label != "" {
 		segments = append(segments, "worktree "+label)
 	}
 	if branch := strings.TrimSpace(tab.baseBranch); branch != "" {
-		segments = append(segments, "branch "+branch)
+		segments = append(segments, "base "+branch)
+	}
+	if branch := strings.TrimSpace(tab.resultBranch); branch != "" {
+		segments = append(segments, "result "+branch)
+	}
+	if reason := strings.TrimSpace(tab.worktreeReason); reason != "" {
+		segments = append(segments, "reason "+reason)
 	}
 	if runID := strings.TrimSpace(tab.runID); runID != "" {
 		segments = append(segments, "run "+runID)

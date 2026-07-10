@@ -58,17 +58,10 @@ Table of components affected by this implementation:
 
 ## Testing Approach
 
-### Unit Tests
-
-- Strategy and key components to test
-- Mock requirements and boundaries
-- Critical scenarios and edge cases
-
-### Integration Tests
-
-- Components to test together
-- Test data requirements and setup
-- Environment dependencies
+Strategy only — every concrete test case lives in `_tests.md`, the test contract written alongside this TechSpec:
+- Frameworks, harnesses, and fixture strategy; fakes sit at I/O boundaries only
+- What each level (unit / integration / e2e) covers for this feature and how it runs
+- Environment or data dependencies the integration and e2e suites need
 
 ## Development Sequencing
 

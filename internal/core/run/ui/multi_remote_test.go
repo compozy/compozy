@@ -594,11 +594,11 @@ func TestMultiRunPayloadFallbacksAndQueueCompletion(t *testing.T) {
 			eventspkg.EventKindTaskRunMultipleQueueCompleted,
 			kinds.TaskRunMultiplePayload{Status: taskMultiStatusCompleted, Total: 2},
 		))
-		if got := mdl.parentRun.Status; got != remoteRunStatusCompleted {
-			t.Fatalf("parent status = %q, want completed", got)
+		if got := mdl.parentRun.Status; got != remoteRunStatusRunning {
+			t.Fatalf("parent status = %q, want running until run.completed", got)
 		}
 		if !mdl.isQueueComplete() {
-			t.Fatal("expected terminal parent to mark queue complete")
+			t.Fatal("expected queue settlement to mark every tab complete")
 		}
 	})
 }
@@ -617,18 +617,27 @@ func TestAttachRemoteMultipleFollowsParentAndChildStreams(t *testing.T) {
 		}
 
 		now := time.Date(2026, 5, 17, 12, 0, 0, 0, time.UTC)
+		startedEvent := mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleStarted,
+			kinds.TaskRunMultiplePayload{Slugs: []string{"alpha", "beta"}, Status: taskMultiStatusRunning},
+		)
+		startedEvent.Seq = 1
+		startedEvent.Timestamp = now
+		childStartedEvent := mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskRunMultipleChildStarted,
+			kinds.TaskRunMultiplePayload{
+				Slug:       "alpha",
+				Index:      0,
+				Total:      2,
+				Status:     taskMultiStatusRunning,
+				ChildRunID: "run-alpha",
+			},
+		)
+		childStartedEvent.Seq = 2
+		childStartedEvent.Timestamp = now.Add(time.Second)
 		parentStream := newBufferedClientRunStream(
-			apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
-				t,
-				eventspkg.EventKindTaskRunMultipleChildStarted,
-				kinds.TaskRunMultiplePayload{
-					Slug:       "alpha",
-					Index:      0,
-					Total:      2,
-					Status:     taskMultiStatusRunning,
-					ChildRunID: "run-alpha",
-				},
-			), 1, now)},
 			apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
 				t,
 				eventspkg.EventKindTaskRunMultipleChildCompleted,
@@ -639,12 +648,12 @@ func TestAttachRemoteMultipleFollowsParentAndChildStreams(t *testing.T) {
 					Status:     taskMultiStatusCompleted,
 					ChildRunID: "run-alpha",
 				},
-			), 2, now.Add(time.Second))},
+			), 3, now.Add(2*time.Second))},
 			apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
 				t,
 				eventspkg.EventKindRunCompleted,
 				kinds.RunCompletedPayload{JobsTotal: 1, JobsSucceeded: 1},
-			), 3, now.Add(2*time.Second))},
+			), 4, now.Add(3*time.Second))},
 		)
 		childStream := newBufferedClientRunStream(
 			apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
@@ -664,6 +673,7 @@ func TestAttachRemoteMultipleFollowsParentAndChildStreams(t *testing.T) {
 			), 3, now.Add(2*time.Second))},
 		)
 
+		var openedParentCursor apicore.StreamCursor
 		attached, err := AttachRemoteMultiple(context.Background(), RemoteMultiRunAttachOptions{
 			Snapshot: apicore.TaskRunMultipleSnapshot{
 				Run: apicore.Run{RunID: "parent-run", Status: remoteRunStatusRunning},
@@ -671,13 +681,16 @@ func TestAttachRemoteMultipleFollowsParentAndChildStreams(t *testing.T) {
 					{Slug: "alpha", Status: taskMultiStatusQueued},
 					{Slug: "beta", Status: taskMultiStatusQueued},
 				},
+				LifecycleEvents: []eventspkg.Event{startedEvent, childStartedEvent},
+				NextCursor:      &apicore.StreamCursor{Timestamp: childStartedEvent.Timestamp, Sequence: 2},
 			},
 			LoadChildSnapshot: func(_ context.Context, runID string) (apicore.RunSnapshot, error) {
 				return apicore.RunSnapshot{
 					Run: apicore.Run{RunID: runID, WorkflowSlug: "alpha", Status: remoteRunStatusRunning},
 				}, nil
 			},
-			OpenParentStream: func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error) {
+			OpenParentStream: func(_ context.Context, cursor apicore.StreamCursor) (apiclient.RunStream, error) {
+				openedParentCursor = cursor
 				return parentStream, nil
 			},
 			OpenChildStream: func(_ context.Context, runID string, _ apicore.StreamCursor) (apiclient.RunStream, error) {
@@ -692,6 +705,9 @@ func TestAttachRemoteMultipleFollowsParentAndChildStreams(t *testing.T) {
 		}
 		if attached == nil {
 			t.Fatal("expected attached multi-run session")
+		}
+		if openedParentCursor.Sequence != 2 {
+			t.Fatalf("parent stream cursor = %#v, want snapshot sequence 2", openedParentCursor)
 		}
 		if err := session.Wait(); err != nil {
 			t.Fatalf("recording session wait: %v", err)
@@ -874,8 +890,8 @@ func TestMultiRunParentStartedAndQueueCanceledEvents(t *testing.T) {
 			t.Fatalf("tab %d after queue cancel = %#v", idx, tab)
 		}
 	}
-	if got := mdl.parentRun.Status; got != remoteRunStatusCanceled {
-		t.Fatalf("parent status = %q, want canceled", got)
+	if got := mdl.parentRun.Status; got != remoteRunStatusRunning {
+		t.Fatalf("parent status = %q, want running until run.cancelled", got)
 	}
 }
 
@@ -996,6 +1012,42 @@ func TestMultiRunForwardsParallelEventsToActiveChild(t *testing.T) {
 		))
 		if mdl.tabs[0].status != taskMultiStatusCompleted || !mdl.tabs[0].terminal {
 			t.Fatalf("tab after queue completion = %#v", mdl.tabs[0])
+		}
+		if mdl.parentRun.Status != remoteRunStatusRunning {
+			t.Fatalf("queue settlement terminated parent early: %#v", mdl.parentRun)
+		}
+	})
+
+	t.Run("Should apply per-task phase and parallel settlement without terminating parent", func(t *testing.T) {
+		t.Parallel()
+
+		mdl, child := newParallelAggregateMultiRunTestModel(t)
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelPhaseChanged,
+			kinds.TaskParallelPayload{WaveIndex: 0, Phase: "syncing_artifacts"},
+		))
+		if got := child.parallel.lifecyclePhase; got != "syncing_artifacts" {
+			t.Fatalf("parallel phase = %q, want syncing_artifacts", got)
+		}
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelTaskCompleted,
+			kinds.TaskParallelPayload{WaveIndex: 0, TaskID: "task_01", Status: "recovered"},
+		))
+		if child.jobs[0].state != jobSuccess {
+			t.Fatalf("aggregate task state = %v, want success after recovered settlement", child.jobs[0].state)
+		}
+		mdl.handleParentEvent(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindTaskParallelCompleted,
+			kinds.TaskParallelPayload{Status: "completed", Phase: "completed"},
+		))
+		if mdl.tabs[0].status != taskMultiStatusCompleted || !mdl.tabs[0].terminal {
+			t.Fatalf("tab after parallel settlement = %#v", mdl.tabs[0])
+		}
+		if mdl.parentRun.Status != remoteRunStatusRunning {
+			t.Fatalf("parallel settlement terminated parent early: %#v", mdl.parentRun)
 		}
 	})
 
@@ -1866,6 +1918,8 @@ func TestMultiRunInitialSnapshotRendersWorktreeForSelectedChild(t *testing.T) {
 						BaseBranch:     "main",
 						BaseCommit:     "deadbeef",
 						WorktreeStatus: "preserved",
+						WorktreeReason: "committed output retained",
+						ResultBranch:   "compozy/multi-parent-01-alpha",
 					},
 					{Slug: "beta", Status: taskMultiStatusQueued},
 				},
@@ -1880,7 +1934,14 @@ func TestMultiRunInitialSnapshotRendersWorktreeForSelectedChild(t *testing.T) {
 			t.Fatalf("tab worktree path = %q, want %q", got, worktreePath)
 		}
 		view := mdl.View().Content
-		for _, want := range []string{worktreePath, "preserved", "branch main", "run run-alpha"} {
+		for _, want := range []string{
+			worktreePath,
+			"preserved",
+			"base main",
+			"result compozy/multi-parent-01-alpha",
+			"reason committed output retained",
+			"run run-alpha",
+		} {
 			if !strings.Contains(view, want) {
 				t.Fatalf("expected view to contain %q, got %q", want, view)
 			}
@@ -2021,9 +2082,16 @@ func TestFormatMultiRunWorktreeSummary(t *testing.T) {
 			want: "worktree preserved",
 		},
 		{
-			name: "Should append branch and run id",
-			tab:  &multiRunTab{worktreePath: "/wt/01", worktreeStatus: "preserved", baseBranch: "main", runID: "run-1"},
-			want: "worktree preserved /wt/01   branch main   run run-1",
+			name: "Should append lifecycle metadata and run id",
+			tab: &multiRunTab{
+				worktreePath:   "/wt/01",
+				worktreeStatus: "preserved",
+				baseBranch:     "main",
+				resultBranch:   "compozy/multi-01",
+				worktreeReason: "retained output",
+				runID:          "run-1",
+			},
+			want: "worktree preserved /wt/01   base main   result compozy/multi-01   reason retained output   run run-1",
 		},
 	}
 	for _, tc := range cases {

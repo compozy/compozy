@@ -26,7 +26,7 @@ func TestWatchRemoteReconnectsAfterOverflowWithoutDuplicatingEvents(t *testing.T
 				}},
 				RemoteRunStreamItem{OverflowCursor: &RemoteCursor{
 					Timestamp: now,
-					Sequence:  1,
+					Sequence:  99,
 				}},
 			),
 			newBufferedRemoteRunStream(
@@ -117,6 +117,64 @@ func TestWatchRemoteStopsAfterHeartbeatEOFWhenSnapshotIsTerminal(t *testing.T) {
 	}
 }
 
+func TestWatchRemoteReplaysFromLastDeliveredEventAfterHeartbeatGap(t *testing.T) {
+	t.Run("Should replay from last delivered event after heartbeat gap", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 9, 19, 0, 0, 0, time.UTC)
+		client := &stubRemoteStreamClient{
+			streams: []RemoteRunStream{
+				newBufferedRemoteRunStream(
+					RemoteRunStreamItem{Event: &eventspkg.Event{
+						RunID:     "run-gap",
+						Kind:      eventspkg.EventKindRunStarted,
+						Seq:       1,
+						Timestamp: now,
+					}},
+					RemoteRunStreamItem{HeartbeatCursor: &RemoteCursor{
+						Timestamp: now.Add(3 * time.Second),
+						Sequence:  4,
+					}},
+				),
+				newBufferedRemoteRunStream(
+					RemoteRunStreamItem{Event: &eventspkg.Event{
+						RunID:     "run-gap",
+						Kind:      eventspkg.EventKindJobCompleted,
+						Seq:       2,
+						Timestamp: now.Add(time.Second),
+					}},
+					RemoteRunStreamItem{Event: &eventspkg.Event{
+						RunID:     "run-gap",
+						Kind:      eventspkg.EventKindRunCompleted,
+						Seq:       3,
+						Timestamp: now.Add(2 * time.Second),
+					}},
+				),
+			},
+			snapshot: RemoteRunSnapshot{Status: "running"},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		eventsCh, errsCh := WatchRemote(ctx, client, "run-gap")
+		var sequences []uint64
+		for event := range eventsCh {
+			sequences = append(sequences, event.Seq)
+		}
+		for err := range errsCh {
+			if err != nil {
+				t.Fatalf("unexpected watch error: %v", err)
+			}
+		}
+		if !reflect.DeepEqual(sequences, []uint64{1, 2, 3}) {
+			t.Fatalf("watched sequences = %v, want [1 2 3]", sequences)
+		}
+		if len(client.openAfter) != 2 || client.openAfter[1].Sequence != 1 {
+			t.Fatalf("stream cursors = %#v, want reconnect after sequence 1", client.openAfter)
+		}
+	})
+}
+
 func TestWatchRemoteRejectsMissingRunIDAndNilClient(t *testing.T) {
 	t.Parallel()
 
@@ -167,7 +225,7 @@ func TestShouldStopRemoteWatchRequiresTerminalSnapshot(t *testing.T) {
 	client := &stubRemoteStreamClient{
 		snapshot: RemoteRunSnapshot{Status: "running"},
 	}
-	if shouldStopRemoteWatch(context.Background(), client, "run-remote-005", RemoteCursor{}) {
+	if shouldStopRemoteWatch(context.Background(), client, "run-remote-005") {
 		t.Fatal("expected non-terminal snapshot to keep reconnecting")
 	}
 	if isTerminalRemoteRunStatus("running") {

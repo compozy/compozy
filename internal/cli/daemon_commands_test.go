@@ -1528,6 +1528,12 @@ func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 			payload: kinds.TaskRunMultiplePayload{Error: "stop requested"},
 			want:    "task queue canceled | stop requested\n",
 		},
+		{
+			name:    "Should render queue failed",
+			kind:    eventspkg.EventKindTaskRunMultipleQueueFailed,
+			payload: kinds.TaskRunMultiplePayload{Error: "child failed"},
+			want:    "task queue failed | child failed\n",
+		},
 	}
 
 	for _, tc := range cases {
@@ -1578,6 +1584,11 @@ func TestRenderObservedTaskMultiLifecycleFallbacks(t *testing.T) {
 			kind: eventspkg.EventKindTaskRunMultipleQueueCanceled,
 			want: "task queue canceled\n",
 		},
+		{
+			name: "Should render queue failed fallback",
+			kind: eventspkg.EventKindTaskRunMultipleQueueFailed,
+			want: "task queue failed\n",
+		},
 	}
 
 	for _, tc := range cases {
@@ -1594,6 +1605,82 @@ func TestRenderObservedTaskMultiLifecycleFallbacks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRenderObservedTaskParallelLifecycle(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		kind    eventspkg.EventKind
+		payload json.RawMessage
+		want    string
+	}{
+		{
+			name: "Should render the task DAG plan",
+			kind: eventspkg.EventKindTaskParallelPlanStarted,
+			payload: mustMarshalCLIJSON(t, kinds.TaskParallelPlanPayload{
+				Workflow: "demo",
+				Tasks:    []kinds.TaskParallelPlanTask{{ID: "task_01"}, {ID: "task_02"}},
+				Waves:    []kinds.TaskParallelPlanWave{{Index: 0}, {Index: 1}},
+			}),
+			want: "parallel task plan started | workflow=demo tasks=2 waves=2 worktrees=true\n",
+		},
+		{
+			name: "Should render finalize activity",
+			kind: eventspkg.EventKindTaskParallelPhaseChanged,
+			payload: mustMarshalCLIJSON(t, kinds.TaskParallelPayload{
+				WaveIndex: 1,
+				WaveTotal: 2,
+				Phase:     "syncing_artifacts",
+			}),
+			want: "parallel phase changed | wave=2/2 | phase=syncing_artifacts\n",
+		},
+		{
+			name: "Should render per-task settlement",
+			kind: eventspkg.EventKindTaskParallelTaskCompleted,
+			payload: mustMarshalCLIJSON(t, kinds.TaskParallelPayload{
+				TaskID:         "task_02",
+				Status:         "failed",
+				WorktreePath:   "/wt/task_02",
+				WorktreeStatus: "preserved",
+				WorktreeReason: "uncommitted changes",
+				ResultBranch:   "compozy/result-task-02",
+				Error:          "boom",
+			}),
+			want: "parallel task completed | task=task_02 | status=failed | worktree=/wt/task_02 | " +
+				"worktree_status=preserved | result_branch=compozy/result-task-02 | " +
+				"worktree_reason=uncommitted changes | error=boom\n",
+		},
+		{
+			name: "Should render parallel settlement",
+			kind: eventspkg.EventKindTaskParallelCompleted,
+			payload: mustMarshalCLIJSON(
+				t,
+				kinds.TaskParallelPayload{Status: "completed", Phase: "completed"},
+			),
+			want: "parallel execution completed | phase=completed | status=completed\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := renderObservedRunEvent(eventspkg.Event{Kind: tc.kind, Payload: tc.payload})
+			if got != tc.want {
+				t.Fatalf("renderObservedRunEvent() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func mustMarshalCLIJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	return raw
 }
 
 func TestRenderObservedTaskMultiItemIncludesWorktreePath(t *testing.T) {
@@ -1660,18 +1747,22 @@ func TestFormatTaskRunMultipleHandoff(t *testing.T) {
 				{
 					Slug: "alpha", Status: "completed", RunID: "child-alpha",
 					WorktreePath: "/wt/01-alpha", BaseBranch: "main",
+					ResultBranch: "compozy/multi-parent-01-alpha", WorktreeStatus: "removed",
 				},
 				{
 					Slug: "beta", Status: "failed", RunID: "child-beta",
 					WorktreePath: "/wt/02-beta", ErrorText: "boom",
+					WorktreeStatus: "preserved", WorktreeReason: "uncommitted changes",
 				},
 			},
 		}
 		lines := formatTaskRunMultipleHandoff(snapshot)
 		want := []string{
 			"task multi-run handoff:\n",
-			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha | branch=main\n",
-			"  beta failed | run=child-beta | worktree=/wt/02-beta | boom\n",
+			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha | base_branch=main | " +
+				"result_branch=compozy/multi-parent-01-alpha | worktree_status=removed\n",
+			"  beta failed | run=child-beta | worktree=/wt/02-beta | worktree_status=preserved | " +
+				"worktree_reason=uncommitted changes | boom\n",
 		}
 		if !slices.Equal(lines, want) {
 			t.Fatalf("formatTaskRunMultipleHandoff() = %#v, want %#v", lines, want)

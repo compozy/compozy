@@ -6,10 +6,10 @@
     {
       "name": "compozy",
       "sidecar_branch": "compozy/__branches__/fixes",
-      "commit": "453c19150f7939e62bcac9b6517544ec8c95817c",
-      "digest": "sha256:a4af191f1af607727b3a50e7549f024c0eddfc9b89ba94147430bcfe1b9c00e5",
-      "files": 1446,
-      "bytes": 12082388
+      "commit": "2ee032b121f14c55e806650501b22954e6f044b7",
+      "digest": "sha256:49877c8939bed69ebfd77e53cc7e35d36b4fe31e0c011c42acfdbf87db0bb34a",
+      "files": 1449,
+      "bytes": 12099662
     }
   ]
 }

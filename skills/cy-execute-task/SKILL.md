@@ -24,7 +24,7 @@ Execute one PRD task from exploration through tracking updates.
    - Read the provided task specification.
    - Read the repository guidance files named by the caller.
    - Run the Spec Corpus Survey (section below) with a native read-only subagent. This is mandatory before any edit — the task file is never the whole contract.
-   - Read the PRD documents under the provided directory, especially `_techspec.md` and `_tasks.md`.
+   - Read the PRD documents under the provided directory, especially `_techspec.md`, `_tasks.md`, and the contract catalogs `_user_stories.md` and `_tests.md` when present.
    - Read ADRs from the `adrs/` subdirectory of the PRD directory to understand the architectural decision context for this task.
    - Read in full every sibling artifact the survey flags as contract-bearing for this task, and the `analysis/` summaries for decision context.
    - After reading all sources, check for conflicts between the task specification, techspec, ADRs, and the contract-bearing siblings, applying the Authority and Contract Precedence rules below. If any requirements contradict each other, stop and report the conflict instead of guessing — do not proceed to step 2.
@@ -33,6 +33,7 @@ Execute one PRD task from exploration through tracking updates.
 
 2. Build the execution checklist.
    - Extract deliverables, acceptance criteria, and every explicit `Validation`, `Test Plan`, or `Testing` item into a numbered working checklist.
+   - Add one checklist line per test-case ID assigned in the task's `## Tests` section, and implement each case as `_tests.md` specifies it — the assigned IDs are part of the deliverable, not a suggestion.
    - Add one checklist line per concrete contract fact extracted from the contract-bearing spec artifacts (input names/types/defaults/required flags, command and route names, node topologies, declared behaviors) — parity with these facts is part of the deliverable.
    - Print the full checklist before starting implementation so it is visible and trackable.
    - Capture the concrete pre-change signal that proves the task is not finished yet.
@@ -67,7 +68,7 @@ Execute one PRD task from exploration through tracking updates.
 
 Task files paraphrase the spec, and paraphrases drift. Real incident: a task was implemented straight from its task file while the spec directory contained the canonical, complete definition of the deliverable (`_examples.md`) and the QA input contract (`_qa.md`); neither was read, seven review rounds validated engineering quality only, and the shipped result contradicted the product contract wholesale. This survey exists so that can never repeat.
 
-1. Dispatch the agent's NATIVE read-only subagent facility (e.g. `Explore` in Claude Code, or the closest scoped read-only subagent the current harness offers) to inventory the ENTIRE spec directory — every file, not a subset: all `_*.md` siblings (`_prd.md`, `_techspec.md`, `_tasks.md`, `_examples.md`, `_qa.md`, `_tests.md`, `_use-cases.md`, and any others present), loose siblings such as `requirements.md` and `product-ux.md`, plus the `adrs/`, `analysis/` (including `summary*.md`), `handoffs/`, and `memory/` subdirectories.
+1. Dispatch the agent's NATIVE read-only subagent facility (e.g. `Explore` in Claude Code, or the closest scoped read-only subagent the current harness offers) to inventory the ENTIRE spec directory — every file, not a subset: all `_*.md` siblings (`_prd.md`, `_user_stories.md`, `_techspec.md`, `_tests.md`, `_tasks.md`, `_examples.md`, `_qa.md`, and any others present), loose siblings such as `requirements.md` and `product-ux.md`, plus the `adrs/`, `analysis/` (including `summary*.md`), `handoffs/`, and `memory/` subdirectories.
 2. Require the subagent to return, per file: a one-line description and a CONTRACT-BEARING verdict — does this file pin concrete facts about this task's deliverables (canonical example documents, input/schema tables, parity maps, test contracts, CLI/UX surfaces)?
 3. If the harness has no subagent facility, perform the same inventory inline before any edit. Skipping the survey because the task file "looks complete" is forbidden — looking complete is exactly how the incident happened.
 4. Read in full, on the main thread, every contract-bearing file for this task. Read the `analysis/` summaries (at minimum the newest `summary*.md`) for the decision context behind the spec.
@@ -75,7 +76,7 @@ Task files paraphrase the spec, and paraphrases drift. Real incident: a task was
 ## Authority and Contract Precedence
 
 - Authority for WHAT to build: the task file + PRD + TechSpec + ADRs.
-- Precedence for the CONCRETE FORM of a deliverable: when a sibling spec artifact pins the concrete shape (a canonical example document, an input table, a parity map), that artifact defines the contract and a task-file paraphrase never overrides it. If they disagree, stop and report the conflict — implementing the paraphrase is the error, not a fallback.
+- Precedence for the CONCRETE FORM of a deliverable: when a sibling spec artifact pins the concrete shape (a canonical example document, an input table, a parity map, the `_tests.md` test contract, `_user_stories.md` acceptance criteria), that artifact defines the contract and a task-file paraphrase never overrides it. If they disagree, stop and report the conflict — implementing the paraphrase is the error, not a fallback.
 - The existing runtime shape is never the contract. If the current code cannot express what the spec requires, stop and report the gap as a blocker; do not mold the deliverable to what the runtime happens to support today.
 
 ## Error Handling

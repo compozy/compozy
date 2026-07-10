@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
@@ -22,6 +21,7 @@ import (
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -32,8 +32,6 @@ const (
 	taskMultiItemStatusCompleted = "completed"
 	taskMultiItemStatusFailed    = "failed"
 	taskMultiItemStatusCanceled  = "canceled"
-
-	taskMultiChildPollInterval = 100 * time.Millisecond
 )
 
 type preparedTaskMulti struct {
@@ -82,6 +80,15 @@ func (m *RunManager) StartTaskRunMultiple(
 	}
 	mode, err := resolveTaskMultiMode(req.Mode)
 	if err != nil {
+		return apicore.Run{}, err
+	}
+	expectedKind := apicore.ExecutionKindTaskMultiEnqueued
+	usesWorktrees := false
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		expectedKind = apicore.ExecutionKindTaskMultiParallel
+		usesWorktrees = true
+	}
+	if err := validateTaskExecutionDescriptor(req.Execution, expectedKind, usesWorktrees); err != nil {
 		return apicore.Run{}, err
 	}
 	childOverrides, err := taskMultiChildRuntimeOverrides(req.RuntimeOverrides)
@@ -210,16 +217,83 @@ func (m *RunManager) RunMultipleSnapshot(ctx context.Context, runID string) (api
 	if err != nil {
 		return apicore.TaskRunMultipleSnapshot{}, err
 	}
+	transcriptRows, err := lease.DB().ListTranscriptMessages(listCtx)
+	if err != nil {
+		return apicore.TaskRunMultipleSnapshot{}, err
+	}
+	if err := m.persistRuntimeIntegrity(listCtx, row.RunID, m.scopeForRun(row.RunID)); err != nil {
+		slog.Default().
+			Warn("daemon multi snapshot runtime integrity persistence failed", "run_id", row.RunID, "error", err)
+	}
+	var lastEvent *eventspkg.Event
+	if len(eventRows.Events) > 0 {
+		last := eventRows.Events[len(eventRows.Events)-1]
+		lastEvent = &last
+	}
+	integrity, err := m.loadRunIntegrity(
+		listCtx,
+		row.RunID,
+		runView,
+		lease.DB(),
+		eventRows.Events,
+		transcriptRows,
+		lastEvent,
+	)
+	if err != nil {
+		return apicore.TaskRunMultipleSnapshot{}, err
+	}
 	builder := newTaskMultiSnapshotBuilder()
 	for _, event := range eventRows.Events {
 		if err := builder.applyEvent(event); err != nil {
 			return apicore.TaskRunMultipleSnapshot{}, err
 		}
 	}
-	return apicore.TaskRunMultipleSnapshot{
-		Run:   runView,
-		Items: builder.snapshotItems(),
-	}, nil
+	snapshot := apicore.TaskRunMultipleSnapshot{
+		Run:               runView,
+		Items:             builder.snapshotItems(),
+		ExecutionKind:     taskMultiExecutionKind(eventRows.Events),
+		LifecycleEvents:   taskMultiLifecycleEvents(eventRows.Events),
+		Incomplete:        integrity.Incomplete,
+		IncompleteReasons: append([]string(nil), integrity.Reasons...),
+	}
+	if lastEvent != nil {
+		cursor := apicore.CursorFromEvent(*lastEvent)
+		snapshot.NextCursor = &cursor
+	}
+	return snapshot, nil
+}
+
+func taskMultiExecutionKind(events []eventspkg.Event) string {
+	mode := workspacecfg.TaskRunMultipleModeEnqueued
+	for _, event := range events {
+		switch event.Kind {
+		case eventspkg.EventKindTaskParallelPlanStarted:
+			return apicore.ExecutionKindTaskParallel
+		case eventspkg.EventKindTaskRunMultipleStarted:
+			payload, err := decodeTaskMultiPayload(event)
+			if err == nil && strings.TrimSpace(payload.Mode) != "" {
+				mode = strings.TrimSpace(payload.Mode)
+			}
+		}
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		return apicore.ExecutionKindTaskMultiParallel
+	}
+	return apicore.ExecutionKindTaskMultiEnqueued
+}
+
+func taskMultiLifecycleEvents(source []eventspkg.Event) []eventspkg.Event {
+	result := make([]eventspkg.Event, 0, len(source))
+	for _, event := range source {
+		kind := string(event.Kind)
+		if strings.HasPrefix(kind, taskMultiEventPrefix) ||
+			strings.HasPrefix(kind, taskParallelEventPrefix) ||
+			strings.HasPrefix(kind, "run.recovery_") ||
+			eventspkg.IsRunTerminalKind(event.Kind) {
+			result = append(result, event)
+		}
+	}
+	return result
 }
 
 func (m *RunManager) prepareTaskMultiStart(
@@ -559,22 +633,27 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 	if err := m.emitTaskMultiQueueStarted(active, prepared, total); err != nil {
 		return err
 	}
+	var runErr error
 	if prepared.parallelTasks != nil {
-		return m.runTaskMultiParallelTasks(active, prepared, total)
-	}
-	switch prepared.mode {
-	case workspacecfg.TaskRunMultipleModeParallel:
-		// Parallel mode re-emits item_queued with worktree metadata per child as it
-		// is allocated, so the shared upfront seeding is skipped to avoid a second
-		// item_queued event per child (which doubled --stream output). The started
-		// event already seeds every item into the snapshot.
-		return m.runTaskMultiParallelQueue(active, prepared, total)
-	default:
-		if err := m.emitTaskMultiItemsQueued(active, prepared, total); err != nil {
-			return err
+		runErr = m.runTaskMultiParallelTasks(active, prepared, total)
+	} else {
+		switch prepared.mode {
+		case workspacecfg.TaskRunMultipleModeParallel:
+			// Parallel mode re-emits item_queued with worktree metadata per child as it
+			// is allocated, so the shared upfront seeding is skipped to avoid a second
+			// item_queued event per child (which doubled --stream output). The started
+			// event already seeds every item into the snapshot.
+			runErr = m.runTaskMultiParallelQueue(active, prepared, total)
+		default:
+			if err := m.emitTaskMultiItemsQueued(active, prepared, total); err != nil {
+				runErr = err
+				break
+			}
+			runErr = m.runTaskMultiEnqueuedQueue(active, prepared, total)
 		}
-		return m.runTaskMultiEnqueuedQueue(active, prepared, total)
 	}
+	settlementErr := m.emitTaskMultiQueueSettlement(active, prepared, total, runErr)
+	return errors.Join(runErr, settlementErr)
 }
 
 // emitTaskMultiQueueStarted emits the parent "queue started" lifecycle event
@@ -664,15 +743,12 @@ func (m *RunManager) runTaskMultiParallelTasks(active *activeRun, prepared *prep
 		Config:            prepared.parallelTasks.config,
 		Recovery:          prepared.items[0].recovery,
 	})
-	if err != nil {
-		return err
-	}
-	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+	return err
 }
 
 // parallelEventEmitter bridges the daemon-neutral orchestrator emit seam onto the
-// parent run journal + workspace event bus. Emit failures are observability-only,
-// so they are logged rather than surfaced into the FSM control flow.
+// parent run journal + workspace event bus. Lifecycle persistence failures are
+// returned so the parent cannot report success without its observable contract.
 type parallelEventEmitter struct {
 	manager *RunManager
 	active  *activeRun
@@ -681,35 +757,22 @@ type parallelEventEmitter struct {
 func (e parallelEventEmitter) EmitParallelPlanEvent(
 	_ context.Context,
 	payload kinds.TaskParallelPlanPayload,
-) {
+) error {
 	if e.manager == nil || e.active == nil {
-		return
+		return errors.New("daemon: parallel event emitter is not configured")
 	}
-	if err := e.manager.emitTaskParallelPlanEvent(e.active, payload); err != nil {
-		slog.Default().Warn(
-			"daemon: emit parallel task plan event",
-			"run_id", e.active.runID,
-			"error", err.Error(),
-		)
-	}
+	return e.manager.emitTaskParallelPlanEvent(e.active, payload)
 }
 
 func (e parallelEventEmitter) EmitParallelEvent(
 	_ context.Context,
 	kind eventspkg.EventKind,
 	payload kinds.TaskParallelPayload,
-) {
+) error {
 	if e.manager == nil || e.active == nil {
-		return
+		return errors.New("daemon: parallel event emitter is not configured")
 	}
-	if err := e.manager.emitTaskParallelEvent(e.active, kind, payload); err != nil {
-		slog.Default().Warn(
-			"daemon: emit parallel task event",
-			"run_id", e.active.runID,
-			"kind", string(kind),
-			"error", err.Error(),
-		)
-	}
+	return e.manager.emitTaskParallelEvent(e.active, kind, payload)
 }
 
 type parallelRecoveryEventSink struct {
@@ -837,23 +900,176 @@ func (l parallelWorktreeLifecycle) SyncTaskArtifacts(
 	return syncCompletedParallelTaskArtifacts(ctx, workspaceRoot, tasks, l.workflowRootsBySlug)
 }
 
-func (l parallelWorktreeLifecycle) DiscardIntegrationBranch(
+func (l parallelWorktreeLifecycle) CleanupTaskWorktree(
 	ctx context.Context,
-	workspaceRoot string,
-	integrationPath string,
-	integrationBranch string,
-) error {
+	spec runparallel.TaskWorktreeCleanupSpec,
+) (runparallel.WorktreeCleanupResult, error) {
 	if l.allocator == nil {
-		return errors.New("daemon: task worktree allocator is not configured")
+		return runparallel.WorktreeCleanupResult{}, errors.New("daemon: task worktree allocator is not configured")
 	}
-	return l.allocator.DiscardIntegrationBranch(ctx, workspaceRoot, integrationPath, integrationBranch)
+	path, owned, err := cleanOwnedWorktreePath(l.allocator.worktreesRoot, spec.Path)
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	if !owned {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusPreserved,
+			Reason: fmt.Sprintf(
+				"worktree %s is outside current root %s; it may belong to a previous COMPOZY_HOME",
+				spec.Path,
+				l.allocator.worktreesRoot,
+			),
+		}, nil
+	}
+	inspection, err := inspectTaskWorktreeLifecycle(ctx, l.allocator, spec.WorkspaceRoot, taskWorktreePurgeTarget{
+		Path:              path,
+		BaseCommit:        spec.BaseCommit,
+		ContentIntegrated: spec.ContentIntegrated,
+	})
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	if !inspection.Exists {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusRemoved,
+			Reason: inspection.Reason,
+		}, nil
+	}
+	if !inspection.Removable {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusPreserved,
+			Reason: inspection.Reason,
+		}, nil
+	}
+	if err := l.allocator.Remove(ctx, spec.WorkspaceRoot, path); err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	return runparallel.WorktreeCleanupResult{
+		Status: runparallel.WorktreeCleanupStatusRemoved,
+		Reason: inspection.Reason,
+	}, nil
 }
 
-func (l parallelWorktreeLifecycle) Remove(ctx context.Context, workspaceRoot string, path string) error {
+func (l parallelWorktreeLifecycle) CleanupIntegration(
+	ctx context.Context,
+	spec runparallel.IntegrationCleanupSpec,
+) (runparallel.WorktreeCleanupResult, error) {
 	if l.allocator == nil {
-		return errors.New("daemon: task worktree allocator is not configured")
+		return runparallel.WorktreeCleanupResult{}, errors.New("daemon: task worktree allocator is not configured")
 	}
-	return l.allocator.Remove(ctx, workspaceRoot, path)
+	path, owned, err := cleanOwnedWorktreePath(l.allocator.worktreesRoot, spec.IntegrationPath)
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	if !owned {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusPreserved,
+			Reason: fmt.Sprintf(
+				"integration worktree %s is outside current root %s",
+				spec.IntegrationPath,
+				l.allocator.worktreesRoot,
+			),
+		}, nil
+	}
+	_, statErr := os.Stat(path)
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return runparallel.WorktreeCleanupResult{}, fmt.Errorf("stat integration worktree %s: %w", path, statErr)
+	}
+	run, err := l.allocator.requireGitRunner()
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	if errors.Is(statErr, os.ErrNotExist) {
+		return l.cleanupAbsentIntegration(ctx, run, path, spec)
+	}
+	return l.cleanupExistingIntegration(ctx, run, path, spec)
+}
+
+func (l parallelWorktreeLifecycle) cleanupAbsentIntegration(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	path string,
+	spec runparallel.IntegrationCleanupSpec,
+) (runparallel.WorktreeCleanupResult, error) {
+	branchHead, err := run(
+		ctx,
+		spec.WorkspaceRoot,
+		"branch",
+		"--list",
+		spec.IntegrationBranch,
+		"--format=%(objectname)",
+	)
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, fmt.Errorf(
+			"inspect absent integration worktree branch %s: %w",
+			spec.IntegrationBranch,
+			err,
+		)
+	}
+	if strings.TrimSpace(branchHead) == "" {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusRemoved,
+			Reason: "integration worktree and branch are already absent",
+		}, nil
+	}
+	if !spec.ContentIntegrated && strings.TrimSpace(branchHead) != strings.TrimSpace(spec.BaseCommit) {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusPreserved,
+			Reason: "integration branch contains output not retained by the target branch",
+		}, nil
+	}
+	if err := l.allocator.DiscardIntegrationBranch(
+		ctx,
+		spec.WorkspaceRoot,
+		path,
+		spec.IntegrationBranch,
+	); err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	return runparallel.WorktreeCleanupResult{
+		Status: runparallel.WorktreeCleanupStatusRemoved,
+		Reason: "integration branch was unchanged or retained by the target branch",
+	}, nil
+}
+
+func (l parallelWorktreeLifecycle) cleanupExistingIntegration(
+	ctx context.Context,
+	run taskMultiWorktreeGitRunner,
+	path string,
+	spec runparallel.IntegrationCleanupSpec,
+) (runparallel.WorktreeCleanupResult, error) {
+	status, err := run(ctx, path, "status", "--porcelain")
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, fmt.Errorf("inspect integration worktree status: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusPreserved,
+			Reason: "integration worktree has uncommitted changes",
+		}, nil
+	}
+	head, err := run(ctx, path, "rev-parse", taskMultiWorktreeHeadRef)
+	if err != nil {
+		return runparallel.WorktreeCleanupResult{}, fmt.Errorf("resolve integration worktree head: %w", err)
+	}
+	if !spec.ContentIntegrated && strings.TrimSpace(head) != strings.TrimSpace(spec.BaseCommit) {
+		return runparallel.WorktreeCleanupResult{
+			Status: runparallel.WorktreeCleanupStatusPreserved,
+			Reason: "integration branch contains output not retained by the target branch",
+		}, nil
+	}
+	if err := l.allocator.DiscardIntegrationBranch(
+		ctx,
+		spec.WorkspaceRoot,
+		path,
+		spec.IntegrationBranch,
+	); err != nil {
+		return runparallel.WorktreeCleanupResult{}, err
+	}
+	return runparallel.WorktreeCleanupResult{
+		Status: runparallel.WorktreeCleanupStatusRemoved,
+		Reason: "integration output is retained or unchanged from its base",
+	}, nil
 }
 
 type parallelTaskLauncher struct {
@@ -892,12 +1108,29 @@ func (r *parallelPreparedTaskRun) Execute(ctx context.Context) (recovery.RunOutc
 		r.spec.Task.Number,
 		taskMultiWorktreeBase{Branch: r.spec.Base.Branch, Commit: r.spec.Base.Commit},
 	)
+	r.captureChild(child)
 	if err != nil {
 		return recovery.RunOutcome{}, err
 	}
-	r.child = child
-	r.emitTaskStarted(ctx, child)
+	if err := r.emitTaskStarted(ctx, child); err != nil {
+		cancelErr := r.launcher.manager.Cancel(detachContext(ctx), child.Run.RunID)
+		return recovery.RunOutcome{}, errors.Join(err, cancelErr)
+	}
 	return r.awaitChild(ctx, child)
+}
+
+func (r *parallelPreparedTaskRun) captureChild(child taskWorktreeChildRun) {
+	if strings.TrimSpace(child.Allocation.Path) == "" {
+		return
+	}
+	r.child = child
+	r.result = runparallel.TaskRunResult{
+		Task:         r.spec.Task,
+		RunID:        child.Run.RunID,
+		WorktreePath: child.Allocation.Path,
+		BaseBranch:   child.Allocation.BaseBranch,
+		BaseCommit:   child.Allocation.BaseCommit,
+	}
 }
 
 func (r *parallelPreparedTaskRun) RestartFailed(
@@ -917,23 +1150,26 @@ func (r *parallelPreparedTaskRun) RestartFailed(
 		r.spec.Task.Number,
 		r.child.Allocation,
 	)
+	r.captureChild(child)
 	if err != nil {
 		return recovery.RunOutcome{}, err
 	}
-	r.child = child
-	r.emitTaskStarted(ctx, child)
+	if err := r.emitTaskStarted(ctx, child); err != nil {
+		cancelErr := r.launcher.manager.Cancel(detachContext(ctx), child.Run.RunID)
+		return recovery.RunOutcome{}, errors.Join(err, cancelErr)
+	}
 	return r.awaitChild(ctx, child)
 }
 
-func (r *parallelPreparedTaskRun) emitTaskStarted(ctx context.Context, child taskWorktreeChildRun) {
+func (r *parallelPreparedTaskRun) emitTaskStarted(ctx context.Context, child taskWorktreeChildRun) error {
 	if r == nil {
-		return
+		return errors.New("daemon: parallel prepared task run is required")
 	}
 	taskID := strings.TrimSpace(string(r.spec.Task.ID))
 	if taskID == "" && r.spec.Task.Number > 0 {
 		taskID = fmt.Sprintf("task_%02d", r.spec.Task.Number)
 	}
-	parallelEventEmitter{
+	return parallelEventEmitter{
 		manager: r.launcher.manager,
 		active:  r.launcher.active,
 	}.EmitParallelEvent(
@@ -946,6 +1182,7 @@ func (r *parallelPreparedTaskRun) emitTaskStarted(ctx context.Context, child tas
 			Phase:             runStatusRunning,
 			ChildRunID:        child.Run.RunID,
 			WorktreePath:      child.Allocation.Path,
+			WorktreeStatus:    taskMultiWorktreeStatusActive,
 			IntegrationBranch: r.launcher.integrationBranch,
 		},
 	)
@@ -974,18 +1211,17 @@ func (r *parallelPreparedTaskRun) awaitChild(
 		}
 		return recovery.RunOutcome{}, errors.Join(err, childCancelErr)
 	}
-	r.result = runparallel.TaskRunResult{
-		Task:         r.spec.Task,
-		RunID:        child.Run.RunID,
-		WorktreePath: child.Allocation.Path,
-		BaseBranch:   child.Allocation.BaseBranch,
-		BaseCommit:   child.Allocation.BaseCommit,
-	}
-	outcome, readErr := readParallelTaskChildOutcome(child.Run.RunID)
+	r.captureChild(child)
+	outcome, readErr := readParallelTaskChildOutcome(child.Run.RunID, r.launcher.manager.homePaths.RunsDir)
 	terminalErr := parallelTaskChildTerminalError(childRow, r.spec.Task.ID)
 	if readErr != nil {
 		if terminalErr != nil {
-			return parallelTaskChildFallbackOutcome(childRow, r.spec.Task.ID, terminalErr), terminalErr
+			return parallelTaskChildFallbackOutcome(
+				childRow,
+				r.spec.Task.ID,
+				terminalErr,
+				r.launcher.manager.homePaths.RunsDir,
+			), terminalErr
 		}
 		return recovery.RunOutcome{}, readErr
 	}
@@ -994,7 +1230,11 @@ func (r *parallelPreparedTaskRun) awaitChild(
 }
 
 func (r *parallelPreparedTaskRun) applyWorktreeScope(outcome recovery.RunOutcome) {
-	scope, path, err := readParallelTaskWorktreeScope(outcome, r.spec.Task)
+	scope, path, err := readParallelTaskWorktreeScope(
+		outcome,
+		r.spec.Task,
+		r.launcher.manager.homePaths.RunsDir,
+	)
 	r.result.ScopeArtifactPath = path
 	if err != nil {
 		r.result.ScopeSupported = false
@@ -1013,12 +1253,13 @@ func (r *parallelPreparedTaskRun) applyWorktreeScope(outcome recovery.RunOutcome
 func readParallelTaskWorktreeScope(
 	outcome recovery.RunOutcome,
 	task runparallel.TaskSpec,
+	runsDirs ...string,
 ) (worktree.Scope, string, error) {
 	runID := strings.TrimSpace(outcome.RunID)
 	if runID == "" {
 		return worktree.Scope{}, "", errors.New("parallel task child outcome missing run id")
 	}
-	artifacts, err := model.ResolveHomeRunArtifacts(runID)
+	artifacts, err := resolveTaskRunArtifacts(runID, runsDirs...)
 	if err != nil {
 		return worktree.Scope{}, "", err
 	}
@@ -1077,8 +1318,8 @@ func uniqueTaskWorktreeScopeSafeNames(values []string) []string {
 	return result
 }
 
-func readParallelTaskChildOutcome(runID string) (recovery.RunOutcome, error) {
-	artifacts, err := model.ResolveHomeRunArtifacts(runID)
+func readParallelTaskChildOutcome(runID string, runsDirs ...string) (recovery.RunOutcome, error) {
+	artifacts, err := resolveTaskRunArtifacts(runID, runsDirs...)
 	if err != nil {
 		return recovery.RunOutcome{}, err
 	}
@@ -1110,6 +1351,7 @@ func parallelTaskChildFallbackOutcome(
 	row globaldb.Run,
 	taskID runparallel.TaskID,
 	cause error,
+	runsDirs ...string,
 ) recovery.RunOutcome {
 	status := recoveryStatusForRunStatus(row.Status)
 	outcome := recovery.RunOutcome{
@@ -1117,7 +1359,7 @@ func parallelTaskChildFallbackOutcome(
 		Status: status,
 	}
 	if outcome.RunID != "" {
-		if artifacts, err := model.ResolveHomeRunArtifacts(outcome.RunID); err == nil {
+		if artifacts, err := resolveTaskRunArtifacts(outcome.RunID, runsDirs...); err == nil {
 			outcome.ArtifactsDir = artifacts.RunDir
 			outcome.ResultPath = artifacts.ResultPath
 		}
@@ -1136,6 +1378,13 @@ func parallelTaskChildFallbackOutcome(
 		Error:    parallelTaskChildFailureMessage(row, cause),
 	}}
 	return outcome
+}
+
+func resolveTaskRunArtifacts(runID string, runsDirs ...string) (model.RunArtifacts, error) {
+	if len(runsDirs) > 0 && strings.TrimSpace(runsDirs[0]) != "" {
+		return model.NewRunArtifactsForRunsDir(runsDirs[0], runID), nil
+	}
+	return model.ResolveHomeRunArtifacts(runID)
 }
 
 func parallelTaskChildFailureMessage(row globaldb.Run, cause error) string {
@@ -1167,15 +1416,31 @@ func disabledParallelChildRecoveryConfig() workspacecfg.AgentRecoveryConfig {
 	return workspacecfg.AgentRecoveryConfig{Enabled: &enabled}
 }
 
-// emitTaskMultiQueueCompleted emits the terminal "queue completed" event for a
-// fully successful queue. It is the shared queue-terminal helper for branches
-// that complete every child.
-func (m *RunManager) emitTaskMultiQueueCompleted(active *activeRun, prepared *preparedTaskMulti, total int) error {
-	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleQueueCompleted, kinds.TaskRunMultiplePayload{
+// emitTaskMultiQueueSettlement emits exactly one queue-level settlement after
+// the selected scheduler branch returns. Item cancellation remains observable,
+// but it does not misclassify execution failures as queue cancellation.
+func (m *RunManager) emitTaskMultiQueueSettlement(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	total int,
+	runErr error,
+) error {
+	kind := eventspkg.EventKindTaskRunMultipleQueueCompleted
+	status := runStatusCompleted
+	if runErr != nil {
+		kind = eventspkg.EventKindTaskRunMultipleQueueFailed
+		status = runStatusFailed
+		if active != nil && context.Cause(active.ctx) != nil {
+			kind = eventspkg.EventKindTaskRunMultipleQueueCanceled
+			status = runStatusCancelled
+		}
+	}
+	return m.emitTaskMultiEvent(active, kind, kinds.TaskRunMultiplePayload{
 		Mode:   prepared.mode,
-		Status: runStatusCompleted,
+		Status: status,
 		Slugs:  preparedTaskMultiSlugs(prepared.items),
 		Total:  total,
+		Error:  errorString(runErr),
 	})
 }
 
@@ -1196,7 +1461,7 @@ func (m *RunManager) runTaskMultiEnqueuedQueue(active *activeRun, prepared *prep
 			return err
 		}
 	}
-	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+	return nil
 }
 
 // runTaskMultiParallelQueue runs the queued children concurrently, each in its
@@ -1273,39 +1538,64 @@ func (m *RunManager) runTaskMultiParallelChild(
 	total int,
 	base taskMultiWorktreeBase,
 ) error {
-	childRun, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
+	child, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
 	if err != nil {
-		emitErr := m.emitTaskMultiItemEvent(
-			active,
-			eventspkg.EventKindTaskRunMultipleChildFailed,
-			item,
-			index,
-			total,
-			taskMultiItemStatusFailed,
-			"",
-			err.Error(),
+		allocation := child.Allocation
+		if strings.TrimSpace(allocation.Path) != "" {
+			allocation = m.cleanupSettledTaskWorktree(
+				context.WithoutCancel(active.ctx),
+				prepared.workspace.RootDir,
+				allocation,
+			)
+		}
+		emitErr := m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleChildFailed,
+			taskMultiWorktreeItemPayload(
+				item,
+				index,
+				total,
+				taskMultiItemStatusFailed,
+				"",
+				err.Error(),
+				allocation,
+			),
 		)
 		return errors.Join(fmt.Errorf("start child %s: %w", item.slug, err), emitErr)
 	}
-	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
+	childRow, err := m.waitForTaskMultiChild(active.ctx, child.Run.RunID)
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			childCancelErr = m.Cancel(detachContext(active.ctx), childRun.RunID)
+			childCancelErr = m.Cancel(detachContext(active.ctx), child.Run.RunID)
 		}
-		emitErr := m.emitTaskMultiItemEvent(
+		allocation := m.cleanupSettledTaskWorktree(
+			context.WithoutCancel(active.ctx),
+			prepared.workspace.RootDir,
+			child.Allocation,
+		)
+		emitErr := m.emitTaskMultiEvent(
 			active,
 			eventspkg.EventKindTaskRunMultipleItemCanceled,
-			item,
-			index,
-			total,
-			taskMultiItemStatusCanceled,
-			childRun.RunID,
-			err.Error(),
+			taskMultiWorktreeItemPayload(
+				item,
+				index,
+				total,
+				taskMultiItemStatusCanceled,
+				child.Run.RunID,
+				err.Error(),
+				allocation,
+			),
 		)
 		return errors.Join(fmt.Errorf("await child %s: %w", item.slug, err), childCancelErr, emitErr)
 	}
-	if emitErr := m.finishTaskMultiChild(active, item, index, total, childRow); emitErr != nil {
+	if emitErr := m.finishTaskMultiWorktreeChild(
+		active,
+		prepared,
+		item,
+		index,
+		total,
+		childRow,
+		child.Allocation,
+	); emitErr != nil {
 		return emitErr
 	}
 	if childRow.Status == runStatusCompleted {
@@ -1326,7 +1616,7 @@ func (m *RunManager) runTaskMultiParallelChild(
 // finalizeTaskMultiParallel computes the terminal parent result after every
 // launched child has settled. When the parent was canceled it marks the
 // not-started items canceled and returns the cancellation cause; otherwise it
-// returns the aggregate child failure (if any) or emits the queue-completed event.
+// returns the aggregate child failure, or nil when every child completed.
 func (m *RunManager) finalizeTaskMultiParallel(
 	active *activeRun,
 	prepared *preparedTaskMulti,
@@ -1339,10 +1629,7 @@ func (m *RunManager) finalizeTaskMultiParallel(
 		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, launched, total, cancelCause)
 		return errors.Join(cancelCause, errors.Join(childErrs...), cancelErr)
 	}
-	if aggErr := aggregateTaskMultiParallelResult(prepared.items, childErrs); aggErr != nil {
-		return aggErr
-	}
-	return m.emitTaskMultiQueueCompleted(active, prepared, total)
+	return aggregateTaskMultiParallelResult(prepared.items, childErrs)
 }
 
 // aggregateTaskMultiParallelResult returns nil when every child completed
@@ -1542,44 +1829,41 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 	index int,
 	total int,
 	base taskMultiWorktreeBase,
-) (apicore.Run, error) {
+) (taskWorktreeChildRun, error) {
 	if m.worktreeAllocator == nil {
-		return apicore.Run{}, errors.New("daemon: task multi worktree allocator is not configured")
+		return taskWorktreeChildRun{}, errors.New("daemon: task multi worktree allocator is not configured")
 	}
-	allocation, err := m.worktreeAllocator.Allocate(active.ctx, taskMultiWorktreeSpec{
-		WorkspaceRoot: prepared.workspace.RootDir,
-		ParentRunID:   active.runID,
-		Slug:          item.slug,
-		Index:         index,
-		Base:          base,
-	})
+	allocation, err := m.allocateTaskMultiWorktree(active, prepared, item, index, base)
 	if err != nil {
-		return apicore.Run{}, fmt.Errorf("allocate worktree for %s: %w", item.slug, err)
+		return taskWorktreeChildRun{}, err
 	}
 	if err := mirrorTaskMultiWorkflowArtifacts(item.workflowRoot, allocation.Path, item.slug); err != nil {
-		cleanupErr := m.worktreeAllocator.Remove(detachContext(active.ctx), prepared.workspace.RootDir, allocation.Path)
-		return apicore.Run{}, errors.Join(err, cleanupErr)
+		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	if err := m.emitTaskMultiEvent(
 		active,
 		eventspkg.EventKindTaskRunMultipleItemQueued,
 		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusQueued, "", "", allocation),
 	); err != nil {
-		return apicore.Run{}, err
+		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	workspaceRow, workflowID, _, err := m.resolveWorkflowContext(detachContext(active.ctx), allocation.Path, item.slug)
 	if err != nil {
-		return apicore.Run{}, fmt.Errorf("register worktree workspace for %s: %w", item.slug, err)
+		return taskWorktreeChildRun{Allocation: allocation}, fmt.Errorf(
+			"register worktree workspace for %s: %w",
+			item.slug,
+			err,
+		)
 	}
 	// Align the runtime workspace root with the registered worktree workspace row
 	// so database identity and runtime filesystem paths match (ADR-007).
 	tasksDir, err := requireTaskMultiWorktreeTaskDir(workspaceRow.RootDir, item.slug)
 	if err != nil {
-		return apicore.Run{}, err
+		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	runtimeCfg, err := remapTaskMultiChildRuntime(item.runtimeCfg, workspaceRow.RootDir, item.slug, active.runID)
 	if err != nil {
-		return apicore.Run{}, err
+		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	childRun, err := m.startRun(active.ctx, startRunSpec{
 		workspace:        workspaceRow,
@@ -1593,7 +1877,7 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 		recovery:         item.recovery,
 	})
 	if err != nil {
-		return apicore.Run{}, err
+		return taskWorktreeChildRun{Allocation: allocation, RuntimeConfig: runtimeCfg}, err
 	}
 	if err := m.emitTaskMultiEvent(
 		active,
@@ -1601,9 +1885,42 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusRunning, childRun.RunID, "", allocation),
 	); err != nil {
 		cancelErr := m.Cancel(detachContext(active.ctx), childRun.RunID)
-		return apicore.Run{}, errors.Join(err, cancelErr)
+		return taskWorktreeChildRun{
+			Run:           childRun,
+			Allocation:    allocation,
+			RuntimeConfig: runtimeCfg,
+		}, errors.Join(err, cancelErr)
 	}
-	return childRun, nil
+	return taskWorktreeChildRun{
+		Run:           childRun,
+		Allocation:    allocation,
+		RuntimeConfig: runtimeCfg,
+	}, nil
+}
+
+func (m *RunManager) allocateTaskMultiWorktree(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	base taskMultiWorktreeBase,
+) (taskMultiWorktreeAllocation, error) {
+	resultBranch, err := taskMultiResultBranch(active.runID, index, item.slug)
+	if err != nil {
+		return taskMultiWorktreeAllocation{}, err
+	}
+	allocation, err := m.worktreeAllocator.Allocate(active.ctx, taskMultiWorktreeSpec{
+		WorkspaceRoot: prepared.workspace.RootDir,
+		ParentRunID:   active.runID,
+		Slug:          item.slug,
+		Index:         index,
+		ResultBranch:  resultBranch,
+		Base:          base,
+	})
+	if err != nil {
+		return taskMultiWorktreeAllocation{}, fmt.Errorf("allocate worktree for %s: %w", item.slug, err)
+	}
+	return allocation, nil
 }
 
 // startTaskWorktreeChild launches one PRD task file as an isolated child run in
@@ -1643,21 +1960,11 @@ func (m *RunManager) startTaskWorktreeChild(
 		)
 	}
 	if err := mirrorTaskMultiWorkflowArtifacts(item.workflowRoot, allocation.Path, item.slug); err != nil {
-		cleanupErr := m.worktreeAllocator.Remove(
-			detachContext(active.ctx),
-			prepared.workspace.RootDir,
-			allocation.Path,
-		)
-		return taskWorktreeChildRun{}, errors.Join(err, cleanupErr)
+		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	child, err := m.startTaskWorktreeChildInAllocation(active, prepared, item, targetTaskNumber, allocation)
 	if err != nil {
-		cleanupErr := m.worktreeAllocator.Remove(
-			detachContext(active.ctx),
-			prepared.workspace.RootDir,
-			allocation.Path,
-		)
-		return taskWorktreeChildRun{}, errors.Join(err, cleanupErr)
+		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	return child, nil
 }
@@ -1778,6 +2085,8 @@ func taskMultiWorktreeItemPayload(
 		BaseBranch:     allocation.BaseBranch,
 		BaseCommit:     allocation.BaseCommit,
 		WorktreeStatus: allocation.WorktreeStatus,
+		WorktreeReason: allocation.WorktreeReason,
+		ResultBranch:   allocation.ResultBranch,
 	}
 }
 
@@ -1825,28 +2134,218 @@ func (m *RunManager) finishTaskMultiChild(
 	}
 }
 
-func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (globaldb.Run, error) {
-	trimmedRunID := strings.TrimSpace(runID)
-	ticker := time.NewTicker(taskMultiChildPollInterval)
-	defer ticker.Stop()
+func (m *RunManager) finishTaskMultiWorktreeChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRow globaldb.Run,
+	allocation taskMultiWorktreeAllocation,
+) error {
+	if prepared == nil {
+		return errors.New("daemon: prepared task multi run is required")
+	}
+	allocation = m.cleanupSettledTaskWorktree(
+		context.WithoutCancel(active.ctx),
+		prepared.workspace.RootDir,
+		allocation,
+	)
+	kind, status, errorText := taskMultiChildSettlement(childRow)
+	return m.emitTaskMultiEvent(
+		active,
+		kind,
+		taskMultiWorktreeItemPayload(item, index, total, status, childRow.RunID, errorText, allocation),
+	)
+}
 
-	for {
-		row, err := m.globalDB.GetRun(detachContext(ctx), trimmedRunID)
-		if err != nil {
-			return globaldb.Run{}, fmt.Errorf("load child run %s: %w", trimmedRunID, err)
+func taskMultiChildSettlement(row globaldb.Run) (eventspkg.EventKind, string, string) {
+	switch row.Status {
+	case runStatusCompleted:
+		return eventspkg.EventKindTaskRunMultipleChildCompleted, taskMultiItemStatusCompleted, ""
+	case runStatusCancelled:
+		return eventspkg.EventKindTaskRunMultipleItemCanceled, taskMultiItemStatusCanceled, row.ErrorText
+	default:
+		return eventspkg.EventKindTaskRunMultipleChildFailed, taskMultiItemStatusFailed, row.ErrorText
+	}
+}
+
+func (m *RunManager) cleanupSettledTaskWorktree(
+	ctx context.Context,
+	workspaceRoot string,
+	allocation taskMultiWorktreeAllocation,
+) taskMultiWorktreeAllocation {
+	allocation.WorktreeStatus = taskMultiWorktreeStatusPreserved
+	path, owned, err := cleanOwnedWorktreePath(m.homePaths.WorktreesDir, allocation.Path)
+	if err != nil {
+		allocation.WorktreeReason = fmt.Sprintf("validate worktree ownership: %v", err)
+		return allocation
+	}
+	if !owned {
+		allocation.WorktreeReason = fmt.Sprintf(
+			"worktree %s is outside captured root %s; it may belong to a previous COMPOZY_HOME",
+			allocation.Path,
+			m.homePaths.WorktreesDir,
+		)
+		return allocation
+	}
+	inspection, err := inspectTaskWorktreeLifecycle(ctx, m.worktreeAllocator, workspaceRoot, taskWorktreePurgeTarget{
+		Path:         path,
+		BaseCommit:   allocation.BaseCommit,
+		ResultBranch: allocation.ResultBranch,
+	})
+	if err != nil {
+		allocation.WorktreeReason = fmt.Sprintf("inspect worktree cleanup safety: %v", err)
+		return allocation
+	}
+	if !inspection.Removable {
+		allocation.WorktreeReason = inspection.Reason
+		return allocation
+	}
+	if inspection.Exists {
+		if err := m.worktreeAllocator.Remove(ctx, workspaceRoot, path); err != nil {
+			allocation.WorktreeReason = fmt.Sprintf("remove safe worktree: %v", err)
+			return allocation
 		}
-		if isTerminalRunStatus(row.Status) {
-			return row, nil
-		}
-		select {
-		case <-ctx.Done():
-			if cancelErr := m.Cancel(detachContext(ctx), runID); cancelErr != nil {
-				return globaldb.Run{}, errors.Join(ctx.Err(), fmt.Errorf("cancel child run %s: %w", runID, cancelErr))
-			}
-			return globaldb.Run{}, ctx.Err()
-		case <-ticker.C:
+		removeEmptyWorktreeParents(m.homePaths.WorktreesDir, path)
+	}
+	allocation.WorktreeStatus = taskMultiWorktreeStatusRemoved
+	allocation.WorktreeReason = inspection.Reason
+	if inspection.DeleteResultBranch {
+		if _, err := m.worktreeAllocator.DeleteBranchIfAt(
+			ctx,
+			workspaceRoot,
+			allocation.ResultBranch,
+			allocation.BaseCommit,
+		); err != nil {
+			allocation.WorktreeReason = fmt.Sprintf(
+				"%s; empty result branch cleanup failed: %v",
+				inspection.Reason,
+				err,
+			)
 		}
 	}
+	return allocation
+}
+
+func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (globaldb.Run, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return globaldb.Run{}, errors.New("wait for child run: run id is required")
+	}
+	row, err := m.globalDB.GetRun(detachContext(ctx), trimmedRunID)
+	if err != nil {
+		return globaldb.Run{}, fmt.Errorf("load child run %s: %w", trimmedRunID, err)
+	}
+	if isTerminalRunStatus(row.Status) {
+		return row, nil
+	}
+	active := m.getActive(trimmedRunID)
+	if active == nil || active.done == nil {
+		return m.reconcileExitedTaskMultiChild(detachContext(ctx), row, active)
+	}
+
+	select {
+	case <-ctx.Done():
+		if cancelErr := m.Cancel(detachContext(ctx), trimmedRunID); cancelErr != nil {
+			return globaldb.Run{}, errors.Join(
+				ctx.Err(),
+				fmt.Errorf("cancel child run %s: %w", trimmedRunID, cancelErr),
+			)
+		}
+		return globaldb.Run{}, ctx.Err()
+	case <-active.done:
+		return m.reconcileExitedTaskMultiChild(detachContext(ctx), row, active)
+	}
+}
+
+func (m *RunManager) reconcileExitedTaskMultiChild(
+	ctx context.Context,
+	row globaldb.Run,
+	active *activeRun,
+) (globaldb.Run, error) {
+	latest, err := m.globalDB.GetRun(ctx, row.RunID)
+	if err != nil {
+		return globaldb.Run{}, fmt.Errorf("reload exited child run %s: %w", row.RunID, err)
+	}
+	if isTerminalRunStatus(latest.Status) {
+		return latest, nil
+	}
+
+	runDB, err := m.openRunDB(ctx, latest.RunID)
+	if err != nil {
+		return globaldb.Run{}, fmt.Errorf("open exited child run %s journal: %w", latest.RunID, err)
+	}
+	defer func() {
+		_ = runDB.Close()
+	}()
+
+	lastEvent, err := runDB.LastEvent(ctx)
+	if err != nil {
+		return globaldb.Run{}, fmt.Errorf("read exited child run %s terminal: %w", latest.RunID, err)
+	}
+	terminal, ok, err := terminalStateFromEvent(lastEvent)
+	if err != nil {
+		return globaldb.Run{}, fmt.Errorf("decode exited child run %s terminal: %w", latest.RunID, err)
+	}
+	if !ok {
+		terminal, err = m.appendExitedChildCrash(ctx, runDB, latest)
+		if err != nil {
+			return globaldb.Run{}, err
+		}
+	}
+
+	latest.Status = terminal.status
+	latest.ErrorText = terminal.errorText
+	endedAt := m.now().UTC()
+	latest.EndedAt = &endedAt
+	updated, err := m.globalDB.UpdateRun(ctx, latest)
+	if err != nil {
+		return globaldb.Run{}, fmt.Errorf("mirror exited child run %s terminal: %w", latest.RunID, err)
+	}
+	workflowSlug := ""
+	if active != nil {
+		workflowSlug = active.workflowSlug
+	}
+	m.publishRunWorkspaceEvent(ctx, updated, workflowSlug, apicore.WorkspaceEventKindRunTerminal)
+	return updated, nil
+}
+
+func (m *RunManager) appendExitedChildCrash(
+	ctx context.Context,
+	runDB *rundb.RunDB,
+	row globaldb.Run,
+) (terminalState, error) {
+	if runDB == nil {
+		return terminalState{}, errors.New("append exited child crash: run DB is required")
+	}
+	artifacts := m.runArtifacts(row.RunID)
+	errorText := strings.TrimSpace(row.ErrorText)
+	if errorText == "" {
+		errorText = "child run exited before persisting a terminal status"
+	}
+	endedAt := m.now().UTC()
+	durationMS := endedAt.Sub(row.StartedAt).Milliseconds()
+	if durationMS < 0 {
+		durationMS = 0
+	}
+	event, err := runDB.AppendSyntheticEvent(ctx, eventspkg.EventKindRunCrashed, kinds.RunCrashedPayload{
+		ArtifactsDir: artifacts.RunDir,
+		DurationMs:   durationMS,
+		Error:        errorText,
+		ResultPath:   artifacts.ResultPath,
+	})
+	if err != nil {
+		return terminalState{}, fmt.Errorf("append exited child run %s crash terminal: %w", row.RunID, err)
+	}
+	terminal, ok, err := terminalStateFromEvent(&event)
+	if err != nil {
+		return terminalState{}, err
+	}
+	if !ok {
+		return terminalState{}, fmt.Errorf("exited child run %s crash terminal was not recognized", row.RunID)
+	}
+	return terminal, nil
 }
 
 func (m *RunManager) cancelTaskMultiQueuedItems(
@@ -1870,16 +2369,6 @@ func (m *RunManager) cancelTaskMultiQueuedItems(
 			errorString(cause),
 		))
 	}
-	err = errors.Join(
-		err,
-		m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleQueueCanceled, kinds.TaskRunMultiplePayload{
-			Mode:   active.taskMulti.mode,
-			Status: taskMultiItemStatusCanceled,
-			Slugs:  preparedTaskMultiSlugs(items),
-			Total:  total,
-			Error:  errorString(cause),
-		}),
-	)
 	return err
 }
 
@@ -2064,6 +2553,12 @@ func applyTaskMultiItemMetadata(item *apicore.TaskRunMultipleItem, payload kinds
 	}
 	if worktreeStatus := strings.TrimSpace(payload.WorktreeStatus); worktreeStatus != "" {
 		item.WorktreeStatus = worktreeStatus
+	}
+	if worktreeReason := strings.TrimSpace(payload.WorktreeReason); worktreeReason != "" {
+		item.WorktreeReason = worktreeReason
+	}
+	if resultBranch := strings.TrimSpace(payload.ResultBranch); resultBranch != "" {
+		item.ResultBranch = resultBranch
 	}
 }
 

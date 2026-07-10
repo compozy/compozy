@@ -12,7 +12,7 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 	t.Parallel()
 
 	content := readEventsDocumentation(t)
-	for _, kind := range []EventKind{
+	kinds := []EventKind{
 		EventKindRunQueued,
 		EventKindRunStarted,
 		EventKindRunCrashed,
@@ -56,16 +56,21 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindTaskRunMultipleItemCanceled,
 		EventKindTaskRunMultipleQueueCanceled,
 		EventKindTaskRunMultipleQueueCompleted,
+		EventKindTaskRunMultipleQueueFailed,
 		EventKindTaskParallelPlanStarted,
 		EventKindTaskParallelWaveStarted,
 		EventKindTaskParallelTaskStarted,
+		EventKindTaskParallelTaskCompleted,
+		EventKindTaskParallelPhaseChanged,
 		EventKindTaskParallelWaveCompleted,
 		EventKindTaskParallelMergeStarted,
 		EventKindTaskParallelConflictDetected,
 		EventKindTaskParallelConflictResolving,
 		EventKindTaskParallelMerged,
+		EventKindTaskParallelCompleted,
 		EventKindTaskParallelFailed,
 		EventKindTaskParallelRolledBack,
+		EventKindTaskParallelCanceled,
 		EventKindArtifactUpdated,
 		EventKindExtensionLoaded,
 		EventKindExtensionReady,
@@ -90,7 +95,11 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindShutdownRequested,
 		EventKindShutdownDraining,
 		EventKindShutdownTerminated,
-	} {
+	}
+	if got := len(kinds); got != 82 {
+		t.Fatalf("public event inventory = %d, want 82", got)
+	}
+	for _, kind := range kinds {
 		want := "`" + string(kind) + "`"
 		if !strings.Contains(content, want) {
 			t.Fatalf("expected docs/events.md to mention %s", kind)

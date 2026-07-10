@@ -7,11 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/core/model"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -195,8 +196,19 @@ func PurgeTerminalRuns(
 	db *globaldb.GlobalDB,
 	settings RunLifecycleSettings,
 ) (RunPurgeResult, error) {
+	runsDir := strings.TrimSpace(settings.RunsDir)
+	if runsDir == "" {
+		return RunPurgeResult{}, errors.New("daemon purge: captured runs directory is required")
+	}
+	if !filepath.IsAbs(runsDir) {
+		return RunPurgeResult{}, fmt.Errorf("daemon purge: captured runs directory must be absolute: %s", runsDir)
+	}
 	manager := &RunManager{
 		globalDB: db,
+		homePaths: compozyconfig.HomePaths{
+			RunsDir:      runsDir,
+			WorktreesDir: settings.WorktreesRoot,
+		},
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -307,10 +319,7 @@ func (m *RunManager) Purge(ctx context.Context, settings RunLifecycleSettings) (
 			return result, fmt.Errorf("purge worktrees for run %s: %w", run.RunID, err)
 		}
 
-		runArtifacts, err := model.ResolveHomeRunArtifacts(run.RunID)
-		if err != nil {
-			return result, fmt.Errorf("resolve artifacts for run %s: %w", run.RunID, err)
-		}
+		runArtifacts := m.runArtifacts(run.RunID)
 		if err := os.RemoveAll(runArtifacts.RunDir); err != nil {
 			return result, fmt.Errorf("remove artifacts for run %s: %w", run.RunID, err)
 		}

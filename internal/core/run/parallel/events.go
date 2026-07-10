@@ -13,30 +13,40 @@ import (
 // Phase labels carried by TaskParallelPayload.Phase. They mirror the FSM states
 // the operator-facing pane renders.
 const (
-	parallelPhaseRunning   = "running"
-	parallelPhaseMerging   = "merging"
-	parallelPhaseResolving = "resolving"
-	parallelPhaseMerged    = "merged"
-	parallelPhaseFailed    = "failed"
+	parallelPhaseRunning          = "running"
+	parallelPhaseMerging          = "merging"
+	parallelPhaseResolving        = "resolving"
+	parallelPhaseMerged           = "merged"
+	parallelPhaseAdvancingBase    = "advancing_base"
+	parallelPhaseFinalizing       = "finalizing"
+	parallelPhaseFastForwarding   = "fast_forwarding"
+	parallelPhaseSyncingArtifacts = "syncing_artifacts"
+	parallelPhaseCleaningUp       = "cleaning_up"
+	parallelPhaseCompleted        = "completed"
+	parallelPhaseCanceled         = "canceled"
+	parallelPhaseFailed           = "failed"
+	parallelPhaseRolledBack       = "rolled_back"
 )
 
 // ParallelEventEmitter publishes task.parallel.* lifecycle events for one parallel
-// run. Implementations must be safe for use from the orchestrator goroutine and
-// must never block the FSM: event delivery is observability, not control flow, so
-// emit failures are absorbed (logged) by the implementation rather than returned.
+// run. Implementations must be safe for use from the orchestrator goroutine.
+// Lifecycle delivery is part of the run contract, so implementations return
+// persistence errors to the orchestrator rather than absorbing them.
 type ParallelEventEmitter interface {
-	EmitParallelPlanEvent(ctx context.Context, payload kinds.TaskParallelPlanPayload)
-	EmitParallelEvent(ctx context.Context, kind events.EventKind, payload kinds.TaskParallelPayload)
+	EmitParallelPlanEvent(ctx context.Context, payload kinds.TaskParallelPlanPayload) error
+	EmitParallelEvent(ctx context.Context, kind events.EventKind, payload kinds.TaskParallelPayload) error
 }
 
 // noopEventEmitter is the default emitter used when no observability sink is wired
 // (unit tests, library callers without a journal).
 type noopEventEmitter struct{}
 
-func (noopEventEmitter) EmitParallelPlanEvent(context.Context, kinds.TaskParallelPlanPayload) {
+func (noopEventEmitter) EmitParallelPlanEvent(context.Context, kinds.TaskParallelPlanPayload) error {
+	return nil
 }
 
-func (noopEventEmitter) EmitParallelEvent(context.Context, events.EventKind, kinds.TaskParallelPayload) {
+func (noopEventEmitter) EmitParallelEvent(context.Context, events.EventKind, kinds.TaskParallelPayload) error {
+	return nil
 }
 
 var _ ParallelEventEmitter = noopEventEmitter{}
@@ -48,9 +58,9 @@ func (o *ExecutionOrchestrator) emit(
 	plan ParallelPlan,
 	kind events.EventKind,
 	payload kinds.TaskParallelPayload,
-) {
+) error {
 	if o == nil || o.emitter == nil {
-		return
+		return nil
 	}
 	if payload.RunID == "" {
 		payload.RunID = strings.TrimSpace(plan.RunID)
@@ -58,12 +68,15 @@ func (o *ExecutionOrchestrator) emit(
 	if payload.IntegrationBranch == "" {
 		payload.IntegrationBranch = strings.TrimSpace(plan.IntegrationBranch)
 	}
-	o.emitter.EmitParallelEvent(ctx, kind, payload)
+	if err := o.emitter.EmitParallelEvent(ctx, kind, payload); err != nil {
+		return fmt.Errorf("emit %s: %w", kind, err)
+	}
+	return nil
 }
 
-func (o *ExecutionOrchestrator) emitPlanStarted(ctx context.Context, plan ParallelPlan) {
+func (o *ExecutionOrchestrator) emitPlanStarted(ctx context.Context, plan ParallelPlan) error {
 	if o == nil || o.emitter == nil {
-		return
+		return nil
 	}
 	taskWave := make(map[TaskID]int)
 	levels := plan.Waves.Levels()
@@ -96,14 +109,17 @@ func (o *ExecutionOrchestrator) emitPlanStarted(ctx context.Context, plan Parall
 			WaveIndex:    taskWave[task.ID],
 		})
 	}
-	o.emitter.EmitParallelPlanEvent(ctx, kinds.TaskParallelPlanPayload{
+	if err := o.emitter.EmitParallelPlanEvent(ctx, kinds.TaskParallelPlanPayload{
 		RunID:             strings.TrimSpace(plan.RunID),
 		Workflow:          workflowFromTasks(plan.Tasks),
 		IntegrationBranch: strings.TrimSpace(plan.IntegrationBranch),
 		ParallelLimit:     maxConcurrency(plan.Config),
 		Tasks:             tasks,
 		Waves:             waves,
-	})
+	}); err != nil {
+		return fmt.Errorf("emit %s: %w", events.EventKindTaskParallelPlanStarted, err)
+	}
+	return nil
 }
 
 func dependenciesByTask(waves Waves) map[TaskID][]TaskID {
@@ -135,8 +151,8 @@ func (o *ExecutionOrchestrator) emitWaveStarted(
 	plan ParallelPlan,
 	waveIndex, waveTotal int,
 	task TaskSpec,
-) {
-	o.emit(ctx, plan, events.EventKindTaskParallelWaveStarted, kinds.TaskParallelPayload{
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelWaveStarted, kinds.TaskParallelPayload{
 		WaveIndex: waveIndex,
 		WaveTotal: waveTotal,
 		TaskID:    string(task.ID),
@@ -145,8 +161,12 @@ func (o *ExecutionOrchestrator) emitWaveStarted(
 }
 
 // emitMergeStarted announces a wave entering its serial squash-merge phase.
-func (o *ExecutionOrchestrator) emitMergeStarted(ctx context.Context, plan ParallelPlan, waveIndex, waveTotal int) {
-	o.emit(ctx, plan, events.EventKindTaskParallelMergeStarted, kinds.TaskParallelPayload{
+func (o *ExecutionOrchestrator) emitMergeStarted(
+	ctx context.Context,
+	plan ParallelPlan,
+	waveIndex, waveTotal int,
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelMergeStarted, kinds.TaskParallelPayload{
 		WaveIndex: waveIndex,
 		WaveTotal: waveTotal,
 		Phase:     parallelPhaseMerging,
@@ -161,8 +181,8 @@ func (o *ExecutionOrchestrator) emitConflictDetected(
 	task TaskSpec,
 	conflicts ConflictSet,
 	attempt, maxAttempts int,
-) {
-	o.emit(ctx, plan, events.EventKindTaskParallelConflictDetected, kinds.TaskParallelPayload{
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelConflictDetected, kinds.TaskParallelPayload{
 		WaveIndex:     waveIndex,
 		TaskID:        string(task.ID),
 		ConflictFiles: normalizedConflictFiles(conflicts.Files),
@@ -179,8 +199,8 @@ func (o *ExecutionOrchestrator) emitConflictResolving(
 	task TaskSpec,
 	conflicts ConflictSet,
 	attempt, maxAttempts int,
-) {
-	o.emit(ctx, plan, events.EventKindTaskParallelConflictResolving, kinds.TaskParallelPayload{
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelConflictResolving, kinds.TaskParallelPayload{
 		WaveIndex:     waveIndex,
 		TaskID:        string(task.ID),
 		ConflictFiles: normalizedConflictFiles(conflicts.Files),
@@ -190,42 +210,110 @@ func (o *ExecutionOrchestrator) emitConflictResolving(
 	})
 }
 
-// emitTaskOutcome announces one task reaching a terminal per-task status (merged,
-// recovered, failed, or skipped).
-func (o *ExecutionOrchestrator) emitTaskOutcome(ctx context.Context, plan ParallelPlan, outcome TaskOutcome) {
-	o.emit(ctx, plan, events.EventKindTaskParallelMerged, kinds.TaskParallelPayload{
-		WaveIndex:    outcome.WaveIndex,
-		TaskID:       string(outcome.Task.ID),
-		WorktreePath: strings.TrimSpace(outcome.WorktreePath),
-		Status:       string(outcome.Status),
-		Phase:        parallelPhaseMerged,
+// emitTaskMerged preserves the legacy specialized signal for successfully
+// integrated task worktrees.
+func (o *ExecutionOrchestrator) emitTaskMerged(
+	ctx context.Context,
+	plan ParallelPlan,
+	outcome TaskOutcome,
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelMerged, kinds.TaskParallelPayload{
+		WaveIndex:      outcome.WaveIndex,
+		TaskID:         string(outcome.Task.ID),
+		WorktreePath:   strings.TrimSpace(outcome.WorktreePath),
+		WorktreeStatus: strings.TrimSpace(outcome.WorktreeStatus),
+		WorktreeReason: strings.TrimSpace(outcome.WorktreeReason),
+		Status:         string(outcome.Status),
+		Phase:          parallelPhaseMerged,
+	})
+}
+
+// emitTaskCompleted announces one task reaching any terminal per-task status.
+func (o *ExecutionOrchestrator) emitTaskCompleted(
+	ctx context.Context,
+	plan ParallelPlan,
+	outcome TaskOutcome,
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelTaskCompleted, kinds.TaskParallelPayload{
+		WaveIndex:      outcome.WaveIndex,
+		TaskID:         string(outcome.Task.ID),
+		WorktreePath:   strings.TrimSpace(outcome.WorktreePath),
+		WorktreeStatus: strings.TrimSpace(outcome.WorktreeStatus),
+		WorktreeReason: strings.TrimSpace(outcome.WorktreeReason),
+		Status:         string(outcome.Status),
+		Error:          strings.TrimSpace(outcome.Error),
 	})
 }
 
 // emitWaveCompleted announces a wave finishing its run+merge phases.
-func (o *ExecutionOrchestrator) emitWaveCompleted(ctx context.Context, plan ParallelPlan, waveIndex, waveTotal int) {
-	o.emit(ctx, plan, events.EventKindTaskParallelWaveCompleted, kinds.TaskParallelPayload{
+func (o *ExecutionOrchestrator) emitWaveCompleted(
+	ctx context.Context,
+	plan ParallelPlan,
+	waveIndex, waveTotal int,
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelWaveCompleted, kinds.TaskParallelPayload{
 		WaveIndex: waveIndex,
 		WaveTotal: waveTotal,
 	})
 }
 
+// emitPhaseChanged announces an operator-visible finalize transition.
+func (o *ExecutionOrchestrator) emitPhaseChanged(
+	ctx context.Context,
+	plan ParallelPlan,
+	waveIndex int,
+	phase string,
+) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelPhaseChanged, kinds.TaskParallelPayload{
+		WaveIndex: waveIndex,
+		Phase:     phase,
+	})
+}
+
+// emitCompleted announces successful orchestrator settlement.
+func (o *ExecutionOrchestrator) emitCompleted(ctx context.Context, plan ParallelPlan) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelCompleted, kinds.TaskParallelPayload{
+		Status: string(ParallelOutcomeCompleted),
+		Phase:  parallelPhaseCompleted,
+	})
+}
+
+// emitCanceled announces cancellation settlement.
+func (o *ExecutionOrchestrator) emitCanceled(ctx context.Context, plan ParallelPlan, cause error) error {
+	message := ""
+	if cause != nil {
+		message = strings.TrimSpace(cause.Error())
+	}
+	return o.emit(ctx, plan, events.EventKindTaskParallelCanceled, kinds.TaskParallelPayload{
+		Status: string(ParallelOutcomeCanceled),
+		Error:  message,
+		Phase:  parallelPhaseCanceled,
+	})
+}
+
 // emitRolledBack announces an atomic rollback: the integration branch is discarded
 // and the working branch is left untouched.
-func (o *ExecutionOrchestrator) emitRolledBack(ctx context.Context, plan ParallelPlan, waveIndex int) {
-	o.emit(ctx, plan, events.EventKindTaskParallelRolledBack, kinds.TaskParallelPayload{
+func (o *ExecutionOrchestrator) emitRolledBack(ctx context.Context, plan ParallelPlan, waveIndex int) error {
+	return o.emit(ctx, plan, events.EventKindTaskParallelRolledBack, kinds.TaskParallelPayload{
 		WaveIndex: waveIndex,
+		Status:    string(ParallelOutcomeRolledBack),
+		Phase:     parallelPhaseRolledBack,
 	})
 }
 
 // emitFailed announces a non-rollback terminal failure that preserves the
 // integration worktree for inspection.
-func (o *ExecutionOrchestrator) emitFailed(ctx context.Context, plan ParallelPlan, waveIndex int, cause error) {
+func (o *ExecutionOrchestrator) emitFailed(
+	ctx context.Context,
+	plan ParallelPlan,
+	waveIndex int,
+	cause error,
+) error {
 	message := ""
 	if cause != nil {
 		message = strings.TrimSpace(cause.Error())
 	}
-	o.emit(ctx, plan, events.EventKindTaskParallelFailed, kinds.TaskParallelPayload{
+	return o.emit(ctx, plan, events.EventKindTaskParallelFailed, kinds.TaskParallelPayload{
 		WaveIndex: waveIndex,
 		Status:    string(ParallelOutcomeFailed),
 		Error:     message,

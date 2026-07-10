@@ -178,15 +178,7 @@ func hasTerminalEvent(item *eventspkg.Event) bool {
 	if item == nil {
 		return false
 	}
-	switch item.Kind {
-	case eventspkg.EventKindRunCompleted,
-		eventspkg.EventKindRunFailed,
-		eventspkg.EventKindRunCancelled,
-		eventspkg.EventKindRunCrashed:
-		return true
-	default:
-		return false
-	}
+	return eventspkg.IsRunTerminalKind(item.Kind)
 }
 
 func assembleSnapshotTranscript(rows []rundb.TranscriptMessageRow) []apicore.RunTranscriptMessage {

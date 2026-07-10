@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestStartReconcilesInterruptedRunsBeforeReady(t *testing.T) {
@@ -154,21 +155,139 @@ func TestStartRemainsHealthyWhenInterruptedRunDBIsMissingOrCorrupt(t *testing.T)
 }
 
 func TestLoadRunLifecycleSettingsPopulatesWorktreesRoot(t *testing.T) {
-	t.Run("Should populate worktrees root from home layout", func(t *testing.T) {
+	t.Run("Should keep lifecycle settings on the captured home layout", func(t *testing.T) {
 		paths := mustHomePaths(t)
-		t.Setenv("HOME", filepath.Dir(paths.HomeDir))
+		t.Setenv("HOME", t.TempDir())
 		if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
+		if err := os.WriteFile(
+			paths.ConfigFile,
+			[]byte("[runs]\nkeep_max = 17\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write captured config: %v", err)
+		}
 
-		settings, _, err := LoadRunLifecycleSettings(context.Background())
+		settings, configPath, err := LoadRunLifecycleSettingsForHome(context.Background(), paths)
 		if err != nil {
-			t.Fatalf("LoadRunLifecycleSettings() error = %v", err)
+			t.Fatalf("LoadRunLifecycleSettingsForHome() error = %v", err)
 		}
 		if settings.WorktreesRoot != paths.WorktreesDir {
 			t.Fatalf("WorktreesRoot = %q, want %q", settings.WorktreesRoot, paths.WorktreesDir)
 		}
+		if settings.RunsDir != paths.RunsDir {
+			t.Fatalf("RunsDir = %q, want %q", settings.RunsDir, paths.RunsDir)
+		}
+		if settings.KeepMax != 17 {
+			t.Fatalf("KeepMax = %d, want 17 from captured config", settings.KeepMax)
+		}
+		if configPath != paths.ConfigFile {
+			t.Fatalf("config path = %q, want %q", configPath, paths.ConfigFile)
+		}
 	})
+}
+
+func TestReconcileStartupCleansSafeWorktreesAndSurfacesPreviousHome(t *testing.T) {
+	t.Run("Should clean safe worktrees and surface previous home", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		paths := mustHomePaths(t)
+		if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		db := openDaemonGlobalDB(t, paths)
+		workspace := registerDaemonWorkspace(t, db)
+		writeFileForTest(t, filepath.Join(workspace.RootDir, "README.md"), "seed\n")
+		commitTaskMultiGitWorkspace(t, workspace.RootDir)
+		base := taskMultiWorktreeBase{
+			Branch: "main",
+			Commit: runGitOutput(t, workspace.RootDir, "rev-parse", "HEAD"),
+		}
+		allocator := newTaskMultiWorktreeAllocator(paths.WorktreesDir)
+
+		cleanRunID := "reconcile-clean-worktree"
+		seedInterruptedRun(t, db, workspace.ID, cleanRunID, runStatusRunning, time.Now().UTC())
+		branch, err := taskMultiResultBranch(cleanRunID, 0, "alpha")
+		if err != nil {
+			t.Fatalf("taskMultiResultBranch() error = %v", err)
+		}
+		allocation, err := allocator.Allocate(context.Background(), taskMultiWorktreeSpec{
+			WorkspaceRoot: workspace.RootDir,
+			ParentRunID:   cleanRunID,
+			Slug:          "alpha",
+			Index:         0,
+			ResultBranch:  branch,
+			Base:          base,
+		})
+		if err != nil {
+			t.Fatalf("Allocate() error = %v", err)
+		}
+		appendReconcileTaskMultiEvent(t, paths, cleanRunID, allocation)
+
+		oldHomeRunID := "reconcile-old-home-worktree"
+		seedInterruptedRun(t, db, workspace.ID, oldHomeRunID, runStatusRunning, time.Now().UTC())
+		appendReconcileTaskMultiEvent(t, paths, oldHomeRunID, taskMultiWorktreeAllocation{
+			Path:           filepath.Join(t.TempDir(), ".compozy", "state", "worktrees", "old", "00-alpha"),
+			BaseBranch:     "main",
+			BaseCommit:     base.Commit,
+			WorktreeStatus: taskMultiWorktreeStatusActive,
+		})
+
+		result, err := ReconcileStartup(context.Background(), ReconcileConfig{
+			HomePaths: paths,
+			Now:       func() time.Time { return time.Now().UTC() },
+		})
+		if err != nil {
+			t.Fatalf("ReconcileStartup() error = %v", err)
+		}
+		if result.WorktreesRemoved != 1 {
+			t.Fatalf("WorktreesRemoved = %d, want 1", result.WorktreesRemoved)
+		}
+		if result.WorktreeCleanupDeferred != 1 || len(result.WorktreeCleanupWarnings) != 1 {
+			t.Fatalf("worktree cleanup result = %#v", result)
+		}
+		if !strings.Contains(result.WorktreeCleanupWarnings[0], "previous COMPOZY_HOME") {
+			t.Fatalf("cleanup warning = %q, want previous COMPOZY_HOME", result.WorktreeCleanupWarnings[0])
+		}
+		if _, err := os.Stat(allocation.Path); !os.IsNotExist(err) {
+			t.Fatalf("safe worktree stat error = %v, want removed", err)
+		}
+		if got := runGitOutput(t, workspace.RootDir, "branch", "--list", branch); got != "" {
+			t.Fatalf("empty result branch remains: %q", got)
+		}
+	})
+}
+
+func appendReconcileTaskMultiEvent(
+	t *testing.T,
+	paths compozyconfig.HomePaths,
+	runID string,
+	allocation taskMultiWorktreeAllocation,
+) {
+	t.Helper()
+	artifacts := model.NewRunArtifactsForRunsDir(paths.RunsDir, runID)
+	if err := os.MkdirAll(artifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	runDB, err := rundb.Open(context.Background(), artifacts.RunDBPath)
+	if err != nil {
+		t.Fatalf("rundb.Open(%q) error = %v", artifacts.RunDBPath, err)
+	}
+	defer func() { _ = runDB.Close() }()
+	if _, err := runDB.AppendSyntheticEvent(
+		context.Background(),
+		eventspkg.EventKindTaskRunMultipleItemQueued,
+		kinds.TaskRunMultiplePayload{
+			Slug:           "alpha",
+			WorktreePath:   allocation.Path,
+			BaseBranch:     allocation.BaseBranch,
+			BaseCommit:     allocation.BaseCommit,
+			WorktreeStatus: allocation.WorktreeStatus,
+			ResultBranch:   allocation.ResultBranch,
+		},
+	); err != nil {
+		t.Fatalf("AppendSyntheticEvent() error = %v", err)
+	}
 }
 
 func openDaemonGlobalDB(t *testing.T, paths compozyconfig.HomePaths) *globaldb.GlobalDB {

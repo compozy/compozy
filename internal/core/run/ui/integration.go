@@ -65,6 +65,7 @@ type parallelView struct {
 	waves             []waveStatus
 	taskWave          map[int]int
 	integrationBranch string
+	lifecyclePhase    string
 	phase             integrationPhase
 	conflict          *integrationConflict
 	resolverLines     []string
@@ -219,6 +220,53 @@ func (m *uiModel) handleParallelTaskStarted(v parallelTaskStartedMsg) {
 	m.markParallelTaskRunning(v.WaveTotal, v.WaveIndex, v.TaskID, v.ChildRunID, v.WorktreePath, v.IntegrationBranch)
 }
 
+func (m *uiModel) handleParallelTaskCompleted(v parallelTaskCompletedMsg) {
+	p := m.parallelState()
+	p.ensureWaveIndex(v.WaveIndex)
+	p.assignTask(v.TaskID, v.WaveIndex)
+	number := tasks.ExtractTaskIdentityNumber(v.TaskID)
+	index, ok := m.taskNumberIndex(number)
+	if !ok {
+		m.sidebarDirty = true
+		return
+	}
+	success := v.Status == "merged" || v.Status == "recovered"
+	finishParallelAggregateTask(m, index, success)
+	m.sidebarDirty = true
+}
+
+func (m *uiModel) handleParallelPhaseChanged(v parallelPhaseChangedMsg) {
+	p := m.parallelState()
+	p.ensureWaveIndex(v.WaveIndex)
+	if branch := strings.TrimSpace(v.IntegrationBranch); branch != "" {
+		p.integrationBranch = branch
+	}
+	p.lifecyclePhase = strings.TrimSpace(v.Phase)
+	switch p.lifecyclePhase {
+	case "completed", "canceled", "failed":
+		p.phase = integrationPhaseDone
+	case "rolled_back":
+		p.phase = integrationPhaseRolledBack
+	default:
+		p.phase = integrationPhaseMerging
+	}
+	m.sidebarDirty = true
+}
+
+func (m *uiModel) handleParallelSettled(v parallelSettledMsg) {
+	p := m.parallelState()
+	p.lifecyclePhase = strings.TrimSpace(v.Status)
+	p.conflict = nil
+	p.resolverLines = nil
+	p.phase = integrationPhaseDone
+	if v.Status == "completed" {
+		finishActiveParallelAggregateJobs(m, true)
+	} else {
+		failActiveParallelAggregateJobs(m)
+	}
+	m.sidebarDirty = true
+}
+
 func (m *uiModel) markParallelTaskRunning(
 	waveTotal int,
 	waveIndex int,
@@ -268,6 +316,7 @@ func (m *uiModel) handleParallelFailed(v parallelFailedMsg) {
 		p.integrationBranch = strings.TrimSpace(v.IntegrationBranch)
 	}
 	p.phase = integrationPhaseDone
+	p.lifecyclePhase = "failed"
 	if v.Err != nil {
 		m.failures = append(m.failures, failInfo{ExitCode: 1, Err: v.Err})
 	}
@@ -346,6 +395,7 @@ func (m *uiModel) handleParallelRolledBack(v parallelRolledBackMsg) {
 		p.integrationBranch = strings.TrimSpace(v.IntegrationBranch)
 	}
 	p.phase = integrationPhaseRolledBack
+	p.lifecyclePhase = "rolled_back"
 	m.sidebarDirty = true
 }
 
@@ -364,6 +414,35 @@ func allWavesMerged(p *parallelView) bool {
 // ---------------------------------------------------------------------------
 // Sidebar wave grouping
 // ---------------------------------------------------------------------------
+
+// visualJobOrder returns the same wave-major order used by the sidebar renderer.
+// Keyboard navigation consumes this order so moving down never jumps to a card
+// that is visually above the current selection.
+func (m *uiModel) visualJobOrder() []int {
+	order := make([]int, 0, len(m.jobs))
+	if m.parallel == nil || !m.parallel.grouped() {
+		for index := range m.jobs {
+			order = append(order, index)
+		}
+		return order
+	}
+	rendered := make([]bool, len(m.jobs))
+	for waveIndex := 0; waveIndex < m.parallel.observedWaveCount(); waveIndex++ {
+		for index := range m.jobs {
+			if m.parallel.waveOfJob(&m.jobs[index]) != waveIndex {
+				continue
+			}
+			order = append(order, index)
+			rendered[index] = true
+		}
+	}
+	for index := range m.jobs {
+		if !rendered[index] {
+			order = append(order, index)
+		}
+	}
+	return order
+}
 
 // renderWaveGroupedSidebar groups job cards under wave headers, reusing
 // renderSidebarItem for the cards. Jobs without a wave assignment render in a
@@ -596,7 +675,14 @@ func (m *uiModel) renderIntegrationDetailLines(width int) []string {
 		lines = append(lines, m.renderResolverLines(width)...)
 		return lines
 	}
-	// merging without an active conflict: a single muted progress line.
+	if phase := strings.TrimSpace(p.lifecyclePhase); phase != "" {
+		label := strings.ReplaceAll(phase, "_", " ")
+		return append(lines, renderOwnedLineKnownOwned(
+			width,
+			styleMutedText.Render(truncateString(label+"…", max(width, 1))),
+		))
+	}
+	// Merging without an active conflict: a single muted progress line.
 	return append(lines, renderOwnedLineKnownOwned(
 		width,
 		styleMutedText.Render(truncateString("merging task worktrees into integration branch", max(width, 1))),

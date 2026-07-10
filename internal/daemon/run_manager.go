@@ -65,6 +65,7 @@ const (
 type RunManagerConfig struct {
 	GlobalDB               *globaldb.GlobalDB
 	LifecycleContext       context.Context
+	HomePaths              compozyconfig.HomePaths
 	WorktreesRoot          string
 	ShutdownDrainTimeout   time.Duration
 	Now                    func() time.Time
@@ -88,6 +89,7 @@ type RunManagerConfig struct {
 type RunManager struct {
 	globalDB               *globaldb.GlobalDB
 	lifecycleCtx           context.Context
+	homePaths              compozyconfig.HomePaths
 	now                    func() time.Time
 	buildRunID             func(*model.RuntimeConfig) (string, error)
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
@@ -128,6 +130,7 @@ type RunManager struct {
 type activeRun struct {
 	runID          string
 	workspaceID    string
+	workspaceRoot  string
 	workflowSlug   string
 	workflowID     *string
 	mode           string
@@ -245,10 +248,15 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 	if cfg.GlobalDB == nil {
 		return nil, errors.New("daemon: run manager global db is required")
 	}
+	homePaths, err := resolveRunManagerHomePaths(cfg.HomePaths, cfg.WorktreesRoot)
+	if err != nil {
+		return nil, err
+	}
 
 	return &RunManager{
 		globalDB:               cfg.GlobalDB,
 		lifecycleCtx:           resolveRunManagerLifecycleContext(cfg.LifecycleContext),
+		homePaths:              homePaths,
 		now:                    resolveRunManagerNow(cfg.Now),
 		buildRunID:             resolveRunManagerBuildRunID(cfg.BuildRunID),
 		openRunScope:           resolveRunManagerOpenRunScope(cfg.OpenRunScope),
@@ -256,14 +264,14 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		execute:                resolveRunManagerExecute(cfg.Execute),
 		executeExec:            resolveRunManagerExecuteExec(cfg.ExecuteExec),
 		recoveryStrategy:       cfg.RecoveryStrategy,
-		openRunDB:              resolveRunManagerOpenRunDB(cfg.OpenRunDB),
+		openRunDB:              resolveRunManagerOpenRunDB(cfg.OpenRunDB, homePaths.RunsDir),
 		loadProjectConfig:      resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
-		reviewProviderRegistry: resolveReviewProviderRegistryFactory(cfg.ReviewProviderRegistry),
+		reviewProviderRegistry: resolveReviewProviderRegistryFactory(cfg.ReviewProviderRegistry, homePaths.HomeDir),
 		reviewWatchGit:         resolveReviewWatchGit(cfg.ReviewWatchGit),
-		worktreeAllocator:      newTaskMultiWorktreeAllocator(cfg.WorktreesRoot),
+		worktreeAllocator:      newTaskMultiWorktreeAllocator(homePaths.WorktreesDir),
 		lookupWorkflowSlugs:    resolveRunManagerWorkflowSlugLookup(cfg.GlobalDB, cfg.LookupWorkflowSlugs),
 		getWorkflow:            resolveRunManagerGetWorkflow(cfg.GlobalDB, cfg.GetWorkflow),
-		shutdownDrainTimeout:   resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout),
+		shutdownDrainTimeout:   resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout, homePaths),
 		watcherDebounce:        resolveWatcherDebounce(cfg.WatcherDebounce),
 		runDBIdleTTL:           resolveRunManagerRunDBCacheTTL(cfg.RunDBCacheTTL),
 		active:                 make(map[string]*activeRun),
@@ -275,6 +283,24 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		incompleteRunIDs:       make(map[string]struct{}),
 		workspaceEvents:        eventspkg.New[apicore.WorkspaceEvent](workspaceStreamBufferSize),
 	}, nil
+}
+
+func resolveRunManagerHomePaths(
+	configured compozyconfig.HomePaths,
+	legacyWorktreesRoot string,
+) (compozyconfig.HomePaths, error) {
+	paths := configured
+	if strings.TrimSpace(paths.HomeDir) == "" || strings.TrimSpace(paths.RunsDir) == "" {
+		resolved, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			return compozyconfig.HomePaths{}, fmt.Errorf("daemon: resolve home paths: %w", err)
+		}
+		paths = resolved
+	}
+	if root := strings.TrimSpace(legacyWorktreesRoot); root != "" {
+		paths.WorktreesDir = root
+	}
+	return paths, nil
 }
 
 func resolveRunManagerLifecycleContext(ctx context.Context) context.Context {
@@ -353,11 +379,15 @@ func resolveRunManagerExecuteExec(
 
 func resolveRunManagerOpenRunDB(
 	openRunDB func(context.Context, string) (*rundb.RunDB, error),
+	runsDir string,
 ) func(context.Context, string) (*rundb.RunDB, error) {
 	if openRunDB != nil {
 		return openRunDB
 	}
-	return openRunDBForRunID
+	return func(ctx context.Context, runID string) (*rundb.RunDB, error) {
+		artifacts := model.NewRunArtifactsForRunsDir(runsDir, strings.TrimSpace(runID))
+		return rundb.Open(ctx, artifacts.RunDBPath)
+	}
 }
 
 func resolveRunManagerLoadProjectConfig(
@@ -372,11 +402,14 @@ func resolveRunManagerLoadProjectConfig(
 	}
 }
 
-func resolveRunManagerShutdownDrainTimeout(timeout time.Duration) time.Duration {
+func resolveRunManagerShutdownDrainTimeout(
+	timeout time.Duration,
+	homePaths compozyconfig.HomePaths,
+) time.Duration {
 	if timeout > 0 {
 		return timeout
 	}
-	if settings, _, err := LoadRunLifecycleSettings(context.Background()); err == nil &&
+	if settings, _, err := LoadRunLifecycleSettingsForHome(context.Background(), homePaths); err == nil &&
 		settings.ShutdownDrainTimeout > 0 {
 		return settings.ShutdownDrainTimeout
 	}
@@ -433,6 +466,15 @@ func (m *RunManager) StartTaskRun(
 	if err != nil {
 		return apicore.Run{}, err
 	}
+	expectedExecutionKind := apicore.ExecutionKindTaskStandard
+	expectedWorktrees := false
+	if enabled := parallelCfg.ApplyDefaults().Enabled; enabled != nil && *enabled {
+		expectedExecutionKind = apicore.ExecutionKindTaskParallel
+		expectedWorktrees = true
+	}
+	if err := validateTaskExecutionDescriptor(req.Execution, expectedExecutionKind, expectedWorktrees); err != nil {
+		return apicore.Run{}, err
+	}
 
 	if run, routed, err := m.startParallelTaskRunIfEnabled(
 		ctx,
@@ -457,6 +499,32 @@ func (m *RunManager) StartTaskRun(
 		runtimeCfg:       runtimeCfg,
 		recovery:         recoveryCfg,
 	})
+}
+
+func validateTaskExecutionDescriptor(
+	descriptor *apicore.TaskExecutionDescriptor,
+	expectedKind string,
+	expectedWorktrees bool,
+) error {
+	if descriptor == nil {
+		return nil
+	}
+	if strings.TrimSpace(descriptor.Kind) == strings.TrimSpace(expectedKind) &&
+		descriptor.UsesWorktrees == expectedWorktrees {
+		return nil
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"task_execution_mismatch",
+		"task execution descriptor does not match the resolved daemon mode",
+		map[string]any{
+			"expected_kind":           expectedKind,
+			"expected_uses_worktrees": expectedWorktrees,
+			"received_kind":           strings.TrimSpace(descriptor.Kind),
+			"received_uses_worktrees": descriptor.UsesWorktrees,
+		},
+		nil,
+	)
 }
 
 // StartReviewRun starts one daemon-owned review-fix run.
@@ -1069,7 +1137,12 @@ func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, active *activeRu
 	if active == nil || strings.TrimSpace(active.workflowRoot) == "" {
 		return nil
 	}
-	result, err := corepkg.SyncDirect(ctx, model.SyncConfig{TasksDir: active.workflowRoot})
+	result, err := corepkg.SyncWithDB(
+		ctx,
+		m.globalDB,
+		globaldb.Workspace{ID: active.workspaceID, RootDir: active.workspaceRoot},
+		model.SyncConfig{TasksDir: active.workflowRoot},
+	)
 	if err != nil {
 		return fmt.Errorf("daemon: sync workflow %s before run: %w", active.workflowRoot, err)
 	}
@@ -1246,11 +1319,12 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	if spec.runtimeCfg == nil {
 		return apicore.Run{}, errors.New("daemon: runtime config is required")
 	}
-	if err := ensureHomeLayout(); err != nil {
+	if err := ensureHomeLayout(m.homePaths); err != nil {
 		return apicore.Run{}, err
 	}
 
 	runtimeCfg := spec.runtimeCfg.Clone()
+	runtimeCfg.RunsDir = m.homePaths.RunsDir
 	runtimeCfg.ApplyDefaults()
 	explicitRunID := strings.TrimSpace(runtimeCfg.RunID) != ""
 	spec.runtimeCfg = runtimeCfg
@@ -1277,9 +1351,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 			return apicore.Run{}, m.failStartRun(ctx, row, 0, nil, createdRun, err)
 		}
 		if createdRun {
-			if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(runID); artifactsErr == nil {
-				cleanupRunDirectory(runArtifacts.RunDir)
-			}
+			cleanupRunDirectory(m.runArtifacts(runID).RunDir)
 			if deleteErr := m.globalDB.DeleteRun(detachContext(ctx), runID); deleteErr != nil {
 				err = errors.Join(err, deleteErr)
 			}
@@ -1373,10 +1445,7 @@ func (m *RunManager) insertRunRow(
 	if strings.TrimSpace(runID) == "" {
 		return globaldb.Run{}, false, errors.New("daemon: run id is required")
 	}
-	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-	if err != nil {
-		return globaldb.Run{}, false, err
-	}
+	runArtifacts := m.runArtifacts(runID)
 	if err := reserveRunDirectory(runArtifacts.RunDir); err != nil {
 		return globaldb.Run{}, false, err
 	}
@@ -1529,6 +1598,7 @@ func newActiveRun(
 	return &activeRun{
 		runID:          row.RunID,
 		workspaceID:    row.WorkspaceID,
+		workspaceRoot:  spec.workspace.RootDir,
 		workflowSlug:   strings.TrimSpace(spec.workflowSlug),
 		workflowID:     cloneStringPtr(spec.workflowID),
 		mode:           spec.mode,
@@ -1564,9 +1634,7 @@ func (m *RunManager) failStartRun(
 	}
 	closeErr := closeRunScope(ctx, scope, closeTimeout)
 	if createdRun {
-		if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(row.RunID); artifactsErr == nil {
-			cleanupRunDirectory(runArtifacts.RunDir)
-		}
+		cleanupRunDirectory(m.runArtifacts(row.RunID).RunDir)
 	}
 	return errors.Join(err, updateErr, closeErr)
 }
@@ -1579,7 +1647,12 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 		WorkflowRoot: active.workflowRoot,
 		Debounce:     m.watcherDebounce,
 		Sync: func(ctx context.Context, workflowRoot string) error {
-			_, err := corepkg.SyncDirect(ctx, model.SyncConfig{TasksDir: workflowRoot})
+			_, err := corepkg.SyncWithDB(
+				ctx,
+				m.globalDB,
+				globaldb.Workspace{ID: active.workspaceID, RootDir: active.workspaceRoot},
+				model.SyncConfig{TasksDir: workflowRoot},
+			)
 			return err
 		},
 		Emit: func(ctx context.Context, item artifactSyncEvent) error {
@@ -1983,15 +2056,26 @@ func (r *activeRun) stopWatcher() error {
 	return watcher.Stop()
 }
 
-func ensureHomeLayout() error {
-	homePaths, err := compozyconfig.ResolveHomePaths()
-	if err != nil {
-		return fmt.Errorf("daemon: resolve home paths: %w", err)
+func ensureHomeLayout(configured ...compozyconfig.HomePaths) error {
+	var homePaths compozyconfig.HomePaths
+	if len(configured) > 0 {
+		homePaths = configured[0]
+	}
+	if strings.TrimSpace(homePaths.HomeDir) == "" {
+		resolved, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			return fmt.Errorf("daemon: resolve home paths: %w", err)
+		}
+		homePaths = resolved
 	}
 	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		return fmt.Errorf("daemon: ensure home layout: %w", err)
 	}
 	return nil
+}
+
+func (m *RunManager) runArtifacts(runID string) model.RunArtifacts {
+	return model.NewRunArtifactsForRunsDir(m.homePaths.RunsDir, strings.TrimSpace(runID))
 }
 
 func reserveRunDirectory(runDir string) error {
@@ -2602,15 +2686,7 @@ func isTerminalRunStatus(status string) bool {
 }
 
 func isTerminalEventKind(kind eventspkg.EventKind) bool {
-	switch kind {
-	case eventspkg.EventKindRunCrashed,
-		eventspkg.EventKindRunCompleted,
-		eventspkg.EventKindRunFailed,
-		eventspkg.EventKindRunCancelled:
-		return true
-	default:
-		return false
-	}
+	return eventspkg.IsRunTerminalKind(kind)
 }
 
 func rawMessageOrNil(value string) json.RawMessage {
@@ -2660,6 +2736,9 @@ func resolveDaemonParallelTasksConfig(
 	overrides runtimeOverrideInput,
 ) (workspacecfg.ParallelTasksConfig, error) {
 	cfg := cloneDaemonParallelTasksConfig(projectCfg.Tasks.Run.Parallel)
+	// Project configuration supplies the options for an explicitly requested
+	// parallel run, but it must not authorize single-workflow worktrees by itself.
+	cfg.Enabled = nil
 	if overrides.ParallelTasks != nil {
 		cfg = mergeDaemonParallelTasksConfig(cfg, *overrides.ParallelTasks)
 	}

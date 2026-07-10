@@ -205,6 +205,7 @@ func prepareHostRuntime(
 	runManager, err := NewRunManager(RunManagerConfig{
 		GlobalDB:             persistence.db,
 		LifecycleContext:     runCtx,
+		HomePaths:            currentHost.Paths(),
 		WorktreesRoot:        currentHost.Paths().WorktreesDir,
 		ShutdownDrainTimeout: persistence.settings.ShutdownDrainTimeout,
 	})
@@ -230,7 +231,7 @@ func prepareHostRuntime(
 }
 
 func loadHostPersistence(ctx context.Context, currentHost *Host) (_ hostPersistence, err error) {
-	if err := ensureHomeLayout(); err != nil {
+	if err := ensureHomeLayout(currentHost.Paths()); err != nil {
 		return hostPersistence{}, err
 	}
 
@@ -246,7 +247,7 @@ func loadHostPersistence(ctx context.Context, currentHost *Host) (_ hostPersiste
 		err = errors.Join(err, db.Close())
 	}()
 
-	settings, _, err := LoadRunLifecycleSettings(ctx)
+	settings, _, err := LoadRunLifecycleSettingsForHome(ctx, paths)
 	if err != nil {
 		return hostPersistence{}, err
 	}

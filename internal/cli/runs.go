@@ -103,11 +103,6 @@ func newRunsPurgeCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := context.Background()
 
-			settings, _, err := daemon.LoadRunLifecycleSettings(ctx)
-			if err != nil {
-				return err
-			}
-
 			paths, err := compozyconfig.ResolveHomePaths()
 			if err != nil {
 				return err
@@ -115,7 +110,10 @@ func newRunsPurgeCommand() *cobra.Command {
 			if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
 				return err
 			}
-			settings.WorktreesRoot = paths.WorktreesDir
+			settings, _, err := daemon.LoadRunLifecycleSettingsForHome(ctx, paths)
+			if err != nil {
+				return err
+			}
 
 			db, err := globaldb.Open(ctx, paths.GlobalDBPath)
 			if err != nil {

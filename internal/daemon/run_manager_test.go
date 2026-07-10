@@ -43,10 +43,7 @@ func TestRunManagerStartTaskRunAllocatesRunDBAndRejectsDuplicateRunID(t *testing
 		t.Fatalf("terminal status = %q, want %q", terminal.Status, runStatusCompleted)
 	}
 
-	runArtifacts, err := model.ResolveHomeRunArtifacts(run.RunID)
-	if err != nil {
-		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", run.RunID, err)
-	}
+	runArtifacts := env.manager.runArtifacts(run.RunID)
 	if _, err := os.Stat(runArtifacts.RunDBPath); err != nil {
 		t.Fatalf("stat run.db %q: %v", runArtifacts.RunDBPath, err)
 	}
@@ -188,7 +185,7 @@ func TestRunManagerSnapshotIncludesJobsTranscriptAndNextCursor(t *testing.T) {
 				return &model.SolvePreparation{}, nil
 			},
 			execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-				runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+				runArtifacts, err := model.ResolveRuntimeRunArtifacts(cfg)
 				if err != nil {
 					return err
 				}
@@ -298,7 +295,7 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 				return &model.SolvePreparation{}, nil
 			},
 			execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-				runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+				runArtifacts, err := model.ResolveRuntimeRunArtifacts(cfg)
 				if err != nil {
 					return err
 				}
@@ -810,13 +807,14 @@ func TestRunManagerRunDBCacheReusesSingleHandleAndEvictsIdleEntries(t *testing.T
 	var openCalls atomic.Int64
 
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		now: func() time.Time { return now },
-		openRunDB: func(ctx context.Context, runID string) (*rundb.RunDB, error) {
-			openCalls.Add(1)
-			return openRunDBForRunID(ctx, runID)
-		},
+		now:           func() time.Time { return now },
 		runDBCacheTTL: 50 * time.Millisecond,
 	})
+	openCapturedRunDB := env.manager.openRunDB
+	env.manager.openRunDB = func(ctx context.Context, runID string) (*rundb.RunDB, error) {
+		openCalls.Add(1)
+		return openCapturedRunDB(ctx, runID)
+	}
 
 	run := env.startTaskRun(t, "task-run-cache", nil)
 	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
@@ -1181,10 +1179,7 @@ func TestRunManagerStartExecRunRetriesImplicitRunIDCollision(t *testing.T) {
 				}
 			},
 		})
-		collidingArtifacts, err := model.ResolveHomeRunArtifacts(collidingRunID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", collidingRunID, err)
-		}
+		collidingArtifacts := env.manager.runArtifacts(collidingRunID)
 		if err := os.MkdirAll(collidingArtifacts.RunDir, 0o755); err != nil {
 			t.Fatalf("mkdir colliding run dir: %v", err)
 		}
@@ -1342,10 +1337,7 @@ func TestRunManagerOpenRunScopeFailureCleansReservedDirectory(t *testing.T) {
 		t.Fatalf("StartTaskRun(open scope failure) error = %v, want %v", err, scopeErr)
 	}
 
-	runArtifacts, err := model.ResolveHomeRunArtifacts("scope-open-failure")
-	if err != nil {
-		t.Fatalf("ResolveHomeRunArtifacts() error = %v", err)
-	}
+	runArtifacts := env.manager.runArtifacts("scope-open-failure")
 	if _, err := os.Stat(runArtifacts.RunDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("run dir stat error = %v, want not exist", err)
 	}
@@ -1675,7 +1667,7 @@ func TestRunManagerExecRunCompletesAndReplaysPersistedStream(t *testing.T) {
 	executed := make(chan string, 1)
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
 		executeExec: func(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
-			runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+			runArtifacts, err := model.ResolveRuntimeRunArtifacts(cfg)
 			if err != nil {
 				return err
 			}
@@ -2359,7 +2351,7 @@ func TestRunManagerTaskRunWatcherSyncsTaskEditsAndStopsOnCancel(t *testing.T) {
 			title == "Watcher task updated" &&
 			status == "completed" &&
 			queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug) != checkpointBefore &&
-			runArtifactSyncCount(t, run.RunID) >= 1
+			runArtifactSyncCount(t, env.manager, run.RunID) >= 1
 	})
 
 	if err := env.manager.Cancel(context.Background(), run.RunID); err != nil {
@@ -2369,12 +2361,12 @@ func TestRunManagerTaskRunWatcherSyncsTaskEditsAndStopsOnCancel(t *testing.T) {
 		return row.Status == runStatusCancelled
 	})
 
-	rowsBeforeStop := runArtifactSyncCount(t, run.RunID)
+	rowsBeforeStop := runArtifactSyncCount(t, env.manager, run.RunID)
 	checkpointAfterStop := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug)
 	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "post-cancel change"))
 	time.Sleep(200 * time.Millisecond)
 
-	if got := runArtifactSyncCount(t, run.RunID); got != rowsBeforeStop {
+	if got := runArtifactSyncCount(t, env.manager, run.RunID); got != rowsBeforeStop {
 		t.Fatalf("artifact sync rows after cancel = %d, want %d", got, rowsBeforeStop)
 	}
 	if got := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug); got != checkpointAfterStop {
@@ -2409,10 +2401,14 @@ func TestRunManagerReviewRunWatcherSyncsOwnedWorkflowArtifacts(t *testing.T) {
 	writeOwnedWorkflowArtifacts(t, env, env.workflowSlug)
 	otherSlug := "other-workflow"
 	writeOwnedWorkflowArtifacts(t, env, otherSlug)
-	if _, err := corepkg.SyncDirect(context.Background(), corepkg.SyncConfig{
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
 		TasksDir: env.workflowDir(otherSlug),
 	}); err != nil {
-		t.Fatalf("SyncDirect(other workflow) error = %v", err)
+		t.Fatalf("SyncWithDB(other workflow) error = %v", err)
 	}
 
 	run := env.startReviewRunForWorkflow(t, env.workflowSlug, "review-run-watch", 1, nil, nil)
@@ -2454,7 +2450,7 @@ func TestRunManagerReviewRunWatcherSyncsOwnedWorkflowArtifacts(t *testing.T) {
 			strings.Contains(protocolBody, "updated") &&
 			strings.Contains(adrBody, "updated") &&
 			strings.Contains(qaBody, "updated") &&
-			runArtifactSyncCount(t, run.RunID) >= 6
+			runArtifactSyncCount(t, env.manager, run.RunID) >= 6
 	})
 
 	if got := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, otherSlug); got != otherCheckpoint {
@@ -2504,11 +2500,11 @@ func TestRunManagerTaskRunWatchersStayIsolatedAcrossWorkflows(t *testing.T) {
 	waitForCondition(t, 5*time.Second, "primary workflow watcher sync", func() bool {
 		title, status, ok := queryTaskItem(t, env.paths.GlobalDBPath, env.workflowSlug, 1)
 		return ok && title == "Primary workflow updated" && status == "completed" &&
-			runArtifactSyncCount(t, runA.RunID) >= 1
+			runArtifactSyncCount(t, env.manager, runA.RunID) >= 1
 	})
 
 	time.Sleep(200 * time.Millisecond)
-	if got := runArtifactSyncCount(t, runB.RunID); got != 0 {
+	if got := runArtifactSyncCount(t, env.manager, runB.RunID); got != 0 {
 		t.Fatalf("secondary run artifact sync rows = %d, want 0", got)
 	}
 	if got := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, otherSlug); got != secondaryCheckpoint {
@@ -2557,31 +2553,10 @@ type runManagerTestDeps struct {
 	runDBCacheTTL          time.Duration
 }
 
-var runManagerTestHomeMu sync.Mutex
-
 func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTestEnv {
 	tb.Helper()
 
-	homeDir, err := os.MkdirTemp("", "cmp-home-")
-	if err != nil {
-		tb.Fatalf("MkdirTemp() error = %v", err)
-	}
-	runManagerTestHomeMu.Lock()
-	previousHome, hadPreviousHome := os.LookupEnv("HOME")
-	if err := os.Setenv("HOME", homeDir); err != nil {
-		runManagerTestHomeMu.Unlock()
-		_ = os.RemoveAll(homeDir)
-		tb.Fatalf("Setenv(HOME) error = %v", err)
-	}
-	tb.Cleanup(func() {
-		if hadPreviousHome {
-			_ = os.Setenv("HOME", previousHome)
-		} else {
-			_ = os.Unsetenv("HOME")
-		}
-		runManagerTestHomeMu.Unlock()
-		_ = os.RemoveAll(homeDir)
-	})
+	homeDir := tb.TempDir()
 
 	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeDir, ".compozy"))
 	if err != nil {
@@ -2612,6 +2587,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 	manager, err := NewRunManager(RunManagerConfig{
 		GlobalDB:               globalDB,
 		LifecycleContext:       context.Background(),
+		HomePaths:              paths,
 		WorktreesRoot:          paths.WorktreesDir,
 		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
 		Now:                    deps.now,
@@ -2787,7 +2763,7 @@ func (e *runManagerTestEnv) startExecRun(t *testing.T, runID string, runtimeOver
 func (e *runManagerTestEnv) lastRunEvent(t *testing.T, runID string) *eventspkg.Event {
 	t.Helper()
 
-	runDB, err := openRunDBForRunID(context.Background(), runID)
+	runDB, err := e.manager.openRunDB(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("openRunDBForRunID(%q) error = %v", runID, err)
 	}
@@ -3108,26 +3084,6 @@ func waitForBool(t *testing.T, ch <-chan bool) bool {
 	return false
 }
 
-func waitForClosed(t *testing.T, ch <-chan struct{}, label string) {
-	t.Helper()
-
-	select {
-	case <-ch:
-	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for %s", label)
-	}
-}
-
-func requireActiveRun(t *testing.T, manager *RunManager, runID string) *activeRun {
-	t.Helper()
-
-	active := manager.getActive(runID)
-	if active == nil {
-		t.Fatalf("active run %q = nil", runID)
-	}
-	return active
-}
-
 func waitForCondition(t *testing.T, timeout time.Duration, label string, fn func() bool) {
 	t.Helper()
 
@@ -3334,16 +3290,16 @@ func queryArtifactSnapshotBody(t *testing.T, dbPath string, workflowSlug string,
 	return body.String, true
 }
 
-func runArtifactSyncCount(t *testing.T, runID string) int {
+func runArtifactSyncCount(t *testing.T, manager *RunManager, runID string) int {
 	t.Helper()
 
-	return len(runArtifactSyncLog(t, runID))
+	return len(runArtifactSyncLog(t, manager, runID))
 }
 
-func runArtifactSyncLog(t *testing.T, runID string) []rundb.ArtifactSyncRow {
+func runArtifactSyncLog(t *testing.T, manager *RunManager, runID string) []rundb.ArtifactSyncRow {
 	t.Helper()
 
-	runDB, err := openRunDBForRunID(context.Background(), runID)
+	runDB, err := manager.openRunDB(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("openRunDBForRunID(%q) error = %v", runID, err)
 	}

@@ -163,6 +163,62 @@ func TestStartWorkflowEventStreamerRawEncodesCanonicalEvents(t *testing.T) {
 	}
 }
 
+func TestWorkflowEventClassificationUsesCanonicalTerminalLadder(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		kind         events.EventKind
+		wantLean     bool
+		wantTerminal bool
+	}{
+		{
+			name:         "Should classify run crashed as lean and terminal",
+			kind:         events.EventKindRunCrashed,
+			wantLean:     true,
+			wantTerminal: true,
+		},
+		{
+			name:         "Should classify run recovery exhausted as lean and terminal",
+			kind:         events.EventKindRunRecoveryExhausted,
+			wantLean:     true,
+			wantTerminal: true,
+		},
+		{
+			name:     "Should classify queue failed as lean",
+			kind:     events.EventKindTaskRunMultipleQueueFailed,
+			wantLean: true,
+		},
+		{
+			name:     "Should classify parallel phase changed as lean",
+			kind:     events.EventKindTaskParallelPhaseChanged,
+			wantLean: true,
+		},
+		{
+			name:     "Should classify parallel completed as lean",
+			kind:     events.EventKindTaskParallelCompleted,
+			wantLean: true,
+		},
+		{
+			name: "Should not classify artifact update as lean or terminal",
+			kind: events.EventKindArtifactUpdated,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			event := events.Event{Kind: tt.kind}
+			if got := shouldEmitLeanWorkflowEvent(event); got != tt.wantLean {
+				t.Fatalf("shouldEmitLeanWorkflowEvent(%q) = %t, want %t", tt.kind, got, tt.wantLean)
+			}
+			if got := isTerminalWorkflowEvent(tt.kind); got != tt.wantTerminal {
+				t.Fatalf("isTerminalWorkflowEvent(%q) = %t, want %t", tt.kind, got, tt.wantTerminal)
+			}
+		})
+	}
+}
+
 func decodeWorkflowJSONLMaps(t *testing.T, stream string) []map[string]any {
 	t.Helper()
 

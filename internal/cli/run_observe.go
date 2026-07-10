@@ -488,46 +488,7 @@ func runSnapshotSettledBeforeUIAttach(snapshot apicore.RunSnapshot) bool {
 }
 
 func defaultWatchCLIRun(ctx context.Context, dst io.Writer, client daemonCommandClient, runID string) error {
-	if dst == nil {
-		dst = io.Discard
-	}
-
-	eventsCh, errsCh := runspkg.WatchRemote(ctx, cliRemoteWatchClient{daemon: client}, runID)
-	sawTerminalEvent := false
-	for eventsCh != nil || errsCh != nil {
-		select {
-		case <-ctx.Done():
-			return nil
-		case err, ok := <-errsCh:
-			if !ok {
-				errsCh = nil
-				continue
-			}
-			if err != nil {
-				return err
-			}
-		case event, ok := <-eventsCh:
-			if !ok {
-				eventsCh = nil
-				continue
-			}
-			if isTerminalDaemonEvent(event.Kind) {
-				sawTerminalEvent = true
-			}
-			line := renderObservedRunEvent(event)
-			if strings.TrimSpace(line) == "" {
-				continue
-			}
-			if _, err := io.WriteString(dst, line); err != nil {
-				return fmt.Errorf("write run watch output: %w", err)
-			}
-		}
-	}
-	if sawTerminalEvent {
-		_, err := waitForTerminalDaemonRunSnapshot(ctx, client, runID)
-		return err
-	}
-	return nil
+	return watchCLIRunUntilTerminalSuccess(ctx, dst, client, runID)
 }
 
 func watchCLIRunUntilTerminalSuccess(
@@ -620,6 +581,9 @@ func renderObservedRunEvent(event eventspkg.Event) string {
 	if line, handled := renderObservedTaskMultiLifecycle(event); handled {
 		return line
 	}
+	if line, handled := renderObservedTaskParallelLifecycle(event); handled {
+		return line
+	}
 	if line, handled := renderObservedRunLifecycle(event); handled {
 		return line
 	}
@@ -635,19 +599,7 @@ func renderObservedRunEvent(event eventspkg.Event) string {
 func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 	switch event.Kind {
 	case eventspkg.EventKindTaskRunMultipleStarted:
-		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
-		if !ok {
-			return "task queue started\n", true
-		}
-		total := payload.Total
-		if total <= 0 {
-			total = len(payload.Slugs)
-		}
-		return fmt.Sprintf(
-			"task queue started | mode=%s total=%d\n",
-			firstNonEmpty(payload.Mode, "enqueued"),
-			total,
-		), true
+		return renderObservedTaskMultiStarted(event)
 	case eventspkg.EventKindTaskRunMultipleItemQueued:
 		return renderObservedTaskMultiItem(event, "queued")
 	case eventspkg.EventKindTaskRunMultipleChildStarted:
@@ -658,27 +610,138 @@ func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 		return renderObservedTaskMultiItem(event, "failed")
 	case eventspkg.EventKindTaskRunMultipleItemCanceled:
 		return renderObservedTaskMultiItem(event, "canceled")
+	case eventspkg.EventKindTaskRunMultipleQueueCompleted,
+		eventspkg.EventKindTaskRunMultipleQueueCanceled,
+		eventspkg.EventKindTaskRunMultipleQueueFailed:
+		return renderObservedTaskMultiSettlement(event)
+	default:
+		return "", false
+	}
+}
+
+func renderObservedTaskMultiStarted(event eventspkg.Event) (string, bool) {
+	payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+	if !ok {
+		return "task queue started\n", true
+	}
+	total := payload.Total
+	if total <= 0 {
+		total = len(payload.Slugs)
+	}
+	return fmt.Sprintf(
+		"task queue started | mode=%s total=%d\n",
+		firstNonEmpty(payload.Mode, "enqueued"),
+		total,
+	), true
+}
+
+func renderObservedTaskMultiSettlement(event eventspkg.Event) (string, bool) {
+	payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+	switch event.Kind {
 	case eventspkg.EventKindTaskRunMultipleQueueCompleted:
-		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
-		if !ok {
-			return "task queue completed\n", true
-		}
-		if payload.Total > 0 {
+		if ok && payload.Total > 0 {
 			return fmt.Sprintf("task queue completed | total=%d\n", payload.Total), true
 		}
 		return "task queue completed\n", true
 	case eventspkg.EventKindTaskRunMultipleQueueCanceled:
-		payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
-		if !ok {
-			return "task queue canceled\n", true
-		}
-		if message := strings.TrimSpace(payload.Error); message != "" {
-			return fmt.Sprintf("task queue canceled | %s\n", message), true
-		}
-		return "task queue canceled\n", true
+		return observedTaskMultiErrorSettlement("canceled", payload, ok)
+	case eventspkg.EventKindTaskRunMultipleQueueFailed:
+		return observedTaskMultiErrorSettlement("failed", payload, ok)
 	default:
 		return "", false
 	}
+}
+
+func observedTaskMultiErrorSettlement(
+	status string,
+	payload kinds.TaskRunMultiplePayload,
+	decoded bool,
+) (string, bool) {
+	if decoded {
+		if message := strings.TrimSpace(payload.Error); message != "" {
+			return fmt.Sprintf("task queue %s | %s\n", status, message), true
+		}
+	}
+	return fmt.Sprintf("task queue %s\n", status), true
+}
+
+func renderObservedTaskParallelLifecycle(event eventspkg.Event) (string, bool) {
+	if event.Kind == eventspkg.EventKindTaskParallelPlanStarted {
+		payload, ok := decodeObservedPayload[kinds.TaskParallelPlanPayload](event)
+		if !ok {
+			return "parallel task plan started\n", true
+		}
+		return fmt.Sprintf(
+			"parallel task plan started | workflow=%s tasks=%d waves=%d worktrees=true\n",
+			firstNonEmpty(payload.Workflow, "unknown"),
+			len(payload.Tasks),
+			len(payload.Waves),
+		), true
+	}
+	payload, ok := decodeObservedPayload[kinds.TaskParallelPayload](event)
+	if !ok {
+		return observedParallelFallback(event.Kind)
+	}
+	wave := ""
+	if payload.WaveTotal > 0 {
+		wave = fmt.Sprintf(" | wave=%d/%d", payload.WaveIndex+1, payload.WaveTotal)
+	}
+	task := ""
+	if taskID := strings.TrimSpace(payload.TaskID); taskID != "" {
+		task = " | task=" + taskID
+	}
+	details := task + wave
+	if phase := strings.TrimSpace(payload.Phase); phase != "" {
+		details += " | phase=" + phase
+	}
+	if status := strings.TrimSpace(payload.Status); status != "" {
+		details += " | status=" + status
+	}
+	if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
+		details += " | run=" + childRunID
+	}
+	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
+		details += " | worktree=" + worktreePath
+	}
+	if status := strings.TrimSpace(payload.WorktreeStatus); status != "" {
+		details += " | worktree_status=" + status
+	}
+	if resultBranch := strings.TrimSpace(payload.ResultBranch); resultBranch != "" {
+		details += " | result_branch=" + resultBranch
+	}
+	if reason := strings.TrimSpace(payload.WorktreeReason); reason != "" {
+		details += " | worktree_reason=" + reason
+	}
+	if message := strings.TrimSpace(payload.Error); message != "" {
+		details += " | error=" + message
+	}
+	labels := map[eventspkg.EventKind]string{
+		eventspkg.EventKindTaskParallelWaveStarted:       "parallel task wave started",
+		eventspkg.EventKindTaskParallelTaskStarted:       "parallel task started",
+		eventspkg.EventKindTaskParallelTaskCompleted:     "parallel task completed",
+		eventspkg.EventKindTaskParallelMergeStarted:      "parallel merge started",
+		eventspkg.EventKindTaskParallelConflictDetected:  "parallel conflict detected",
+		eventspkg.EventKindTaskParallelConflictResolving: "parallel conflict resolving",
+		eventspkg.EventKindTaskParallelMerged:            "parallel task merged",
+		eventspkg.EventKindTaskParallelWaveCompleted:     "parallel wave completed",
+		eventspkg.EventKindTaskParallelPhaseChanged:      "parallel phase changed",
+		eventspkg.EventKindTaskParallelCompleted:         "parallel execution completed",
+		eventspkg.EventKindTaskParallelCanceled:          "parallel execution canceled",
+		eventspkg.EventKindTaskParallelFailed:            "parallel execution failed",
+		eventspkg.EventKindTaskParallelRolledBack:        "parallel execution rolled back",
+	}
+	label, handled := labels[event.Kind]
+	if !handled {
+		return "", false
+	}
+	return label + details + "\n", true
+}
+
+func observedParallelFallback(kind eventspkg.EventKind) (string, bool) {
+	if !strings.HasPrefix(string(kind), "task.parallel.") {
+		return "", false
+	}
+	return strings.ReplaceAll(string(kind), ".", " ") + "\n", true
 }
 
 func renderObservedTaskMultiItem(event eventspkg.Event, fallbackStatus string) (string, bool) {
@@ -693,6 +756,15 @@ func renderObservedTaskMultiItem(event eventspkg.Event, fallbackStatus string) (
 	}
 	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
 		segments = append(segments, "worktree="+worktreePath)
+	}
+	if resultBranch := strings.TrimSpace(payload.ResultBranch); resultBranch != "" {
+		segments = append(segments, "result_branch="+resultBranch)
+	}
+	if worktreeStatus := strings.TrimSpace(payload.WorktreeStatus); worktreeStatus != "" {
+		segments = append(segments, "worktree_status="+worktreeStatus)
+	}
+	if worktreeReason := strings.TrimSpace(payload.WorktreeReason); worktreeReason != "" {
+		segments = append(segments, "worktree_reason="+worktreeReason)
 	}
 	if message := strings.TrimSpace(payload.Error); message != "" {
 		segments = append(segments, message)
@@ -748,7 +820,16 @@ func formatTaskRunMultipleHandoffItem(item *apicore.TaskRunMultipleItem) string 
 		"worktree=" + handoffValueOrDash(item.WorktreePath),
 	}
 	if branch := strings.TrimSpace(item.BaseBranch); branch != "" {
-		segments = append(segments, "branch="+branch)
+		segments = append(segments, "base_branch="+branch)
+	}
+	if branch := strings.TrimSpace(item.ResultBranch); branch != "" {
+		segments = append(segments, "result_branch="+branch)
+	}
+	if status := strings.TrimSpace(item.WorktreeStatus); status != "" {
+		segments = append(segments, "worktree_status="+status)
+	}
+	if reason := strings.TrimSpace(item.WorktreeReason); reason != "" {
+		segments = append(segments, "worktree_reason="+reason)
 	}
 	if message := strings.TrimSpace(item.ErrorText); message != "" {
 		segments = append(segments, message)

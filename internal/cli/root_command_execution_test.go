@@ -136,8 +136,8 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 }
 
 func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	compozyHome := t.TempDir()
+	t.Setenv(compozyconfig.HomeEnvVar, compozyHome)
 
 	paths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
@@ -1461,6 +1461,16 @@ func TestTasksRunMultipleCommandForwardsParallelModeAndLimit(t *testing.T) {
 		if request.Mode != workspacecfg.TaskRunMultipleModeParallel {
 			t.Fatalf("mode = %q, want parallel", request.Mode)
 		}
+		if request.Execution == nil ||
+			request.Execution.Kind != apicore.ExecutionKindTaskMultiParallel ||
+			!request.Execution.UsesWorktrees ||
+			request.Execution.Source != "--parallel=true" {
+			t.Fatalf("execution descriptor = %#v", request.Execution)
+		}
+		if !strings.Contains(stderr, "Parallel workflows (git worktrees)") ||
+			!strings.Contains(stderr, "source=--parallel=true") {
+			t.Fatalf("stderr missing explicit execution resolution: %q", stderr)
+		}
 		if request.ParallelLimit != workspacecfg.DefaultRunMultipleParallelLimit {
 			t.Fatalf(
 				"parallel limit = %d, want %d",
@@ -1490,6 +1500,14 @@ run_multiple_mode = "parallel"
 `)
 		if request.Mode != workspacecfg.TaskRunMultipleModeParallel {
 			t.Fatalf("mode = %q, want parallel", request.Mode)
+		}
+		if request.Execution == nil ||
+			request.Execution.Source != "workspace tasks.run.run_multiple_mode" {
+			t.Fatalf("execution descriptor = %#v, want workspace-config source", request.Execution)
+		}
+		if !strings.Contains(stderr, "Parallel workflows (git worktrees)") ||
+			!strings.Contains(stderr, "source=workspace tasks.run.run_multiple_mode") {
+			t.Fatalf("stderr missing configured mode announcement: %q", stderr)
 		}
 		if strings.Contains(stderr, "enqueued mode") || strings.Contains(stderr, "worktree isolation") {
 			t.Fatalf("expected no enqueued fallback message, got stderr %q", stderr)
@@ -1755,7 +1773,7 @@ func TestTasksRunMultipleStreamReportsAggregateFailureWithPaths(t *testing.T) {
 			"run failed | 1 task failed: beta",
 			"task multi-run handoff:",
 			"  alpha completed | run=child-alpha | worktree=/wt/01-alpha",
-			"  beta failed | run=child-beta | worktree=/wt/02-beta | boom",
+			"  beta failed | run=child-beta | worktree=/wt/02-beta | worktree_status=preserved | boom",
 		} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("stdout missing %q\nstdout:\n%s", want, stdout)
@@ -1959,6 +1977,77 @@ func TestTasksRunCommandForwardsParallelTasksOverride(t *testing.T) {
 			overrides.ParallelTasks.Enabled == nil ||
 			!*overrides.ParallelTasks.Enabled {
 			t.Fatalf("parallel task override = %#v, want enabled true", overrides.ParallelTasks)
+		}
+		if readyClient.startRequest.Execution == nil ||
+			readyClient.startRequest.Execution.Kind != apicore.ExecutionKindTaskParallel ||
+			!readyClient.startRequest.Execution.UsesWorktrees ||
+			readyClient.startRequest.Execution.Source != "--parallel-tasks=true" {
+			t.Fatalf("execution descriptor = %#v", readyClient.startRequest.Execution)
+		}
+		if !strings.Contains(stderr, "task worktrees + integration branch") {
+			t.Fatalf("stderr missing parallel task worktree announcement: %q", stderr)
+		}
+	})
+}
+
+func TestTasksRunCommandDoesNotAuthorizeWorktreesFromWorkspaceConfig(t *testing.T) {
+	t.Run("Should not authorize worktrees from workspace config", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+			[]string{
+				"status: pending",
+				"title: Demo Task",
+				"type: backend",
+				"complexity: low",
+			},
+			"# Task 1: Demo Task",
+		))
+		writeCLIWorkspaceConfig(t, workspaceRoot, `
+[tasks.run.parallel]
+enabled = true
+`)
+		withWorkingDir(t, workspaceRoot)
+
+		readyClient := &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			startRun: apicore.Run{
+				RunID:            "run-task-config-standard",
+				Mode:             string(core.ModePRDTasks),
+				Status:           "running",
+				PresentationMode: attachModeDetach,
+				StartedAt:        time.Date(2026, 4, 17, 13, 7, 30, 0, time.UTC),
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, readyClient)
+		defaults := allowBundledSkillsForExecutionTests()
+		defaults.isInteractive = func() bool { return false }
+		cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+		stdout, stderr, err := executeCommandCapturingProcessIO(
+			t,
+			cmd,
+			nil,
+			"tasks",
+			"run",
+			"demo",
+			"--detach",
+		)
+		if err != nil {
+			t.Fatalf("execute config-only task run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		overrides := decodeTaskRunOverrides(t, readyClient.startRequest.RuntimeOverrides)
+		if overrides.ParallelTasks != nil {
+			t.Fatalf("parallel task override = %#v, want omitted", overrides.ParallelTasks)
+		}
+		if readyClient.startRequest.Execution == nil ||
+			readyClient.startRequest.Execution.Kind != apicore.ExecutionKindTaskStandard ||
+			readyClient.startRequest.Execution.UsesWorktrees {
+			t.Fatalf("execution descriptor = %#v, want standard without worktrees", readyClient.startRequest.Execution)
+		}
+		if !strings.Contains(stderr, "Standard task run") || !strings.Contains(stderr, "worktrees=false") {
+			t.Fatalf("stderr missing standard execution resolution: %q", stderr)
 		}
 	})
 }

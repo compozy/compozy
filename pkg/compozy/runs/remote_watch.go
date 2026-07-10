@@ -156,7 +156,7 @@ func ensureRemoteWatchState(
 
 	reconnected, err := client.OpenRunStream(ctx, runID, state.lastCursor)
 	if err != nil || reconnected == nil {
-		if shouldStopRemoteWatch(ctx, client, runID, state.lastCursor) {
+		if shouldStopRemoteWatch(ctx, client, runID) {
 			return state, true
 		}
 		return state, false
@@ -222,6 +222,12 @@ func handleRemoteWatchItem(
 	}
 
 	if item.HeartbeatCursor != nil {
+		if item.HeartbeatCursor.Sequence > state.lastCursor.Sequence {
+			if shouldStopRemoteWatch(ctx, client, runID) {
+				return state, true
+			}
+			return resetRemoteWatchState(state), false
+		}
 		state.lastCursor = maxRemoteWatchCursor(state.lastCursor, *item.HeartbeatCursor)
 		return state, false
 	}
@@ -232,7 +238,9 @@ func handleRemoteWatchItem(
 		return state, false
 	}
 	if item.OverflowCursor != nil {
-		state.lastCursor = maxRemoteWatchCursor(state.lastCursor, *item.OverflowCursor)
+		if shouldStopRemoteWatch(ctx, client, runID) {
+			return state, true
+		}
 		return resetRemoteWatchState(state), false
 	}
 	if item.Event == nil {
@@ -256,7 +264,7 @@ func handleRemoteWatchEOF(
 	state remoteWatchState,
 ) (remoteWatchState, bool) {
 	state = resetRemoteWatchState(state)
-	if shouldStopRemoteWatch(ctx, client, runID, state.lastCursor) {
+	if shouldStopRemoteWatch(ctx, client, runID) {
 		return state, true
 	}
 	return state, false
@@ -300,7 +308,6 @@ func shouldStopRemoteWatch(
 	ctx context.Context,
 	client RemoteStreamClient,
 	runID string,
-	lastCursor RemoteCursor,
 ) bool {
 	if client == nil {
 		return false
@@ -312,10 +319,7 @@ func shouldStopRemoteWatch(
 	if !isTerminalRemoteRunStatus(snapshot.Status) {
 		return false
 	}
-	if snapshot.NextCursor == nil {
-		return true
-	}
-	return snapshot.NextCursor.Sequence <= lastCursor.Sequence
+	return true
 }
 
 func isTerminalRemoteRunStatus(status string) bool {
@@ -332,15 +336,7 @@ func isTerminalRemoteRunStatus(status string) bool {
 }
 
 func isTerminalRemoteRunEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCompleted,
-		events.EventKindRunFailed,
-		events.EventKindRunCancelled,
-		events.EventKindRunCrashed:
-		return true
-	default:
-		return false
-	}
+	return events.IsRunTerminalKind(kind)
 }
 
 func remoteRunStreamChannels(stream RemoteRunStream) (<-chan RemoteRunStreamItem, <-chan error) {

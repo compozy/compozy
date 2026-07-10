@@ -773,7 +773,8 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
 		return err
 	}
-	if s.parallelTasks {
+	execution := s.resolveSingleTaskExecution(cmd)
+	if execution.Kind == apicore.ExecutionKindTaskParallel {
 		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
 			return err
 		}
@@ -787,6 +788,9 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	if err := writeTaskExecutionResolution(cmd, execution); err != nil {
+		return err
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
@@ -798,6 +802,7 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 		Workspace:        s.workspaceRoot,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
+		Execution:        &execution,
 	})
 	if err != nil {
 		return mapDaemonCommandError(err)
@@ -842,6 +847,7 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	execution := s.resolveTaskRunMultipleExecution(cmd, mode)
 	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
 	if err != nil {
 		return withExitCode(1, err)
@@ -862,6 +868,9 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	if err := writeTaskExecutionResolution(cmd, execution); err != nil {
+		return err
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
@@ -875,6 +884,7 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		Mode:             mode,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
+		Execution:        &execution,
 	}
 	if mode == workspacecfg.TaskRunMultipleModeParallel {
 		request.ParallelLimit = parallelLimit
@@ -1045,6 +1055,57 @@ func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, e
 			workspacecfg.TaskRunMultipleModeParallel,
 			mode,
 		)
+	}
+}
+
+func (s *commandState) resolveSingleTaskExecution(cmd *cobra.Command) apicore.TaskExecutionDescriptor {
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) && s.parallelTasks {
+		return apicore.TaskExecutionDescriptor{
+			Kind:          apicore.ExecutionKindTaskParallel,
+			Label:         "Parallel tasks (task worktrees + integration branch)",
+			UsesWorktrees: true,
+			Source:        "--parallel-tasks=true",
+		}
+	}
+	source := "per-run default"
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+		source = "--parallel-tasks=false"
+	}
+	return apicore.TaskExecutionDescriptor{
+		Kind:          apicore.ExecutionKindTaskStandard,
+		Label:         "Standard task run",
+		UsesWorktrees: false,
+		Source:        source,
+	}
+}
+
+func (s *commandState) resolveTaskRunMultipleExecution(
+	cmd *cobra.Command,
+	mode string,
+) apicore.TaskExecutionDescriptor {
+	source := "built-in default"
+	if commandFlagChanged(cmd, "parallel") {
+		if mode == workspacecfg.TaskRunMultipleModeParallel {
+			source = "--parallel=true"
+		} else {
+			source = "--parallel=false"
+		}
+	} else if s.projectConfig.Tasks.Run.RunMultipleMode != nil {
+		source = "workspace tasks.run.run_multiple_mode"
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		return apicore.TaskExecutionDescriptor{
+			Kind:          apicore.ExecutionKindTaskMultiParallel,
+			Label:         "Parallel workflows (git worktrees)",
+			UsesWorktrees: true,
+			Source:        source,
+		}
+	}
+	return apicore.TaskExecutionDescriptor{
+		Kind:          apicore.ExecutionKindTaskMultiEnqueued,
+		Label:         "Serial queue (no worktrees)",
+		UsesWorktrees: false,
+		Source:        source,
 	}
 }
 
@@ -1368,6 +1429,23 @@ func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {
 		run.PresentationMode,
 	); err != nil {
 		return withExitCode(2, fmt.Errorf("write task run summary: %w", err))
+	}
+	return nil
+}
+
+func writeTaskExecutionResolution(cmd *cobra.Command, execution apicore.TaskExecutionDescriptor) error {
+	if cmd == nil {
+		return errors.New("task execution output command is required")
+	}
+	if _, err := fmt.Fprintf(
+		cmd.ErrOrStderr(),
+		"execution: %s (kind=%s, worktrees=%t, source=%s)\n",
+		execution.Label,
+		execution.Kind,
+		execution.UsesWorktrees,
+		execution.Source,
+	); err != nil {
+		return withExitCode(2, fmt.Errorf("write task execution resolution: %w", err))
 	}
 	return nil
 }

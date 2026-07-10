@@ -13,6 +13,13 @@ import (
 // DaemonContractVersion identifies the CLI/daemon transport contract version.
 const DaemonContractVersion = "1"
 
+const (
+	ExecutionKindTaskStandard      = "task_standard"
+	ExecutionKindTaskParallel      = "task_parallel"
+	ExecutionKindTaskMultiEnqueued = "task_multi_enqueued"
+	ExecutionKindTaskMultiParallel = "task_multi_parallel"
+)
+
 type MutationAcceptedResponse struct {
 	Accepted bool `json:"accepted"`
 }
@@ -40,18 +47,27 @@ type WorkflowArchiveRequest struct {
 }
 
 type TaskRunRequest struct {
-	Workspace        string          `json:"workspace"`
-	PresentationMode string          `json:"presentation_mode,omitempty"`
-	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+	Workspace        string                   `json:"workspace"`
+	PresentationMode string                   `json:"presentation_mode,omitempty"`
+	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
+	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`
+}
+
+type TaskExecutionDescriptor struct {
+	Kind          string `json:"kind"`
+	Label         string `json:"label"`
+	UsesWorktrees bool   `json:"uses_worktrees"`
+	Source        string `json:"source"`
 }
 
 type TaskRunMultipleRequest struct {
-	Workspace        string          `json:"workspace"`
-	Slugs            []string        `json:"slugs"`
-	Mode             string          `json:"mode,omitempty"`
-	ParallelLimit    int             `json:"parallel_limit,omitempty"`
-	PresentationMode string          `json:"presentation_mode,omitempty"`
-	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+	Workspace        string                   `json:"workspace"`
+	Slugs            []string                 `json:"slugs"`
+	Mode             string                   `json:"mode,omitempty"`
+	ParallelLimit    int                      `json:"parallel_limit,omitempty"`
+	PresentationMode string                   `json:"presentation_mode,omitempty"`
+	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
+	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`
 }
 
 type TaskRunMultipleItem struct {
@@ -63,11 +79,18 @@ type TaskRunMultipleItem struct {
 	BaseBranch     string `json:"base_branch,omitempty"`
 	BaseCommit     string `json:"base_commit,omitempty"`
 	WorktreeStatus string `json:"worktree_status,omitempty"`
+	WorktreeReason string `json:"worktree_reason,omitempty"`
+	ResultBranch   string `json:"result_branch,omitempty"`
 }
 
 type TaskRunMultipleSnapshot struct {
-	Run   Run                   `json:"run"`
-	Items []TaskRunMultipleItem `json:"items,omitempty"`
+	Run               Run                   `json:"run"`
+	Items             []TaskRunMultipleItem `json:"items,omitempty"`
+	ExecutionKind     string                `json:"execution_kind,omitempty"`
+	LifecycleEvents   []events.Event        `json:"lifecycle_events,omitempty"`
+	Incomplete        bool                  `json:"incomplete,omitempty"`
+	IncompleteReasons []string              `json:"incomplete_reasons,omitempty"`
+	NextCursor        *StreamCursor         `json:"-"`
 }
 
 type ReviewFetchRequest struct {
@@ -170,10 +193,12 @@ type DaemonDatabaseDiagnostics struct {
 }
 
 type DaemonReconcileDiagnostics struct {
-	ReconciledRuns     int    `json:"reconciled_runs,omitempty"`
-	CrashEventAppended int    `json:"crash_event_appended,omitempty"`
-	CrashEventMissing  int    `json:"crash_event_missing,omitempty"`
-	LastRunID          string `json:"last_run_id,omitempty"`
+	ReconciledRuns          int    `json:"reconciled_runs,omitempty"`
+	CrashEventAppended      int    `json:"crash_event_appended,omitempty"`
+	CrashEventMissing       int    `json:"crash_event_missing,omitempty"`
+	WorktreesRemoved        int    `json:"worktrees_removed,omitempty"`
+	WorktreeCleanupDeferred int    `json:"worktree_cleanup_deferred,omitempty"`
+	LastRunID               string `json:"last_run_id,omitempty"`
 }
 
 type Workspace struct {
@@ -621,8 +646,13 @@ type RunSnapshotResponse struct {
 }
 
 type TaskRunMultipleSnapshotResponse struct {
-	Run   Run                   `json:"run"`
-	Items []TaskRunMultipleItem `json:"items,omitempty"`
+	Run               Run                   `json:"run"`
+	Items             []TaskRunMultipleItem `json:"items,omitempty"`
+	ExecutionKind     string                `json:"execution_kind,omitempty"`
+	LifecycleEvents   []events.Event        `json:"lifecycle_events,omitempty"`
+	Incomplete        bool                  `json:"incomplete,omitempty"`
+	IncompleteReasons []string              `json:"incomplete_reasons,omitempty"`
+	NextCursor        string                `json:"next_cursor,omitempty"`
 }
 
 type RunTranscriptResponse struct {
@@ -678,16 +708,33 @@ func (r RunSnapshotResponse) Decode() (RunSnapshot, error) {
 
 func TaskRunMultipleSnapshotResponseFromSnapshot(snapshot TaskRunMultipleSnapshot) TaskRunMultipleSnapshotResponse {
 	return TaskRunMultipleSnapshotResponse{
-		Run:   snapshot.Run,
-		Items: append([]TaskRunMultipleItem(nil), snapshot.Items...),
+		Run:               snapshot.Run,
+		Items:             append([]TaskRunMultipleItem(nil), snapshot.Items...),
+		ExecutionKind:     snapshot.ExecutionKind,
+		LifecycleEvents:   append([]events.Event(nil), snapshot.LifecycleEvents...),
+		Incomplete:        snapshot.Incomplete,
+		IncompleteReasons: append([]string(nil), snapshot.IncompleteReasons...),
+		NextCursor:        FormatCursorPointer(snapshot.NextCursor),
 	}
 }
 
-func (r TaskRunMultipleSnapshotResponse) Decode() TaskRunMultipleSnapshot {
-	return TaskRunMultipleSnapshot{
-		Run:   r.Run,
-		Items: append([]TaskRunMultipleItem(nil), r.Items...),
+func (r TaskRunMultipleSnapshotResponse) Decode() (TaskRunMultipleSnapshot, error) {
+	nextCursor, err := ParseCursor(r.NextCursor)
+	if err != nil {
+		return TaskRunMultipleSnapshot{}, fmt.Errorf("decode task multi snapshot cursor: %w", err)
 	}
+	snapshot := TaskRunMultipleSnapshot{
+		Run:               r.Run,
+		Items:             append([]TaskRunMultipleItem(nil), r.Items...),
+		ExecutionKind:     r.ExecutionKind,
+		LifecycleEvents:   append([]events.Event(nil), r.LifecycleEvents...),
+		Incomplete:        r.Incomplete,
+		IncompleteReasons: append([]string(nil), r.IncompleteReasons...),
+	}
+	if nextCursor.Sequence > 0 {
+		snapshot.NextCursor = &nextCursor
+	}
+	return snapshot, nil
 }
 
 func RunTranscriptResponseFromTranscript(transcript RunTranscript) RunTranscriptResponse {

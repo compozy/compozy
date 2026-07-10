@@ -149,6 +149,31 @@ func shouldEmitLeanWorkflowEvent(ev events.Event) bool {
 		events.EventKindRunCompleted,
 		events.EventKindRunFailed,
 		events.EventKindRunCancelled,
+		events.EventKindRunCrashed,
+		events.EventKindRunRecoveryExhausted,
+		events.EventKindTaskRunMultipleStarted,
+		events.EventKindTaskRunMultipleItemQueued,
+		events.EventKindTaskRunMultipleChildStarted,
+		events.EventKindTaskRunMultipleChildCompleted,
+		events.EventKindTaskRunMultipleChildFailed,
+		events.EventKindTaskRunMultipleItemCanceled,
+		events.EventKindTaskRunMultipleQueueCompleted,
+		events.EventKindTaskRunMultipleQueueFailed,
+		events.EventKindTaskRunMultipleQueueCanceled,
+		events.EventKindTaskParallelPlanStarted,
+		events.EventKindTaskParallelWaveStarted,
+		events.EventKindTaskParallelTaskStarted,
+		events.EventKindTaskParallelTaskCompleted,
+		events.EventKindTaskParallelMergeStarted,
+		events.EventKindTaskParallelConflictDetected,
+		events.EventKindTaskParallelConflictResolving,
+		events.EventKindTaskParallelMerged,
+		events.EventKindTaskParallelWaveCompleted,
+		events.EventKindTaskParallelPhaseChanged,
+		events.EventKindTaskParallelCompleted,
+		events.EventKindTaskParallelCanceled,
+		events.EventKindTaskParallelFailed,
+		events.EventKindTaskParallelRolledBack,
 		events.EventKindJobStarted,
 		events.EventKindJobRetryScheduled,
 		events.EventKindJobPausing,
@@ -211,10 +236,5 @@ func encodeWorkflowEvent(encoder *json.Encoder, mode workflowEventStreamMode, ev
 }
 
 func isTerminalWorkflowEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCompleted, events.EventKindRunFailed, events.EventKindRunCancelled:
-		return true
-	default:
-		return false
-	}
+	return events.IsRunTerminalKind(kind)
 }

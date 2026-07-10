@@ -18,6 +18,65 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
+func TestArchiveWithDBUsesInjectedWorkspaceBoundary(t *testing.T) {
+	rootDir := archiveTestRoot(t)
+	workflowDir := filepath.Join(rootDir, "injected-db")
+	writeArchiveTaskFile(t, workflowDir, "task_001.md", "completed")
+	mustSyncArchiveWorkflow(t, workflowDir)
+	db, workspace := openArchiveWorkflowDB(t, rootDir)
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	t.Run("Should reject a nil archive database", func(t *testing.T) {
+		if _, err := ArchiveWithDB(
+			context.Background(),
+			nil,
+			workspace,
+			ArchiveConfig{TasksDir: workflowDir},
+		); !errors.Is(err, ErrArchiveDatabaseRequired) {
+			t.Fatalf("ArchiveWithDB(nil database) error = %v, want %v", err, ErrArchiveDatabaseRequired)
+		}
+	})
+
+	t.Run("Should reject a mismatched workspace and archive target", func(t *testing.T) {
+		mismatched := workspace
+		mismatched.RootDir = t.TempDir()
+		_, err := ArchiveWithDB(
+			context.Background(),
+			db,
+			mismatched,
+			ArchiveConfig{TasksDir: workflowDir},
+		)
+		var mismatch ArchiveWorkspaceMismatchError
+		if !errors.As(err, &mismatch) {
+			t.Fatalf("ArchiveWithDB(mismatched workspace) error = %v, want ArchiveWorkspaceMismatchError", err)
+		}
+		if mismatch.WorkspaceRoot != mismatched.RootDir {
+			t.Fatalf(
+				"ArchiveWorkspaceMismatchError.WorkspaceRoot = %q, want %q",
+				mismatch.WorkspaceRoot,
+				mismatched.RootDir,
+			)
+		}
+	})
+
+	t.Run("Should archive when the injected workspace boundary matches", func(t *testing.T) {
+		result, err := ArchiveWithDB(
+			context.Background(),
+			db,
+			workspace,
+			ArchiveConfig{TasksDir: workflowDir},
+		)
+		if err != nil {
+			t.Fatalf("ArchiveWithDB() error = %v", err)
+		}
+		if result.Archived != 1 || len(result.ArchivedPaths) != 1 {
+			t.Fatalf("ArchiveWithDB() result = %#v, want one archived workflow", result)
+		}
+	})
+}
+
 func TestArchiveTaskWorkflowRequiresForceForPendingStateFromSyncedDBEvenWithStaleMeta(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "beta")

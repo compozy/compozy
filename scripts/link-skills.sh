@@ -35,6 +35,7 @@ ensure_symlink() {
     fi
     rm "$link_path"
   elif [ -e "$link_path" ]; then
+    echo "  Warning: replacing non-symlink path $link_path" >&2
     rm -rf "$link_path"
   fi
 

@@ -27,6 +27,7 @@ import (
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -107,11 +108,16 @@ func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
 			{Slug: "beta", Status: taskMultiItemStatusCompleted, RunID: "child-beta"},
 		}
 		assertTaskMultiItems(t, snapshot.Items, wantItems)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleStarted)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemQueued)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildStarted)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildCompleted)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCompleted)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleStarted)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleItemQueued)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleChildStarted)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleChildCompleted)
+		requireSingleTaskMultiQueueSettlement(
+			t,
+			env.manager,
+			parent.RunID,
+			eventspkg.EventKindTaskRunMultipleQueueCompleted,
+		)
 	})
 }
 
@@ -166,8 +172,13 @@ func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
 			{Slug: "beta", Status: taskMultiItemStatusCanceled, ErrorText: "alpha failed"},
 		}
 		assertTaskMultiItems(t, snapshot.Items, wantItems)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
+		requireSingleTaskMultiQueueSettlement(
+			t,
+			env.manager,
+			parent.RunID,
+			eventspkg.EventKindTaskRunMultipleQueueFailed,
+		)
 	})
 }
 
@@ -221,9 +232,14 @@ func TestRunManagerTaskRunMultipleStartChildFailureCancelsQueuedItems(t *testing
 			{Slug: "beta", Status: taskMultiItemStatusCanceled, ErrorText: "child id allocation failed"},
 		}
 		assertTaskMultiItems(t, snapshot.Items, wantItems)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleChildFailed)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleChildFailed)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
+		requireSingleTaskMultiQueueSettlement(
+			t,
+			env.manager,
+			parent.RunID,
+			eventspkg.EventKindTaskRunMultipleQueueFailed,
+		)
 	})
 }
 
@@ -274,8 +290,13 @@ func TestRunManagerTaskRunMultipleCancellationCancelsActiveAndQueuedChildren(t *
 			{Slug: "beta", Status: taskMultiItemStatusCanceled},
 		}
 		assertTaskMultiItems(t, snapshot.Items, wantItems)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
-		requireRunEvent(t, parent.RunID, eventspkg.EventKindTaskRunMultipleQueueCanceled)
+		requireRunEvent(t, env.manager, parent.RunID, eventspkg.EventKindTaskRunMultipleItemCanceled)
+		requireSingleTaskMultiQueueSettlement(
+			t,
+			env.manager,
+			parent.RunID,
+			eventspkg.EventKindTaskRunMultipleQueueCanceled,
+		)
 	})
 }
 
@@ -866,6 +887,13 @@ func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspac
 		if err != nil {
 			t.Fatalf("RunMultipleSnapshot() error = %v", err)
 		}
+		if snapshot.ExecutionKind != apicore.ExecutionKindTaskMultiParallel {
+			t.Fatalf(
+				"ExecutionKind = %q, want %q",
+				snapshot.ExecutionKind,
+				apicore.ExecutionKindTaskMultiParallel,
+			)
+		}
 		if len(snapshot.Items) != 2 {
 			t.Fatalf("snapshot items = %d, want 2", len(snapshot.Items))
 		}
@@ -883,14 +911,103 @@ func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspac
 			if item.BaseCommit != wantCommit {
 				t.Fatalf("item %s BaseCommit = %q, want %q", item.Slug, item.BaseCommit, wantCommit)
 			}
-			if item.WorktreeStatus != taskMultiWorktreeStatusPreserved {
+			if item.WorktreeStatus != taskMultiWorktreeStatusRemoved {
 				t.Fatalf("item %s WorktreeStatus = %q, want %q",
-					item.Slug, item.WorktreeStatus, taskMultiWorktreeStatusPreserved)
+					item.Slug, item.WorktreeStatus, taskMultiWorktreeStatusRemoved)
+			}
+			if strings.TrimSpace(item.WorktreeReason) == "" {
+				t.Fatalf("item %s WorktreeReason is empty", item.Slug)
+			}
+			if strings.TrimSpace(item.ResultBranch) == "" {
+				t.Fatalf("item %s ResultBranch is empty", item.Slug)
+			}
+			if _, err := os.Stat(item.WorktreePath); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("item %s worktree stat error = %v, want removed", item.Slug, err)
+			}
+			if got := runGitOutput(t, env.workspaceRoot, "branch", "--list", item.ResultBranch); got != "" {
+				t.Fatalf("empty result branch %s still exists", item.ResultBranch)
 			}
 		}
 
-		assertTaskMultiWorktreeMetadataBeforeChildStart(t, parent.RunID, "alpha")
+		assertTaskMultiWorktreeMetadataBeforeChildStart(t, env.manager, parent.RunID, "alpha")
 	})
+}
+
+func TestRunManagerTaskRunMultipleParallelRetainsCommittedResultBranch(t *testing.T) {
+	t.Parallel()
+
+	requireGitForTaskMulti(t)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiRunIDBuilder("task-multi-result-branch"),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			resultPath := filepath.Join(cfg.WorkspaceRoot, "alpha-result.txt")
+			if err := os.WriteFile(resultPath, []byte("retained result\n"), 0o600); err != nil {
+				return err
+			}
+			if _, err := runTaskMultiWorktreeGitCommand(
+				ctx,
+				cfg.WorkspaceRoot,
+				"add",
+				"--",
+				"alpha-result.txt",
+			); err != nil {
+				return err
+			}
+			_, err := runTaskMultiWorktreeGitCommand(
+				ctx,
+				cfg.WorkspaceRoot,
+				"commit",
+				"--no-verify",
+				"-m",
+				"alpha result",
+			)
+			return err
+		},
+	})
+	writeTaskMultiWorkflow(t, env, "alpha", "pending")
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiParallelRun(t, env, "task-multi-result-branch", []string{"alpha"})
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusCompleted {
+		t.Fatalf("parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+	}
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	if len(snapshot.Items) != 1 {
+		t.Fatalf("snapshot items = %d, want 1", len(snapshot.Items))
+	}
+	item := snapshot.Items[0]
+	if item.WorktreeStatus != taskMultiWorktreeStatusRemoved {
+		t.Fatalf("worktree status = %q, want removed", item.WorktreeStatus)
+	}
+	if !strings.Contains(item.WorktreeReason, "retained by branch") {
+		t.Fatalf("worktree reason = %q, want retained branch reason", item.WorktreeReason)
+	}
+	if _, err := os.Stat(item.WorktreePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("worktree stat error = %v, want removed", err)
+	}
+	if got := runGitOutput(t, env.workspaceRoot, "branch", "--list", item.ResultBranch); got != item.ResultBranch {
+		t.Fatalf("result branch lookup = %q, want %q", got, item.ResultBranch)
+	}
+	if got := runGitOutput(
+		t,
+		env.workspaceRoot,
+		"show",
+		item.ResultBranch+":alpha-result.txt",
+	); got != "retained result" {
+		t.Fatalf("result branch file = %q, want retained result", got)
+	}
+	if _, err := os.Stat(filepath.Join(env.workspaceRoot, "alpha-result.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("primary workspace result stat = %v, want absent", err)
+	}
 }
 
 func TestRunManagerStartTaskWorktreeChildScopesPlanToTargetTask(t *testing.T) {
@@ -1236,51 +1353,86 @@ func TestRunManagerTaskRunMultipleChildPollReturnsRunLookupErrors(t *testing.T) 
 	})
 }
 
-func TestRunManagerTaskRunMultiplePollLookupErrorCancelsActiveChild(t *testing.T) {
+func TestRunManagerTaskRunMultipleChildWaitReconcilesTerminalJournalOnDone(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should cancel active child after poll lookup error", func(t *testing.T) {
-		childStarted := make(chan struct{})
-		childCanceled := make(chan error, 1)
-		var startedOnce sync.Once
-		env := newRunManagerTestEnv(t, runManagerTestDeps{
-			buildRunID: taskMultiRunIDBuilder("task-multi-poll-cancel"),
-			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
-				return &model.SolvePreparation{}, nil
-			},
-			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-				if cfg.Name != "alpha" {
-					return nil
-				}
-				startedOnce.Do(func() { close(childStarted) })
-				<-ctx.Done()
-				childCanceled <- ctx.Err()
-				return ctx.Err()
-			},
-		})
-		writeTaskMultiWorkflow(t, env, "alpha", "pending")
-		parent := startTaskMultiRun(t, env, "task-multi-poll-cancel", []string{"alpha"})
-		waitForClosed(t, childStarted, "alpha child start")
-		parentActive := requireActiveRun(t, env.manager, parent.RunID)
-		childActive := requireActiveRun(t, env.manager, "child-alpha")
-		defer parentActive.cancel()
-		defer childActive.cancel()
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+	}
+	const childRunID = "child-terminal-journal"
+	if _, err := env.globalDB.PutRun(context.Background(), globaldb.Run{
+		RunID:            childRunID,
+		WorkspaceID:      workspace.ID,
+		Mode:             runModeTask,
+		Status:           runStatusRunning,
+		PresentationMode: defaultPresentationMode,
+		StartedAt:        time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("PutRun(%q) error = %v", childRunID, err)
+	}
+	artifacts := env.manager.runArtifacts(childRunID)
+	if err := os.MkdirAll(artifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir child run artifacts: %v", err)
+	}
+	runDB, err := rundb.Open(context.Background(), artifacts.RunDBPath)
+	if err != nil {
+		t.Fatalf("open child run DB: %v", err)
+	}
+	if _, err := runDB.AppendSyntheticEvent(
+		context.Background(),
+		eventspkg.EventKindRunCrashed,
+		kinds.RunCrashedPayload{
+			ArtifactsDir: artifacts.RunDir,
+			Error:        "child process exited before global status mirror",
+			ResultPath:   artifacts.ResultPath,
+		},
+	); err != nil {
+		_ = runDB.Close()
+		t.Fatalf("AppendSyntheticEvent(run.crashed) error = %v", err)
+	}
+	if err := runDB.Close(); err != nil {
+		t.Fatalf("Close child run DB: %v", err)
+	}
 
-		if err := env.globalDB.Close(); err != nil {
-			t.Fatalf("Close global DB: %v", err)
-		}
-
-		select {
-		case err := <-childCanceled:
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("child context error = %v, want context.Canceled", err)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("child was not canceled after parent %s hit child lookup error", parent.RunID)
-		}
-		waitForClosed(t, childActive.done, "alpha child cleanup")
-		waitForClosed(t, parentActive.done, "parent multi-run cleanup")
+	done := make(chan struct{})
+	env.manager.setActive(&activeRun{
+		runID:  childRunID,
+		done:   done,
+		cancel: func() {},
 	})
+	t.Cleanup(func() { env.manager.removeActive(childRunID) })
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	waited := make(chan struct {
+		row globaldb.Run
+		err error
+	}, 1)
+	go func() {
+		row, waitErr := env.manager.waitForTaskMultiChild(ctx, childRunID)
+		waited <- struct {
+			row globaldb.Run
+			err error
+		}{row: row, err: waitErr}
+	}()
+	close(done)
+
+	result := <-waited
+	if result.err != nil {
+		t.Fatalf("waitForTaskMultiChild() error = %v", result.err)
+	}
+	if result.row.Status != runStatusCrashed ||
+		!strings.Contains(result.row.ErrorText, "child process exited") {
+		t.Fatalf("reconciled child row = status:%q error:%q", result.row.Status, result.row.ErrorText)
+	}
+	persisted, err := env.globalDB.GetRun(context.Background(), childRunID)
+	if err != nil {
+		t.Fatalf("GetRun(%q) error = %v", childRunID, err)
+	}
+	if persisted.Status != runStatusCrashed {
+		t.Fatalf("persisted child status = %q, want %q", persisted.Status, runStatusCrashed)
+	}
 }
 
 func TestRunManagerTaskRunMultipleSnapshotRejectsNonParentRun(t *testing.T) {
@@ -1523,6 +1675,21 @@ func TestRunManagerTaskRunMultipleSnapshotReconstructsWorktreeMetadataFromEvents
 			{Slug: "alpha", Status: taskMultiItemStatusCompleted, RunID: "child-alpha"},
 			{Slug: "beta", Status: taskMultiItemStatusCompleted, RunID: "child-beta"},
 		})
+		if before.ExecutionKind != apicore.ExecutionKindTaskMultiEnqueued {
+			t.Fatalf("ExecutionKind = %q, want %q", before.ExecutionKind, apicore.ExecutionKindTaskMultiEnqueued)
+		}
+		if before.NextCursor == nil || before.NextCursor.Sequence == 0 {
+			t.Fatalf("NextCursor = %#v, want parent journal high-water mark", before.NextCursor)
+		}
+		if len(before.LifecycleEvents) == 0 {
+			t.Fatal("LifecycleEvents is empty")
+		}
+		if got := before.LifecycleEvents[len(before.LifecycleEvents)-1].Seq; got != before.NextCursor.Sequence {
+			t.Fatalf("lifecycle high-water sequence = %d, cursor = %d", got, before.NextCursor.Sequence)
+		}
+		if before.Incomplete || len(before.IncompleteReasons) != 0 {
+			t.Fatalf("snapshot integrity = incomplete:%v reasons:%v", before.Incomplete, before.IncompleteReasons)
+		}
 		for idx := range before.Items {
 			if before.Items[idx].WorktreePath != "" ||
 				before.Items[idx].BaseBranch != "" ||
@@ -1532,8 +1699,24 @@ func TestRunManagerTaskRunMultipleSnapshotReconstructsWorktreeMetadataFromEvents
 			}
 		}
 
-		appendTaskMultiWorktreeEvent(t, parent.RunID, "alpha", "child-alpha", "/wt/01-alpha", "abc123")
-		appendTaskMultiWorktreeEvent(t, parent.RunID, "beta", "child-beta", "/wt/02-beta", "def456")
+		appendTaskMultiWorktreeEvent(
+			t,
+			env.manager,
+			parent.RunID,
+			"alpha",
+			"child-alpha",
+			"/wt/01-alpha",
+			"abc123",
+		)
+		appendTaskMultiWorktreeEvent(
+			t,
+			env.manager,
+			parent.RunID,
+			"beta",
+			"child-beta",
+			"/wt/02-beta",
+			"def456",
+		)
 
 		after, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
 		if err != nil {
@@ -1588,6 +1771,7 @@ func mustApplyTaskMultiEvent(
 
 func appendTaskMultiWorktreeEvent(
 	t *testing.T,
+	manager *RunManager,
 	parentRunID string,
 	slug string,
 	childRunID string,
@@ -1595,7 +1779,7 @@ func appendTaskMultiWorktreeEvent(
 	baseCommit string,
 ) {
 	t.Helper()
-	runDB, err := openRunDBForRunID(context.Background(), parentRunID)
+	runDB, err := manager.openRunDB(context.Background(), parentRunID)
 	if err != nil {
 		t.Fatalf("openRunDBForRunID(%q) error = %v", parentRunID, err)
 	}
@@ -1789,9 +1973,14 @@ func startTaskMultiParallelRun(t *testing.T, env *runManagerTestEnv, runID strin
 // item-queued event (carrying a worktree path) is recorded before the
 // child-started event for the same slug, matching the "emit metadata before child
 // launch" recovery invariant.
-func assertTaskMultiWorktreeMetadataBeforeChildStart(t *testing.T, parentRunID string, slug string) {
+func assertTaskMultiWorktreeMetadataBeforeChildStart(
+	t *testing.T,
+	manager *RunManager,
+	parentRunID string,
+	slug string,
+) {
 	t.Helper()
-	events := allRunEvents(t, parentRunID)
+	events := allRunEvents(t, manager, parentRunID)
 	metadataIdx := -1
 	startedIdx := -1
 	for idx := range events {
@@ -2128,7 +2317,7 @@ func TestRunManagerTaskRunMultipleParallelEmitsResolvedLimit(t *testing.T) {
 		waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
 			return row.Status == runStatusCompleted
 		})
-		events := allRunEvents(t, parent.RunID)
+		events := allRunEvents(t, env.manager, parent.RunID)
 		found := false
 		for idx := range events {
 			if events[idx].Kind != eventspkg.EventKindTaskRunMultipleStarted {
@@ -2173,7 +2362,7 @@ func TestRunManagerTaskRunMultipleParallelEmitsSingleItemQueuedPerChild(t *testi
 			return row.Status == runStatusCompleted
 		})
 		counts := map[string]int{}
-		for _, event := range allRunEvents(t, parent.RunID) {
+		for _, event := range allRunEvents(t, env.manager, parent.RunID) {
 			if event.Kind != eventspkg.EventKindTaskRunMultipleItemQueued {
 				continue
 			}
@@ -2332,7 +2521,10 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 				apicore.TaskRunRequest{
 					Workspace:        env.workspaceRoot,
 					PresentationMode: defaultPresentationMode,
-					RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-e2e"}`),
+					RuntimeOverrides: rawJSON(
+						t,
+						`{"run_id":"task-parallel-e2e","parallel_tasks":{"enabled":true}}`,
+					),
 				},
 			)
 			if err != nil {
@@ -2346,6 +2538,17 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			})
 			if parent.Status != runStatusCompleted {
 				t.Fatalf("parent status = %q error=%q, want completed", parent.Status, parent.ErrorText)
+			}
+			snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), run.RunID)
+			if err != nil {
+				t.Fatalf("RunMultipleSnapshot() error = %v", err)
+			}
+			if snapshot.ExecutionKind != apicore.ExecutionKindTaskParallel {
+				t.Fatalf(
+					"ExecutionKind = %q, want %q",
+					snapshot.ExecutionKind,
+					apicore.ExecutionKindTaskParallel,
+				)
 			}
 			manifestPath := filepath.Join(
 				model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
@@ -2396,7 +2599,7 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			if got := runGitOutput(t, env.workspaceRoot, "status", "--porcelain"); got != "" {
 				t.Fatalf("workspace status after parallel run = %q, want clean", got)
 			}
-			plans := taskParallelPlanPayloads(t, run.RunID)
+			plans := taskParallelPlanPayloads(t, env.manager, run.RunID)
 			if len(plans) != 1 {
 				t.Fatalf("plan_started events = %d, want 1: %#v", len(plans), plans)
 			}
@@ -2414,7 +2617,12 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			if !reflect.DeepEqual(plans[0].Tasks[3].Dependencies, []string{"task_02", "task_03"}) {
 				t.Fatalf("task_04 plan dependencies = %#v", plans[0].Tasks[3].Dependencies)
 			}
-			started := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelWaveStarted)
+			started := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelWaveStarted,
+			)
 			if len(started) != 5 {
 				t.Fatalf("wave_started events = %d, want 5: %#v", len(started), started)
 			}
@@ -2430,7 +2638,12 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					t.Fatalf("wave_started missing task %s: %#v", taskID, started)
 				}
 			}
-			taskStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelTaskStarted)
+			taskStarted := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelTaskStarted,
+			)
 			if len(taskStarted) != 5 {
 				t.Fatalf("task_started events = %d, want 5: %#v", len(taskStarted), taskStarted)
 			}
@@ -2438,6 +2651,7 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 			for _, payload := range taskStarted {
 				if payload.RunID != run.RunID || payload.WaveTotal != 4 || payload.Phase != "running" ||
 					payload.IntegrationBranch != plans[0].IntegrationBranch ||
+					payload.WorktreeStatus != taskMultiWorktreeStatusActive ||
 					strings.TrimSpace(payload.ChildRunID) == "" ||
 					!strings.HasPrefix(payload.WorktreePath, env.paths.WorktreesDir) {
 					t.Fatalf("task_started payload = %#v", payload)
@@ -2461,7 +2675,12 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					t.Fatalf("task_started missing task %s: %#v", taskID, taskStarted)
 				}
 			}
-			mergeStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelMergeStarted)
+			mergeStarted := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelMergeStarted,
+			)
 			if len(mergeStarted) != 4 {
 				t.Fatalf("merge_started events = %d, want 4: %#v", len(mergeStarted), mergeStarted)
 			}
@@ -2471,7 +2690,12 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					t.Fatalf("merge_started payload = %#v", payload)
 				}
 			}
-			merged := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelMerged)
+			merged := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelMerged,
+			)
 			if len(merged) != 5 {
 				t.Fatalf("merged events = %d, want 5: %#v", len(merged), merged)
 			}
@@ -2482,7 +2706,40 @@ func TestRunManagerStartTaskRunParallelConfigCompletesMultiWaveHappyPath(t *test
 					t.Fatalf("merged payload = %#v", payload)
 				}
 			}
-			completed := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelWaveCompleted)
+			taskSettlements := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelTaskCompleted,
+			)
+			if len(taskSettlements) != 5 {
+				t.Fatalf("task_completed events = %d, want 5: %#v", len(taskSettlements), taskSettlements)
+			}
+			for _, payload := range taskSettlements {
+				if payload.Status != string(runparallel.TaskOutcomeMerged) ||
+					payload.WorktreeStatus != taskMultiWorktreeStatusRemoved ||
+					strings.TrimSpace(payload.WorktreeReason) == "" {
+					t.Fatalf("task_completed payload = %#v", payload)
+				}
+				if _, err := os.Stat(payload.WorktreePath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("task worktree %s stat error = %v, want removed", payload.WorktreePath, err)
+				}
+			}
+			parallelSettlements := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelCompleted,
+			)
+			if len(parallelSettlements) != 1 || parallelSettlements[0].Status != "completed" {
+				t.Fatalf("parallel completed settlements = %#v, want exactly one", parallelSettlements)
+			}
+			completed := taskParallelPayloads(
+				t,
+				env.manager,
+				run.RunID,
+				eventspkg.EventKindTaskParallelWaveCompleted,
+			)
 			if len(completed) != 4 {
 				t.Fatalf("wave_completed events = %d, want 4: %#v", len(completed), completed)
 			}
@@ -2560,7 +2817,10 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 			apicore.TaskRunRequest{
 				Workspace:        env.workspaceRoot,
 				PresentationMode: defaultPresentationMode,
-				RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-recovered"}`),
+				RuntimeOverrides: rawJSON(
+					t,
+					`{"run_id":"task-parallel-recovered","parallel_tasks":{"enabled":true}}`,
+				),
 			},
 		)
 		if err != nil {
@@ -2578,7 +2838,12 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 		if got := attempts.count(3); got != 2 {
 			t.Fatalf("task 3 execute attempts = %d, want initial + recovery restart", got)
 		}
-		taskStarted := taskParallelPayloads(t, run.RunID, eventspkg.EventKindTaskParallelTaskStarted)
+		taskStarted := taskParallelPayloads(
+			t,
+			env.manager,
+			run.RunID,
+			eventspkg.EventKindTaskParallelTaskStarted,
+		)
 		if len(taskStarted) != 6 {
 			t.Fatalf(
 				"task_started events = %d, want five initial launches plus one restart: %#v",
@@ -2602,7 +2867,7 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 		if !reflect.DeepEqual(task3Children, wantTask3Children) {
 			t.Fatalf("task 3 child bindings = %#v, want %#v", task3Children, wantTask3Children)
 		}
-		recoveryRunIDs := recoveryRunIDsByKind(t, run.RunID)
+		recoveryRunIDs := recoveryRunIDsByKind(t, env.manager, run.RunID)
 		if got := recoveryRunIDs[eventspkg.EventKindRunRecoveryStarted]; got != wantTask3Children[0] {
 			t.Fatalf("recovery_started recovery_run_id = %q, want %q", got, wantTask3Children[0])
 		}
@@ -2638,15 +2903,13 @@ func TestRunManagerStartTaskRunParallelRecoveryRecoversFailingTask(t *testing.T)
 func TestParallelTaskChildFallbackOutcomeTreatsCrashAsRecoverable(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("peer disconnected before response")
-	artifacts, err := model.ResolveHomeRunArtifacts("child-crashed")
-	if err != nil {
-		t.Fatalf("ResolveHomeRunArtifacts() error = %v", err)
-	}
+	runsDir := t.TempDir()
+	artifacts := model.NewRunArtifactsForRunsDir(runsDir, "child-crashed")
 	outcome := parallelTaskChildFallbackOutcome(globaldb.Run{
 		RunID:     "child-crashed",
 		Status:    runStatusCrashed,
 		ErrorText: "transport disconnected",
-	}, runparallel.TaskID("task_06"), cause)
+	}, runparallel.TaskID("task_06"), cause, runsDir)
 	if outcome.Status != recovery.StatusFailed {
 		t.Fatalf("fallback status = %q, want %q", outcome.Status, recovery.StatusFailed)
 	}
@@ -2677,11 +2940,16 @@ func TestRunRecoveryOrchestratorRecoversCrashedParallelChildWithoutResult(t *tes
 		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
 	}
 	childRunID := "child-crashed-recovery"
-	seedTerminalRunForPurge(t, env.globalDB, workspace.ID, childRunID, runStatusCrashed, time.Now().UTC())
-	artifacts, err := model.ResolveHomeRunArtifacts(childRunID)
-	if err != nil {
-		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", childRunID, err)
-	}
+	seedTerminalRunForPurge(
+		t,
+		env.manager,
+		env.globalDB,
+		workspace.ID,
+		childRunID,
+		runStatusCrashed,
+		time.Now().UTC(),
+	)
+	artifacts := env.manager.runArtifacts(childRunID)
 	if _, err := os.Stat(artifacts.ResultPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("result fixture exists before recovery: stat error = %v, want not exist", err)
 	}
@@ -2811,7 +3079,10 @@ func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing
 			apicore.TaskRunRequest{
 				Workspace:        env.workspaceRoot,
 				PresentationMode: defaultPresentationMode,
-				RuntimeOverrides: rawJSON(t, `{"run_id":"task-parallel-unrecoverable"}`),
+				RuntimeOverrides: rawJSON(
+					t,
+					`{"run_id":"task-parallel-unrecoverable","parallel_tasks":{"enabled":true}}`,
+				),
 			},
 		)
 		if err != nil {
@@ -2820,8 +3091,11 @@ func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing
 		parent := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
 			return isTerminalRunStatus(row.Status)
 		})
-		if parent.Status != runStatusCompleted {
-			t.Fatalf("parent status = %q error=%q, want completed partial success", parent.Status, parent.ErrorText)
+		if parent.Status != runStatusFailed {
+			t.Fatalf("parent status = %q error=%q, want failed", parent.Status, parent.ErrorText)
+		}
+		if !strings.Contains(parent.ErrorText, "task_03=failed") {
+			t.Fatalf("parent error = %q, want unrecoverable task detail", parent.ErrorText)
 		}
 		if got := strategy.callCount(); got != 1 {
 			t.Fatalf("recovery strategy calls = %d, want 1", got)
@@ -2832,25 +3106,60 @@ func TestRunManagerStartTaskRunParallelRecoverySkipsBlockedDependents(t *testing
 		if got := attempts.count(5); got != 0 {
 			t.Fatalf("task 5 attempts = %d, want skipped", got)
 		}
-		for _, taskNumber := range []int{1, 2} {
-			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
-			if _, err := os.Stat(outputPath); err != nil {
-				t.Fatalf("output file %s missing after partial finalize: %v", outputPath, err)
-			}
-		}
-		for _, taskNumber := range []int{3, 4, 5} {
+		for _, taskNumber := range []int{1, 2, 3, 4, 5} {
 			outputPath := filepath.Join(env.workspaceRoot, fmt.Sprintf("task-%02d-output.txt", taskNumber))
 			if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("output file %s stat error = %v, want not exist", outputPath, err)
 			}
 		}
-		logSubjects := strings.Split(
-			runGitOutput(t, env.workspaceRoot, "log", "--reverse", "--format=%s", baseHead+"..HEAD"),
-			"\n",
+		if got := runGitOutput(t, env.workspaceRoot, "rev-parse", "HEAD"); got != baseHead {
+			t.Fatalf("workspace head = %q, want unchanged %q after failed parallel run", got, baseHead)
+		}
+		settlements := taskParallelPayloads(
+			t,
+			env.manager,
+			run.RunID,
+			eventspkg.EventKindTaskParallelTaskCompleted,
 		)
-		wantSubjects := []string{"task 01: Task 1", "task 02: Task 2"}
-		if !reflect.DeepEqual(logSubjects, wantSubjects) {
-			t.Fatalf("partial squash commit subjects = %#v, want %#v", logSubjects, wantSubjects)
+		if len(settlements) != 5 {
+			t.Fatalf("task settlements = %d, want five: %#v", len(settlements), settlements)
+		}
+		statuses := make(map[string]string, len(settlements))
+		for _, settlement := range settlements {
+			statuses[settlement.TaskID] = settlement.Status
+			switch settlement.TaskID {
+			case "task_01", "task_02":
+				if settlement.WorktreeStatus != taskMultiWorktreeStatusPreserved ||
+					strings.TrimSpace(settlement.WorktreeReason) == "" {
+					t.Fatalf("successful partial task cleanup = %#v, want preserved with reason", settlement)
+				}
+				if _, err := os.Stat(settlement.WorktreePath); err != nil {
+					t.Fatalf("preserved worktree %s missing: %v", settlement.WorktreePath, err)
+				}
+			case "task_03":
+				if settlement.WorktreeStatus != taskMultiWorktreeStatusRemoved {
+					t.Fatalf("failed no-change task cleanup = %#v, want removed", settlement)
+				}
+			}
+		}
+		wantStatuses := map[string]string{
+			"task_01": string(runparallel.TaskOutcomeMerged),
+			"task_02": string(runparallel.TaskOutcomeMerged),
+			"task_03": string(runparallel.TaskOutcomeFailed),
+			"task_04": string(runparallel.TaskOutcomeSkipped),
+			"task_05": string(runparallel.TaskOutcomeSkipped),
+		}
+		if !reflect.DeepEqual(statuses, wantStatuses) {
+			t.Fatalf("task settlement statuses = %#v, want %#v", statuses, wantStatuses)
+		}
+		failedSettlements := taskParallelPayloads(
+			t,
+			env.manager,
+			run.RunID,
+			eventspkg.EventKindTaskParallelFailed,
+		)
+		if len(failedSettlements) != 1 {
+			t.Fatalf("parallel failed settlements = %d, want one", len(failedSettlements))
 		}
 		if _, err := env.globalDB.GetRun(context.Background(), "child-daemon-workflow-task-04"); err == nil {
 			t.Fatal("task 4 child run exists, want skipped before launch")
@@ -2934,6 +3243,70 @@ func TestResolveDaemonParallelTasksConfigMergesRuntimeOverrides(t *testing.T) {
 			t.Fatalf("merged resolver = %#v", resolver)
 		}
 	})
+}
+
+func TestRunManagerStartTaskRunRequiresExplicitParallelIntent(t *testing.T) {
+	t.Parallel()
+
+	enabled := true
+	tests := []struct {
+		name      string
+		overrides string
+	}{
+		{
+			name:      "Should not authorize worktrees from project config alone",
+			overrides: `{"run_id":"task-config-only"}`,
+		},
+		{
+			name:      "Should preserve an explicit disabled override",
+			overrides: `{"run_id":"task-explicit-disabled","parallel_tasks":{"enabled":false}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := newRunManagerTestEnv(t, runManagerTestDeps{
+				loadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+					return workspacecfg.ProjectConfig{
+						Tasks: workspacecfg.TasksConfig{
+							Run: workspacecfg.TaskRunConfig{
+								Parallel: workspacecfg.ParallelTasksConfig{Enabled: &enabled},
+							},
+						},
+					}, nil
+				},
+				prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+					return &model.SolvePreparation{}, nil
+				},
+			})
+			env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Task 1"))
+
+			run, err := env.manager.StartTaskRun(
+				context.Background(),
+				env.workspaceRoot,
+				env.workflowSlug,
+				apicore.TaskRunRequest{
+					Workspace:        env.workspaceRoot,
+					PresentationMode: defaultPresentationMode,
+					RuntimeOverrides: rawJSON(t, tt.overrides),
+				},
+			)
+			if err != nil {
+				t.Fatalf("StartTaskRun() error = %v", err)
+			}
+			if run.Mode != runModeTask {
+				t.Fatalf("run mode = %q, want %q", run.Mode, runModeTask)
+			}
+			terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+				return isTerminalRunStatus(row.Status)
+			})
+			if terminal.Status != runStatusCompleted {
+				t.Fatalf("run status = %q error=%q, want completed", terminal.Status, terminal.ErrorText)
+			}
+		})
+	}
 }
 
 func TestBuildDaemonParallelTaskPlanRejectsDuplicateManifestNodes(t *testing.T) {
@@ -3296,7 +3669,7 @@ func writeDaemonTaskResultFixture(
 	if cfg == nil {
 		return errors.New("daemon task result fixture: runtime config is required")
 	}
-	artifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+	artifacts, err := model.ResolveRuntimeRunArtifacts(cfg)
 	if err != nil {
 		return err
 	}
@@ -3359,12 +3732,13 @@ func writeDaemonTaskResultFixture(
 
 func taskParallelPayloads(
 	t *testing.T,
+	manager *RunManager,
 	runID string,
 	kind eventspkg.EventKind,
 ) []kinds.TaskParallelPayload {
 	t.Helper()
 	payloads := make([]kinds.TaskParallelPayload, 0)
-	for _, event := range allRunEvents(t, runID) {
+	for _, event := range allRunEvents(t, manager, runID) {
 		if event.Kind != kind {
 			continue
 		}
@@ -3377,10 +3751,35 @@ func taskParallelPayloads(
 	return payloads
 }
 
-func recoveryRunIDsByKind(t *testing.T, parentRunID string) map[eventspkg.EventKind]string {
+func requireSingleTaskMultiQueueSettlement(
+	t *testing.T,
+	manager *RunManager,
+	runID string,
+	want eventspkg.EventKind,
+) {
+	t.Helper()
+	settlements := make([]eventspkg.EventKind, 0, 1)
+	for _, event := range allRunEvents(t, manager, runID) {
+		switch event.Kind {
+		case eventspkg.EventKindTaskRunMultipleQueueCompleted,
+			eventspkg.EventKindTaskRunMultipleQueueCanceled,
+			eventspkg.EventKindTaskRunMultipleQueueFailed:
+			settlements = append(settlements, event.Kind)
+		}
+	}
+	if !reflect.DeepEqual(settlements, []eventspkg.EventKind{want}) {
+		t.Fatalf("queue settlements = %#v, want exactly [%s]", settlements, want)
+	}
+}
+
+func recoveryRunIDsByKind(
+	t *testing.T,
+	manager *RunManager,
+	parentRunID string,
+) map[eventspkg.EventKind]string {
 	t.Helper()
 	result := make(map[eventspkg.EventKind]string)
-	for _, event := range allRunEvents(t, parentRunID) {
+	for _, event := range allRunEvents(t, manager, parentRunID) {
 		switch event.Kind {
 		case eventspkg.EventKindRunRecoveryStarted:
 			var payload kinds.RunRecoveryStartedPayload
@@ -3411,10 +3810,14 @@ func recoveryRunIDsByKind(t *testing.T, parentRunID string) map[eventspkg.EventK
 	return result
 }
 
-func taskParallelPlanPayloads(t *testing.T, runID string) []kinds.TaskParallelPlanPayload {
+func taskParallelPlanPayloads(
+	t *testing.T,
+	manager *RunManager,
+	runID string,
+) []kinds.TaskParallelPlanPayload {
 	t.Helper()
 	payloads := make([]kinds.TaskParallelPlanPayload, 0)
-	for _, event := range allRunEvents(t, runID) {
+	for _, event := range allRunEvents(t, manager, runID) {
 		if event.Kind != eventspkg.EventKindTaskParallelPlanStarted {
 			continue
 		}

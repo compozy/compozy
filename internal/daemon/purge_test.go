@@ -44,7 +44,7 @@ func TestRunManagerPurgeRemovesTerminalRunsOldestFirstWithoutTouchingActiveRuns(
 		{runID: "run-old-age", status: "failed", endedAt: now.AddDate(0, 0, -20)},
 		{runID: "run-recent", status: "crashed", endedAt: now.AddDate(0, 0, -1)},
 	} {
-		seedTerminalRunForPurge(t, env.globalDB, workspace.ID, item.runID, item.status, item.endedAt)
+		seedTerminalRunForPurge(t, env.manager, env.globalDB, workspace.ID, item.runID, item.status, item.endedAt)
 	}
 
 	activeRun := env.startTaskRun(t, "run-active", nil)
@@ -66,10 +66,7 @@ func TestRunManagerPurgeRemovesTerminalRunsOldestFirstWithoutTouchingActiveRuns(
 		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
 			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
 		}
-		runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
-		}
+		runArtifacts := env.manager.runArtifacts(runID)
 		if _, err := os.Stat(runArtifacts.RunDir); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", runArtifacts.RunDir, err)
 		}
@@ -83,10 +80,7 @@ func TestRunManagerPurgeRemovesTerminalRunsOldestFirstWithoutTouchingActiveRuns(
 		t.Fatalf("active row status = %q, want running", activeRow.Status)
 	}
 
-	runArtifacts, err := model.ResolveHomeRunArtifacts(activeRun.RunID)
-	if err != nil {
-		t.Fatalf("ResolveHomeRunArtifacts(active) error = %v", err)
-	}
+	runArtifacts := env.manager.runArtifacts(activeRun.RunID)
 	if _, err := os.Stat(runArtifacts.RunDir); err != nil {
 		t.Fatalf("Stat(active run dir) error = %v", err)
 	}
@@ -107,6 +101,7 @@ func TestPurgeTerminalRunsDelegatesToManagerPurge(t *testing.T) {
 	runID := "purge-wrapper-old"
 	seedTerminalRunForPurge(
 		t,
+		env.manager,
 		env.globalDB,
 		workspace.ID,
 		runID,
@@ -117,12 +112,37 @@ func TestPurgeTerminalRunsDelegatesToManagerPurge(t *testing.T) {
 	result, err := PurgeTerminalRuns(context.Background(), env.globalDB, RunLifecycleSettings{
 		KeepTerminalDays: 0,
 		KeepMax:          0,
+		RunsDir:          env.manager.homePaths.RunsDir,
 	})
 	if err != nil {
 		t.Fatalf("PurgeTerminalRuns() error = %v", err)
 	}
 	if got, want := result.PurgedRunIDs, []string{runID}; !equalStrings(got, want) {
 		t.Fatalf("purged run ids = %v, want %v", got, want)
+	}
+	if _, err := os.Stat(env.manager.runArtifacts(runID).RunDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("purged run dir stat error = %v, want not exist", err)
+	}
+}
+
+func TestPurgeTerminalRunsRejectsUnsafeRunsDirectory(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		runsDir string
+		want    string
+	}{
+		{name: "missing", want: "captured runs directory is required"},
+		{name: "relative", runsDir: "relative/runs", want: "must be absolute"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := PurgeTerminalRuns(context.Background(), nil, RunLifecycleSettings{RunsDir: tc.runsDir})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("PurgeTerminalRuns() error = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 
@@ -140,6 +160,7 @@ func TestRunManagerPurgeRemovesTerminalRunTaskWorktrees(t *testing.T) {
 		runID := "purge-task-worktrees-clean"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -147,15 +168,21 @@ func TestRunManagerPurgeRemovesTerminalRunTaskWorktrees(t *testing.T) {
 			time.Now().UTC().Add(-time.Hour),
 		)
 		allocation := allocatePurgeTaskWorktree(t, env, runID, "alpha", 1)
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildCompleted, kinds.TaskRunMultiplePayload{
-			RunID:          runID,
-			Slug:           "alpha",
-			Index:          0,
-			WorktreePath:   allocation.Path,
-			BaseBranch:     allocation.BaseBranch,
-			BaseCommit:     allocation.BaseCommit,
-			WorktreeStatus: allocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "alpha",
+				Index:          0,
+				WorktreePath:   allocation.Path,
+				BaseBranch:     allocation.BaseBranch,
+				BaseCommit:     allocation.BaseCommit,
+				WorktreeStatus: allocation.WorktreeStatus,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -191,6 +218,7 @@ func TestRunManagerPurgeRemovesCrashedParallelTaskWorktree(t *testing.T) {
 		runID := "purge-crashed-parallel-task"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -198,12 +226,18 @@ func TestRunManagerPurgeRemovesCrashedParallelTaskWorktree(t *testing.T) {
 			time.Now().UTC().Add(-time.Hour),
 		)
 		allocation := allocatePurgeTaskWorktree(t, env, runID, "parallel", 1)
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskParallelTaskStarted, kinds.TaskParallelPayload{
-			RunID:        runID,
-			TaskID:       "task_01",
-			ChildRunID:   "child-task-01",
-			WorktreePath: allocation.Path,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{
+				RunID:        runID,
+				TaskID:       "task_01",
+				ChildRunID:   "child-task-01",
+				WorktreePath: allocation.Path,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -236,6 +270,7 @@ func TestRunManagerPurgeRemovesTerminalRunIntegrationWorktree(t *testing.T) {
 		runID := "purge-parallel-integration"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -260,11 +295,17 @@ func TestRunManagerPurgeRemovesTerminalRunIntegrationWorktree(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CreateIntegrationBranch() error = %v", err)
 		}
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskParallelTaskStarted, kinds.TaskParallelPayload{
-			RunID:             runID,
-			IntegrationBranch: integrationBranch,
-			Phase:             "task_started",
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskParallelTaskStarted,
+			kinds.TaskParallelPayload{
+				RunID:             runID,
+				IntegrationBranch: integrationBranch,
+				Phase:             "task_started",
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -313,6 +354,7 @@ func TestRunManagerPurgePreservesDirtyTaskWorktreeAndMetadata(t *testing.T) {
 		runID := "purge-dirty-worktree"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -321,14 +363,20 @@ func TestRunManagerPurgePreservesDirtyTaskWorktreeAndMetadata(t *testing.T) {
 		)
 		allocation := allocatePurgeTaskWorktree(t, env, runID, "dirty", 1)
 		writeFileForTest(t, filepath.Join(allocation.Path, "dirty.txt"), "dirty\n")
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildFailed, kinds.TaskRunMultiplePayload{
-			RunID:          runID,
-			Slug:           "dirty",
-			WorktreePath:   allocation.Path,
-			BaseBranch:     allocation.BaseBranch,
-			BaseCommit:     allocation.BaseCommit,
-			WorktreeStatus: allocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildFailed,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "dirty",
+				WorktreePath:   allocation.Path,
+				BaseBranch:     allocation.BaseBranch,
+				BaseCommit:     allocation.BaseCommit,
+				WorktreeStatus: allocation.WorktreeStatus,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -343,10 +391,7 @@ func TestRunManagerPurgePreservesDirtyTaskWorktreeAndMetadata(t *testing.T) {
 		if _, err := env.globalDB.GetRun(context.Background(), runID); err != nil {
 			t.Fatalf("GetRun(%q) error = %v, want metadata preserved", runID, err)
 		}
-		runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
-		}
+		runArtifacts := env.manager.runArtifacts(runID)
 		assertPathPresent(t, runArtifacts.RunDir)
 	})
 }
@@ -365,6 +410,7 @@ func TestRunManagerPurgePreservesCommittedTaskWorktreeAndMetadata(t *testing.T) 
 		runID := "purge-committed-worktree"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -375,14 +421,20 @@ func TestRunManagerPurgePreservesCommittedTaskWorktreeAndMetadata(t *testing.T) 
 		writeFileForTest(t, filepath.Join(allocation.Path, "task-output.txt"), "important output\n")
 		runGitOutput(t, allocation.Path, "add", "-A")
 		runGitOutput(t, allocation.Path, "commit", "-q", "-m", "task output")
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildCompleted, kinds.TaskRunMultiplePayload{
-			RunID:          runID,
-			Slug:           "committed",
-			WorktreePath:   allocation.Path,
-			BaseBranch:     allocation.BaseBranch,
-			BaseCommit:     allocation.BaseCommit,
-			WorktreeStatus: allocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "committed",
+				WorktreePath:   allocation.Path,
+				BaseBranch:     allocation.BaseBranch,
+				BaseCommit:     allocation.BaseCommit,
+				WorktreeStatus: allocation.WorktreeStatus,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -399,10 +451,7 @@ func TestRunManagerPurgePreservesCommittedTaskWorktreeAndMetadata(t *testing.T) 
 		if _, err := env.globalDB.GetRun(context.Background(), runID); err != nil {
 			t.Fatalf("GetRun(%q) error = %v, want metadata preserved", runID, err)
 		}
-		runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
-		}
+		runArtifacts := env.manager.runArtifacts(runID)
 		assertPathPresent(t, runArtifacts.RunDir)
 	})
 }
@@ -421,6 +470,7 @@ func TestRunManagerPurgePreflightsAllTaskWorktreesBeforeRemovingAny(t *testing.T
 		runID := "purge-preflight-siblings"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -428,24 +478,36 @@ func TestRunManagerPurgePreflightsAllTaskWorktreesBeforeRemovingAny(t *testing.T
 			time.Now().UTC().Add(-time.Hour),
 		)
 		cleanAllocation := allocatePurgeTaskWorktree(t, env, runID, "clean", 1)
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildCompleted, kinds.TaskRunMultiplePayload{
-			RunID:          runID,
-			Slug:           "clean",
-			WorktreePath:   cleanAllocation.Path,
-			BaseBranch:     cleanAllocation.BaseBranch,
-			BaseCommit:     cleanAllocation.BaseCommit,
-			WorktreeStatus: cleanAllocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "clean",
+				WorktreePath:   cleanAllocation.Path,
+				BaseBranch:     cleanAllocation.BaseBranch,
+				BaseCommit:     cleanAllocation.BaseCommit,
+				WorktreeStatus: cleanAllocation.WorktreeStatus,
+			},
+		)
 		dirtyAllocation := allocatePurgeTaskWorktree(t, env, runID, "dirty", 2)
 		writeFileForTest(t, filepath.Join(dirtyAllocation.Path, "dirty.txt"), "dirty\n")
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildFailed, kinds.TaskRunMultiplePayload{
-			RunID:          runID,
-			Slug:           "dirty",
-			WorktreePath:   dirtyAllocation.Path,
-			BaseBranch:     dirtyAllocation.BaseBranch,
-			BaseCommit:     dirtyAllocation.BaseCommit,
-			WorktreeStatus: dirtyAllocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildFailed,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "dirty",
+				WorktreePath:   dirtyAllocation.Path,
+				BaseBranch:     dirtyAllocation.BaseBranch,
+				BaseCommit:     dirtyAllocation.BaseCommit,
+				WorktreeStatus: dirtyAllocation.WorktreeStatus,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -463,10 +525,7 @@ func TestRunManagerPurgePreflightsAllTaskWorktreesBeforeRemovingAny(t *testing.T
 		if _, err := env.globalDB.GetRun(context.Background(), runID); err != nil {
 			t.Fatalf("GetRun(%q) error = %v, want metadata preserved", runID, err)
 		}
-		runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
-		}
+		runArtifacts := env.manager.runArtifacts(runID)
 		assertPathPresent(t, runArtifacts.RunDir)
 	})
 }
@@ -502,6 +561,7 @@ func TestRunManagerPurgePreservesWorktreeHostingActiveNestedRun(t *testing.T) {
 		runID := "purge-parent-with-live-nested"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -509,14 +569,20 @@ func TestRunManagerPurgePreservesWorktreeHostingActiveNestedRun(t *testing.T) {
 			time.Now().UTC().Add(-time.Hour),
 		)
 		allocation := allocatePurgeTaskWorktree(t, env, runID, "nested", 1)
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildCompleted, kinds.TaskRunMultiplePayload{
-			RunID:          runID,
-			Slug:           "nested",
-			WorktreePath:   allocation.Path,
-			BaseBranch:     allocation.BaseBranch,
-			BaseCommit:     allocation.BaseCommit,
-			WorktreeStatus: allocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "nested",
+				WorktreePath:   allocation.Path,
+				BaseBranch:     allocation.BaseBranch,
+				BaseCommit:     allocation.BaseCommit,
+				WorktreeStatus: allocation.WorktreeStatus,
+			},
+		)
 
 		nestedRun, err := env.manager.StartTaskRun(
 			context.Background(),
@@ -567,12 +633,29 @@ func TestRunManagerPurgeCommitsEarlierRunsBeforeLaterDirtyWorktreeFails(t *testi
 		now := time.Now().UTC()
 		cleanRunID := "purge-clean-before-dirty"
 		dirtyRunID := "purge-dirty-after-clean"
-		seedTerminalRunForPurge(t, env.globalDB, workspace.ID, cleanRunID, runStatusCompleted, now.Add(-2*time.Hour))
-		seedTerminalRunForPurge(t, env.globalDB, workspace.ID, dirtyRunID, runStatusFailed, now.Add(-time.Hour))
+		seedTerminalRunForPurge(
+			t,
+			env.manager,
+			env.globalDB,
+			workspace.ID,
+			cleanRunID,
+			runStatusCompleted,
+			now.Add(-2*time.Hour),
+		)
+		seedTerminalRunForPurge(
+			t,
+			env.manager,
+			env.globalDB,
+			workspace.ID,
+			dirtyRunID,
+			runStatusFailed,
+			now.Add(-time.Hour),
+		)
 
 		cleanAllocation := allocatePurgeTaskWorktree(t, env, cleanRunID, "clean", 1)
 		appendPurgeRunEvent(
 			t,
+			env.manager,
 			cleanRunID,
 			eventspkg.EventKindTaskRunMultipleChildCompleted,
 			kinds.TaskRunMultiplePayload{
@@ -586,14 +669,20 @@ func TestRunManagerPurgeCommitsEarlierRunsBeforeLaterDirtyWorktreeFails(t *testi
 		)
 		dirtyAllocation := allocatePurgeTaskWorktree(t, env, dirtyRunID, "dirty", 1)
 		writeFileForTest(t, filepath.Join(dirtyAllocation.Path, "dirty.txt"), "dirty\n")
-		appendPurgeRunEvent(t, dirtyRunID, eventspkg.EventKindTaskRunMultipleChildFailed, kinds.TaskRunMultiplePayload{
-			RunID:          dirtyRunID,
-			Slug:           "dirty",
-			WorktreePath:   dirtyAllocation.Path,
-			BaseBranch:     dirtyAllocation.BaseBranch,
-			BaseCommit:     dirtyAllocation.BaseCommit,
-			WorktreeStatus: dirtyAllocation.WorktreeStatus,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			dirtyRunID,
+			eventspkg.EventKindTaskRunMultipleChildFailed,
+			kinds.TaskRunMultiplePayload{
+				RunID:          dirtyRunID,
+				Slug:           "dirty",
+				WorktreePath:   dirtyAllocation.Path,
+				BaseBranch:     dirtyAllocation.BaseBranch,
+				BaseCommit:     dirtyAllocation.BaseCommit,
+				WorktreeStatus: dirtyAllocation.WorktreeStatus,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -612,14 +701,8 @@ func TestRunManagerPurgeCommitsEarlierRunsBeforeLaterDirtyWorktreeFails(t *testi
 		if _, err := env.globalDB.GetRun(context.Background(), dirtyRunID); err != nil {
 			t.Fatalf("GetRun(%q) error = %v, want preserved metadata", dirtyRunID, err)
 		}
-		cleanArtifacts, err := model.ResolveHomeRunArtifacts(cleanRunID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", cleanRunID, err)
-		}
-		dirtyArtifacts, err := model.ResolveHomeRunArtifacts(dirtyRunID)
-		if err != nil {
-			t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", dirtyRunID, err)
-		}
+		cleanArtifacts := env.manager.runArtifacts(cleanRunID)
+		dirtyArtifacts := env.manager.runArtifacts(dirtyRunID)
 		assertPathMissing(t, cleanAllocation.Path)
 		assertPathMissing(t, cleanArtifacts.RunDir)
 		assertPathPresent(t, dirtyAllocation.Path)
@@ -642,6 +725,7 @@ func TestRunManagerPurgeSkipsDeletedWorkspaceRootAndContinues(t *testing.T) {
 		missingRunID := "purge-missing-workspace-root"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			missingWorkspace.ID,
 			missingRunID,
@@ -651,6 +735,7 @@ func TestRunManagerPurgeSkipsDeletedWorkspaceRootAndContinues(t *testing.T) {
 		missingAllocation := allocatePurgeTaskWorktree(t, env, missingRunID, "missing", 1)
 		appendPurgeRunEvent(
 			t,
+			env.manager,
 			missingRunID,
 			eventspkg.EventKindTaskRunMultipleChildCompleted,
 			kinds.TaskRunMultiplePayload{
@@ -678,6 +763,7 @@ func TestRunManagerPurgeSkipsDeletedWorkspaceRootAndContinues(t *testing.T) {
 		otherRunID := "purge-other-workspace-root"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			otherWorkspace.ID,
 			otherRunID,
@@ -687,6 +773,7 @@ func TestRunManagerPurgeSkipsDeletedWorkspaceRootAndContinues(t *testing.T) {
 		otherAllocation := allocatePurgeTaskWorktreeForRoot(t, env, otherRoot, otherRunID, "other", 1)
 		appendPurgeRunEvent(
 			t,
+			env.manager,
 			otherRunID,
 			eventspkg.EventKindTaskRunMultipleChildCompleted,
 			kinds.TaskRunMultiplePayload{
@@ -726,8 +813,8 @@ func TestRunManagerPurgeSkipsDeletedWorkspaceRootAndContinues(t *testing.T) {
 	})
 }
 
-func TestRunManagerPurgeIgnoresWorktreePathsOutsideOwnedRoot(t *testing.T) {
-	t.Run("Should ignore worktree paths outside owned root", func(t *testing.T) {
+func TestRunManagerPurgeDefersWorktreePathsOutsideOwnedRoot(t *testing.T) {
+	t.Run("Should preserve run metadata when a worktree belongs to another home root", func(t *testing.T) {
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
 		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
@@ -737,6 +824,7 @@ func TestRunManagerPurgeIgnoresWorktreePathsOutsideOwnedRoot(t *testing.T) {
 		runID := "purge-unsafe-worktree-path"
 		seedTerminalRunForPurge(
 			t,
+			env.manager,
 			env.globalDB,
 			workspace.ID,
 			runID,
@@ -747,11 +835,17 @@ func TestRunManagerPurgeIgnoresWorktreePathsOutsideOwnedRoot(t *testing.T) {
 		if err := os.MkdirAll(outsidePath, 0o755); err != nil {
 			t.Fatalf("mkdir outside path: %v", err)
 		}
-		appendPurgeRunEvent(t, runID, eventspkg.EventKindTaskRunMultipleChildCompleted, kinds.TaskRunMultiplePayload{
-			RunID:        runID,
-			Slug:         "unsafe",
-			WorktreePath: outsidePath,
-		})
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				RunID:        runID,
+				Slug:         "unsafe",
+				WorktreePath: outsidePath,
+			},
+		)
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
@@ -760,15 +854,15 @@ func TestRunManagerPurgeIgnoresWorktreePathsOutsideOwnedRoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Purge() error = %v", err)
 		}
-		if got, want := result.PurgedRunIDs, []string{runID}; !equalStrings(got, want) {
+		if got, want := result.PurgedRunIDs, []string{}; !equalStrings(got, want) {
 			t.Fatalf("purged run ids = %v, want %v", got, want)
 		}
 		if len(result.PurgedWorktreePaths) != 0 {
 			t.Fatalf("purged worktree paths = %v, want none", result.PurgedWorktreePaths)
 		}
 		assertPathPresent(t, outsidePath)
-		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
-			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+		if _, err := env.globalDB.GetRun(context.Background(), runID); err != nil {
+			t.Fatalf("GetRun(%q) error = %v, want deferred run metadata preserved", runID, err)
 		}
 	})
 }
@@ -854,6 +948,7 @@ func assertErrorContains(t *testing.T, err error, want string) {
 
 func seedTerminalRunForPurge(
 	t *testing.T,
+	manager *RunManager,
 	db *globaldb.GlobalDB,
 	workspaceID string,
 	runID string,
@@ -862,10 +957,7 @@ func seedTerminalRunForPurge(
 ) {
 	t.Helper()
 
-	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-	if err != nil {
-		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
-	}
+	runArtifacts := manager.runArtifacts(runID)
 	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
 		t.Fatalf("mkdir run dir %q: %v", runArtifacts.RunDir, err)
 	}
@@ -936,10 +1028,16 @@ func validPurgeTaskMarkdown() string {
 	}, "\n")
 }
 
-func appendPurgeRunEvent(t *testing.T, runID string, kind eventspkg.EventKind, payload any) {
+func appendPurgeRunEvent(
+	t *testing.T,
+	manager *RunManager,
+	runID string,
+	kind eventspkg.EventKind,
+	payload any,
+) {
 	t.Helper()
 
-	runDB, err := openRunDBForRunID(context.Background(), runID)
+	runDB, err := manager.openRunDB(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("openRunDBForRunID(%q) error = %v", runID, err)
 	}

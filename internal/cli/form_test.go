@@ -733,7 +733,7 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 		{value: "ultra", label: "Ultra"},
 	} {
 		tc := tc
-		t.Run("reasoning effort field includes "+tc.value, func(t *testing.T) {
+		t.Run("Should include "+tc.label+" in reasoning effort field", func(t *testing.T) {
 			t.Parallel()
 
 			selected := tc.value

@@ -625,6 +625,8 @@ func (m *taskRunWizardModel) handleWorkflowOrderKey(key string, originalKey stri
 		m.moveSelectedWorkflow(-1)
 	case "d":
 		m.moveSelectedWorkflow(1)
+	case " ", taskRunWizardKeySpace:
+		m.removeSelectedWorkflowAtCursor()
 	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
 		return m, m.nextStep()
 	}
@@ -662,13 +664,22 @@ func (m *taskRunWizardModel) handleWorkflowListKey(
 		}
 	case "a":
 		m.toggleAllFilteredWorkflows(filtered)
-	case taskRunWizardKeyEnter, taskRunWizardKeyTab:
+	case taskRunWizardKeyEnter:
+		return m, m.confirmHighlightedWorkflow(filtered)
+	case taskRunWizardKeyTab:
 		return m, m.nextStep()
 	}
 	if originalKey == "G" {
 		m.workflowCursor = max(len(filtered)-1, 0)
 	}
 	return m, nil
+}
+
+func (m *taskRunWizardModel) confirmHighlightedWorkflow(filtered []string) tea.Cmd {
+	if len(filtered) > 0 && !slices.Contains(m.inputs.selectedWorkflows, filtered[m.workflowCursor]) {
+		m.toggleWorkflow(filtered[m.workflowCursor])
+	}
+	return m.nextStep()
 }
 
 func (m *taskRunWizardModel) updateManualWorkflowInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -1442,6 +1453,15 @@ func (m *taskRunWizardModel) moveSelectedWorkflow(delta int) {
 	m.orderCursor = to
 }
 
+func (m *taskRunWizardModel) removeSelectedWorkflowAtCursor() {
+	if len(m.inputs.selectedWorkflows) == 0 {
+		return
+	}
+	index := min(max(m.orderCursor, 0), len(m.inputs.selectedWorkflows)-1)
+	m.inputs.selectedWorkflows = slices.Delete(m.inputs.selectedWorkflows, index, index+1)
+	m.clampOrderCursor()
+}
+
 func (m *taskRunWizardModel) cycleRuntimeChoice(delta int) {
 	switch m.runtimeCursor {
 	case taskRunWizardFieldIDE:
@@ -1467,6 +1487,9 @@ func (m *taskRunWizardModel) cycleExecutionChoice(delta int) {
 			m.inputs.parallelResolverReasoning,
 			delta,
 		)
+	case taskRunWizardFieldParallelWorkflows:
+		m.inputs.parallelWorkflows = !m.inputs.parallelWorkflows
+		m.clampExecutionCursor()
 	}
 }
 
@@ -1883,8 +1906,13 @@ func (b *execBodyBuilder) runBehaviorSection() {
 func (b *execBodyBuilder) parallelismSection() {
 	m := b.m
 	b.header("PARALLELISM")
-	b.field(taskRunWizardFieldParallelTasks, "Run Parallel Tasks", wizardBoolValue(m.inputs.parallelTasks),
-		"Run a workflow's pending tasks in dependency-aware waves.")
+	b.field(
+		taskRunWizardFieldParallelTasks,
+		"Run Parallel Tasks",
+		wizardBoolValue(m.inputs.parallelTasks),
+		"Uses one git worktree per task plus an integration branch; "+
+			"safe cleanup removes trees or preserves them with a reason.",
+	)
 	if m.inputs.parallelTasks {
 		b.nested(taskRunWizardFieldParallelResolverIDE, "├", "Conflict resolver IDE",
 			b.selectValue(m.ideOptions, m.inputs.parallelResolverIDE, taskRunWizardFieldParallelResolverIDE),
@@ -1899,9 +1927,9 @@ func (b *execBodyBuilder) parallelismSection() {
 			), "")
 	}
 	if m.multipleWorkflowsSelected() {
-		b.field(taskRunWizardFieldParallelWorkflows, "Run Parallel Workflows",
-			wizardBoolValue(m.inputs.parallelWorkflows),
-			"Run the selected workflows at once in isolated git worktrees.")
+		b.field(taskRunWizardFieldParallelWorkflows, "Multi-workflow mode",
+			wizardMultiWorkflowModeValue(m.inputs.parallelWorkflows),
+			"Choose serial queue without worktrees or parallel workflows in isolated git worktrees.")
 		if m.inputs.parallelWorkflows {
 			b.nested(taskRunWizardFieldParallelWorkflowLimit, "└", "Max concurrent",
 				m.textInputs.parallelWorkflowLimit.View(),
@@ -2097,6 +2125,13 @@ func (m *taskRunWizardModel) renderReviewStep(width int) string {
 		wizardSummaryRow("Timeout", taskRunWizardBlank(m.inputs.timeout), width),
 		wizardSummaryRow("Flags", m.reviewFlagsValue(), width),
 	)
+	if m.multipleWorkflowsSelected() {
+		lines = append(lines, wizardSummaryRow(
+			"Multi-workflow mode",
+			wizardMultiWorkflowModeValue(m.inputs.parallelWorkflows),
+			width,
+		))
+	}
 	if m.inputs.parallelTasks {
 		lines = append(
 			lines,
@@ -2115,7 +2150,6 @@ func (m *taskRunWizardModel) renderReviewStep(width int) string {
 	}
 	if m.inputs.parallelWorkflows && m.multipleWorkflowsSelected() {
 		lines = append(lines,
-			wizardSummaryRow("Parallel workflows", "on", width),
 			wizardSummaryRow("Max concurrent", m.reviewParallelWorkflowLimit(), width),
 		)
 	}

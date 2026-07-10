@@ -34,6 +34,14 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup,
 	)
 	t.Run(
+		"Should preserve an unsafe task worktree without failing successful execution",
+		runParallelExecutionOrchestratorPreservesUnsafeTaskCleanup,
+	)
+	t.Run(
+		"Should classify an integration cleanup failure as blocking",
+		runParallelExecutionOrchestratorFailsOnIntegrationCleanupError,
+	)
+	t.Run(
 		"Should allocate the next wave from the post-merge integration head",
 		runParallelExecutionOrchestratorAllocatesNextWaveFromPostMergeHead,
 	)
@@ -51,7 +59,7 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorBoundsRecoveryConcurrency,
 	)
 	t.Run(
-		"Should skip dependent tasks after recovery exhaustion while finalizing independent work",
+		"Should skip dependent tasks after recovery exhaustion and fail without partial fast-forward",
 		runParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinalizes,
 	)
 	t.Run(
@@ -75,6 +83,14 @@ func TestParallelExecutionOrchestratorScenarios(t *testing.T) {
 		runParallelExecutionOrchestratorNeverCommitsConflictMarkers,
 	)
 	t.Run("Should emit wave lifecycle events", runParallelExecutionOrchestratorEmitsWaveLifecycleEvents)
+	t.Run(
+		"Should classify a post-wave head failure and emit one terminal",
+		runParallelExecutionOrchestratorClassifiesPostWaveHeadFailure,
+	)
+	t.Run(
+		"Should fail the run when lifecycle persistence fails",
+		runParallelExecutionOrchestratorFailsWhenLifecyclePersistenceFails,
+	)
 	t.Run(
 		"Should emit conflict detection and resolution events",
 		runParallelExecutionOrchestratorEmitsConflictAndResolveEvents,
@@ -217,6 +233,9 @@ func runParallelExecutionOrchestratorMergesWaveSeriallyInTaskOrder(t *testing.T)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
+	if outcome.Status != ParallelOutcomeCompleted {
+		t.Fatalf("outcome status = %q, want completed", outcome.Status)
+	}
 	if len(outcome.Tasks) != 3 {
 		t.Fatalf("merged tasks = %d, want 3", len(outcome.Tasks))
 	}
@@ -261,6 +280,82 @@ func runParallelExecutionOrchestratorDoesNotPruneAfterScopedCleanup(t *testing.T
 	}
 	if !worktrees.wasDiscarded() {
 		t.Fatal("expected completed cleanup to discard integration branch")
+	}
+}
+
+func runParallelExecutionOrchestratorPreservesUnsafeTaskCleanup(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{testTaskEntry("task_01")}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	worktrees.cleanupResults = map[string]WorktreeCleanupResult{
+		"/worktree/task_01": {
+			Status: WorktreeCleanupStatusPreserved,
+			Reason: "worktree has uncommitted changes",
+		},
+	}
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+	emitter := &fakeParallelEventEmitter{}
+
+	outcome, err := NewParallelExecutionOrchestrator(
+		worktrees,
+		launcher,
+		WithEventEmitter(emitter),
+	).Run(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if outcome.Status != ParallelOutcomeCompleted {
+		t.Fatalf("outcome status = %q, want completed", outcome.Status)
+	}
+	if got := outcome.Tasks[0].WorktreeStatus; got != string(WorktreeCleanupStatusPreserved) {
+		t.Fatalf("task worktree status = %q, want preserved", got)
+	}
+	if got := outcome.Tasks[0].WorktreeReason; got != "worktree has uncommitted changes" {
+		t.Fatalf("task worktree reason = %q", got)
+	}
+	settlements := emitter.byKind(events.EventKindTaskParallelTaskCompleted)
+	if len(settlements) != 1 {
+		t.Fatalf("task settlements = %d, want exactly one", len(settlements))
+	}
+	if settlements[0].WorktreeStatus != string(WorktreeCleanupStatusPreserved) ||
+		settlements[0].WorktreeReason != "worktree has uncommitted changes" {
+		t.Fatalf("task settlement cleanup metadata = %#v", settlements[0])
+	}
+}
+
+func runParallelExecutionOrchestratorFailsOnIntegrationCleanupError(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{testTaskEntry("task_01")}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	worktrees.integrationErr = errors.New("integration worktree busy")
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+	emitter := &fakeParallelEventEmitter{}
+
+	outcome, err := NewParallelExecutionOrchestrator(
+		worktrees,
+		launcher,
+		WithEventEmitter(emitter),
+	).Run(context.Background(), plan)
+	if err == nil || !strings.Contains(err.Error(), "integration worktree busy") {
+		t.Fatalf("Run() error = %v, want integration cleanup failure", err)
+	}
+	if outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want failed", outcome.Status)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelTaskCompleted)); got != 1 {
+		t.Fatalf("task settlements = %d, want exactly one", got)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelFailed)); got != 1 {
+		t.Fatalf("parallel failed settlements = %d, want exactly one", got)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelCompleted)); got != 0 {
+		t.Fatalf("parallel completed settlements = %d, want zero", got)
 	}
 }
 
@@ -322,7 +417,8 @@ func runParallelExecutionOrchestratorCancellationTransitionsAndJoinsWorkers(t *t
 	}, 2)
 	worktrees := newFakeWorktreeLifecycle()
 	launcher := newBlockingLauncher(t, len(plan.Tasks))
-	orchestrator := NewParallelExecutionOrchestrator(worktrees, launcher)
+	emitter := &fakeParallelEventEmitter{}
+	orchestrator := NewParallelExecutionOrchestrator(worktrees, launcher, WithEventEmitter(emitter))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan runResult, 1)
 	go func() {
@@ -338,6 +434,19 @@ func runParallelExecutionOrchestratorCancellationTransitionsAndJoinsWorkers(t *t
 	}
 	if result.outcome.Status != ParallelOutcomeCanceled {
 		t.Fatalf("outcome status = %q, want %q", result.outcome.Status, ParallelOutcomeCanceled)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelCanceled)); got != 1 {
+		t.Fatalf("parallel canceled events = %d, want 1", got)
+	}
+	taskSettlements := emitter.byKind(events.EventKindTaskParallelTaskCompleted)
+	if len(taskSettlements) != len(plan.Tasks) {
+		t.Fatalf("task settlements = %d, want %d", len(taskSettlements), len(plan.Tasks))
+	}
+	for i := range taskSettlements {
+		settlement := &taskSettlements[i]
+		if settlement.Status != string(TaskOutcomeCanceled) {
+			t.Fatalf("task settlement = %#v, want canceled", settlement)
+		}
 	}
 	launcher.assertNoActiveWorkers(t)
 }
@@ -367,11 +476,13 @@ func runParallelExecutionOrchestratorRecoversFailedTaskThenMergesRecoveredStatus
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	worktrees := newFakeWorktreeLifecycle()
+	emitter := &fakeParallelEventEmitter{}
 
 	outcome, err := NewParallelExecutionOrchestrator(
 		worktrees,
 		launcher,
 		WithRecoveryStrategy(strategy),
+		WithEventEmitter(emitter),
 		WithRecoveryEventSink(recoverySink),
 		WithLogger(logger),
 	).Run(context.Background(), plan)
@@ -439,8 +550,11 @@ func runParallelExecutionOrchestratorBoundsRecoveryConcurrency(t *testing.T) {
 	}
 	strategy.releaseAll()
 	result := waitRunResult(t, done)
-	if result.err != nil {
-		t.Fatalf("Run() error = %v", result.err)
+	if result.err == nil || !strings.Contains(result.err.Error(), "did not complete") {
+		t.Fatalf("Run() error = %v, want classified task failure", result.err)
+	}
+	if result.outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want failed", result.outcome.Status)
 	}
 	if got := strategy.maxInFlight(); got > 2 {
 		t.Fatalf("recovery max in-flight = %d, want <= 2", got)
@@ -471,14 +585,19 @@ func runParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinali
 		verdicts: []recovery.TriageVerdict{{Decision: recovery.VerdictReject, Reason: "cannot fix"}},
 	}
 	worktrees := newFakeWorktreeLifecycle()
+	emitter := &fakeParallelEventEmitter{}
 
 	outcome, err := NewParallelExecutionOrchestrator(
 		worktrees,
 		launcher,
 		WithRecoveryStrategy(strategy),
+		WithEventEmitter(emitter),
 	).Run(context.Background(), plan)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
+	if err == nil || !strings.Contains(err.Error(), "task_01=failed") {
+		t.Fatalf("Run() error = %v, want unrecoverable task failure", err)
+	}
+	if outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want failed", outcome.Status)
 	}
 	statusByTask := taskStatusesByID(outcome.Tasks)
 	if got := statusByTask["task_01"].Status; got != TaskOutcomeFailed {
@@ -502,11 +621,28 @@ func runParallelExecutionOrchestratorExhaustionSkipsDependentsAndPartiallyFinali
 	if got := worktrees.mergeOrder(); !reflect.DeepEqual(got, []string{"commit-task-03"}) {
 		t.Fatalf("merge order = %#v, want only independent task merge", got)
 	}
-	if !worktrees.wasFastForwarded() {
-		t.Fatal("expected partial success to fast-forward")
+	if worktrees.wasFastForwarded() {
+		t.Fatal("partial success must not fast-forward after an unrecoverable task failure")
 	}
 	if got := len(strategy.inputs); got != 1 {
 		t.Fatalf("recovery strategy calls = %d, want 1", got)
+	}
+	settlements := emitter.byKind(events.EventKindTaskParallelTaskCompleted)
+	if len(settlements) != 3 {
+		t.Fatalf("task settlements = %d, want exactly three", len(settlements))
+	}
+	statuses := make(map[string]string, len(settlements))
+	for i := range settlements {
+		settlement := &settlements[i]
+		statuses[settlement.TaskID] = settlement.Status
+	}
+	wantStatuses := map[string]string{
+		"task_01": string(TaskOutcomeFailed),
+		"task_02": string(TaskOutcomeSkipped),
+		"task_03": string(TaskOutcomeMerged),
+	}
+	if !reflect.DeepEqual(statuses, wantStatuses) {
+		t.Fatalf("task settlement statuses = %#v, want %#v", statuses, wantStatuses)
 	}
 }
 
@@ -584,8 +720,8 @@ func runParallelExecutionOrchestratorConflictExhaustionRollsBack(t *testing.T) {
 	if outcome.Status != ParallelOutcomeRolledBack {
 		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeRolledBack)
 	}
-	if !worktrees.wasDiscarded() {
-		t.Fatal("expected integration branch to be discarded")
+	if worktrees.wasDiscarded() {
+		t.Fatal("integration branch with partial output must be preserved")
 	}
 	if worktrees.wasFastForwarded() {
 		t.Fatal("working branch fast-forwarded despite conflict exhaustion")
@@ -721,8 +857,8 @@ func runParallelExecutionOrchestratorNeverCommitsConflictMarkers(t *testing.T) {
 	if got := worktrees.integrationCommitCount(); got != 0 {
 		t.Fatalf("integration commits = %d, want 0", got)
 	}
-	if !worktrees.wasDiscarded() {
-		t.Fatal("expected rollback to discard integration branch")
+	if worktrees.wasDiscarded() {
+		t.Fatal("integration branch with partial output must be preserved")
 	}
 }
 
@@ -798,8 +934,90 @@ func runParallelExecutionOrchestratorEmitsWaveLifecycleEvents(t *testing.T) {
 	if got := len(emitter.byKind(events.EventKindTaskParallelWaveCompleted)); got != 2 {
 		t.Fatalf("wave_completed events = %d, want 2", got)
 	}
+	completedTasks := emitter.byKind(events.EventKindTaskParallelTaskCompleted)
+	if len(completedTasks) != 2 {
+		t.Fatalf("task_completed events = %d, want 2", len(completedTasks))
+	}
+	phases := emitter.byKind(events.EventKindTaskParallelPhaseChanged)
+	wantPhases := []string{
+		parallelPhaseAdvancingBase,
+		parallelPhaseAdvancingBase,
+		parallelPhaseFinalizing,
+		parallelPhaseFastForwarding,
+		parallelPhaseSyncingArtifacts,
+		parallelPhaseCleaningUp,
+	}
+	gotPhases := make([]string, 0, len(phases))
+	for i := range phases {
+		gotPhases = append(gotPhases, phases[i].Phase)
+	}
+	if !reflect.DeepEqual(gotPhases, wantPhases) {
+		t.Fatalf("parallel phases = %#v, want %#v", gotPhases, wantPhases)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelCompleted)); got != 1 {
+		t.Fatalf("parallel completed events = %d, want 1", got)
+	}
 	if got := len(emitter.byKind(events.EventKindTaskParallelRolledBack)); got != 0 {
 		t.Fatalf("rolled_back events = %d, want 0 on the happy path", got)
+	}
+}
+
+func runParallelExecutionOrchestratorClassifiesPostWaveHeadFailure(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{testTaskEntry("task_01")}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	worktrees.headErr = errors.New("integration ref disappeared")
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+	emitter := &fakeParallelEventEmitter{}
+
+	outcome, err := NewParallelExecutionOrchestrator(worktrees, launcher, WithEventEmitter(emitter)).
+		Run(context.Background(), plan)
+	if err == nil || !strings.Contains(err.Error(), "integration ref disappeared") {
+		t.Fatalf("Run() error = %v, want integration head failure", err)
+	}
+	if outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeFailed)
+	}
+	failed := emitter.byKind(events.EventKindTaskParallelFailed)
+	if len(failed) != 1 {
+		t.Fatalf("parallel failed events = %d, want 1", len(failed))
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelCompleted)); got != 0 {
+		t.Fatalf("parallel completed events = %d, want 0", got)
+	}
+}
+
+func runParallelExecutionOrchestratorFailsWhenLifecyclePersistenceFails(t *testing.T) {
+	t.Parallel()
+
+	plan := testParallelPlan(t, []model.TaskEntry{testTaskEntry("task_01")}, 1)
+	worktrees := newFakeWorktreeLifecycle()
+	launcher := fakeTaskLauncherFunc(func(_ context.Context, spec TaskLaunchSpec) (PreparedTaskRun, error) {
+		return successfulPreparedTaskRun(spec), nil
+	})
+	emitErr := errors.New("journal fsync unavailable")
+	emitter := &fakeParallelEventEmitter{
+		errorsByKind: map[events.EventKind]error{
+			events.EventKindTaskParallelPhaseChanged: emitErr,
+		},
+	}
+
+	outcome, err := NewParallelExecutionOrchestrator(worktrees, launcher, WithEventEmitter(emitter)).
+		Run(context.Background(), plan)
+	if !errors.Is(err, emitErr) {
+		t.Fatalf("Run() error = %v, want emitter failure", err)
+	}
+	if outcome.Status != ParallelOutcomeFailed {
+		t.Fatalf("outcome status = %q, want %q", outcome.Status, ParallelOutcomeFailed)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelFailed)); got != 1 {
+		t.Fatalf("parallel failed events = %d, want 1", got)
+	}
+	if got := len(emitter.byKind(events.EventKindTaskParallelCompleted)); got != 0 {
+		t.Fatalf("parallel completed events = %d, want 0", got)
 	}
 }
 
@@ -897,15 +1115,19 @@ func runParallelExecutionOrchestratorEmitsRolledBackEvent(t *testing.T) {
 func runNoopEventEmitterIsInert(t *testing.T) {
 	t.Parallel()
 	var emitter ParallelEventEmitter = noopEventEmitter{}
-	emitter.EmitParallelPlanEvent(
+	if err := emitter.EmitParallelPlanEvent(
 		context.Background(),
 		kinds.TaskParallelPlanPayload{RunID: "run"},
-	)
-	emitter.EmitParallelEvent(
+	); err != nil {
+		t.Fatalf("EmitParallelPlanEvent() error = %v", err)
+	}
+	if err := emitter.EmitParallelEvent(
 		context.Background(),
 		events.EventKindTaskParallelMerged,
 		kinds.TaskParallelPayload{TaskID: "task_01"},
-	)
+	); err != nil {
+		t.Fatalf("EmitParallelEvent() error = %v", err)
+	}
 }
 
 type recordedParallelEvent struct {
@@ -914,28 +1136,34 @@ type recordedParallelEvent struct {
 }
 
 type fakeParallelEventEmitter struct {
-	mu         sync.Mutex
-	planEvents []kinds.TaskParallelPlanPayload
-	recorded   []recordedParallelEvent
+	mu           sync.Mutex
+	planEvents   []kinds.TaskParallelPlanPayload
+	recorded     []recordedParallelEvent
+	errorsByKind map[events.EventKind]error
 }
 
 func (e *fakeParallelEventEmitter) EmitParallelPlanEvent(
 	_ context.Context,
 	payload kinds.TaskParallelPlanPayload,
-) {
+) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.planEvents = append(e.planEvents, payload)
+	return nil
 }
 
 func (e *fakeParallelEventEmitter) EmitParallelEvent(
 	_ context.Context,
 	kind events.EventKind,
 	payload kinds.TaskParallelPayload,
-) {
+) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if err := e.errorsByKind[kind]; err != nil {
+		return err
+	}
 	e.recorded = append(e.recorded, recordedParallelEvent{kind: kind, payload: payload})
+	return nil
 }
 
 func (e *fakeParallelEventEmitter) plans() []kinds.TaskParallelPlanPayload {
@@ -971,15 +1199,20 @@ type fakeWorktreeLifecycle struct {
 	mu                 sync.Mutex
 	heads              []string
 	headCalls          int
+	headErr            error
 	committed          []int
 	commitErrs         map[int]error
 	merged             []string
 	squashResults      []ConflictSet
 	integrationCommits int
 	removed            []string
+	cleanupResults     map[string]WorktreeCleanupResult
+	cleanupErrs        map[string]error
 	fastForwarded      bool
 	syncedArtifacts    []TaskID
 	discardedBranch    bool
+	integrationCleanup WorktreeCleanupResult
+	integrationErr     error
 }
 
 func newFakeWorktreeLifecycle() *fakeWorktreeLifecycle {
@@ -1034,6 +1267,9 @@ func (f *fakeWorktreeLifecycle) SquashMerge(
 func (f *fakeWorktreeLifecycle) Head(context.Context, string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.headErr != nil {
+		return "", f.headErr
+	}
 	if f.headCalls < len(f.heads) {
 		head := f.heads[f.headCalls]
 		f.headCalls++
@@ -1059,18 +1295,46 @@ func (f *fakeWorktreeLifecycle) SyncTaskArtifacts(_ context.Context, _ string, t
 	return nil
 }
 
-func (f *fakeWorktreeLifecycle) DiscardIntegrationBranch(context.Context, string, string, string) error {
+func (f *fakeWorktreeLifecycle) CleanupTaskWorktree(
+	_ context.Context,
+	spec TaskWorktreeCleanupSpec,
+) (WorktreeCleanupResult, error) {
+	if err := f.cleanupErrs[spec.Path]; err != nil {
+		return WorktreeCleanupResult{}, err
+	}
+	if result, ok := f.cleanupResults[spec.Path]; ok {
+		return result, nil
+	}
+	f.mu.Lock()
+	f.removed = append(f.removed, spec.Path)
+	f.mu.Unlock()
+	return WorktreeCleanupResult{Status: WorktreeCleanupStatusRemoved, Reason: "removed by fake"}, nil
+}
+
+func (f *fakeWorktreeLifecycle) CleanupIntegration(
+	_ context.Context,
+	spec IntegrationCleanupSpec,
+) (WorktreeCleanupResult, error) {
+	if f.integrationErr != nil {
+		return WorktreeCleanupResult{}, f.integrationErr
+	}
+	if f.integrationCleanup.Status != "" {
+		if f.integrationCleanup.Status != WorktreeCleanupStatusRemoved {
+			return f.integrationCleanup, nil
+		}
+	} else if !spec.ContentIntegrated {
+		return WorktreeCleanupResult{
+			Status: WorktreeCleanupStatusPreserved,
+			Reason: "partial integration output retained by fake",
+		}, nil
+	}
 	f.mu.Lock()
 	f.discardedBranch = true
 	f.mu.Unlock()
-	return nil
-}
-
-func (f *fakeWorktreeLifecycle) Remove(_ context.Context, _ string, path string) error {
-	f.mu.Lock()
-	f.removed = append(f.removed, path)
-	f.mu.Unlock()
-	return nil
+	if f.integrationCleanup.Status != "" {
+		return f.integrationCleanup, nil
+	}
+	return WorktreeCleanupResult{Status: WorktreeCleanupStatusRemoved, Reason: "removed by fake"}, nil
 }
 
 func (f *fakeWorktreeLifecycle) commitOrder() []int {

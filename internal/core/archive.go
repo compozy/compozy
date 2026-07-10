@@ -18,7 +18,26 @@ import (
 
 const workflowStateNotSyncedReason = "workflow state not synced"
 
-var ErrWorkflowForceRequired = errors.New("core: workflow force required")
+var (
+	ErrWorkflowForceRequired      = errors.New("core: workflow force required")
+	ErrArchiveDatabaseRequired    = errors.New("core: archive database is required")
+	ErrArchiveWorkspaceIDRequired = errors.New("core: archive workspace id is required")
+)
+
+// ArchiveWorkspaceMismatchError reports that the archive target is outside the
+// injected workspace boundary.
+type ArchiveWorkspaceMismatchError struct {
+	Target        string
+	WorkspaceRoot string
+}
+
+func (e ArchiveWorkspaceMismatchError) Error() string {
+	return fmt.Sprintf(
+		"core: mismatched workspace and archive target: %s is outside %s",
+		e.Target,
+		e.WorkspaceRoot,
+	)
+}
 
 // WorkflowArchiveForceRequiredError reports a workflow archive conflict that
 // can be resolved locally by completing tasks and resolving review issues.
@@ -69,7 +88,49 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 	defer func() {
 		_ = db.Close()
 	}()
+	return archiveResolvedTarget(ctx, db, workspace, cfg, target, singleWorkflow, result)
+}
 
+// ArchiveWithDB archives workflow artifacts using an already-open global.db.
+func ArchiveWithDB(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	cfg ArchiveConfig,
+) (*ArchiveResult, error) {
+	target, rootDir, singleWorkflow, err := resolveArchiveTarget(ctx, cfg)
+	result := &ArchiveResult{
+		Target:         target,
+		ArchiveRoot:    model.ArchivedTasksDir(rootDir),
+		SkippedReasons: make(map[string]string),
+	}
+	if err != nil {
+		return result, err
+	}
+	if db == nil {
+		return result, ErrArchiveDatabaseRequired
+	}
+	if strings.TrimSpace(workspace.ID) == "" {
+		return result, ErrArchiveWorkspaceIDRequired
+	}
+	if !syncTargetBelongsToWorkspace(target, workspace.RootDir) {
+		return result, ArchiveWorkspaceMismatchError{
+			Target:        target,
+			WorkspaceRoot: workspace.RootDir,
+		}
+	}
+	return archiveResolvedTarget(ctx, db, workspace, cfg, target, singleWorkflow, result)
+}
+
+func archiveResolvedTarget(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	cfg ArchiveConfig,
+	target string,
+	singleWorkflow bool,
+	result *ArchiveResult,
+) (*ArchiveResult, error) {
 	if singleWorkflow {
 		if err := archiveWorkflow(ctx, db, workspace, target, cfg.Force, result, true); err != nil {
 			return result, err

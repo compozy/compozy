@@ -256,9 +256,20 @@ func TestCursorHelpersAndTerminalEvents(t *testing.T) {
 		{name: "Should mark run.completed as terminal", kind: events.EventKindRunCompleted, want: true},
 		{name: "Should mark run.failed as terminal", kind: events.EventKindRunFailed, want: true},
 		{name: "Should mark run.cancelled as terminal", kind: events.EventKindRunCancelled, want: true},
-		{name: "Should mark shutdown.requested as terminal", kind: events.EventKindShutdownRequested, want: true},
-		{name: "Should mark shutdown.draining as terminal", kind: events.EventKindShutdownDraining, want: true},
-		{name: "Should mark shutdown.terminated as terminal", kind: events.EventKindShutdownTerminated, want: true},
+		{name: "Should mark run.crashed as terminal", kind: events.EventKindRunCrashed, want: true},
+		{name: "Should leave shutdown.requested non-terminal", kind: events.EventKindShutdownRequested, want: false},
+		{name: "Should leave shutdown.draining non-terminal", kind: events.EventKindShutdownDraining, want: false},
+		{name: "Should leave shutdown.terminated non-terminal", kind: events.EventKindShutdownTerminated, want: false},
+		{
+			name: "Should leave parallel settlement non-terminal",
+			kind: events.EventKindTaskParallelCompleted,
+			want: false,
+		},
+		{
+			name: "Should leave queue settlement non-terminal",
+			kind: events.EventKindTaskRunMultipleQueueCompleted,
+			want: false,
+		},
 		{name: "Should leave session.update non-terminal", kind: events.EventKindSessionUpdate, want: false},
 		{name: "Should leave run.started non-terminal", kind: events.EventKindRunStarted, want: false},
 	}
