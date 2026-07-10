@@ -2031,13 +2031,32 @@ func (m *RunManager) startTaskWorktreeChild(
 		)
 	}
 	if err := mirrorTaskMultiWorkflowArtifacts(item.workflowRoot, allocation.Path, item.slug); err != nil {
-		return taskWorktreeChildRun{Allocation: allocation}, err
+		return taskWorktreeChildRun{Allocation: m.cleanupAllocatedTaskWorktree(active, prepared, allocation)}, err
 	}
 	child, err := m.startTaskWorktreeChildInAllocation(active, prepared, item, targetTaskNumber, allocation)
 	if err != nil {
-		return taskWorktreeChildRun{Allocation: allocation}, err
+		return taskWorktreeChildRun{Allocation: m.cleanupAllocatedTaskWorktree(active, prepared, allocation)}, err
 	}
 	return child, nil
+}
+
+// cleanupAllocatedTaskWorktree removes a worktree that was allocated for a child
+// which then failed to launch, so a launch failure never leaves an orphaned
+// worktree on disk. It is best-effort: cleanupSettledTaskWorktree preserves any
+// tree that is not safely removable and records the reason on the allocation.
+func (m *RunManager) cleanupAllocatedTaskWorktree(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	allocation taskMultiWorktreeAllocation,
+) taskMultiWorktreeAllocation {
+	if active == nil || prepared == nil || strings.TrimSpace(allocation.Path) == "" {
+		return allocation
+	}
+	return m.cleanupSettledTaskWorktree(
+		context.WithoutCancel(active.ctx),
+		prepared.workspace.RootDir,
+		allocation,
+	)
 }
 
 func (m *RunManager) startTaskWorktreeChildInAllocation(
