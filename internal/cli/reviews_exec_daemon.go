@@ -38,6 +38,22 @@ const (
 	daemonRunTerminalPollInterval = 10 * time.Millisecond
 )
 
+// reviewRunPreparingMessage tells the operator the review run is being prepared,
+// so a slow daemon-side workflow sync reads as progress rather than a silent
+// freeze.
+const reviewRunPreparingMessage = "Preparing review run (syncing workflow state into the daemon catalog)…"
+
+const (
+	// reviewRunStartTimeout bounds the daemon-side review-run start, which
+	// synchronously syncs workflow state into the single-writer global.db. A slow
+	// or contended write would otherwise freeze the CLI indefinitely.
+	reviewRunStartTimeout = 60 * time.Second
+	// reviewRunFeedbackDelay is how long the start may take before the preparing
+	// message is shown, so the common fast path stays quiet and only a genuinely
+	// slow (contended) start surfaces feedback.
+	reviewRunFeedbackDelay = time.Second
+)
+
 func newReviewsCommand() *cobra.Command {
 	return newReviewsCommandWithDefaults(defaultCommandStateDefaults())
 }
@@ -374,12 +390,22 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return withExitCode(2, err)
 	}
 
-	run, err := client.StartReviewRun(ctx, s.workspaceRoot, s.name, s.round, apicore.ReviewRunRequest{
-		Workspace:        s.workspaceRoot,
-		PresentationMode: presentationMode,
-		RuntimeOverrides: runtimeOverrides,
-		Batching:         batching,
-	})
+	run, err := startReviewRunWithFeedback(
+		ctx,
+		reviewRunStatusWriter(cmd, s.outputFormat),
+		client,
+		s.workspaceRoot,
+		s.name,
+		s.round,
+		apicore.ReviewRunRequest{
+			Workspace:        s.workspaceRoot,
+			PresentationMode: presentationMode,
+			RuntimeOverrides: runtimeOverrides,
+			Batching:         batching,
+		},
+		reviewRunStartTimeout,
+		reviewRunFeedbackDelay,
+	)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -392,6 +418,65 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	default:
 		return handleStartedTaskRun(ctx, cmd, client, run)
 	}
+}
+
+// reviewRunStatusWriter routes the preparing status to stderr for human output
+// and discards it for machine formats so json/raw-json stay clean.
+func reviewRunStatusWriter(cmd *cobra.Command, outputFormat string) io.Writer {
+	switch strings.TrimSpace(outputFormat) {
+	case string(core.OutputFormatJSON), string(core.OutputFormatRawJSON):
+		return io.Discard
+	default:
+		return cmd.ErrOrStderr()
+	}
+}
+
+// startReviewRunWithFeedback starts the daemon-backed review run. It prints a
+// preparing status so the operator sees progress while the daemon synchronously
+// syncs workflow state into its catalog, and bounds the call with a timeout so a
+// stuck or contended global.db write fails with an actionable error instead of
+// freezing the CLI indefinitely. Non-timeout errors are returned unchanged for
+// the caller to map.
+func startReviewRunWithFeedback(
+	ctx context.Context,
+	statusW io.Writer,
+	client daemonCommandClient,
+	workspaceRoot string,
+	name string,
+	round int,
+	req apicore.ReviewRunRequest,
+	timeout time.Duration,
+	feedbackDelay time.Duration,
+) (apicore.Run, error) {
+	startCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	// Show the preparing message only if the start is slow (a contended global.db
+	// write), so the common fast path stays quiet. The goroutine always exits
+	// before this function returns, so nothing writes to statusW afterwards.
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		select {
+		case <-time.After(feedbackDelay):
+			fmt.Fprintln(statusW, reviewRunPreparingMessage)
+		case <-done:
+		}
+	}()
+	run, err := client.StartReviewRun(startCtx, workspaceRoot, name, round, req)
+	close(done)
+	<-finished
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			return apicore.Run{}, fmt.Errorf(
+				"review run did not start within %s: the daemon may be busy syncing "+
+					"workflow state — retry, or run `compozy runs purge` to reduce contention",
+				timeout,
+			)
+		}
+		return apicore.Run{}, err
+	}
+	return run, nil
 }
 
 func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) error {
