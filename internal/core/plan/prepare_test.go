@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 )
 
 func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
@@ -1570,6 +1571,115 @@ complexity: low
 		"plan.post_prepare_jobs cannot mutate job runtime after task runtime resolution",
 	) {
 		t.Fatalf("prepare error = %q, want runtime mutation guard", err.Error())
+	}
+}
+
+func TestPreparePRDTasksMaterializesJobsWithoutRuntimeAvailability(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Runtime-independent planning
+type: backend
+complexity: low
+---
+
+# Task 01: Runtime-independent planning
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:            "demo",
+		WorkspaceRoot:   workspaceRoot,
+		TasksDir:        tasksDir,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5.6-sol",
+		ReasoningEffort: "medium",
+		Mode:            model.ExecutionModePRDTasks,
+		RunID:           "plan-before-runtime-availability",
+	}
+	scope := openRunScopeForTest(t, cfg)
+	defer func() {
+		if err := scope.Close(context.Background()); err != nil {
+			t.Fatalf("close run scope: %v", err)
+		}
+	}()
+
+	prep, err := Prepare(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("Prepare() error = %v, want materialized jobs before runtime availability validation", err)
+	}
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("len(Prepare().Jobs) = %d, want 1", len(prep.Jobs))
+	}
+	if _, err := os.Stat(prep.Jobs[0].OutPromptPath); err != nil {
+		t.Fatalf("prepared prompt artifact: %v", err)
+	}
+}
+
+func TestPrepareFailureLeavesCallerOwnedRunScopeOpen(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	prepareErr := errors.New("plan hook rejected preparation")
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.post_prepare_jobs": func(any) (any, error) {
+				return nil, prepareErr
+			},
+		},
+	}
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-caller-owned-scope",
+	}
+	scope := &planRunScopeWithManager{
+		RunScope: openRunScopeForTest(t, cfg),
+		manager:  manager,
+	}
+	defer func() {
+		if err := scope.Close(context.Background()); err != nil {
+			t.Fatalf("close caller-owned scope: %v", err)
+		}
+	}()
+
+	_, err := Prepare(context.Background(), cfg, scope)
+	if !errors.Is(err, prepareErr) {
+		t.Fatalf("Prepare() error = %v, want %v", err, prepareErr)
+	}
+	if err := scope.RunJournal().Submit(context.Background(), eventspkg.Event{
+		RunID: cfg.RunID,
+		Kind:  eventspkg.EventKindRunFailed,
+	}); err != nil {
+		t.Fatalf("submit after Prepare() failure: %v", err)
 	}
 }
 

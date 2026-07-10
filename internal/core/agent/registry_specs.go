@@ -124,12 +124,14 @@ var (
 			SetupAgentName:     "codex",
 			DefaultModel:       model.DefaultCodexModel,
 			Command:            "codex-acp",
+			ProbeArgs:          []string{"--version"},
 			SupportsAddDirs:    true,
 			UsesBootstrapModel: true,
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
 					FixedArgs: []string{"--yes", "@agentclientprotocol/codex-acp"},
+					ProbeArgs: []string{"--yes", "@agentclientprotocol/codex-acp", "--version"},
 				},
 			},
 			DocsURL:             "https://github.com/agentclientprotocol/codex-acp",

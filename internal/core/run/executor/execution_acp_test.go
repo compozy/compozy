@@ -58,6 +58,43 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 	}
 }
 
+func TestExecuteRejectsUnavailableJobRuntimeBeforeRunStart(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	tmpDir := t.TempDir()
+	manager := &executionHookManager{}
+	_, _, err := captureExecuteStreams(t, func() error {
+		return Execute(context.Background(), []model.Job{{
+			CodeFiles: []string{"issue_001.md"},
+			Groups: map[string][]model.IssueEntry{
+				"issue_001.md": {{Name: "issue_001.md", CodeFile: "issue_001.md"}},
+			},
+			SafeName:      "job-001",
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.6-sol",
+			Prompt:        []byte("fix the issue"),
+			OutPromptPath: filepath.Join(tmpDir, "job-001.prompt.md"),
+			OutLog:        filepath.Join(tmpDir, "job-001.out.log"),
+			ErrLog:        filepath.Join(tmpDir, "job-001.err.log"),
+		}}, model.NewRunArtifacts(tmpDir, "runtime-preflight"), nil, nil, &model.RuntimeConfig{
+			WorkspaceRoot:          tmpDir,
+			IDE:                    model.IDECodex,
+			Model:                  "gpt-5.6-sol",
+			ReasoningEffort:        "medium",
+			Mode:                   model.ExecutionModePRReview,
+			OutputFormat:           model.OutputFormatJSON,
+			RetryBackoffMultiplier: 1.5,
+		}, manager)
+	})
+	var availabilityErr *agent.AvailabilityError
+	if !errors.As(err, &availabilityErr) {
+		t.Fatalf("Execute() error = %v, want *agent.AvailabilityError", err)
+	}
+	if got := len(manager.observerPayloads["run.post_start"]); got != 0 {
+		t.Fatalf("run.post_start hook calls = %d, want 0 before runtime availability", got)
+	}
+}
+
 func TestExecuteTaskDryRunWritesEmptyWorktreeScope(t *testing.T) {
 	workspaceRoot := initTaskWorkspaceRepo(t)
 	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")

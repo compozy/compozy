@@ -35,13 +35,6 @@ func Prepare(
 	prep := &model.SolvePreparation{}
 	prep.RunArtifacts = scope.RunArtifacts()
 	prep.SetRunScope(scope)
-	var prepared bool
-	defer func() {
-		if prepared {
-			return
-		}
-		ClosePreparationJournal(ctx, prep)
-	}()
 
 	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, cfg)
 	if err != nil {
@@ -53,7 +46,6 @@ func Prepare(
 		if err != nil {
 			return nil, err
 		}
-		prepared = true
 		return execPrep, nil
 	}
 
@@ -61,7 +53,6 @@ func Prepare(
 		return nil, err
 	}
 
-	prepared = true
 	return prep, nil
 }
 
@@ -82,9 +73,6 @@ func prepareWorkflowRun(
 	}
 	prep.Jobs, err = prepareWorkflowJobs(ctx, prep, cfg, groups, agentExecution)
 	if err != nil {
-		return err
-	}
-	if err := ensureWorkflowRuntimesAvailable(ctx, cfg, prep.Jobs); err != nil {
 		return err
 	}
 
@@ -452,34 +440,6 @@ func prepareJobs(
 		return nil, errors.New("no jobs finalized")
 	}
 	return jobs, nil
-}
-
-func ensureWorkflowRuntimesAvailable(ctx context.Context, cfg *model.RuntimeConfig, jobs []model.Job) error {
-	if cfg == nil || cfg.DryRun {
-		return nil
-	}
-
-	checked := make(map[string]struct{}, len(jobs))
-	for idx := range jobs {
-		job := &jobs[idx]
-		ide := strings.TrimSpace(job.IDE)
-		if ide == "" {
-			continue
-		}
-		if _, ok := checked[ide]; ok {
-			continue
-		}
-		runtimeCfg := cfg.Clone()
-		runtimeCfg.IDE = ide
-		runtimeCfg.Model = job.Model
-		runtimeCfg.ReasoningEffort = job.ReasoningEffort
-		runtimeCfg.TaskRuntimeRules = nil
-		if err := agent.EnsureAvailable(ctx, runtimeCfg); err != nil {
-			return fmt.Errorf("ensure runtime %q for job %q: %w", ide, job.SafeName, err)
-		}
-		checked[ide] = struct{}{}
-	}
-	return nil
 }
 
 func buildBatchJob(

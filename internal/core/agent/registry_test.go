@@ -44,7 +44,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			accessMode:          model.AccessModeFull,
 			wantSupportsAddDirs: true,
 			wantLaunch:          []string{"codex-acp"},
-			wantProbe:           []string{"codex-acp", "--help"},
+			wantProbe:           []string{"codex-acp", "--version"},
 		},
 		{
 			name:                "Should expose Droid ACP commands",
@@ -1358,6 +1358,7 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 		ide                 string
 		wantCommand         []string
 		wantProbe           []string
+		wantFallbackProbe   []string
 		wantFallbackCount   int
 		wantSupportsAddDirs bool
 	}{
@@ -1369,9 +1370,12 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 			wantSupportsAddDirs: true,
 		},
 		{
-			ide:                 model.IDECodex,
-			wantCommand:         []string{"codex-acp"},
-			wantProbe:           []string{"codex-acp", "--help"},
+			ide:         model.IDECodex,
+			wantCommand: []string{"codex-acp"},
+			wantProbe:   []string{"codex-acp", "--version"},
+			wantFallbackProbe: []string{
+				"npx", "--yes", "@agentclientprotocol/codex-acp", "--version",
+			},
 			wantFallbackCount:   1,
 			wantSupportsAddDirs: true,
 		},
@@ -1456,6 +1460,11 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 				len(entry.FallbackLaunchers),
 				tc.wantFallbackCount,
 			)
+		}
+		if tc.wantFallbackProbe != nil {
+			if got := entry.FallbackLaunchers[0].Probe; !slices.Equal(got, tc.wantFallbackProbe) {
+				t.Fatalf("unexpected fallback probe for %s: got %v want %v", tc.ide, got, tc.wantFallbackProbe)
+			}
 		}
 		if entry.SupportsAddDirs != tc.wantSupportsAddDirs {
 			t.Fatalf(

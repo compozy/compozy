@@ -1842,7 +1842,7 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 	}
 	terminal, err := m.resolveTerminalState(detachContext(active.ctx), scope.RunArtifacts().RunID, fallback, scope)
 	if err != nil {
-		terminal = failedTerminalState(scope.RunArtifacts(), err)
+		terminal = terminalResolutionFailureState(scope.RunArtifacts(), fallback, err)
 	}
 
 	row.Status = terminal.status
@@ -2279,8 +2279,14 @@ func resolveTerminalStateWithRunDB(
 	if scope == nil || scope.RunJournal() == nil {
 		return terminalState{}, fmt.Errorf("daemon: run %q cannot append fallback terminal event", runID)
 	}
-	if err := submitSyntheticEvent(ctx, scope.RunJournal(), runID, fallback.kind, fallback.payload); err != nil {
-		return terminalState{}, err
+	if submitErr := submitSyntheticEvent(
+		ctx,
+		scope.RunJournal(),
+		runID,
+		fallback.kind,
+		fallback.payload,
+	); submitErr != nil {
+		return recoverFallbackTerminalAfterSubmitFailure(ctx, runDB, scope, fallback, submitErr)
 	}
 
 	lastEvent, err = runDB.LastEvent(ctx)
@@ -2293,6 +2299,57 @@ func resolveTerminalStateWithRunDB(
 	}
 	if !ok {
 		return terminalState{}, fmt.Errorf("daemon: run %q terminal event missing after fallback append", runID)
+	}
+	return terminal, nil
+}
+
+func recoverFallbackTerminalAfterSubmitFailure(
+	ctx context.Context,
+	runDB *rundb.RunDB,
+	scope model.RunScope,
+	fallback terminalState,
+	submitErr error,
+) (terminalState, error) {
+	closeCtx, cancel := boundedLifecycleContext(ctx, defaultRunCloseTimeout)
+	closeErr := scope.RunJournal().Close(closeCtx)
+	cancel()
+	if closeErr != nil {
+		return terminalState{}, errors.Join(
+			fmt.Errorf("daemon: submit fallback terminal event: %w", submitErr),
+			fmt.Errorf("daemon: stop terminal journal writer: %w", closeErr),
+		)
+	}
+
+	lastEvent, err := runDB.LastEvent(ctx)
+	if err != nil {
+		return terminalState{}, errors.Join(
+			fmt.Errorf("daemon: submit fallback terminal event: %w", submitErr),
+			fmt.Errorf("daemon: reload terminal event after submit failure: %w", err),
+		)
+	}
+	if terminal, ok, decodeErr := terminalStateFromEvent(lastEvent); decodeErr != nil {
+		return terminalState{}, decodeErr
+	} else if ok {
+		return terminal, nil
+	}
+
+	recoveredEvent, appendErr := runDB.AppendSyntheticEvent(ctx, fallback.kind, fallback.payload)
+	if appendErr != nil {
+		return terminalState{}, errors.Join(
+			fmt.Errorf("daemon: submit fallback terminal event: %w", submitErr),
+			fmt.Errorf("daemon: append fallback terminal event directly: %w", appendErr),
+		)
+	}
+	if bus := scope.RunEventBus(); bus != nil {
+		bus.Publish(ctx, recoveredEvent)
+	}
+
+	terminal, ok, err := terminalStateFromEvent(&recoveredEvent)
+	if err != nil {
+		return terminalState{}, err
+	}
+	if !ok {
+		return terminalState{}, fmt.Errorf("daemon: recovered event %q is not terminal", recoveredEvent.Kind)
 	}
 	return terminal, nil
 }
@@ -2658,6 +2715,18 @@ func failedTerminalState(runArtifacts model.RunArtifacts, err error) terminalSta
 			ResultPath:   runArtifacts.ResultPath,
 		},
 	}
+}
+
+func terminalResolutionFailureState(
+	runArtifacts model.RunArtifacts,
+	fallback terminalState,
+	resolutionErr error,
+) terminalState {
+	combinedErr := fmt.Errorf("resolve terminal state: %w", resolutionErr)
+	if originalError := strings.TrimSpace(fallback.errorText); originalError != "" {
+		combinedErr = errors.Join(errors.New(originalError), combinedErr)
+	}
+	return failedTerminalState(runArtifacts, combinedErr)
 }
 
 func cancelledTerminalState(err error) terminalState {

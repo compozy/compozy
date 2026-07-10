@@ -271,10 +271,11 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 
 	prep, err := plan.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
+		closeErr := scope.Close(ctx)
 		if errors.Is(err, plan.ErrNoWork) {
-			return nil, ErrNoWork
+			return nil, errors.Join(ErrNoWork, closeErr)
 		}
-		return nil, err
+		return nil, errors.Join(err, closeErr)
 	}
 	defer plan.ClosePreparationJournal(ctx, prep)
 	return NewPreparation(prep), nil
@@ -297,10 +298,11 @@ func runDirect(ctx context.Context, cfg Config) error {
 
 	prep, err := plan.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
+		closeErr := scope.Close(ctx)
 		if errors.Is(err, plan.ErrNoWork) {
-			return nil
+			return closeErr
 		}
-		return err
+		return errors.Join(err, closeErr)
 	}
 
 	runErr := run.Execute(

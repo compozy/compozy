@@ -35,7 +35,7 @@ func Execute(
 	cfg *model.RuntimeConfig,
 	manager model.RuntimeManager,
 ) (retErr error) {
-	internalCfg, err := prepareExecutionConfig(ctx, cfg, runArtifacts, manager)
+	internalCfg, err := prepareWorkflowExecutionConfig(ctx, jobs, cfg, runArtifacts, manager)
 	if err != nil {
 		return err
 	}
@@ -104,6 +104,47 @@ func Execute(
 	}
 	if len(failures) > 0 {
 		return errors.New("one or more groups failed; see logs above")
+	}
+	return nil
+}
+
+func prepareWorkflowExecutionConfig(
+	ctx context.Context,
+	jobs []model.Job,
+	cfg *model.RuntimeConfig,
+	runArtifacts model.RunArtifacts,
+	manager model.RuntimeManager,
+) (*config, error) {
+	if err := ensureWorkflowRuntimesAvailable(ctx, cfg, jobs); err != nil {
+		return nil, err
+	}
+	return prepareExecutionConfig(ctx, cfg, runArtifacts, manager)
+}
+
+func ensureWorkflowRuntimesAvailable(ctx context.Context, cfg *model.RuntimeConfig, jobs []model.Job) error {
+	if cfg == nil || cfg.DryRun {
+		return nil
+	}
+
+	checked := make(map[string]struct{}, len(jobs))
+	for idx := range jobs {
+		job := &jobs[idx]
+		ide := strings.TrimSpace(job.IDE)
+		if ide == "" {
+			continue
+		}
+		if _, ok := checked[ide]; ok {
+			continue
+		}
+		runtimeCfg := cfg.Clone()
+		runtimeCfg.IDE = ide
+		runtimeCfg.Model = job.Model
+		runtimeCfg.ReasoningEffort = job.ReasoningEffort
+		runtimeCfg.TaskRuntimeRules = nil
+		if err := agent.EnsureAvailable(ctx, runtimeCfg); err != nil {
+			return fmt.Errorf("ensure runtime %q for job %q: %w", ide, job.SafeName, err)
+		}
+		checked[ide] = struct{}{}
 	}
 	return nil
 }

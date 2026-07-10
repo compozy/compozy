@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	runpkg "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
@@ -698,6 +699,96 @@ func TestRunManagerStartFailureBeforeChildExecutionMarksRunFailed(t *testing.T) 
 	lastEvent := env.lastRunEvent(t, run.RunID)
 	if lastEvent == nil || lastEvent.Kind != eventspkg.EventKindRunFailed {
 		t.Fatalf("last event = %#v, want run.failed", lastEvent)
+	}
+}
+
+func TestRunManagerPrepareFailurePersistsOriginalTerminalWithoutIntegrityIssue(t *testing.T) {
+	prepareErr := errors.New("plan hook rejected preparation")
+	runtimeManager := &stubRuntimeManager{
+		mutableHook: "plan.post_prepare_jobs",
+		mutableErr:  prepareErr,
+	}
+	var executeCalled atomic.Bool
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		openRunScope: newTestOpenRunScope(runtimeManager),
+		prepare:      plan.Prepare,
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			executeCalled.Store(true)
+			return nil
+		},
+	})
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Prepare failure"))
+
+	const runID = "task-run-prepare-failure"
+	run := env.startTaskRun(
+		t,
+		runID,
+		rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`),
+	)
+	terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusFailed
+	})
+	if executeCalled.Load() {
+		t.Fatal("execute called after prepare failure, want false")
+	}
+	if !strings.Contains(terminal.ErrorText, prepareErr.Error()) {
+		t.Fatalf("terminal.ErrorText = %q, want original prepare error %q", terminal.ErrorText, prepareErr)
+	}
+	if strings.Contains(terminal.ErrorText, journal.ErrClosed.Error()) {
+		t.Fatalf("terminal.ErrorText = %q, must not be replaced by journal closure", terminal.ErrorText)
+	}
+
+	lastEvent := env.lastRunEvent(t, run.RunID)
+	if lastEvent == nil || lastEvent.Kind != eventspkg.EventKindRunFailed {
+		t.Fatalf("last event = %#v, want run.failed", lastEvent)
+	}
+	var payload kinds.RunFailedPayload
+	if err := json.Unmarshal(lastEvent.Payload, &payload); err != nil {
+		t.Fatalf("decode run.failed payload: %v", err)
+	}
+	if !strings.Contains(payload.Error, prepareErr.Error()) {
+		t.Fatalf("run.failed error = %q, want original prepare error %q", payload.Error, prepareErr)
+	}
+
+	snapshot, err := env.manager.Snapshot(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
+	}
+	if snapshot.Incomplete || len(snapshot.IncompleteReasons) != 0 {
+		t.Fatalf(
+			"snapshot integrity = incomplete:%v reasons:%v, want complete",
+			snapshot.Incomplete,
+			snapshot.IncompleteReasons,
+		)
+	}
+}
+
+func TestRunManagerTerminalResolutionFailurePreservesOriginalRunError(t *testing.T) {
+	prepareErr := errors.New("prepare failed before terminal persistence")
+	terminalStoreErr := errors.New("terminal store unavailable")
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return nil, prepareErr
+		},
+		openRunDB: func(context.Context, string) (*rundb.RunDB, error) {
+			return nil, terminalStoreErr
+		},
+	})
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Terminal store failure"))
+
+	const runID = "task-run-terminal-resolution-failure"
+	run := env.startTaskRun(
+		t,
+		runID,
+		rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`),
+	)
+	terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusFailed
+	})
+	for _, want := range []string{prepareErr.Error(), terminalStoreErr.Error()} {
+		if !strings.Contains(terminal.ErrorText, want) {
+			t.Fatalf("terminal.ErrorText = %q, want diagnostic %q", terminal.ErrorText, want)
+		}
 	}
 }
 
@@ -2277,6 +2368,41 @@ func TestResolveTerminalStateErrorsWithoutTerminalSignal(t *testing.T) {
 	}
 }
 
+func TestResolveTerminalStatePersistsFallbackAfterJournalWriterCloses(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	cfg := (&model.RuntimeConfig{
+		RunID: "terminal-run-closed-journal",
+		Mode:  model.ExecutionModeExec,
+	}).Clone()
+	cfg.ApplyDefaults()
+
+	scope, err := newTestOpenRunScope(nil)(context.Background(), cfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		t.Fatalf("open test scope: %v", err)
+	}
+	defer func() {
+		_ = scope.Close(context.Background())
+	}()
+	if err := scope.RunJournal().Close(context.Background()); err != nil {
+		t.Fatalf("close journal writer: %v", err)
+	}
+
+	prepareErr := errors.New("prepare failed before run.started")
+	fallback := failedTerminalState(scope.RunArtifacts(), prepareErr)
+	terminal, err := resolveTerminalState(context.Background(), cfg.RunID, fallback, scope)
+	if err != nil {
+		t.Fatalf("resolveTerminalState() error = %v", err)
+	}
+	if terminal.status != runStatusFailed {
+		t.Fatalf("terminal.status = %q, want %q", terminal.status, runStatusFailed)
+	}
+	if !strings.Contains(terminal.errorText, prepareErr.Error()) {
+		t.Fatalf("terminal.errorText = %q, want %q", terminal.errorText, prepareErr)
+	}
+}
+
 func TestRunManagerHelperEdgeCases(t *testing.T) {
 	var nilCtx context.Context
 	if got := detachContext(nilCtx); got == nil {
@@ -2779,14 +2905,19 @@ func (e *runManagerTestEnv) lastRunEvent(t *testing.T, runID string) *eventspkg.
 }
 
 type stubRuntimeManager struct {
-	startErr error
+	startErr    error
+	mutableHook string
+	mutableErr  error
 }
 
 func (m *stubRuntimeManager) Start(context.Context) error {
 	return m.startErr
 }
 
-func (*stubRuntimeManager) DispatchMutableHook(_ context.Context, _ string, payload any) (any, error) {
+func (m *stubRuntimeManager) DispatchMutableHook(_ context.Context, hook string, payload any) (any, error) {
+	if m != nil && hook == m.mutableHook && m.mutableErr != nil {
+		return nil, m.mutableErr
+	}
 	return payload, nil
 }
 

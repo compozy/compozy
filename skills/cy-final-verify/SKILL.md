@@ -147,7 +147,7 @@ A green pipeline and ticked task checkboxes do not prove the deliverable matches
 
 1. List the canonical contract artifacts for this task found during grounding (e.g. `_examples.md`, `_qa.md` input tables, `_tests.md` test contracts, `_user_stories.md` acceptance criteria, parity maps). If none are known, survey the spec directory now — absence must be proven, not assumed.
 2. Compare the deliverable to each artifact field by field: names, types, defaults, required flags, shapes, topologies, behaviors. Paraphrase-level similarity is not parity.
-3. Any mismatch fails the completion claim — fix the deliverable or report the conflict; never reinterpret the canonical artifact to match what was built.
+3. Any mismatch fails the completion claim — fix the deliverable to match the resolved contract and re-verify; never reinterpret the canonical artifact to match what was built, and never pause to ask which side wins.
 4. Cite the compared artifacts in the Verification Report (`Contract parity:` line).
 
 Failure mode this section exists to prevent (real incident): a task shipped "green" through seven peer-review rounds while contradicting the spec's canonical example document — every check measured engineering quality against the task file's paraphrase, and nothing ever compared the deliverable to the canonical contract.

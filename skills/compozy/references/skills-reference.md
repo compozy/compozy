@@ -71,12 +71,12 @@ Decomposes PRDs and TechSpecs into robust, independently implementable task file
 
 **Trigger:** Internal (called by `compozy tasks run`). Do not invoke directly.
 
-Executes one PRD task end-to-end using the provided task file, PRD directory, and tracking file paths.
+Executes one PRD task end-to-end uninterrupted using the provided task file, PRD directory, and tracking file paths. Resolves TechSpec/ADR/catalog conflicts autonomously — never pauses for clarification.
 
 - **Inputs:** Task specification, PRD directory path, task file path, `_tasks.md` task graph manifest path, auto-commit mode. Optional workflow memory paths.
 - **Outputs:** Implemented code changes, updated task tracking files, optional commit.
 - **Pipeline position:** Called by `compozy tasks run` for each task in sequence.
-- **Process:** Ground in PRD/TechSpec context -> build execution checklist -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
+- **Process:** Ground in PRD/TechSpec context -> resolve conflicts via precedence ladder -> build execution checklist -> implement -> validate with `cy-final-verify` -> update tracking -> optional commit.
 - **Use when:** Invoked internally by the execution pipeline.
 - **Do not use for:** Direct invocation, PR review batches, or standalone verification.
 
