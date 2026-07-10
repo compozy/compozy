@@ -60,11 +60,14 @@ func TestRunManagerReviewWatchCompletesCleanWithoutEmptyRound(t *testing.T) {
 			t.Fatalf("reviews-001 stat error = %v, want not exist", err)
 		}
 
-		started := decodeReviewWatchPayload(t, requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchStarted))
+		started := decodeReviewWatchPayload(
+			t,
+			requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchStarted),
+		)
 		if !started.Dirty || started.UnpushedCommits != 2 || started.HeadSHA != "head-1" {
 			t.Fatalf("watch_started payload = %#v, want dirty/unpushed/head metadata", started)
 		}
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean)
 	})
 }
 
@@ -181,12 +184,12 @@ func TestRunManagerReviewWatchPersistsRoundAndStartsOneChildRun(t *testing.T) {
 		}
 		fixStarted := decodeReviewWatchPayload(
 			t,
-			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchFixStarted),
+			requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchFixStarted),
 		)
 		if fixStarted.ChildRunID != runs[0].RunID || fixStarted.Round != 1 {
 			t.Fatalf("fix_started payload = %#v, want child %q round 1", fixStarted, runs[0].RunID)
 		}
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchMaxRounds)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchMaxRounds)
 	})
 }
 
@@ -257,7 +260,7 @@ func TestRunManagerReviewWatchCurrentSettledFetchesPendingItems(t *testing.T) {
 			}
 			roundFetched := decodeReviewWatchPayload(
 				t,
-				requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchRoundFetched),
+				requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchRoundFetched),
 			)
 			if roundFetched.HeadSHA != "head-1" || roundFetched.Round != 1 {
 				t.Fatalf("round_fetched payload = %#v, want head-1 round 1", roundFetched)
@@ -288,7 +291,10 @@ func TestRunManagerReviewWatchCurrentSettledCanCompleteClean(t *testing.T) {
 			if row.ErrorText != "" {
 				t.Fatalf("watch row error = %q, want empty", row.ErrorText)
 			}
-			clean := decodeReviewWatchPayload(t, requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean))
+			clean := decodeReviewWatchPayload(
+				t,
+				requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean),
+			)
 			if clean.Status != string(provider.WatchStatusCurrentSettled) || clean.HeadSHA != "head-1" {
 				t.Fatalf("clean payload = %#v, want current_settled head-1", clean)
 			}
@@ -539,8 +545,8 @@ func TestRunManagerReviewWatchPushesAndRepeatsUntilClean(t *testing.T) {
 		if len(git.pushes) != 1 || git.pushes[0] != (reviewWatchPush{remote: "origin", branch: "feature"}) {
 			t.Fatalf("pushes = %#v, want one origin/feature push", git.pushes)
 		}
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean)
 	})
 }
 
@@ -596,7 +602,7 @@ func TestRunManagerReviewWatchPushesUnpushedHeadAtStartup(t *testing.T) {
 		}
 		started := decodeReviewWatchPayload(
 			t,
-			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted),
+			requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchPushStarted),
 		)
 		if started.Round != 0 ||
 			started.Status != reviewWatchPushStatusStartup ||
@@ -606,7 +612,7 @@ func TestRunManagerReviewWatchPushesUnpushedHeadAtStartup(t *testing.T) {
 		}
 		completed := decodeReviewWatchPayload(
 			t,
-			requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted),
+			requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchPushCompleted),
 		)
 		if completed.Round != 0 ||
 			completed.Status != reviewWatchPushStatusStartup ||
@@ -614,7 +620,10 @@ func TestRunManagerReviewWatchPushesUnpushedHeadAtStartup(t *testing.T) {
 			completed.HeadSHA != "local-fix-head" {
 			t.Fatalf("push_completed payload = %#v, want startup metadata", completed)
 		}
-		clean := decodeReviewWatchPayload(t, requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean))
+		clean := decodeReviewWatchPayload(
+			t,
+			requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean),
+		)
 		if clean.HeadSHA != "local-fix-head" {
 			t.Fatalf("clean payload = %#v, want provider-current local fix head", clean)
 		}
@@ -667,7 +676,7 @@ func TestRunManagerReviewWatchStartupPrePushHookVetoStopsWatch(t *testing.T) {
 		if len(git.pushes) != 0 {
 			t.Fatalf("pushes = %#v, want none after startup pre-push veto", git.pushes)
 		}
-		if event, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted); ok {
+		if event, ok := findRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchPushStarted); ok {
 			t.Fatalf("unexpected push_started event after startup veto: %#v", event)
 		}
 		finished, ok := hooks.lastObserver(reviewWatchHookFinished).(reviewWatchFinishedHookPayload)
@@ -740,11 +749,11 @@ func TestRunManagerReviewWatchWaitsForProviderToSettleBeforeClean(t *testing.T) 
 		if row.ErrorText != "" {
 			t.Fatalf("row.ErrorText = %q, want empty", row.ErrorText)
 		}
-		if _, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean); ok {
+		if _, ok := findRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean); ok {
 			t.Fatal("watch declared clean before the provider-settled actionable round was processed")
 		}
 		roundsFetched := 0
-		for _, event := range allRunEvents(t, run.RunID) {
+		for _, event := range allRunEvents(t, env.manager, run.RunID) {
 			if event.Kind == eventspkg.EventKindReviewWatchRoundFetched {
 				roundsFetched++
 			}
@@ -752,7 +761,7 @@ func TestRunManagerReviewWatchWaitsForProviderToSettleBeforeClean(t *testing.T) 
 		if roundsFetched != 2 {
 			t.Fatalf("rounds fetched = %d, want 2", roundsFetched)
 		}
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchMaxRounds)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchMaxRounds)
 	})
 }
 
@@ -791,7 +800,7 @@ func TestRunManagerReviewWatchWaitsForManualPushHeadBeforeClean(t *testing.T) {
 		if !strings.Contains(row.ErrorText, "timed out") {
 			t.Fatalf("row.ErrorText = %q, want provider wait timeout", row.ErrorText)
 		}
-		if _, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean); ok {
+		if _, ok := findRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean); ok {
 			t.Fatal("watch declared clean against a PR head that did not include the local fix")
 		}
 	})
@@ -849,7 +858,7 @@ func TestRunManagerReviewWatchPrePushHookVetoStopsPush(t *testing.T) {
 		if len(git.pushes) != 0 {
 			t.Fatalf("pushes = %#v, want none after pre-push veto", git.pushes)
 		}
-		if event, ok := findRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushStarted); ok {
+		if event, ok := findRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchPushStarted); ok {
 			t.Fatalf("unexpected push_started event after veto: %#v", event)
 		}
 
@@ -918,9 +927,9 @@ func TestRunManagerReviewWatchTwoRoundFlowWithTempGitRepository(t *testing.T) {
 		if localHead != remoteHead {
 			t.Fatalf("remote feature head = %q, want local head %q", remoteHead, localHead)
 		}
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchFixStarted)
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchFixStarted)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchPushCompleted)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean)
 	})
 }
 
@@ -1070,26 +1079,26 @@ func TestRunManagerReviewWatchDaemonRecoveryRestartsFailedChildRun(t *testing.T)
 		if runs[0].Status != runStatusCompleted || runs[0].ParentRunID != run.RunID {
 			t.Fatalf("review child = %#v, want completed child of %s", runs[0], run.RunID)
 		}
-		started := requireRunEvent(t, childRunID, eventspkg.EventKindRunRecoveryStarted)
+		started := requireRunEvent(t, env.manager, childRunID, eventspkg.EventKindRunRecoveryStarted)
 		var startedPayload kinds.RunRecoveryStartedPayload
 		decodeRunEventPayload(t, started, &startedPayload)
 		if startedPayload.Attempt != 1 || startedPayload.Strategy != "agentic" {
 			t.Fatalf("recovery started payload = %#v", startedPayload)
 		}
-		restarting := requireRunEvent(t, childRunID, eventspkg.EventKindRunRecoveryRestarting)
+		restarting := requireRunEvent(t, env.manager, childRunID, eventspkg.EventKindRunRecoveryRestarting)
 		var restartingPayload kinds.RunRecoveryRestartingPayload
 		decodeRunEventPayload(t, restarting, &restartingPayload)
 		if !reflect.DeepEqual(restartingPayload.FailedJobIDs, []string{failedSafeName}) {
 			t.Fatalf("restarting failed jobs = %#v, want %q", restartingPayload.FailedJobIDs, failedSafeName)
 		}
-		recovered := requireRunEvent(t, childRunID, eventspkg.EventKindRunRecovered)
+		recovered := requireRunEvent(t, env.manager, childRunID, eventspkg.EventKindRunRecovered)
 		var recoveredPayload kinds.RunRecoveredPayload
 		decodeRunEventPayload(t, recovered, &recoveredPayload)
 		if recoveredPayload.Attempts != 1 {
 			t.Fatalf("recovered attempts = %d, want 1", recoveredPayload.Attempts)
 		}
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchFixCompleted)
-		requireRunEvent(t, run.RunID, eventspkg.EventKindReviewWatchClean)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchFixCompleted)
+		requireRunEvent(t, env.manager, run.RunID, eventspkg.EventKindReviewWatchClean)
 	})
 }
 
@@ -1311,7 +1320,7 @@ func TestRunManagerReviewWatchFailureStates(t *testing.T) {
 					t.Fatalf("row.ErrorText = %q, want substring %q", row.ErrorText, tc.wantError)
 				}
 				if tc.wantEvent != "" {
-					requireRunEvent(t, run.RunID, tc.wantEvent)
+					requireRunEvent(t, env.manager, run.RunID, tc.wantEvent)
 				}
 			})
 		}
@@ -1611,13 +1620,13 @@ func runReviewWatchAndCaptureChildMaxRetries(
 
 func TestReviewWatchResolverAndReservationHelpers(t *testing.T) {
 	t.Run("Should resolve helper defaults and manage review watch reservations", func(t *testing.T) {
-		if resolveReviewProviderRegistryFactory(nil) == nil {
+		if resolveReviewProviderRegistryFactory(nil, "") == nil {
 			t.Fatal("resolveReviewProviderRegistryFactory(nil) = nil, want default factory")
 		}
 		customFactory := func(context.Context, string, string) (provider.RegistryReader, func(), error) {
 			return nil, nil, errors.New("unused")
 		}
-		if resolveReviewProviderRegistryFactory(customFactory) == nil {
+		if resolveReviewProviderRegistryFactory(customFactory, "") == nil {
 			t.Fatal("resolveReviewProviderRegistryFactory(custom) = nil, want custom factory")
 		}
 		if resolveReviewWatchGit(nil) == nil {
@@ -1832,19 +1841,29 @@ func runGitOutputContext(ctx context.Context, workDir string, args ...string) (s
 	return strings.TrimSpace(string(output)), nil
 }
 
-func requireRunEvent(t *testing.T, runID string, kind eventspkg.EventKind) eventspkg.Event {
+func requireRunEvent(
+	t *testing.T,
+	manager *RunManager,
+	runID string,
+	kind eventspkg.EventKind,
+) eventspkg.Event {
 	t.Helper()
-	if event, ok := findRunEvent(t, runID, kind); ok {
+	if event, ok := findRunEvent(t, manager, runID, kind); ok {
 		return event
 	}
-	events := allRunEvents(t, runID)
+	events := allRunEvents(t, manager, runID)
 	t.Fatalf("run %s missing event %s; events=%v", runID, kind, eventKinds(events))
 	return eventspkg.Event{}
 }
 
-func findRunEvent(t *testing.T, runID string, kind eventspkg.EventKind) (eventspkg.Event, bool) {
+func findRunEvent(
+	t *testing.T,
+	manager *RunManager,
+	runID string,
+	kind eventspkg.EventKind,
+) (eventspkg.Event, bool) {
 	t.Helper()
-	for _, event := range allRunEvents(t, runID) {
+	for _, event := range allRunEvents(t, manager, runID) {
 		if event.Kind == kind {
 			return event, true
 		}
@@ -1852,11 +1871,14 @@ func findRunEvent(t *testing.T, runID string, kind eventspkg.EventKind) (eventsp
 	return eventspkg.Event{}, false
 }
 
-func allRunEvents(t *testing.T, runID string) []eventspkg.Event {
+func allRunEvents(t *testing.T, manager *RunManager, runID string) []eventspkg.Event {
 	t.Helper()
-	runDB, err := openRunDBForRunID(context.Background(), runID)
+	if manager == nil {
+		t.Fatal("run manager is required")
+	}
+	runDB, err := manager.openRunDB(context.Background(), runID)
 	if err != nil {
-		t.Fatalf("openRunDBForRunID(%q) error = %v", runID, err)
+		t.Fatalf("open run DB for %q: %v", runID, err)
 	}
 	defer func() {
 		_ = runDB.Close()

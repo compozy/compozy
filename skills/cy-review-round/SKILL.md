@@ -22,7 +22,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Determine the review round directory path: `.compozy/tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits. Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
 
 2. Identify the review scope.
-   - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why.
+   - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why, plus the contract catalogs `_user_stories.md` and `_tests.md` when present.
    - Read ADRs from `.compozy/tasks/<name>/adrs/` for architectural decision context.
    - If `_prd.md` and `_techspec.md` are both missing, warn that the review will lack requirements context but proceed with a code-quality-only review.
    - If the user provided specific files or directories, scope the review to those paths.
@@ -33,7 +33,8 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Read `references/review-criteria.md` for severity definitions and evaluation areas.
    - **Prioritize the review scope.** If the scope contains more than 15 files, triage before deep-reading: identify the core implementation files (new packages, new exported APIs, files with the most additions) and review those in full first. Review remaining files (tests, minor edits, config changes) for obvious issues only. This prevents shallow reviews spread across too many files.
    - Read every file in the prioritized scope completely before forming conclusions.
-   - **Requirements validation**: If `_prd.md` or `_techspec.md` were available in step 2, cross-check the implementation against every stated requirement, acceptance criterion, and architectural decision. Flag any requirement that is missing, partially implemented, or implemented differently than specified. These are correctness issues — assign severity based on the gap's impact (critical if a core feature is missing, high if behavior deviates from spec, medium if an edge case from the spec is unhandled).
+   - **Requirements validation**: If `_prd.md` or `_techspec.md` were available in step 2, cross-check the implementation against every stated requirement, acceptance criterion, and architectural decision — including every acceptance criterion and edge case in `_user_stories.md` when it exists. Flag any requirement that is missing, partially implemented, or implemented differently than specified. These are correctness issues — assign severity based on the gap's impact (critical if a core feature is missing, high if behavior deviates from spec, medium if an edge case from the spec is unhandled).
+   - **Test-contract parity**: If `_tests.md` exists, verify that every test ID assigned in completed tasks' `## Tests` sections is implemented in the suite and asserts the behavior the contract specifies. A missing case, or a hollow one that exists without asserting the contracted behavior, is an issue — assign severity based on the impact of the behavior left unverified.
    - Evaluate each file against the nine evaluation areas: Security, Correctness, Concurrency, Performance and Scalability, Error Handling, Code Quality and Maintainability, Testing, Architecture, and Operations.
    - Identify issues in severity order: critical first, then high, medium, and low.
    - For each issue record: the file path relative to the repository root, the approximate line number, the severity level, a concise title (max 72 characters), and a detailed review comment describing the problem and a suggested fix.

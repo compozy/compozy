@@ -280,7 +280,7 @@ func (s *transportTaskService) Archive(
 	if err := requireWorkspacePathAvailable(workspaceRow); err != nil {
 		return apicore.ArchiveResult{}, err
 	}
-	result, err := corepkg.ArchiveDirect(ctx, corepkg.ArchiveConfig{
+	result, err := corepkg.ArchiveWithDB(ctx, s.globalDB, workspaceRow, corepkg.ArchiveConfig{
 		WorkspaceRoot: workspaceRow.RootDir,
 		Name:          strings.TrimSpace(workflowSlug),
 		Force:         req.Force,

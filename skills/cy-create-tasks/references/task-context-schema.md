@@ -39,7 +39,7 @@ Individual task files own task metadata only. They do not own graph topology.
 - `status`: Task lifecycle state.
 - `title`: Human-readable task title. It must match the first H1 in the task body.
 - `type`: Allowed work type slug. Use `[tasks].types` from `.compozy/config.toml` when configured; otherwise use the built-in defaults `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
-- `complexity`: Difficulty rating. Must be one of: `low`, `medium`, `high`, `critical`.
+- `complexity`: Risk rating. Must be one of: `low`, `medium`, `high`, `critical`. Complexity rates implementation risk (regression surface, concurrency, cross-task coordination), not size — a large but well-specified task can be `low`, and a high rating is never a reason to split the task.
 
 Do not include `dependencies` in individual task frontmatter for `compozy.tasks/v2` suites. Dependencies belong only in `_tasks.md` under `graph.edges`.
 
@@ -60,7 +60,9 @@ Task files must match the pattern `task_\d+\.md` with zero-padded numbers:
 
 The leading underscore prefix is reserved for meta documents:
 - `_prd.md` - Product Requirements Document
+- `_user_stories.md` - User-story catalog (companion to the PRD)
 - `_techspec.md` - Technical Specification
+- `_tests.md` - Test contract (companion to the TechSpec)
 - `_tasks.md` - Task graph manifest
 
 ## Parser Compatibility

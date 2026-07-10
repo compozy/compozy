@@ -26,6 +26,8 @@ const (
 	reasoningEffortMedium = "medium"
 	reasoningEffortHigh   = "high"
 	reasoningEffortXHigh  = "xhigh"
+	reasoningEffortMax    = "max"
+	reasoningEffortUltra  = "ultra"
 )
 
 const (
@@ -438,10 +440,15 @@ func validateRuntimeDefaults(path string, runtime RuntimeDefaults) error {
 	}
 	if runtime.ReasoningEffort != "" {
 		switch runtime.ReasoningEffort {
-		case reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh:
+		case reasoningEffortLow,
+			reasoningEffortMedium,
+			reasoningEffortHigh,
+			reasoningEffortXHigh,
+			reasoningEffortMax,
+			reasoningEffortUltra:
 		default:
 			return fmt.Errorf(
-				"%w: %s reasoning_effort must be one of low, medium, high, xhigh (got %q)",
+				"%w: %s reasoning_effort must be one of low, medium, high, xhigh, max, ultra (got %q)",
 				ErrInvalidRuntimeDefaults,
 				path,
 				runtime.ReasoningEffort,

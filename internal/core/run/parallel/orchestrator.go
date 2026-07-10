@@ -88,13 +88,44 @@ type WorktreeLifecycle interface {
 	Head(ctx context.Context, path string) (string, error)
 	FastForward(ctx context.Context, workspaceRoot string, targetBranch string, integrationBranch string) error
 	SyncTaskArtifacts(ctx context.Context, workspaceRoot string, tasks []TaskOutcome) error
-	DiscardIntegrationBranch(
-		ctx context.Context,
-		workspaceRoot string,
-		integrationPath string,
-		integrationBranch string,
-	) error
-	Remove(ctx context.Context, workspaceRoot string, path string) error
+	CleanupTaskWorktree(ctx context.Context, spec TaskWorktreeCleanupSpec) (WorktreeCleanupResult, error)
+	CleanupIntegration(ctx context.Context, spec IntegrationCleanupSpec) (WorktreeCleanupResult, error)
+}
+
+// WorktreeCleanupStatus records the real post-cleanup state exposed to users.
+type WorktreeCleanupStatus string
+
+const (
+	WorktreeCleanupStatusActive    WorktreeCleanupStatus = "active"
+	WorktreeCleanupStatusRemoved   WorktreeCleanupStatus = "removed"
+	WorktreeCleanupStatusPreserved WorktreeCleanupStatus = "preserved"
+)
+
+// WorktreeCleanupResult classifies a safe cleanup decision without turning an
+// intentionally preserved tree into an execution failure.
+type WorktreeCleanupResult struct {
+	Status WorktreeCleanupStatus
+	Reason string
+}
+
+// TaskWorktreeCleanupSpec supplies the evidence needed to remove or preserve a
+// task tree. ContentIntegrated is true only after the final branch was
+// fast-forwarded successfully.
+type TaskWorktreeCleanupSpec struct {
+	WorkspaceRoot     string
+	Path              string
+	BaseCommit        string
+	ContentIntegrated bool
+}
+
+// IntegrationCleanupSpec supplies the evidence needed to remove or preserve
+// the integration worktree and branch.
+type IntegrationCleanupSpec struct {
+	WorkspaceRoot     string
+	IntegrationPath   string
+	IntegrationBranch string
+	BaseCommit        string
+	ContentIntegrated bool
 }
 
 // TaskCommitSpec constrains a task worktree commit to paths the child run
@@ -188,7 +219,10 @@ type TaskOutcome struct {
 	WaveIndex      int
 	RunID          string
 	WorktreePath   string
+	BaseCommit     string
 	WorktreeCommit string
+	WorktreeStatus string
+	WorktreeReason string
 	Status         TaskOutcomeStatus
 	BlockedBy      TaskID
 	Error          string
@@ -202,6 +236,7 @@ const (
 	TaskOutcomeRecovered TaskOutcomeStatus = "recovered"
 	TaskOutcomeFailed    TaskOutcomeStatus = "failed"
 	TaskOutcomeSkipped   TaskOutcomeStatus = "skipped"
+	TaskOutcomeCanceled  TaskOutcomeStatus = "canceled"
 )
 
 // StatusReport returns the user-facing per-task status string.
@@ -220,11 +255,14 @@ type WaveOutcome struct {
 
 // Outcome is the typed result of a parallel run.
 type Outcome struct {
-	Status            OutcomeStatus
-	IntegrationBranch string
-	IntegrationPath   string
-	Waves             []WaveOutcome
-	Tasks             []TaskOutcome
+	Status                      OutcomeStatus
+	IntegrationBranch           string
+	IntegrationPath             string
+	Waves                       []WaveOutcome
+	Tasks                       []TaskOutcome
+	taskCleanupAttempted        bool
+	integrationCleanupAttempted bool
+	taskSettlementsAttempted    bool
 }
 
 // ParallelOutcome preserves the task-specified public API name.
@@ -325,24 +363,58 @@ func (o *ExecutionOrchestrator) Run(ctx context.Context, plan ParallelPlan) (Par
 	if err := o.validatePlan(plan); err != nil {
 		return ParallelOutcome{}, err
 	}
-	o.emitPlanStarted(ctx, plan)
 
 	machine := newParallelFSM()
 	outcome := Outcome{
 		IntegrationBranch: strings.TrimSpace(plan.IntegrationBranch),
 		IntegrationPath:   strings.TrimSpace(plan.IntegrationPath),
 	}
+	if err := o.emitPlanStarted(ctx, plan); err != nil {
+		return outcome, o.fail(ctx, machine, plan, -1, &outcome, err)
+	}
 	if err := o.createIntegrationBranch(ctx, plan); err != nil {
-		return outcome, fmt.Errorf("create parallel integration branch: %w", err)
+		cause := fmt.Errorf("create parallel integration branch: %w", err)
+		return outcome, o.fail(ctx, machine, plan, -1, &outcome, cause)
 	}
 	levels := plan.Waves.Levels()
 	if err := o.runWaves(ctx, machine, plan, levels, &outcome); err != nil {
-		return outcome, err
+		return o.settleRunError(ctx, machine, plan, outcome, err)
+	}
+	if err := failedTaskOutcomesError(outcome.Tasks); err != nil {
+		return o.settleRunError(ctx, machine, plan, outcome, err)
 	}
 	if err := o.finalize(ctx, machine, plan, levels, &outcome); err != nil {
-		return outcome, err
+		return o.settleRunError(ctx, machine, plan, outcome, err)
 	}
 	return outcome, nil
+}
+
+func (o *ExecutionOrchestrator) settleRunError(
+	ctx context.Context,
+	machine *fsm.FSM,
+	plan ParallelPlan,
+	outcome ParallelOutcome,
+	cause error,
+) (ParallelOutcome, error) {
+	settleCtx := context.WithoutCancel(ctx)
+	o.cleanupTaskOutcomes(settleCtx, plan, &outcome, false)
+	integrationErr := o.cleanupIntegration(settleCtx, plan, &outcome, false)
+	taskEventErr := o.emitTaskSettlements(settleCtx, plan, &outcome)
+	cause = errors.Join(cause, integrationErr, taskEventErr)
+	if ctx.Err() != nil {
+		settleErr := o.cancel(settleCtx, machine, plan, &outcome, errors.Join(cause, ctx.Err()))
+		return outcome, settleErr
+	}
+	waveIndex := -1
+	if len(outcome.Waves) > 0 {
+		waveIndex = outcome.Waves[len(outcome.Waves)-1].Index
+	}
+	if isParallelRollbackError(cause) {
+		settleErr := o.rollback(settleCtx, machine, plan, waveIndex, &outcome, cause)
+		return outcome, settleErr
+	}
+	settleErr := o.fail(settleCtx, machine, plan, waveIndex, &outcome, cause)
+	return outcome, settleErr
 }
 
 func (o *ExecutionOrchestrator) createIntegrationBranch(ctx context.Context, plan ParallelPlan) error {
@@ -385,6 +457,9 @@ func (o *ExecutionOrchestrator) runWaves(
 		); err != nil {
 			return err
 		}
+		if err := o.emitPhaseChanged(ctx, plan, waveIndex, parallelPhaseAdvancingBase); err != nil {
+			return err
+		}
 		head, err := o.worktrees.Head(ctx, plan.IntegrationPath)
 		if err != nil {
 			return fmt.Errorf("resolve integration head after wave %d: %w", waveIndex+1, err)
@@ -407,18 +482,29 @@ func (o *ExecutionOrchestrator) runOneWave(
 	blockedBy *map[TaskID]TaskID,
 	outcome *ParallelOutcome,
 ) error {
-	if err := o.checkCanceled(ctx, machine, outcome); err != nil {
+	if err := checkCanceled(ctx); err != nil {
 		return err
 	}
 	if err := o.transition(ctx, machine, parallelEventStartWave, waveIndex); err != nil {
 		return err
 	}
 	runnable, skipped := splitRunnableLevel(waveIndex, level, tasksByID, *blockedBy)
-	o.emitWaveTasksStarted(ctx, plan, waveIndex, waveTotal, runnable, tasksByID)
+	if err := o.emitWaveTasksStarted(ctx, plan, waveIndex, waveTotal, runnable, tasksByID); err != nil {
+		return err
+	}
 	waveOutcome := WaveOutcome{Index: waveIndex, Tasks: skipped}
 	executions, err := o.runWave(ctx, plan, waveIndex, waveTotal, runnable, currentBase, tasksByID)
 	if err != nil {
-		return o.wrapCancelError(ctx, machine, outcome, err)
+		status := TaskOutcomeFailed
+		if ctx.Err() != nil {
+			status = TaskOutcomeCanceled
+		}
+		waveOutcome.Tasks = append(
+			waveOutcome.Tasks,
+			interruptedTaskOutcomes(waveIndex, runnable, tasksByID, executions, waveOutcome.Tasks, status, err)...,
+		)
+		recordWaveOutcome(outcome, waveOutcome)
+		return wrapCancelError(ctx, err)
 	}
 	if hasFailedExecutions(executions) {
 		if err := o.transition(ctx, machine, parallelEventRecoverWave, waveIndex); err != nil {
@@ -427,33 +513,56 @@ func (o *ExecutionOrchestrator) runOneWave(
 		o.recoverFailedExecutions(ctx, plan, executions)
 	}
 	newFailures := appendFailedTaskOutcomes(&waveOutcome, executions)
-	if len(newFailures) > 0 {
-		for _, taskID := range newFailures {
-			failed[taskID] = true
-		}
-		updated := plan.Waves.BlockedBy(failed)
-		if updated == nil {
-			updated = map[TaskID]TaskID{}
-		}
-		*blockedBy = updated
-	}
+	recordNewWaveFailures(plan, newFailures, failed, blockedBy)
 	if err := o.transition(ctx, machine, parallelEventMergeWave, waveIndex); err != nil {
 		return err
 	}
-	o.emitMergeStarted(ctx, plan, waveIndex, waveTotal)
-	mergeOutcome, err := o.mergeWave(ctx, machine, plan, waveIndex, mergeableExecutions(executions), outcome)
+	if err := o.emitMergeStarted(ctx, plan, waveIndex, waveTotal); err != nil {
+		return err
+	}
+	mergeOutcome, err := o.mergeWave(ctx, machine, plan, waveIndex, mergeableExecutions(executions))
 	if err != nil {
-		return o.wrapCancelError(ctx, machine, outcome, err)
+		waveOutcome.Tasks = append(waveOutcome.Tasks, mergeOutcome.Tasks...)
+		waveOutcome.Tasks = append(
+			waveOutcome.Tasks,
+			interruptedTaskOutcomes(
+				waveIndex,
+				runnable,
+				tasksByID,
+				executions,
+				waveOutcome.Tasks,
+				TaskOutcomeFailed,
+				err,
+			)...,
+		)
+		recordWaveOutcome(outcome, waveOutcome)
+		return wrapCancelError(ctx, err)
 	}
 	waveOutcome.Tasks = append(waveOutcome.Tasks, mergeOutcome.Tasks...)
-	sortTaskOutcomes(waveOutcome.Tasks)
-	outcome.Waves = append(outcome.Waves, waveOutcome)
-	outcome.Tasks = append(outcome.Tasks, waveOutcome.Tasks...)
+	recordWaveOutcome(outcome, waveOutcome)
 	if err := o.transition(ctx, machine, parallelEventFinishWave, waveIndex); err != nil {
 		return err
 	}
-	o.emitWaveCompleted(ctx, plan, waveIndex, waveTotal)
-	return nil
+	return o.emitWaveCompleted(ctx, plan, waveIndex, waveTotal)
+}
+
+func recordNewWaveFailures(
+	plan ParallelPlan,
+	newFailures []TaskID,
+	failed map[TaskID]bool,
+	blockedBy *map[TaskID]TaskID,
+) {
+	if len(newFailures) == 0 {
+		return
+	}
+	for _, taskID := range newFailures {
+		failed[taskID] = true
+	}
+	updated := plan.Waves.BlockedBy(failed)
+	if updated == nil {
+		updated = map[TaskID]TaskID{}
+	}
+	*blockedBy = updated
 }
 
 // emitWaveTasksStarted announces every runnable task entering a wave so the TUI
@@ -464,14 +573,17 @@ func (o *ExecutionOrchestrator) emitWaveTasksStarted(
 	waveIndex, waveTotal int,
 	runnable []TaskID,
 	tasksByID map[TaskID]TaskSpec,
-) {
+) error {
 	for _, taskID := range runnable {
 		task, ok := tasksByID[taskID]
 		if !ok {
 			task = TaskSpec{ID: taskID}
 		}
-		o.emitWaveStarted(ctx, plan, waveIndex, waveTotal, task)
+		if err := o.emitWaveStarted(ctx, plan, waveIndex, waveTotal, task); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (o *ExecutionOrchestrator) finalize(
@@ -481,24 +593,41 @@ func (o *ExecutionOrchestrator) finalize(
 	levels [][]TaskID,
 	outcome *ParallelOutcome,
 ) error {
-	if err := o.checkCanceled(ctx, machine, outcome); err != nil {
+	if err := checkCanceled(ctx); err != nil {
+		return err
+	}
+	if err := o.emitPhaseChanged(ctx, plan, len(levels)-1, parallelPhaseFinalizing); err != nil {
 		return err
 	}
 	if err := o.transition(ctx, machine, parallelEventFinalize, len(levels)); err != nil {
 		return err
 	}
+	if err := o.emitPhaseChanged(ctx, plan, len(levels)-1, parallelPhaseFastForwarding); err != nil {
+		return err
+	}
 	if err := o.worktrees.FastForward(ctx, plan.WorkspaceRoot, plan.BaseBranch, plan.IntegrationBranch); err != nil {
 		return fmt.Errorf("fast-forward %s to %s: %w", plan.BaseBranch, plan.IntegrationBranch, err)
 	}
-	if err := o.worktrees.SyncTaskArtifacts(ctx, plan.WorkspaceRoot, outcome.Tasks); err != nil {
-		// Best-effort: the integration branch is already fast-forwarded, so task
-		// artifact write-back must not turn a completed code merge into rollback.
-		o.log.Warn("sync completed task artifacts", "run_id", plan.RunID, "error", err)
+	if err := o.emitPhaseChanged(ctx, plan, len(levels)-1, parallelPhaseSyncingArtifacts); err != nil {
+		return err
 	}
-	if err := o.cleanupCompleted(ctx, plan, outcome.Tasks); err != nil {
+	if err := o.worktrees.SyncTaskArtifacts(ctx, plan.WorkspaceRoot, outcome.Tasks); err != nil {
+		return fmt.Errorf("sync completed task artifacts: %w", err)
+	}
+	if err := o.emitPhaseChanged(ctx, plan, len(levels)-1, parallelPhaseCleaningUp); err != nil {
+		return err
+	}
+	o.cleanupTaskOutcomes(ctx, plan, outcome, true)
+	if err := o.cleanupIntegration(ctx, plan, outcome, true); err != nil {
+		return err
+	}
+	if err := o.emitTaskSettlements(ctx, plan, outcome); err != nil {
 		return err
 	}
 	if err := o.transition(ctx, machine, parallelEventComplete, len(levels)); err != nil {
+		return err
+	}
+	if err := o.emitCompleted(ctx, plan); err != nil {
 		return err
 	}
 	outcome.Status = ParallelOutcomeCompleted
@@ -580,6 +709,7 @@ func (o *ExecutionOrchestrator) runWave(
 		}
 		index := idx
 		task := orderedTasks[idx]
+		results[index].result = TaskRunResult{Task: task, BaseBranch: base.Branch, BaseCommit: base.Commit}
 		wg.Add(1)
 		launched++
 		go func() {
@@ -603,6 +733,12 @@ func (o *ExecutionOrchestrator) runWave(
 			}
 			if result.RunID == "" {
 				result.RunID = strings.TrimSpace(outcome.RunID)
+			}
+			if result.BaseBranch == "" {
+				result.BaseBranch = strings.TrimSpace(base.Branch)
+			}
+			if result.BaseCommit == "" {
+				result.BaseCommit = strings.TrimSpace(base.Commit)
 			}
 			results[index] = taskExecution{
 				prepared: prepared,
@@ -631,7 +767,6 @@ func (o *ExecutionOrchestrator) mergeWave(
 	plan ParallelPlan,
 	waveIndex int,
 	executions []taskExecution,
-	runOutcome *ParallelOutcome,
 ) (WaveOutcome, error) {
 	orderedRuns := append([]taskExecution(nil), executions...)
 	sort.SliceStable(orderedRuns, func(i, j int) bool {
@@ -647,9 +782,6 @@ func (o *ExecutionOrchestrator) mergeWave(
 		commit, err := o.worktrees.CommitTask(ctx, taskCommitSpec(run))
 		if err != nil {
 			err = fmt.Errorf("commit task %s worktree: %w", run.Task.ID, err)
-			if IsTaskCommitScopeError(err) {
-				return outcome, o.fail(ctx, machine, plan, waveIndex, runOutcome, err)
-			}
 			return outcome, err
 		}
 		conflicts, err := o.worktrees.SquashMerge(ctx, plan.IntegrationPath, commit, commitMessage(run.Task))
@@ -657,21 +789,26 @@ func (o *ExecutionOrchestrator) mergeWave(
 			return outcome, fmt.Errorf("squash merge task %s: %w", run.Task.ID, err)
 		}
 		if !conflicts.Clean {
-			o.emitConflictDetected(ctx, plan, waveIndex, run.Task, conflicts, 1, resolverMaxAttempts(plan))
+			if err := o.emitConflictDetected(
+				ctx,
+				plan,
+				waveIndex,
+				run.Task,
+				conflicts,
+				1,
+				resolverMaxAttempts(plan),
+			); err != nil {
+				return outcome, err
+			}
 			result, err := o.resolveConflict(ctx, machine, plan, waveIndex, run.Task, conflicts)
 			if err != nil {
 				if IsConflictResolverSetupError(err) {
-					return outcome, o.fail(ctx, machine, plan, waveIndex, runOutcome, err)
+					return outcome, err
 				}
-				return outcome, o.rollback(ctx, machine, plan, waveIndex, runOutcome, err)
+				return outcome, newParallelRollbackError(err)
 			}
 			if !result.Resolved || !result.Validated {
-				return outcome, o.rollback(
-					ctx,
-					machine,
-					plan,
-					waveIndex,
-					runOutcome,
+				return outcome, newParallelRollbackError(
 					conflictResolverExhaustedError(run.Task.ID, result, conflicts),
 				)
 			}
@@ -681,12 +818,7 @@ func (o *ExecutionOrchestrator) mergeWave(
 				AllowedPaths: conflictCommitAllowedPaths(conflicts),
 				StagePaths:   normalizedConflictFiles(conflicts.Files),
 			}); err != nil {
-				return outcome, o.rollback(
-					ctx,
-					machine,
-					plan,
-					waveIndex,
-					runOutcome,
+				return outcome, newParallelRollbackError(
 					fmt.Errorf("commit resolved squash merge for task %s: %w", run.Task.ID, err),
 				)
 			}
@@ -696,11 +828,15 @@ func (o *ExecutionOrchestrator) mergeWave(
 			WaveIndex:      waveIndex,
 			RunID:          strings.TrimSpace(run.RunID),
 			WorktreePath:   strings.TrimSpace(run.WorktreePath),
+			BaseCommit:     strings.TrimSpace(run.BaseCommit),
 			WorktreeCommit: strings.TrimSpace(commit),
+			WorktreeStatus: string(WorktreeCleanupStatusActive),
 			Status:         mergedStatus(*execution),
 		}
 		outcome.Tasks = append(outcome.Tasks, taskOutcome)
-		o.emitTaskOutcome(ctx, plan, taskOutcome)
+		if err := o.emitTaskMerged(ctx, plan, taskOutcome); err != nil {
+			return outcome, err
+		}
 	}
 	return outcome, nil
 }
@@ -750,7 +886,17 @@ func (o *ExecutionOrchestrator) resolveConflict(
 	if err := o.transition(ctx, machine, parallelEventResolve, waveIndex); err != nil {
 		return ConflictResult{}, err
 	}
-	o.emitConflictResolving(ctx, plan, waveIndex, task, conflicts, 1, resolverMaxAttempts(plan))
+	if err := o.emitConflictResolving(
+		ctx,
+		plan,
+		waveIndex,
+		task,
+		conflicts,
+		1,
+		resolverMaxAttempts(plan),
+	); err != nil {
+		return ConflictResult{}, err
+	}
 	message := commitMessage(task)
 	result, err := o.conflictResolver.Resolve(ctx, conflictResolverInput(plan, task, conflicts, message))
 	if err != nil {
@@ -780,19 +926,12 @@ func (o *ExecutionOrchestrator) rollback(
 	outcome *ParallelOutcome,
 	cause error,
 ) error {
-	rollbackCtx := context.WithoutCancel(ctx)
 	if outcome != nil {
 		outcome.Status = ParallelOutcomeRolledBack
 	}
-	discardErr := o.worktrees.DiscardIntegrationBranch(
-		rollbackCtx,
-		plan.WorkspaceRoot,
-		plan.IntegrationPath,
-		plan.IntegrationBranch,
-	)
-	transitionErr := o.transition(rollbackCtx, machine, parallelEventRollback, -1)
-	o.emitRolledBack(rollbackCtx, plan, waveIndex)
-	return errors.Join(cause, discardErr, transitionErr)
+	transitionErr := o.transition(ctx, machine, parallelEventRollback, -1)
+	emitErr := o.emitRolledBack(ctx, plan, waveIndex)
+	return errors.Join(cause, transitionErr, emitErr)
 }
 
 func (o *ExecutionOrchestrator) fail(
@@ -808,67 +947,141 @@ func (o *ExecutionOrchestrator) fail(
 		outcome.Status = ParallelOutcomeFailed
 	}
 	transitionErr := o.transition(failCtx, machine, parallelEventFail, waveIndex)
-	o.emitFailed(failCtx, plan, waveIndex, cause)
-	return errors.Join(cause, transitionErr)
+	emitErr := o.emitFailed(failCtx, plan, waveIndex, cause)
+	return errors.Join(cause, transitionErr, emitErr)
 }
 
-func (o *ExecutionOrchestrator) cleanupCompleted(
+func (o *ExecutionOrchestrator) cleanupTaskOutcomes(
 	ctx context.Context,
 	plan ParallelPlan,
-	tasks []TaskOutcome,
-) error {
-	for index := range tasks {
-		task := &tasks[index]
-		if !task.Status.removesWorktree() || strings.TrimSpace(task.WorktreePath) == "" {
+	outcome *ParallelOutcome,
+	contentIntegrated bool,
+) {
+	if outcome == nil {
+		return
+	}
+	if outcome.taskCleanupAttempted {
+		return
+	}
+	outcome.taskCleanupAttempted = true
+	for index := range outcome.Tasks {
+		task := &outcome.Tasks[index]
+		if strings.TrimSpace(task.WorktreePath) == "" {
 			continue
 		}
-		if err := o.worktrees.Remove(ctx, plan.WorkspaceRoot, task.WorktreePath); err != nil {
-			return fmt.Errorf("remove task %s worktree: %w", task.Task.ID, err)
+		result, err := o.worktrees.CleanupTaskWorktree(ctx, TaskWorktreeCleanupSpec{
+			WorkspaceRoot:     plan.WorkspaceRoot,
+			Path:              task.WorktreePath,
+			BaseCommit:        task.BaseCommit,
+			ContentIntegrated: contentIntegrated && task.Status.removesWorktree(),
+		})
+		if err != nil {
+			task.WorktreeStatus = string(WorktreeCleanupStatusPreserved)
+			task.WorktreeReason = fmt.Sprintf("cleanup inspection failed: %v", err)
+			o.logCleanupPreserved(*task)
+			continue
+		}
+		task.WorktreeStatus = string(result.Status)
+		task.WorktreeReason = strings.TrimSpace(result.Reason)
+		if result.Status == WorktreeCleanupStatusPreserved {
+			o.logCleanupPreserved(*task)
 		}
 	}
-	if err := o.worktrees.DiscardIntegrationBranch(
-		ctx,
-		plan.WorkspaceRoot,
-		plan.IntegrationPath,
-		plan.IntegrationBranch,
-	); err != nil {
-		return fmt.Errorf("discard integration branch %s: %w", plan.IntegrationBranch, err)
+}
+
+func (o *ExecutionOrchestrator) logCleanupPreserved(task TaskOutcome) {
+	if o.log == nil {
+		return
+	}
+	o.log.Warn(
+		"parallel task worktree preserved",
+		"task_id",
+		task.Task.ID,
+		"worktree_path",
+		task.WorktreePath,
+		"reason",
+		task.WorktreeReason,
+	)
+}
+
+func (o *ExecutionOrchestrator) cleanupIntegration(
+	ctx context.Context,
+	plan ParallelPlan,
+	outcome *ParallelOutcome,
+	contentIntegrated bool,
+) error {
+	if outcome != nil {
+		if outcome.integrationCleanupAttempted {
+			return nil
+		}
+		outcome.integrationCleanupAttempted = true
+	}
+	result, err := o.worktrees.CleanupIntegration(ctx, IntegrationCleanupSpec{
+		WorkspaceRoot:     plan.WorkspaceRoot,
+		IntegrationPath:   plan.IntegrationPath,
+		IntegrationBranch: plan.IntegrationBranch,
+		BaseCommit:        plan.BaseCommit,
+		ContentIntegrated: contentIntegrated,
+	})
+	if err != nil {
+		return fmt.Errorf("cleanup integration branch %s: %w", plan.IntegrationBranch, err)
+	}
+	if result.Status == WorktreeCleanupStatusPreserved && o.log != nil {
+		o.log.Warn(
+			"parallel integration worktree preserved",
+			"integration_branch",
+			plan.IntegrationBranch,
+			"integration_path",
+			plan.IntegrationPath,
+			"reason",
+			strings.TrimSpace(result.Reason),
+		)
 	}
 	return nil
 }
 
-func (o *ExecutionOrchestrator) checkCanceled(
+func (o *ExecutionOrchestrator) emitTaskSettlements(
 	ctx context.Context,
-	machine *fsm.FSM,
+	plan ParallelPlan,
 	outcome *ParallelOutcome,
 ) error {
-	if err := ctx.Err(); err != nil {
-		if outcome != nil {
-			outcome.Status = ParallelOutcomeCanceled
+	if outcome == nil || outcome.taskSettlementsAttempted {
+		return nil
+	}
+	outcome.taskSettlementsAttempted = true
+	for index := range outcome.Tasks {
+		if err := o.emitTaskCompleted(ctx, plan, outcome.Tasks[index]); err != nil {
+			return err
 		}
-		if transitionErr := o.transition(
-			context.WithoutCancel(ctx),
-			machine,
-			parallelEventCancel,
-			-1,
-		); transitionErr != nil {
-			return errors.Join(err, transitionErr)
-		}
-		return err
 	}
 	return nil
 }
 
-func (o *ExecutionOrchestrator) wrapCancelError(
+func checkCanceled(ctx context.Context) error {
+	return ctx.Err()
+}
+
+func (o *ExecutionOrchestrator) cancel(
 	ctx context.Context,
 	machine *fsm.FSM,
+	plan ParallelPlan,
 	outcome *ParallelOutcome,
-	err error,
+	cause error,
 ) error {
+	cancelCtx := context.WithoutCancel(ctx)
+	if outcome != nil {
+		outcome.Status = ParallelOutcomeCanceled
+	}
+	transitionErr := o.transition(cancelCtx, machine, parallelEventCancel, -1)
+	emitErr := o.emitCanceled(cancelCtx, plan, cause)
+	return errors.Join(cause, transitionErr, emitErr)
+}
+
+func wrapCancelError(ctx context.Context, err error) error {
 	if ctx.Err() == nil {
 		return err
 	}
-	return errors.Join(err, o.checkCanceled(ctx, machine, outcome))
+	return errors.Join(err, ctx.Err())
 }
 
 func (o *ExecutionOrchestrator) transition(
@@ -906,6 +1119,30 @@ type taskExecution struct {
 	outcome   recovery.RunOutcome
 	err       error
 	recovered bool
+}
+
+type parallelRollbackError struct {
+	err error
+}
+
+func (e parallelRollbackError) Error() string {
+	return e.err.Error()
+}
+
+func (e parallelRollbackError) Unwrap() error {
+	return e.err
+}
+
+func newParallelRollbackError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return parallelRollbackError{err: err}
+}
+
+func isParallelRollbackError(err error) bool {
+	var rollbackErr parallelRollbackError
+	return errors.As(err, &rollbackErr)
 }
 
 func (o *ExecutionOrchestrator) recoverFailedExecutions(
@@ -1125,16 +1362,103 @@ func appendFailedTaskOutcomes(outcome *WaveOutcome, executions []taskExecution) 
 		}
 		failed = append(failed, task.ID)
 		outcome.Tasks = append(outcome.Tasks, TaskOutcome{
-			Task:         task,
-			WaveIndex:    outcome.Index,
-			RunID:        strings.TrimSpace(execution.result.RunID),
-			WorktreePath: strings.TrimSpace(execution.result.WorktreePath),
-			Status:       TaskOutcomeFailed,
-			Error:        taskExecutionError(*execution),
+			Task:           task,
+			WaveIndex:      outcome.Index,
+			RunID:          strings.TrimSpace(execution.result.RunID),
+			WorktreePath:   strings.TrimSpace(execution.result.WorktreePath),
+			BaseCommit:     strings.TrimSpace(execution.result.BaseCommit),
+			WorktreeStatus: initialWorktreeStatus(execution.result.WorktreePath),
+			Status:         TaskOutcomeFailed,
+			Error:          taskExecutionError(*execution),
 		})
 	}
 	sortTaskIDs(failed)
 	return failed
+}
+
+func interruptedTaskOutcomes(
+	waveIndex int,
+	runnable []TaskID,
+	tasksByID map[TaskID]TaskSpec,
+	executions []taskExecution,
+	existing []TaskOutcome,
+	status TaskOutcomeStatus,
+	cause error,
+) []TaskOutcome {
+	existingByID := make(map[TaskID]struct{}, len(existing))
+	for index := range existing {
+		existingByID[existing[index].Task.ID] = struct{}{}
+	}
+	executionsByID := make(map[TaskID]taskExecution, len(executions))
+	for index := range executions {
+		taskID := executions[index].result.Task.ID
+		if taskID != "" {
+			executionsByID[taskID] = executions[index]
+		}
+	}
+	message := ""
+	if cause != nil {
+		message = strings.TrimSpace(cause.Error())
+	}
+	result := make([]TaskOutcome, 0, len(runnable))
+	for _, taskID := range runnable {
+		if _, ok := existingByID[taskID]; ok {
+			continue
+		}
+		execution, ok := executionsByID[taskID]
+		task := tasksByID[taskID]
+		if ok && execution.result.Task.ID != "" {
+			task = execution.result.Task
+		}
+		item := TaskOutcome{Task: task, WaveIndex: waveIndex, Status: status, Error: message}
+		if ok {
+			item.RunID = strings.TrimSpace(execution.result.RunID)
+			item.WorktreePath = strings.TrimSpace(execution.result.WorktreePath)
+			item.BaseCommit = strings.TrimSpace(execution.result.BaseCommit)
+			item.WorktreeStatus = initialWorktreeStatus(execution.result.WorktreePath)
+			if executionError := taskExecutionError(execution); executionError != "" {
+				item.Error = executionError
+			}
+		}
+		result = append(result, item)
+	}
+	sortTaskOutcomes(result)
+	return result
+}
+
+func recordWaveOutcome(outcome *ParallelOutcome, wave WaveOutcome) {
+	if outcome == nil {
+		return
+	}
+	sortTaskOutcomes(wave.Tasks)
+	outcome.Waves = append(outcome.Waves, wave)
+	outcome.Tasks = append(outcome.Tasks, wave.Tasks...)
+}
+
+func initialWorktreeStatus(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	return string(WorktreeCleanupStatusActive)
+}
+
+func failedTaskOutcomesError(outcomes []TaskOutcome) error {
+	failures := make([]string, 0)
+	for index := range outcomes {
+		outcome := outcomes[index]
+		if outcome.Status != TaskOutcomeFailed && outcome.Status != TaskOutcomeSkipped {
+			continue
+		}
+		detail := outcome.StatusReport()
+		if message := strings.TrimSpace(outcome.Error); message != "" {
+			detail += ": " + message
+		}
+		failures = append(failures, fmt.Sprintf("%s=%s", outcome.Task.ID, detail))
+	}
+	if len(failures) == 0 {
+		return nil
+	}
+	return fmt.Errorf("parallel task execution did not complete: %s", strings.Join(failures, "; "))
 }
 
 func taskExecutionError(execution taskExecution) string {

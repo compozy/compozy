@@ -79,6 +79,7 @@ const (
 	EventKindTaskRunMultipleItemCanceled   EventKind = "task.multi.item_canceled"
 	EventKindTaskRunMultipleQueueCanceled  EventKind = "task.multi.queue_canceled"
 	EventKindTaskRunMultipleQueueCompleted EventKind = "task.multi.queue_completed"
+	EventKindTaskRunMultipleQueueFailed    EventKind = "task.multi.queue_failed"
 
 	// Parallel task execution events emitted by the ParallelExecutionOrchestrator.
 	EventKindTaskParallelPlanStarted       EventKind = "task.parallel.plan_started"
@@ -89,8 +90,12 @@ const (
 	EventKindTaskParallelConflictDetected  EventKind = "task.parallel.conflict_detected"
 	EventKindTaskParallelConflictResolving EventKind = "task.parallel.conflict_resolving"
 	EventKindTaskParallelMerged            EventKind = "task.parallel.merged"
+	EventKindTaskParallelTaskCompleted     EventKind = "task.parallel.task_completed"
+	EventKindTaskParallelPhaseChanged      EventKind = "task.parallel.phase_changed"
+	EventKindTaskParallelCompleted         EventKind = "task.parallel.completed"
 	EventKindTaskParallelFailed            EventKind = "task.parallel.failed"
 	EventKindTaskParallelRolledBack        EventKind = "task.parallel.rolled_back"
+	EventKindTaskParallelCanceled          EventKind = "task.parallel.canceled"
 
 	// Artifact and extension events.
 	EventKindArtifactUpdated EventKind = "artifact.updated"

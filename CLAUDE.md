@@ -8,7 +8,7 @@ This file provides project guidance for coding agents working in this repository
 - **YOU CAN ONLY** finish a task if `make verify` passes at 100% (runs `fmt + lint + test + build`). No exceptions — failing any of these commands means the task is **NOT COMPLETE**
 - **`make lint` has zero tolerance**. **Zero issues allowed** — any golangci-lint issue is a blocking failure
 - **ALWAYS** check dependent package APIs before writing integration code or tests to avoid writing wrong code
-- **NEVER** use workarounds — always use the `no-workarounds` skill for any fix/debug task + `testing-anti-patterns` for tests
+- **NEVER** use workarounds — always use the `no-workarounds` skill for any fix/debug task + `testing-boss` for tests
 - **ALWAYS** use the `no-workarounds` and `systematic-debugging` skills when fixing bugs or complex issues
 - **NEVER** use web search tools to search local project code — for local code, use Grep/Glob instead
 - **YOU SHOULD NEVER** add dependencies by hand in `go.mod` — always use `go get` instead
@@ -18,7 +18,7 @@ This file provides project guidance for coding agents working in this repository
 - **MUST** run `make verify` before completing ANY subtask
 - **ALWAYS USE** the `golang-pro` skill before writing any Go code
 - **ALWAYS USE** the `systematic-debugging` + `no-workarounds` skills before fixing any bug
-- **ALWAYS USE** the `testing-anti-patterns` skill before writing or modifying tests
+- **ALWAYS USE** the `testing-boss` skill before writing or modifying tests
 - **ALWAYS USE** the `cy-final-verify` skill before claiming any task is done
 - **Skipping any verification check will result in IMMEDIATE TASK REJECTION**
 
@@ -83,8 +83,8 @@ make deps                # Tidy and verify modules
 
 - **TOOL HIERARCHY**: Use tools in this order:
   1. **Grep** / **Glob** — preferred for local project code
-  2. **`find-docs` skill** — for external Go libraries and framework documentation
-  3. **Web search tools** — for web research, latest news, code examples
+  2. **`context7` skill** — for external libraries, frameworks, SDKs, and API documentation
+  3. **Web search tools** — for web research, latest news, code examples (prefer `exa-web-search-free` when available)
 - **FORBIDDEN**: Never use web search tools for local project code
 
 ## Coding Style
@@ -140,37 +140,51 @@ Scan the task description and target files to determine which domains are involv
 - **Config** keywords: config, TOML, environment, validation, settings
 - **Logging** keywords: logger, logging, slog, log level, observer
 - **Bug fix** keywords: bug, fix, error, failure, crash, unexpected, broken, regression
-- **Writing tests** keywords: test, spec, mock, stub, fixture, assertion, coverage, table-driven
-- **Task completion** keywords: done, complete, finished, ship
+- **Writing tests** keywords: test, spec, mock, stub, fixture, assertion, coverage, table-driven, flaky, eval
+- **Task completion** keywords: done, complete, finished, ship, commit, PR
 - **Architecture audit** keywords: architecture, dead code, code smell, anti-pattern, duplication
-- **Creative / new features** keywords: new, feature, design, add, create, implement
+- **Refactoring audit** keywords: refactor, code smell, Fowler, coupling, long function
+- **Creative / planning** keywords: plan, design decision, grill me, explore idea, stress-test plan
+- **Compozy workflow** keywords: PRD, TechSpec, task breakdown, idea factory, review round, execute task
 - **Frontend / React** keywords: react, component, jsx, tsx, hook, props, state, render, virtual DOM
 - **Frontend stack** keywords: shadcn, tailwind, tanstack, router, query, vitest, storybook, zod, zustand, vite, ai-sdk
 - **TypeScript** keywords: typescript, type, generic, interface, utility type, tsx, ts
-- **UI / UX design** keywords: design, layout, spacing, typography, color, visual, hierarchy, mockup, interface, minimalist, redesign, logo, brand
+- **UI / UX design** keywords: design, layout, spacing, typography, color, visual, hierarchy, mockup, interface, logo, brand, empty state
+- **TUI / terminal UI** keywords: TUI, Bubble Tea, Lipgloss, terminal UI, panel layout, keybinding
+- **QA / dogfooding** keywords: QA, persona, journey, dogfood, bug registry, session charter
+- **Peer review / audit** keywords: peer review, impl review, spec review, agent output audit, independent evaluator
+- **Skill authoring** keywords: skill, SKILL.md, writing skills, skill description
 
 ### Step 2: Activate All Matching Skills
 
 Use the `Skill` tool to activate every skill that matches the identified domains:
 
-| Domain                  | Required Skills                                                                 | Conditional Skills                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Go / Runtime            | `golang-pro`                                                                    | `find-docs`                                                                          |
-| Config                  | `golang-pro`                                                                    |                                                                                      |
-| Logging                 | `golang-pro`                                                                    |                                                                                      |
-| Bug fix                 | `systematic-debugging` + `no-workarounds`                                       | `testing-anti-patterns`                                                              |
-| Writing tests           | `testing-anti-patterns` + `golang-pro`                                          | `vitest` (frontend)                                                                  |
-| Task completion         | `cy-final-verify`                                                               |                                                                                      |
-| Architecture audit      | `architectural-analysis`                                                        | `adversarial-review`                                                                 |
-| Creative / new features | `brainstorming`                                                                 |                                                                                      |
-| Git rebase/conflicts    | `git-rebase`                                                                    |                                                                                      |
-| Frontend / React        | `react` + `typescript-advanced`                                                 | `vercel-react-best-practices`, `vercel-composition-patterns`, `app-renderer-systems` |
-| shadcn / Tailwind UI    | `shadcn` + `shadcn-ui` + `tailwindcss`                                          | `storybook-stories`                                                                  |
-| TanStack stack          | `tanstack` + `tanstack-query-best-practices` + `tanstack-router-best-practices` | `tanstack-start-best-practices`                                                      |
-| Frontend state / schema | `zustand` + `zod`                                                               |                                                                                      |
-| Frontend testing        | `vitest` + `testing-anti-patterns`                                              | `storybook-stories`                                                                  |
-| AI-powered UI           | `ai-sdk`                                                                        | `react`                                                                              |
-| UI / UX design          | `frontend-design` + `design-taste-frontend` + `interface-design`                | `minimalist-ui`, `redesign-existing-projects`, `tech-logos`, `ubs`                   |
+| Domain                  | Required Skills                                                                                                                       | Conditional Skills                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Go / Runtime            | `golang-pro`                                                                                                                          | `context7`                                                                           |
+| Config                  | `golang-pro`                                                                                                                          |                                                                                      |
+| Logging                 | `golang-pro`                                                                                                                          |                                                                                      |
+| Bug fix                 | `systematic-debugging` + `no-workarounds`                                                                                             | `testing-boss`                                                                       |
+| Writing tests           | `testing-boss` + `golang-pro`                                                                                                         | `vitest` (frontend)                                                                  |
+| Task completion         | `cy-final-verify`                                                                                                                     | `deslop`                                                                             |
+| Architecture audit      | `architectural-analysis`                                                                                                              | `impl-peer-review`                                                                   |
+| Refactoring audit       | `refactoring-analysis`                                                                                                                | `architectural-analysis`                                                             |
+| Creative / planning     | `grill-me`                                                                                                                            | `cy-idea-factory`, `cy-create-prd`                                                   |
+| Compozy workflow        | `compozy`                                                                                                                             | matching `cy-*` skill for the phase                                                  |
+| Git rebase/conflicts    | `git-rebase`                                                                                                                          |                                                                                      |
+| Frontend / React        | `react` + `typescript-advanced`                                                                                                       | `vercel-react-best-practices`, `vercel-composition-patterns`, `app-renderer-systems` |
+| shadcn / Tailwind UI    | `shadcn` + `shadcn-ui` + `tailwindcss`                                                                                                | `storybook-stories`                                                                  |
+| TanStack stack          | `tanstack`                                                                                                                            |                                                                                      |
+| Frontend state / schema | `zustand` + `zod`                                                                                                                     |                                                                                      |
+| Frontend testing        | `vitest` + `testing-boss`                                                                                                             | `storybook-stories`                                                                  |
+| AI-powered UI           | `ai-sdk`                                                                                                                              | `react`                                                                              |
+| UI / UX design          | `ui-craft`                                                                                                                            | `tech-logos`, `ubs`                                                                  |
+| TUI / terminal UI       | `tui-design` + `bubbletea`                                                                                                            | `tui-glamorous`                                                                      |
+| QA planning             | `qa-report`                                                                                                                           |                                                                                      |
+| QA execution            | `qa-execution`                                                                                                                        |                                                                                      |
+| Peer review / audit     | matching review skill (`impl-peer-review`, `spec-peer-review`, `cy-impl-peer-review`, `cy-spec-peer-review`, or `agent-output-audit`) |                                                                                      |
+| Skill authoring         | `writing-skills`                                                                                                                      |                                                                                      |
+| External library docs   | `context7`                                                                                                                            | `exa-web-search-free`                                                                |
 
 ### Step 3: Verify Before Completion
 
@@ -179,7 +193,8 @@ Before any agent marks a task as complete:
 1. Activate `cy-final-verify` skill
 2. Run `make verify`
 3. Read and verify the full output — no skipping
-4. Only then claim completion
+4. Prefer `deslop` on the branch diff before commit/PR when the change is user-facing or large
+5. Only then claim completion
 
 ## Anti-Patterns for Agents
 
@@ -188,15 +203,16 @@ Before any agent marks a task as complete:
 1. **Skip skill activation** because "it's a small change" — every domain change requires its skill
 2. **Activate only one skill** when the code touches multiple domains
 3. **Forget `cy-final-verify`** before marking tasks done
-4. **Write tests without `testing-anti-patterns`** — leads to mock-testing-mocks and production pollution
+4. **Write tests without `testing-boss`** — leads to mock-testing-mocks and production pollution
 5. **Fix bugs without `systematic-debugging`** — leads to symptom-patching instead of root cause fixes
 6. **Apply workarounds without `no-workarounds`** — type assertions, lint suppressions, error swallowing are rejected
 7. **Claim task is done when any check has warnings or errors** — zero warnings, zero errors. No exceptions
 8. **Add dependencies by hand in go.mod** — always use `go get`
-9. **Use web search tools for local code** — only for external library documentation
+9. **Use web search tools for local code** — only for external library documentation via `context7`
 10. **Run destructive git commands without permission** — `git restore`, `git reset`, `git clean` require explicit user approval
 11. **Use `panic()` or `log.Fatal()` in production handlers** — leads to unrecoverable crashes without cleanup
 12. **Fire-and-forget goroutines** — every goroutine must have explicit ownership and shutdown handling
 13. **Use `time.Sleep()` in orchestration** — use proper synchronization primitives instead
 14. **Ignore errors with `_`** — every error must be handled or have a written justification
 15. **Hardcode configuration** — use TOML config or functional options
+16. **Reference removed skills** — `testing-anti-patterns` → `testing-boss`; `find-docs` → `context7`; `brainstorming` → `grill-me`; `adversarial-review` → `impl-peer-review`; `frontend-design` / `design-taste-frontend` / `interface-design` / `minimalist-ui` / `redesign-existing-projects` → `ui-craft`; split `tanstack-*-best-practices` → `tanstack`. Use the replacements in the dispatch table above.

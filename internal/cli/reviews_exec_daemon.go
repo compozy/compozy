@@ -19,6 +19,7 @@ import (
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
+	runspkg "github.com/compozy/compozy/pkg/compozy/runs"
 	"github.com/spf13/cobra"
 )
 
@@ -819,7 +820,7 @@ func (s *commandState) streamDaemonWorkflowEvents(
 ) error {
 	encoder := json.NewEncoder(dst)
 	var terminalErr error
-	err := consumeDaemonRunStream(ctx, client, runID, func(item apiclient.RunStreamItem) error {
+	err := consumeDaemonRunEvents(ctx, client, runID, func(item apiclient.RunStreamItem) error {
 		if item.Overflow != nil {
 			return nil
 		}
@@ -868,7 +869,7 @@ func (s *commandState) streamDaemonExecEvents(
 ) error {
 	encoder := json.NewEncoder(dst)
 	var terminalErr error
-	err := consumeDaemonRunStream(ctx, client, runID, func(item apiclient.RunStreamItem) error {
+	err := consumeDaemonRunEvents(ctx, client, runID, func(item apiclient.RunStreamItem) error {
 		if item.Overflow != nil || item.Event == nil {
 			return nil
 		}
@@ -899,43 +900,39 @@ func (s *commandState) streamDaemonExecEvents(
 	return nil
 }
 
-func consumeDaemonRunStream(
+func consumeDaemonRunEvents(
 	ctx context.Context,
 	client daemonCommandClient,
 	runID string,
 	handle func(apiclient.RunStreamItem) error,
 ) error {
-	stream, err := client.OpenRunStream(ctx, runID, apicore.StreamCursor{})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = stream.Close()
-	}()
-
-	for {
+	eventsCh, errsCh := runspkg.WatchRemote(ctx, cliRemoteWatchClient{daemon: client}, runID)
+	for eventsCh != nil || errsCh != nil {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err, ok := <-stream.Errors():
+		case err, ok := <-errsCh:
 			if !ok {
-				return nil
+				errsCh = nil
+				continue
 			}
 			if err != nil {
 				return err
 			}
-		case item, ok := <-stream.Items():
+		case event, ok := <-eventsCh:
 			if !ok {
-				return nil
+				eventsCh = nil
+				continue
 			}
-			if err := handle(item); err != nil {
+			if err := handle(apiclient.RunStreamItem{Event: &event}); err != nil {
 				return err
 			}
-			if item.Event != nil && isTerminalDaemonEvent(item.Event.Kind) {
+			if isTerminalDaemonEvent(event.Kind) {
 				return nil
 			}
 		}
 	}
+	return nil
 }
 
 func waitForDaemonRunTerminal(ctx context.Context, client daemonCommandClient, runID string) (apicore.Run, error) {
@@ -943,7 +940,7 @@ func waitForDaemonRunTerminal(ctx context.Context, client daemonCommandClient, r
 		terminal         apicore.Run
 		sawTerminalEvent bool
 	)
-	err := consumeDaemonRunStream(ctx, client, runID, func(item apiclient.RunStreamItem) error {
+	err := consumeDaemonRunEvents(ctx, client, runID, func(item apiclient.RunStreamItem) error {
 		if item.Event != nil && isTerminalDaemonEvent(item.Event.Kind) {
 			sawTerminalEvent = true
 		}
@@ -1199,6 +1196,31 @@ func shouldEmitLeanWorkflowEvent(event eventspkg.Event) bool {
 		eventspkg.EventKindRunCompleted,
 		eventspkg.EventKindRunFailed,
 		eventspkg.EventKindRunCancelled,
+		eventspkg.EventKindRunCrashed,
+		eventspkg.EventKindRunRecoveryExhausted,
+		eventspkg.EventKindTaskRunMultipleStarted,
+		eventspkg.EventKindTaskRunMultipleItemQueued,
+		eventspkg.EventKindTaskRunMultipleChildStarted,
+		eventspkg.EventKindTaskRunMultipleChildCompleted,
+		eventspkg.EventKindTaskRunMultipleChildFailed,
+		eventspkg.EventKindTaskRunMultipleItemCanceled,
+		eventspkg.EventKindTaskRunMultipleQueueCompleted,
+		eventspkg.EventKindTaskRunMultipleQueueFailed,
+		eventspkg.EventKindTaskRunMultipleQueueCanceled,
+		eventspkg.EventKindTaskParallelPlanStarted,
+		eventspkg.EventKindTaskParallelWaveStarted,
+		eventspkg.EventKindTaskParallelTaskStarted,
+		eventspkg.EventKindTaskParallelTaskCompleted,
+		eventspkg.EventKindTaskParallelMergeStarted,
+		eventspkg.EventKindTaskParallelConflictDetected,
+		eventspkg.EventKindTaskParallelConflictResolving,
+		eventspkg.EventKindTaskParallelMerged,
+		eventspkg.EventKindTaskParallelWaveCompleted,
+		eventspkg.EventKindTaskParallelPhaseChanged,
+		eventspkg.EventKindTaskParallelCompleted,
+		eventspkg.EventKindTaskParallelCanceled,
+		eventspkg.EventKindTaskParallelFailed,
+		eventspkg.EventKindTaskParallelRolledBack,
 		eventspkg.EventKindJobStarted,
 		eventspkg.EventKindJobRetryScheduled,
 		eventspkg.EventKindJobPausing,
@@ -1255,15 +1277,7 @@ func decodeDaemonPayload[T any](raw json.RawMessage) (T, error) {
 }
 
 func isTerminalDaemonEvent(kind eventspkg.EventKind) bool {
-	switch kind {
-	case eventspkg.EventKindRunCompleted,
-		eventspkg.EventKindRunFailed,
-		eventspkg.EventKindRunCancelled,
-		eventspkg.EventKindRunCrashed:
-		return true
-	default:
-		return false
-	}
+	return eventspkg.IsRunTerminalKind(kind)
 }
 
 func isTerminalFailureStatus(run apicore.Run) bool {
@@ -1370,6 +1384,12 @@ func (s *commandState) resolveReviewRound(ctx context.Context) error {
 	if s.round > 0 {
 		return nil
 	}
+	if round, ok, err := latestLocalReviewRound(s.workspaceRoot, s.name); err != nil {
+		return err
+	} else if ok {
+		s.round = round
+		return nil
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
@@ -1381,6 +1401,68 @@ func (s *commandState) resolveReviewRound(ctx context.Context) error {
 	}
 	s.round = review.RoundNumber
 	return nil
+}
+
+func latestLocalReviewRound(workspaceRoot string, workflowSlug string) (int, bool, error) {
+	if strings.TrimSpace(workspaceRoot) == "" || strings.TrimSpace(workflowSlug) == "" {
+		return 0, false, nil
+	}
+	workflowDir := filepathJoin(workspaceRoot, ".compozy", "tasks", workflowSlug)
+	entries, err := os.ReadDir(workflowDir)
+	if os.IsNotExist(err) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("read review workflow directory %s: %w", workflowDir, err)
+	}
+
+	latest := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		round, ok := parseReviewRoundDirName(entry.Name())
+		if !ok {
+			continue
+		}
+		hasIssueFile, err := reviewRoundHasIssueFile(filepath.Join(workflowDir, entry.Name()))
+		if err != nil {
+			return 0, false, err
+		}
+		if hasIssueFile && round > latest {
+			latest = round
+		}
+	}
+	return latest, latest > 0, nil
+}
+
+func parseReviewRoundDirName(name string) (int, bool) {
+	trimmed := strings.TrimSpace(name)
+	if !strings.HasPrefix(trimmed, "reviews-") {
+		return 0, false
+	}
+	round, err := strconv.Atoi(strings.TrimPrefix(trimmed, "reviews-"))
+	if err != nil || round <= 0 {
+		return 0, false
+	}
+	return round, true
+}
+
+func reviewRoundHasIssueFile(reviewDir string) (bool, error) {
+	entries, err := os.ReadDir(reviewDir)
+	if err != nil {
+		return false, fmt.Errorf("read review round directory %s: %w", reviewDir, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasPrefix(name, "issue_") && strings.HasSuffix(name, ".md") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func reviewRoundDirForWorkflow(workspaceRoot string, workflowSlug string, round int) string {

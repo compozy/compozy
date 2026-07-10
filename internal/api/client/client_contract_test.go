@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
 type idleSSEBody struct {
@@ -180,6 +181,12 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 					if body.PresentationMode != "stream" {
 						t.Fatalf("presentation_mode = %q, want stream", body.PresentationMode)
 					}
+					if body.Execution == nil ||
+						body.Execution.Kind != contract.ExecutionKindTaskMultiParallel ||
+						!body.Execution.UsesWorktrees ||
+						body.Execution.Source != "--parallel=true" {
+						t.Fatalf("execution descriptor = %#v", body.Execution)
+					}
 					if string(body.RuntimeOverrides) != `{"persist":true}` {
 						t.Fatalf("runtime_overrides = %s, want persist override", body.RuntimeOverrides)
 					}
@@ -198,6 +205,12 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 			ParallelLimit:    workspace.DefaultRunMultipleParallelLimit,
 			PresentationMode: "stream",
 			RuntimeOverrides: json.RawMessage(`{"persist":true}`),
+			Execution: &apicore.TaskExecutionDescriptor{
+				Kind:          contract.ExecutionKindTaskMultiParallel,
+				Label:         "Parallel workflows (git worktrees)",
+				UsesWorktrees: true,
+				Source:        "--parallel=true",
+			},
 		})
 		if err != nil {
 			t.Fatalf("StartTaskRunMultiple() error = %v", err)
@@ -275,6 +288,7 @@ func TestClientRunJobControlPostsPauseAndMessageRequests(t *testing.T) {
 func TestClientGetTaskRunMultipleSnapshotUsesDedicatedRouteAndDecodes(t *testing.T) {
 	t.Run("Should return decoded multiple snapshot", func(t *testing.T) {
 		t.Parallel()
+		now := time.Date(2026, 7, 9, 16, 24, 0, 0, time.UTC)
 
 		want := contract.TaskRunMultipleSnapshot{
 			Run: contract.Run{
@@ -290,10 +304,24 @@ func TestClientGetTaskRunMultipleSnapshotUsesDedicatedRouteAndDecodes(t *testing
 					BaseBranch:     "main",
 					BaseCommit:     "abc123def456",
 					WorktreeStatus: "preserved",
+					WorktreeReason: "committed output retained",
+					ResultBranch:   "compozy/multi-parent-01-alpha",
 				},
 				{Slug: "beta", Status: "failed", RunID: "run-beta", ErrorText: "boom"},
 				{Slug: "gamma", Status: "canceled"},
 			},
+			ExecutionKind: "task_multi_parallel",
+			LifecycleEvents: []events.Event{{
+				SchemaVersion: events.SchemaVersion,
+				RunID:         "multi-run-1",
+				Seq:           4,
+				Timestamp:     now,
+				Kind:          events.EventKindTaskRunMultipleQueueCompleted,
+				Payload:       json.RawMessage(`{}`),
+			}},
+			Incomplete:        true,
+			IncompleteReasons: []string{"event_gap"},
+			NextCursor:        &contract.StreamCursor{Timestamp: now, Sequence: 4},
 		}
 		body, err := json.Marshal(contract.TaskRunMultipleSnapshotResponseFromSnapshot(want))
 		if err != nil {
@@ -325,6 +353,12 @@ func TestClientGetTaskRunMultipleSnapshotUsesDedicatedRouteAndDecodes(t *testing
 		}
 		if !reflect.DeepEqual(got.Items, want.Items) {
 			t.Fatalf("snapshot items = %#v, want %#v", got.Items, want.Items)
+		}
+		if got.ExecutionKind != want.ExecutionKind ||
+			!reflect.DeepEqual(got.LifecycleEvents, want.LifecycleEvents) ||
+			got.NextCursor == nil || got.NextCursor.Sequence != 4 ||
+			!got.Incomplete || !reflect.DeepEqual(got.IncompleteReasons, want.IncompleteReasons) {
+			t.Fatalf("snapshot lifecycle/integrity = %#v, want %#v", got, want)
 		}
 	})
 }

@@ -165,6 +165,7 @@ func (c *Client) StartTaskRun(
 		Workspace:        strings.TrimSpace(req.Workspace),
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
+		Execution:        cloneTaskExecutionDescriptor(req.Execution),
 	}
 
 	var response contract.RunResponse
@@ -195,6 +196,7 @@ func (c *Client) StartTaskRunMultiple(
 		ParallelLimit:    req.ParallelLimit,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
+		Execution:        cloneTaskExecutionDescriptor(req.Execution),
 	}
 
 	var response contract.RunResponse
@@ -202,6 +204,19 @@ func (c *Client) StartTaskRunMultiple(
 		return apicore.Run{}, err
 	}
 	return response.Run, nil
+}
+
+func cloneTaskExecutionDescriptor(
+	descriptor *apicore.TaskExecutionDescriptor,
+) *contract.TaskExecutionDescriptor {
+	if descriptor == nil {
+		return nil
+	}
+	cloned := *descriptor
+	cloned.Kind = strings.TrimSpace(cloned.Kind)
+	cloned.Label = strings.TrimSpace(cloned.Label)
+	cloned.Source = strings.TrimSpace(cloned.Source)
+	return &cloned
 }
 
 func normalizeClientSlugs(values []string) ([]string, error) {

@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id`         | `string`            | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq`            | `uint64`            | Monotonic sequence number within a run.                                |
 | `ts`             | `RFC3339 timestamp` | Event timestamp in UTC.                                                |
-| `kind`           | `string`            | One of the 74 public event kinds below.                                |
+| `kind`           | `string`            | One of the 82 public event kinds below.                                |
 | `payload`        | `object`            | Kind-specific payload from `pkg/compozy/events/kinds`.                 |
 
 ## Run Events
@@ -410,7 +410,7 @@ Payload type: `kinds.TaskMemoryUpdatedPayload`
 Multi-run events are emitted by the daemon-owned parent run created by
 `compozy tasks run --multiple`. They are persisted in the parent run journal,
 streamed through the regular run stream APIs, and reconstructed into the
-`TaskRunMultipleSnapshot` returned by the multi-run snapshot endpoint. All eight
+`TaskRunMultipleSnapshot` returned by the multi-run snapshot endpoint. All nine
 kinds share one payload type, `kinds.TaskRunMultiplePayload`.
 
 `kinds.TaskRunMultiplePayload` fields:
@@ -428,7 +428,9 @@ kinds share one payload type, `kinds.TaskRunMultiplePayload`.
 - `worktree_path`: child git worktree path in parallel mode
 - `base_branch`: parent branch the child worktree was created from
 - `base_commit`: parent `HEAD` commit the child worktree was created from
-- `worktree_status`: worktree preservation status, currently always `preserved`
+- `worktree_status`: actual lifecycle state, one of `active`, `removed`, or `preserved`
+- `worktree_reason`: why cleanup removed or preserved the tree
+- `result_branch`: deterministic retained-output branch for parallel multi-spec children
 
 `parallel_limit` and the `worktree_*` fields are additive and optional. They are
 populated only for parallel-mode runs once a child worktree is planned, and they
@@ -486,16 +488,25 @@ The parent queue was canceled. Carries the aggregate summary `error` when presen
 
 Payload type: `kinds.TaskRunMultiplePayload`
 
-The parent queue settled. Carries `total` and, on aggregate failure, the summary `error`.
+The parent queue settled successfully. Carries `total`.
+
+### `task.multi.queue_failed`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+The parent queue settled with one or more failed children. Carries `total` and
+the aggregate failure summary in `error`.
 
 ## Parallel Task Events
 
 Parallel task events are emitted by the `ParallelExecutionOrchestrator` during an
-opt-in parallel PRD-tasks run (`[tasks.run.parallel]`). They are persisted in the
+explicitly opted-in parallel PRD-tasks run (`--parallel-tasks`, the wizard, or a
+per-run runtime override). Workspace `[tasks.run.parallel]` values configure an
+opted-in run but do not activate worktrees by themselves. Events are persisted in the
 parent run journal, streamed through the regular run stream APIs, and drive the
 wave-grouped sidebar and the persistent `INTEGRATION` pane in the run TUI. All
 parallel runs emit one plan event before execution starts. The plan event uses
-`kinds.TaskParallelPlanPayload`; the remaining nine lifecycle kinds share
+`kinds.TaskParallelPlanPayload`; the remaining thirteen lifecycle kinds share
 `kinds.TaskParallelPayload`.
 
 `kinds.TaskParallelPlanPayload` fields:
@@ -529,17 +540,22 @@ parallel runs emit one plan event before execution starts. The plan event uses
 - `wave_index`: zero-based topological wave the event belongs to
 - `wave_total`: total number of waves in the run, emitted with `wave_started`
 - `task_id`: PRD task identity such as `task_01`; empty for wave-level events
-- `phase`: lifecycle phase, one of `running`, `recovering`, `merging`, `resolving`, `merged`, or `failed`
+- `phase`: lifecycle phase, including `running`, `merging`, `resolving`,
+  `advancing_base`, `finalizing`, `fast_forwarding`, `syncing_artifacts`,
+  `cleaning_up`, `completed`, `canceled`, `failed`, and `rolled_back`
 - `integration_branch`: dedicated integration branch `compozy/parallel-<run-id>`
 - `conflict_files`: relative paths with unresolved conflicts during a squash merge
 - `attempt`: current bounded conflict-resolution attempt
 - `max_attempts`: configured conflict-resolution attempt ceiling
 - `worktree_path`: per-task git worktree path
-- `status`: terminal per-task status, one of `merged`, `recovered`, `failed`, or `skipped`
+- `worktree_status`: actual lifecycle state, one of `active`, `removed`, or `preserved`
+- `worktree_reason`: cleanup decision detail when available
+- `result_branch`: retained output branch when the producer uses a named result branch
+- `status`: terminal per-task status, one of `merged`, `recovered`, `failed`, `skipped`, or `canceled`
 - `error`: terminal diagnostic for non-rollback parallel failures
 
 Per-task events (`wave_started`, `task_started`, `conflict_detected`,
-`conflict_resolving`, `merged`) carry `task_id` and `wave_index` so the TUI can
+`conflict_resolving`, `merged`, `task_completed`) carry `task_id` and `wave_index` so the TUI can
 assign each task card to its wave. `task_started` also carries `child_run_id` so
 remote UIs can attach the real child run transcript to the selected task card.
 Wave-level events (`wave_completed`, `merge_started`) leave `task_id` empty.
@@ -567,6 +583,15 @@ Payload type: `kinds.TaskParallelPayload`
 A task child run was created and can be observed. Carries `wave_index`,
 `wave_total`, `task_id`, `child_run_id`, `worktree_path`,
 `integration_branch`, and `phase` (`running`).
+
+### `task.parallel.task_completed`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The canonical, exactly-once per-task settlement. Carries `task_id`,
+`wave_index`, terminal `status`, optional `error`, and the final
+`worktree_status`/`worktree_reason`. `task.parallel.merged` remains available as
+the compatibility signal that integration occurred.
 
 ### `task.parallel.wave_completed`
 
@@ -602,21 +627,78 @@ Payload type: `kinds.TaskParallelPayload`
 A task was integrated into the integration branch. Carries `task_id`,
 `wave_index`, `worktree_path`, and `status` (`merged` or `recovered`).
 
+### `task.parallel.phase_changed`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The orchestrator entered a post-wave or finalize phase. Carries `phase`,
+`wave_index`, and `integration_branch`, allowing observers to distinguish base
+advancement, finalization, fast-forward, artifact sync, and cleanup.
+
+### `task.parallel.completed`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The parallel-task orchestrator settled successfully. Carries `status`
+(`completed`) and `phase` (`completed`). This settles the parallel subsystem; it
+does not terminate the parent run stream.
+
 ### `task.parallel.failed`
 
 Payload type: `kinds.TaskParallelPayload`
 
-The run hit an infrastructure/setup failure that preserves the integration
-branch for inspection instead of discarding it. Carries `integration_branch`,
+The run hit a blocking execution, integration, persistence, or sync failure.
+Unsafe worktrees and unretained integration output are preserved for inspection.
+Carries `integration_branch`,
 `wave_index`, `status` (`failed`), `phase` (`failed`), and `error`.
 
 ### `task.parallel.rolled_back`
 
 Payload type: `kinds.TaskParallelPayload`
 
-The run exhausted conflict resolution or hit an unrecoverable failure. The
-integration branch is discarded and the working branch is left untouched. Carries
-`integration_branch`, `wave_index`, and any remaining `conflict_files`.
+The run exhausted conflict resolution and left the working branch untouched.
+Cleanup removes only trees proven safe; dirty or unretained integration state is
+preserved with an explicit reason. Carries `integration_branch`, `wave_index`,
+and `phase` (`rolled_back`).
+
+### `task.parallel.canceled`
+
+Payload type: `kinds.TaskParallelPayload`
+
+The parallel-task orchestrator settled after cancellation. Carries `status`
+(`canceled`), `phase` (`canceled`), and the cancellation diagnostic in `error`.
+This settles the parallel subsystem; the complete stream still ends on
+`run.cancelled`.
+
+## Multi/Parallel Terminal Ladder
+
+Lifecycle settlement is deliberately layered:
+
+1. `task.parallel.task_completed` settles one dependency-graph task.
+2. `task.parallel.completed|failed|rolled_back|canceled` settles the within-spec
+   parallel orchestrator.
+3. `task.multi.queue_completed|queue_failed|queue_canceled` settles the
+   daemon-owned multi-run queue.
+4. Only `run.completed|run.failed|run.cancelled|run.crashed` terminates the
+   complete run stream.
+
+Queue and parallel settlements are durably persisted before live publication,
+but consumers must keep watching until the corresponding `run.*` terminal.
+Snapshots expose lifecycle events and a `next_cursor` from the same high-water
+mark so attach clients apply each event once and resume strictly after it.
+
+### Execution identity and intentional differences
+
+| Execution kind        | User intent                                                         | Worktrees                              | Failure/recovery policy                                                                           |
+| --------------------- | ------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `task_standard`       | One workflow without explicit parallel-task opt-in                  | None                                   | Standard task runner                                                                              |
+| `task_parallel`       | One workflow with explicit `--parallel-tasks`/wizard/runtime opt-in | Per-task plus integration              | Dependency waves; failed tasks block final fast-forward; bounded orchestrator recovery            |
+| `task_multi_enqueued` | Multiple workflows in serial mode                                   | None                                   | Ordered, fail-fast queue                                                                          |
+| `task_multi_parallel` | Multiple workflows in parallel mode                                 | One named-result worktree per workflow | Fail-late siblings; child-run recovery remains enabled; no automatic merge into the user's branch |
+
+For multi-spec parallel runs, committed output remains on deterministic
+`compozy/multi-*` result branches. Clean worktrees may be removed; dirty or
+unretained trees remain `preserved` with `worktree_reason`.
 
 ## Artifact Events
 
@@ -921,7 +1003,9 @@ Lean mode streams only lifecycle and interactive events to keep output concise f
 
 **Included event kinds:**
 
-- `run.started`, `run.completed`, `run.failed`, `run.cancelled`
+- `run.started`, `run.completed`, `run.failed`, `run.cancelled`, `run.crashed`
+- all `task.multi.*` queue/item lifecycle events
+- all `task.parallel.*` plan, task, phase, wave, integration, and settlement events
 - `job.started`, `job.retry_scheduled`, `job.pausing`, `job.paused`, `job.resumed`, `job.completed`, `job.failed`, `job.cancelled`
 - `session.started`, `session.completed`, `session.failed`
 - `session.update` — only when the update kind is `user_message_chunk`, `agent_message_chunk`, `tool_call_started`, or `tool_call_updated`
@@ -959,4 +1043,8 @@ compozy exec --format json "Fix the tests" | jq 'select(.type == "session.update
 
 ### Terminal event detection
 
-The streamer waits for a terminal event (`run.completed`, `run.failed`, or `run.cancelled`) before finalizing. If no terminal event arrives within 5 seconds after the bus closes, the streamer exits gracefully.
+The streamer waits for a run terminal event (`run.completed`, `run.failed`,
+`run.cancelled`, `run.crashed`, or `run.recovery_exhausted`) before finalizing.
+Queue and parallel settlements never close the complete stream. Remote watchers
+resume from the last cursor after EOF/overflow and resnapshot when integrity or
+heartbeat gaps make incremental continuation unsafe.

@@ -36,8 +36,8 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 2. The skill runs parallel codebase and market research.
 3. Answer clarifying questions focused on WHAT and WHY (not HOW).
 4. The skill decides the product direction and records an ADR for the decision.
-5. The PRD is written directly — request any changes afterward.
-6. Output: `.compozy/tasks/<slug>/_prd.md` + ADRs.
+5. The user-story catalog and the PRD are written directly — request any changes afterward.
+6. Output: `.compozy/tasks/<slug>/_prd.md`, `_user_stories.md` (every story with acceptance criteria and edge cases), + ADRs.
 
 **Key rule:** The PRD describes user capabilities and business outcomes only. No databases, APIs, frameworks, or architecture.
 
@@ -49,23 +49,24 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 2. The skill reads the existing `_prd.md` and explores the codebase architecture.
 3. Answer technical clarifying questions.
 4. Technical ADRs are created for architecture decisions.
-5. The TechSpec is written directly — request any changes afterward.
-6. Output: `.compozy/tasks/<slug>/_techspec.md` + ADRs.
+5. The TechSpec and the test contract are written directly — request any changes afterward.
+6. Output: `.compozy/tasks/<slug>/_techspec.md`, `_tests.md` (every unit, integration, and e2e case with stable IDs), + ADRs.
 
-**Contains:** System architecture, data models, core interfaces, API design, development sequencing.
+**Contains:** System architecture, data models, core interfaces, API design, development sequencing, test strategy. Concrete test cases live in `_tests.md`.
 
 ## Phase 4: Task Decomposition
 
 **Skill:** `/cy-create-tasks [feature-name]`
 
 1. Invoke `/cy-create-tasks` with the feature name.
-2. The skill loads the PRD and TechSpec, then breaks them into granular tasks.
-3. Review the proposed task breakdown.
-4. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`.
-5. `_tasks.md` is generated as the canonical `compozy.tasks/v2` graph manifest with `graph.nodes` and `graph.edges`.
-6. Tasks are enriched with codebase patterns and implementation context.
-7. Validation runs via `compozy tasks validate`.
-8. Output: `task_01.md` through `task_N.md`, `_tasks.md` task graph manifest.
+2. The skill loads the PRD, TechSpec, and their catalogs (`_user_stories.md`, `_tests.md`), then breaks them into robust tasks — complete vertical slices, split only at dependency, parallelization, or domain boundaries.
+3. Every test case from `_tests.md` is assigned to exactly one task's `## Tests` section.
+4. Review the proposed task breakdown.
+5. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`.
+6. `_tasks.md` is generated as the canonical `compozy.tasks/v2` graph manifest with `graph.nodes` and `graph.edges`.
+7. Tasks are enriched with codebase patterns and implementation context.
+8. Validation runs via `compozy tasks validate`.
+9. Output: `task_01.md` through `task_N.md`, `_tasks.md` task graph manifest.
 
 **Task types:** `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`. Custom types can be registered in `.compozy/config.toml` under `[tasks].types`.
 

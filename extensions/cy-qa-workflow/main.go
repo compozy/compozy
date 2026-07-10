@@ -20,7 +20,7 @@ const (
 	defaultQAReportIDE       = "claude"
 	defaultQAReportModel     = "opus"
 	defaultQAExecutionIDE    = "codex"
-	defaultQAExecutionModel  = "gpt-5.5"
+	defaultQAExecutionModel  = "gpt-5.6-sol"
 	defaultReasoningEffort   = "xhigh"
 	claudeEffortEnv          = "CLAUDE_CODE_EFFORT_LEVEL"
 	qaReportTaskType         = "docs"

@@ -373,10 +373,11 @@ func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing
 	t.Parallel()
 
 	scenario := helperScenario{
-		ExpectedCWD:           t.TempDir(),
-		ExpectedPrompt:        "run with full access",
-		ExpectedSessionModeID: "bypassPermissions",
-		StopReason:            string(acp.StopReasonEndTurn),
+		ExpectedCWD:                t.TempDir(),
+		ExpectedPrompt:             "run with full access",
+		ExpectedSessionModeID:      "bypassPermissions",
+		ExpectedConfigurationOrder: []string{"mode:bypassPermissions"},
+		StopReason:                 string(acp.StopReasonEndTurn),
 	}
 
 	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
@@ -399,6 +400,401 @@ func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing
 	}
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientCreateSessionConfiguresAdvertisedRuntimeBeforePrompt(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"default[]",
+		[]acp.SessionConfigSelectOption{
+			{Value: "default[]", Name: "Auto"},
+			{Value: "grok-4.5[effort=high,fast=true]", Name: "grok-4.5"},
+		},
+	)
+	effortOption := testSessionSelectOption(
+		"effort",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{
+			{Value: "medium", Name: "Medium"},
+			{Value: "max", Name: "Max"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "configure before prompting",
+		NewSessionConfigOptions: []acp.SessionConfigOption{
+			{Select: modelOption},
+			{Select: effortOption},
+		},
+		SessionModes: &acp.SessionModeState{
+			CurrentModeId: "agent",
+			AvailableModes: []acp.SessionMode{
+				{Id: "agent", Name: "Agent"},
+				{Id: "agent-full-access", Name: "Agent (full access)"},
+			},
+		},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "grok-4.5[effort=high,fast=true]"},
+			{ConfigID: "effort", Value: "max"},
+		},
+		ExpectedSessionModeID: "agent-full-access",
+		ExpectedConfigurationOrder: []string{
+			"config:model=grok-4.5[effort=high,fast=true]",
+			"config:effort=max",
+			"mode:agent-full-access",
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.UsesBootstrapModel = false
+			spec.FullAccessModeID = "agent-full-access"
+		},
+		func(cfg *ClientConfig) {
+			cfg.Model = "grok-4.5"
+			cfg.ReasoningEffort = "max"
+			cfg.AccessMode = model.AccessModeFull
+		},
+	)
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected updates: %#v", updates)
+	}
+}
+
+func TestClientCreateSessionForcesFableAutoModeBeforePrompt(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"opus",
+		[]acp.SessionConfigSelectOption{
+			{Value: "opus", Name: "Opus"},
+			{Value: "claude-fable-5", Name: "Fable 5"},
+		},
+	)
+	effortOption := testSessionSelectOption(
+		"effort",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{
+			{Value: "medium", Name: "Medium"},
+			{Value: "max", Name: "Max"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "run Fable safely",
+		NewSessionConfigOptions: []acp.SessionConfigOption{
+			{Select: modelOption},
+			{Select: effortOption},
+		},
+		SessionModes: &acp.SessionModeState{
+			CurrentModeId: "default",
+			AvailableModes: []acp.SessionMode{
+				{Id: "default", Name: "Default"},
+				{Id: "bypassPermissions", Name: "Bypass permissions"},
+				{Id: "auto", Name: "Auto"},
+			},
+		},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "claude-fable-5"},
+			{ConfigID: "effort", Value: "max"},
+		},
+		ExpectedSessionModeID: "auto",
+		ExpectedConfigurationOrder: []string{
+			"config:model=claude-fable-5",
+			"config:effort=max",
+			"mode:auto",
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.FullAccessModeID = "bypassPermissions"
+		},
+		func(cfg *ClientConfig) {
+			cfg.Model = "fable"
+			cfg.ReasoningEffort = "max"
+			cfg.AccessMode = model.AccessModeFull
+		},
+	)
+	client.(*clientImpl).spec.ID = model.IDEClaude
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected updates: %#v", updates)
+	}
+}
+
+func TestClientCreateSessionRejectsUnadvertisedClaudeUltraBeforePrompt(t *testing.T) {
+	t.Parallel()
+
+	effortOption := testSessionSelectOption(
+		"effort",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{
+			{Value: "medium", Name: "Medium"},
+			{Value: "max", Name: "Max"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD: t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{
+			{Select: effortOption},
+		},
+	}
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.ReasoningEffort = "ultra"
+	})
+	client.(*clientImpl).spec.ID = model.IDEClaude
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected unsupported Claude ultra error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("expected SessionSetupError, got %T", err)
+	}
+	if setupErr.Stage != SessionSetupStageSetReasoning {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageSetReasoning)
+	}
+	for _, want := range []string{
+		`reasoning effort "ultra" is not available`,
+		"Max (max)",
+		"Medium (medium)",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("unsupported effort error = %q, want %q", err, want)
+		}
+	}
+}
+
+func TestClientCreateSessionRejectsCursorModelWithoutAdvertisedCatalog(t *testing.T) {
+	t.Parallel()
+
+	manager := &agentHookManager{}
+	scenario := helperScenario{ExpectedCWD: t.TempDir()}
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "grok-4.5"
+	})
+	client.(*clientImpl).spec.ID = model.IDECursor
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		RuntimeMgr: manager,
+	})
+	if err == nil {
+		t.Fatal("expected missing Cursor model catalog error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("expected SessionSetupError, got %T", err)
+	}
+	if setupErr.Stage != SessionSetupStageSetModel {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageSetModel)
+	}
+	if !strings.Contains(
+		err.Error(),
+		`did not advertise an ACP model option; cannot resolve requested model "grok-4.5"`,
+	) {
+		t.Fatalf("missing model catalog error = %q", err)
+	}
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if got, want := manager.mutableHooks, []string{"agent.pre_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("mutable hooks = %#v, want %#v", got, want)
+	}
+	if len(manager.observerHooks) != 0 {
+		t.Fatalf("configuration failure dispatched post-create hooks: %#v", manager.observerHooks)
+	}
+}
+
+func TestClientCreateSessionExplainsCursorCLIVersusACPModelNames(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"default[]",
+		[]acp.SessionConfigSelectOption{
+			{Value: "default[]", Name: "Auto"},
+			{Value: "grok-4.5[effort=high,fast=true]", Name: "grok-4.5"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+	}
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "grok-4.5-fast-high"
+	})
+	client.(*clientImpl).spec.ID = model.IDECursor
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected invalid Cursor ACP model error")
+	}
+	for _, want := range []string{
+		`model "grok-4.5-fast-high" is not available`,
+		"grok-4.5 (grok-4.5[effort=high,fast=true])",
+		"Cursor CLI --list-models entries can differ from ACP model IDs",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Cursor model error = %q, want %q", err, want)
+		}
+	}
+}
+
+func TestClientCreateSessionUsesCursorAdvertisedModelAsReasoningAuthority(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"default[]",
+		[]acp.SessionConfigSelectOption{
+			{Value: "default[]", Name: "Auto"},
+			{Value: "grok-4.5[effort=high,fast=true]", Name: "grok-4.5"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		ExpectedPrompt:          "use Cursor ACP model",
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "grok-4.5[effort=high,fast=true]"},
+		},
+		ExpectedConfigurationOrder: []string{
+			"config:model=grok-4.5[effort=high,fast=true]",
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.UsesBootstrapModel = false
+		},
+		func(cfg *ClientConfig) {
+			cfg.Model = "grok-4.5"
+			cfg.ReasoningEffort = "ultra"
+		},
+	)
+	client.(*clientImpl).spec.ID = model.IDECursor
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected updates: %#v", updates)
+	}
+}
+
+func TestClientCreateSessionRejectsCodexReasoningWithoutAdvertisedOption(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"test-model",
+		[]acp.SessionConfigSelectOption{{Value: "test-model", Name: "Test model"}},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "test-model"},
+		},
+	}
+	client := newTestClient(t, scenario)
+	client.(*clientImpl).spec.ID = model.IDECodex
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected missing Codex reasoning option error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("expected SessionSetupError, got %T", err)
+	}
+	if setupErr.Stage != SessionSetupStageSetReasoning {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageSetReasoning)
+	}
+	if !strings.Contains(
+		err.Error(),
+		`did not advertise an ACP reasoning option; cannot apply reasoning effort "medium"`,
+	) {
+		t.Fatalf("missing reasoning option error = %q", err)
 	}
 }
 
@@ -453,7 +849,11 @@ func TestClientCreateSessionCompletesWithExplicitModelForNonBootstrapACP(t *test
 	scenario := helperScenario{
 		ExpectedCWD:    t.TempDir(),
 		ExpectedPrompt: "use explicit model",
-		StopReason:     string(acp.StopReasonEndTurn),
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "composer-2"},
+		},
+		ExpectedConfigurationOrder: []string{"config:model=composer-2"},
+		StopReason:                 string(acp.StopReasonEndTurn),
 	}
 	client := newTestClientWithSpecConfig(
 		t,
@@ -691,6 +1091,74 @@ func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T
 	}
 	if !identity.Resumed {
 		t.Fatal("expected resumed identity")
+	}
+}
+
+func TestClientResumeSessionConfiguresAdvertisedRuntimeBeforePrompt(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"gpt-5.5",
+		[]acp.SessionConfigSelectOption{
+			{Value: "gpt-5.5", Name: "GPT-5.5"},
+			{Value: "gpt-5.6-sol", Name: "GPT-5.6 Sol"},
+		},
+	)
+	reasoningOption := testSessionSelectOption(
+		"reasoning_effort",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{
+			{Value: "medium", Name: "medium"},
+			{Value: "ultra", Name: "ultra"},
+		},
+	)
+	scenario := helperScenario{
+		SessionID:             "sess-existing-config",
+		ExpectedCWD:           t.TempDir(),
+		ExpectedLoadSessionID: "sess-existing-config",
+		ExpectedPrompt:        "resume after configuration",
+		SupportsLoadSession:   true,
+		LoadSessionConfigOptions: []acp.SessionConfigOption{
+			{Select: modelOption},
+			{Select: reasoningOption},
+		},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "gpt-5.6-sol"},
+			{ConfigID: "reasoning_effort", Value: "ultra"},
+		},
+		ExpectedConfigurationOrder: []string{
+			"config:model=gpt-5.6-sol",
+			"config:reasoning_effort=ultra",
+		},
+		Updates:    []acp.SessionUpdate{acp.UpdateAgentMessageText("configured")},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "gpt-5.6-sol"
+		cfg.ReasoningEffort = "ultra"
+	})
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+		Model:      "gpt-5.6-sol",
+	})
+	if err != nil {
+		t.Fatalf("resume session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("unexpected update count: got %d want 2", len(updates))
 	}
 }
 
@@ -1972,8 +2440,9 @@ func TestClientCreateSessionChecksCodexModelCompatibilityBeforeLaunch(t *testing
 		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageStartProcess)
 	}
 	for _, want := range []string{
-		"gpt-5.5 requires codex-acp >= 0.12.0",
-		"found 0.11.1",
+		"gpt-5.5 requires @agentclientprotocol/codex-acp >= 1.1.2",
+		"legacy @zed-industries/codex-acp >= 0.12.0",
+		"@zed-industries/codex-acp 0.11.1",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("compatibility error = %q, want %q", err, want)
@@ -2246,14 +2715,19 @@ func TestProcessStderrHelperProcess(_ *testing.T) {
 }
 
 type helperScenario struct {
-	SessionID                     string          `json:"session_id,omitempty"`
-	ExpectedCWD                   string          `json:"expected_cwd,omitempty"`
-	ExpectedProcessCWD            string          `json:"expected_process_cwd,omitempty"`
-	ExpectedLoadSessionID         string          `json:"expected_load_session_id,omitempty"`
-	ExpectedNewSessionMCPServers  []acp.McpServer `json:"expected_new_session_mcp_servers,omitempty"`
-	ExpectedLoadSessionMCPServers []acp.McpServer `json:"expected_load_session_mcp_servers,omitempty"`
-	ExpectedPrompt                string          `json:"expected_prompt,omitempty"`
-	ExpectedSessionModeID         string          `json:"expected_session_mode_id,omitempty"`
+	SessionID                     string                        `json:"session_id,omitempty"`
+	ExpectedCWD                   string                        `json:"expected_cwd,omitempty"`
+	ExpectedProcessCWD            string                        `json:"expected_process_cwd,omitempty"`
+	ExpectedLoadSessionID         string                        `json:"expected_load_session_id,omitempty"`
+	ExpectedNewSessionMCPServers  []acp.McpServer               `json:"expected_new_session_mcp_servers,omitempty"`
+	ExpectedLoadSessionMCPServers []acp.McpServer               `json:"expected_load_session_mcp_servers,omitempty"`
+	ExpectedPrompt                string                        `json:"expected_prompt,omitempty"`
+	ExpectedSessionModeID         string                        `json:"expected_session_mode_id,omitempty"`
+	NewSessionConfigOptions       []acp.SessionConfigOption     `json:"new_session_config_options,omitempty"`
+	LoadSessionConfigOptions      []acp.SessionConfigOption     `json:"load_session_config_options,omitempty"`
+	SessionModes                  *acp.SessionModeState         `json:"session_modes,omitempty"`
+	ExpectedSessionConfig         []helperExpectedSessionConfig `json:"expected_session_config,omitempty"`
+	ExpectedConfigurationOrder    []string                      `json:"expected_configuration_order,omitempty"`
 	// ExpectedEnvVars asserts process environment values at helper startup.
 	// An empty value means the variable must be unset or empty.
 	ExpectedEnvVars         map[string]string   `json:"expected_env_vars,omitempty"`
@@ -2276,6 +2750,11 @@ type helperScenario struct {
 	PromptUsage             *acp.Usage          `json:"prompt_usage,omitempty"`
 }
 
+type helperExpectedSessionConfig struct {
+	ConfigID string `json:"config_id"`
+	Value    string `json:"value"`
+}
+
 type helperRequestError struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
@@ -2283,10 +2762,13 @@ type helperRequestError struct {
 }
 
 type helperAgent struct {
-	conn      *acp.AgentSideConnection
-	connReady chan struct{}
-	scenario  helperScenario
-	sessionID string
+	conn               *acp.AgentSideConnection
+	connReady          chan struct{}
+	scenario           helperScenario
+	sessionID          string
+	configurationMu    sync.Mutex
+	configurationOrder []string
+	configuredValues   []helperExpectedSessionConfig
 }
 
 func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
@@ -2329,8 +2811,10 @@ func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (
 		return acp.NewSessionResponse{}, err
 	}
 	return acp.NewSessionResponse{
-		SessionId: acp.SessionId(a.sessionID),
-		Meta:      a.scenario.SessionMeta,
+		SessionId:     acp.SessionId(a.sessionID),
+		Meta:          a.scenario.SessionMeta,
+		ConfigOptions: a.scenario.NewSessionConfigOptions,
+		Modes:         a.scenario.SessionModes,
 	}, nil
 }
 
@@ -2357,7 +2841,11 @@ func (a *helperAgent) LoadSession(ctx context.Context, req acp.LoadSessionReques
 	if err := a.emitUpdates(ctx, a.scenario.ReplayUpdatesOnLoad); err != nil {
 		return acp.LoadSessionResponse{}, err
 	}
-	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
+	return acp.LoadSessionResponse{
+		Meta:          a.scenario.SessionMeta,
+		ConfigOptions: a.scenario.LoadSessionConfigOptions,
+		Modes:         a.scenario.SessionModes,
+	}, nil
 }
 
 func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -2365,6 +2853,19 @@ func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (ac
 }
 
 func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	a.configurationMu.Lock()
+	configurationOrder := append([]string(nil), a.configurationOrder...)
+	a.configurationMu.Unlock()
+	if !reflect.DeepEqual(configurationOrder, a.scenario.ExpectedConfigurationOrder) {
+		return acp.PromptResponse{}, &acp.RequestError{
+			Code: 4005,
+			Message: fmt.Sprintf(
+				"configuration order = %#v, want %#v",
+				configurationOrder,
+				a.scenario.ExpectedConfigurationOrder,
+			),
+		}
+	}
 	if a.scenario.ExpectedPrompt != "" {
 		gotPrompt := firstPromptText(req.Prompt)
 		if gotPrompt != a.scenario.ExpectedPrompt {
@@ -2492,11 +2993,35 @@ func (*helperAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (ac
 	return acp.ResumeSessionResponse{}, nil
 }
 
-func (*helperAgent) SetSessionConfigOption(
-	context.Context,
-	acp.SetSessionConfigOptionRequest,
+func (a *helperAgent) SetSessionConfigOption(
+	_ context.Context,
+	req acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
+	if req.ValueId == nil {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4006,
+			Message: "expected string session config value",
+		}
+	}
+	configured := helperExpectedSessionConfig{
+		ConfigID: string(req.ValueId.ConfigId),
+		Value:    string(req.ValueId.Value),
+	}
+	a.configurationMu.Lock()
+	defer a.configurationMu.Unlock()
+	index := len(a.configuredValues)
+	if index >= len(a.scenario.ExpectedSessionConfig) || a.scenario.ExpectedSessionConfig[index] != configured {
+		return acp.SetSessionConfigOptionResponse{}, &acp.RequestError{
+			Code:    4007,
+			Message: fmt.Sprintf("unexpected session config %#v at index %d", configured, index),
+		}
+	}
+	a.configuredValues = append(a.configuredValues, configured)
+	a.configurationOrder = append(
+		a.configurationOrder,
+		fmt.Sprintf("config:%s=%s", configured.ConfigID, configured.Value),
+	)
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: []acp.SessionConfigOption{}}, nil
 }
 
 func (a *helperAgent) SetSessionMode(
@@ -2509,6 +3034,9 @@ func (a *helperAgent) SetSessionMode(
 			Message: fmt.Sprintf("unexpected session mode %q", req.ModeId),
 		}
 	}
+	a.configurationMu.Lock()
+	a.configurationOrder = append(a.configurationOrder, "mode:"+string(req.ModeId))
+	a.configurationMu.Unlock()
 	return acp.SetSessionModeResponse{}, nil
 }
 

@@ -1,0 +1,2 @@
+id,area,title,persona,journey,expected,entry_points,qa_status,bug_ids,fix_status,retest_status,fix_commits,evidence,last_report,overlaps,notes
+CHK-001,CHK,Complete first purchase end-to-end,New User,J-01,"Order confirmation visible, receipt email cites the same order id, order appears in history on fresh load",https://app.example.com/ ; email-invite-link,untested,,,,,,,,"EXAMPLE ROW — delete after reading. Prose goes here and only here."

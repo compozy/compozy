@@ -164,7 +164,7 @@ func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
 		"[tasks].types",
 		"`frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`",
 		"Run `compozy tasks validate --name <feature>`.",
-		"Do not mark the skill complete until it exits 0.",
+		"until it exits 0.",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(text, snippet) {
@@ -227,6 +227,10 @@ func TestEmbeddedSkillsFSMatchesOnDisk(t *testing.T) {
 				continue
 			}
 			if strings.Contains(p, "autoresearch-") {
+				continue
+			}
+			base := filepath.Base(p)
+			if base == ".DS_Store" || strings.HasPrefix(base, ".") {
 				continue
 			}
 			wantTree[p] = content

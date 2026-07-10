@@ -1555,8 +1555,35 @@
                 "required": ["status", "title"],
                 "type": "object"
             },
+            "TaskExecutionDescriptor": {
+                "properties": {
+                    "kind": {
+                        "enum": [
+                            "task_standard",
+                            "task_parallel",
+                            "task_multi_enqueued",
+                            "task_multi_parallel"
+                        ],
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "source": {
+                        "type": "string"
+                    },
+                    "uses_worktrees": {
+                        "type": "boolean"
+                    }
+                },
+                "required": ["kind", "label", "uses_worktrees", "source"],
+                "type": "object"
+            },
             "TaskRunRequest": {
                 "properties": {
+                    "execution": {
+                        "$ref": "#/components/schemas/TaskExecutionDescriptor"
+                    },
                     "presentation_mode": {
                         "type": "string"
                     },
@@ -1584,6 +1611,9 @@
                     "run_id": {
                         "type": "string"
                     },
+                    "result_branch": {
+                        "type": "string"
+                    },
                     "slug": {
                         "type": "string"
                     },
@@ -1594,7 +1624,11 @@
                     "worktree_path": {
                         "type": "string"
                     },
+                    "worktree_reason": {
+                        "type": "string"
+                    },
                     "worktree_status": {
+                        "enum": ["active", "removed", "preserved"],
                         "type": "string"
                     }
                 },
@@ -1603,6 +1637,9 @@
             },
             "TaskRunMultipleRequest": {
                 "properties": {
+                    "execution": {
+                        "$ref": "#/components/schemas/TaskExecutionDescriptor"
+                    },
                     "mode": {
                         "enum": ["enqueued", "parallel"],
                         "type": "string"
@@ -1634,11 +1671,33 @@
             },
             "TaskRunMultipleSnapshotResponse": {
                 "properties": {
+                    "execution_kind": {
+                        "enum": ["task_parallel", "task_multi_enqueued", "task_multi_parallel"],
+                        "type": "string"
+                    },
+                    "incomplete": {
+                        "type": "boolean"
+                    },
+                    "incomplete_reasons": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
                     "items": {
                         "items": {
                             "$ref": "#/components/schemas/TaskRunMultipleItem"
                         },
                         "type": "array"
+                    },
+                    "lifecycle_events": {
+                        "items": {
+                            "$ref": "#/components/schemas/Event"
+                        },
+                        "type": "array"
+                    },
+                    "next_cursor": {
+                        "type": "string"
                     },
                     "run": {
                         "$ref": "#/components/schemas/Run"

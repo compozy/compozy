@@ -216,11 +216,42 @@ func TestJournalSubmitWithSeqReturnsAssignedSequence(t *testing.T) {
 	}
 }
 
-func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
+func TestJournalDurabilityCriticalEventsForceImmediateSync(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name string
+		kind events.EventKind
+	}{
+		{name: "Should force immediate sync for run terminal event", kind: events.EventKindRunCompleted},
+		{
+			name: "Should force immediate sync for queue settlement event",
+			kind: events.EventKindTaskRunMultipleQueueCompleted,
+		},
+		{
+			name: "Should force immediate sync for wave settlement event",
+			kind: events.EventKindTaskParallelWaveCompleted,
+		},
+		{
+			name: "Should force immediate sync for parallel settlement event",
+			kind: events.EventKindTaskParallelCompleted,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assertJournalEventForcesImmediateSync(t, tt.kind)
+		})
+	}
+}
+
+func assertJournalEventForcesImmediateSync(t *testing.T, kind events.EventKind) {
+	t.Helper()
+
 	workspaceRoot := t.TempDir()
-	runID := "journal-terminal"
+	runID := "journal-durable-" + string(kind)
 	prepareRunLayout(t, workspaceRoot, runID)
 
 	bus := events.New[events.Event](16)
@@ -248,7 +279,7 @@ func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
 	go func() {
 		submitDone <- journal.Submit(
 			context.Background(),
-			testJournalEvent(runID, events.EventKindRunCompleted, 2),
+			testJournalEvent(runID, kind, 2),
 		)
 	}()
 
@@ -266,7 +297,7 @@ func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
 
 	close(releaseSync)
 	if err := <-submitDone; err != nil {
-		t.Fatalf("Submit(completed) error = %v", err)
+		t.Fatalf("Submit(%s) error = %v", kind, err)
 	}
 
 	published := collectBusEvents(t, updates, 2, time.Second)

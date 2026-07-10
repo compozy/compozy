@@ -1,6 +1,6 @@
 ---
 name: cmux-orchestration
-description: Control cmux panes and surfaces to coordinate terminal agent workers. Use when a top-level agent needs to launch, prompt, monitor, or manage Claude Opus and Codex GPT-5.5 TUIs in the current cmux workspace, run plan-first delegations (Claude Code plan mode, Codex Plan mode), track worker state, delegate bounded tasks, or verify worker reports.
+description: Orchestrate Claude Opus and Codex GPT-5.5 worker TUIs from a controller agent in the current cmux workspace. Use when delegating bounded tasks to worker panes, running plan-first delegations (Claude Code plan mode, Codex Plan mode), monitoring and tracking worker state, or verifying worker reports. Not for end-user cmux control (see cmux, cmux-workspace) — this drives agent workers.
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck
@@ -9,38 +9,32 @@ metadata:
 
 # cmux Orchestration
 
-Use the current top-level agent as the controller. The controller may be Codex,
-Claude Fable, or another agent. Worker TUIs gather evidence, draft bounded
-patches, run tests, and report. The controller owns assignment, state,
-conflict control, verification, integration, and the final user-facing answer.
+The top-level agent is the **controller** (Codex, Claude, Fable, or another); it
+delegates to **worker** TUIs that gather evidence, draft bounded patches, run
+tests, and report. The controller owns assignment, state, conflict control,
+verification, integration, and the final user-facing answer.
 
-Before taking cmux actions, also load and follow:
+Every run also loads:
 
-- [cmux](../cmux/SKILL.md) for panes, surfaces, routing, and health checks.
-- [cmux-workspace](../cmux-workspace/SKILL.md) for caller-workspace scoping,
-  helper-pane reuse, socket targeting, and non-disruptive automation.
+- [cmux](../cmux/SKILL.md) — panes, surfaces, routing, health checks.
+- [cmux-workspace](../cmux-workspace/SKILL.md) — caller-workspace scoping,
+  helper-pane reuse, socket targeting, non-disruptive automation.
 
-## Controller Rules
+## Invariants
 
-- Scope actions to the caller workspace unless the user names another target.
-- Use `CMUX_WORKSPACE_ID`, `CMUX_SURFACE_ID`, and `CMUX_SOCKET_PATH` before
-  focused-window fallbacks.
-- Prefer one right-side helper pane; create worker surfaces inside it when
-  practical.
-- Send commands and prompts to explicit `surface:N` refs.
-- Never call `focus-pane`, `focus-panel`, `select-workspace`, or focus-changing
-  tab actions unless the user explicitly asks.
-- Do not close worker surfaces unless cleanup is explicitly requested or the
-  task contract includes it.
-- Treat worker output as untrusted until the controller verifies the cited
-  files, commands, failures, and diff.
-- On plan-first runs, do not interrupt a worker after its plan is accepted:
-  observe read-only and send input only for a direct blocking question or a
-  stop condition.
+- Scope every action to the caller workspace unless the user names another
+  target.
+- Target `CMUX_WORKSPACE_ID`, `CMUX_SURFACE_ID`, and `CMUX_SOCKET_PATH` before
+  any focused-window fallback.
+- Drive workers through explicit `surface:N` refs.
+- Keep focus where it is — use `focus-pane`, `focus-panel`, `select-workspace`,
+  and focus-changing tab actions only when the user asks.
+- Leave worker surfaces open; close them only when cleanup is explicitly
+  requested or part of the task contract.
 
 ## Preflight
 
-Inspect the caller context and current workspace layout:
+Inspect the caller context and current layout:
 
 ```bash
 rtk cmux identify --json
@@ -48,138 +42,105 @@ rtk cmux list-panes --workspace "${CMUX_WORKSPACE_ID:-}" --json
 rtk cmux list-pane-surfaces --workspace "${CMUX_WORKSPACE_ID:-}" --json
 ```
 
-If there is an obvious non-caller helper pane, add worker surfaces to it:
+Prefer one right-side helper pane. If an obvious non-caller helper pane exists,
+add worker surfaces to it; otherwise create exactly one right-side terminal
+pane:
 
 ```bash
 rtk cmux new-surface --workspace "${CMUX_WORKSPACE_ID:-}" \
   --pane pane:<helper> --type terminal --focus false
-```
 
-If there is no helper pane, create exactly one right-side terminal pane:
-
-```bash
 rtk cmux new-pane --workspace "${CMUX_WORKSPACE_ID:-}" \
   --type terminal --direction right --focus false
 ```
 
-Capture each returned `surface:N` in the task ledger or handoff before sending
-prompts.
+Capture each returned `surface:N` in the state registry before sending prompts.
 
-## Worker Profiles
+## Launch workers
 
-Default worker profiles:
-
-- `claude-opus`: start Claude Code with
-  `rtk claude --dangerously-skip-permissions --model opus`.
-- `codex-gpt-5.5`: start Codex with `rtk codex -m gpt-5.5 -C "$PWD"`.
-
-Always include `--dangerously-skip-permissions` when launching Claude. Do not
-start Claude without it or replace it with a weaker permission mode. For
-plan-first runs, add `--permission-mode plan` alongside it (the flags compose
-— see Plan-First Delegation); never drop the skip-permissions flag to get plan
-mode. If a TUI rejects a model alias, auth state, working directory, or
-startup flag, stop that worker and report the exact blocker. Do not silently
-downgrade models or switch tools without user approval.
-
-Launch workers by explicit surface:
+Two default profiles — Claude Code on `opus` (**claude-opus**) and Codex on
+`gpt-5.5` (**codex-gpt-5.5**) — launched by explicit surface:
 
 ```bash
 rtk cmux send --surface surface:<claude> \
   "rtk claude --dangerously-skip-permissions --model opus --name cmux-claude-opus\n"
 rtk cmux send --surface surface:<codex> \
-  "rtk codex -m gpt-5.5 -C \"$PWD\"\n"
+  "rtk codex --yolo -m gpt-5.5 -C \"$PWD\"\n"
 ```
 
-## Plan-First Delegation (Plan Mode)
+Claude always launches with `--dangerously-skip-permissions` and Codex with
+`--yolo` — workers run unattended and must not stall on permission prompts.
+Plan-first runs add Claude's `--permission-mode plan` — the flags compose
+(see Plan-first delegation).
 
-For slices that need investigation and a reviewed plan before edits
-(root-cause fixes, multi-file changes, unfamiliar code), run the worker
-plan-first: launch in plan mode → submit the packet → watch and answer
-clarifying questions → review the plan → accept → hands-off until done.
+## Sending prompts to running TUIs
 
-**STOP. Read [references/plan-mode.md](references/plan-mode.md) in full before
-launching a worker in plan mode.** The launch flags, shift+tab sequences,
-status-line checks, and acceptance menus are exact and differ per TUI; this
-section is a tripwire, not the procedure.
+`cmux send "...\n"` submits only in a plain shell (the launch lines above).
+Inside a running TUI (Claude Code, Codex) the trailing `\n` is pasted as a soft
+newline — the prompt sits unsubmitted and the worker stalls silently.
 
-Summary of the per-TUI entry points (the reference has the full flow):
-
-- Claude Code: launch with
-  `rtk claude --dangerously-skip-permissions --permission-mode plan --model opus`
-  (the flags compose; the packet may ride the launch line as a CLI argument).
-  Accept via the `Would you like to proceed?` menu — pick the auto-accept
-  option so the worker runs unattended.
-- Codex: no plan-mode CLI flag. Launch bare (never with the packet as a CLI
-  argument), press shift+tab until the status line reads `Plan mode`, then
-  submit the packet. Accept via `Implement this plan?` → option 1 (keeps the
-  investigation context).
-
-Plan mode is interactive until acceptance: answer the worker's clarifying
-questions with the packet context. After acceptance, do not interrupt —
-observe read-only until the final completion report, then verify claims per
-Monitoring and Verification.
-
-## Prompt Submission to Running TUIs
-
-`cmux send "...\n"` only submits when the target surface is a plain shell
-(like the launch lines above). Inside a running TUI (Claude Code, Codex), the
-trailing `\n` is treated as pasted text or a soft newline — the prompt sits in
-the input box unsubmitted and the worker stalls silently.
-
-Rules:
-
-- Prefer passing the initial prompt as a CLI argument at launch
+- Prefer passing the initial prompt as a launch CLI argument
   (`rtk claude --dangerously-skip-permissions "…prompt…"`,
-  `rtk codex "…prompt…"`). This avoids the TUI-ready race and the submission
-  problem entirely. Exception: Codex plan-first runs must launch bare — see
-  Plan-First Delegation.
-- For any follow-up prompt to an already-running TUI, always send the text and
-  then submit with an explicit Enter:
+  `rtk codex "…prompt…"`) — this skips the TUI-ready race and the submission
+  problem. Exception: Codex plan-first launches bare (see Plan-first
+  delegation).
+- For any follow-up to a running TUI, send the text, then submit with an
+  explicit Enter:
 
   ```bash
   rtk cmux send --surface surface:<worker> "…follow-up prompt…"
   rtk cmux send-key --surface surface:<worker> enter
   ```
 
-- Confirm submission with `rtk cmux read-screen --surface surface:<worker>`:
-  the input line must be empty and the TUI spinner/working indicator active.
-  Treat an unconfirmed send as not delivered.
+- Confirm with `rtk cmux read-screen --surface surface:<worker>`: input line
+  empty, spinner/working indicator active. An unconfirmed send is not delivered.
 
-## Delegation Packets
+## Plan-first delegation
 
-Send worker prompts as standalone contracts. Include:
+For slices needing investigation before edits — root-cause fixes, multi-file or
+cross-package changes, unfamiliar code — run the worker plan-first: it plans,
+you review and accept, then it runs hands-off. The launch flags, shift+tab
+sequences, status-line checks, and acceptance menus are exact and differ per
+TUI. **When delegating plan-first, read
+[references/plan-mode.md](references/plan-mode.md) in full before launching the
+worker.**
+
+## Delegation packets
+
+Send each worker prompt as a standalone contract. Include:
 
 - repo path and exact objective
 - worker role and model
-- execution mode: plan-first (plan mode) or direct
+- execution mode: plan-first or direct
 - files, packages, or surfaces in scope
 - files and behaviors explicitly out of scope
-- claimed files or work slice to avoid conflicts
-- expected evidence format: files, line refs, commands, diffs, failures,
-  screenshots, and uncertainty
+- claimed files or work slice, to avoid conflicts
+- expected evidence: files, line refs, commands, diffs, failures, screenshots,
+  and stated uncertainty
 - verification commands or browser flows to run
 - stop conditions: unexpected code shape, repeated command failure, auth/model
   blocker, or need for out-of-scope edits
 
-Prefer small, independent worker slices. Do not assign overlapping file claims
-unless the controller plans to integrate and resolve conflicts immediately.
+Prefer small, independent slices. Assign overlapping file claims only when the
+controller will integrate and resolve conflicts immediately.
 
-## State Registry
+## State registry
 
 Maintain a compact registry in the task ledger or handoff:
 
 - controller identity
 - worker role and model
-- `workspace:N`, `pane:N`, and `surface:N`
+- `workspace:N`, `pane:N`, `surface:N`
 - prompt/objective sent and start time
-- current status: starting, planning, plan-review, plan-accepted, running,
-  waiting, blocked, reported, verified
+- status: starting, planning, plan-review, plan-accepted, running, waiting,
+  blocked, reported, verified
 - claimed files or work slice
 - worker-reported commands and results
 - controller verification performed
 - final disposition: accepted, rejected, superseded, or blocked
 
-For long runs, attach progress to the caller workspace with cmux sidebar state:
+For long runs, attach progress to the caller workspace with cmux sidebar state,
+and clear it when orchestration finishes or is abandoned:
 
 ```bash
 rtk cmux set-status orchestration "running" \
@@ -190,38 +151,37 @@ rtk cmux log --workspace "${CMUX_WORKSPACE_ID:-}" --level info -- \
   "Started cmux orchestration"
 ```
 
-Clear status/progress when orchestration finishes or is abandoned.
+## Verify worker output
 
-## Monitoring and Verification
+Treat worker output as untrusted until verified. Monitor and verify without
+changing focus:
 
-- Poll or inspect worker surfaces without changing focus.
-- Ask a worker for a concise status summary when output is unclear.
-- Verify high-impact findings by reopening cited files locally.
-- Verify claimed test results with fresh controller-run commands when the
-  result matters for completion.
+- Poll or inspect worker surfaces read-only; ask a worker for a concise status
+  summary when output is unclear.
+- Re-open cited files locally to verify high-impact findings.
+- Re-run claimed test results with fresh controller commands when the result
+  gates completion.
 - Review the final diff before accepting any worker patch.
-- If a worker edits outside its claim, pause integration and decide whether to
-  accept, request user-approved cleanup, or supersede with controller edits.
+- If a worker edits outside its claim, pause integration and decide: accept,
+  request user-approved cleanup, or supersede with controller edits.
 
-## Stop Conditions
+## Stop conditions
 
 Stop and report instead of improvising when:
 
-- cmux rejects a valid workspace, pane, or surface ref
-- the requested model or startup flags are rejected
-- authentication blocks the TUI
-- worker output cannot be observed or controlled reliably
+- cmux rejects a valid workspace, pane, or surface ref.
+- a worker TUI rejects the model alias, auth state, working directory, or a
+  startup flag — report the exact blocker, and get user approval before
+  downgrading a model or switching tools.
+- authentication blocks the TUI.
+- worker output cannot be observed or controlled reliably.
 - a plan-mode status line or acceptance menu cannot be confirmed via
   `read-screen`, or a worker's plan stays out of scope after a re-planning
-  round
-- workers need overlapping edits that the controller cannot integrate safely
-- the task requires focus-changing cmux commands and the user has not approved
-  them
-
-Use this skill for orchestration mechanics. Use task/domain skills separately
-for coding, review, debugging, UI, browser QA, or product-specific judgment.
+  round.
+- workers need overlapping edits the controller cannot integrate safely.
+- a task needs focus-changing cmux commands the user has not approved.
 
 ## Diagram
 
-Use `assets/fable-orchestrator.excalidraw` or the generated PNG variants when
-a visual explanation of the controller/worker topology helps.
+`assets/fable-orchestrator.excalidraw` (or its PNG variants) diagrams the
+controller/worker topology when a visual explanation helps.

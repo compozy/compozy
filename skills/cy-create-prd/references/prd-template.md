@@ -1,6 +1,8 @@
 # PRD Template
 
-Use this template to structure every Product Requirements Document. Fill each section based on brainstorming outcomes. Leave placeholder guidance in sections where information is insufficient and note them in Open Questions.
+Use this template to structure every Product Requirements Document. The PRD is consumed by LLM agents downstream (`cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, review rounds): it exists to give them business rules, domain behavior, and product intent.
+
+Fill each section based on brainstorming outcomes. Leave placeholder guidance in sections where information is insufficient and note them in Open Questions.
 
 ## Overview
 
@@ -11,24 +13,32 @@ High-level overview of the feature or product. Describe:
 
 ## Goals
 
-Specific, measurable objectives for this feature or product:
-- Success metrics and key performance indicators
-- Business objectives and expected outcomes
-- Target timelines or milestones
+Product outcomes stated as observable behavior, not metrics:
+- What users can do after this ships that they could not do before
+- What the system guarantees or enforces once the feature exists
+- What becomes unnecessary, automatic, or impossible for users
 
 ## User Stories
 
-User stories organized by persona:
-- As a [type of user], I want [action] so that [benefit]
-- Primary personas and their main flows
-- Secondary personas and edge cases
+Index into `_user_stories.md`, the canonical story catalog — do not restate stories here:
+- One line per feature area: the `US-NNN` range it covers and its theme
+- Link the catalog: [Full user stories](_user_stories.md)
 
 ## Core Features
 
-Main features grouped by priority:
+Main features of the product:
 - Feature name: what it does, why it is important, high-level behavior
 - Functional requirements for each feature
 - Interaction between features
+
+## Business Rules
+
+Domain rules the implementation must enforce, stated precisely:
+- Invariants that must always hold (e.g., "a run belongs to exactly one workspace")
+- Validation rules and their user-facing outcomes
+- Permission and visibility rules per persona
+- Lifecycle and state-transition rules (which states exist, what may move where, and when)
+- Calculations, limits, and defaults with their exact values
 
 ## User Experience
 
@@ -46,48 +56,15 @@ Required boundaries that shape the product without prescribing implementation:
 - Performance targets from a user perspective
 - Data privacy and security requirements
 
-Do NOT include implementation details such as specific databases, frameworks, API designs, or architecture patterns.
+Implementation choices — databases, frameworks, API designs, architecture patterns — belong to the TechSpec.
 
 ## Non-Goals (Out of Scope)
 
-Explicitly excluded features and boundaries:
-- Features intentionally deferred to future phases
-- Adjacent problems that will not be addressed
+Capabilities the user decided this feature will not include:
+- Adjacent problems that will not be addressed, and why
 - Boundaries of this effort
 
-## Phased Rollout Plan
-
-Incremental delivery plan with success criteria per phase:
-
-### MVP (Phase 1)
-- Core features included
-- Success criteria to proceed to Phase 2
-
-### Phase 2
-- Additional features
-- Success criteria to proceed to Phase 3
-
-### Phase 3
-- Full feature set
-- Long-term success criteria
-
-## Success Metrics
-
-Quantifiable measures of success:
-- User engagement metrics
-- Performance benchmarks from a user perspective
-- Business impact indicators
-- Quality attributes
-
-## Risks and Mitigations
-
-Non-technical risks that could affect the product:
-- Adoption risks and mitigation strategies
-- Competitive risks
-- Timeline and resource constraints
-- Dependency risks on external factors
-
-Do NOT include technical risks such as architectural complexity or technical debt.
+Exclusions record user decisions, never size management: a wanted capability stays in scope no matter how large the document grows.
 
 ## Architecture Decision Records
 

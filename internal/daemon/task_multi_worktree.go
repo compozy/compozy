@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,8 +18,10 @@ import (
 )
 
 const (
-	// taskMultiWorktreeStatusPreserved marks an allocated child worktree as kept
-	// for manual review when a run does not finalize cleanup.
+	// Worktree status values describe the actual lifecycle state surfaced through
+	// task.multi and task.parallel payloads.
+	taskMultiWorktreeStatusActive    = "active"
+	taskMultiWorktreeStatusRemoved   = "removed"
 	taskMultiWorktreeStatusPreserved = "preserved"
 	// taskMultiWorktreeHeadRef is the symbolic ref resolved for the parent base.
 	// `git rev-parse --abbrev-ref HEAD` returns this literal when the checkout is
@@ -87,6 +90,7 @@ type taskMultiWorktreeSpec struct {
 	Slug          string
 	Index         int
 	TaskNumber    int
+	ResultBranch  string
 	Base          taskMultiWorktreeBase
 }
 
@@ -99,6 +103,8 @@ type taskMultiWorktreeAllocation struct {
 	BaseBranch     string
 	BaseCommit     string
 	WorktreeStatus string
+	WorktreeReason string
+	ResultBranch   string
 }
 
 type taskMultiWorktreeGitRunner func(ctx context.Context, dir string, args ...string) (string, error)
@@ -180,18 +186,80 @@ func (a *taskMultiWorktreeAllocator) Allocate(
 	if err := ensureTaskMultiWorktreeTargetFree(path); err != nil {
 		return taskMultiWorktreeAllocation{}, err
 	}
+	stalePaths, err := a.staleCompozyWorktreeRegistrations(ctx, spec.WorkspaceRoot)
+	if err != nil {
+		return taskMultiWorktreeAllocation{}, err
+	}
+	for _, stalePath := range stalePaths {
+		slog.Default().Warn(
+			"daemon: git worktree is registered outside the current Compozy home",
+			"worktree_path",
+			stalePath,
+			"current_worktrees_root",
+			a.worktreesRoot,
+			"hint",
+			"the worktree may belong to a previous COMPOZY_HOME and will not be deleted automatically",
+		)
+	}
 	if err := os.MkdirAll(filepath.Dir(path), taskMultiWorktreeDirPerm); err != nil {
 		return taskMultiWorktreeAllocation{}, fmt.Errorf("create worktree parent directory for %s: %w", path, err)
 	}
-	if _, err := a.run(ctx, spec.WorkspaceRoot, "worktree", "add", "--detach", path, commit); err != nil {
-		return taskMultiWorktreeAllocation{}, fmt.Errorf("git worktree add --detach %s %s: %w", path, commit, err)
+	resultBranch := strings.TrimSpace(spec.ResultBranch)
+	args := []string{"worktree", "add", "--detach", path, commit}
+	if resultBranch != "" {
+		args = []string{"worktree", "add", "-b", resultBranch, path, commit}
+	}
+	if _, err := a.run(ctx, spec.WorkspaceRoot, args...); err != nil {
+		return taskMultiWorktreeAllocation{}, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return taskMultiWorktreeAllocation{
 		Path:           path,
 		BaseBranch:     strings.TrimSpace(spec.Base.Branch),
 		BaseCommit:     commit,
-		WorktreeStatus: taskMultiWorktreeStatusPreserved,
+		WorktreeStatus: taskMultiWorktreeStatusActive,
+		ResultBranch:   resultBranch,
 	}, nil
+}
+
+func (a *taskMultiWorktreeAllocator) staleCompozyWorktreeRegistrations(
+	ctx context.Context,
+	workspaceRoot string,
+) ([]string, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := requireTaskMultiWorktreeValue(workspaceRoot, "workspace root")
+	if err != nil {
+		return nil, err
+	}
+	registered, err := run(ctx, workspace, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, fmt.Errorf("inspect registered worktrees before allocation: %w", err)
+	}
+	stale := make([]string, 0)
+	for _, line := range strings.Split(registered, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "worktree ") {
+			continue
+		}
+		path := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "worktree "))
+		if !looksLikeCompozyWorktreePath(path) {
+			continue
+		}
+		_, owned, ownershipErr := cleanOwnedWorktreePath(a.worktreesRoot, path)
+		if ownershipErr != nil {
+			return nil, ownershipErr
+		}
+		if !owned {
+			stale = append(stale, path)
+		}
+	}
+	return stale, nil
+}
+
+func looksLikeCompozyWorktreePath(path string) bool {
+	normalized := filepath.ToSlash(filepath.Clean(strings.TrimSpace(path)))
+	return strings.Contains(normalized, "/state/worktrees/")
 }
 
 // CommitTask commits only the task-produced paths recorded by the child run's
@@ -653,6 +721,42 @@ func (a *taskMultiWorktreeAllocator) Remove(ctx context.Context, workspaceRoot s
 	return nil
 }
 
+func (a *taskMultiWorktreeAllocator) DeleteBranchIfAt(
+	ctx context.Context,
+	workspaceRoot string,
+	branch string,
+	expectedCommit string,
+) (bool, error) {
+	run, err := a.requireGitRunner()
+	if err != nil {
+		return false, err
+	}
+	workspace, err := requireTaskMultiWorktreeValue(workspaceRoot, "workspace root")
+	if err != nil {
+		return false, err
+	}
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return false, nil
+	}
+	expectedCommit = strings.TrimSpace(expectedCommit)
+	if expectedCommit == "" {
+		return false, errors.New("daemon: expected branch commit is required")
+	}
+	commit, err := run(ctx, workspace, "branch", "--list", branch, "--format=%(objectname)")
+	if err != nil {
+		return false, fmt.Errorf("inspect result branch %s: %w", branch, err)
+	}
+	commit = strings.TrimSpace(commit)
+	if commit == "" || commit != expectedCommit {
+		return false, nil
+	}
+	if _, err := run(ctx, workspace, "branch", "-d", branch); err != nil {
+		return false, fmt.Errorf("delete empty result branch %s: %w", branch, err)
+	}
+	return true, nil
+}
+
 func (a *taskMultiWorktreeAllocator) integrationBranchExists(
 	ctx context.Context,
 	workspaceRoot string,
@@ -754,6 +858,28 @@ func planTaskMultiWorktreePath(worktreesRoot string, spec taskMultiWorktreeSpec)
 	}
 	leaf := fmt.Sprintf("%0*d-%s", taskMultiWorktreeIndexPadWidth, leafNumber, slug)
 	return filepath.Join(root, taskMultiWorkspaceHash(workspaceRoot), parent, leaf), nil
+}
+
+func taskMultiResultBranch(parentRunID string, index int, slug string) (string, error) {
+	if index < 0 {
+		return "", fmt.Errorf("daemon: result branch index must be non-negative, got %d", index)
+	}
+	parent := sanitizeTaskMultiWorktreeSegment(parentRunID, taskMultiWorktreeParentShortLen)
+	if parent == "" {
+		return "", errors.New("daemon: result branch parent run id is required")
+	}
+	cleanSlug := sanitizeTaskMultiWorktreeSegment(slug, taskMultiWorktreeSlugMaxLen)
+	if cleanSlug == "" {
+		return "", fmt.Errorf("daemon: result branch slug %q is invalid", slug)
+	}
+	return fmt.Sprintf(
+		"compozy/multi-%s-%s-%0*d-%s",
+		parent,
+		taskMultiShortHash(strings.TrimSpace(parentRunID), taskMultiWorktreeParentHashLen),
+		taskMultiWorktreeIndexPadWidth,
+		index,
+		cleanSlug,
+	), nil
 }
 
 // sanitizeTaskMultiWorktreeSegment lowercases value and reduces it to a safe

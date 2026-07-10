@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -48,7 +49,7 @@ func installInProcessCLIDaemonBootstrapWithConfigClient(
 	cfg daemon.RunManagerConfig,
 ) *inProcessDaemonCommandClient {
 	t.Helper()
-	prepareInProcessCLIDaemonHome(t)
+	setupInProcessCLITestEnv(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -97,21 +98,58 @@ func installInProcessCLIDaemonBootstrapWithConfigClient(
 	return client
 }
 
-func prepareInProcessCLIDaemonHome(t *testing.T) {
+// setupInProcessCLITestEnv configures HOME/XDG/PATH for in-process CLI daemon tests.
+// It must run on a non-parallel testing.T (or the parent before any t.Parallel()).
+func setupInProcessCLITestEnv(t *testing.T) {
 	t.Helper()
 
 	homeDir := strings.TrimSpace(os.Getenv(testCLIDaemonHomeEnv))
 	xdgConfigHome := strings.TrimSpace(os.Getenv(testCLIXDGHomeEnv))
 	if homeDir == "" {
 		homeDir = t.TempDir()
-		t.Setenv(testCLIDaemonHomeEnv, homeDir)
 	}
 	if xdgConfigHome == "" {
 		xdgConfigHome = t.TempDir()
-		t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 	}
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 	t.Setenv("HOME", homeDir)
 	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+
+	pathDir := installInProcessCLITestCodexACP(t)
+	t.Setenv("PATH", pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func installInProcessCLITestCodexACP(t *testing.T) string {
+	t.Helper()
+
+	root := t.TempDir()
+	packageDir := filepath.Join(root, "lib", "node_modules", "@agentclientprotocol", "codex-acp")
+	binDir := filepath.Join(packageDir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create test codex-acp package: %v", err)
+	}
+	packageJSON := []byte(`{"name":"@agentclientprotocol/codex-acp","version":"1.1.2"}`)
+	if err := os.WriteFile(filepath.Join(packageDir, "package.json"), packageJSON, 0o600); err != nil {
+		t.Fatalf("write test codex-acp package metadata: %v", err)
+	}
+	target := filepath.Join(binDir, "codex-acp.js")
+	if err := os.WriteFile(target, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatalf("write test codex-acp executable: %v", err)
+	}
+	pathDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(pathDir, 0o755); err != nil {
+		t.Fatalf("create test codex-acp path directory: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(pathDir, "codex-acp")); err != nil {
+		t.Fatalf("link test codex-acp executable: %v", err)
+	}
+	return pathDir
+}
+
+func prepareInProcessCLIDaemonHome(t *testing.T) {
+	t.Helper()
+	setupInProcessCLITestEnv(t)
 }
 
 func executeDaemonBackedRootCommandCapturingProcessIO(

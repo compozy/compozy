@@ -530,7 +530,7 @@ func newTransportReadModelFixture(t *testing.T) transportReadModelFixture {
 			return &model.SolvePreparation{}, nil
 		},
 		execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
-			runArtifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+			runArtifacts, err := model.ResolveRuntimeRunArtifacts(cfg)
 			if err != nil {
 				return err
 			}

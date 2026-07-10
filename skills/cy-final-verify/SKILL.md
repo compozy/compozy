@@ -48,7 +48,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 
 **If in doubt, run the full pipeline.** Over-verification wastes minutes. Under-verification wastes hours.
 
-**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption.
+**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
 
 ## Common Failures
 
@@ -61,6 +61,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 | Regression test works | Red-green cycle verified        | Test passes once               |
 | Agent completed       | VCS diff shows changes          | Agent reports "success"        |
 | Requirements met      | Line-by-line checklist          | Tests passing                  |
+| Matches spec contract | Field-by-field diff vs canonical spec artifacts | Task-file paraphrase satisfied, checkboxes ticked |
 
 ## Red Flags
 
@@ -71,6 +72,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 - Relying on partial verification
 - Thinking "just this once"
 - Any wording that implies success without current evidence
+- Verifying against a task file's paraphrase when a canonical contract artifact exists in the spec directory
 
 ## Rationalization Prevention
 
@@ -95,15 +97,30 @@ Apply this skill before:
 - any handoff that implies correctness
 - moving to the next task based on completion
 
+## Optional Companion Skills
+
+Two companion gates below are **conditional**. Probe the agent skill roots (`.agents/skills/`, `.claude/skills/`, or the runtime's skill catalog) for a `SKILL.md` under the named skill. If the skill is absent, skip that gate entirely — do not invent a substitute, and do not fail verification for the missing companion.
+
+| Gate | Requires | If missing |
+| ---- | -------- | ---------- |
+| Deslop Gate | `deslop` | Skip deslop; proceed to verify |
+| QA Tracker Impact | both `qa-report` and `qa-execution` | Skip the QA impact flag |
+
+## Deslop Gate (code-change tasks)
+
+**Only when the `deslop` skill exists.** Before collecting completion evidence, run `deslop` on the branch diff and apply its cleanup. Order matters: deslop mutates code, so verification evidence gathered before it is stale — deslop first, then verify. Skipping it when the skill is present ships AI slop (noise comments, defensive clutter, style drift) into permanent artifacts.
+
 ## Pre-Commit and Pre-PR Gate
 
 Commits and PRs are permanent artifacts. They require the highest verification standard.
 
 **Before `git commit`:**
-1. Run the full verification pipeline (e.g., `make verify`). Not a subset. The full pipeline.
-2. Confirm zero errors, zero warnings, zero test failures in the output.
-3. Produce a Verification Report (see template below) with verdict PASS.
-4. Only then run `git commit`.
+1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
+2. Run the full verification pipeline (e.g., `make verify`). Not a subset. The full pipeline.
+3. Confirm zero errors, zero warnings, zero test failures in the output.
+4. If both `qa-report` and `qa-execution` skills exist and the project keeps a living QA tracker (e.g. `docs/qa/state.csv`), apply the QA impact flag (see "QA Tracker Impact" below).
+5. Produce a Verification Report (see template below) with verdict PASS.
+6. Only then run `git commit`.
 
 **Before creating a PR:**
 1. All of the above, plus:
@@ -111,6 +128,29 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 3. Confirm no unrelated files are staged.
 
 If the full pipeline has not passed in this session after the last code change, the commit or PR must not proceed.
+
+## QA Tracker Impact (living QA docs)
+
+**Only when both `qa-report` and `qa-execution` skills exist.** A green pipeline proves the code works; it does not keep QA verdicts honest. When the project also keeps a living QA tracker (e.g. `docs/qa/state.csv`), a completion claim also requires the impact flag — one question, ~1 minute:
+
+> Does this diff change user-visible behavior (UI, CLI verb, API route, config key, user-facing copy)?
+
+- **No** (pure refactor, internal-only): state "no user-visible change" in the completion notes. Done.
+- **New behavior:** add the scenario row(s) to the tracker with status `untested`.
+- **Changed behavior:** reset the affected rows' `qa_status` to `untested` (a stale `pass` is worse than no verdict).
+
+**Flag, don't retest.** Running QA is the QA cycle's job — `untested` rows are exactly its scope. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
+
+## Spec Contract Parity (PRD/spec workflows)
+
+A green pipeline and ticked task checkboxes do not prove the deliverable matches the spec. When the work executes a task from a spec directory (PRD/TechSpec plus sibling artifacts), a "task complete" claim additionally requires:
+
+1. List the canonical contract artifacts for this task found during grounding (e.g. `_examples.md`, `_qa.md` input tables, `_tests.md` test contracts, `_user_stories.md` acceptance criteria, parity maps). If none are known, survey the spec directory now — absence must be proven, not assumed.
+2. Compare the deliverable to each artifact field by field: names, types, defaults, required flags, shapes, topologies, behaviors. Paraphrase-level similarity is not parity.
+3. Any mismatch fails the completion claim — fix the deliverable or report the conflict; never reinterpret the canonical artifact to match what was built.
+4. Cite the compared artifacts in the Verification Report (`Contract parity:` line).
+
+Failure mode this section exists to prevent (real incident): a task shipped "green" through seven peer-review rounds while contradicting the spec's canonical example document — every check measured engineering quality against the task file's paraphrase, and nothing ever compared the deliverable to the canonical contract.
 
 ## Verification Report Template
 
@@ -128,6 +168,7 @@ Exit code: [0 or non-zero]
 Output summary: [Key lines from output — pass count, error count, build result]
 Warnings: [Any warnings, or "none"]
 Errors: [Any errors, or "none"]
+Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
 Verdict: PASS or FAIL
 ```
 

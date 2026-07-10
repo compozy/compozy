@@ -245,7 +245,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.reasoningEffort,
 		"reasoning-effort",
 		"medium",
-		"Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh).",
+		"Reasoning effort for runtimes that advertise it (low, medium, high, xhigh, max, ultra).",
 	)
 	cmd.Flags().StringVar(
 		&state.accessMode,
@@ -300,7 +300,7 @@ func addRecoveryFlags(cmd *cobra.Command, state *commandState) {
 		&state.recoveryReasoningEffort,
 		"recovery-reasoning",
 		workspace.DefaultRecoveryReasoningEffort,
-		"Reasoning effort for the recovery agent (low, medium, high, xhigh)",
+		"Reasoning effort for the recovery agent (low, medium, high, xhigh, max, ultra)",
 	)
 	cmd.Flags().IntVar(
 		&state.recoveryMaxAttempts,

@@ -187,11 +187,7 @@ func openBaseRunScope(
 }
 
 func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
-	runID, err := BuildRunID(cfg)
-	if err != nil {
-		return RunArtifacts{}, err
-	}
-	runArtifacts, err := ResolveHomeRunArtifacts(runID)
+	runArtifacts, err := ResolveRuntimeRunArtifacts(cfg)
 	if err != nil {
 		return RunArtifacts{}, err
 	}

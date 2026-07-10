@@ -56,7 +56,7 @@ Deferred fields and folders stay out of scope in v1:
 | `description`      | Short description shown in list output and the prompt-visible discovery catalog |
 | `ide`              | Default runtime ide for this agent                                              |
 | `model`            | Default model override                                                          |
-| `reasoning_effort` | Default reasoning effort (`low`, `medium`, `high`, `xhigh`)                     |
+| `reasoning_effort` | Default reasoning effort (`low`, `medium`, `high`, `xhigh`, `max`, `ultra`)     |
 | `access_mode`      | Default runtime access mode (`default` or `full`)                               |
 
 Other frontmatter keys are not part of the supported v1 contract. Avoid relying on them.
@@ -151,7 +151,7 @@ Status: valid
 Source: workspace
 Title: Reviewer
 Description: Reviews implementation plans and diffs before code lands.
-Runtime defaults: ide=codex model=gpt-5.5 reasoning=high access=default
+Runtime defaults: ide=codex model=gpt-5.6-sol reasoning=high access=default
 MCP servers: none
 Validation: OK
 ```

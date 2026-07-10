@@ -1019,7 +1019,15 @@ export interface components {
             status: string;
             title: string;
         };
+        TaskExecutionDescriptor: {
+            /** @enum {string} */
+            kind: "task_standard" | "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
+            label: string;
+            source: string;
+            uses_worktrees: boolean;
+        };
         TaskRunRequest: {
+            execution?: components["schemas"]["TaskExecutionDescriptor"];
             presentation_mode?: string;
             runtime_overrides?: {
                 [key: string]: unknown;
@@ -1031,13 +1039,17 @@ export interface components {
             base_commit?: string;
             error_text?: string;
             run_id?: string;
+            result_branch?: string;
             slug: string;
             /** @enum {string} */
             status: "queued" | "running" | "completed" | "failed" | "canceled";
             worktree_path?: string;
-            worktree_status?: string;
+            worktree_reason?: string;
+            /** @enum {string} */
+            worktree_status?: "active" | "removed" | "preserved";
         };
         TaskRunMultipleRequest: {
+            execution?: components["schemas"]["TaskExecutionDescriptor"];
             /** @enum {string} */
             mode?: "enqueued" | "parallel";
             parallel_limit?: number;
@@ -1049,7 +1061,13 @@ export interface components {
             workspace?: string;
         };
         TaskRunMultipleSnapshotResponse: {
+            /** @enum {string} */
+            execution_kind?: "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
+            incomplete?: boolean;
+            incomplete_reasons?: string[];
             items?: components["schemas"]["TaskRunMultipleItem"][];
+            lifecycle_events?: components["schemas"]["Event"][];
+            next_cursor?: string;
             run: components["schemas"]["Run"];
         };
         TransportError: {

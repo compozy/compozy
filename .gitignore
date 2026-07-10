@@ -17,6 +17,20 @@ coverage.html
 skills/*/autoresearch-*/
 skills-lock.json
 .claude/skills
+
+# Generated symlinks to bundled skills/ (recreated by scripts/link-skills.sh).
+# skills/ is the tracked source of truth (embedded via skills/embed.go); these
+# .agents/skills mirrors are derived artifacts, same as .claude/skills above.
+.agents/skills/compozy
+.agents/skills/cy-create-prd
+.agents/skills/cy-create-tasks
+.agents/skills/cy-create-techspec
+.agents/skills/cy-execute-task
+.agents/skills/cy-final-verify
+.agents/skills/cy-fix-reviews
+.agents/skills/cy-review-round
+.agents/skills/cy-workflow-memory
+.agents/skills/git-rebase
 ai-docs
 **/**/node_modules
 node_modules/

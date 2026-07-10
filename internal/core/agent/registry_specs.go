@@ -32,6 +32,10 @@ type Spec struct {
 	InstallHint      string
 	FullAccessModeID string
 	BootstrapArgs    func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string
+	// LegacyBootstrapArgs configures an older launcher only when its installed
+	// package identity is positively detected. Current ACP adapters are configured
+	// through session options instead of process flags.
+	LegacyBootstrapArgs func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string
 }
 
 // Launcher defines one ACP-compatible command shape for a runtime.
@@ -125,12 +129,13 @@ var (
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
-					FixedArgs: []string{"--yes", "@zed-industries/codex-acp"},
+					FixedArgs: []string{"--yes", "@agentclientprotocol/codex-acp"},
 				},
 			},
-			DocsURL:       "https://github.com/zed-industries/codex-acp",
-			InstallHint:   "Install or update the Codex ACP adapter with `npm install -g @zed-industries/codex-acp@latest`, then expose `codex-acp` on PATH.",
-			BootstrapArgs: codexBootstrapArgs,
+			DocsURL:             "https://github.com/agentclientprotocol/codex-acp",
+			InstallHint:         "Install or update the Codex ACP adapter with `npm install -g @agentclientprotocol/codex-acp@latest`, then expose `codex-acp` on PATH.",
+			FullAccessModeID:    "agent-full-access",
+			LegacyBootstrapArgs: codexBootstrapArgs,
 		},
 		model.IDEDroid: {
 			ID:             model.IDEDroid,

@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/internal/core/worktree"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -54,6 +55,60 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 	}, nil)
 	if err != nil {
 		t.Fatalf("execute dry run: %v", err)
+	}
+}
+
+func TestExecuteTaskDryRunWritesEmptyWorktreeScope(t *testing.T) {
+	workspaceRoot := initTaskWorkspaceRepo(t)
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	commitTaskWorkspace(t, workspaceRoot, "add dry-run task")
+
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	taskContent, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file: %v", err)
+	}
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "task-dry-run")
+	err = Execute(context.Background(), []model.Job{{
+		CodeFiles: []string{"task_01"},
+		Groups: map[string][]model.IssueEntry{
+			"task_01": {{
+				Name:     "task_01.md",
+				AbsPath:  taskPath,
+				Content:  string(taskContent),
+				CodeFile: "task_01",
+			}},
+		},
+		SafeName: "task_01",
+		Prompt:   []byte("do the work"),
+		OutLog:   filepath.Join(runArtifacts.RunDir, "task_01.out.log"),
+		ErrLog:   filepath.Join(runArtifacts.RunDir, "task_01.err.log"),
+	}}, runArtifacts, nil, nil, &model.RuntimeConfig{
+		DryRun:                 true,
+		Concurrent:             1,
+		IDE:                    model.IDECodex,
+		Model:                  "test-model",
+		ReasoningEffort:        "medium",
+		RetryBackoffMultiplier: 2,
+		Mode:                   model.ExecutionModePRDTasks,
+		TasksDir:               tasksDir,
+		WorkspaceRoot:          workspaceRoot,
+	}, nil)
+	if err != nil {
+		t.Fatalf("execute task dry run: %v", err)
+	}
+
+	scopePath := runArtifacts.JobArtifacts("task_01").WorktreeScopePath
+	scope, err := worktree.ReadScope(scopePath)
+	if err != nil {
+		t.Fatalf("ReadScope(%s): %v", scopePath, err)
+	}
+	if !scope.Supported || !scope.Unchanged() {
+		t.Fatalf("dry-run scope = %#v, want supported and unchanged", scope)
 	}
 }
 
@@ -206,18 +261,6 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	if got := firstClient.closeCalls.Load() + secondClient.closeCalls.Load(); got != 2 {
 		t.Fatalf("expected both clients to close, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected first client SetSessionModel once, got %d", got)
-	}
-	if got := secondClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected second client SetSessionModel once, got %d", got)
-	}
-	secondClient.setModelMu.Lock()
-	gotModelID := secondClient.lastSetModelID
-	secondClient.setModelMu.Unlock()
-	if gotModelID != "test-model" {
-		t.Fatalf("expected second client SetSessionModel model %q, got %q", "test-model", gotModelID)
-	}
 
 	outLog, err := os.ReadFile(job.OutLog)
 	if err != nil {
@@ -300,12 +343,6 @@ func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
 	}
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected one successful retry attempt, got %d", got)
-	}
-	if got := firstClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected first client SetSessionModel once, got %d", got)
-	}
-	if got := secondClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected second client SetSessionModel once, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs after timeout retry, got %d", got)
@@ -687,12 +724,6 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 	if got := secondClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected retry attempt to create one successful session, got %d", got)
 	}
-	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no SetSessionModel on failed client, got %d", got)
-	}
-	if got := secondClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected retry client SetSessionModel once, got %d", got)
-	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected no failed jobs, got %d", got)
 	}
@@ -738,9 +769,6 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 	}
 	if got := secondClient.createCalls.Load(); got != 0 {
 		t.Fatalf("expected no retry after non-retryable setup failure, got %d", got)
-	}
-	if got := firstClient.setModelCalls.Load(); got != 0 {
-		t.Fatalf("expected no SetSessionModel on non-retryable failure, got %d", got)
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
 		t.Fatalf("expected failed jobs counter to be 1, got %d", got)
@@ -885,9 +913,6 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
 		t.Fatalf("expected succeeded lifecycle state, got %s", got)
 	}
-	if got := successClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once on success, got %d", got)
-	}
 	updatedTask, err := os.ReadFile(taskPath)
 	if err != nil {
 		t.Fatalf("read updated task file: %v", err)
@@ -954,9 +979,6 @@ func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 	if got := cancelClient.createCalls.Load(); got != 1 {
 		t.Fatalf("expected exactly one attempt before cancellation, got %d", got)
 	}
-	if got := cancelClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once before cancellation, got %d", got)
-	}
 }
 
 func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
@@ -1004,9 +1026,6 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	}
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
-	}
-	if got := timeoutClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once before timeout, got %d", got)
 	}
 }
 
@@ -1063,9 +1082,6 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 	if strings.Contains(string(errLog), "activity timeout") {
 		t.Fatalf("expected no activity-timeout error, got %q", string(errLog))
 	}
-	if got := activeClient.setModelCalls.Load(); got != 1 {
-		t.Fatalf("expected SetSessionModel once on successful session, got %d", got)
-	}
 }
 
 func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
@@ -1114,9 +1130,6 @@ func TestExecuteJobWithTimeoutInteractiveSetupTimeoutScenarios(t *testing.T) {
 				}
 				if got := blockingSetupClient.closeCalls.Load(); got != 1 {
 					t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
-				}
-				if got := blockingSetupClient.setModelCalls.Load(); got != 0 {
-					t.Fatalf("expected no SetSessionModel when setup times out, got %d", got)
 				}
 			},
 		},
@@ -1614,13 +1627,8 @@ type fakeACPClient struct {
 	resumeCalls     atomic.Int32
 	promptCalls     atomic.Int32
 	cancelCalls     atomic.Int32
-	setModelCalls   atomic.Int32
 	closeCalls      atomic.Int32
 	killCalls       atomic.Int32
-
-	setModelMu         sync.Mutex
-	lastSetModelSessID string
-	lastSetModelID     string
 }
 
 func newFakeACPClient(
@@ -1647,15 +1655,6 @@ func (c *fakeACPClient) ResumeSession(ctx context.Context, req agent.ResumeSessi
 
 func (c *fakeACPClient) CancelSession(context.Context, string) error {
 	c.cancelCalls.Add(1)
-	return nil
-}
-
-func (c *fakeACPClient) SetSessionModel(_ context.Context, sessionID string, modelID string) error {
-	c.setModelCalls.Add(1)
-	c.setModelMu.Lock()
-	c.lastSetModelSessID = sessionID
-	c.lastSetModelID = modelID
-	c.setModelMu.Unlock()
 	return nil
 }
 

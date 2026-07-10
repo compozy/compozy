@@ -430,11 +430,25 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 				{Slug: "failed", Status: "failed", RunID: "run-failed", ErrorText: "boom"},
 				{Slug: "canceled", Status: "canceled"},
 			},
+			ExecutionKind: "task_multi_parallel",
+			LifecycleEvents: []events.Event{{
+				SchemaVersion: events.SchemaVersion,
+				RunID:         "multi-run-1",
+				Seq:           7,
+				Kind:          events.EventKindTaskRunMultipleChildStarted,
+				Timestamp:     now,
+			}},
+			Incomplete:        true,
+			IncompleteReasons: []string{"event_gap"},
+			NextCursor:        &contract.StreamCursor{Timestamp: now, Sequence: 7},
 		})
 
 		var decoded contract.TaskRunMultipleSnapshotResponse
 		roundTripJSON(t, resp, &decoded)
-		snapshot := decoded.Decode()
+		snapshot, err := decoded.Decode()
+		if err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
 
 		if snapshot.Run.RunID != "multi-run-1" || snapshot.Run.Mode != "task_multi" {
 			t.Fatalf("decoded multi-run = %#v, want parent run", snapshot.Run)
@@ -448,6 +462,15 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			snapshot.Items[3].Status != "failed" ||
 			snapshot.Items[4].Status != "canceled" {
 			t.Fatalf("decoded multi-run items = %#v, want queued/running/completed/failed/canceled", snapshot.Items)
+		}
+		if snapshot.ExecutionKind != "task_multi_parallel" || len(snapshot.LifecycleEvents) != 1 {
+			t.Fatalf("decoded multi-run lifecycle = %#v", snapshot)
+		}
+		if !snapshot.Incomplete || !reflect.DeepEqual(snapshot.IncompleteReasons, []string{"event_gap"}) {
+			t.Fatalf("decoded multi-run integrity = %#v", snapshot)
+		}
+		if snapshot.NextCursor == nil || snapshot.NextCursor.Sequence != 7 {
+			t.Fatalf("decoded multi-run cursor = %#v, want sequence 7", snapshot.NextCursor)
 		}
 	})
 
@@ -566,6 +589,8 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 					BaseBranch:     "main",
 					BaseCommit:     "abc123def456",
 					WorktreeStatus: "preserved",
+					WorktreeReason: "committed output retained",
+					ResultBranch:   "compozy/multi-parent-01-task_01",
 				},
 				{Slug: "task_02", Status: "queued"},
 			},
@@ -573,7 +598,10 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 
 		var decoded contract.TaskRunMultipleSnapshotResponse
 		roundTripJSON(t, contract.TaskRunMultipleSnapshotResponseFromSnapshot(want), &decoded)
-		snapshot := decoded.Decode()
+		snapshot, err := decoded.Decode()
+		if err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
 
 		if !reflect.DeepEqual(snapshot.Items, want.Items) {
 			t.Fatalf("decoded items = %#v, want %#v", snapshot.Items, want.Items)
@@ -590,7 +618,10 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 		if err := json.Unmarshal([]byte(legacyResponse), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		snapshot := decoded.Decode()
+		snapshot, err := decoded.Decode()
+		if err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
 		if len(snapshot.Items) != 1 {
 			t.Fatalf("decoded item count = %d, want 1", len(snapshot.Items))
 		}
@@ -601,8 +632,44 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 		if item.WorktreePath != "" ||
 			item.BaseBranch != "" ||
 			item.BaseCommit != "" ||
-			item.WorktreeStatus != "" {
+			item.WorktreeStatus != "" ||
+			item.WorktreeReason != "" ||
+			item.ResultBranch != "" {
 			t.Fatalf("decoded worktree metadata = %#v, want empty for legacy item", item)
+		}
+	})
+
+	t.Run("Should round trip additive execution descriptors and accept legacy requests", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := &contract.TaskExecutionDescriptor{
+			Kind:          contract.ExecutionKindTaskMultiParallel,
+			Label:         "Parallel workflows (git worktrees)",
+			UsesWorktrees: true,
+			Source:        "--parallel=true",
+		}
+		data, err := json.Marshal(contract.TaskRunMultipleRequest{
+			Slugs:     []string{"alpha", "beta"},
+			Execution: descriptor,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded contract.TaskRunMultipleRequest
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if !reflect.DeepEqual(decoded.Execution, descriptor) {
+			t.Fatalf("decoded execution = %#v, want %#v", decoded.Execution, descriptor)
+		}
+
+		const legacy = `{"slugs":["alpha","beta"],"mode":"enqueued"}`
+		var legacyDecoded contract.TaskRunMultipleRequest
+		if err := json.Unmarshal([]byte(legacy), &legacyDecoded); err != nil {
+			t.Fatalf("legacy json.Unmarshal() error = %v", err)
+		}
+		if legacyDecoded.Execution != nil {
+			t.Fatalf("legacy execution = %#v, want nil", legacyDecoded.Execution)
 		}
 	})
 }

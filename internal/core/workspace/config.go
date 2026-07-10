@@ -209,6 +209,13 @@ func LoadConfigFile(ctx context.Context, configPath string) (ProjectConfig, bool
 	return cfg, exists, err
 }
 
+// LoadGlobalConfigFile loads one explicitly resolved global config path without
+// consulting the process environment again.
+func LoadGlobalConfigFile(ctx context.Context, configPath string) (ProjectConfig, bool, error) {
+	cfg, exists, err := loadConfigFile(ctx, configPath, globalConfigScope, configBaseDirForPath(configPath))
+	return cfg, exists, err
+}
+
 func LoadGlobalConfig(ctx context.Context) (ProjectConfig, string, error) {
 	if err := context.Cause(ctx); err != nil {
 		return ProjectConfig{}, "", fmt.Errorf("load global config: %w", err)
@@ -219,7 +226,7 @@ func LoadGlobalConfig(ctx context.Context) (ProjectConfig, string, error) {
 		return ProjectConfig{}, "", fmt.Errorf("resolve global config paths: %w", err)
 	}
 
-	cfg, _, err := loadConfigFile(ctx, paths.globalPath, globalConfigScope, paths.globalRoot)
+	cfg, _, err := LoadGlobalConfigFile(ctx, paths.globalPath)
 	if err != nil {
 		return ProjectConfig{}, "", err
 	}

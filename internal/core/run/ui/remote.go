@@ -163,7 +163,7 @@ func followRemoteRun(
 
 	for {
 		var stop bool
-		state, stop = ensureRemoteFollowState(ctx, opts, state)
+		state, stop = ensureRemoteFollowState(ctx, session, opts, state)
 		if stop {
 			return
 		}
@@ -190,6 +190,7 @@ func newRemoteFollowState(stream apiclient.RunStream, cursor apicore.StreamCurso
 
 func ensureRemoteFollowState(
 	ctx context.Context,
+	session Session,
 	opts RemoteAttachOptions,
 	state remoteFollowState,
 ) (remoteFollowState, bool) {
@@ -206,6 +207,7 @@ func ensureRemoteFollowState(
 	state.currentStream = reconnected
 	state.lastCursor = nextCursor
 	state.itemCh, state.errCh = remoteStreamChannels(reconnected)
+	session.Enqueue(remoteConnectionStatusMsg{Reconnecting: false})
 	return state, false
 }
 
@@ -219,7 +221,7 @@ func waitForRemoteRunUpdate(
 	case <-ctx.Done():
 		return state, true
 	case err, ok := <-state.errCh:
-		return handleRemoteRunStreamError(ctx, opts, state, err, ok)
+		return handleRemoteRunStreamError(ctx, session, opts, state, err, ok)
 	case item, ok := <-state.itemCh:
 		return handleRemoteRunStreamItem(ctx, session, opts, state, item, ok)
 	}
@@ -227,6 +229,7 @@ func waitForRemoteRunUpdate(
 
 func handleRemoteRunStreamError(
 	ctx context.Context,
+	session Session,
 	opts RemoteAttachOptions,
 	state remoteFollowState,
 	err error,
@@ -237,11 +240,12 @@ func handleRemoteRunStreamError(
 		if state.itemCh != nil {
 			return state, false
 		}
-		return handleRemoteRunEOF(ctx, opts, state)
+		return handleRemoteRunEOF(ctx, session, opts, state)
 	}
 	if err == nil {
 		return state, false
 	}
+	session.Enqueue(remoteConnectionStatusMsg{Reconnecting: true})
 	return resetRemoteFollowState(state), false
 }
 
@@ -258,15 +262,27 @@ func handleRemoteRunStreamItem(
 		if state.errCh != nil {
 			return state, false
 		}
-		return handleRemoteRunEOF(ctx, opts, state)
+		return handleRemoteRunEOF(ctx, session, opts, state)
 	}
 
 	if item.Heartbeat != nil {
+		if item.Heartbeat.Cursor.Sequence > state.lastCursor.Sequence {
+			if snapshot, stop := terminalRemoteSnapshot(ctx, opts); stop {
+				enqueueRemoteTerminalSnapshot(session, snapshot)
+				return state, true
+			}
+			session.Enqueue(remoteConnectionStatusMsg{Reconnecting: true})
+			return resetRemoteFollowState(state), false
+		}
 		state.lastCursor = remoteMaxCursor(state.lastCursor, item.Heartbeat.Cursor)
 		return state, false
 	}
 	if item.Overflow != nil {
-		state.lastCursor = remoteMaxCursor(state.lastCursor, item.Overflow.Cursor)
+		if snapshot, stop := terminalRemoteSnapshot(ctx, opts); stop {
+			enqueueRemoteTerminalSnapshot(session, snapshot)
+			return state, true
+		}
+		session.Enqueue(remoteConnectionStatusMsg{Reconnecting: true})
 		return resetRemoteFollowState(state), false
 	}
 	if item.Event == nil {
@@ -283,13 +299,16 @@ func handleRemoteRunStreamItem(
 
 func handleRemoteRunEOF(
 	ctx context.Context,
+	session Session,
 	opts RemoteAttachOptions,
 	state remoteFollowState,
 ) (remoteFollowState, bool) {
 	state = resetRemoteFollowState(state)
-	if shouldStopAfterRemoteEOF(ctx, opts, state.lastCursor) {
+	if snapshot, stop := terminalRemoteSnapshot(ctx, opts); stop {
+		enqueueRemoteTerminalSnapshot(session, snapshot)
 		return state, true
 	}
+	session.Enqueue(remoteConnectionStatusMsg{Reconnecting: true})
 	return state, false
 }
 
@@ -339,22 +358,52 @@ func reopenRemoteRunStream(
 func shouldStopAfterRemoteEOF(
 	ctx context.Context,
 	opts RemoteAttachOptions,
-	lastCursor apicore.StreamCursor,
 ) bool {
+	_, stop := terminalRemoteSnapshot(ctx, opts)
+	return stop
+}
+
+func terminalRemoteSnapshot(
+	ctx context.Context,
+	opts RemoteAttachOptions,
+) (apicore.RunSnapshot, bool) {
 	if opts.LoadSnapshot == nil {
-		return false
+		return apicore.RunSnapshot{}, false
 	}
 	snapshot, err := opts.LoadSnapshot(ctx)
 	if err != nil {
-		return false
+		return apicore.RunSnapshot{}, false
 	}
 	if !isTerminalRunStatus(snapshot.Run.Status) {
-		return false
+		return snapshot, false
 	}
-	if snapshot.NextCursor == nil {
-		return true
+	return snapshot, true
+}
+
+func enqueueRemoteTerminalSnapshot(session Session, snapshot apicore.RunSnapshot) {
+	if session == nil {
+		return
 	}
-	return snapshot.NextCursor.Sequence <= lastCursor.Sequence
+	kind, ok := remoteTerminalEventKind(snapshot.Run.Status)
+	if !ok {
+		return
+	}
+	session.Enqueue(events.Event{RunID: snapshot.Run.RunID, Kind: kind})
+}
+
+func remoteTerminalEventKind(status string) (events.EventKind, bool) {
+	switch strings.TrimSpace(status) {
+	case remoteRunStatusCompleted:
+		return events.EventKindRunCompleted, true
+	case remoteRunStatusFailed:
+		return events.EventKindRunFailed, true
+	case remoteRunStatusCanceled:
+		return events.EventKindRunCancelled, true
+	case remoteRunStatusCrashed:
+		return events.EventKindRunCrashed, true
+	default:
+		return "", false
+	}
 }
 
 func remoteSnapshotBootstrap(snapshot apicore.RunSnapshot) ([]job, []uiMsg) {
@@ -669,15 +718,7 @@ func isTerminalRunStatus(status string) bool {
 }
 
 func isTerminalRunEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCompleted,
-		events.EventKindRunFailed,
-		events.EventKindRunCancelled,
-		events.EventKindRunCrashed:
-		return true
-	default:
-		return false
-	}
+	return events.IsRunTerminalKind(kind)
 }
 
 func remoteStreamChannels(stream apiclient.RunStream) (<-chan apiclient.RunStreamItem, <-chan error) {

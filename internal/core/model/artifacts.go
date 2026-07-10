@@ -60,6 +60,23 @@ func ResolveHomeRunArtifacts(runID string) (RunArtifacts, error) {
 	return NewRunArtifactsForRunsDir(homePaths.RunsDir, runID), nil
 }
 
+// ResolveRuntimeRunArtifacts resolves one runtime's run directory using the
+// daemon-captured RunsDir when present, falling back to the process home for
+// local/non-daemon callers.
+func ResolveRuntimeRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
+	if cfg == nil {
+		return RunArtifacts{}, errors.New("resolve runtime run artifacts: runtime config is required")
+	}
+	runID, err := BuildRunID(cfg)
+	if err != nil {
+		return RunArtifacts{}, err
+	}
+	if strings.TrimSpace(cfg.RunsDir) != "" {
+		return NewRunArtifactsForRunsDir(cfg.RunsDir, runID), nil
+	}
+	return ResolveHomeRunArtifacts(runID)
+}
+
 func ResolvePersistedRunArtifacts(workspaceRoot, runID string) (RunArtifacts, error) {
 	workspaceArtifacts := NewRunArtifacts(workspaceRoot, runID)
 	if _, err := os.Stat(workspaceArtifacts.RunMetaPath); err == nil {

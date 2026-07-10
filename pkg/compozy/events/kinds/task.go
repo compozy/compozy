@@ -64,6 +64,8 @@ type TaskRunMultiplePayload struct {
 	BaseBranch     string   `json:"base_branch,omitempty"`
 	BaseCommit     string   `json:"base_commit,omitempty"`
 	WorktreeStatus string   `json:"worktree_status,omitempty"`
+	WorktreeReason string   `json:"worktree_reason,omitempty"`
+	ResultBranch   string   `json:"result_branch,omitempty"`
 }
 
 // TaskParallelPlanPayload describes the full task DAG known before a parallel
@@ -95,12 +97,13 @@ type TaskParallelPlanWave struct {
 
 // TaskParallelPayload describes one wave/merge/conflict transition emitted by the
 // ParallelExecutionOrchestrator during a parallel PRD-tasks run. Wave-level events
-// (wave_completed, merge_started) leave task_id empty; per-task events (wave_started,
-// task_started, conflict_detected, conflict_resolving, merged) carry task_id and the wave
-// it belongs to so the TUI can group sidebar cards by wave. task_started also carries
-// child_run_id so remote UIs can attach the real child run stream to the task row. All
-// fields are additive and optional; snapshot reconstruction must treat any empty field as
-// "unknown".
+// (wave_completed, merge_started, phase_changed, and orchestrator settlements)
+// leave task_id empty; per-task events (wave_started, task_started,
+// conflict_detected, conflict_resolving, merged, and task_completed) carry
+// task_id and the wave it belongs to so the TUI can group sidebar cards by
+// wave. task_started also carries child_run_id so remote UIs can attach the
+// real child run stream to the task row. All fields are additive and optional;
+// snapshot reconstruction must treat any empty field as "unknown".
 type TaskParallelPayload struct {
 	RunID             string   `json:"run_id,omitempty"`
 	ChildRunID        string   `json:"child_run_id,omitempty"`
@@ -113,6 +116,9 @@ type TaskParallelPayload struct {
 	Attempt           int      `json:"attempt,omitempty"`
 	MaxAttempts       int      `json:"max_attempts,omitempty"`
 	WorktreePath      string   `json:"worktree_path,omitempty"`
+	WorktreeStatus    string   `json:"worktree_status,omitempty"`
+	WorktreeReason    string   `json:"worktree_reason,omitempty"`
+	ResultBranch      string   `json:"result_branch,omitempty"`
 	Status            string   `json:"status,omitempty"`
 	Error             string   `json:"error,omitempty"`
 }

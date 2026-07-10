@@ -117,10 +117,12 @@ func (s *Service) Health(ctx context.Context) (apicore.DaemonHealth, error) {
 		WorkspaceCount:   workspaceCount,
 		Databases:        databases,
 		Reconcile: apicore.DaemonReconcileDiagnostics{
-			ReconciledRuns:     s.reconcileResult.ReconciledRuns,
-			CrashEventAppended: s.reconcileResult.CrashEventAppended,
-			CrashEventMissing:  s.reconcileResult.CrashEventFailures,
-			LastRunID:          strings.TrimSpace(s.reconcileResult.LastReconciledRunID),
+			ReconciledRuns:          s.reconcileResult.ReconciledRuns,
+			CrashEventAppended:      s.reconcileResult.CrashEventAppended,
+			CrashEventMissing:       s.reconcileResult.CrashEventFailures,
+			WorktreesRemoved:        s.reconcileResult.WorktreesRemoved,
+			WorktreeCleanupDeferred: s.reconcileResult.WorktreeCleanupDeferred,
+			LastRunID:               strings.TrimSpace(s.reconcileResult.LastReconciledRunID),
 		},
 		IntegrityIssueCount: s.incompleteRunCount(),
 	}
@@ -137,6 +139,21 @@ func (s *Service) Health(ctx context.Context) (apicore.DaemonHealth, error) {
 		health.Details = append(health.Details, apicore.HealthDetail{
 			Code:     "startup_reconcile_warnings",
 			Message:  "one or more recovered runs could not persist a synthetic crash event",
+			Severity: "warning",
+		})
+	}
+	if s.reconcileResult.WorktreeCleanupDeferred > 0 {
+		health.Degraded = true
+		message := fmt.Sprintf(
+			"%d interrupted run(s) retained worktrees because cleanup was not provably safe",
+			s.reconcileResult.WorktreeCleanupDeferred,
+		)
+		if len(s.reconcileResult.WorktreeCleanupWarnings) > 0 {
+			message += ": " + strings.Join(s.reconcileResult.WorktreeCleanupWarnings, "; ")
+		}
+		health.Details = append(health.Details, apicore.HealthDetail{
+			Code:     "worktree_cleanup_deferred",
+			Message:  message,
 			Severity: "warning",
 		})
 	}
