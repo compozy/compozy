@@ -288,7 +288,15 @@ func (c *Client) GetTaskRunMultipleSnapshot(
 		)
 	}
 
-	return payload.Decode(), nil
+	snapshot, err := payload.Decode()
+	if err != nil {
+		return apicore.TaskRunMultipleSnapshot{}, fmt.Errorf(
+			"failed to decode multiple snapshot for run %s: %w",
+			trimmedRunID,
+			err,
+		)
+	}
+	return snapshot, nil
 }
 
 // GetRunTranscript loads the canonical structured transcript for one run.

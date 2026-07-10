@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "worktree-fix",
+  "source_branch": "fixes",
   "namespaces": [
     {
       "name": "compozy",
-      "sidecar_branch": "compozy/__branches__/worktree-fix",
-      "commit": "656eb3d96f44a76eabfd90a9ad4ca3dfa08073eb",
-      "digest": "sha256:6aacafb049d6579dd024a5426bde4c61c7e5e44f39c56448a4b6d793b47c469e",
-      "files": 1414,
-      "bytes": 11856803
+      "sidecar_branch": "compozy/__branches__/fixes",
+      "commit": "2ee032b121f14c55e806650501b22954e6f044b7",
+      "digest": "sha256:49877c8939bed69ebfd77e53cc7e35d36b4fe31e0c011c42acfdbf87db0bb34a",
+      "files": 1449,
+      "bytes": 12099662
     }
   ]
 }

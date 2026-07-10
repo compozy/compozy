@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"testing"
@@ -188,7 +189,7 @@ func TestFollowRemoteRunReconnectsFromOverflowCursor(t *testing.T) {
 			},
 		), 1, now)},
 		apiclient.RunStreamItem{Overflow: &apiclient.RunStreamOverflow{
-			Cursor: apicore.StreamCursor{Timestamp: now, Sequence: 1},
+			Cursor: apicore.StreamCursor{Timestamp: now, Sequence: 99},
 			Reason: "subscriber_dropped_messages",
 		}},
 	)
@@ -231,6 +232,8 @@ func TestFollowRemoteRunReconnectsFromOverflowCursor(t *testing.T) {
 
 	if got := session.messageTypes(); !reflect.DeepEqual(got, []string{
 		"event:job.queued",
+		"connection:reconnecting",
+		"connection:connected",
 		"event:job.started",
 		"event:run.completed",
 	}) {
@@ -238,6 +241,95 @@ func TestFollowRemoteRunReconnectsFromOverflowCursor(t *testing.T) {
 	}
 	if len(afterCursors) != 1 || afterCursors[0].Sequence != 1 {
 		t.Fatalf("expected reconnect from cursor sequence 1, got %#v", afterCursors)
+	}
+}
+
+func TestFollowRemoteRunReconnectsFromLastEventAfterHeartbeatGap(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 19, 15, 0, 0, time.UTC)
+	firstStream := newBufferedClientRunStream(
+		apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunStarted,
+			kinds.RunStartedPayload{},
+		), 1, now)},
+		apiclient.RunStreamItem{Heartbeat: &apiclient.RunStreamHeartbeat{
+			Cursor: apicore.StreamCursor{Timestamp: now.Add(3 * time.Second), Sequence: 4},
+		}},
+	)
+	secondStream := newBufferedClientRunStream(
+		apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindJobCompleted,
+			kinds.JobCompletedPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0}},
+		), 2, now.Add(time.Second))},
+		apiclient.RunStreamItem{Event: eventPointer(mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindRunCompleted,
+			kinds.RunCompletedPayload{},
+		), 3, now.Add(2*time.Second))},
+	)
+	session := &recordingUISession{}
+	var afterCursors []apicore.StreamCursor
+	opts := RemoteAttachOptions{
+		LoadSnapshot: func(context.Context) (apicore.RunSnapshot, error) {
+			return apicore.RunSnapshot{Run: apicore.Run{Status: remoteRunStatusRunning}}, nil
+		},
+		OpenStream: func(_ context.Context, after apicore.StreamCursor) (apiclient.RunStream, error) {
+			afterCursors = append(afterCursors, after)
+			return secondStream, nil
+		},
+	}
+
+	followRemoteRun(context.Background(), session, opts, firstStream, apicore.StreamCursor{})
+	if len(afterCursors) != 1 || afterCursors[0].Sequence != 1 {
+		t.Fatalf("reconnect cursors = %#v, want sequence 1", afterCursors)
+	}
+	if got := session.messageTypes(); !reflect.DeepEqual(got, []string{
+		"event:run.started",
+		"connection:reconnecting",
+		"connection:connected",
+		"event:job.completed",
+		"event:run.completed",
+	}) {
+		t.Fatalf("remote messages = %#v", got)
+	}
+}
+
+func TestFollowRemoteRunEnqueuesTerminalSnapshotWhenTerminalEventIsMissing(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 19, 20, 0, 0, time.UTC)
+	stream := newBufferedClientRunStream(
+		apiclient.RunStreamItem{Heartbeat: &apiclient.RunStreamHeartbeat{
+			Cursor: apicore.StreamCursor{Timestamp: now, Sequence: 7},
+		}},
+	)
+	session := &recordingUISession{}
+	openCalls := 0
+	opts := RemoteAttachOptions{
+		LoadSnapshot: func(context.Context) (apicore.RunSnapshot, error) {
+			return apicore.RunSnapshot{
+				Run: apicore.Run{RunID: "run-terminal-snapshot", Status: remoteRunStatusCompleted},
+				NextCursor: &apicore.StreamCursor{
+					Timestamp: now,
+					Sequence:  7,
+				},
+			}, nil
+		},
+		OpenStream: func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error) {
+			openCalls++
+			return nil, errors.New("unexpected reconnect")
+		},
+	}
+
+	followRemoteRun(context.Background(), session, opts, stream, apicore.StreamCursor{})
+	if openCalls != 0 {
+		t.Fatalf("stream reopen calls = %d, want zero", openCalls)
+	}
+	if got := session.messageTypes(); !reflect.DeepEqual(got, []string{"event:run.completed"}) {
+		t.Fatalf("terminal snapshot messages = %#v", got)
 	}
 }
 
@@ -430,9 +522,20 @@ func TestShouldStopAfterRemoteEOFUsesTerminalSnapshotCursor(t *testing.T) {
 				},
 			}, nil
 		},
-	}, lastCursor)
+	})
 	if !stop {
 		t.Fatal("expected terminal snapshot with no newer cursor to stop reconnecting")
+	}
+}
+
+func TestRunChipShowsReconnectState(t *testing.T) {
+	t.Parallel()
+
+	model := newUIModel(0)
+	model.remoteReconnecting = true
+	_, status, _ := model.runChipStatus()
+	if status != "RECONNECTING" {
+		t.Fatalf("run chip status = %q, want RECONNECTING", status)
 	}
 }
 
@@ -533,6 +636,12 @@ func (s *recordingUISession) messageTypes() []string {
 			result = append(result, "jobFinishedMsg")
 		case eventspkg.Event:
 			result = append(result, "event:"+string(msg.Kind))
+		case remoteConnectionStatusMsg:
+			if msg.Reconnecting {
+				result = append(result, "connection:reconnecting")
+			} else {
+				result = append(result, "connection:connected")
+			}
 		default:
 			result = append(result, "unknown")
 		}

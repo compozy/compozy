@@ -405,7 +405,7 @@ func (j *Journal) recordDroppedSubmit(req submitRequest) {
 	if j == nil || req.kind != submitRequestEvent {
 		return
 	}
-	if isTerminalEvent(req.event.Kind) {
+	if isDurabilityCriticalEvent(req.event.Kind) {
 		j.terminalDrops.Add(1)
 		return
 	}
@@ -510,7 +510,7 @@ func (j *Journal) handleHook(state *writeState, record rundb.HookRunRecord) erro
 }
 
 func (j *Journal) shouldFlushAfterAppend(pending []events.Event, kind events.EventKind) bool {
-	return isTerminalEvent(kind) || len(pending) >= j.batchSize
+	return isDurabilityCriticalEvent(kind) || len(pending) >= j.batchSize
 }
 
 func (j *Journal) flushPending(state *writeState, forceSync bool) error {
@@ -560,20 +560,20 @@ func (j *Journal) finalizePendingBatch(
 	forceSync bool,
 ) error {
 	hasEvents := len(pending) > 0
-	hasTerminal := batchContainsTerminalEvent(pending)
+	hasDurabilityCritical := batchContainsDurabilityCriticalEvent(pending)
 	if hasEvents {
 		if err := j.flushBufferedEvents(state); err != nil {
 			return err
 		}
-		if !hasTerminal {
+		if !hasDurabilityCritical {
 			j.publishBatch(pending)
 		}
 	}
-	if forceSync || hasTerminal {
+	if forceSync || hasDurabilityCritical {
 		if err := j.syncPendingWrites(state); err != nil {
 			return err
 		}
-		if hasTerminal {
+		if hasDurabilityCritical {
 			j.publishBatch(pending)
 		}
 	}
@@ -739,9 +739,9 @@ func (j *Journal) publishBatch(pending []events.Event) {
 	}
 }
 
-func batchContainsTerminalEvent(pending []events.Event) bool {
+func batchContainsDurabilityCriticalEvent(pending []events.Event) bool {
 	for _, ev := range pending {
-		if isTerminalEvent(ev.Kind) {
+		if isDurabilityCriticalEvent(ev.Kind) {
 			return true
 		}
 	}
@@ -765,15 +765,10 @@ func (j *Journal) result() error {
 	return j.resultErr
 }
 
-func isTerminalEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCrashed,
-		events.EventKindRunCompleted,
-		events.EventKindRunFailed,
-		events.EventKindRunCancelled,
-		events.EventKindJobParked:
-		return true
-	default:
-		return false
-	}
+func isDurabilityCriticalEvent(kind events.EventKind) bool {
+	// A parked job is not a run/queue/parallel settlement event, but its triage
+	// detail (worktree path, last progress sequence) must survive a crash, so it
+	// is flushed durably alongside the settlement events RequiresDurablePublish
+	// already covers.
+	return events.RequiresDurablePublish(kind) || kind == events.EventKindJobParked
 }

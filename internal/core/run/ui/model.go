@@ -33,6 +33,7 @@ type uiModel struct {
 	recovered                    int
 	parked                       int
 	runStatus                    string
+	remoteReconnecting           bool
 	frame                        int
 	now                          time.Time
 	onQuit                       func(uiQuitRequest)
@@ -687,6 +688,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 		jobUpdateMsg,
 		runStatusMsg,
 		shutdownStatusMsg,
+		remoteConnectionStatusMsg,
 		jobFailureMsg:
 		return true
 	case jobPausingMsg, jobPausedMsg, jobResumedMsg, jobControlResultMsg:
@@ -719,11 +721,15 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindTaskParallelPlanStarted,
 			events.EventKindTaskParallelWaveStarted,
 			events.EventKindTaskParallelTaskStarted,
+			events.EventKindTaskParallelTaskCompleted,
+			events.EventKindTaskParallelPhaseChanged,
 			events.EventKindTaskParallelWaveCompleted,
 			events.EventKindTaskParallelMergeStarted,
 			events.EventKindTaskParallelConflictDetected,
 			events.EventKindTaskParallelConflictResolving,
 			events.EventKindTaskParallelMerged,
+			events.EventKindTaskParallelCompleted,
+			events.EventKindTaskParallelCanceled,
 			events.EventKindTaskParallelFailed,
 			events.EventKindTaskParallelRolledBack:
 			return true
@@ -878,6 +884,27 @@ func translateParallelPayloadEvent(ev events.Event) (uiMsg, bool) {
 			WorktreePath:      payload.WorktreePath,
 			IntegrationBranch: payload.IntegrationBranch,
 		}, true
+	case events.EventKindTaskParallelTaskCompleted:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelTaskCompletedMsg{
+			WaveIndex: payload.WaveIndex,
+			TaskID:    payload.TaskID,
+			Status:    payload.Status,
+			Error:     payload.Error,
+		}, true
+	case events.EventKindTaskParallelPhaseChanged:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelPhaseChangedMsg{
+			WaveIndex:         payload.WaveIndex,
+			Phase:             payload.Phase,
+			IntegrationBranch: payload.IntegrationBranch,
+		}, true
 	case events.EventKindTaskParallelMergeStarted:
 		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
 		if !ok {
@@ -938,6 +965,12 @@ func translateParallelProgressEvent(ev events.Event) (uiMsg, bool) {
 			WaveIndex:         payload.WaveIndex,
 			IntegrationBranch: payload.IntegrationBranch,
 		}, true
+	case events.EventKindTaskParallelCompleted, events.EventKindTaskParallelCanceled:
+		payload, ok := decodeUIEventPayload[kinds.TaskParallelPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		return parallelSettledMsg{Status: payload.Status, Error: payload.Error}, true
 	default:
 		return nil, false
 	}

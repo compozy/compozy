@@ -14,7 +14,7 @@ const (
 	IDECopilot             = "copilot"
 	IDEKiro                = "kiro"
 	IDEDevin               = "devin"
-	DefaultCodexModel      = "gpt-5.5"
+	DefaultCodexModel      = "gpt-5.6-sol"
 	DefaultClaudeModel     = "opus"
 	DefaultCursorModel     = "composer-1"
 	DefaultOpenCodeModel   = "anthropic/claude-opus-4-6"

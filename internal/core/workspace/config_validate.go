@@ -20,7 +20,9 @@ const (
 	reasoningEffortMedium = "medium"
 	reasoningEffortHigh   = "high"
 	reasoningEffortXHigh  = "xhigh"
-	reasoningEffortValues = "low, medium, high, xhigh"
+	reasoningEffortMax    = "max"
+	reasoningEffortUltra  = "ultra"
+	reasoningEffortValues = "low, medium, high, xhigh, max, ultra"
 
 	errMustBeGreaterThanZero = "%s must be greater than zero (got %d)"
 )
@@ -695,7 +697,12 @@ func validateReasoningEffortValue(field string, value *string) error {
 
 	trimmed := strings.TrimSpace(*value)
 	switch trimmed {
-	case reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh:
+	case reasoningEffortLow,
+		reasoningEffortMedium,
+		reasoningEffortHigh,
+		reasoningEffortXHigh,
+		reasoningEffortMax,
+		reasoningEffortUltra:
 		return nil
 	default:
 		return fmt.Errorf("%s must be one of %s (got %q)", field, reasoningEffortValues, trimmed)

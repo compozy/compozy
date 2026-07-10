@@ -490,6 +490,8 @@ func editRuntimeDefaultsSelection(
 			huh.NewOption("Medium", "medium"),
 			huh.NewOption("High", "high"),
 			huh.NewOption("Extra High", "xhigh"),
+			huh.NewOption("Maximum", "max"),
+			huh.NewOption("Ultra", "ultra"),
 		).
 		Value(&selectedReasoning)
 	if err := runPromptField(reasoningField); err != nil {

@@ -104,7 +104,9 @@ func buildPRDExecutionRulesSection(prdDir string, autoCommit bool) string {
 		"- Read `AGENTS.md`, `CLAUDE.md`, and the PRD documents under `" + prdDir + "` before editing code.\n",
 	)
 	sb.WriteString(
-		"- Treat the task specification below plus the supporting PRD documents, especially `_techspec.md` and `_tasks.md`, as the source of truth.\n",
+		"- Treat the task specification below plus the supporting PRD documents, especially `_techspec.md`, " +
+			"`_tasks.md`, and the contract catalogs `_user_stories.md` and `_tests.md` when present, " +
+			"as the source of truth.\n",
 	)
 	sb.WriteString(
 		"- Keep scope tight to this task and record meaningful follow-up work instead of expanding scope silently.\n",
@@ -187,7 +189,8 @@ func buildTaskFilesSection(taskAbsPath, tasksFile, prdDir string, autoCommit boo
 	fmt.Fprintf(&sb, "- Master tasks file: `%s`\n", tasksFile)
 	sb.WriteString("- Use these exact paths when `cy-execute-task` updates task tracking.\n")
 	sb.WriteString(
-		"- Execute every explicit `Validation`, `Test Plan`, or `Testing` item from the task and supporting PRD docs.\n",
+		"- Execute every explicit `Validation`, `Test Plan`, or `Testing` item from the task and supporting " +
+			"PRD docs, including every test case assigned to this task from `_tests.md`.\n",
 	)
 	sb.WriteString("- Update task checkboxes and task status only after " +
 		"implementation, verification evidence, and self-review are complete.\n")

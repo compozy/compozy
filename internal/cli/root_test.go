@@ -472,7 +472,7 @@ func TestTasksRunHelpShowsMultipleExamplesAndSharedTaskFlags(t *testing.T) {
 			"compozy tasks run --multiple alpha,beta --detach",
 			"compozy tasks run --multiple alpha,beta --parallel",
 			"compozy tasks run --multiple alpha,beta --parallel --parallel-limit 3",
-			"compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5",
+			"compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.6-sol",
 			"one comma-separated slug list",
 			"git worktree isolation",
 			`run_multiple_mode = "parallel"`,

@@ -32,6 +32,7 @@ type RunLifecycleSettings struct {
 	KeepTerminalDays     int
 	KeepMax              int
 	ShutdownDrainTimeout time.Duration
+	RunsDir              string
 	WorktreesRoot        string
 }
 
@@ -45,29 +46,47 @@ type ReconcileConfig struct {
 
 // ReconcileResult summarizes one startup reconciliation pass.
 type ReconcileResult struct {
-	ReconciledRuns      int
-	CrashEventAppended  int
-	CrashEventFailures  int
-	LastReconciledRunID string
+	ReconciledRuns          int
+	CrashEventAppended      int
+	CrashEventFailures      int
+	WorktreesRemoved        int
+	WorktreeCleanupDeferred int
+	WorktreeCleanupWarnings []string
+	LastReconciledRunID     string
 }
 
 // LoadRunLifecycleSettings reads the home-scoped config and resolves the daemon
 // run lifecycle defaults required for retention and forced shutdown behavior.
 func LoadRunLifecycleSettings(ctx context.Context) (RunLifecycleSettings, string, error) {
-	cfg, path, err := workspacecfg.LoadGlobalConfig(ctx)
+	paths, err := resolveDaemonHomePaths()
+	if err != nil {
+		return RunLifecycleSettings{}, "", fmt.Errorf("daemon: resolve home paths: %w", err)
+	}
+	return LoadRunLifecycleSettingsForHome(ctx, paths)
+}
+
+// LoadRunLifecycleSettingsForHome loads lifecycle settings from a captured
+// home layout, keeping config, worktree, database, and run paths on one root.
+func LoadRunLifecycleSettingsForHome(
+	ctx context.Context,
+	paths compozyconfig.HomePaths,
+) (RunLifecycleSettings, string, error) {
+	if strings.TrimSpace(paths.ConfigFile) == "" ||
+		strings.TrimSpace(paths.RunsDir) == "" ||
+		strings.TrimSpace(paths.WorktreesDir) == "" {
+		return RunLifecycleSettings{}, "", errors.New("daemon: captured home paths are incomplete")
+	}
+	cfg, _, err := workspacecfg.LoadGlobalConfigFile(ctx, paths.ConfigFile)
 	if err != nil {
 		return RunLifecycleSettings{}, "", err
 	}
 	settings, err := resolveRunLifecycleSettings(cfg.Runs)
 	if err != nil {
-		return RunLifecycleSettings{}, path, err
+		return RunLifecycleSettings{}, paths.ConfigFile, err
 	}
-	paths, err := resolveDaemonHomePaths()
-	if err != nil {
-		return RunLifecycleSettings{}, path, fmt.Errorf("daemon: resolve home paths: %w", err)
-	}
+	settings.RunsDir = paths.RunsDir
 	settings.WorktreesRoot = paths.WorktreesDir
-	return settings, path, nil
+	return settings, paths.ConfigFile, nil
 }
 
 func resolveRunLifecycleSettings(cfg workspacecfg.RunsConfig) (RunLifecycleSettings, error) {
@@ -149,6 +168,7 @@ func ReconcileStartup(ctx context.Context, cfg ReconcileConfig) (ReconcileResult
 		if appendErr := appendSyntheticCrashEvent(
 			ctx,
 			openRunDB,
+			paths.RunsDir,
 			row,
 			reconciledAt,
 			baseErrorText,
@@ -170,20 +190,54 @@ func ReconcileStartup(ctx context.Context, cfg ReconcileConfig) (ReconcileResult
 	if err := db.MarkRunsCrashed(ctx, updates); err != nil {
 		return result, err
 	}
+	cleanupInterruptedRunWorktrees(ctx, db, openRunDB, paths, interrupted, &result)
 	return result, nil
+}
+
+func cleanupInterruptedRunWorktrees(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	openRunDB func(context.Context, string) (*rundb.RunDB, error),
+	paths compozyconfig.HomePaths,
+	interrupted []globaldb.Run,
+	result *ReconcileResult,
+) {
+	cleanupManager := &RunManager{
+		globalDB:          db,
+		homePaths:         paths,
+		worktreeAllocator: newTaskMultiWorktreeAllocator(paths.WorktreesDir),
+		openRunDB: func(openCtx context.Context, runID string) (*rundb.RunDB, error) {
+			artifacts := model.NewRunArtifactsForRunsDir(paths.RunsDir, runID)
+			return openRunDB(openCtx, artifacts.RunDBPath)
+		},
+		active: make(map[string]*activeRun),
+	}
+	for i := range interrupted {
+		row := interrupted[i]
+		row.Status = runStatusCrashed
+		removed, cleanupErr := cleanupManager.purgeRunWorktrees(ctx, &row, RunLifecycleSettings{
+			WorktreesRoot: paths.WorktreesDir,
+		})
+		result.WorktreesRemoved += len(removed)
+		if cleanupErr != nil {
+			result.WorktreeCleanupDeferred++
+			result.WorktreeCleanupWarnings = append(
+				result.WorktreeCleanupWarnings,
+				fmt.Sprintf("run %s: %v", row.RunID, cleanupErr),
+			)
+		}
+	}
 }
 
 func appendSyntheticCrashEvent(
 	ctx context.Context,
 	openRunDB func(context.Context, string) (*rundb.RunDB, error),
+	runsDir string,
 	row *globaldb.Run,
 	reconciledAt time.Time,
 	errorText string,
 ) error {
-	runArtifacts, err := model.ResolveHomeRunArtifacts(row.RunID)
-	if err != nil {
-		return err
-	}
+	runArtifacts := model.NewRunArtifactsForRunsDir(runsDir, row.RunID)
 	if _, err := os.Stat(runArtifacts.RunDBPath); err != nil {
 		return err
 	}

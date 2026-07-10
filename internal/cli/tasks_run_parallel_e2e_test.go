@@ -100,15 +100,130 @@ func TestREADMETasksRunSnippetsMatchCLIHelp(t *testing.T) {
 	})
 }
 
-// TestTasksRunMultipleParallelEndToEndReportsWorktreePaths exercises the full
-// CLI -> in-process daemon -> worktree-backed parallel scheduler path and
-// asserts the parent starts in parallel mode and the final handoff reports each
-// child's preserved worktree.
-func TestTasksRunMultipleParallelEndToEndReportsWorktreePaths(t *testing.T) {
-	t.Run("Should report each child's preserved worktree in the parallel handoff", func(t *testing.T) {
+// TestTasksRunSingleWithoutParallelChoiceEndToEndStaysStandard proves that an
+// ambient parallel-task config does not authorize worktrees for a single-spec
+// run. The per-run execution descriptor remains the source of truth.
+func TestTasksRunSingleWithoutParallelChoiceEndToEndStaysStandard(t *testing.T) {
+	t.Run("Should ignore ambient worktree enablement without a per-run choice", func(t *testing.T) {
 		requireGitForCLITests(t)
 
-		client, paths := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+		const slug = "alpha"
+		client, paths, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{slug})
+		writeCLIWorkspaceConfig(t, workspaceRoot, `
+[tasks.run.parallel]
+enabled = true
+`)
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", slug, "--stream", "--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute standard single run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(stdout, "task run started:", "(mode=stream)", "run completed") {
+			t.Fatalf("expected standard run to reach terminal output, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		if !containsAll(
+			stderr,
+			"execution: Standard task run",
+			"kind=task_standard",
+			"worktrees=false",
+			"source=per-run default",
+		) {
+			t.Fatalf("expected explicit standard execution resolution, got stderr:\n%s", stderr)
+		}
+
+		runID := taskRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetRunSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetRunSnapshot(%q) error = %v", runID, err)
+		}
+		if snapshot.Run.Status != "completed" {
+			t.Fatalf("snapshot status = %q, want completed", snapshot.Run.Status)
+		}
+		page, err := client.ListRunEvents(context.Background(), runID, apicore.StreamCursor{}, 500)
+		if err != nil {
+			t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
+		}
+		for _, kind := range []eventspkg.EventKind{
+			eventspkg.EventKindTaskParallelPlanStarted,
+			eventspkg.EventKindTaskParallelWaveStarted,
+			eventspkg.EventKindTaskParallelCompleted,
+		} {
+			if hasRunEventKind(page.Events, kind) {
+				t.Fatalf("standard run emitted parallel lifecycle %q: %v", kind, eventKindsFromCoreEvents(page.Events))
+			}
+		}
+		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
+	})
+}
+
+// TestTasksRunMultipleEnqueuedEndToEndStaysWorktreeFree exercises the serial
+// multi-spec path through the real in-process daemon and proves the observer
+// exits at the parent terminal without allocating worktrees.
+func TestTasksRunMultipleEnqueuedEndToEndStaysWorktreeFree(t *testing.T) {
+	t.Run("Should complete the serial queue without allocating worktrees", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		client, paths, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", "--multiple", "alpha,beta", "--stream", "--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute enqueued multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=enqueued total=2",
+			"task queue completed | total=2",
+			"task multi-run handoff:",
+		) {
+			t.Fatalf("expected serial queue to exit at terminal, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		if !containsAll(
+			stderr,
+			"execution: Serial queue (no worktrees)",
+			"kind=task_multi_enqueued",
+			"worktrees=false",
+			"source=built-in default",
+		) {
+			t.Fatalf("expected explicit enqueued execution resolution, got stderr:\n%s", stderr)
+		}
+
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		if snapshot.ExecutionKind != apicore.ExecutionKindTaskMultiEnqueued {
+			t.Fatalf("execution kind = %q, want %q", snapshot.ExecutionKind, apicore.ExecutionKindTaskMultiEnqueued)
+		}
+		if snapshot.Run.Status != "completed" {
+			t.Fatalf("snapshot status = %q, want completed", snapshot.Run.Status)
+		}
+		for i := range snapshot.Items {
+			item := &snapshot.Items[i]
+			if item.WorktreePath != "" || item.WorktreeStatus != "" || item.ResultBranch != "" {
+				t.Fatalf("enqueued item %q unexpectedly has worktree metadata: %#v", item.Slug, item)
+			}
+		}
+		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
+	})
+}
+
+// TestTasksRunMultipleParallelEndToEndReportsWorktreePaths exercises the full
+// CLI -> in-process daemon -> worktree-backed parallel scheduler path and
+// asserts the parent starts in parallel mode while each temporary worktree is
+// removed after its output becomes reachable through a named result branch.
+func TestTasksRunMultipleParallelEndToEndReportsWorktreePaths(t *testing.T) {
+	t.Run("Should report removed worktrees and retained result branches in the parallel handoff", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		client, paths, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
 
 		stdout, stderr, err := runParallelMultiRunCLI(
 			t,
@@ -133,6 +248,7 @@ func TestTasksRunMultipleParallelEndToEndReportsWorktreePaths(t *testing.T) {
 			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
 		}
 		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
 	})
 }
 
@@ -143,7 +259,7 @@ func TestTasksRunMultipleParallelLimitOneEndToEnd(t *testing.T) {
 	t.Run("Should flow --parallel-limit through to the daemon and complete every child", func(t *testing.T) {
 		requireGitForCLITests(t)
 
-		client, paths := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+		client, paths, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
 
 		stdout, stderr, err := runParallelMultiRunCLI(
 			t,
@@ -166,6 +282,7 @@ func TestTasksRunMultipleParallelLimitOneEndToEnd(t *testing.T) {
 			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
 		}
 		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
 	})
 }
 
@@ -217,6 +334,124 @@ func TestTasksRunParallelTasksEndToEndRoutesSingleWorkflowThroughParallelOrchest
 			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelMerged) ||
 			!hasRunEventKind(page.Events, eventspkg.EventKindTaskParallelWaveCompleted) {
 			t.Fatalf("parallel task events missing from parent run: %v", eventKindsFromCoreEvents(page.Events))
+		}
+	})
+}
+
+// TestTasksRunParallelTasksFailureEndToEndSettlesAndPreservesOutput proves the
+// streamed observer exits non-zero at a failed parent terminal and that cleanup
+// distinguishes safely removable failed work from successful partial output
+// that still needs a retention point.
+func TestTasksRunParallelTasksFailureEndToEndSettlesAndPreservesOutput(t *testing.T) {
+	t.Run("Should settle every task and preserve only unintegrated output after failure", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		const slug = "demo"
+		client, paths, workspaceRoot := newParallelTasksCLIEnvWithExecutor(
+			t,
+			slug,
+			func(cfg *model.RuntimeConfig, taskNumber int) error {
+				if taskNumber == 2 {
+					if err := writeCLITaskResultFixture(cfg, "failed", 1, "forced parallel task failure"); err != nil {
+						return err
+					}
+					return errors.New("forced parallel task failure")
+				}
+				if err := writeCLITaskOutput(cfg, taskNumber); err != nil {
+					return err
+				}
+				return writeCLITaskResultFixture(cfg, "succeeded", 0, "")
+			},
+		)
+		assertNoCompozyTaskFilesTrackedForCLI(t, workspaceRoot)
+		baseHead := strings.TrimSpace(runGitOutputForCLITests(t, workspaceRoot, "rev-parse", "HEAD"))
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", slug,
+			"--parallel-tasks",
+			"--stream",
+			"--dry-run",
+		)
+		if err == nil {
+			t.Fatalf("expected failed parallel task run\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			t.Fatalf("stream error = %v, want exit code 1", err)
+		}
+		if !containsAll(stdout, "task run started:", "(mode=stream)", "run failed") {
+			t.Fatalf("expected observer to exit at failed terminal, got:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+
+		runID := taskRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+		}
+		if snapshot.ExecutionKind != apicore.ExecutionKindTaskParallel || snapshot.Run.Status != "failed" {
+			t.Fatalf(
+				"snapshot = (kind=%q,status=%q), want (%q,failed)",
+				snapshot.ExecutionKind,
+				snapshot.Run.Status,
+				apicore.ExecutionKindTaskParallel,
+			)
+		}
+
+		page, err := client.ListRunEvents(context.Background(), runID, apicore.StreamCursor{}, 500)
+		if err != nil {
+			t.Fatalf("ListRunEvents(%q) error = %v", runID, err)
+		}
+		settlements := make(map[string]kinds.TaskParallelPayload)
+		parallelTerminals := 0
+		for _, event := range page.Events {
+			switch event.Kind {
+			case eventspkg.EventKindTaskParallelTaskCompleted:
+				payload, ok := decodeObservedPayload[kinds.TaskParallelPayload](event)
+				if !ok {
+					t.Fatalf("decode task settlement payload: %#v", event.Payload)
+				}
+				settlements[payload.TaskID] = payload
+			case eventspkg.EventKindTaskParallelFailed:
+				parallelTerminals++
+			}
+		}
+		if parallelTerminals != 1 {
+			t.Fatalf("parallel failed terminals = %d, want one", parallelTerminals)
+		}
+		wantStatuses := map[string]string{
+			"task_01": "merged",
+			"task_02": "failed",
+			"task_03": "skipped",
+		}
+		for taskID, wantStatus := range wantStatuses {
+			settlement, ok := settlements[taskID]
+			if !ok {
+				t.Fatalf("missing settlement for %s: %#v", taskID, settlements)
+			}
+			if settlement.Status != wantStatus {
+				t.Fatalf("settlement %s status = %q, want %q", taskID, settlement.Status, wantStatus)
+			}
+		}
+		if settlement := settlements["task_01"]; settlement.WorktreeStatus != "preserved" ||
+			strings.TrimSpace(settlement.WorktreeReason) == "" {
+			t.Fatalf("successful partial task settlement = %#v, want preserved with reason", settlement)
+		} else if _, err := os.Stat(settlement.WorktreePath); err != nil {
+			t.Fatalf("preserved task worktree %s missing: %v", settlement.WorktreePath, err)
+		}
+		if settlement := settlements["task_02"]; settlement.WorktreeStatus != "removed" {
+			t.Fatalf("failed no-change task settlement = %#v, want removed", settlement)
+		} else if _, err := os.Stat(settlement.WorktreePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("removed task worktree %s stat = %v, want absent", settlement.WorktreePath, err)
+		}
+		if settlement := settlements["task_03"]; settlement.WorktreePath != "" || settlement.WorktreeStatus != "" {
+			t.Fatalf("skipped task unexpectedly allocated a worktree: %#v", settlement)
+		}
+		if got := strings.TrimSpace(runGitOutputForCLITests(t, workspaceRoot, "rev-parse", "HEAD")); got != baseHead {
+			t.Fatalf("workspace head = %q, want unchanged %q after failed parallel run", got, baseHead)
+		}
+		if !strings.HasPrefix(settlements["task_01"].WorktreePath, paths.WorktreesDir) {
+			t.Fatalf("preserved path = %q, want under %q", settlements["task_01"].WorktreePath, paths.WorktreesDir)
 		}
 	})
 }
@@ -366,8 +601,17 @@ func assertParallelWorktreeSnapshot(
 			t.Fatalf("snapshot item %q worktree path = %q, want under %q",
 				item.Slug, item.WorktreePath, paths.WorktreesDir)
 		}
-		if item.WorktreeStatus != "preserved" {
-			t.Fatalf("snapshot item %q worktree status = %q, want preserved", item.Slug, item.WorktreeStatus)
+		if item.WorktreeStatus != "removed" {
+			t.Fatalf("snapshot item %q worktree status = %q, want removed", item.Slug, item.WorktreeStatus)
+		}
+		if strings.TrimSpace(item.WorktreeReason) == "" {
+			t.Fatalf("snapshot item %q is missing its cleanup reason", item.Slug)
+		}
+		if strings.TrimSpace(item.ResultBranch) == "" {
+			t.Fatalf("snapshot item %q is missing its retained result branch", item.Slug)
+		}
+		if _, err := os.Stat(item.WorktreePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("snapshot item %q worktree %s stat = %v, want absent", item.Slug, item.WorktreePath, err)
 		}
 		if item.BaseBranch != "main" {
 			t.Fatalf("snapshot item %q base branch = %q, want main", item.Slug, item.BaseBranch)
@@ -381,7 +625,7 @@ func assertParallelWorktreeSnapshot(
 func newParallelMultiRunCLIEnv(
 	t *testing.T,
 	slugs []string,
-) (*inProcessDaemonCommandClient, compozyconfig.HomePaths) {
+) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string) {
 	t.Helper()
 
 	workspaceRoot := t.TempDir()
@@ -408,12 +652,30 @@ func newParallelMultiRunCLIEnv(
 			return nil
 		},
 	})
-	return client, paths
+	return client, paths, workspaceRoot
 }
 
 func newParallelTasksCLIEnv(
 	t *testing.T,
 	slug string,
+) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string) {
+	t.Helper()
+	return newParallelTasksCLIEnvWithExecutor(
+		t,
+		slug,
+		func(cfg *model.RuntimeConfig, taskNumber int) error {
+			if err := writeCLITaskOutput(cfg, taskNumber); err != nil {
+				return err
+			}
+			return writeCLITaskResultFixture(cfg, "succeeded", 0, "")
+		},
+	)
+}
+
+func newParallelTasksCLIEnvWithExecutor(
+	t *testing.T,
+	slug string,
+	executeTask func(*model.RuntimeConfig, int) error,
 ) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string) {
 	t.Helper()
 
@@ -455,17 +717,18 @@ func newParallelTasksCLIEnv(
 			if err != nil {
 				return err
 			}
-			if err := os.WriteFile(
-				filepath.Join(cfg.WorkspaceRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber)),
-				[]byte(fmt.Sprintf("task %02d\n", taskNumber)),
-				0o600,
-			); err != nil {
-				return err
-			}
-			return writeCLITaskResultFixture(cfg, "succeeded", 0, "")
+			return executeTask(cfg, taskNumber)
 		},
 	})
 	return client, paths, workspaceRoot
+}
+
+func writeCLITaskOutput(cfg *model.RuntimeConfig, taskNumber int) error {
+	return os.WriteFile(
+		filepath.Join(cfg.WorkspaceRoot, fmt.Sprintf("cli-task-%02d.txt", taskNumber)),
+		[]byte(fmt.Sprintf("task %02d\n", taskNumber)),
+		0o600,
+	)
 }
 
 func newLinkedParallelTasksCLIEnv(
@@ -675,7 +938,7 @@ func writeCLITaskResultFixture(
 	if cfg == nil {
 		return errors.New("cli task result fixture: runtime config is required")
 	}
-	artifacts, err := model.ResolveHomeRunArtifacts(cfg.RunID)
+	artifacts, err := model.ResolveRuntimeRunArtifacts(cfg)
 	if err != nil {
 		return err
 	}

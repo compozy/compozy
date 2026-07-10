@@ -1,0 +1,334 @@
+Connecting to CodeRabbit... 2s elapsed
+Preparing review... 6s elapsed
+────────────────────────────────────────
+CodeRabbit Review
+
+Diff      : all local changes (committed + uncommitted)
+Compare   : fixes → main
+Directory : compozy
+────────────────────────────────────────
+
+(\(\
+(• .•)  You used `any` like it's a life jacket. Spoiler: it's a pool noodle.
+
+Preparing sandbox... 8s elapsed
+Summarizing changes... 36s elapsed
+Summarizing changes... 1m 02s elapsed - still working
+Summarizing changes... 2m 02s elapsed - still working
+Summarizing changes... 3m 02s elapsed - still working
+Summarizing changes... 4m 02s elapsed - still working
+Finishing analysis tools... 4m 18s elapsed - still working
+Writing review comments... 4m 18s elapsed - still working
+Writing review comments... 5m 02s elapsed - still working
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/pkg/compozy/runs/remote_watch_test.go:120pkg/compozy/runs/remote_watch_test.go:120-174]8;;
+
+  Wrap the scenario in a t.Run("Should...") subtest.
+
+  This new test executes its assertions directly in the top-level function
+  without a Should... subtest. The other tests here (and the repo
+  convention) use the subtest form.
+
+  As per path instructions: "MUST use t.Run("Should...") pattern for ALL
+  test cases".
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/model/model_test.go:14internal/core/model/model_test.go:14-20]8;;
+
+  Replace this literal-mirror test with a meaningful behavior test.
+
+  The test only asserts that the constant equals the newly chosen literal,
+  so it cannot validate whether the model works with the downstream
+  launcher. It also must use a t.Run("Should...") subtest. Cover the
+  launch/configuration compatibility path instead, or remove this redundant
+  assertion.
+
+  As per path instructions, all test cases must use t.Run("Should...") and
+  must exercise meaningful business logic.
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/archive_test.go:21internal/core/archive_test.go:21-63]8;;
+
+  Use required subtests and structured error assertions.
+
+  Split the three scenarios into table-driven t.Run("Should...") cases.
+  The current strings.Contains(err.Error(), ...) checks can accept
+  unrelated errors; expose/use sentinel or typed errors and assert with
+  errors.Is/errors.As or the repository’s specific error assertion
+  helper.
+
+  As per path instructions, test cases must use t.Run("Should...") and
+  specific error assertions. As per coding guidelines, use errors.Is() and
+  errors.As() instead of comparing error strings.
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/agent/session_config_test.go:48internal/core/agent/session_config_test.go:48-59]8;;
+
+  Use the required Should... subtest names.
+
+  The table cases currently produce names such as "exact advertised value"
+  and "Fable canonical model forces auto under full access". Rename them
+  to start with Should.
+
+  As per path instructions, /*_test.go MUST use the t.Run("Should...")
+  pattern for all test cases.
+
+
+
+
+
+
+  Also applies to: 183-190
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/run/executor/event_stream_test.go:193internal/core/run/executor/event_stream_test.go:193-204]8;;
+
+  Use the required Should... subtest names.
+
+  The cases currently use names such as "run crashed" and `"artifact
+  update". Prefix each case name with Should`.
+
+  As per path instructions, /*_test.go MUST use the t.Run("Should...")
+  pattern for all test cases.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/cli/form_test.go:728internal/cli/form_test.go:728-754]8;;
+
+  Use the required Should... subtest name.
+
+  Change "reasoning effort field includes "+tc.value to a name beginning
+  with Should.
+
+  As per path instructions, /*_test.go MUST use the t.Run("Should...")
+  pattern for all test cases.
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/run/journal/journal_test.go:232internal/core/run/journal/journal_test.go:232-237]8;;
+
+  Use the required Should... subtest names.
+
+  Rename cases such as "run terminal" and "queue settlement" to begin
+  with Should.
+
+  As per path instructions, /*_test.go MUST use the t.Run("Should...")
+  pattern for all test cases.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/cli/daemon_commands_test.go:1613internal/cli/daemon_commands_test.go:1613-1617]8;;
+
+  Avoid any in the payload table.
+
+  The table uses any only to hold two known payload structs. Store a typed
+  marshaling function or pre-marshaled json.RawMessage instead.
+
+  As per coding guidelines, “Do not use interface{} or any when a
+  concrete type is known.”
+
+
+
+
+
+
+  Also applies to: 1663-1670
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/agent/session_config_test.go:76internal/core/agent/session_config_test.go:76-88]8;;
+
+  Wrap standalone cases in t.Run("Should...").
+
+  These test cases perform assertions directly in the parent test function
+  instead of using the required named subtest pattern.
+
+  As per path instructions, /*_test.go MUST use the t.Run("Should...")
+  pattern for all test cases.
+
+
+
+
+
+
+  Also applies to: 120-126
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/cli/root_command_execution_test.go:1993internal/cli/root_command_execution_test.go:1993-2051]8;;
+
+  Wrap the new test scenario in a t.Run("Should…") subtest.
+
+  Unlike the sibling TestTasksRunCommandForwardsParallelTasksOverride
+  (Line 1923), this new test executes its scenario at the function top
+  level. As per path instructions, "MUST use t.Run("Should...") pattern for
+  ALL test cases".
+
+
+  Proposed structure
+
+   func TestTasksRunCommandDoesNotAuthorizeWorktreesFromWorkspaceConfig(t *testing.T) {
+  -	t.Parallel()
+  -
+  -	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+  +	t.Run("Should not authorize worktrees from workspace config", func(t *testing.T) {
+  +		t.Parallel()
+  +		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+  +		// ... existing body ...
+  +	})
+   }
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/daemon/reconcile_test.go:191internal/daemon/reconcile_test.go:191-192]8;;
+
+  Wrap the new reconciliation test body in a t.Run("Should…") subtest.
+
+  TestReconcileStartupCleansSafeWorktreesAndSurfacesPreviousHome executes
+  its assertions directly at the function level, unlike the neighboring
+  TestLoadRunLifecycleSettingsPopulatesWorktreesRoot which uses a
+  Should… subtest. This new test should follow the same convention.
+
+  As per path instructions: "MUST use t.Run("Should...") pattern for ALL
+  test cases".
+
+Writing review comments... 9m 10s elapsed - still working - 13 findings so far
+
+────────────────────────────────────────────────────────────────────────
+  minor [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/scripts/link-skills.sh:25scripts/link-skills.sh:25-43]8;;
+
+  Silent destructive delete when overwriting a real directory.
+
+  The elif [ -e "$link_path" ]; then rm -rf "$link_path" branch removes
+  any existing non-symlink file/directory at the target path without
+  warning. If a real (non-symlink) skill directory with local content ever
+  lands at .agents/skills/ or .claude/skills/, it's destroyed silently.
+
+
+
+
+
+  🛡️ Proposed fix: warn before destructive removal
+
+     elif [ -e "$link_path" ]; then
+  +    echo "  Warning: replacing non-symlink path $link_path" >&2
+       rm -rf "$link_path"
+     fi
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/workspace/config_test.go:1609internal/core/workspace/config_test.go:1609-1621]8;;
+
+  Use t.Run("Should...") naming.
+
+  Subtest names use the raw effort string ("max", "ultra") instead of
+  the required "Should..." description pattern used elsewhere in the
+  suite.
+
+
+
+
+
+  ♻️ Proposed fix
+
+  -		t.Run(effort, func(t *testing.T) {
+  +		t.Run("Should accept "+effort+" as a valid reasoning effort", func(t *testing.T) {
+
+  As per path instructions, "MUST use t.Run(\"Should...\") pattern for ALL
+  test cases".
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/workspace/config_test.go:1623internal/core/workspace/config_test.go:1623-1629]8;;
+
+  Missing t.Run("Should...") subtest wrapper.
+
+  TestRecoveryDefaultTracksCurrentCodexModel asserts directly in the
+  top-level test function without a t.Run("Should...") subtest, deviating
+  from the required convention.
+
+
+
+
+
+  ♻️ Proposed fix
+
+   func TestRecoveryDefaultTracksCurrentCodexModel(t *testing.T) {
+   	t.Parallel()
+  -
+  -	if DefaultRecoveryModel != "gpt-5.6-sol" {
+  -		t.Fatalf("DefaultRecoveryModel = %q, want %q", DefaultRecoveryModel, "gpt-5.6-sol")
+  -	}
+  +	t.Run("Should track the current default recovery model", func(t *testing.T) {
+  +		if DefaultRecoveryModel != "gpt-5.6-sol" {
+  +			t.Fatalf("DefaultRecoveryModel = %q, want %q", DefaultRecoveryModel, "gpt-5.6-sol")
+  +		}
+  +	})
+   }
+
+  As per path instructions, "MUST use t.Run(\"Should...\") pattern for ALL
+  test cases".
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Maintainability & Code Quality]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/agents/agents_test.go:127internal/core/agents/agents_test.go:127-139]8;;
+
+  Subtest name doesn't follow the required "Should..." pattern.
+
+  t.Run(effort, ...) uses the raw value ("max", "ultra") as the
+  subtest name instead of a Should... description.
+
+
+
+
+
+  ✏️ Proposed fix
+
+  -		t.Run(effort, func(t *testing.T) {
+  +		t.Run(fmt.Sprintf("Should accept reasoning effort %q", effort), func(t *testing.T) {
+
+  As per path instructions, /*_test.go files "MUST use
+  t.Run(\"Should...\") pattern for ALL test cases".
+
+
+────────────────────────────────────────────────────────────────────────
+  minor [Functional Correctness]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/core/run/executor/event_stream.go:237internal/core/run/executor/event_stream.go:237-239]8;;
+
+  Add EventKindRunRecoveryExhausted to run-terminal classification.
+  Recovery exhaustion is emitted as the last event in that path, but
+  IsRunTerminalKind currently excludes it, so workflow streams can sit
+  until workflowEventStreamWaitTimeout instead of closing immediately.
+
+
+────────────────────────────────────────────────────────────────────────
+  major [Stability & Availability]
+  → ]8;;vscode://file//Users/pedronauck/Dev/compozy/compozy/internal/cli/daemon_exec_test_helpers_test.go:53internal/cli/daemon_exec_test_helpers_test.go:53]8;;
+
+  Move PATH setup out of the shared bootstrap helper
+  installInProcessCLITestCodexACP calls t.Setenv("PATH", ...), but this
+  helper is reached from subtests that call t.Parallel(). That will panic
+  in those test paths, so the PATH mutation needs to happen before
+  parallelization or in a non-parallel setup helper.
+
+Writing review comments... 11m 35s elapsed - still working - 19 findings so far
+Writing review comments... 12m 35s elapsed - still working - 19 findings so far
+Writing review comments... 13m 35s elapsed - still working - 19 findings so far

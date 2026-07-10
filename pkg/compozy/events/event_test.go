@@ -10,6 +10,104 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+func TestEventLifecycleClassification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		kind        EventKind
+		wantScope   SettlementScope
+		wantDurable bool
+	}{
+		{name: "run completed", kind: EventKindRunCompleted, wantScope: SettlementScopeRun, wantDurable: true},
+		{name: "run crashed", kind: EventKindRunCrashed, wantScope: SettlementScopeRun, wantDurable: true},
+		{
+			name:        "Should classify run recovery exhausted as run-terminal",
+			kind:        EventKindRunRecoveryExhausted,
+			wantScope:   SettlementScopeRun,
+			wantDurable: true,
+		},
+		{
+			name:        "queue completed",
+			kind:        EventKindTaskRunMultipleQueueCompleted,
+			wantScope:   SettlementScopeQueue,
+			wantDurable: true,
+		},
+		{
+			name:        "queue failed",
+			kind:        EventKindTaskRunMultipleQueueFailed,
+			wantScope:   SettlementScopeQueue,
+			wantDurable: true,
+		},
+		{
+			name:        "queue canceled",
+			kind:        EventKindTaskRunMultipleQueueCanceled,
+			wantScope:   SettlementScopeQueue,
+			wantDurable: true,
+		},
+		{
+			name:        "parallel completed",
+			kind:        EventKindTaskParallelCompleted,
+			wantScope:   SettlementScopeParallel,
+			wantDurable: true,
+		},
+		{
+			name:        "parallel failed",
+			kind:        EventKindTaskParallelFailed,
+			wantScope:   SettlementScopeParallel,
+			wantDurable: true,
+		},
+		{
+			name:        "parallel rolled back",
+			kind:        EventKindTaskParallelRolledBack,
+			wantScope:   SettlementScopeParallel,
+			wantDurable: true,
+		},
+		{
+			name:        "parallel canceled",
+			kind:        EventKindTaskParallelCanceled,
+			wantScope:   SettlementScopeParallel,
+			wantDurable: true,
+		},
+		{
+			name:        "wave completed",
+			kind:        EventKindTaskParallelWaveCompleted,
+			wantScope:   SettlementScopeNone,
+			wantDurable: true,
+		},
+		{
+			name:        "phase changed",
+			kind:        EventKindTaskParallelPhaseChanged,
+			wantScope:   SettlementScopeNone,
+			wantDurable: false,
+		},
+		{
+			name:        "task completed",
+			kind:        EventKindTaskParallelTaskCompleted,
+			wantScope:   SettlementScopeNone,
+			wantDurable: false,
+		},
+		{name: "job started", kind: EventKindJobStarted, wantScope: SettlementScopeNone, wantDurable: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := SettlementScopeForKind(tt.kind); got != tt.wantScope {
+				t.Fatalf("SettlementScopeForKind(%q) = %q, want %q", tt.kind, got, tt.wantScope)
+			}
+			if got := RequiresDurablePublish(tt.kind); got != tt.wantDurable {
+				t.Fatalf("RequiresDurablePublish(%q) = %t, want %t", tt.kind, got, tt.wantDurable)
+			}
+			if got := IsRunTerminalKind(tt.kind); got != (tt.wantScope == SettlementScopeRun) {
+				t.Fatalf("IsRunTerminalKind(%q) = %t", tt.kind, got)
+			}
+		})
+	}
+}
+
 func TestEventJSONRoundTripPreservesEnvelope(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +160,63 @@ func TestEventJSONRoundTripPreservesEnvelope(t *testing.T) {
 	}
 	if !bytes.Equal(decoded.Payload, event.Payload) {
 		t.Fatalf("unexpected payload: %s", string(decoded.Payload))
+	}
+}
+
+func TestTaskLifecyclePayloadsPreserveAdditiveWorktreeMetadata(t *testing.T) {
+	t.Parallel()
+
+	multi := kinds.TaskRunMultiplePayload{
+		RunID:          "multi-run",
+		Slug:           "alpha",
+		WorktreePath:   "/worktrees/alpha",
+		WorktreeStatus: "preserved",
+		WorktreeReason: "committed output retained",
+		ResultBranch:   "compozy/multi-parent-01-alpha",
+	}
+	parallel := kinds.TaskParallelPayload{
+		RunID:          "parallel-run",
+		TaskID:         "task_01",
+		Status:         "merged",
+		WorktreePath:   "/worktrees/task_01",
+		WorktreeStatus: "removed",
+		WorktreeReason: "content retained by completed integration",
+	}
+
+	cases := []struct {
+		name    string
+		payload any
+	}{
+		{name: "multi", payload: multi},
+		{name: "parallel", payload: parallel},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			var raw map[string]json.RawMessage
+			if err := json.Unmarshal(data, &raw); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			for _, field := range []string{"worktree_path", "worktree_status", "worktree_reason"} {
+				if _, ok := raw[field]; !ok {
+					t.Fatalf("payload %s missing additive field %q: %s", tc.name, field, data)
+				}
+			}
+		})
+	}
+
+	var legacy kinds.TaskParallelPayload
+	if err := json.Unmarshal([]byte(`{"task_id":"task_01","status":"merged"}`), &legacy); err != nil {
+		t.Fatalf("decode legacy parallel payload: %v", err)
+	}
+	if legacy.WorktreePath != "" || legacy.WorktreeStatus != "" ||
+		legacy.WorktreeReason != "" || legacy.ResultBranch != "" {
+		t.Fatalf("legacy payload worktree metadata = %#v, want empty", legacy)
 	}
 }
 

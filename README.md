@@ -100,7 +100,14 @@ Execution runtimes are separate from skill installation. To run `compozy exec`, 
 | Gemini CLI         | `gemini`       | `gemini --acp`                   |
 | Kiro CLI           | `kiro`         | `kiro-cli acp`                   |
 
-When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally. Codex defaults to `gpt-5.5`; using that model with a local `codex-acp` binary requires `@zed-industries/codex-acp >= 0.12.0`. Update with `npm install -g @zed-industries/codex-acp@latest`, or explicitly choose a model supported by your installed adapter.
+When the direct ACP command is not installed, Compozy can fall back to supported launchers such as `npx --yes @agentclientprotocol/codex-acp`. Codex and Droid default to `gpt-5.6-sol`; GPT-5.6 models and the `max`/`ultra` reasoning levels require `@agentclientprotocol/codex-acp >= 1.1.2`. Update with `npm install -g @agentclientprotocol/codex-acp@latest`. The legacy `@zed-industries/codex-acp` package remains compatible only with older combinations such as GPT-5.5 with reasoning through `xhigh`.
+
+Compozy negotiates each runtime from the model, reasoning, and mode options advertised by ACP `session/new` or `session/load`, and applies the resolved configuration before sending the first prompt:
+
+- Codex supports `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` when the installed adapter advertises them. The built-in default is `gpt-5.6-sol` with `medium` reasoning.
+- Cursor model names resolve against its ACP catalog. For example, `--model grok-4.5` resolves to the advertised `grok-4.5[effort=high,fast=true]`; the exact ID is also accepted when shell-quoted. Cursor does not receive a separate reasoning option when its ACP session does not advertise one.
+- Claude Fable 5 accepts `--model fable`, `--model fable-5`, or `--model claude-fable-5`. Compozy always selects Claude's `auto` permission mode for Fable, even when `--access-mode full` was requested, so it never sends `bypassPermissions` for that model.
+- Claude's `max` reasoning is an advertised ACP effort value, not a system-prompt instruction. `ultracode` is an interactive Claude Code workflow rather than an ACP reasoning value, so Compozy does not emulate it with a parameter or prompt. If a requested effort such as `ultra` is not advertised by Claude, Compozy stops before the prompt and lists the valid choices.
 
 ## 🔄 How It Works
 
@@ -118,7 +125,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 
 - `compozy daemon start|status|stop` manages the home-scoped daemon lifecycle. `daemon start` is idempotent, and task/review/exec commands auto-start the daemon when needed.
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
-- `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior. Add `--parallel-tasks` to opt into dependency-aware parallel execution for task files inside one workflow.
+- `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior. Add `--parallel-tasks` to explicitly opt into dependency-aware parallel execution using per-task worktrees and an integration branch.
 - `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation. Add `--parallel` to run the batch concurrently — each child runs in its own isolated git worktree, bounded by `--parallel-limit` (default `2`).
 - Independent `compozy tasks run` invocations from different workspaces run concurrently on the shared home-scoped daemon. When another workspace already has an active run, the CLI prints a warning with the busy workspace and run ID before starting the new run.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
@@ -161,7 +168,7 @@ Example:
 ```toml
 [defaults]
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 access_mode = "full"
 timeout = "10m"
@@ -180,12 +187,12 @@ run_multiple_mode = "enqueued"
 run_multiple_parallel_limit = 2
 
 [tasks.run.parallel]
-enabled = false
+enabled = false # compatibility field; activation still requires a per-run choice
 max_concurrency = 4
 
 [tasks.run.parallel.conflict_resolver]
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 max_attempts = 1
 validation_command = []
@@ -196,7 +203,7 @@ output_format = "text"
 [recovery]
 enabled = false
 ide = "codex"
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 reasoning_effort = "medium"
 max_attempts = 1
 
@@ -216,7 +223,7 @@ Supported sections:
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
-- `[tasks.run.parallel]` for dependency-aware parallel execution inside one PRD task workflow, including `enabled`, `max_concurrency`, and the conflict-resolver agent under `[tasks.run.parallel.conflict_resolver]`
+- `[tasks.run.parallel]` for options used after dependency-aware parallel execution is explicitly selected for one PRD task workflow, including `max_concurrency` and the conflict-resolver agent under `[tasks.run.parallel.conflict_resolver]`; `enabled` remains parseable for compatibility but is not authorization to create worktrees
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[recovery]` for agentic recovery defaults used by run-producing commands: `enabled`, `ide`, `model`, `reasoning_effort`, and `max_attempts`
@@ -231,7 +238,7 @@ Notes:
 - `[tasks.run] run_multiple_mode` controls `tasks run --multiple` scheduling. Valid values are `"enqueued"` and `"parallel"`; when unset, the built-in default is `"enqueued"`.
 - `run_multiple_mode = "parallel"` runs the batch concurrently, with each child in its own isolated git worktree. The CLI `--parallel` flag overrides this config value for a single invocation.
 - `[tasks.run] run_multiple_parallel_limit` caps how many children run at once in parallel mode. It must be a positive integer and defaults to `2`. The CLI `--parallel-limit <n>` flag overrides it for a single invocation. The limit has no effect in enqueued mode, which always runs one child at a time.
-- `[tasks.run.parallel] enabled = true` runs pending task files in one workflow by dependency waves. The CLI `--parallel-tasks` flag overrides this config value for a single invocation.
+- `[tasks.run.parallel] enabled` does not activate worktree-backed execution by itself. A single-workflow run uses task worktrees only after a per-run choice through `--parallel-tasks=true`, the wizard, or `runtime_overrides.parallel_tasks.enabled=true`; `--parallel-tasks=false` keeps the standard runner. The remaining TOML values configure an explicitly enabled run.
 - `[tasks.run.parallel] max_concurrency` caps concurrent task worktrees within a wave and defaults to `4`. The conflict resolver uses `ide`, `model`, `reasoning_effort`, and `max_attempts` for bounded merge-conflict resolution.
 - `[tasks.run.parallel.conflict_resolver] validation_command` is optional and disabled by default. When set, it is an argv-style command such as `["go", "test", "./..."]`, runs without a shell after conflict markers and unmerged entries are gone, and must not modify the integration worktree. Omit it or set `[]` to rely only on universal git validation.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
@@ -642,34 +649,34 @@ compozy tasks run <slug> [flags]
 
 The CLI resolves workspace defaults locally, validates the task metadata, auto-starts the daemon when needed, and then starts the workflow through the daemon transport.
 
-| Flag                      | Default   | Description                                                                                      |
-| ------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| `--name`                  |           | Workflow slug (defaults to the positional slug)                                                  |
-| `--multiple`              |           | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
-| `--parallel`              | `false`   | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
-| `--parallel-limit`        | `2`       | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
-| `--parallel-tasks`        | `false`   | Run task files inside one PRD workflow in dependency-aware parallel mode                         |
-| `--include-completed`     | `false`   | Re-run completed tasks                                                                           |
-| `--recursive`, `-r`       | `false`   | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
-| `--skip-validation`       | `false`   | Skip task metadata preflight; use only when validation already ran elsewhere                     |
-| `--force`                 | `false`   | Continue after task metadata validation fails in non-interactive mode                            |
-| `--attach`                | `auto`    | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
-| `--ui`                    | `false`   | Force interactive TUI attach mode                                                                |
-| `--stream`                | `false`   | Force textual stream attach mode                                                                 |
-| `--detach`                | `false`   | Start the run without attaching a client                                                         |
-| `--task-runtime`          |           | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
-| `--recovery`              | `false`   | Enable agentic recovery for failed runs                                                          |
-| `--no-recovery`           | `false`   | Disable agentic recovery for this invocation                                                     |
-| `--recovery-ide`          | `codex`   | Runtime used by the recovery agent                                                               |
-| `--recovery-model`        | `gpt-5.5` | Model used by the recovery agent                                                                 |
-| `--recovery-reasoning`    | `medium`  | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                             |
-| `--recovery-max-attempts` | `1`       | Recovery remediation plus restart cycles; must be between `1` and `3`                            |
+| Flag                      | Default       | Description                                                                                      |
+| ------------------------- | ------------- | ------------------------------------------------------------------------------------------------ |
+| `--name`                  |               | Workflow slug (defaults to the positional slug)                                                  |
+| `--multiple`              |               | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
+| `--parallel`              | `false`       | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
+| `--parallel-limit`        | `2`           | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
+| `--parallel-tasks`        | `false`       | Use per-task worktrees plus an integration branch for dependency-aware waves                     |
+| `--include-completed`     | `false`       | Re-run completed tasks                                                                           |
+| `--recursive`, `-r`       | `false`       | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
+| `--skip-validation`       | `false`       | Skip task metadata preflight; use only when validation already ran elsewhere                     |
+| `--force`                 | `false`       | Continue after task metadata validation fails in non-interactive mode                            |
+| `--attach`                | `auto`        | Attach mode: `auto`, `ui`, `stream`, or `detach`                                                 |
+| `--ui`                    | `false`       | Force interactive TUI attach mode                                                                |
+| `--stream`                | `false`       | Force textual stream attach mode                                                                 |
+| `--detach`                | `false`       | Start the run without attaching a client                                                         |
+| `--task-runtime`          |               | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.)              |
+| `--recovery`              | `false`       | Enable agentic recovery for failed runs                                                          |
+| `--no-recovery`           | `false`       | Disable agentic recovery for this invocation                                                     |
+| `--recovery-ide`          | `codex`       | Runtime used by the recovery agent                                                               |
+| `--recovery-model`        | `gpt-5.6-sol` | Model used by the recovery agent                                                                 |
+| `--recovery-reasoning`    | `medium`      | Recovery agent reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`, or `ultra`             |
+| `--recovery-max-attempts` | `1`           | Recovery remediation plus restart cycles; must be between `1` and `3`                            |
 
 When `--recursive` is set, tasks are grouped by directory (root tasks first, then each subdirectory in alphabetical order, numerically within), and `_`/`.`-prefixed directories, `reviews-*` rounds, `adrs/`, and `memory/` are skipped. The same setting can be persisted as `[tasks.run] recursive = true` in workspace TOML or chosen from the interactive task-runtime form.
 
 Use `tasks run --multiple` when you want to start several task workflows from one invocation with the same runtime flags. Use `tasks run <slug>` when you only need one workflow run, when a script expects a single workflow slug, or when you want the existing single-run command path.
 
-For one workflow, `--parallel-tasks` executes pending task files in dependency waves using isolated worktrees, bounded by `[tasks.run.parallel] max_concurrency`:
+For one workflow, `--parallel-tasks` is the explicit per-run choice to execute pending task files in dependency waves using isolated task worktrees and a dedicated integration branch, bounded by `[tasks.run.parallel] max_concurrency`:
 
 ```bash
 compozy tasks run my-feature --parallel-tasks
@@ -678,7 +685,7 @@ compozy tasks run my-feature --parallel-tasks
 The `--multiple` flag takes one comma-separated slug list:
 
 ```bash
-compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.5
+compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.6-sol
 compozy tasks run --multiple alpha,beta --stream
 compozy tasks run --multiple alpha,beta --detach
 ```
@@ -703,23 +710,32 @@ Resolution precedence:
 - Mode: `--parallel` flag > `run_multiple_mode` config > `enqueued` default.
 - Limit: `--parallel-limit <n>` flag > `run_multiple_parallel_limit` config > `2` default.
 
+Before starting, the CLI prints the resolved execution kind, whether it uses
+worktrees, and the source of the choice (explicit flag, workspace config, or
+built-in default). The interactive wizard always presents an exclusive choice
+between **Serial queue (no worktrees)** and **Parallel workflows (git
+worktrees)** when multiple workflows are selected, and repeats it on the review
+screen.
+
 `--parallel` and `--parallel-limit` are valid only with `--multiple`, and the limit must be a positive integer; invalid combinations are rejected before the daemon is contacted.
 
-**Worktree isolation.** In parallel mode the parent workspace must be on a named git branch. Compozy resolves the current branch and `HEAD` once, then creates one detached git worktree per child under `~/.compozy/state/worktrees/`. Each child runs with its workspace root and task directory remapped into that worktree, so concurrent agents get isolated working trees, indexes, and `HEAD`s while sharing the repository object store. Worktrees do **not** isolate shared runtime resources such as ports, credentials, provider rate limits, caches, or external services — treat parallel batches as genuinely independent tasks.
+**Worktree isolation.** In parallel mode the parent workspace must be on a named git branch. Compozy resolves the current branch and `HEAD` once, then creates one named-result git worktree per child under `~/.compozy/state/worktrees/`. Each child runs with its workspace root and task directory remapped into that worktree, so concurrent agents get isolated working trees, indexes, and `HEAD`s while sharing the repository object store. Worktrees do **not** isolate shared runtime resources such as ports, credentials, provider rate limits, caches, or external services — treat parallel batches as genuinely independent tasks.
 
-**Preservation and V1 non-goals.** Every child worktree is preserved for manual review while the run settles, regardless of child status. Compozy does not auto-merge, auto-push, or branch those results, and it does not predict semantic conflicts; recombining results is a manual step. Each detached worktree records its base branch and commit so you can branch or merge from it yourself. Preserved worktrees are reclaimed only by explicit retention cleanup through `compozy runs purge`; dirty task worktrees make purge fail before run metadata is deleted.
+**Safe cleanup and result branches.** Multi-spec output is never merged automatically into the user's branch. Each child receives a deterministic `compozy/multi-*` result branch. After settlement, a clean worktree can be removed while its committed output remains on that branch; an empty result branch is deleted when it still points at the base. Dirty trees or output without a proven retention point remain `preserved` with an explicit reason. `compozy runs purge` applies the same ownership, dirty-tree, and commit-retention checks before deleting old run metadata.
+
+Within one workflow, successful dependency-wave output is squash-merged into a temporary integration branch and fast-forwarded only if every required task succeeds. Task worktrees are removed after that output is retained. On failure, the user's branch is unchanged; partial output and unsafe trees are preserved with reasons for inspection.
 
 **Fail-late aggregation.** A child failure does not cancel its siblings. The parent reaches a terminal status only after every started child settles: `completed` when all children complete, or `failed` when any child fails, crashes, or cannot start (the parent error names the failed slugs). Canceling the parent cancels running children and marks not-started children canceled. In non-TUI runs the parent command exits non-zero when the aggregate status is failed, canceled, or crashed.
 
-**Handoff output.** After the queue settles, `--stream` runs (and the UI-settled fallback) print a final handoff that lists each child in requested order so every preserved worktree is locatable:
+**Handoff output.** After the queue settles, `--stream` runs (and the UI-settled fallback) print a final handoff that lists each child in requested order, including the retained result branch and any worktree preserved for inspection:
 
 ```text
 task multi-run handoff:
-  alpha completed | run=child-alpha | worktree=~/.compozy/state/worktrees/<ws>/<parent>/01-alpha | branch=main
-  beta failed | run=child-beta | worktree=~/.compozy/state/worktrees/<ws>/<parent>/02-beta | boom
+  alpha completed | run=child-alpha | worktree=~/.compozy/state/worktrees/<ws>/<parent>/01-alpha | result_branch=compozy/multi-...-01-alpha | worktree_status=removed
+  beta failed | run=child-beta | worktree=~/.compozy/state/worktrees/<ws>/<parent>/02-beta | worktree_status=preserved | worktree_reason=uncommitted changes | boom
 ```
 
-Missing run ids or worktree paths render as `-`. Streamed child events also carry `worktree=<path>`, and the TUI shows a worktree status line for the selected child.
+Missing run ids or worktree metadata render as `-`. Streamed child events carry the path, lifecycle status, reason, and result branch when known; the TUI shows the same handoff metadata for the selected child.
 
 Cross-workspace runs are different from `--multiple` scheduling: the home-scoped daemon accepts separate `compozy tasks run` invocations from different workspaces concurrently and does not queue or reject the second run. Before starting a non-dry-run task workflow, the CLI checks daemon status; if active runs belong to another registered workspace, it warns with the busy workspace name/path and run ID, then proceeds. The warning is skipped when the daemon is idle, when the active run belongs to the same workspace, or when `--dry-run` is set.
 
@@ -782,32 +798,32 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 
 `compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `~/.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
-| Flag                         | Default     | Description                                                                                |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                                             |
-| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
-| `--prompt-file`              |             | Read prompt text from a file                                                               |
-| `--format`                   | `text`      | Output contract: `text`, `json`, or `raw-json`                                             |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
-| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--recovery`                 | `false`     | Enable agentic recovery for failed exec runs                                               |
-| `--no-recovery`              | `false`     | Disable agentic recovery for this invocation                                               |
-| `--recovery-ide`             | `codex`     | Runtime used by the recovery agent                                                         |
-| `--recovery-model`           | `gpt-5.5`   | Model used by the recovery agent                                                           |
-| `--recovery-reasoning`       | `medium`    | Recovery agent reasoning effort: `low`, `medium`, `high`, or `xhigh`                       |
-| `--recovery-max-attempts`    | `1`         | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
-| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
-| `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes                |
-| `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                                        |
-| `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                                 |
-| `--persist`                  | `false`     | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
-| `--run-id`                   |             | Resume a previously persisted exec session by run id                                       |
-| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
+| Flag                         | Default       | Description                                                                                |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `--ide`                      | `codex`       | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
+| `--model`                    | _(per IDE)_   | Model override                                                                             |
+| `--agent`                    |               | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
+| `--prompt-file`              |               | Read prompt text from a file                                                               |
+| `--format`                   | `text`        | Output contract: `text`, `json`, or `raw-json`                                             |
+| `--reasoning-effort`         | `medium`      | `low`, `medium`, `high`, `xhigh`, `max`, `ultra`                                           |
+| `--access-mode`              | `full`        | `default` or `full` runtime access policy                                                  |
+| `--timeout`                  | `10m`         | Activity timeout per job                                                                   |
+| `--recovery`                 | `false`       | Enable agentic recovery for failed exec runs                                               |
+| `--no-recovery`              | `false`       | Disable agentic recovery for this invocation                                               |
+| `--recovery-ide`             | `codex`       | Runtime used by the recovery agent                                                         |
+| `--recovery-model`           | `gpt-5.6-sol` | Model used by the recovery agent                                                           |
+| `--recovery-reasoning`       | `medium`      | Recovery agent reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`, or `ultra`       |
+| `--recovery-max-attempts`    | `1`           | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
+| `--max-retries`              | `2`           | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--retry-backoff-multiplier` | `1.5`         | Multiplier applied to the next timeout after each retry                                    |
+| `--tail-lines`               | `0`           | Maximum log lines retained per job in UI (`0` = full history)                              |
+| `--add-dir`                  |               | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
+| `--auto-commit`              | `false`       | Include automatic commit instructions when the prompt asks for code changes                |
+| `--verbose`                  | `false`       | Emit operational runtime logs to stderr during exec                                        |
+| `--tui`                      | `false`       | Open the interactive TUI instead of headless stdout output                                 |
+| `--persist`                  | `false`       | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
+| `--run-id`                   |               | Resume a previously persisted exec session by run id                                       |
+| `--dry-run`                  | `false`       | Preview prompts without executing                                                          |
 
 </details>
 

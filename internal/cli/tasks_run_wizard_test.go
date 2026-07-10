@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 	core "github.com/compozy/compozy/internal/core"
 )
 
@@ -90,6 +91,86 @@ func TestTaskRunWizardModel(t *testing.T) {
 		wizard = updateTaskRunWizardTestModel(t, wizard, "u")
 		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"beta", "alpha"}) {
 			t.Fatalf("reordered workflows = %#v, want [beta alpha]", wizard.inputs.selectedWorkflows)
+		}
+	})
+
+	t.Run("Should remove the focused run-order item with Space", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha", "beta", "gamma")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+			selectedWorkflows: []string{"alpha", "beta"},
+		})
+		wizard.workflowFocus = taskRunWizardWorkflowFocusOrder
+		wizard.orderCursor = 0
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"beta"}) {
+			t.Fatalf("selected workflows = %#v, want [beta]", wizard.inputs.selectedWorkflows)
+		}
+		if wizard.workflowFocus != taskRunWizardWorkflowFocusOrder {
+			t.Fatalf("workflow focus = %v, want run order", wizard.workflowFocus)
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if len(wizard.inputs.selectedWorkflows) != 0 {
+			t.Fatalf("selected workflows = %#v, want empty", wizard.inputs.selectedWorkflows)
+		}
+		if wizard.workflowFocus != taskRunWizardWorkflowFocusList {
+			t.Fatalf("workflow focus = %v, want list after removing last item", wizard.workflowFocus)
+		}
+	})
+
+	t.Run("Should include an unselected highlight before Enter advances", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha", "beta")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+		wizard.workflowCursor = 1
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "enter")
+		if wizard.step != taskRunWizardStepRuntime {
+			t.Fatalf("step = %v, want runtime", wizard.step)
+		}
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"beta"}) {
+			t.Fatalf("selected workflows = %#v, want [beta]", wizard.inputs.selectedWorkflows)
+		}
+	})
+
+	t.Run("Should not advance an empty filtered selection", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha", "beta")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+		wizard.searchQuery = "no-match"
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "enter")
+		if wizard.step != taskRunWizardStepWorkflows {
+			t.Fatalf("step = %v, want workflows", wizard.step)
+		}
+		if !strings.Contains(wizard.message, "select at least one workflow") {
+			t.Fatalf("message = %q, want selection explanation", wizard.message)
+		}
+	})
+
+	t.Run("Should preserve selection order across filter changes", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "alpha", "beta", "gamma")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{selectedWorkflows: []string{"gamma"}})
+		wizard.searchQuery = "alpha"
+		wizard.workflowCursor = 0
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		wizard.searchQuery = "beta"
+		wizard.workflowCursor = 0
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		wizard.searchQuery = ""
+
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"gamma", "alpha", "beta"}) {
+			t.Fatalf(
+				"selected workflows = %#v, want selection order to survive filters",
+				wizard.inputs.selectedWorkflows,
+			)
 		}
 	})
 
@@ -485,7 +566,7 @@ func TestTaskRunWizardModel(t *testing.T) {
 		if slices.Contains(wizard.executionFields(), taskRunWizardFieldParallelWorkflows) {
 			t.Fatal("parallel workflow control should be hidden for a single workflow")
 		}
-		if strings.Contains(wizard.renderExecutionStep(60), "Run Parallel Workflows") {
+		if strings.Contains(wizard.renderExecutionStep(60), "Multi-workflow mode") {
 			t.Fatal("parallel workflow row should not render for a single workflow")
 		}
 	})
@@ -558,6 +639,10 @@ func TestTaskRunWizardModel(t *testing.T) {
 		if !slices.Contains(wizard.executionFields(), taskRunWizardFieldParallelWorkflows) {
 			t.Fatal("expected parallel workflow control for multiple workflows")
 		}
+		serialView := xansi.Strip(wizard.renderExecutionStep(80))
+		if !strings.Contains(serialView, "Serial queue (no worktrees)") {
+			t.Fatalf("serial mode is not explicit in execution view: %q", serialView)
+		}
 		if strings.Contains(wizard.renderExecutionStep(60), "Max concurrent") {
 			t.Fatal("max concurrent should be hidden while parallel workflows are disabled")
 		}
@@ -566,6 +651,10 @@ func TestTaskRunWizardModel(t *testing.T) {
 		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
 		if !wizard.inputs.parallelWorkflows {
 			t.Fatal("expected parallel workflow toggle to enable parallel workflows")
+		}
+		parallelView := xansi.Strip(wizard.renderExecutionStep(80))
+		if !strings.Contains(parallelView, "Parallel workflows (git worktrees)") {
+			t.Fatalf("parallel mode is not explicit in execution view: %q", parallelView)
 		}
 		if !slices.Contains(wizard.executionFields(), taskRunWizardFieldParallelWorkflowLimit) {
 			t.Fatal("expected max concurrent control once parallel workflows are enabled")
@@ -581,6 +670,11 @@ func TestTaskRunWizardModel(t *testing.T) {
 		wizard = updateTaskRunWizardTestModel(t, wizard, "3")
 		if wizard.inputs.parallelWorkflowLimit != "3" {
 			t.Fatalf("max concurrent = %q, want 3", wizard.inputs.parallelWorkflowLimit)
+		}
+		review := xansi.Strip(wizard.renderReviewStep(80))
+		if !strings.Contains(review, "Multi-workflow mode") ||
+			!strings.Contains(review, "Parallel workflows (git worktrees)") {
+			t.Fatalf("review does not show resolved multi-workflow mode: %q", review)
 		}
 
 		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
@@ -598,6 +692,17 @@ func TestTaskRunWizardModel(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestTaskRunWizardReasoningOptionsIncludeModernEfforts(t *testing.T) {
+	t.Parallel()
+
+	options := taskRunWizardReasoningOptions()
+	for _, effort := range []string{"max", "ultra"} {
+		if !taskRunWizardChoiceContains(options, effort) {
+			t.Fatalf("reasoning options do not contain %q: %#v", effort, options)
+		}
+	}
 }
 
 // TestTaskRunWizardViewFitsTerminalBounds guards the layout invariant that the

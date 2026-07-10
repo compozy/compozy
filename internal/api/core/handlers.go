@@ -837,6 +837,7 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 		Workspace:        workspace,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
+		Execution:        body.Execution,
 	})
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
@@ -873,6 +874,7 @@ func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
 		ParallelLimit:    body.ParallelLimit,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
+		Execution:        body.Execution,
 	})
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
@@ -1754,15 +1756,5 @@ func (h *Handlers) writeStreamHeartbeat(writer FlushWriter, runID string, lastCu
 }
 
 func isTerminalRunEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCompleted,
-		events.EventKindRunFailed,
-		events.EventKindRunCancelled,
-		events.EventKindShutdownRequested,
-		events.EventKindShutdownDraining,
-		events.EventKindShutdownTerminated:
-		return true
-	default:
-		return false
-	}
+	return events.IsRunTerminalKind(kind)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -255,6 +256,56 @@ func TestPlanTaskMultiWorktreePath(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestTaskMultiResultBranch(t *testing.T) {
+	t.Parallel()
+
+	got, err := taskMultiResultBranch("task-multi-20260709-abcdef", 3, "Feature / With Spaces")
+	if err != nil {
+		t.Fatalf("taskMultiResultBranch() error = %v", err)
+	}
+	want := "compozy/multi-task-multi-2-" +
+		taskMultiShortHash("task-multi-20260709-abcdef", taskMultiWorktreeParentHashLen) +
+		"-03-feature-with-spaces"
+	if got != want {
+		t.Fatalf("taskMultiResultBranch() = %q, want %q", got, want)
+	}
+}
+
+func TestTaskMultiWorktreeAllocatorDetectsPreviousHomeRegistrations(t *testing.T) {
+	t.Parallel()
+
+	currentRoot := filepath.Join(t.TempDir(), "current", "state", "worktrees")
+	currentPath := filepath.Join(currentRoot, "workspace", "run", "00-alpha")
+	oldPath := filepath.Join(t.TempDir(), "old", "state", "worktrees", "workspace", "run", "00-alpha")
+	if err := os.MkdirAll(currentPath, 0o755); err != nil {
+		t.Fatalf("create current worktree fixture: %v", err)
+	}
+	allocator := newTaskMultiWorktreeAllocator(currentRoot)
+	allocator.run = func(context.Context, string, ...string) (string, error) {
+		return strings.Join([]string{
+			"worktree /workspace",
+			"HEAD abc123",
+			"branch refs/heads/main",
+			"",
+			"worktree " + currentPath,
+			"HEAD abc123",
+			"detached",
+			"",
+			"worktree " + oldPath,
+			"HEAD abc123",
+			"detached",
+		}, "\n"), nil
+	}
+
+	got, err := allocator.staleCompozyWorktreeRegistrations(context.Background(), "/workspace")
+	if err != nil {
+		t.Fatalf("staleCompozyWorktreeRegistrations() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, []string{oldPath}) {
+		t.Fatalf("stale registrations = %#v, want [%q]", got, oldPath)
+	}
 }
 
 func TestSanitizeTaskMultiWorktreeSegment(t *testing.T) {
@@ -1027,8 +1078,8 @@ func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 		if alloc.BaseBranch != "main" || alloc.BaseCommit != base.Commit {
 			t.Fatalf("allocation metadata = %#v, want main @ %s", alloc, base.Commit)
 		}
-		if alloc.WorktreeStatus != taskMultiWorktreeStatusPreserved {
-			t.Fatalf("WorktreeStatus = %q, want %q", alloc.WorktreeStatus, taskMultiWorktreeStatusPreserved)
+		if alloc.WorktreeStatus != taskMultiWorktreeStatusActive {
+			t.Fatalf("WorktreeStatus = %q, want %q", alloc.WorktreeStatus, taskMultiWorktreeStatusActive)
 		}
 		if gotHead := runGitOutput(t, alloc.Path, "rev-parse", "HEAD"); gotHead != base.Commit {
 			t.Fatalf("worktree HEAD = %q, want resolved base commit %q", gotHead, base.Commit)
@@ -1733,8 +1784,11 @@ func TestParallelOrchestratorConflictResolverIntegration(t *testing.T) {
 			"rev-parse",
 			"--verify",
 			"refs/heads/"+plan.IntegrationBranch,
-		); err == nil {
-			t.Fatalf("integration branch %s still exists after rollback", plan.IntegrationBranch)
+		); err != nil {
+			t.Fatalf("integration branch %s missing after safe rollback preservation: %v", plan.IntegrationBranch, err)
+		}
+		if _, err := os.Stat(integrationPath); err != nil {
+			t.Fatalf("integration worktree missing after conflict preservation: %v", err)
 		}
 	})
 }

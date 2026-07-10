@@ -724,6 +724,35 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 			t.Fatalf("expected reasoning selector to omit recommended suffix, got %q", view)
 		}
 	})
+
+	for _, tc := range []struct {
+		value string
+		label string
+	}{
+		{value: "max", label: "Maximum"},
+		{value: "ultra", label: "Ultra"},
+	} {
+		tc := tc
+		t.Run("Should include "+tc.label+" in reasoning effort field", func(t *testing.T) {
+			t.Parallel()
+
+			selected := tc.value
+			builder := newFormBuilder(
+				newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+				newCommandState(commandKindTasksRun, core.ModePRDTasks),
+			)
+			builder.addReasoningEffortField(&selected)
+
+			if len(builder.fields) != 1 {
+				t.Fatalf("expected one reasoning field, got %d", len(builder.fields))
+			}
+			field := builder.fields[0]
+			if got := field.GetValue(); got != tc.value {
+				t.Fatalf("reasoning field value = %#v, want %q", got, tc.value)
+			}
+			assertFieldViewContains(t, field, tc.label)
+		})
+	}
 }
 
 func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {

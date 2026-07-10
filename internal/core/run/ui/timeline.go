@@ -276,7 +276,7 @@ func (m *uiModel) timelineEntryMeta(job *uiJob) string {
 
 // timelineRuntimeMeta renders the right-hand runtime strip:
 //
-//	Codex · gpt-5.5 · xhigh · 12.3k tok
+//	Codex · gpt-5.6-sol · xhigh · 12.3k tok
 //
 // Provider/model fall back to the run config; reasoning effort and the ACP token
 // total are appended only when present. The string is plain (no ANSI) so the

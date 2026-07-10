@@ -59,7 +59,11 @@ func (s *transportReviewService) Fetch(
 		return apicore.ReviewFetchResult{}, err
 	}
 
-	registry, cleanup, err := buildWorkspaceReviewRegistry(ctx, workspaceRow.RootDir, "compozy reviews fetch")
+	registry, cleanup, err := s.runManager.reviewProviderRegistry(
+		ctx,
+		workspaceRow.RootDir,
+		"compozy reviews fetch",
+	)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
@@ -321,7 +325,19 @@ func buildWorkspaceReviewRegistry(
 	workspaceRoot string,
 	invokingCommand string,
 ) (provider.RegistryReader, func(), error) {
-	discovery, err := extensions.Discovery{WorkspaceRoot: workspaceRoot}.Discover(ctx)
+	return buildWorkspaceReviewRegistryAtHome(ctx, workspaceRoot, invokingCommand, "")
+}
+
+func buildWorkspaceReviewRegistryAtHome(
+	ctx context.Context,
+	workspaceRoot string,
+	invokingCommand string,
+	homeDir string,
+) (provider.RegistryReader, func(), error) {
+	discovery, err := extensions.Discovery{
+		WorkspaceRoot: workspaceRoot,
+		HomeDir:       strings.TrimSpace(homeDir),
+	}.Discover(ctx)
 	if err != nil {
 		return nil, nil, err
 	}

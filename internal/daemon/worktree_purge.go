@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -29,8 +27,17 @@ type runWorktreePurgePlan struct {
 }
 
 type taskWorktreePurgeTarget struct {
-	Path       string
-	BaseCommit string
+	Path              string
+	BaseCommit        string
+	ResultBranch      string
+	ContentIntegrated bool
+}
+
+type taskWorktreeInspection struct {
+	Exists             bool
+	Removable          bool
+	DeleteResultBranch bool
+	Reason             string
 }
 
 type integrationWorktreePurgeTarget struct {
@@ -126,6 +133,14 @@ func (p preparedRunWorktreePurge) removeTaskWorktrees(ctx context.Context, runID
 	for _, target := range removableTaskWorktrees {
 		if err := p.allocator.Remove(ctx, p.workspaceRoot, target.Path); err != nil {
 			return purged, fmt.Errorf("purge worktree for run %s at %s: %w", runID, target.Path, err)
+		}
+		if _, err := p.allocator.DeleteBranchIfAt(
+			ctx,
+			p.workspaceRoot,
+			target.ResultBranch,
+			target.BaseCommit,
+		); err != nil {
+			return purged, fmt.Errorf("purge empty result branch for run %s: %w", runID, err)
 		}
 		purged = append(purged, target.Path)
 		removeEmptyWorktreeParents(p.worktreesRoot, target.Path)
@@ -304,10 +319,7 @@ func (m *RunManager) listRunEventsForPurge(
 	ctx context.Context,
 	runID string,
 ) ([]eventspkg.Event, bool, error) {
-	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
-	if err != nil {
-		return nil, false, err
-	}
+	runArtifacts := m.runArtifacts(runID)
 	if _, err := os.Stat(runArtifacts.RunDBPath); errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	} else if err != nil {
@@ -393,8 +405,9 @@ func taskMultiEventWorktreeTarget(event eventspkg.Event) (taskWorktreePurgeTarge
 		return taskWorktreePurgeTarget{}, fmt.Errorf("decode %s purge payload: %w", event.Kind, err)
 	}
 	return taskWorktreePurgeTarget{
-		Path:       payload.WorktreePath,
-		BaseCommit: payload.BaseCommit,
+		Path:         payload.WorktreePath,
+		BaseCommit:   payload.BaseCommit,
+		ResultBranch: payload.ResultBranch,
 	}, nil
 }
 
@@ -417,18 +430,29 @@ func addOwnedTaskWorktreePath(
 		return err
 	}
 	if !ok {
+		if strings.TrimSpace(target.Path) != "" {
+			return deferRunPurge(
+				"worktree %s is outside current root %s; it may be registered under a previous COMPOZY_HOME",
+				target.Path,
+				worktreesRoot,
+			)
+		}
 		return nil
 	}
 	if existingIndex, exists := seen[path]; exists {
 		if strings.TrimSpace(plan.taskWorktrees[existingIndex].BaseCommit) == "" {
 			plan.taskWorktrees[existingIndex].BaseCommit = strings.TrimSpace(target.BaseCommit)
 		}
+		if strings.TrimSpace(plan.taskWorktrees[existingIndex].ResultBranch) == "" {
+			plan.taskWorktrees[existingIndex].ResultBranch = strings.TrimSpace(target.ResultBranch)
+		}
 		return nil
 	}
 	seen[path] = len(plan.taskWorktrees)
 	plan.taskWorktrees = append(plan.taskWorktrees, taskWorktreePurgeTarget{
-		Path:       path,
-		BaseCommit: strings.TrimSpace(target.BaseCommit),
+		Path:         path,
+		BaseCommit:   strings.TrimSpace(target.BaseCommit),
+		ResultBranch: strings.TrimSpace(target.ResultBranch),
 	})
 	return nil
 }
@@ -439,76 +463,132 @@ func inspectTaskWorktreeForPurge(
 	workspaceRoot string,
 	target taskWorktreePurgeTarget,
 ) (bool, error) {
-	if allocator == nil {
-		return false, errors.New("daemon: worktree allocator is required")
-	}
-	run, err := allocator.requireGitRunner()
+	inspection, err := inspectTaskWorktreeLifecycle(ctx, allocator, workspaceRoot, target)
 	if err != nil {
 		return false, err
 	}
-	if _, statErr := os.Stat(target.Path); errors.Is(statErr, os.ErrNotExist) {
+	if !inspection.Exists {
 		return false, nil
-	} else if statErr != nil {
-		return false, fmt.Errorf("stat worktree %s: %w", target.Path, statErr)
 	}
-	status, err := run(ctx, target.Path, "status", "--porcelain")
-	if err != nil {
-		return false, fmt.Errorf("inspect worktree status in %s: %w", target.Path, err)
-	}
-	if strings.TrimSpace(status) != "" {
-		return false, fmt.Errorf("worktree %s has uncommitted changes", target.Path)
-	}
-	preserved, err := taskWorktreeHasPreservedCommits(ctx, run, workspaceRoot, target)
-	if err != nil {
-		return false, err
-	}
-	if preserved {
-		return false, fmt.Errorf("worktree %s has committed changes not retained by a branch", target.Path)
+	if !inspection.Removable {
+		return false, errors.New(inspection.Reason)
 	}
 	return true, nil
 }
 
-func taskWorktreeHasPreservedCommits(
+func inspectTaskWorktreeLifecycle(
+	ctx context.Context,
+	allocator *taskMultiWorktreeAllocator,
+	workspaceRoot string,
+	target taskWorktreePurgeTarget,
+) (taskWorktreeInspection, error) {
+	if allocator == nil {
+		return taskWorktreeInspection{}, errors.New("daemon: worktree allocator is required")
+	}
+	run, err := allocator.requireGitRunner()
+	if err != nil {
+		return taskWorktreeInspection{}, err
+	}
+	if _, statErr := os.Stat(target.Path); errors.Is(statErr, os.ErrNotExist) {
+		return taskWorktreeInspection{Removable: true, Reason: "worktree is already absent"}, nil
+	} else if statErr != nil {
+		return taskWorktreeInspection{}, fmt.Errorf("stat worktree %s: %w", target.Path, statErr)
+	}
+	status, err := run(ctx, target.Path, "status", "--porcelain")
+	if err != nil {
+		return taskWorktreeInspection{}, fmt.Errorf("inspect worktree status in %s: %w", target.Path, err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return taskWorktreeInspection{
+			Exists: true,
+			Reason: fmt.Sprintf("worktree %s has uncommitted changes", target.Path),
+		}, nil
+	}
+	head, err := run(ctx, target.Path, "rev-parse", taskMultiWorktreeHeadRef)
+	if err != nil {
+		return taskWorktreeInspection{}, fmt.Errorf("resolve worktree head in %s: %w", target.Path, err)
+	}
+	return classifyCleanTaskWorktree(ctx, run, workspaceRoot, target, strings.TrimSpace(head))
+}
+
+func classifyCleanTaskWorktree(
 	ctx context.Context,
 	run taskMultiWorktreeGitRunner,
 	workspaceRoot string,
 	target taskWorktreePurgeTarget,
-) (bool, error) {
-	head, err := run(ctx, target.Path, "rev-parse", taskMultiWorktreeHeadRef)
-	if err != nil {
-		return false, fmt.Errorf("resolve worktree head in %s: %w", target.Path, err)
-	}
-	head = strings.TrimSpace(head)
+	head string,
+) (taskWorktreeInspection, error) {
 	base := strings.TrimSpace(target.BaseCommit)
-	if base != "" {
-		return taskWorktreeHasCommitsAfterBase(ctx, run, target.Path, base, head)
+	if base != "" && head == base {
+		return taskWorktreeInspection{
+			Exists:             true,
+			Removable:          true,
+			DeleteResultBranch: strings.TrimSpace(target.ResultBranch) != "",
+			Reason:             "worktree has no commits after its base",
+		}, nil
 	}
-	branches, err := run(ctx, workspaceRoot, "branch", "--contains", head, "--format=%(refname:short)")
+	if target.ContentIntegrated {
+		return taskWorktreeInspection{
+			Exists:    true,
+			Removable: true,
+			Reason:    "worktree content is retained by the completed integration",
+		}, nil
+	}
+	branches, err := worktreeRetentionBranches(ctx, run, workspaceRoot, head)
 	if err != nil {
-		return false, fmt.Errorf("inspect branches containing worktree head %s: %w", head, err)
+		return taskWorktreeInspection{}, err
 	}
-	return strings.TrimSpace(branches) == "", nil
+	resultBranch := strings.TrimSpace(target.ResultBranch)
+	if resultBranch != "" && !stringSliceContains(branches, resultBranch) {
+		return taskWorktreeInspection{
+			Exists: true,
+			Reason: fmt.Sprintf(
+				"worktree %s has committed changes not retained by result branch %s",
+				target.Path,
+				resultBranch,
+			),
+		}, nil
+	}
+	if len(branches) == 0 {
+		return taskWorktreeInspection{
+			Exists: true,
+			Reason: fmt.Sprintf("worktree %s has committed changes not retained by a branch", target.Path),
+		}, nil
+	}
+	reason := "worktree commit is retained by branch " + branches[0]
+	if resultBranch != "" {
+		reason = "worktree result is retained by branch " + resultBranch
+	}
+	return taskWorktreeInspection{Exists: true, Removable: true, Reason: reason}, nil
 }
 
-func taskWorktreeHasCommitsAfterBase(
+func worktreeRetentionBranches(
 	ctx context.Context,
 	run taskMultiWorktreeGitRunner,
-	worktreePath string,
-	base string,
+	workspaceRoot string,
 	head string,
-) (bool, error) {
-	if head == base {
-		return false, nil
-	}
-	countText, err := run(ctx, worktreePath, "rev-list", "--count", base+".."+head)
+) ([]string, error) {
+	branchesText, err := run(ctx, workspaceRoot, "branch", "--contains", head, "--format=%(refname:short)")
 	if err != nil {
-		return false, fmt.Errorf("inspect commits after base %s in %s: %w", base, worktreePath, err)
+		return nil, fmt.Errorf("inspect branches containing worktree head %s: %w", head, err)
 	}
-	count, err := strconv.Atoi(strings.TrimSpace(countText))
-	if err != nil {
-		return false, fmt.Errorf("parse commits after base %s in %s: %w", base, worktreePath, err)
+	branches := make([]string, 0)
+	for _, branch := range strings.Split(branchesText, "\n") {
+		if trimmed := strings.TrimSpace(branch); trimmed != "" &&
+			!strings.HasPrefix(trimmed, "compozy/parallel-") {
+			branches = append(branches, trimmed)
+		}
 	}
-	return count > 0, nil
+	return branches, nil
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func cleanOwnedWorktreePath(worktreesRoot string, rawPath string) (string, bool, error) {

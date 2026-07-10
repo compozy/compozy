@@ -826,7 +826,11 @@ func (a *hookACPHelperAgent) Initialize(context.Context, acp.InitializeRequest) 
 }
 
 func (a *hookACPHelperAgent) NewSession(context.Context, acp.NewSessionRequest) (acp.NewSessionResponse, error) {
-	return acp.NewSessionResponse{SessionId: acp.SessionId(a.sessionID)}, nil
+	return acp.NewSessionResponse{
+		SessionId:     acp.SessionId(a.sessionID),
+		ConfigOptions: hookACPHelperConfigOptions(),
+		Modes:         hookACPHelperModes(),
+	}, nil
 }
 
 func (*hookACPHelperAgent) LoadSession(context.Context, acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
@@ -883,7 +887,7 @@ func (*hookACPHelperAgent) SetSessionConfigOption(
 	context.Context,
 	acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{}, nil
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: hookACPHelperConfigOptions()}, nil
 }
 
 func (*hookACPHelperAgent) SetSessionMode(
@@ -891,6 +895,45 @@ func (*hookACPHelperAgent) SetSessionMode(
 	acp.SetSessionModeRequest,
 ) (acp.SetSessionModeResponse, error) {
 	return acp.SetSessionModeResponse{}, nil
+}
+
+func hookACPHelperConfigOptions() []acp.SessionConfigOption {
+	modelCategory := acp.SessionConfigOptionCategoryModel
+	reasoningCategory := acp.SessionConfigOptionCategoryThoughtLevel
+	modelValues := acp.SessionConfigSelectOptionsUngrouped{
+		{Value: acp.SessionConfigValueId(model.DefaultCodexModel), Name: model.DefaultCodexModel},
+	}
+	reasoningValues := acp.SessionConfigSelectOptionsUngrouped{
+		{Value: "medium", Name: "medium"},
+	}
+	return []acp.SessionConfigOption{
+		{Select: &acp.SessionConfigOptionSelect{
+			Id:           "model",
+			Name:         "model",
+			Category:     &modelCategory,
+			CurrentValue: acp.SessionConfigValueId(model.DefaultCodexModel),
+			Type:         "select",
+			Options:      acp.SessionConfigSelectOptions{Ungrouped: &modelValues},
+		}},
+		{Select: &acp.SessionConfigOptionSelect{
+			Id:           "reasoning_effort",
+			Name:         "reasoning_effort",
+			Category:     &reasoningCategory,
+			CurrentValue: "medium",
+			Type:         "select",
+			Options:      acp.SessionConfigSelectOptions{Ungrouped: &reasoningValues},
+		}},
+	}
+}
+
+func hookACPHelperModes() *acp.SessionModeState {
+	return &acp.SessionModeState{
+		CurrentModeId: "agent",
+		AvailableModes: []acp.SessionMode{
+			{Id: "agent", Name: "Agent"},
+			{Id: "agent-full-access", Name: "Agent (full access)"},
+		},
+	}
 }
 
 func installHookACPHelperOnPath(t *testing.T, scenario hookACPHelperScenario) {

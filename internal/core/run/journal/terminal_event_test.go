@@ -6,17 +6,17 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-func TestIsTerminalEventJobParked(t *testing.T) {
+func TestIsDurabilityCriticalEventJobParked(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should classify job.parked as terminal so it forces flush and fsync", func(t *testing.T) {
+	t.Run("Should classify job.parked as durability-critical so it forces flush and fsync", func(t *testing.T) {
 		t.Parallel()
-		if !isTerminalEvent(events.EventKindJobParked) {
-			t.Fatalf("isTerminalEvent(%q) = false, want true", events.EventKindJobParked)
+		if !isDurabilityCriticalEvent(events.EventKindJobParked) {
+			t.Fatalf("isDurabilityCriticalEvent(%q) = false, want true", events.EventKindJobParked)
 		}
 	})
 
-	t.Run("Should keep existing run-terminal events terminal", func(t *testing.T) {
+	t.Run("Should keep existing run-terminal events durability-critical", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []events.EventKind{
 			events.EventKindRunCrashed,
@@ -24,21 +24,21 @@ func TestIsTerminalEventJobParked(t *testing.T) {
 			events.EventKindRunFailed,
 			events.EventKindRunCancelled,
 		} {
-			if !isTerminalEvent(kind) {
-				t.Fatalf("isTerminalEvent(%q) = false, want true", kind)
+			if !isDurabilityCriticalEvent(kind) {
+				t.Fatalf("isDurabilityCriticalEvent(%q) = false, want true", kind)
 			}
 		}
 	})
 
-	t.Run("Should not classify non-terminal job events as terminal", func(t *testing.T) {
+	t.Run("Should not classify non-terminal job events as durability-critical", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []events.EventKind{
 			events.EventKindJobStarted,
 			events.EventKindJobStalled,
 			events.EventKindJobRetryScheduled,
 		} {
-			if isTerminalEvent(kind) {
-				t.Fatalf("isTerminalEvent(%q) = true, want false", kind)
+			if isDurabilityCriticalEvent(kind) {
+				t.Fatalf("isDurabilityCriticalEvent(%q) = true, want false", kind)
 			}
 		}
 	})

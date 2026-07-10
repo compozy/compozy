@@ -93,11 +93,18 @@ type reviewWatchCoordinatorRuntime struct {
 
 func resolveReviewProviderRegistryFactory(
 	factory reviewProviderRegistryFactory,
+	homeDir string,
 ) reviewProviderRegistryFactory {
 	if factory != nil {
 		return factory
 	}
-	return buildWorkspaceReviewRegistry
+	return func(
+		ctx context.Context,
+		workspaceRoot string,
+		invokingCommand string,
+	) (provider.RegistryReader, func(), error) {
+		return buildWorkspaceReviewRegistryAtHome(ctx, workspaceRoot, invokingCommand, homeDir)
+	}
 }
 
 func resolveReviewWatchGit(git ReviewWatchGit) ReviewWatchGit {

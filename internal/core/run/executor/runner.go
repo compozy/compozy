@@ -57,6 +57,9 @@ func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
 
 func (r *jobRunner) run(ctx context.Context) {
 	r.lifecycle.schedule()
+	if r.execCtx.cfg.DryRun {
+		r.preSnapshot = r.captureWorkspaceSnapshot(ctx)
+	}
 	if err := r.dispatchPreExecuteHook(ctx); err != nil {
 		r.lifecycle.markGiveUp(failInfo{
 			CodeFile: r.job.CodeFileLabel(),
@@ -69,7 +72,7 @@ func (r *jobRunner) run(ctx context.Context) {
 	}
 	defer r.dispatchPostExecuteHook(ctx)
 	if r.execCtx.cfg.DryRun {
-		r.lifecycle.markSuccess()
+		r.completeDryRun(ctx)
 		return
 	}
 
@@ -129,6 +132,26 @@ func (r *jobRunner) stallRetries() int {
 		return 0
 	}
 	return cfg.Stall.Retries
+}
+
+func (r *jobRunner) completeDryRun(ctx context.Context) {
+	if r.execCtx.cfg.Mode == model.ExecutionModePRDTasks {
+		_, captured, err := r.execCtx.captureTaskWorktreeScope(ctx, r.job, r.preSnapshot)
+		if err == nil && !captured {
+			err = errors.New("capture dry-run task worktree scope")
+		}
+		if err != nil {
+			r.lifecycle.markGiveUp(failInfo{
+				CodeFile: r.job.CodeFileLabel(),
+				ExitCode: -1,
+				OutLog:   r.job.OutLog,
+				ErrLog:   r.job.ErrLog,
+				Err:      err,
+			})
+			return
+		}
+	}
+	r.lifecycle.markSuccess()
 }
 
 func (r *jobRunner) runPostSuccessHook(ctx context.Context) error {

@@ -1,44 +1,44 @@
 ---
 name: cy-create-prd
-description: Creates a Product Requirements Document through interactive brainstorming with parallel codebase and web research. Use when starting a new feature or product, building a PRD, or brainstorming requirements. Do not use for technical specifications, task breakdowns, or code implementation.
+description: Creates a Product Requirements Document plus its companion user-story catalog (_user_stories.md) through interactive brainstorming with parallel codebase and web research. Use when starting a new feature or product, building a PRD, brainstorming requirements, or cataloging user stories and edge cases. Do not use for technical specifications, task breakdowns, or code implementation.
 argument-hint: "[feature-name-or-idea] [idea-file]"
 ---
 
 # Create PRD
 
-Create a business-focused Product Requirements Document through structured brainstorming.
+Create a business-focused Product Requirements Document and its companion user-story catalog through structured brainstorming.
+
+Both documents are written for the LLM agents that consume them downstream (`cy-create-techspec`, `cy-create-tasks`, review rounds). Their job is to supply business rules, domain behavior, and product intent. KPIs, success metrics, timelines, and rollout phases have no consumer in this pipeline — leave them out.
 
 <HARD-GATE>
-Do NOT skip the research phase — every PRD MUST be enriched with codebase and market context.
-Do NOT skip the clarifying questions — the user MUST participate in shaping the PRD before it is written.
-Do NOT present multiple approaches for selection or a draft for approval. Once the clarifying questions are answered and the ADRs are recorded, write the PRD file directly. The user reviews the generated file and requests changes afterward if needed.
-This applies to EVERY PRD regardless of perceived simplicity.
+- Research before questions: every PRD MUST be enriched with codebase and market context.
+- Questions before writing: the user MUST shape the PRD by answering clarifying questions — for every PRD, however simple. "Simple" features are where unexamined business assumptions cause the most rework; brief brainstorming is fine, skipped brainstorming is not.
+- Decide, then write: once the questions are answered and the ADRs are recorded, write the files directly. The user reviews the generated files and requests changes afterward — no approach menus, no draft-approval loops.
 </HARD-GATE>
+
+## Full Scope, One PRD
+
+Capture the complete scope the user wants in this single PRD, however large it grows. Agents run long and `cy-create-tasks` decomposes the work later, so document size is never a reason to trim, defer, or stage anything.
+
+- A capability leaves the PRD only when the user decides against it — record that in Non-Goals.
+- YAGNI applies to invention: challenge features the user never asked for; keep every one they did.
+- When the user adds scope mid-conversation, fold it in and keep going.
 
 ## Asking Questions
 
-When this skill instructs you to ask the user a question, you MUST use your runtime's dedicated interactive question tool — the tool or function that presents a question to the user and **pauses execution until the user responds**. Do not output questions as plain assistant text and continue generating; always use the mechanism that blocks until the user has answered.
+Ask every question through the runtime's dedicated interactive question tool — the mechanism that presents a question and pauses execution until the user responds. If the runtime has no such tool, present the question as the complete message and stop generating; never answer a question on the user's behalf.
 
-If your runtime does not provide such a tool, present the question as your complete message and stop generating. Do not answer your own question or proceed without user input.
+- One question per message: exactly one question mark, then stop. A topic that needs more exploration gets its follow-up in the next message, after the user answers.
+- Lead with a recommendation: state which option you would pick and why in one line, so the user reacts to a position instead of facing a blank menu.
+- Multiple-choice whenever the options can be predetermined: labeled options (A, B, C) with your recommendation first, plus a fallback ("D) Other — describe"). Open-ended only when the answer space is genuinely unbounded.
+- For features with many dimensions, ask about one dimension at a time ("Which aspect of team collaboration matters most first? A) Shared workspaces B) Real-time presence C) Permission controls D) Activity feeds").
 
-## Anti-Pattern: "This Feature Is Too Simple For Full Brainstorming"
+## Business Focus
 
-Every PRD goes through the full brainstorming process. A single button, a minor workflow tweak, a configuration option — all of them. "Simple" features are where unexamined business assumptions cause the most rework. The brainstorming can be brief for genuinely simple features, but you MUST ask clarifying questions before writing the artifact.
-
-## Anti-Pattern: End-Of-Flow Bureaucracy
-
-Once the user has answered the clarifying questions, do not force them through an approach-selection gate or a draft-approval loop before writing. Decide the product direction, record it as an ADR, synthesize the PRD, and write the file directly. The user reviews the generated file and requests edits afterward if needed.
-
-## Anti-Pattern: Technical Drift On Technical-Sounding Features
-
-When the feature name sounds technical (e.g., "webhook notifications", "CSV export", "dark mode", "API rate limiting"), you will be tempted to discuss HOW to implement it. Resist this. Your job is the WHAT and WHY:
+The PRD owns WHAT users need, WHY it provides value, and WHO the users are; HOW belongs to the TechSpec. When the feature name sounds technical ("webhook notifications", "CSV export", "API rate limiting"), translate it into the user-experience question behind it:
 
 - WRONG: "Should we use WebSockets or polling for notifications?" (implementation)
-- WRONG: "What CSV library format should we target?" (implementation)
 - RIGHT: "Which events should trigger a notification to the user?" (user need)
-- RIGHT: "What information do users need in their exported reports?" (user need)
-
-Translate every technical-sounding feature into the user experience question behind it.
 
 ## Required Inputs
 
@@ -46,117 +46,49 @@ Translate every technical-sounding feature into the user experience question beh
 - Optional: existing `_idea.md` file as primary input for context.
 - Optional: existing `_prd.md` file for update mode.
 
-## Checklist
-
-You MUST create a task for each phase and complete them in order:
-
-1. **Determine project & directory** — derive slug, create `.compozy/tasks/<slug>/` and `adrs/`
-2. **Discover context** — parallel codebase exploration and web research
-3. **Understand the need** — ask 3-6 targeted questions to refine scope and intent
-4. **Decide the approach & record ADRs** — choose the best product direction from the answers and research, then record it (with alternatives considered) as an ADR
-5. **Write the PRD** — write using the canonical template from `references/prd-template.md` and save to `.compozy/tasks/<slug>/_prd.md`
-
 ## Workflow
 
-1. Determine the project name and working directory.
-   - Derive the slug from the feature name provided by the user.
-   - Use `.compozy/tasks/<slug>/` as the target directory.
-   - If `_idea.md` exists in the target directory, read it as primary context input.
-   - If `_prd.md` already exists in the target directory, read it and operate in update mode.
-   - If the directory does not exist, create it.
-   - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
+Track each step as a task in the runtime's task tracker when one is available, and complete the steps in order.
 
-2. Discover context through parallel research. You MUST perform BOTH tracks before asking any questions.
+1. Determine the project and working directory.
+   - Derive the slug from the feature name; the target directory is `.compozy/tasks/<slug>/`.
+   - Create the directory and its `adrs/` subdirectory if missing.
+   - If `_idea.md` exists there, read it as primary context.
+   - If `_prd.md` exists, read it and operate in update mode.
 
-   **Track A — Codebase exploration** (REQUIRED):
-   - Search the codebase for files, patterns, and features related to the user's request.
-   - Look for existing implementations, data models, and integration points that are relevant.
-   - Summarize what you found in 3-5 bullet points.
+2. Discover context through two parallel research tracks. Both MUST finish before any question is asked; run them in parallel (e.g., two Agent tool calls).
+   - Track A — Codebase: search for files, patterns, data models, and integration points related to the request; summarize in 3-5 bullets.
+   - Track B — Market: perform 3-5 web searches on trends, competing products, and user expectations; summarize in 3-5 bullets. If web search tools are unavailable, note the limitation and proceed with Track A only.
+   - Present the merged findings from both tracks to the user before moving to questions.
 
-   **Track B — Market and user research** (REQUIRED):
-   - Perform 3-5 web searches for market trends, competitive products, and user needs related to the feature.
-   - Look for how similar products solve this problem and what users expect.
-   - Summarize what you found in 3-5 bullet points.
+3. Grill the requirements.
+   - Read `references/question-protocol.md` and apply its Grilling Method through its phases, resolving the load-bearing product decisions branch by branch.
+   - Done when every branch that shapes the PRD is resolved or explicitly parked for Open Questions — the question count is an output of the decision tree, not a budget.
 
-   Run both tracks in parallel (e.g., two Agent tool calls, two search batches, etc.). Present a brief merged summary of findings from BOTH tracks to the user before moving to questions. If web search tools are unavailable, note the limitation explicitly and proceed with codebase findings only.
+4. Decide the product approach and record ADRs.
+   - Choose the strongest direction yourself from the answers and research.
+   - Read `references/adr-template.md`, determine the next number from the files in `.compozy/tasks/<slug>/adrs/`, fill the template (chosen direction as Decision, weighed alternatives with trade-offs as Alternatives Considered, outcomes as Consequences; Status "Accepted", Date today), and write `adrs/adr-NNN.md` (zero-padded 3-digit number).
+   - Record any additional significant scope decision that surfaced during clarification as its own ADR.
 
-3. Ask clarifying questions following `references/question-protocol.md`.
-   - Focus exclusively on WHAT features users need, WHY it provides business value, and WHO the target users are.
-   - Ask about success criteria and constraints.
-   - Never ask technical implementation questions about databases, APIs, frameworks, or architecture.
-   - **ONE question per message — strictly enforced.** Your message must contain exactly one question mark. After asking the question, STOP. Do not add follow-up questions, "also" questions, or "additionally" prompts. If a topic needs more exploration, ask a follow-up in the NEXT message after the user responds.
+5. Write the user-story catalog.
+   - Read `references/user-stories-template.md` and write `.compozy/tasks/<slug>/_user_stories.md`.
+   - Cover every persona — secondary ones included — and every core feature.
+   - Run the template's edge-case sweep against every story.
+   - Done when every core feature has stories, every story has verifiable acceptance criteria plus edge cases with expected behavior, and every edge-case class has been probed against every story.
 
-     Anti-pattern (FORBIDDEN):
-     "What is the primary user persona? Also, what are the key success metrics?"
-     This is TWO questions. Split them into two separate messages.
+6. Write the PRD.
+   - Read `references/prd-template.md` and fill every section with the decided direction and confirmed answers; the template carries the per-section rules.
+   - List every ADR from this session in the Architecture Decision Records section.
+   - Prefer active voice and definite, specific language; every sentence earns its place. Language: English.
+   - Write `.compozy/tasks/<slug>/_prd.md`.
 
-   - Every question MUST be multiple-choice when reasonable options can be predetermined. Format as labeled options (A, B, C, etc.) so the user can respond with a single letter. Only use open-ended questions when the answer space is genuinely unbounded (e.g., "What problem are you trying to solve?").
-   - Include a fallback option (e.g., "D) Other — describe") for flexibility.
-   - For complex features with many dimensions, decompose into sub-topics and ask about one dimension at a time. Each sub-topic usually has predeterminable options. Example: instead of the open-ended "What should the collaboration feature include?", ask "Which aspect of team collaboration is most important to start with? A) Shared workspaces B) Real-time presence C) Permission controls D) Activity feeds".
-   - Complete at least one full clarification round before deciding the approach.
-
-4. Decide the product approach.
-   - Based on the clarifying answers and research, choose the best product direction yourself. Do NOT present a menu of approaches for the user to select.
-   - Record the decision as an ADR:
-     - Read `references/adr-template.md`.
-     - Determine the next ADR number by listing existing files in `.compozy/tasks/<slug>/adrs/`.
-     - Fill the template: the chosen direction as "Decision", the alternatives you weighed as "Alternatives Considered" with their trade-offs, and outcomes as "Consequences". Set Status to "Accepted" and Date to today.
-     - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number, e.g., `adr-001.md`).
-
-5. Write the PRD.
-   - Synthesize the chosen direction into the final product design. Do not present each section for separate approval.
-   - If a significant scope decision surfaced during clarification, create an additional ADR following the same process as step 4.
-   - Only pause before writing if a blocking ambiguity remains that would force guessing; otherwise proceed directly to document generation.
-   - Read `references/prd-template.md` and fill every section with gathered context.
-   - Include an "Architecture Decision Records" section listing all ADRs created during this session with their numbers, titles, and one-line summaries as links to the `adrs/` directory.
-   - Apply YAGNI ruthlessly: challenge every feature and remove anything the MVP does not need.
-   - The PRD must describe user capabilities and business outcomes only.
-   - No databases, APIs, code structure, frameworks, testing strategies, or architecture decisions.
-   - Mandatory sections (ALWAYS include): Overview, Goals, User Stories, Core Features, User Experience, Non-Goals, Phased Rollout Plan, Success Metrics, Risks and Mitigations, Architecture Decision Records, Open Questions.
-   - Optional sections (include when relevant): High-Level Technical Constraints.
-   - Prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
-   - Language: **English**. Tone: clear, technical, consistent with existing project artifacts.
-
-6. Save the PRD file.
-   - Write the completed document to `.compozy/tasks/<slug>/_prd.md`.
-   - Confirm the file path to the user.
-   - Tell the user the PRD is ready to review and that they can ask for any changes directly.
-   - Remind the user that the next step is to create a TechSpec using `cy-create-techspec` from this PRD.
-
-## Process Flow
-
-```dot
-digraph create_prd {
-    "Determine project & directory" [shape=box];
-    "Discover context (codebase + web)" [shape=box];
-    "Ask clarifying questions (one at a time)" [shape=box];
-    "Decide approach & record ADR" [shape=box];
-    "Write PRD (canonical template)" [shape=box];
-    "Save _prd.md" [shape=doublecircle];
-
-    "Determine project & directory" -> "Discover context (codebase + web)";
-    "Discover context (codebase + web)" -> "Ask clarifying questions (one at a time)";
-    "Ask clarifying questions (one at a time)" -> "Decide approach & record ADR";
-    "Decide approach & record ADR" -> "Write PRD (canonical template)";
-    "Write PRD (canonical template)" -> "Save _prd.md";
-}
-```
+7. Hand off.
+   - Confirm both file paths to the user and invite change requests directly on the generated files.
+   - Point to `cy-create-techspec` as the next step.
 
 ## Error Handling
 
-- If the user provides insufficient context to complete a section, note it in the Open Questions section rather than guessing.
-- If web research tools are unavailable, proceed with codebase exploration only and note the limitation.
-- If the target directory cannot be created, stop and report the filesystem error.
-- If operating in update mode, preserve sections the user has not asked to change.
-
-## Key Principles
-
-- **One question at a time** — Do not overwhelm with multiple questions in a single message
-- **Multiple choice mandatory** — Every question MUST be multiple-choice (A/B/C) when options can be predetermined; open-ended only when the answer space is genuinely unbounded
-- **YAGNI ruthlessly** — Challenge every feature; remove anything the MVP does not need
-- **Decide then write** — Make the product decisions through the clarifying questions, record them as ADRs, write the file directly, and iterate only if the user requests changes afterward
-- **Business focus only** — Never ask about implementation; that belongs in TechSpec
-- **Idea as input** — When `_idea.md` exists, use it as primary context to accelerate brainstorming
-- **Pipeline awareness** — The PRD feeds into `cy-create-techspec`; focus on WHAT and WHY, not HOW
-- **Template compliance** — Every PRD MUST follow the canonical template
-- **Language consistency** — Write all PRD content in English
+- Insufficient context for a section: note it in Open Questions rather than guessing.
+- Web research tools unavailable: proceed with codebase findings and state the limitation.
+- Target directory cannot be created: stop and report the filesystem error.
+- Update mode: preserve sections the user has not asked to change, and mirror any story change into `_user_stories.md` so the catalog and the PRD stay in sync.

@@ -401,9 +401,18 @@ type RunListQuery = contract.RunListQuery
 type RunEventPageQuery = contract.RunEventPageQuery
 type RunEventPage = contract.RunEventPage
 type TaskRunRequest = contract.TaskRunRequest
+type TaskExecutionDescriptor = contract.TaskExecutionDescriptor
 type TaskRunMultipleRequest = contract.TaskRunMultipleRequest
 type TaskRunMultipleItem = contract.TaskRunMultipleItem
 type TaskRunMultipleSnapshot = contract.TaskRunMultipleSnapshot
+
+const (
+	ExecutionKindTaskStandard      = contract.ExecutionKindTaskStandard
+	ExecutionKindTaskParallel      = contract.ExecutionKindTaskParallel
+	ExecutionKindTaskMultiEnqueued = contract.ExecutionKindTaskMultiEnqueued
+	ExecutionKindTaskMultiParallel = contract.ExecutionKindTaskMultiParallel
+)
+
 type ReviewRunRequest = contract.ReviewRunRequest
 type SyncRequest = contract.SyncRequest
 type SyncResult = contract.SyncResult

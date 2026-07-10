@@ -679,6 +679,40 @@ func TestVerticalKeysNavigateFocusedJobs(t *testing.T) {
 	}
 }
 
+func TestMoveSelectedJobFollowsWaveGroupedVisualOrder(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(3)
+	m.jobs = []uiJob{
+		{taskNumber: 1, safeName: "task_01"},
+		{taskNumber: 2, safeName: "task_02"},
+		{taskNumber: 3, safeName: "task_03"},
+	}
+	m.parallel = &parallelView{
+		waveTotal: 2,
+		waves:     []waveStatus{waveStatusRunning, waveStatusPending},
+		taskWave: map[int]int{
+			1: 1,
+			2: 0,
+		},
+	}
+	m.focusedPane = uiPaneJobs
+	m.selectedJob = 1
+
+	m.moveSelectedJob(1)
+	if got := m.selectedJob; got != 0 {
+		t.Fatalf("selection after first visual move = %d, want task_01 at index 0", got)
+	}
+	m.moveSelectedJob(1)
+	if got := m.selectedJob; got != 2 {
+		t.Fatalf("selection after second visual move = %d, want ungrouped task_03 at index 2", got)
+	}
+	m.moveSelectedJob(-1)
+	if got := m.selectedJob; got != 0 {
+		t.Fatalf("selection after visual move up = %d, want task_01 at index 0", got)
+	}
+}
+
 func TestHandleClockTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	t.Parallel()
 

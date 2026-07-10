@@ -75,6 +75,7 @@ func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
 		usageUpdateMsg,
 		runStatusMsg,
 		shutdownStatusMsg,
+		remoteConnectionStatusMsg,
 		jobFailureMsg,
 		jobControlResultMsg:
 		return m.applyUIMsg(v), true
@@ -112,14 +113,14 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		return m.handleRunStatus(value)
 	case shutdownStatusMsg:
 		return m.handleShutdownStatus(value)
-	case jobFailureMsg:
-		m.failures = append(m.failures, value.Failure)
-		return nil
 	case jobControlResultMsg:
 		return m.handleJobControlResult(value)
 	case dispatchBatchMsg:
 		return m.handleDispatchBatch(value)
 	default:
+		if m.applyPassiveUIMsg(value) {
+			return nil
+		}
 		cmd, _ := m.applyParallelUIMsg(value)
 		return cmd
 	}
@@ -156,6 +157,19 @@ func (m *uiModel) applyJobLifecycleUIMsg(msg uiMsg) (tea.Cmd, bool) {
 	}
 }
 
+func (m *uiModel) applyPassiveUIMsg(msg uiMsg) bool {
+	switch value := msg.(type) {
+	case remoteConnectionStatusMsg:
+		m.remoteReconnecting = value.Reconnecting
+		return true
+	case jobFailureMsg:
+		m.failures = append(m.failures, value.Failure)
+		return true
+	default:
+		return false
+	}
+}
+
 // applyParallelUIMsg routes task.parallel.* translated messages to their handlers,
 // returning ok=false for any non-parallel message. Kept separate from applyUIMsg
 // to bound that switch's cyclomatic complexity.
@@ -167,6 +181,10 @@ func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 		m.handleParallelWaveStarted(value)
 	case parallelTaskStartedMsg:
 		m.handleParallelTaskStarted(value)
+	case parallelTaskCompletedMsg:
+		m.handleParallelTaskCompleted(value)
+	case parallelPhaseChangedMsg:
+		m.handleParallelPhaseChanged(value)
 	case parallelMergeStartedMsg:
 		m.handleParallelMergeStarted(value)
 	case parallelConflictMsg:
@@ -179,6 +197,8 @@ func (m *uiModel) applyParallelUIMsg(msg uiMsg) (tea.Cmd, bool) {
 		m.handleParallelRolledBack(value)
 	case parallelFailedMsg:
 		m.handleParallelFailed(value)
+	case parallelSettledMsg:
+		m.handleParallelSettled(value)
 	default:
 		return nil, false
 	}
@@ -535,14 +555,22 @@ func (m *uiModel) moveSelectedJob(delta int) {
 		return
 	}
 	m.persistSelectedViewportState()
-	next := m.selectedJob + delta
+	order := m.visualJobOrder()
+	position := 0
+	for index, jobIndex := range order {
+		if jobIndex == m.selectedJob {
+			position = index
+			break
+		}
+	}
+	next := position + delta
 	if next < 0 {
 		next = 0
 	}
-	if next >= len(m.jobs) {
-		next = len(m.jobs) - 1
+	if next >= len(order) {
+		next = len(order) - 1
 	}
-	m.selectedJob = next
+	m.selectedJob = order[next]
 	m.sidebarDirty = true
 	m.refreshViewportContent()
 }

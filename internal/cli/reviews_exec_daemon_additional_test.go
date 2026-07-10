@@ -1196,6 +1196,34 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		}
 	})
 
+	t.Run("resolve review round uses latest local review round before daemon", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+		for _, dir := range []string{"reviews-001", "reviews-003", "reviews-004", "reviews-invalid"} {
+			if err := os.MkdirAll(filepath.Join(workflowDir, dir), 0o755); err != nil {
+				t.Fatalf("mkdir %s: %v", dir, err)
+			}
+		}
+		for _, issuePath := range []string{
+			filepath.Join(workflowDir, "reviews-001", "issue_001.md"),
+			filepath.Join(workflowDir, "reviews-003", "issue_001.md"),
+		} {
+			if err := os.WriteFile(issuePath, []byte("# issue\n"), 0o644); err != nil {
+				t.Fatalf("write issue file %s: %v", issuePath, err)
+			}
+		}
+
+		state := newCommandState(commandKindFixReviews, core.ModePRReview)
+		state.workspaceRoot = workspaceRoot
+		state.name = "demo"
+		if err := state.resolveReviewRound(context.Background()); err != nil {
+			t.Fatalf("resolveReviewRound() error = %v", err)
+		}
+		if state.round != 3 {
+			t.Fatalf("state.round = %d, want latest local round 3", state.round)
+		}
+	})
+
 	t.Run("resolve workflow name and round args validates positionals", func(t *testing.T) {
 		state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 		cmd := &cobra.Command{Use: "fetch [slug]"}
@@ -1395,6 +1423,18 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		}
 		if !shouldEmitLeanWorkflowEvent(eventspkg.Event{Kind: eventspkg.EventKindRunStarted}) {
 			t.Fatal("expected run.started to emit in lean workflow mode")
+		}
+		for _, kind := range []eventspkg.EventKind{
+			eventspkg.EventKindTaskRunMultipleStarted,
+			eventspkg.EventKindTaskRunMultipleQueueFailed,
+			eventspkg.EventKindTaskParallelPlanStarted,
+			eventspkg.EventKindTaskParallelPhaseChanged,
+			eventspkg.EventKindTaskParallelTaskCompleted,
+			eventspkg.EventKindTaskParallelCompleted,
+		} {
+			if !shouldEmitLeanWorkflowEvent(eventspkg.Event{Kind: kind}) {
+				t.Fatalf("expected %s to emit in lean workflow mode", kind)
+			}
 		}
 		if !shouldEmitLeanWorkflowEvent(eventspkg.Event{
 			Kind:    eventspkg.EventKindSessionUpdate,
@@ -1962,7 +2002,6 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 		}
 
 		stream := newStaticClientRunStream()
-		stream.items <- apiclient.RunStreamItem{Overflow: &apiclient.RunStreamOverflow{Reason: "lagging"}}
 		stream.items <- apiclient.RunStreamItem{
 			Event: &eventspkg.Event{
 				Kind:      eventspkg.EventKindRunStarted,
@@ -2031,16 +2070,12 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 	})
 
 	t.Run("consume stream and wait helpers handle errors and fallback snapshots", func(t *testing.T) {
-		errStream := newStaticClientRunStream()
-		errStream.errors <- errors.New("stream failed")
-		close(errStream.errors)
-
-		client := &stubDaemonCommandClient{stream: errStream}
-		err := consumeDaemonRunStream(context.Background(), client, "run-err", func(apiclient.RunStreamItem) error {
+		client := &stubDaemonCommandClient{streamErr: errors.New("stream failed")}
+		err := consumeDaemonRunEvents(context.Background(), client, "run-err", func(apiclient.RunStreamItem) error {
 			return nil
 		})
 		if err == nil || !strings.Contains(err.Error(), "stream failed") {
-			t.Fatalf("consumeDaemonRunStream() error = %v, want stream failed", err)
+			t.Fatalf("consumeDaemonRunEvents() error = %v, want stream failed", err)
 		}
 
 		fallbackStream := newStaticClientRunStream()
@@ -2051,6 +2086,7 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 			},
 		}
 		close(fallbackStream.items)
+		close(fallbackStream.errors)
 
 		client = &stubDaemonCommandClient{
 			stream: fallbackStream,
@@ -2146,6 +2182,42 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 		}
 		if snapshotCalls < 3 {
 			t.Fatalf("snapshot calls = %d, want at least 3 polls", snapshotCalls)
+		}
+	})
+
+	t.Run("default watch surfaces a failed terminal after rendering it", func(t *testing.T) {
+		t.Parallel()
+
+		stream := newStaticClientRunStream()
+		failedPayload, err := json.Marshal(kinds.RunFailedPayload{Error: "task failed"})
+		if err != nil {
+			t.Fatalf("marshal RunFailedPayload: %v", err)
+		}
+		stream.items <- apiclient.RunStreamItem{
+			Event: &eventspkg.Event{
+				Kind:      eventspkg.EventKindRunFailed,
+				Timestamp: time.Date(2026, 4, 18, 12, 14, 50, 0, time.UTC),
+				Payload:   failedPayload,
+			},
+		}
+		close(stream.items)
+
+		client := &stubDaemonCommandClient{
+			stream: stream,
+			snapshot: apicore.RunSnapshot{Run: apicore.Run{
+				RunID:     "run-watch-failed",
+				Status:    "failed",
+				ErrorText: "task failed",
+			}},
+		}
+		var dst bytes.Buffer
+		err = defaultWatchCLIRun(context.Background(), &dst, client, "run-watch-failed")
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			t.Fatalf("defaultWatchCLIRun() error = %v, want exit code 1", err)
+		}
+		if !strings.Contains(dst.String(), "run failed | task failed") {
+			t.Fatalf("watch output = %q, want rendered failure", dst.String())
 		}
 	})
 

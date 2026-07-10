@@ -109,3 +109,21 @@ These principles converge on one truth:
 Not perfectly. Not over-engineered. But correctly — with honest types, meaningful error handling, proper lifecycle management, and code that says what it means.
 
 Every workaround is a lie that compounds over time. The no-workarounds principle is simply the practice of telling the truth in code.
+
+## Answers to Common Rationalizations
+
+Every excuse for shipping a workaround has a known rebuttal.
+
+| Excuse                                         | Reality                                                       |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| "It's just a small workaround"                 | Small workarounds become big patterns when copied             |
+| "We don't have time for the proper fix"        | Workarounds cost MORE time in debugging and maintenance       |
+| "The type system is too strict"                | The type system found a real bug — listen to it               |
+| "Nobody will copy this"                        | Every workaround in a codebase gets copied within 3 months    |
+| "It's behind a feature flag"                   | Feature flags don't expire — the workaround becomes permanent |
+| "The test passes"                              | A passing test with a workaround tests the workaround, not the code |
+| "I'll create a tech debt ticket"               | 93% of tech debt tickets are never resolved                   |
+| "The external library forces this"             | Use the escape valve — with all four conditions               |
+| "It works, don't touch it"                     | Fear masking a fragile workaround                             |
+| "We'll fix it properly later"                  | Later never comes                                             |
+| "It's just temporary"                          | Nothing is more permanent than a temporary workaround         |

@@ -94,7 +94,7 @@ func EnsureAvailable(ctx context.Context, cfg *model.RuntimeConfig) error {
 	if err != nil {
 		return err
 	}
-	if err := validateRuntimeModelCompatibility(spec, resolvedModel, command); err != nil {
+	if err := validateRuntimeCompatibility(spec, resolvedModel, cfg.ReasoningEffort, command); err != nil {
 		return err
 	}
 	return nil
@@ -194,6 +194,12 @@ func normalizeRequestedModel(modelName string) string {
 
 func normalizeRuntimeModel(spec Spec, modelName string) string {
 	trimmed := strings.TrimSpace(modelName)
+	if spec.ID == model.IDEClaude {
+		if canonical, ok := canonicalClaudeFableModel(trimmed); ok {
+			return canonical
+		}
+		return trimmed
+	}
 	if spec.ID != model.IDECodex {
 		return trimmed
 	}
@@ -263,7 +269,7 @@ func (s Spec) launchCommandForPreview(modelName, reasoningEffort string, addDirs
 	for _, launcher := range s.launchers() {
 		command := launcher.launchCommand(s, modelName, reasoningEffort, addDirs, accessMode)
 		if err := assertCommandExists(s, command); err == nil {
-			return command
+			return appendLegacyBootstrapArgs(s, launcher, command, modelName, reasoningEffort, addDirs, accessMode)
 		}
 	}
 	return s.launchCommand(modelName, reasoningEffort, addDirs, accessMode)
@@ -331,9 +337,52 @@ func resolveLaunchCommand(
 				continue
 			}
 		}
+		command = appendLegacyBootstrapArgs(
+			spec,
+			launcher,
+			command,
+			modelName,
+			reasoningEffort,
+			addDirs,
+			accessMode,
+		)
 		return command, nil
 	}
 	return nil, joinAvailabilityErrors(spec, attemptErrs)
+}
+
+func appendLegacyBootstrapArgs(
+	spec Spec,
+	launcher Launcher,
+	command []string,
+	modelName string,
+	reasoningEffort string,
+	addDirs []string,
+	accessMode string,
+) []string {
+	if spec.LegacyBootstrapArgs == nil || !launcherUsesLegacyCodexACP(launcher) {
+		return command
+	}
+	return append(
+		command,
+		spec.LegacyBootstrapArgs(modelName, reasoningEffort, addDirs, accessMode)...,
+	)
+}
+
+func launcherUsesLegacyCodexACP(launcher Launcher) bool {
+	for _, arg := range launcher.FixedArgs {
+		if strings.TrimSpace(arg) == legacyCodexACPNPMPackageName {
+			return true
+		}
+		if strings.TrimSpace(arg) == codexACPNPMPackageName {
+			return false
+		}
+	}
+	if launcher.Command != "codex-acp" {
+		return false
+	}
+	installation, ok := detectCodexACPInstallation(launcher.Command)
+	return ok && installation.PackageName == legacyCodexACPNPMPackageName
 }
 
 func verifyLauncher(ctx context.Context, spec Spec, launcher Launcher) error {
