@@ -468,9 +468,15 @@ func startReviewRunWithFeedback(
 	<-finished
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			// The daemon detaches the run start from this request context, so it can
+			// finish creating and starting the run in the background after we give up
+			// here. Warn against a blind retry, which would launch a duplicate run.
 			return apicore.Run{}, fmt.Errorf(
-				"review run did not start within %s: the daemon may be busy syncing "+
-					"workflow state — retry, or run `compozy runs purge` to reduce contention",
+				"review run did not start within %s: the daemon may still be syncing "+
+					"workflow state and can finish starting this run in the background, so "+
+					"retrying now risks a duplicate run — wait for the daemon to settle and "+
+					"confirm no run is active before retrying, or run `compozy runs purge` "+
+					"to clear stale runs and reduce contention",
 				timeout,
 			)
 		}
