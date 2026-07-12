@@ -120,17 +120,24 @@ Re-running the same command with no further changes prints `no changes` and writ
 
 7. Assign numbers deterministically (shell, not LLM).
    - Process NEW/SUPERSEDE records **one at a time**: compute the id, write its body, then recompute for
-     the next record. The count below is stateful, so an id is only reserved once its file exists on disk —
-     never batch-assign ids before writing (two records that both count zero existing files would both
-     resolve to `AD-001` and collide).
-   - For each NEW/SUPERSEDE record, compute the next id by counting existing bodies, e.g.:
+     the next record. The derivation below reads on-disk state, so an id is only reserved once its file
+     exists — never batch-assign ids before writing (two records computed against the same directory
+     snapshot resolve to the same `AD-NNN` and collide).
+   - For each NEW/SUPERSEDE record, compute the next id from the **maximum existing suffix** — not the file
+     count, which reuses an id whenever the numbering has a gap (`AD-001`, `AD-003`, `AD-004` counts 3 and
+     would reselect the existing `AD-004`, overwriting a real decision body). A gap can arise from a manual
+     repair, an import, or an interrupted prior capture (US-006.EC-2). Derive from the max instead:
 
      ```bash
-     n=$(($(ls .compozy/decisions/AD-*.md 2>/dev/null | wc -l) + 1)); printf 'AD-%03d\n' "$n"
+     max=$(ls .compozy/decisions/AD-*.md 2>/dev/null | sed -E 's#.*/AD-0*([0-9]+)\.md#\1#' \
+       | sort -n | tail -1); printf 'AD-%03d\n' "$((${max:-0} + 1))"
      ```
 
-   - Because each body is written before the next id is computed, two NEW decisions in one run take
-     consecutive ids (`AD-001`, `AD-002`) with no collision. UPDATE records keep their existing id.
+   - Deriving from the max keeps ids unique even across a gap — the example above yields `AD-005`, never a
+     reused `AD-004`, honoring the "unique across the whole log. Never reused" contract in
+     `references/decision-record-template.md`. Because each body is written before the next id is computed,
+     two NEW decisions in one run still take consecutive ids with no collision. UPDATE records keep their
+     existing id.
    - Write each body to `.compozy/decisions/AD-NNN.md` (zero-padded 3 digits). Create `.compozy/decisions/`
      if missing.
 
