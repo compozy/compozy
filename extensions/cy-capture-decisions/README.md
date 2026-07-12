@@ -16,7 +16,7 @@ detailed section below. Steps 3–4 are one-time setup you apply by hand — the
 1. **Install** the extension and its skill — [details](#install):
 
    ```bash
-   compozy ext install
+   compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-capture-decisions
    compozy ext enable cy-capture-decisions
    compozy setup
    ```
@@ -59,9 +59,9 @@ The exact file grammar lives with the skill and is enforced by CI (see
 ## Install
 
 ```bash
-compozy ext install                    # copy the extension bundle into the extensions dir
-compozy ext enable cy-capture-decisions # user/workspace bundles are disabled by default
-compozy setup                          # install the skill into your agents' skill dirs
+compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-capture-decisions  # fetch the bundle into the extensions dir
+compozy ext enable cy-capture-decisions  # user/workspace bundles are disabled by default
+compozy setup  # install the skill into your agents' skill dirs
 ```
 
 `compozy setup` is idempotent: re-running it re-installs the same skill without creating duplicates.
