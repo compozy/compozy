@@ -64,6 +64,12 @@ var (
 	errIDFilenameMismatch = errors.New("record id does not match filename")
 	// errStatusLinkMismatch: a record is superseded iff it names its successor.
 	errStatusLinkMismatch = errors.New("status and superseded_by are inconsistent")
+	// errIndexBodyMismatch: an index line's denormalized title/source_slug must
+	// equal the body it points at (index-format.md: the line is a copy of body fields).
+	errIndexBodyMismatch = errors.New("index line disagrees with body")
+	// errMissingIndexLine: every active-proven body must carry an index line
+	// (index-format.md membership rule is a biconditional: proven+active iff indexed).
+	errMissingIndexLine = errors.New("active-proven record absent from index")
 )
 
 // DecisionRecordMeta is the YAML frontmatter of a .compozy/decisions/AD-NNN.md
@@ -217,10 +223,13 @@ func parseTagList(field string) ([]string, error) {
 }
 
 // validateIndex parses a DECISIONS.md file, skipping header/comment lines, and
-// enforces that every decision line is active-proven. An empty-state index
-// (header only, zero decision lines) is valid and yields zero records.
+// enforces that every decision line is active-proven and that no id is listed
+// twice (index-format.md: the set is regenerated whole on each capture, never
+// appended, so a duplicate line would double-load a decision). An empty-state
+// index (header only, zero decision lines) is valid and yields zero records.
 func validateIndex(content string) ([]indexLine, error) {
 	var lines []indexLine
+	seen := make(map[string]struct{})
 	for _, raw := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
@@ -233,6 +242,10 @@ func validateIndex(content string) ([]indexLine, error) {
 		if line.Status != statusProven {
 			return nil, fmt.Errorf("line %q is %s: %w", trimmed, line.Status, errIndexNotProven)
 		}
+		if _, dup := seen[line.ID]; dup {
+			return nil, fmt.Errorf("index id %s: %w", line.ID, errDuplicateID)
+		}
+		seen[line.ID] = struct{}{}
 		lines = append(lines, line)
 	}
 	return lines, nil
@@ -307,7 +320,9 @@ func checkNoCycles(records []DecisionRecordMeta, byID map[string]DecisionRecordM
 
 // validateLog validates a full decision log rooted at fsys: the DECISIONS.md
 // index, every AD-NNN.md body under decisions/, that each index line resolves to
-// an existing active-proven body, and that supersession metadata is consistent.
+// an existing active-proven body whose denormalized fields match, that every
+// active-proven body is itself indexed (the membership biconditional), and that
+// supersession metadata is consistent.
 func validateLog(fsys fs.FS) error {
 	content, err := fs.ReadFile(fsys, indexFileName)
 	if err != nil {
@@ -322,6 +337,9 @@ func validateLog(fsys fs.FS) error {
 		return err
 	}
 	if err := checkIndexRefs(fsys, lines, byID); err != nil {
+		return err
+	}
+	if err := checkIndexMembership(lines, records); err != nil {
 		return err
 	}
 	return validateSupersession(records)
@@ -364,8 +382,9 @@ func loadRecords(fsys fs.FS) (map[string]DecisionRecordMeta, []DecisionRecordMet
 }
 
 // checkIndexRefs verifies every index line points at an existing body file that
-// is itself active-proven (defending the index membership rule against the
-// bodies, not just the line text).
+// is itself active-proven and whose denormalized title/source_slug match the
+// body they copy (defending the index membership and consistency rules against
+// the bodies, not just the line text).
 func checkIndexRefs(fsys fs.FS, lines []indexLine, byID map[string]DecisionRecordMeta) error {
 	for _, line := range lines {
 		path := decisionsDirName + "/" + line.ID + recordFileExt
@@ -382,6 +401,31 @@ func checkIndexRefs(fsys fs.FS, lines []indexLine, byID map[string]DecisionRecor
 		if meta.Status != statusProven || meta.SupersededBy != "" {
 			return fmt.Errorf("index line %s references non-active-proven body: %w",
 				line.ID, errIndexNotProven)
+		}
+		if line.Title != meta.Title || line.SourceSlug != meta.SourceSlug {
+			return fmt.Errorf("index line %s title/source_slug disagree with body: %w",
+				line.ID, errIndexBodyMismatch)
+		}
+	}
+	return nil
+}
+
+// checkIndexMembership enforces the reverse half of the membership biconditional
+// (index-format.md: include a record iff it is proven and not superseded): every
+// active-proven body must carry a matching index line, so a proven decision
+// cannot be silently dropped from the loaded index surface.
+func checkIndexMembership(lines []indexLine, records []DecisionRecordMeta) error {
+	indexed := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		indexed[line.ID] = struct{}{}
+	}
+	for i := range records {
+		rec := records[i]
+		if rec.Status != statusProven || rec.SupersededBy != "" {
+			continue
+		}
+		if _, ok := indexed[rec.ID]; !ok {
+			return fmt.Errorf("active-proven %s: %w", rec.ID, errMissingIndexLine)
 		}
 	}
 	return nil

@@ -171,6 +171,16 @@ func TestValidateIndex(t *testing.T) {
 			}
 		})
 	}
+	t.Run("duplicate id row is rejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := validateIndex(readFixture(t, "index-duplicate-row.md"))
+		if !errors.Is(err, errDuplicateID) {
+			t.Fatalf("err = %v, want errDuplicateID", err)
+		}
+		if !strings.Contains(err.Error(), "AD-001") {
+			t.Fatalf("err = %v, want it to name AD-001", err)
+		}
+	})
 }
 
 // UT-006: bidirectional supersession is valid; a one-sided link is a broken-link
@@ -271,6 +281,40 @@ func TestValidateLog(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "AD-007") {
 			t.Fatalf("err = %v, want it to name AD-007", err)
+		}
+	})
+	t.Run("index line whose title/source_slug drift from the body is rejected", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		// validRecordBody("AD-001") declares title "Event-sourcing for orders" and
+		// source_slug "feat-orders"; the index row denormalizes a contradicting
+		// title and slug, so the line loads a record that disagrees with its body.
+		writeFile(t, filepath.Join(dir, indexFileName),
+			"# Project Decisions (active, proven)\n\n"+
+				"AD-001 | Wrong Title | proven | [orders, async] | audit + replay | wrong-slug\n")
+		writeFile(t, filepath.Join(dir, decisionsDirName, "AD-001"+recordFileExt), validRecordBody("AD-001"))
+		err := validateLog(os.DirFS(dir))
+		if !errors.Is(err, errIndexBodyMismatch) {
+			t.Fatalf("err = %v, want errIndexBodyMismatch", err)
+		}
+		if !strings.Contains(err.Error(), "AD-001") {
+			t.Fatalf("err = %v, want it to name AD-001", err)
+		}
+	})
+	t.Run("active-proven body absent from the index is rejected", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		// Empty-state index, but a proven, active body exists on disk — the reverse
+		// membership half (body -> index) must flag the silently dropped decision.
+		writeFile(t, filepath.Join(dir, indexFileName),
+			"# Project Decisions (active, proven)\n\n# No active, proven decisions captured yet.\n")
+		writeFile(t, filepath.Join(dir, decisionsDirName, "AD-001"+recordFileExt), validRecordBody("AD-001"))
+		err := validateLog(os.DirFS(dir))
+		if !errors.Is(err, errMissingIndexLine) {
+			t.Fatalf("err = %v, want errMissingIndexLine", err)
+		}
+		if !strings.Contains(err.Error(), "AD-001") {
+			t.Fatalf("err = %v, want it to name AD-001", err)
 		}
 	})
 }
