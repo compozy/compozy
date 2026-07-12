@@ -10,7 +10,7 @@ format validator (task_02) and read on demand by future features. One decision p
 ```
 
 - `NNN` is a three-digit zero-padded, sequential id (`001`, `002`, ...).
-- Assigned to a NEW/SUPERSEDE record as `(count of existing .compozy/decisions/AD-*.md) + 1`.
+- Assigned to a NEW/SUPERSEDE record as the next sequential id; SKILL.md step 7 defines the exact derivation (from the maximum existing `AD-NNN` suffix, so a numbering gap never reuses an id).
 - The bodies live at the **workspace root**, never under `.compozy/tasks/<slug>/`.
 
 ## Format

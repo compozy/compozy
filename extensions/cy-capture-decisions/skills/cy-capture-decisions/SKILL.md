@@ -32,7 +32,9 @@ Read the three references before writing anything:
   `Reconciliation` section, and filename pattern.
 - `references/index-format.md` — the exact `DECISIONS.md` line grammar and membership rule.
 
-## Example
+## Examples
+
+### Promotion (happy path)
 
 Invoking `/cy-capture-decisions feat-orders` on a finished, verified workflow whose plan had one
 cross-feature-durable ADR (`adrs/adr-002.md`, event-sourcing) and two feature-local ADRs writes
@@ -52,6 +54,18 @@ Captured from feat-orders:
 ```
 
 Re-running the same command with no further changes prints `no changes` and writes nothing.
+
+### Degraded mode (diff unscopable)
+
+When the diff cannot be scoped (unknown base, broken range, detached history), capture degrades: it reconciles from `memory/MEMORY.md` + review issues instead, writes each affected decision as `candidate` (never `proven`), and marks its `Reconciliation` section "unverified against code". A `candidate` is excluded from the index, so `.compozy/DECISIONS.md` stays empty here and the summary reports the scoping failure:
+
+```
+Captured from feat-orders (DEGRADED: diff unscopable — detached HEAD):
+  CANDIDATE  AD-001  NEW  Event-sourcing for orders (unverified against code — diff unscopable)
+  SKIPPED    adr-001      feature-local table naming (obvious from schema)
+```
+
+A later re-run once the diff is scopable promotes the same `AD-001` to `proven` in place — no new id.
 
 ## Workflow
 
