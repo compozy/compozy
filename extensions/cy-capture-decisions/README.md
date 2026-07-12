@@ -121,6 +121,8 @@ skill:
 - `skills/cy-capture-decisions/references/index-format.md` — the `DECISIONS.md` line grammar and the
   active-`proven`-only membership rule.
 
-A Go validator (`decisionlog`, shipped beside this extension) parses these same file shapes in
-`make verify`, so a malformed record or a non-`proven` index line fails CI rather than silently
-polluting the log.
+A Go validator (`decisionlog`, shipped beside this extension) parses fixture logs of this exact
+shape in `make verify`, so the documented grammar and its examples stay self-consistent and any
+regression in the format contract fails CI. It is a test-only asset (ADR-004) that guards the
+format definition — it does not run over the log a project actually produces, so a clean
+`make verify` proves the grammar is stable, not that a given `.compozy/DECISIONS.md` is well-formed.
