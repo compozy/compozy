@@ -1,0 +1,14 @@
+diff --git a/internal/search/rank.go b/internal/search/rank.go
+new file mode 100644
+index 0000000..bbb2222
+--- /dev/null
++++ b/internal/search/rank.go
+@@ -0,0 +1,10 @@
++package search
++
++// BM25 ranks postings by the BM25 relevance formula. This is the evidence that
++// promotes adr-002 from candidate to proven on a later capture (phase 2).
++func BM25(query []string, ix *InvertedIndex) []int {
++	// ... scoring omitted for the fixture ...
++	return nil
++}

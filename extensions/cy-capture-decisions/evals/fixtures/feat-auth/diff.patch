@@ -1,0 +1,18 @@
+diff --git a/internal/auth/sessions.go b/internal/auth/sessions.go
+new file mode 100644
+index 0000000..ccc3333
+--- /dev/null
++++ b/internal/auth/sessions.go
+@@ -0,0 +1,14 @@
++package auth
++
++// SessionStore holds server-side sessions and a revocation set, replacing stateless JWTs.
++type SessionStore struct {
++	active  map[string]Session
++	revoked map[string]struct{}
++}
++
++func (s *SessionStore) Revoke(id string) {
++	delete(s.active, id)
++	s.revoked[id] = struct{}{}
++}

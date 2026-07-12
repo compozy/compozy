@@ -7,6 +7,36 @@ Run it as the **final step** of a workflow. It reconciles the plan (the workflow
 against the settled reality (the code diff, review issues, and task status), then promotes only the
 proven, cross-feature-durable decisions into a two-tier log at your workspace root.
 
+## Quick start
+
+From install to a log every future session reads automatically, in four steps. Each links to its
+detailed section below. Steps 3–4 are one-time setup you apply by hand — the skill never edits your
+`.gitignore` or memory files for you.
+
+1. **Install** the extension and its skill — [details](#install):
+
+   ```bash
+   compozy ext install
+   compozy ext enable cy-capture-decisions
+   compozy setup
+   ```
+
+2. **Capture** as the workflow's final step, after a clean `/cy-final-verify` — [details](#usage):
+
+   ```bash
+   /cy-capture-decisions <slug>
+   ```
+
+3. **Keep the log committed** — only if your repo ignores `.compozy/**`; add the gitignore negations —
+   [details](#make-the-decision-log-durable-gitignore).
+
+4. **Wire the index into agent memory** so every session (planning included) loads it —
+   [details](#wire-the-index-into-agent-memory):
+
+   ```text
+   @.compozy/DECISIONS.md
+   ```
+
 ## What it ships
 
 - `/cy-capture-decisions <slug>` — the capture skill (Markdown instructions + `references/`).

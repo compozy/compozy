@@ -1,0 +1,31 @@
+diff --git a/internal/orders/eventstore.go b/internal/orders/eventstore.go
+new file mode 100644
+index 0000000..abc1234
+--- /dev/null
++++ b/internal/orders/eventstore.go
+@@ -0,0 +1,28 @@
++package orders
++
++// EventStore is an append-only stream of order events; current state is a fold.
++type EventStore struct {
++	events []Event
++	seen   map[string]struct{} // idempotency: command ids already applied
++}
++
++// Append records an event unless its command id was already applied (idempotent write).
++func (s *EventStore) Append(cmdID string, e Event) {
++	if _, ok := s.seen[cmdID]; ok {
++		return
++	}
++	s.seen[cmdID] = struct{}{}
++	s.events = append(s.events, e)
++}
++
++// Project folds the event stream into the current order read model.
++func (s *EventStore) Project() OrderState {
++	var st OrderState
++	for _, e := range s.events {
++		st = st.Apply(e)
++	}
++	return st
++}
