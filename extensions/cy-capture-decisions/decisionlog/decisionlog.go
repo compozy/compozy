@@ -60,6 +60,10 @@ var (
 	errSupersedeChain = errors.New("supersession chain does not resolve to a single active head")
 	errUnknownRecord  = errors.New("referenced decision record does not exist")
 	errDuplicateID    = errors.New("duplicate decision id")
+	// errIDFilenameMismatch: a record's frontmatter id must equal its filename stem.
+	errIDFilenameMismatch = errors.New("record id does not match filename")
+	// errStatusLinkMismatch: a record is superseded iff it names its successor.
+	errStatusLinkMismatch = errors.New("status and superseded_by are inconsistent")
 )
 
 // DecisionRecordMeta is the YAML frontmatter of a .compozy/decisions/AD-NNN.md
@@ -255,8 +259,13 @@ func validateSupersession(records []DecisionRecordMeta) error {
 	return checkNoCycles(records, byID)
 }
 
-// checkRecordLinks verifies both directions of a record's supersession links.
+// checkRecordLinks verifies a record's status/link agreement (superseded iff it
+// names a successor) and that its supersession links are bidirectional.
 func checkRecordLinks(rec DecisionRecordMeta, byID map[string]DecisionRecordMeta) error {
+	if (rec.Status == statusSuperseded) != (rec.SupersededBy != "") {
+		return fmt.Errorf("%s: status %q inconsistent with superseded_by %q: %w",
+			rec.ID, rec.Status, rec.SupersededBy, errStatusLinkMismatch)
+	}
 	if rec.SupersededBy != "" {
 		successor, ok := byID[rec.SupersededBy]
 		if !ok {
@@ -343,6 +352,10 @@ func loadRecords(fsys fs.FS) (map[string]DecisionRecordMeta, []DecisionRecordMet
 		meta, err := parseDecisionRecord(string(body))
 		if err != nil {
 			return nil, nil, fmt.Errorf("record %s: %w", path, err)
+		}
+		if stem := strings.TrimSuffix(name, recordFileExt); meta.ID != stem {
+			return nil, nil, fmt.Errorf("record %s: id %q does not match filename: %w",
+				path, meta.ID, errIDFilenameMismatch)
 		}
 		byID[meta.ID] = meta
 		records = append(records, meta)

@@ -211,6 +211,25 @@ func TestValidateSupersession(t *testing.T) {
 			t.Fatalf("active heads = %v, want [AD-003]", active)
 		}
 	})
+	t.Run("superseded_by on a non-superseded record is a status/link mismatch", func(t *testing.T) {
+		t.Parallel()
+		linkedButActive := []DecisionRecordMeta{
+			{ID: "AD-001", Status: statusProven, SupersededBy: "AD-002"},
+			{ID: "AD-002", Status: statusProven, Supersedes: []string{"AD-001"}},
+		}
+		if err := validateSupersession(linkedButActive); !errors.Is(err, errStatusLinkMismatch) {
+			t.Fatalf("err = %v, want errStatusLinkMismatch", err)
+		}
+	})
+	t.Run("superseded status without a successor is a dangling head", func(t *testing.T) {
+		t.Parallel()
+		danglingHead := []DecisionRecordMeta{
+			{ID: "AD-001", Status: statusSuperseded},
+		}
+		if err := validateSupersession(danglingHead); !errors.Is(err, errStatusLinkMismatch) {
+			t.Fatalf("err = %v, want errStatusLinkMismatch", err)
+		}
+	})
 }
 
 // UT-008: a valid golden log passes; an index line whose body file is missing is
@@ -237,6 +256,21 @@ func TestValidateLog(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "AD-009") {
 			t.Fatalf("err = %v, want it to name AD-009", err)
+		}
+	})
+	t.Run("record body whose id does not match its filename is rejected", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, indexFileName), "# Project Decisions (active, proven)\n")
+		// File named AD-002.md but frontmatter claims AD-007 (a copy-paste slip);
+		// neither id is in the index, so only the load-time identity check catches it.
+		writeFile(t, filepath.Join(dir, decisionsDirName, "AD-002"+recordFileExt), validRecordBody("AD-007"))
+		err := validateLog(os.DirFS(dir))
+		if !errors.Is(err, errIDFilenameMismatch) {
+			t.Fatalf("err = %v, want errIDFilenameMismatch", err)
+		}
+		if !strings.Contains(err.Error(), "AD-007") {
+			t.Fatalf("err = %v, want it to name AD-007", err)
 		}
 	})
 }
