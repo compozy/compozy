@@ -70,6 +70,10 @@ var (
 	// errMissingIndexLine: every active-proven body must carry an index line
 	// (index-format.md membership rule is a biconditional: proven+active iff indexed).
 	errMissingIndexLine = errors.New("active-proven record absent from index")
+	// errIndexUnsorted: index lines must be in ascending AD-NNN order so
+	// cross-capture diffs stay stable (index-format.md Rules: "Sort lines by
+	// AD-NNN ascending so diffs stay stable across captures").
+	errIndexUnsorted = errors.New("index lines are not in ascending AD-NNN order")
 )
 
 // DecisionRecordMeta is the YAML frontmatter of a .compozy/decisions/AD-NNN.md
@@ -223,13 +227,16 @@ func parseTagList(field string) ([]string, error) {
 }
 
 // validateIndex parses a DECISIONS.md file, skipping header/comment lines, and
-// enforces that every decision line is active-proven and that no id is listed
-// twice (index-format.md: the set is regenerated whole on each capture, never
-// appended, so a duplicate line would double-load a decision). An empty-state
-// index (header only, zero decision lines) is valid and yields zero records.
+// enforces that every decision line is active-proven, that no id is listed twice
+// (index-format.md: the set is regenerated whole on each capture, never appended,
+// so a duplicate line would double-load a decision), and that ids appear in
+// ascending AD-NNN order (index-format.md Rules: keep cross-capture diffs stable).
+// An empty-state index (header only, zero decision lines) is valid and yields
+// zero records.
 func validateIndex(content string) ([]indexLine, error) {
 	var lines []indexLine
 	seen := make(map[string]struct{})
+	var last string
 	for _, raw := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
@@ -245,10 +252,37 @@ func validateIndex(content string) ([]indexLine, error) {
 		if _, dup := seen[line.ID]; dup {
 			return nil, fmt.Errorf("index id %s: %w", line.ID, errDuplicateID)
 		}
+		if last != "" && adIDLess(line.ID, last) {
+			return nil, fmt.Errorf("index line %s follows %s out of order: %w",
+				line.ID, last, errIndexUnsorted)
+		}
 		seen[line.ID] = struct{}{}
+		last = line.ID
 		lines = append(lines, line)
 	}
 	return lines, nil
+}
+
+// adIDLess reports whether AD id a sorts before b in the ascending order the
+// index-format Rules require. Both ids match adIDPattern ("AD-" + \d{3,}), so the
+// comparison is on the numeric value of that digit suffix, not the raw string: a
+// lexical "<" would misorder AD-1000 before AD-999 once ids exceed three digits.
+// Leading zeros are stripped, then a shorter digit run is the smaller number and
+// equal-length runs compare lexically — correct for any width without risking
+// integer overflow on an arbitrarily long suffix.
+func adIDLess(a, b string) bool {
+	na, nb := adIDMagnitude(a), adIDMagnitude(b)
+	if len(na) != len(nb) {
+		return len(na) < len(nb)
+	}
+	return na < nb
+}
+
+// adIDMagnitude returns an AD id's digit suffix with leading zeros removed, so
+// its length is the number's magnitude (e.g. "AD-007" -> "7", "AD-1000" -> "1000",
+// "AD-000" -> ""). The input is assumed to have already matched adIDPattern.
+func adIDMagnitude(id string) string {
+	return strings.TrimLeft(strings.TrimPrefix(id, "AD-"), "0")
 }
 
 // validateSupersession verifies that supersession metadata is internally

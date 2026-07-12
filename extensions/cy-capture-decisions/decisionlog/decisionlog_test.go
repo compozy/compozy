@@ -181,6 +181,36 @@ func TestValidateIndex(t *testing.T) {
 			t.Fatalf("err = %v, want it to name AD-001", err)
 		}
 	})
+	t.Run("descending ids are rejected as unsorted", func(t *testing.T) {
+		t.Parallel()
+		_, err := validateIndex(readFixture(t, "index-unsorted.md"))
+		if !errors.Is(err, errIndexUnsorted) {
+			t.Fatalf("err = %v, want errIndexUnsorted", err)
+		}
+		if !strings.Contains(err.Error(), "AD-001") || !strings.Contains(err.Error(), "AD-004") {
+			t.Fatalf("err = %v, want it to name AD-001 and AD-004", err)
+		}
+	})
+	// Ordering is numeric on the id suffix, not lexical: a plain string compare
+	// would misorder AD-1000 before AD-999. These two cases pin that behavior.
+	t.Run("ascending multi-width ids pass numeric ordering", func(t *testing.T) {
+		t.Parallel()
+		const idx = "# Project Decisions (active, proven)\n\n" +
+			"AD-999 | Nine ninety-nine | proven | [x] | r | s\n" +
+			"AD-1000 | One thousand | proven | [x] | r | s\n"
+		if _, err := validateIndex(idx); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+	t.Run("descending multi-width ids are rejected", func(t *testing.T) {
+		t.Parallel()
+		const idx = "# Project Decisions (active, proven)\n\n" +
+			"AD-1000 | One thousand | proven | [x] | r | s\n" +
+			"AD-999 | Nine ninety-nine | proven | [x] | r | s\n"
+		if _, err := validateIndex(idx); !errors.Is(err, errIndexUnsorted) {
+			t.Fatalf("err = %v, want errIndexUnsorted", err)
+		}
+	})
 }
 
 // UT-006: bidirectional supersession is valid; a one-sided link is a broken-link
