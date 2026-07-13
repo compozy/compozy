@@ -331,6 +331,24 @@ func TestValidateLog(t *testing.T) {
 			t.Fatalf("err = %v, want it to name AD-001", err)
 		}
 	})
+	t.Run("index line whose tags drift from the body is rejected", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		// validRecordBody("AD-001") declares tags [orders, async]; the index keeps the
+		// title and slug but denormalizes a stale tag list. Because the index is the
+		// scoped-loading surface, a wrong tag must fail validation, not pass silently.
+		writeFile(t, filepath.Join(dir, indexFileName),
+			"# Project Decisions (active, proven)\n\n"+
+				"AD-001 | Event-sourcing for orders | proven | [orders, sync] | audit + replay | feat-orders\n")
+		writeFile(t, filepath.Join(dir, decisionsDirName, "AD-001"+recordFileExt), validRecordBody("AD-001"))
+		err := validateLog(os.DirFS(dir))
+		if !errors.Is(err, errIndexBodyMismatch) {
+			t.Fatalf("err = %v, want errIndexBodyMismatch", err)
+		}
+		if !strings.Contains(err.Error(), "AD-001") {
+			t.Fatalf("err = %v, want it to name AD-001", err)
+		}
+	})
 	t.Run("active-proven body absent from the index is rejected", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()

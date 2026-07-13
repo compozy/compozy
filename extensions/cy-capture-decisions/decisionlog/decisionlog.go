@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/fs"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
@@ -436,8 +437,9 @@ func checkIndexRefs(fsys fs.FS, lines []indexLine, byID map[string]DecisionRecor
 			return fmt.Errorf("index line %s references non-active-proven body: %w",
 				line.ID, errIndexNotProven)
 		}
-		if line.Title != meta.Title || line.SourceSlug != meta.SourceSlug {
-			return fmt.Errorf("index line %s title/source_slug disagree with body: %w",
+		if line.Title != meta.Title || line.SourceSlug != meta.SourceSlug ||
+			!slices.Equal(line.Tags, meta.Tags) {
+			return fmt.Errorf("index line %s title/tags/source_slug disagree with body: %w",
 				line.ID, errIndexBodyMismatch)
 		}
 	}
