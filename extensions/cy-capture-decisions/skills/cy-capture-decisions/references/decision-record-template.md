@@ -54,7 +54,9 @@ the plan. Mark each divergence with a [DEVIATION] marker and cite the evidence t
 ## Field Definitions
 
 - **id**: `AD-NNN`, zero-padded, sequential, unique across the whole log. Never reused.
-- **title**: One-line human summary of the decision. Keep it short and specific.
+- **title**: One-line human summary of the decision. Keep it short and specific. Must not contain a
+  literal `|`: it is copied verbatim into the pipe-delimited index line, so render any pipe as `/`
+  (e.g. `JWT / opaque tokens`).
 - **status**: Exactly one of `proven`, `candidate`, `superseded`.
   - `proven` — evidence-backed; appears in the index; loaded into agent memory.
   - `candidate` — relevance-gated but no evidence yet; excluded from the index; promotable to `proven`

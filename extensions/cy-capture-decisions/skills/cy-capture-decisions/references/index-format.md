@@ -29,6 +29,11 @@ Six pipe-delimited fields, in this fixed order:
 - **rationale** — a one-line reason the decision matters; the terse "why", not the full body.
 - **source_slug** — the originating workflow slug (provenance at a glance).
 
+**`|` is the reserved field delimiter.** The line is split on `|` into exactly six fields, so **Title**
+and **rationale** must not contain a literal `|` — render any pipe as `/` (e.g. `JWT / opaque tokens`).
+Title is copied verbatim from the body `title` (kept pipe-free for the same reason), so the two always
+agree and the validator's index↔body check passes.
+
 ## Membership Rule
 
 - Include a record **iff** it is `proven` AND not `superseded` (i.e. `superseded_by: null`).

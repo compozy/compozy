@@ -186,6 +186,10 @@ A later re-run once the diff is scopable promotes the same `AD-001` to `proven` 
   files but are excluded from `DECISIONS.md` (ADR-003).
 - **Filenames and index lines must match the grammar** in `references/decision-record-template.md` and
   `references/index-format.md` exactly — a validator (task_02) parses them.
+- **`|` is the index's reserved delimiter.** A decision `title` and its index `rationale` must not
+  contain a literal `|` — render any pipe as `/`. The index Title is a verbatim copy of the body `title`
+  (the validator enforces equality), so keeping both pipe-free keeps them consistent
+  (`references/index-format.md`).
 - **Write the log at the workspace root** (`.compozy/DECISIONS.md`, `.compozy/decisions/AD-NNN.md`), never
   under `.compozy/tasks/<slug>/` (ADR-002).
 - **Cite evidence for every `proven` record.** A decision without cited diff/review/verify evidence is

@@ -109,9 +109,11 @@ The log is only useful if it is committed and shared. What you need depends on y
 
 The middle line (`!.compozy/decisions/`) re-includes the directory itself, which git requires before
 either `!.compozy/decisions/**` or the index negation can take effect — git will not re-include a file
-whose parent directory is still excluded. With all three lines,
-`git check-ignore .compozy/DECISIONS.md` and `git check-ignore .compozy/decisions/AD-001.md` both
-report the paths as tracked.
+whose parent directory is still excluded. Verify the result with the `-v` form:
+`git check-ignore -v .compozy/DECISIONS.md` (and the same for `.compozy/decisions/AD-001.md`) prints the
+matching negation rule — e.g. `.gitignore:2:!.compozy/DECISIONS.md` — and exits 0, confirming the path
+is no longer ignored. Plain `git check-ignore` prints nothing and exits 1 for a re-included path, so its
+silence is the only "tracked" signal; the `-v` form is the unambiguous check.
 
 If you skip this step in an ignore-heavy repo, capture still writes the log, but it stays uncommitted
 and non-durable — and the "review the diff before sharing" flow does not apply, because there is no
