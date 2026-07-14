@@ -19,8 +19,8 @@ COMPOZY_RUN_SKILL_E2E=1 COMPOZY_E2E_BINARY="$PWD/bin/compozy" \
   go test -count=1 -v ./extensions/cy-improve-architecture/evals
 ```
 
-Set `COMPOZY_E2E_IDE` or `COMPOZY_E2E_MODEL` when another configured ACP runtime or model is needed.
-The test defaults to Codex's supported `gpt-5.6-sol` model rather than inheriting a workspace default.
+`COMPOZY_E2E_IDE` selects the ACP runtime. Set `COMPOZY_E2E_MODEL` to override that runtime's
+model; when it is unset, the selected runtime resolves its registered default.
 It verifies the installed-skill boundary, report publication, required report sections, the protected
 instruction and configuration files, and `archmap.Parse` over the produced `ARCHITECTURE.md`.
 `SCENARIOS.md` keeps the full behavioral contract visible for the agent-evaluation run; E2E-028 remains
