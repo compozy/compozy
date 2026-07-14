@@ -4,6 +4,6 @@
 
 # do NOT re-propose avoided deepenings. Detail: .compozy/arch-reviews/<area>.md
 
-## apps/web | audited 2026-07-13 | report .compozy/arch-reviews/apps-web.md
+# Architecture Depth Map (active)
 
-avoid | 2026-07-13 | what
+## internal/core | audited 2026-07-13 | report -

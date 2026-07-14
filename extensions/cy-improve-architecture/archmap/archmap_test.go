@@ -182,6 +182,36 @@ func TestParseInvalidFixtures(t *testing.T) {
 			wantKind:    ErrorGroupOrder,
 			wantMessage: "deep, seam, avoid",
 		},
+		{
+			name:        "UT-012 rejects an area without the canonical header",
+			fixture:     "headerless-area.md",
+			wantKind:    ErrorHeader,
+			wantMessage: "document header",
+		},
+		{
+			name:        "UT-013 rejects an empty document",
+			fixture:     "empty-document.md",
+			wantKind:    ErrorHeader,
+			wantMessage: "document header",
+		},
+		{
+			name:        "UT-014 rejects comment-only garbage",
+			fixture:     "comment-only-garbage.md",
+			wantKind:    ErrorHeader,
+			wantMessage: "document header",
+		},
+		{
+			name:        "UT-015 rejects a header-only map without the empty state marker",
+			fixture:     "missing-empty-state.md",
+			wantKind:    ErrorHeader,
+			wantMessage: "empty map requires",
+		},
+		{
+			name:        "UT-016 rejects a duplicate canonical header",
+			fixture:     "duplicate-header.md",
+			wantKind:    ErrorHeader,
+			wantMessage: "exactly once",
+		},
 	}
 
 	for _, test := range tests {

@@ -10,10 +10,17 @@ import (
 )
 
 const (
-	kindDeep  = "deep"
-	kindSeam  = "seam"
-	kindAvoid = "avoid"
+	kindDeep         = "deep"
+	kindSeam         = "seam"
+	kindAvoid        = "avoid"
+	emptyStateMarker = "# No areas audited yet."
 )
+
+var canonicalHeader = [...]string{
+	"# Architecture Depth Map (active)",
+	"# @import'd into agent memory. Route behavior INTO deep modules; do NOT widen seams;",
+	"# do NOT re-propose avoided deepenings. Detail: .compozy/arch-reviews/<area>.md",
+}
 
 // Map is a parsed architecture depth map.
 type Map struct {
@@ -34,6 +41,11 @@ type Entry struct {
 	Target string
 	Note   string
 	Date   string
+}
+
+type documentState struct {
+	headerIndex    int
+	emptyStateSeen bool
 }
 
 // ErrorKind classifies an architecture-map grammar violation.
@@ -77,40 +89,39 @@ func (e *ParseError) Error() string {
 func Parse(data []byte) (*Map, error) {
 	result := &Map{}
 	var current *Area
+	state := documentState{}
 	lastArea := ""
 	lastEntryKind := ""
 
-	for index, rawLine := range strings.Split(string(data), "\n") {
+	lines := strings.Split(string(data), "\n")
+	for index, rawLine := range lines {
 		lineNumber := index + 1
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
 			continue
 		}
+		skip, err := state.consumeComment(lineNumber, line, len(result.Areas))
+		if err != nil {
+			return nil, err
+		}
+		if skip {
+			continue
+		}
 
 		switch {
 		case strings.HasPrefix(line, "## "):
-			area, err := parseAreaHeader(lineNumber, line)
+			if err := state.validateArea(lineNumber); err != nil {
+				return nil, err
+			}
+			nextArea, nextLastArea, err := addArea(result, lineNumber, line, lastArea)
 			if err != nil {
 				return nil, err
 			}
-			if lastArea != "" && area.Name <= lastArea {
-				return nil, parseError(
-					lineNumber,
-					ErrorAreaOrder,
-					"area %q must sort after %q",
-					area.Name,
-					lastArea,
-				)
-			}
-
-			result.Areas = append(result.Areas, area)
-			current = &result.Areas[len(result.Areas)-1]
-			lastArea = area.Name
+			current = nextArea
+			lastArea = nextLastArea
 			lastEntryKind = ""
 		case strings.HasPrefix(line, "##"):
 			return nil, parseError(lineNumber, ErrorHeader, "section header must start with %q", "## ")
-		case strings.HasPrefix(line, "#"):
-			continue
 		default:
 			if current == nil {
 				return nil, parseError(lineNumber, ErrorHeader, "entry appears before an area section")
@@ -134,8 +145,89 @@ func Parse(data []byte) (*Map, error) {
 			lastEntryKind = entry.Kind
 		}
 	}
+	if err := state.finish(len(lines)+1, len(result.Areas)); err != nil {
+		return nil, err
+	}
 
 	return result, nil
+}
+
+func addArea(result *Map, lineNumber int, line string, lastArea string) (*Area, string, error) {
+	area, err := parseAreaHeader(lineNumber, line)
+	if err != nil {
+		return nil, "", err
+	}
+	if lastArea != "" && area.Name <= lastArea {
+		return nil, "", parseError(
+			lineNumber,
+			ErrorAreaOrder,
+			"area %q must sort after %q",
+			area.Name,
+			lastArea,
+		)
+	}
+
+	result.Areas = append(result.Areas, area)
+	return &result.Areas[len(result.Areas)-1], area.Name, nil
+}
+
+func (s *documentState) consumeComment(lineNumber int, line string, areaCount int) (bool, error) {
+	if s.headerIndex < len(canonicalHeader) {
+		if line != canonicalHeader[s.headerIndex] {
+			return false, parseError(
+				lineNumber,
+				ErrorHeader,
+				"document header line %d must be %q",
+				s.headerIndex+1,
+				canonicalHeader[s.headerIndex],
+			)
+		}
+		s.headerIndex++
+		return true, nil
+	}
+	if isCanonicalHeaderLine(line) {
+		return false, parseError(lineNumber, ErrorHeader, "document header must appear exactly once")
+	}
+	if !strings.HasPrefix(line, "#") || strings.HasPrefix(line, "##") {
+		return false, nil
+	}
+	if line != emptyStateMarker {
+		return true, nil
+	}
+	if areaCount != 0 {
+		return false, parseError(lineNumber, ErrorHeader, "empty-state marker requires no area sections")
+	}
+	if s.emptyStateSeen {
+		return false, parseError(lineNumber, ErrorHeader, "empty-state marker must appear exactly once")
+	}
+	s.emptyStateSeen = true
+	return true, nil
+}
+
+func (s *documentState) validateArea(lineNumber int) error {
+	if s.emptyStateSeen {
+		return parseError(lineNumber, ErrorHeader, "area section cannot follow the empty-state marker")
+	}
+	return nil
+}
+
+func (s *documentState) finish(lineNumber int, areaCount int) error {
+	if s.headerIndex != len(canonicalHeader) {
+		return parseError(lineNumber, ErrorHeader, "document header is incomplete")
+	}
+	if areaCount == 0 && !s.emptyStateSeen {
+		return parseError(lineNumber, ErrorHeader, "empty map requires %q", emptyStateMarker)
+	}
+	return nil
+}
+
+func isCanonicalHeaderLine(line string) bool {
+	for _, headerLine := range canonicalHeader {
+		if line == headerLine {
+			return true
+		}
+	}
+	return false
 }
 
 func parseAreaHeader(lineNumber int, line string) (Area, error) {
