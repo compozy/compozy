@@ -1,6 +1,6 @@
-// Suite: extension skill installation conventions
-// Invariant: setup installs exactly the three declared skills and repeated installation stays current.
-// Boundary IN: real skill directories, setup installation, and setup verification in temporary projects.
+// Suite: extension skill packaging conventions
+// Invariant: setup installs the declared skills and their shipped references retain required security defaults.
+// Boundary IN: real skill directories and content, setup installation, and setup verification in temporary projects.
 // Boundary OUT: extension enablement and CLI dispatch, owned by CLI and workflow E2E suites.
 package packaging
 
@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/setup"
@@ -63,6 +64,30 @@ func TestInstallExtensionSkillPacksIsIdempotent(t *testing.T) {
 		if skill.State != setup.VerifyStateCurrent {
 			t.Fatalf("skill %q is not current: %q", skill.Skill.Name, skill.State)
 		}
+	}
+}
+
+func TestHTMLReportScaffoldUsesStrictMermaidSecurity(t *testing.T) {
+	t.Parallel()
+
+	reportPath := filepath.Join(
+		extensionRoot(t),
+		"skills",
+		"cy-improve-architecture",
+		"references",
+		"html-report.md",
+	)
+	report, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("read HTML report reference: %v", err)
+	}
+
+	content := string(report)
+	if !strings.Contains(content, `securityLevel: "strict"`) {
+		t.Fatal("HTML report scaffold does not require Mermaid strict security")
+	}
+	if strings.Contains(content, `securityLevel: "loose"`) {
+		t.Fatal("HTML report scaffold permits Mermaid loose security")
 	}
 }
 

@@ -27,7 +27,7 @@ Use this order so the report reads as a decision rather than a menu:
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
     </script>
   </head>
   <body>
