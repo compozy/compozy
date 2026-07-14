@@ -582,7 +582,6 @@ func copyFixtureWorkspace(t *testing.T, fixture string) string {
 	return workspace
 }
 
-func evaluationRoot(t *testing.T) string {
 func addTypeScriptCheckoutEvidence(t *testing.T, workspace string) {
 	t.Helper()
 
@@ -678,6 +677,7 @@ func writeFixtureFile(t *testing.T, workspace string, name string, content strin
 	}
 }
 
+func evaluationRoot(t *testing.T) string {
 	t.Helper()
 
 	_, file, _, ok := runtime.Caller(0)
