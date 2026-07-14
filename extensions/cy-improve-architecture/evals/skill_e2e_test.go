@@ -20,12 +20,15 @@ import (
 
 	"github.com/compozy/compozy/extensions/cy-improve-architecture/archmap"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/setup"
 )
 
 const (
-	runSkillE2EEnv          = "COMPOZY_RUN_SKILL_E2E"
-	darwinUnixSocketPathMax = 103
+	runSkillE2EEnv              = "COMPOZY_RUN_SKILL_E2E"
+	evaluationDaemonHTTPPortEnv = "COMPOZY_DAEMON_HTTP_PORT"
+	evaluationDaemonStopTimeout = 10 * time.Second
+	darwinUnixSocketPathMax     = 103
 )
 
 var shippedSkillNames = []string{
@@ -49,6 +52,7 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	}
 
 	binary := requiredEvaluationBinary(t)
+	ports := make([]int, 0, 2)
 	for _, test := range []struct {
 		name      string
 		fixture   string
@@ -73,16 +77,22 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 			wantEmpty: true,
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			workspace := copyFixtureWorkspace(t, test.fixture)
-			home := newShortEvaluationHome(t)
-			installShippedSkills(t, workspace, home)
-			fixtureFiles := snapshotFixtureFiles(t, workspace)
+		workspace := copyFixtureWorkspace(t, test.fixture)
+		home := newShortEvaluationHome(t)
+		installShippedSkills(t, workspace, home)
+		fixtureFiles := snapshotFixtureFiles(t, workspace)
 
-			output := executeAudit(t, binary, workspace, home, test.target)
-			assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
-			assertFixtureFilesUnchanged(t, workspace, fixtureFiles)
-		})
+		output := executeAudit(t, binary, workspace, home, test.target)
+		port := evaluationDaemonPort(t, home)
+		if port <= 0 || port == daemon.DefaultHTTPPort {
+			t.Fatalf("%s daemon HTTP port = %d, want a non-default ephemeral port", test.name, port)
+		}
+		ports = append(ports, port)
+		assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
+		assertFixtureFilesUnchanged(t, workspace, fixtureFiles)
+	}
+	if ports[0] == ports[1] {
+		t.Fatalf("sequential isolated evaluation daemons shared HTTP port %d", ports[0])
 	}
 }
 
@@ -612,6 +622,7 @@ func TestAuditCommandUsesIsolatedEvaluationHome(t *testing.T) {
 	evaluationHome := t.TempDir()
 	path := t.TempDir()
 	t.Setenv("COMPOZY_HOME", parentHome)
+	t.Setenv(evaluationDaemonHTTPPortEnv, "34343")
 	t.Setenv("PATH", path)
 
 	command := auditCommand(context.Background(), "compozy", t.TempDir(), evaluationHome, "internal/client")
@@ -627,6 +638,16 @@ func TestAuditCommandUsesIsolatedEvaluationHome(t *testing.T) {
 	gotPath, hasPath := commandEnvironmentValue(command.Environ(), "PATH")
 	if !hasPath || gotPath != path {
 		t.Fatalf("audit command PATH = %q, present = %t; want %q, present = true", gotPath, hasPath, path)
+	}
+	gotDaemonHTTPPort, hasDaemonHTTPPort := commandEnvironmentValue(command.Environ(), evaluationDaemonHTTPPortEnv)
+	if !hasDaemonHTTPPort || gotDaemonHTTPPort != "0" {
+		t.Fatalf(
+			"audit command %s = %q, present = %t; want %q, present = true",
+			evaluationDaemonHTTPPortEnv,
+			gotDaemonHTTPPort,
+			hasDaemonHTTPPort,
+			"0",
+		)
 	}
 }
 
@@ -898,6 +919,9 @@ func executeAudit(t *testing.T, binary string, workspace string, home string, ta
 
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	t.Cleanup(cancel)
+	t.Cleanup(func() {
+		stopEvaluationDaemon(t, binary, workspace, home)
+	})
 	prompt := fmt.Sprintf(
 		"Use the installed cy-improve-architecture skill to audit %q. Execute the complete skill now, "+
 			"not merely a plan. This is a disposable evaluation workspace: produce every required report and "+
@@ -911,6 +935,67 @@ func executeAudit(t *testing.T, binary string, workspace string, home string, ta
 		t.Fatalf("execute installed audit skill: %v\noutput:\n%s", err, output)
 	}
 	return output
+}
+
+func evaluationDaemonPort(t *testing.T, home string) int {
+	t.Helper()
+
+	paths, err := compozyconfig.ResolveHomePathsFrom(home)
+	if err != nil {
+		t.Fatalf("resolve evaluation daemon paths: %v", err)
+	}
+	status, err := daemon.QueryStatus(context.Background(), paths, daemon.ProbeOptions{})
+	if err != nil {
+		t.Fatalf("query evaluation daemon status: %v", err)
+	}
+	if status.Info == nil || status.State != daemon.ReadyStateReady {
+		t.Fatalf("evaluation daemon status = %#v, want ready daemon info", status)
+	}
+	return status.Info.HTTPPort
+}
+
+func stopEvaluationDaemon(t *testing.T, binary string, workspace string, home string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), evaluationDaemonStopTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, binary, "daemon", "stop", "--force")
+	command.Dir = workspace
+	command.Env = evaluationCommandEnvironment(home)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Errorf("stop evaluation daemon: %v\noutput:\n%s", err, output)
+	}
+	waitForEvaluationDaemonState(ctx, t, home, daemon.ReadyStateStopped)
+}
+
+func waitForEvaluationDaemonState(ctx context.Context, t *testing.T, home string, want daemon.ReadyState) {
+	t.Helper()
+
+	paths, err := compozyconfig.ResolveHomePathsFrom(home)
+	if err != nil {
+		t.Errorf("resolve evaluation daemon paths: %v", err)
+		return
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		status, queryErr := daemon.QueryStatus(ctx, paths, daemon.ProbeOptions{})
+		if queryErr == nil && status.State == want {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			if queryErr != nil {
+				t.Errorf("query evaluation daemon state while waiting for %q: %v", want, queryErr)
+				return
+			}
+			t.Errorf("evaluation daemon state = %q, want %q", status.State, want)
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func evaluationIDE() string {
@@ -939,8 +1024,16 @@ func auditCommand(ctx context.Context, binary string, workspace string, home str
 	)
 	command := exec.CommandContext(ctx, binary, arguments...)
 	command.Dir = workspace
-	command.Env = append(os.Environ(), "COMPOZY_HOME="+home)
+	command.Env = evaluationCommandEnvironment(home)
 	return command
+}
+
+func evaluationCommandEnvironment(home string) []string {
+	return append(
+		os.Environ(),
+		"COMPOZY_HOME="+home,
+		evaluationDaemonHTTPPortEnv+"=0",
+	)
 }
 
 func commandFlagValue(arguments []string, flag string) (string, bool) {
