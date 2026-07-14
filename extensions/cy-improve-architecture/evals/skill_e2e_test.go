@@ -19,10 +19,14 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/extensions/cy-improve-architecture/archmap"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/setup"
 )
 
-const runSkillE2EEnv = "COMPOZY_RUN_SKILL_E2E"
+const (
+	runSkillE2EEnv          = "COMPOZY_RUN_SKILL_E2E"
+	darwinUnixSocketPathMax = 103
+)
 
 var shippedSkillNames = []string{
 	"cy-codebase-design",
@@ -71,7 +75,7 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			workspace := copyFixtureWorkspace(t, test.fixture)
-			home := t.TempDir()
+			home := newShortEvaluationHome(t)
 			installShippedSkills(t, workspace, home)
 			fixtureFiles := snapshotFixtureFiles(t, workspace)
 
@@ -79,6 +83,25 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 			assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
 			assertFixtureFilesUnchanged(t, workspace, fixtureFiles)
 		})
+	}
+}
+
+func TestNewShortEvaluationHomeSupportsDaemonSocketPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not use Unix-domain socket path limits")
+	}
+
+	paths, err := compozyconfig.ResolveHomePathsFrom(newShortEvaluationHome(t))
+	if err != nil {
+		t.Fatalf("resolve evaluation home paths: %v", err)
+	}
+	if got := len([]byte(paths.SocketPath)); got > darwinUnixSocketPathMax {
+		t.Fatalf(
+			"daemon socket path length = %d, want at most %d: %s",
+			got,
+			darwinUnixSocketPathMax,
+			paths.SocketPath,
+		)
 	}
 }
 
@@ -580,6 +603,27 @@ func copyFixtureWorkspace(t *testing.T, fixture string) string {
 		addTypeScriptCheckoutEvidence(t, workspace)
 	}
 	return workspace
+}
+
+func newShortEvaluationHome(t *testing.T) string {
+	t.Helper()
+
+	parent := os.TempDir()
+	if runtime.GOOS != "windows" {
+		if _, err := os.Stat("/tmp"); err == nil {
+			parent = "/tmp"
+		}
+	}
+	home, err := os.MkdirTemp(parent, "compozy-e2e-")
+	if err != nil {
+		t.Fatalf("create short evaluation home: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(home); err != nil {
+			t.Errorf("remove short evaluation home %s: %v", home, err)
+		}
+	})
+	return home
 }
 
 func addTypeScriptCheckoutEvidence(t *testing.T, workspace string) {
