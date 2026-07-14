@@ -212,6 +212,18 @@ func TestParseInvalidFixtures(t *testing.T) {
 			wantKind:    ErrorHeader,
 			wantMessage: "exactly once",
 		},
+		{
+			name:        "UT-017 rejects a direct report-path traversal",
+			fixture:     "report-parent.md",
+			wantKind:    ErrorField,
+			wantMessage: "must remain within workspace",
+		},
+		{
+			name:        "UT-018 rejects a nested report-path traversal",
+			fixture:     "report-nested-parent.md",
+			wantKind:    ErrorField,
+			wantMessage: "must remain within workspace",
+		},
 	}
 
 	for _, test := range tests {

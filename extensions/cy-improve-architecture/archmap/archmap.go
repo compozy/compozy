@@ -254,8 +254,16 @@ func parseAreaHeader(lineNumber int, line string) (Area, error) {
 	if !ok || report == "" {
 		return Area{}, parseError(lineNumber, ErrorHeader, "third header field must be %q", "report <relative-path|->")
 	}
-	if report != "-" && path.IsAbs(report) {
-		return Area{}, parseError(lineNumber, ErrorField, "report path %q must be relative or -", report)
+	if report != "-" {
+		report = path.Clean(report)
+		if report == ".." || strings.HasPrefix(report, "../") || path.IsAbs(report) {
+			return Area{}, parseError(
+				lineNumber,
+				ErrorField,
+				"report path %q must remain within workspace or be -",
+				report,
+			)
+		}
 	}
 
 	return Area{
