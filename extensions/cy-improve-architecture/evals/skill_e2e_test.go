@@ -71,12 +71,12 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			workspace := copyFixtureWorkspace(t, test.fixture)
-			protected := snapshotProtectedFiles(t, workspace)
+			fixtureFiles := snapshotFixtureFiles(t, workspace)
 			installShippedSkills(t, workspace)
 
 			output := executeAudit(t, binary, workspace, test.target)
 			assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
-			assertProtectedFilesUnchanged(t, workspace, protected)
+			assertFixtureFilesUnchanged(t, workspace, fixtureFiles)
 		})
 	}
 }
@@ -169,6 +169,74 @@ func TestCandidateParity(t *testing.T) {
 	}
 }
 
+func TestFixtureFileChangeError(t *testing.T) {
+	t.Parallel()
+
+	before := map[string][]byte{
+		"apps/checkout/src/place-order.ts": []byte("export function placeOrder() {}\n"),
+	}
+	for _, test := range []struct {
+		name        string
+		after       map[string][]byte
+		wantErrPart string
+	}{
+		{
+			name:  "accepts an unchanged fixture",
+			after: before,
+		},
+		{
+			name: "allows installed skill files",
+			after: map[string][]byte{
+				"apps/checkout/src/place-order.ts":                []byte("export function placeOrder() {}\n"),
+				".agents/skills/cy-improve-architecture/SKILL.md": []byte("---\nname: cy-improve-architecture\n"),
+			},
+		},
+		{
+			name: "allows generated audit artifacts",
+			after: map[string][]byte{
+				"apps/checkout/src/place-order.ts":       []byte("export function placeOrder() {}\n"),
+				".compozy/arch-reviews/apps-checkout.md": []byte("# Architecture audit\n"),
+			},
+		},
+		{
+			name: "rejects a modified source file",
+			after: map[string][]byte{
+				"apps/checkout/src/place-order.ts": []byte("export function placeOrder() { return 1 }\n"),
+			},
+			wantErrPart: "changed",
+		},
+		{
+			name:        "rejects a deleted source file",
+			after:       map[string][]byte{},
+			wantErrPart: "is missing",
+		},
+		{
+			name: "rejects a new source file",
+			after: map[string][]byte{
+				"apps/checkout/src/place-order.ts": []byte("export function placeOrder() {}\n"),
+				"apps/checkout/src/fraud-check.ts": []byte("export function checkFraud() {}\n"),
+			},
+			wantErrPart: "unexpected",
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := fixtureFileChangeError(before, test.after)
+			if test.wantErrPart == "" {
+				if err != nil {
+					t.Fatalf("fixture change check returned an unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErrPart) {
+				t.Fatalf("fixture change check error = %v, want it to contain %q", err, test.wantErrPart)
+			}
+		})
+	}
+}
+
 func requiredEvaluationBinary(t *testing.T) string {
 	t.Helper()
 
@@ -242,19 +310,35 @@ func copyTree(source string, destination string) error {
 	})
 }
 
-func snapshotProtectedFiles(t *testing.T, workspace string) map[string][]byte {
+func snapshotFixtureFiles(t *testing.T, workspace string) map[string][]byte {
 	t.Helper()
 
-	protected := map[string][]byte{}
-	for _, name := range []string{".gitignore", "CLAUDE.md", "AGENTS.md"} {
-		path := filepath.Join(workspace, name)
+	files := map[string][]byte{}
+	err := filepath.WalkDir(workspace, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return fmt.Errorf("walk %s: %w", path, walkErr)
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("fixture path %s is not a regular file", path)
+		}
+		rel, err := filepath.Rel(workspace, path)
+		if err != nil {
+			return fmt.Errorf("relativize %s: %w", path, err)
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("read protected fixture file %s: %v", name, err)
+			return fmt.Errorf("read %s: %w", path, err)
 		}
-		protected[name] = data
+		files[filepath.ToSlash(rel)] = data
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("snapshot fixture workspace: %v", err)
 	}
-	return protected
+	return files
 }
 
 func installShippedSkills(t *testing.T, workspace string) {
@@ -465,15 +549,43 @@ func findArea(depthMap *archmap.Map, name string) *archmap.Area {
 	return nil
 }
 
-func assertProtectedFilesUnchanged(t *testing.T, workspace string, before map[string][]byte) {
+func assertFixtureFilesUnchanged(t *testing.T, workspace string, before map[string][]byte) {
 	t.Helper()
 
+	after := snapshotFixtureFiles(t, workspace)
+	if err := fixtureFileChangeError(before, after); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fixtureFileChangeError(before map[string][]byte, after map[string][]byte) error {
 	for name, want := range before {
-		got := readFile(t, filepath.Join(workspace, name))
+		if isAllowedGeneratedFixtureFile(name) {
+			continue
+		}
+		got, ok := after[name]
+		if !ok {
+			return fmt.Errorf("fixture file %s is missing", name)
+		}
 		if !bytes.Equal(got, want) {
-			t.Fatalf("protected file %s changed\ngot:\n%s\nwant:\n%s", name, got, want)
+			return fmt.Errorf("fixture file %s changed", name)
 		}
 	}
+	for name := range after {
+		if isAllowedGeneratedFixtureFile(name) {
+			continue
+		}
+		if _, ok := before[name]; !ok {
+			return fmt.Errorf("unexpected fixture file %s", name)
+		}
+	}
+	return nil
+}
+
+func isAllowedGeneratedFixtureFile(name string) bool {
+	return strings.HasPrefix(name, ".agents/skills/") ||
+		name == ".compozy/ARCHITECTURE.md" ||
+		strings.HasPrefix(name, ".compozy/arch-reviews/")
 }
 
 func readFile(t *testing.T, path string) []byte {
