@@ -71,8 +71,8 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			workspace := copyFixtureWorkspace(t, test.fixture)
-			fixtureFiles := snapshotFixtureFiles(t, workspace)
 			installShippedSkills(t, workspace)
+			fixtureFiles := snapshotFixtureFiles(t, workspace)
 
 			output := executeAudit(t, binary, workspace, test.target)
 			assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
@@ -237,6 +237,56 @@ func TestFixtureFileChangeError(t *testing.T) {
 	}
 }
 
+func TestInstallShippedSkillsUsesSelectedEvaluationRuntime(t *testing.T) {
+	for _, test := range []struct {
+		name              string
+		ide               string
+		installedSkillDir string
+		otherSkillDir     string
+	}{
+		{
+			name:              "defaults to Codex",
+			installedSkillDir: filepath.Join(".agents", "skills"),
+			otherSkillDir:     filepath.Join(".claude", "skills"),
+		},
+		{
+			name:              "maps Claude to its project skill directory",
+			ide:               "claude",
+			installedSkillDir: filepath.Join(".claude", "skills"),
+			otherSkillDir:     filepath.Join(".agents", "skills"),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("COMPOZY_E2E_IDE", test.ide)
+
+			workspace := t.TempDir()
+			installShippedSkills(t, workspace)
+
+			installedSkill := filepath.Join(
+				workspace,
+				test.installedSkillDir,
+				"cy-improve-architecture",
+				"SKILL.md",
+			)
+			if _, err := os.Stat(installedSkill); err != nil {
+				t.Fatalf("stat installed evaluation skill %s: %v", installedSkill, err)
+			}
+
+			otherSkill := filepath.Join(
+				workspace,
+				test.otherSkillDir,
+				"cy-improve-architecture",
+				"SKILL.md",
+			)
+			if _, err := os.Stat(otherSkill); err == nil {
+				t.Fatalf("evaluation skill unexpectedly installed for another runtime at %s", otherSkill)
+			} else if !os.IsNotExist(err) {
+				t.Fatalf("stat other-runtime evaluation skill %s: %v", otherSkill, err)
+			}
+		})
+	}
+}
+
 func requiredEvaluationBinary(t *testing.T) string {
 	t.Helper()
 
@@ -344,6 +394,11 @@ func snapshotFixtureFiles(t *testing.T, workspace string) map[string][]byte {
 func installShippedSkills(t *testing.T, workspace string) {
 	t.Helper()
 
+	agentName, err := setup.AgentNameForIDE(evaluationIDE())
+	if err != nil {
+		t.Fatalf("map evaluation IDE %q to setup agent: %v", evaluationIDE(), err)
+	}
+
 	root := extensionRoot(t)
 	packs := make([]setup.SkillPackSource, 0, len(shippedSkillNames))
 	for _, name := range shippedSkillNames {
@@ -362,7 +417,7 @@ func installShippedSkills(t *testing.T, workspace string) {
 			HomeDir: t.TempDir(),
 		},
 		Packs:      packs,
-		AgentNames: []string{"codex"},
+		AgentNames: []string{agentName},
 		Mode:       setup.InstallModeCopy,
 	})
 	if err != nil {
