@@ -1212,7 +1212,7 @@ types = ["frontend", "backend"]
 
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should "+tt.name, func(t *testing.T) {
 			isolateWorkspaceConfigHome(t)
 
 			root := t.TempDir()
