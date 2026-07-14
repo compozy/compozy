@@ -158,3 +158,7 @@ shape in `make verify`, so the documented grammar and its examples stay self-con
 regression in the format contract fails CI. It is a test-only asset (ADR-004) that guards the
 format definition — it does not run over the log a project actually produces, so a clean
 `make verify` proves the grammar is stable, not that a given `.compozy/DECISIONS.md` is well-formed.
+
+## Acknowledgements
+
+Inspired by Felipe Rodrigues's [`tlc-spec-driven`](https://github.com/tech-leads-club/agent-skills/tree/main/packages/skills-catalog/skills/%28development%29/tlc-spec-driven) skill (Tech Leads Club, CC-BY-4.0) — specifically the durable `AD-NNN` decision-log pattern with supersession and a project-durability relevance gate. `cy-capture-decisions` is an independent reworking of that idea: a post-pipeline reconciliation-and-promotion step with evidence gating, a two-tier `@import` index, and a Go grammar validator. It reuses the concept, not the source text.
