@@ -39,11 +39,12 @@ If your repository already tracks `.compozy/`, no gitignore change is needed. If
 ```gitignore
 !.compozy/
 !.compozy/ARCHITECTURE.md
+!.compozy/GLOSSARY.md
 !.compozy/arch-reviews/
 !.compozy/arch-reviews/**
 ```
 
-Commit `.compozy/ARCHITECTURE.md` and `.compozy/arch-reviews/` with the code they describe. The markdown reports are the offline-safe source of truth; the HTML reports are their visual twins. The extension never edits `.gitignore`, `CLAUDE.md`, or `AGENTS.md` silently.
+Commit `.compozy/ARCHITECTURE.md`, `.compozy/GLOSSARY.md`, and `.compozy/arch-reviews/` with the code they describe. The markdown reports are the offline-safe source of truth; the HTML reports are their visual twins. The extension never edits `.gitignore`, `CLAUDE.md`, or `AGENTS.md` silently.
 
 ## Optional settled-decision awareness
 

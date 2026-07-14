@@ -68,6 +68,7 @@ func TestREADMEDocumentsGitignoreNegations(t *testing.T) {
 	readme := readREADME(t)
 	negations := []string{
 		"!.compozy/ARCHITECTURE.md",
+		"!.compozy/GLOSSARY.md",
 		"!.compozy/arch-reviews/",
 		"!.compozy/arch-reviews/**",
 	}
