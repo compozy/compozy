@@ -237,6 +237,143 @@ func TestFixtureFileChangeError(t *testing.T) {
 	}
 }
 
+func TestHealthyReport(t *testing.T) {
+	t.Parallel()
+
+	const healthyDepthMap = `## internal/client | audited 2026-07-13 | report .compozy/arch-reviews/internal-client.md
+# no deepening opportunities as of 2026-07-13
+`
+	const healthyMarkdown = `# Architecture audit: internal/client
+
+## Top pick
+
+Healthy target — no credible deepening candidate found.
+
+## Candidates
+
+No candidates.
+`
+	const healthyHTML = `<section id="top-pick"><div>Healthy target</div></section>
+<section id="candidates"></section>
+`
+
+	for _, test := range []struct {
+		name        string
+		depthMap    string
+		markdown    string
+		html        string
+		wantErrPart string
+	}{
+		{
+			name:     "accepts a complete healthy artifact set",
+			depthMap: healthyDepthMap,
+			markdown: healthyMarkdown,
+			html:     healthyHTML,
+		},
+		{
+			name: "rejects deep guidance in a healthy map",
+			depthMap: strings.Replace(
+				healthyDepthMap,
+				"# no deepening opportunities as of 2026-07-13",
+				"deep | internal/client | Centralize client construction.\n# no deepening opportunities as of 2026-07-13",
+				1,
+			),
+			markdown:    healthyMarkdown,
+			html:        healthyHTML,
+			wantErrPart: "depth-map entries",
+		},
+		{
+			name: "rejects seam guidance in a healthy map",
+			depthMap: strings.Replace(
+				healthyDepthMap,
+				"# no deepening opportunities as of 2026-07-13",
+				"seam | internal/client | Keep the adapter boundary narrow.\n# no deepening opportunities as of 2026-07-13",
+				1,
+			),
+			markdown:    healthyMarkdown,
+			html:        healthyHTML,
+			wantErrPart: "depth-map entries",
+		},
+		{
+			name: "rejects a missing dated no-opportunities map comment",
+			depthMap: strings.Replace(
+				healthyDepthMap,
+				"# no deepening opportunities as of 2026-07-13",
+				"# no deepening opportunities as of 2026-07-12",
+				1,
+			),
+			markdown:    healthyMarkdown,
+			html:        healthyHTML,
+			wantErrPart: "dated no-opportunities comment",
+		},
+		{
+			name:        "rejects Markdown without the no-candidates outcome",
+			depthMap:    healthyDepthMap,
+			markdown:    strings.Replace(healthyMarkdown, "No candidates.", "Candidates are pending.", 1),
+			html:        healthyHTML,
+			wantErrPart: "lacks no-candidates outcome",
+		},
+		{
+			name:        "rejects a Markdown candidate anchor",
+			depthMap:    healthyDepthMap,
+			markdown:    healthyMarkdown + "\n<a id=\"candidate-fabricated\"></a>\n",
+			html:        healthyHTML,
+			wantErrPart: "candidate anchor",
+		},
+		{
+			name:        "rejects an HTML candidate article",
+			depthMap:    healthyDepthMap,
+			markdown:    healthyMarkdown,
+			html:        healthyHTML + "<article id=\"candidate-fabricated\"></article>\n",
+			wantErrPart: "candidate article",
+		},
+		{
+			name:        "rejects an HTML report without the healthy outcome",
+			depthMap:    healthyDepthMap,
+			markdown:    healthyMarkdown,
+			html:        strings.Replace(healthyHTML, "Healthy target", "No recommendation", 1),
+			wantErrPart: "lacks healthy target outcome",
+		},
+		{
+			name:     "rejects an HTML candidate-targeting top-pick CTA",
+			depthMap: healthyDepthMap,
+			markdown: healthyMarkdown,
+			html: strings.Replace(
+				healthyHTML,
+				"<div>Healthy target</div>",
+				"<a href=\"#candidate-fabricated\">Healthy target</a>",
+				1,
+			),
+			wantErrPart: "candidate-targeting top-pick CTA",
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, err := archmap.Parse([]byte(test.depthMap))
+			if err != nil {
+				t.Fatalf("parse depth map: %v", err)
+			}
+			area := findArea(parsed, "internal/client")
+			if area == nil {
+				t.Fatal("parsed depth map has no internal/client area")
+			}
+
+			err = healthyReportError(area, []byte(test.depthMap), []byte(test.markdown), []byte(test.html))
+			if test.wantErrPart == "" {
+				if err != nil {
+					t.Fatalf("healthy report returned an unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErrPart) {
+				t.Fatalf("healthy report error = %v, want it to contain %q", err, test.wantErrPart)
+			}
+		})
+	}
+}
+
 func TestInstallShippedSkillsUsesSelectedEvaluationRuntime(t *testing.T) {
 	for _, test := range []struct {
 		name              string
@@ -508,8 +645,14 @@ func assertArtifacts(t *testing.T, workspace string, slug string, areaName strin
 		t.Fatalf("area report = %q, want %q", area.Report, wantReport)
 	}
 	if wantEmpty {
-		if !bytes.Contains(markdown, []byte("Healthy target — no credible deepening candidate found.")) {
-			t.Fatalf("healthy fixture did not produce the zero-candidate outcome\nreport:\n%s", markdown)
+		if err := healthyReportError(area, depthMap, markdown, html); err != nil {
+			t.Fatalf(
+				"healthy fixture violates the zero-candidate contract: %v\nmap:\n%s\nmarkdown:\n%s\nHTML:\n%s",
+				err,
+				depthMap,
+				markdown,
+				html,
+			)
 		}
 		return
 	}
@@ -522,6 +665,58 @@ func assertArtifacts(t *testing.T, workspace string, slug string, areaName strin
 	if err := candidateParityError(markdown, html); err != nil {
 		t.Fatalf("candidate reports violate parity: %v\nmarkdown:\n%s\nHTML:\n%s", err, markdown, html)
 	}
+}
+
+func healthyReportError(area *archmap.Area, depthMap []byte, markdown []byte, html []byte) error {
+	if len(area.Entries) != 0 {
+		return fmt.Errorf("healthy report has %d depth-map entries, want 0", len(area.Entries))
+	}
+	noOpportunitiesComment := fmt.Sprintf("# no deepening opportunities as of %s", area.Audited)
+	if !bytes.Contains(depthMapAreaSection(depthMap, area), []byte(noOpportunitiesComment)) {
+		return fmt.Errorf(
+			"depth map area %q lacks dated no-opportunities comment %q",
+			area.Name,
+			noOpportunitiesComment,
+		)
+	}
+	if !bytes.Contains(markdown, []byte("Healthy target — no credible deepening candidate found.")) {
+		return fmt.Errorf("markdown healthy report lacks healthy target outcome")
+	}
+	if !bytes.Contains(markdown, []byte("No candidates.")) {
+		return fmt.Errorf("markdown healthy report lacks no-candidates outcome")
+	}
+	if bytes.Contains(markdown, []byte("candidate-")) {
+		return fmt.Errorf("markdown healthy report has candidate anchor reference")
+	}
+	if !bytes.Contains(html, []byte("Healthy target")) {
+		return fmt.Errorf("HTML healthy report lacks healthy target outcome")
+	}
+	if htmlCandidateArticlePattern.Match(html) {
+		return fmt.Errorf("HTML healthy report has candidate article")
+	}
+	if htmlTopPickPattern.Match(html) {
+		return fmt.Errorf("HTML healthy report has candidate-targeting top-pick CTA")
+	}
+	return nil
+}
+
+func depthMapAreaSection(depthMap []byte, area *archmap.Area) []byte {
+	headerPrefix := []byte(fmt.Sprintf("## %s | audited %s |", area.Name, area.Audited))
+	lines := bytes.Split(depthMap, []byte("\n"))
+	section := make([][]byte, 0, len(lines))
+	inArea := false
+	for _, line := range lines {
+		if bytes.HasPrefix(line, []byte("## ")) {
+			if inArea {
+				break
+			}
+			inArea = bytes.HasPrefix(line, headerPrefix)
+		}
+		if inArea {
+			section = append(section, line)
+		}
+	}
+	return bytes.Join(section, []byte("\n"))
 }
 
 func candidateParityError(markdown []byte, html []byte) error {
