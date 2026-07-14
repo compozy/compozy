@@ -301,6 +301,62 @@ func TestFixtureFileChangeError(t *testing.T) {
 	}
 }
 
+func TestCandidateDepthMapGuidanceError(t *testing.T) {
+	t.Parallel()
+
+	const mapHeader = `# Architecture Depth Map (active)
+# @import'd into agent memory. Route behavior INTO deep modules; do NOT widen seams;
+# do NOT re-propose avoided deepenings. Detail: .compozy/arch-reviews/<area>.md
+
+## apps/checkout | audited 2026-07-14 | report .compozy/arch-reviews/apps-checkout.md
+`
+
+	for _, test := range []struct {
+		name        string
+		depthMap    string
+		wantErrPart string
+	}{
+		{
+			name:     "accepts deep guidance",
+			depthMap: mapHeader + "deep | apps/checkout/checkout-orchestrator | Route checkout behavior through this module.\n",
+		},
+		{
+			name:     "accepts seam guidance",
+			depthMap: mapHeader + "seam | apps/checkout/payment-gateway | Do not widen this payment boundary.\n",
+		},
+		{
+			name:        "rejects avoid-only guidance",
+			depthMap:    mapHeader + "avoid | 2026-07-14 | merge checkout modules | Keep the existing boundary.\n",
+			wantErrPart: "deep or seam",
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, err := archmap.Parse([]byte(test.depthMap))
+			if err != nil {
+				t.Fatalf("parse depth map: %v", err)
+			}
+			area := findArea(parsed, "apps/checkout")
+			if area == nil {
+				t.Fatal("parsed depth map has no apps/checkout area")
+			}
+
+			err = candidateDepthMapGuidanceError(area)
+			if test.wantErrPart == "" {
+				if err != nil {
+					t.Fatalf("candidate depth-map guidance returned an unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErrPart) {
+				t.Fatalf("candidate depth-map guidance error = %v, want it to contain %q", err, test.wantErrPart)
+			}
+		})
+	}
+}
+
 func TestHealthyReport(t *testing.T) {
 	t.Parallel()
 
@@ -952,12 +1008,24 @@ func assertArtifacts(t *testing.T, workspace string, slug string, areaName strin
 	if len(area.Entries) == 0 {
 		t.Fatalf("candidate fixture produced no depth-map guidance\nreport:\n%s", markdown)
 	}
+	if err := candidateDepthMapGuidanceError(area); err != nil {
+		t.Fatalf("candidate fixture violates the depth-map guidance contract: %v\nmap:\n%s", err, depthMap)
+	}
 	if !bytes.Contains(markdown, []byte("```mermaid")) {
 		t.Fatalf("candidate report lacks Mermaid evidence\nreport:\n%s", markdown)
 	}
 	if err := candidateParityError(markdown, html); err != nil {
 		t.Fatalf("candidate reports violate parity: %v\nmarkdown:\n%s\nHTML:\n%s", err, markdown, html)
 	}
+}
+
+func candidateDepthMapGuidanceError(area *archmap.Area) error {
+	for _, entry := range area.Entries {
+		if entry.Kind == "deep" || entry.Kind == "seam" {
+			return nil
+		}
+	}
+	return fmt.Errorf("candidate report has no deep or seam depth-map guidance")
 }
 
 func healthyReportError(area *archmap.Area, depthMap []byte, markdown []byte, html []byte) error {
