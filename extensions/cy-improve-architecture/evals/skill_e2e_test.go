@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -28,6 +29,15 @@ var shippedSkillNames = []string{
 	"cy-domain-modeling",
 	"cy-improve-architecture",
 }
+
+var (
+	markdownCandidateAnchorPattern = regexp.MustCompile(`<a\s+id="candidate-([^"]+)"></a>`)
+	htmlCandidateArticlePattern    = regexp.MustCompile(`<article\b[^>]*\bid="candidate-([^"]+)"[^>]*>`)
+	markdownTopPickPattern         = regexp.MustCompile(
+		`(?s)## Top pick\b.*?- Full evidence: \[[^\]]+\]\(#candidate-([^)]+)\)`,
+	)
+	htmlTopPickPattern = regexp.MustCompile(`(?s)id="top-pick"[^>]*>.*?href="#candidate-([^"]+)"`)
+)
 
 func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	if os.Getenv(runSkillE2EEnv) != "1" {
@@ -67,6 +77,94 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 			output := executeAudit(t, binary, workspace, test.target)
 			assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
 			assertProtectedFilesUnchanged(t, workspace, protected)
+		})
+	}
+}
+
+func TestCandidateParity(t *testing.T) {
+	t.Parallel()
+
+	const matchingMarkdown = `## Top pick
+
+- Full evidence: [Order intake](#candidate-order-intake)
+
+## Candidates
+
+<a id="candidate-order-intake"></a>
+
+### Order intake
+
+<a id="candidate-payment-service"></a>
+
+### Payment service
+`
+	const matchingHTML = `<section id="top-pick"><a href="#candidate-order-intake">Full evidence</a></section>
+<section id="candidates">
+  <article id="candidate-order-intake"></article>
+  <article id="candidate-payment-service"></article>
+</section>
+`
+
+	for _, test := range []struct {
+		name        string
+		markdown    string
+		html        string
+		wantErrPart string
+	}{
+		{
+			name:     "accepts matching ordered candidate IDs and top pick",
+			markdown: matchingMarkdown,
+			html:     matchingHTML,
+		},
+		{
+			name:     "rejects reordered HTML candidates",
+			markdown: matchingMarkdown,
+			html: `<section id="top-pick"><a href="#candidate-order-intake">Full evidence</a></section>
+<section id="candidates">
+  <article id="candidate-payment-service"></article>
+  <article id="candidate-order-intake"></article>
+</section>
+`,
+			wantErrPart: "candidate IDs differ",
+		},
+		{
+			name:     "rejects a mismatched HTML top pick",
+			markdown: matchingMarkdown,
+			html: strings.Replace(
+				matchingHTML,
+				"#candidate-order-intake",
+				"#candidate-payment-service",
+				1,
+			),
+			wantErrPart: "top-pick candidate IDs differ",
+		},
+		{
+			name:        "rejects Markdown without candidate anchors",
+			markdown:    "## Top pick\n\n- Full evidence: [Order intake](#candidate-order-intake)\n",
+			html:        matchingHTML,
+			wantErrPart: "markdown report has no candidate anchors",
+		},
+		{
+			name:        "rejects HTML without candidate articles",
+			markdown:    matchingMarkdown,
+			html:        `<section id="top-pick"><a href="#candidate-order-intake">Full evidence</a></section>`,
+			wantErrPart: "HTML report has no candidate articles",
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := candidateParityError([]byte(test.markdown), []byte(test.html))
+			if test.wantErrPart == "" {
+				if err != nil {
+					t.Fatalf("candidate parity returned an unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErrPart) {
+				t.Fatalf("candidate parity error = %v, want it to contain %q", err, test.wantErrPart)
+			}
 		})
 	}
 }
@@ -282,6 +380,80 @@ func assertArtifacts(t *testing.T, workspace string, slug string, areaName strin
 	if !bytes.Contains(markdown, []byte("```mermaid")) {
 		t.Fatalf("candidate report lacks Mermaid evidence\nreport:\n%s", markdown)
 	}
+	if err := candidateParityError(markdown, html); err != nil {
+		t.Fatalf("candidate reports violate parity: %v\nmarkdown:\n%s\nHTML:\n%s", err, markdown, html)
+	}
+}
+
+func candidateParityError(markdown []byte, html []byte) error {
+	markdownIDs := candidateIDs(markdownCandidateAnchorPattern, markdown)
+	if len(markdownIDs) == 0 {
+		return fmt.Errorf("markdown report has no candidate anchors")
+	}
+	htmlIDs := candidateIDs(htmlCandidateArticlePattern, html)
+	if len(htmlIDs) == 0 {
+		return fmt.Errorf("HTML report has no candidate articles")
+	}
+	if !sameCandidateIDs(markdownIDs, htmlIDs) {
+		return fmt.Errorf("candidate IDs differ: markdown=%q HTML=%q", markdownIDs, htmlIDs)
+	}
+
+	markdownTopPickID, err := topPickCandidateID(markdownTopPickPattern, markdown, "markdown")
+	if err != nil {
+		return err
+	}
+	if !containsCandidateID(markdownIDs, markdownTopPickID) {
+		return fmt.Errorf("markdown top-pick candidate ID %q has no candidate anchor", markdownTopPickID)
+	}
+	htmlTopPickID, err := topPickCandidateID(htmlTopPickPattern, html, "HTML")
+	if err != nil {
+		return err
+	}
+	if !containsCandidateID(htmlIDs, htmlTopPickID) {
+		return fmt.Errorf("HTML top-pick candidate ID %q has no candidate article", htmlTopPickID)
+	}
+	if markdownTopPickID != htmlTopPickID {
+		return fmt.Errorf("top-pick candidate IDs differ: markdown=%q HTML=%q", markdownTopPickID, htmlTopPickID)
+	}
+	return nil
+}
+
+func candidateIDs(pattern *regexp.Regexp, report []byte) []string {
+	matches := pattern.FindAllSubmatch(report, -1)
+	ids := make([]string, 0, len(matches))
+	for _, match := range matches {
+		ids = append(ids, string(match[1]))
+	}
+	return ids
+}
+
+func sameCandidateIDs(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func topPickCandidateID(pattern *regexp.Regexp, report []byte, reportKind string) (string, error) {
+	matches := pattern.FindAllSubmatch(report, -1)
+	if len(matches) != 1 {
+		return "", fmt.Errorf("%s report has %d top-pick candidate links, want 1", reportKind, len(matches))
+	}
+	return string(matches[0][1]), nil
+}
+
+func containsCandidateID(ids []string, target string) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
 }
 
 func findArea(depthMap *archmap.Map, name string) *archmap.Area {
