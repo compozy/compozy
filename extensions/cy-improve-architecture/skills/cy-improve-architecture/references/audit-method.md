@@ -133,4 +133,4 @@ Treat each `## <area> | ...` block as a keyed raw-byte span.
 7. Write a temporary sibling, validate the entire staged map against `architecture-map-format.md`, then compare the current source bytes with the bytes originally read. If they changed, re-read and reapply the keyed replacement once.
 8. Atomically replace the map only after validation. Ignore stale temporary files on the next run and rebuild from the latest complete map.
 
-Within the regenerated area, order generated `deep` and `seam` entries lexically by target for stable diffs, then append active `avoid` entries. Keep all report paths workspace-relative.
+Keep the mandatory `deep`, then `seam`, then `avoid` grouping. Within the `deep` group and within the `seam` group, order generated entries lexically by target for stable diffs; then append active `avoid` entries. Keep all report paths workspace-relative.
