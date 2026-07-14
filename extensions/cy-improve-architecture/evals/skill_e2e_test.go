@@ -71,10 +71,11 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			workspace := copyFixtureWorkspace(t, test.fixture)
-			installShippedSkills(t, workspace)
+			home := t.TempDir()
+			installShippedSkills(t, workspace, home)
 			fixtureFiles := snapshotFixtureFiles(t, workspace)
 
-			output := executeAudit(t, binary, workspace, test.target)
+			output := executeAudit(t, binary, workspace, home, test.target)
 			assertArtifacts(t, workspace, test.slug, test.wantArea, test.wantEmpty, output)
 			assertFixtureFilesUnchanged(t, workspace, fixtureFiles)
 		})
@@ -441,7 +442,7 @@ func TestInstallShippedSkillsUsesSelectedEvaluationRuntime(t *testing.T) {
 			t.Setenv("COMPOZY_E2E_IDE", test.ide)
 
 			workspace := t.TempDir()
-			installShippedSkills(t, workspace)
+			installShippedSkills(t, workspace, t.TempDir())
 
 			installedSkill := filepath.Join(
 				workspace,
@@ -499,7 +500,7 @@ func TestAuditCommandUsesSelectedRuntimeDefaultModel(t *testing.T) {
 			t.Setenv("COMPOZY_E2E_IDE", test.ide)
 			t.Setenv("COMPOZY_E2E_MODEL", test.model)
 
-			command := auditCommand(context.Background(), "compozy", t.TempDir(), "internal/client")
+			command := auditCommand(context.Background(), "compozy", t.TempDir(), t.TempDir(), "internal/client")
 			gotIDE, hasIDE := commandFlagValue(command.Args, "--ide")
 			if !hasIDE || gotIDE != test.wantIDE {
 				t.Fatalf("audit command IDE = %q, present = %t; want %q, present = true", gotIDE, hasIDE, test.wantIDE)
@@ -515,6 +516,38 @@ func TestAuditCommandUsesSelectedRuntimeDefaultModel(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestAuditCommandDisablesExecutableExtensions(t *testing.T) {
+	command := auditCommand(context.Background(), "compozy", t.TempDir(), t.TempDir(), "internal/client")
+	for _, argument := range command.Args {
+		if argument == "--extensions" {
+			t.Fatal("audit command unexpectedly enables executable extensions")
+		}
+	}
+}
+
+func TestAuditCommandUsesIsolatedEvaluationHome(t *testing.T) {
+	parentHome := t.TempDir()
+	evaluationHome := t.TempDir()
+	path := t.TempDir()
+	t.Setenv("COMPOZY_HOME", parentHome)
+	t.Setenv("PATH", path)
+
+	command := auditCommand(context.Background(), "compozy", t.TempDir(), evaluationHome, "internal/client")
+	gotHome, hasHome := commandEnvironmentValue(command.Environ(), "COMPOZY_HOME")
+	if !hasHome || gotHome != evaluationHome {
+		t.Fatalf(
+			"audit command COMPOZY_HOME = %q, present = %t; want %q, present = true",
+			gotHome,
+			hasHome,
+			evaluationHome,
+		)
+	}
+	gotPath, hasPath := commandEnvironmentValue(command.Environ(), "PATH")
+	if !hasPath || gotPath != path {
+		t.Fatalf("audit command PATH = %q, present = %t; want %q, present = true", gotPath, hasPath, path)
 	}
 }
 
@@ -720,7 +753,7 @@ func snapshotFixtureFiles(t *testing.T, workspace string) map[string][]byte {
 	return files
 }
 
-func installShippedSkills(t *testing.T, workspace string) {
+func installShippedSkills(t *testing.T, workspace string, home string) {
 	t.Helper()
 
 	agentName, err := setup.AgentNameForIDE(evaluationIDE())
@@ -743,7 +776,7 @@ func installShippedSkills(t *testing.T, workspace string) {
 	result, err := setup.InstallExtensionSkillPacks(setup.ExtensionInstallConfig{
 		ResolverOptions: setup.ResolverOptions{
 			CWD:     workspace,
-			HomeDir: t.TempDir(),
+			HomeDir: home,
 		},
 		Packs:      packs,
 		AgentNames: []string{agentName},
@@ -760,7 +793,7 @@ func installShippedSkills(t *testing.T, workspace string) {
 	}
 }
 
-func executeAudit(t *testing.T, binary string, workspace string, target string) []byte {
+func executeAudit(t *testing.T, binary string, workspace string, home string, target string) []byte {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
@@ -772,7 +805,7 @@ func executeAudit(t *testing.T, binary string, workspace string, target string) 
 			"optional companion as the skill requires.",
 		target,
 	)
-	command := auditCommand(ctx, binary, workspace, prompt)
+	command := auditCommand(ctx, binary, workspace, home, prompt)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("execute installed audit skill: %v\noutput:\n%s", err, output)
@@ -791,10 +824,9 @@ func evaluationModel() string {
 	return os.Getenv("COMPOZY_E2E_MODEL")
 }
 
-func auditCommand(ctx context.Context, binary string, workspace string, prompt string) *exec.Cmd {
+func auditCommand(ctx context.Context, binary string, workspace string, home string, prompt string) *exec.Cmd {
 	arguments := []string{
 		"exec",
-		"--extensions",
 		"--ide", evaluationIDE(),
 	}
 	if model := evaluationModel(); model != "" {
@@ -807,6 +839,7 @@ func auditCommand(ctx context.Context, binary string, workspace string, prompt s
 	)
 	command := exec.CommandContext(ctx, binary, arguments...)
 	command.Dir = workspace
+	command.Env = append(os.Environ(), "COMPOZY_HOME="+home)
 	return command
 }
 
@@ -814,6 +847,16 @@ func commandFlagValue(arguments []string, flag string) (string, bool) {
 	for index := 0; index+1 < len(arguments); index++ {
 		if arguments[index] == flag {
 			return arguments[index+1], true
+		}
+	}
+	return "", false
+}
+
+func commandEnvironmentValue(environment []string, key string) (string, bool) {
+	prefix := key + "="
+	for _, variable := range environment {
+		if strings.HasPrefix(variable, prefix) {
+			return strings.TrimPrefix(variable, prefix), true
 		}
 	}
 	return "", false
