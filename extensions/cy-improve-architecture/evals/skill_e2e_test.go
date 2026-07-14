@@ -81,6 +81,46 @@ func TestAuditSkillProducesInspectableArtifacts(t *testing.T) {
 	}
 }
 
+func TestTypeScriptFixtureProvidesRepeatedCheckoutProtocolEvidence(t *testing.T) {
+	t.Parallel()
+
+	workspace := copyFixtureWorkspace(t, "typescript")
+	protocolSteps := []string{
+		"orchestrator.validate(cart)",
+		"orchestrator.reserve(cart)",
+		"orchestrator.charge(cart.customerID, reservationID)",
+		"orchestrator.createOrder(cart, chargeID)",
+	}
+
+	for _, caller := range []string{
+		"apps/checkout/src/place-order.ts",
+		"apps/checkout/src/resume-checkout.ts",
+	} {
+		source := string(readFile(t, filepath.Join(workspace, filepath.FromSlash(caller))))
+		searchStart := 0
+		for _, step := range protocolSteps {
+			index := strings.Index(source[searchStart:], step)
+			if index == -1 {
+				t.Fatalf("checkout caller %s does not preserve checkout step %q", caller, step)
+			}
+			searchStart += index + len(step)
+		}
+	}
+
+	testEvidence := string(
+		readFile(t, filepath.Join(workspace, "apps", "checkout", "src", "checkout-protocol.test.ts")),
+	)
+	for _, testName := range []string{
+		"placeOrder completes the checkout protocol in order",
+		"resumeCheckout completes the checkout protocol in order",
+		"resumeCheckout preserves the reservation failure boundary",
+	} {
+		if !strings.Contains(testEvidence, testName) {
+			t.Fatalf("checkout fixture test evidence does not cover %q", testName)
+		}
+	}
+}
+
 func TestCandidateParity(t *testing.T) {
 	t.Parallel()
 
@@ -503,10 +543,108 @@ func copyFixtureWorkspace(t *testing.T, fixture string) string {
 	if err := copyTree(fixtureRoot, workspace); err != nil {
 		t.Fatalf("copy %s fixture: %v", fixture, err)
 	}
+	if fixture == "typescript" {
+		addTypeScriptCheckoutEvidence(t, workspace)
+	}
 	return workspace
 }
 
 func evaluationRoot(t *testing.T) string {
+func addTypeScriptCheckoutEvidence(t *testing.T, workspace string) {
+	t.Helper()
+
+	writeFixtureFile(
+		t,
+		workspace,
+		"apps/checkout/src/resume-checkout.ts",
+		`import { Cart, CheckoutOrchestrator } from "./checkout-orchestrator.js";
+
+export async function resumeCheckout(orchestrator: CheckoutOrchestrator, cart: Cart): Promise<string> {
+  await orchestrator.validate(cart);
+  const reservationID = await orchestrator.reserve(cart);
+  const chargeID = await orchestrator.charge(cart.customerID, reservationID);
+  return orchestrator.createOrder(cart, chargeID);
+}
+`,
+	)
+	writeFixtureFile(
+		t,
+		workspace,
+		"apps/checkout/src/checkout-protocol.test.ts",
+		`import assert from "node:assert/strict";
+import test from "node:test";
+
+import { Cart, CheckoutOrchestrator } from "./checkout-orchestrator.js";
+import { placeOrder } from "./place-order.js";
+import { resumeCheckout } from "./resume-checkout.js";
+
+const cart: Cart = {
+  customerID: "customer-123",
+  lines: [{ sku: "starter", quantity: 1 }],
+};
+
+function recordingOrchestrator(calls: string[], reservationError?: Error): CheckoutOrchestrator {
+  return new CheckoutOrchestrator({
+    validate: async () => {
+      calls.push("validate");
+    },
+    reserve: async () => {
+      calls.push("reserve");
+      if (reservationError) {
+        throw reservationError;
+      }
+      return "reservation-123";
+    },
+    charge: async () => {
+      calls.push("charge");
+      return "charge-123";
+    },
+    createOrder: async () => {
+      calls.push("createOrder");
+      return "order-123";
+    },
+  });
+}
+
+test("placeOrder completes the checkout protocol in order", async () => {
+  const calls: string[] = [];
+
+  const orderID = await placeOrder(recordingOrchestrator(calls), cart);
+
+  assert.equal(orderID, "order-123");
+  assert.deepEqual(calls, ["validate", "reserve", "charge", "createOrder"]);
+});
+
+test("resumeCheckout completes the checkout protocol in order", async () => {
+  const calls: string[] = [];
+
+  const orderID = await resumeCheckout(recordingOrchestrator(calls), cart);
+
+  assert.equal(orderID, "order-123");
+  assert.deepEqual(calls, ["validate", "reserve", "charge", "createOrder"]);
+});
+
+test("resumeCheckout preserves the reservation failure boundary", async () => {
+  const calls: string[] = [];
+  const reservationError = new Error("inventory unavailable");
+
+  await assert.rejects(resumeCheckout(recordingOrchestrator(calls, reservationError), cart), reservationError);
+
+  assert.deepEqual(calls, ["validate", "reserve"]);
+});
+`,
+	)
+}
+
+func writeFixtureFile(t *testing.T, workspace string, name string, content string) {
+	t.Helper()
+
+	path := filepath.Join(workspace, filepath.FromSlash(name))
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture file %s: %v", name, err)
+	}
+}
+
 	t.Helper()
 
 	_, file, _, ok := runtime.Caller(0)
