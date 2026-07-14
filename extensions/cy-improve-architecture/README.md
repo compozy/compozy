@@ -51,3 +51,15 @@ Commit `.compozy/ARCHITECTURE.md`, `.compozy/GLOSSARY.md`, and `.compozy/arch-re
 We recommend `cy-capture-decisions` as an optional companion. Its `.compozy/DECISIONS.md` index lets the audit recognize architecture decisions that are already settled and shipped, so it can avoid reopening them. The companion is not required: without it, the audit still produces the complete reports and depth map.
 
 The two memory surfaces have distinct ownership. `cy-capture-decisions` remains the sole writer of durable shipped decisions, while rejected deepening proposals stay in `.compozy/ARCHITECTURE.md` with their load-bearing reasons.
+
+## Credits
+
+This extension is a port of [Matt Pocock](https://github.com/mattpocock)'s open-source skills to the Compozy workflow, used under the MIT License, and extended with Compozy-native additions (see the closing paragraph). See [`NOTICE`](NOTICE) for the upstream copyright and license text. Upstream source: <https://github.com/mattpocock/skills>.
+
+- [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture) — the deep/shallow-module audit, deletion test, and HTML report.
+- [`codebase-design`](https://github.com/mattpocock/skills/tree/main/skills/engineering/codebase-design) — the deep-module vocabulary and design-it-twice guidance.
+- [`domain-modeling`](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) — glossary upkeep.
+
+The optional interactive grilling step can use Matt Pocock's [`grill-me`](https://github.com/mattpocock/skills/tree/main/skills/productivity/grill-me) skill when it is installed; a built-in interrogation runs without it.
+
+The Compozy adaptation adds the durable, `@import`-able `.compozy/ARCHITECTURE.md` depth map and its Markdown report twin, a test-only grammar validator (`archmap`), packaging/install tests, and a model-backed evaluation harness.

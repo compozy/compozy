@@ -1,0 +1,47 @@
+cy-improve-architecture — THIRD-PARTY NOTICES
+
+This Compozy extension is a port of open-source skills authored by Matt Pocock
+to the Compozy workflow, adapted and extended as described below, used under
+the MIT License.
+
+Upstream source: https://github.com/mattpocock/skills
+
+Adapted skills:
+  - improve-codebase-architecture  (deep/shallow-module audit, deletion test, HTML report)
+  - codebase-design                (deep-module vocabulary and design-it-twice guidance)
+  - domain-modeling                (glossary upkeep)
+
+The optional interactive grilling enhancement may use Matt Pocock's grill-me
+skill from the same source when it is installed; a built-in interrogation runs
+without it.
+
+The Compozy adaptation adds the durable, @import-able .compozy/ARCHITECTURE.md
+depth map and its Markdown report twin, a test-only grammar validator (archmap),
+packaging/install tests, and a model-backed evaluation harness.
+
+The upstream copyright notice and permission notice follow, as required by the
+MIT License.
+
+================================================================================
+
+MIT License
+
+Copyright (c) 2026 Matt Pocock
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

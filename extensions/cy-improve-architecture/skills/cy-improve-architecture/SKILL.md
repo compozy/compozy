@@ -74,14 +74,14 @@ Done when `.compozy/ARCHITECTURE.md` represents one consistent section per area,
 
 ### 6. Grill the selected deepening
 
-1. Skip grilling when no candidate exists.
+1. Skip grilling only when no candidate exists, or when the run is non-interactive (for example an autonomous `compozy exec` pass). A non-interactive run publishes the report and depth map without the loop and records no decision.
 2. Default to the top pick. Allow another candidate only when the user explicitly names it.
-3. When `grill-me` is unavailable, print one line: `Grilling skipped: grill-me is not installed; install the grill-me skill to shape the selected deepening interactively.` Keep the published artifacts unchanged.
-4. When available, invoke `grill-me` and walk the design tree one question at a time with a recommended answer. Explore the codebase to answer codebase-resolvable questions instead of asking the user.
-5. Cover constraints, dependencies, interface shape, seam placement, hidden implementation, adapters, and surviving tests. Use the bundled `cy-codebase-design` design-it-twice branch when materially different interfaces need comparison.
-6. Isolate a `grill-me` error to the grilling enhancement and keep all core artifacts.
+3. Run the built-in interrogation directly: walk the design tree one question at a time, each with a recommended answer, and explore the codebase to resolve codebase-answerable questions instead of asking the user. Cover constraints, dependencies, interface shape, seam placement, hidden implementation, adapters, and surviving tests. Use the bundled `cy-codebase-design` design-it-twice branch when materially different interfaces need comparison.
+4. Treat a dedicated interactive interrogation skill such as `grill-me` as an optional enhancement: when one is installed, drive the loop through it for a richer walk; otherwise use the built-in interrogation from step 3. Grilling happens either way — the external skill is never required and is never a hard stop.
+5. Note the grilling path once in the run summary, for example `Grilling: grill-me` or `Grilling: built-in (install grill-me for a richer interactive walk)`.
+6. Isolate any external interrogation-skill error to the grilling enhancement, fall back to the built-in interrogation, and keep all core artifacts.
 
-Done when the user proceeds, declines with a reason, abandons the loop, or the optional loop is skipped with one notice.
+Done when the user proceeds, declines with a reason, or abandons the loop; a non-interactive run records no decision.
 
 ### 7. Record only accepted outcomes
 
@@ -109,3 +109,5 @@ Done when the user can identify the result, the single next action, every artifa
 - Leave all prior artifacts untouched when target resolution, exploration, rendering, parity checks, or grammar checks fail before publication.
 - On a write conflict, re-read the latest complete depth map and reapply the audited-area replacement once. If consistency still cannot be proven, report the conflict and preserve the latest complete file.
 - Treat missing optional companions and malformed optional inputs as scoped warnings. Deliver the report and depth map whenever core exploration and publication succeed.
+
+> _Adapted from Matt Pocock's MIT-licensed [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture) skill. See the extension `NOTICE` for the upstream copyright and license._

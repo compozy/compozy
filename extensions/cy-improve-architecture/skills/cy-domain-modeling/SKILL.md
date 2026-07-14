@@ -39,3 +39,5 @@ Create the glossary lazily: read it when present, but do not create it until the
 
 - If existing prose does not follow the suggested format, preserve it and make the smallest compatible edit around the accepted term.
 - If the workspace root cannot be identified or the glossary cannot be written, report the path problem and leave the repository unchanged.
+
+> _Adapted from Matt Pocock's MIT-licensed [`domain-modeling`](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) skill, slimmed to glossary upkeep. See the extension `NOTICE` for the upstream copyright and license._
