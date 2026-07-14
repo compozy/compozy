@@ -15,7 +15,7 @@ Audit one target through the deep/shallow-module lens. Produce a durable markdow
 - Give every candidate a module, a deletion-test verdict, a before/after structure, and concrete maintainability-cost evidence.
 - Preserve prior good artifacts until a complete replacement is ready.
 - Read `.compozy/DECISIONS.md` and `.compozy/ARCHITECTURE.md`; never write `.compozy/DECISIONS.md` or `.compozy/decisions/`.
-- Modify only `.compozy/arch-reviews/<slug>.{html,md}`, the audited area in `.compozy/ARCHITECTURE.md`, and an accepted `.compozy/GLOSSARY.md` update. Leave `.gitignore`, `CLAUDE.md`, every `AGENTS.md`, and source code unchanged.
+- Modify only `.compozy/arch-reviews/<slug>.{html,md}`, the audited area in `.compozy/ARCHITECTURE.md`, and an accepted `.compozy/GLOSSARY.md` update. A user-confirmed durable cross-feature outcome may additionally create one workflow-scoped draft ADR under `.compozy/tasks/<workflow>/adrs/`; include the selected workflow and a concise draft summary in the run summary. Leave `.gitignore`, `CLAUDE.md`, every `AGENTS.md`, and source code unchanged.
 - Treat co-located `AGENTS.md` guidance as deferred V1.1 behavior. Do not create or update it.
 
 ## Workflow
@@ -89,7 +89,7 @@ Done when the user proceeds, declines with a reason, abandons the loop, or the o
 2. On abandonment, record no decision and leave the pre-grilling artifacts intact.
 3. On decline, distinguish a load-bearing reason from an ephemeral reason such as `not now`. Persist only load-bearing reasons as `avoid | <date> | <what> | <reason>` under the area.
 4. When code changes invalidate an avoidance, demote the old line to the canonical `# superseded ...` provenance form and retain it. Never delete the history.
-5. Route a durable cross-feature outcome to a workflow-scoped draft ADR under `.compozy/tasks/<workflow>/adrs/` for later `cy-capture-decisions` promotion. Never create a `proven` record or write the durable decision log.
+5. For a durable cross-feature outcome, ask the user to confirm the target workflow and concise draft summary. After confirmation, create one workflow-scoped draft ADR under `.compozy/tasks/<workflow>/adrs/` for later `cy-capture-decisions` promotion, and include the selected workflow and summary in the run summary. Never create a `proven` record or write the durable decision log.
 6. When grilling crystallizes a project-specific domain concept, offer the bundled `cy-domain-modeling` skill. Apply an accepted, non-duplicate update only to `.compozy/GLOSSARY.md`; a decline writes nothing, and no `docs/adr/` or `CONTEXT.md` file is created.
 7. Isolate any optional companion error and retain the core artifacts.
 
