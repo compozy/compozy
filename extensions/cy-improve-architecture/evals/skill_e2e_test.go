@@ -240,7 +240,11 @@ func TestFixtureFileChangeError(t *testing.T) {
 func TestHealthyReport(t *testing.T) {
 	t.Parallel()
 
-	const healthyDepthMap = `## internal/client | audited 2026-07-13 | report .compozy/arch-reviews/internal-client.md
+	const healthyDepthMap = `# Architecture Depth Map (active)
+# @import'd into agent memory. Route behavior INTO deep modules; do NOT widen seams;
+# do NOT re-propose avoided deepenings. Detail: .compozy/arch-reviews/<area>.md
+
+## internal/client | audited 2026-07-13 | report .compozy/arch-reviews/internal-client.md
 # no deepening opportunities as of 2026-07-13
 `
 	const healthyMarkdown = `# Architecture audit: internal/client
@@ -424,6 +428,56 @@ func TestInstallShippedSkillsUsesSelectedEvaluationRuntime(t *testing.T) {
 	}
 }
 
+func TestAuditCommandUsesSelectedRuntimeDefaultModel(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		ide       string
+		model     string
+		wantIDE   string
+		wantModel string
+		hasModel  bool
+	}{
+		{
+			name:    "Codex defers to its registered default model",
+			wantIDE: "codex",
+		},
+		{
+			name:    "Claude defers to its registered default model",
+			ide:     "claude",
+			wantIDE: "claude",
+		},
+		{
+			name:      "explicit model override is forwarded unchanged",
+			ide:       "claude",
+			model:     "opus",
+			wantIDE:   "claude",
+			wantModel: "opus",
+			hasModel:  true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("COMPOZY_E2E_IDE", test.ide)
+			t.Setenv("COMPOZY_E2E_MODEL", test.model)
+
+			command := auditCommand(context.Background(), "compozy", t.TempDir(), "internal/client")
+			gotIDE, hasIDE := commandFlagValue(command.Args, "--ide")
+			if !hasIDE || gotIDE != test.wantIDE {
+				t.Fatalf("audit command IDE = %q, present = %t; want %q, present = true", gotIDE, hasIDE, test.wantIDE)
+			}
+			gotModel, hasModel := commandFlagValue(command.Args, "--model")
+			if hasModel != test.hasModel || gotModel != test.wantModel {
+				t.Fatalf(
+					"audit command model = %q, present = %t; want %q, present = %t",
+					gotModel,
+					hasModel,
+					test.wantModel,
+					test.hasModel,
+				)
+			}
+		})
+	}
+}
+
 func requiredEvaluationBinary(t *testing.T) string {
 	t.Helper()
 
@@ -580,18 +634,7 @@ func executeAudit(t *testing.T, binary string, workspace string, target string) 
 			"optional companion as the skill requires.",
 		target,
 	)
-	command := exec.CommandContext(
-		ctx,
-		binary,
-		"exec",
-		"--extensions",
-		"--ide", evaluationIDE(),
-		"--model", evaluationModel(),
-		"--timeout", "10m",
-		"--access-mode", "full",
-		prompt,
-	)
-	command.Dir = workspace
+	command := auditCommand(ctx, binary, workspace, prompt)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("execute installed audit skill: %v\noutput:\n%s", err, output)
@@ -607,10 +650,35 @@ func evaluationIDE() string {
 }
 
 func evaluationModel() string {
-	if model := os.Getenv("COMPOZY_E2E_MODEL"); model != "" {
-		return model
+	return os.Getenv("COMPOZY_E2E_MODEL")
+}
+
+func auditCommand(ctx context.Context, binary string, workspace string, prompt string) *exec.Cmd {
+	arguments := []string{
+		"exec",
+		"--extensions",
+		"--ide", evaluationIDE(),
 	}
-	return "gpt-5.6-sol"
+	if model := evaluationModel(); model != "" {
+		arguments = append(arguments, "--model", model)
+	}
+	arguments = append(arguments,
+		"--timeout", "10m",
+		"--access-mode", "full",
+		prompt,
+	)
+	command := exec.CommandContext(ctx, binary, arguments...)
+	command.Dir = workspace
+	return command
+}
+
+func commandFlagValue(arguments []string, flag string) (string, bool) {
+	for index := 0; index+1 < len(arguments); index++ {
+		if arguments[index] == flag {
+			return arguments[index+1], true
+		}
+	}
+	return "", false
 }
 
 func assertArtifacts(t *testing.T, workspace string, slug string, areaName string, wantEmpty bool, output []byte) {
