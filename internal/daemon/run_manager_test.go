@@ -309,6 +309,15 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 					JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
 					IDE:            "codex",
 				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobQueued, kinds.JobQueuedPayload{
+					Index:    1,
+					SafeName: "batch_002",
+					IDE:      "cursor",
+				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
+					IDE:            "cursor",
+				})
 				submitEvent(
 					ctx,
 					t,
@@ -323,6 +332,24 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 							ToolCallID: "tool-1",
 							Blocks: []kinds.ContentBlock{
 								mustRunManagerToolUseBlock(t, "tool-1", "Bash", `{"command":"make verify"}`),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:       kinds.UpdateKindToolCallStarted,
+							Status:     kinds.StatusRunning,
+							ToolCallID: "tool-1",
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerToolUseBlock(t, "tool-1", "Bash", `{"command":"go test ./..."}`),
 							},
 						},
 					},
@@ -376,6 +403,24 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 					cfg.RunID,
 					eventspkg.EventKindSessionUpdate,
 					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:       kinds.UpdateKindToolCallUpdated,
+							Status:     kinds.StatusCompleted,
+							ToolCallID: "tool-1",
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerToolResultBlock(t, "tool-1", "job 1 final output"),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
 						Index: 0,
 						Update: kinds.SessionUpdate{
 							Kind:   kinds.UpdateKindAgentMessageChunk,
@@ -391,9 +436,36 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 					t,
 					prep.Journal(),
 					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:   kinds.UpdateKindAgentMessageChunk,
+							Status: kinds.StatusCompleted,
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerTextBlock(t, "job 1 done"),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
 					eventspkg.EventKindJobCompleted,
 					kinds.JobCompletedPayload{
 						JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindJobCompleted,
+					kinds.JobCompletedPayload{
+						JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
 					},
 				)
 				submitEvent(
@@ -423,17 +495,47 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 		if err != nil {
 			t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
 		}
-		if len(snapshot.Jobs) != 1 || snapshot.Jobs[0].Status != runStatusCompleted {
-			t.Fatalf("snapshot jobs = %#v, want one completed job", snapshot.Jobs)
+		if len(snapshot.Jobs) != 2 || snapshot.Jobs[0].Status != runStatusCompleted ||
+			snapshot.Jobs[1].Status != runStatusCompleted {
+			t.Fatalf("snapshot jobs = %#v, want two completed jobs", snapshot.Jobs)
 		}
-		if snapshot.Jobs[0].Summary == nil {
-			t.Fatal("snapshot job summary = nil, want compact lifecycle metadata")
+		if snapshot.Jobs[0].Summary == nil || snapshot.Jobs[1].Summary == nil {
+			t.Fatal("snapshot job summary = nil, want compact lifecycle metadata for both jobs")
 		}
-		if entries := snapshot.Jobs[0].Summary.Session.Entries; len(entries) != 0 {
-			t.Fatalf(
-				"historical snapshot session entries = %d, want compact summary without dense entries",
-				len(entries),
-			)
+		for index, job := range snapshot.Jobs {
+			if entries := job.Summary.Session.Entries; len(entries) == 0 {
+				t.Fatalf("historical snapshot job %d session entries are empty, want compact ACP transcript", index)
+			}
+		}
+		firstSessionJSON, err := json.Marshal(snapshot.Jobs[0].Summary.Session)
+		if err != nil {
+			t.Fatalf("json.Marshal(snapshot job 0 session) error = %v", err)
+		}
+		firstSessionPayload := string(firstSessionJSON)
+		for _, want := range []string{"make verify", "final output", "done"} {
+			if !strings.Contains(firstSessionPayload, want) {
+				t.Fatalf("snapshot job 0 session missing %q: %s", want, firstSessionPayload)
+			}
+		}
+		for _, unwanted := range []string{obsoleteOutput, "go test ./...", "job 1 final output", "job 1 done"} {
+			if strings.Contains(firstSessionPayload, unwanted) {
+				t.Fatalf("snapshot job 0 session retained unrelated %q", unwanted)
+			}
+		}
+		secondSessionJSON, err := json.Marshal(snapshot.Jobs[1].Summary.Session)
+		if err != nil {
+			t.Fatalf("json.Marshal(snapshot job 1 session) error = %v", err)
+		}
+		secondSessionPayload := string(secondSessionJSON)
+		for _, want := range []string{"go test ./...", "job 1 final output", "job 1 done"} {
+			if !strings.Contains(secondSessionPayload, want) {
+				t.Fatalf("snapshot job 1 session missing %q: %s", want, secondSessionPayload)
+			}
+		}
+		for _, unwanted := range []string{obsoleteOutput, "make verify"} {
+			if strings.Contains(secondSessionPayload, unwanted) {
+				t.Fatalf("snapshot job 1 session retained unrelated %q", unwanted)
+			}
 		}
 		snapshotJSON, err := json.Marshal(snapshot)
 		if err != nil {
@@ -452,7 +554,14 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 			t.Fatalf("json.Marshal(transcript) error = %v", err)
 		}
 		transcriptPayload := string(transcriptJSON)
-		for _, want := range []string{"make verify", "final output", "done"} {
+		for _, want := range []string{
+			"make verify",
+			"final output",
+			"done",
+			"go test ./...",
+			"job 1 final output",
+			"job 1 done",
+		} {
 			if !strings.Contains(transcriptPayload, want) {
 				t.Fatalf("transcript payload missing %q: %s", want, transcriptPayload)
 			}
