@@ -231,7 +231,7 @@ func (m *uiModel) handleParallelTaskCompleted(v parallelTaskCompletedMsg) {
 		m.sidebarDirty = true
 		return
 	}
-	success := kinds.TaskParallelTaskStatus(strings.TrimSpace(v.Status)).IsIntegrated()
+	success := kinds.TaskParallelTaskStatus(v.Status).IsIntegrated()
 	finishParallelAggregateTask(m, index, success)
 	m.sidebarDirty = true
 }
