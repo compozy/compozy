@@ -2,6 +2,22 @@ package kinds
 
 import "time"
 
+// TaskParallelTaskStatus is the terminal status of one task in a parallel run.
+type TaskParallelTaskStatus string
+
+const (
+	TaskParallelTaskStatusMerged    TaskParallelTaskStatus = "merged"
+	TaskParallelTaskStatusRecovered TaskParallelTaskStatus = "recovered"
+	TaskParallelTaskStatusFailed    TaskParallelTaskStatus = "failed"
+	TaskParallelTaskStatusSkipped   TaskParallelTaskStatus = "skipped"
+	TaskParallelTaskStatusCanceled  TaskParallelTaskStatus = "canceled"
+)
+
+// IsIntegrated reports whether the task content reached the integration branch.
+func (s TaskParallelTaskStatus) IsIntegrated() bool {
+	return s == TaskParallelTaskStatusMerged || s == TaskParallelTaskStatusRecovered
+}
+
 // TaskFileUpdatedPayload describes a rewritten task file.
 type TaskFileUpdatedPayload struct {
 	TasksDir  string `json:"tasks_dir"`
