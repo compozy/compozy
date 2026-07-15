@@ -44,9 +44,8 @@ const (
 const reviewRunPreparingMessage = "Preparing review run (syncing workflow state into the daemon catalog)…"
 
 const (
-	// reviewRunStartTimeout bounds the daemon-side review-run start, which
-	// synchronously syncs workflow state into the single-writer global.db. A slow
-	// or contended write would otherwise freeze the CLI indefinitely.
+	// reviewRunStartTimeout bounds the cancellable daemon-side workflow sync that
+	// completes before a review run is committed.
 	reviewRunStartTimeout = 60 * time.Second
 	// reviewRunFeedbackDelay is how long the start may take before the preparing
 	// message is shown, so the common fast path stays quiet and only a genuinely
@@ -468,15 +467,9 @@ func startReviewRunWithFeedback(
 	<-finished
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-			// The daemon detaches the run start from this request context, so it can
-			// finish creating and starting the run in the background after we give up
-			// here. Warn against a blind retry, which would launch a duplicate run.
 			return apicore.Run{}, fmt.Errorf(
-				"review run did not start within %s: the daemon may still be syncing "+
-					"workflow state and can finish starting this run in the background, so "+
-					"retrying now risks a duplicate run — wait for the daemon to settle and "+
-					"confirm no run is active before retrying, or run `compozy runs purge` "+
-					"to clear stale runs and reduce contention",
+				"review run did not start within %s: the daemon canceled the start before "+
+					"creating a durable run; retry after workflow sync contention clears",
 				timeout,
 			)
 		}

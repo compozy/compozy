@@ -62,10 +62,10 @@ func TestStartReviewRunWithFeedback(t *testing.T) {
 		if !strings.Contains(err.Error(), "did not start within") {
 			t.Fatalf("error missing timeout context: %v", err)
 		}
-		if !strings.Contains(err.Error(), "duplicate") {
-			t.Fatalf("error missing duplicate-run warning against a blind retry: %v", err)
+		if !strings.Contains(err.Error(), "before creating a durable run") {
+			t.Fatalf("error missing canceled-start guarantee: %v", err)
 		}
-		if !strings.Contains(err.Error(), "compozy runs purge") {
+		if !strings.Contains(err.Error(), "retry after workflow sync contention clears") {
 			t.Fatalf("error missing actionable hint: %v", err)
 		}
 		if !strings.Contains(status.String(), "Preparing review run") {
