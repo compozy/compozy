@@ -462,7 +462,7 @@ func TestWaitForTaskMultiChildDisarmedPolicyNeverReaps(t *testing.T) {
 // break the wedged child out of the join.
 func stallBackstopOverrides(runID string) string {
 	return fmt.Sprintf(
-		`{"run_id":%q,"stall":{"Enabled":true,"Timeout":"200ms","ChildTimeout":"500ms"}}`,
+		`{"run_id":%q,"stall":{"enabled":true,"timeout":"200ms","child_timeout":"500ms"}}`,
 		runID,
 	)
 }

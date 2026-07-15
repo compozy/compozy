@@ -66,11 +66,11 @@ type RuntimeOverrides struct {
 // existing timeout override handling. All fields are resolved into
 // model.RuntimeConfig, where defaults and the child > idle invariant are applied.
 type StallOverrides struct {
-	Enabled                *bool   `toml:"enabled,omitempty"`
-	Timeout                *string `toml:"timeout,omitempty"`
-	ChildTimeout           *string `toml:"child_timeout,omitempty"`
-	TerminalCommandTimeout *string `toml:"terminal_command_timeout,omitempty"`
-	Retries                *int    `toml:"retries,omitempty"`
+	Enabled                *bool   `toml:"enabled,omitempty"                  json:"enabled,omitempty"`
+	Timeout                *string `toml:"timeout,omitempty"                  json:"timeout,omitempty"`
+	ChildTimeout           *string `toml:"child_timeout,omitempty"            json:"child_timeout,omitempty"`
+	TerminalCommandTimeout *string `toml:"terminal_command_timeout,omitempty" json:"terminal_command_timeout,omitempty"`
+	Retries                *int    `toml:"retries,omitempty"                  json:"retries,omitempty"`
 }
 
 type DefaultsConfig RuntimeOverrides

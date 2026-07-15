@@ -1874,6 +1874,44 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}
 	})
 
+	t.Run("Should parse and apply snake_case stall runtime overrides from JSON", func(t *testing.T) {
+		overrides, err := parseRuntimeOverrides(rawJSON(
+			t,
+			`{"stall":{"enabled":false,"timeout":"200ms","child_timeout":"500ms","terminal_command_timeout":"1s","retries":2}}`,
+		))
+		if err != nil {
+			t.Fatalf("parseRuntimeOverrides() error = %v", err)
+		}
+
+		cfg := &model.RuntimeConfig{}
+		if err := applyRuntimeOverrideInput(cfg, overrides); err != nil {
+			t.Fatalf("applyRuntimeOverrideInput() error = %v", err)
+		}
+		if cfg.StallEnabled == nil || *cfg.StallEnabled {
+			t.Fatalf("stall enabled = %#v, want false", cfg.StallEnabled)
+		}
+		if cfg.StallTimeout != 200*time.Millisecond {
+			t.Fatalf("stall timeout = %v, want 200ms", cfg.StallTimeout)
+		}
+		if cfg.ChildStallTimeout != 500*time.Millisecond {
+			t.Fatalf("child stall timeout = %v, want 500ms", cfg.ChildStallTimeout)
+		}
+		if cfg.TerminalCommandTimeout != time.Second {
+			t.Fatalf("terminal command timeout = %v, want 1s", cfg.TerminalCommandTimeout)
+		}
+		if cfg.StallRetries == nil || *cfg.StallRetries != 2 {
+			t.Fatalf("stall retries = %#v, want 2", cfg.StallRetries)
+		}
+	})
+
+	t.Run("Should reject unknown snake_case stall runtime overrides", func(t *testing.T) {
+		_, err := parseRuntimeOverrides(rawJSON(t, `{"stall":{"unknown":true}}`))
+		if err == nil {
+			t.Fatal("parseRuntimeOverrides() error = nil, want non-nil")
+		}
+		assertProblemStatus(t, err, http.StatusUnprocessableEntity)
+	})
+
 	t.Run("Should apply runtime and project overrides in order", func(t *testing.T) {
 		cfg := &model.RuntimeConfig{}
 		rules := []model.TaskRuntimeRule{
