@@ -14,14 +14,14 @@ func TestTaskParallelTaskStatusIsIntegrated(t *testing.T) {
 		status TaskParallelTaskStatus
 		want   bool
 	}{
-		{name: "merged", status: TaskParallelTaskStatusMerged, want: true},
-		{name: "recovered", status: TaskParallelTaskStatusRecovered, want: true},
-		{name: "failed", status: TaskParallelTaskStatusFailed},
-		{name: "skipped", status: TaskParallelTaskStatusSkipped},
-		{name: "canceled", status: TaskParallelTaskStatusCanceled},
-		{name: "unknown", status: TaskParallelTaskStatus("unknown")},
-		{name: "empty", status: TaskParallelTaskStatus("")},
-		{name: "non-canonical whitespace", status: TaskParallelTaskStatus(" merged ")},
+		{name: "Should report merged as integrated", status: TaskParallelTaskStatusMerged, want: true},
+		{name: "Should report recovered as integrated", status: TaskParallelTaskStatusRecovered, want: true},
+		{name: "Should reject failed", status: TaskParallelTaskStatusFailed},
+		{name: "Should reject skipped", status: TaskParallelTaskStatusSkipped},
+		{name: "Should reject canceled", status: TaskParallelTaskStatusCanceled},
+		{name: "Should reject unknown", status: TaskParallelTaskStatus("unknown")},
+		{name: "Should reject empty", status: TaskParallelTaskStatus("")},
+		{name: "Should reject non-canonical whitespace", status: TaskParallelTaskStatus(" merged ")},
 	}
 
 	for _, tc := range tests {
