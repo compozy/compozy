@@ -353,11 +353,15 @@ func checkNoCycles(records []DecisionRecordMeta, byID map[string]DecisionRecordM
 	return nil
 }
 
-// validateLog validates a full decision log rooted at fsys: the DECISIONS.md
+// Validate validates a full decision log rooted at fsys: the DECISIONS.md
 // index, every AD-NNN.md body under decisions/, that each index line resolves to
 // an existing active-proven body whose denormalized fields match, that every
 // active-proven body is itself indexed (the membership biconditional), and that
 // supersession metadata is consistent.
+func Validate(fsys fs.FS) error {
+	return validateLog(fsys)
+}
+
 func validateLog(fsys fs.FS) error {
 	content, err := fs.ReadFile(fsys, indexFileName)
 	if err != nil {

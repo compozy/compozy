@@ -3,12 +3,57 @@ new file mode 100644
 index 0000000..bbb2222
 --- /dev/null
 +++ b/internal/search/rank.go
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,53 @@
 +package search
++
++import (
++	"math"
++	"sort"
++)
 +
 +// BM25 ranks postings by the BM25 relevance formula. This is the evidence that
 +// promotes adr-002 from candidate to proven on a later capture (phase 2).
 +func BM25(query []string, ix *InvertedIndex) []int {
-+	// ... scoring omitted for the fixture ...
-+	return nil
++	docLengths := make(map[int]int)
++	for _, postings := range ix.postings {
++		for _, docID := range postings {
++			docLengths[docID]++
++		}
++	}
++	if len(docLengths) == 0 {
++		return nil
++	}
++
++	var totalLength int
++	for _, length := range docLengths {
++		totalLength += length
++	}
++	avgLength := float64(totalLength) / float64(len(docLengths))
++	const k1, b = 1.2, 0.75
++	scores := make(map[int]float64)
++	for _, term := range query {
++		termFrequency := make(map[int]int)
++		for _, docID := range ix.postings[term] {
++			termFrequency[docID]++
++		}
++		documentFrequency := float64(len(termFrequency))
++		idf := math.Log(1 + (float64(len(docLengths))-documentFrequency+0.5)/(documentFrequency+0.5))
++		for docID, frequency := range termFrequency {
++			tf := float64(frequency)
++			normalizedLength := float64(docLengths[docID]) / avgLength
++			scores[docID] += idf * (tf * (k1 + 1)) / (tf + k1*(1-b+b*normalizedLength))
++		}
++	}
++
++	ranked := make([]int, 0, len(scores))
++	for docID := range scores {
++		ranked = append(ranked, docID)
++	}
++	sort.Slice(ranked, func(i, j int) bool {
++		if scores[ranked[i]] == scores[ranked[j]] {
++			return ranked[i] < ranked[j]
++		}
++		return scores[ranked[i]] > scores[ranked[j]]
++	})
++	return ranked
 +}

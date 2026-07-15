@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..ccc3333
 --- /dev/null
 +++ b/internal/auth/sessions.go
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,12 @@
 +package auth
 +
 +// SessionStore holds server-side sessions and a revocation set, replacing stateless JWTs.

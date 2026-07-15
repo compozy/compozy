@@ -30,7 +30,8 @@ detailed section below. Steps 3–4 are one-time setup you apply by hand — the
 3. **Keep the log committed** — only if your repo ignores `.compozy/**`; add the gitignore negations —
    [details](#make-the-decision-log-durable-gitignore).
 
-4. **Wire the index into agent memory** so every session (planning included) loads it —
+4. **Wire the index into agent memory** so every session (planning included) reads it. Use `@import`
+   for import-capable agents, or the documented `AGENTS.md` read instruction for Codex —
    [details](#wire-the-index-into-agent-memory):
 
    ```text
@@ -89,6 +90,10 @@ idempotent: re-running it on an unchanged workflow is a no-op. It prints a run s
 promoted, updated, superseded, or skipped, and never touches your `.gitignore`, `CLAUDE.md`, or
 `AGENTS.md` — the two setup steps below are yours to apply.
 
+Capture is a single-writer operation: run one capture at a time in a workspace. Concurrent captures
+against the same decision log are unsupported. If a serial run is interrupted, re-run it; provenance
+reconciliation repairs the log without duplicating an `AD`.
+
 ## Make the decision log durable (gitignore)
 
 The log is only useful if it is committed and shared. What you need depends on your repo:
@@ -122,22 +127,29 @@ tracked diff to review.
 ## Wire the index into agent memory
 
 The read side is a documentation convention, not a runtime hook: interactive planning skills run inside
-the coding agent, outside Compozy's Go runtime, so no extension hook can reach them. Instead, import the
-terse index into your project's agent-memory file so **every** session — planning included — loads it
-automatically, with no manual step per feature.
+the coding agent, outside Compozy's Go runtime, so no extension hook can reach them. Wire the terse index
+through the project-memory mechanism your agent supports so **every** session — planning included — reads
+it automatically, with no manual step per feature.
 
-Add this single line to `CLAUDE.md` and/or `AGENTS.md` (whichever your project uses):
+For agents that expand file imports, add this line to their project-memory file (for example,
+`CLAUDE.md`):
 
 ```text
 @.compozy/DECISIONS.md
 ```
 
-- Cover both files if your project uses both `CLAUDE.md` and `AGENTS.md`; add the line once per file.
-- Add the import **once** — a duplicate `@import` is redundant (the agent de-duplicates), so keep a
-  single line per memory file.
-- Only the terse index is imported. The rich `.compozy/decisions/AD-NNN.md` bodies are read on demand,
-  so context cost stays bounded even as the log grows.
-- If the import line is absent, the index is simply not auto-loaded — consumption degrades to reading
+- Codex reads `AGENTS.md` but does not expand `@file` imports. Add this instruction to `AGENTS.md`:
+
+  ```text
+  Before planning or implementation, read .compozy/DECISIONS.md once in the fresh session.
+  Read a matching .compozy/decisions/AD-NNN.md body only when the current work needs its details.
+  ```
+
+- If a repository serves both Claude and Codex, keep the `@` import for Claude and the explicit read
+  instruction for Codex. Add each once.
+- Only the terse index is imported or read at startup. Rich `.compozy/decisions/AD-NNN.md` bodies are
+  read on demand, so context cost stays bounded as the log grows.
+- If neither wiring form is present, the index is not consumed automatically; usage degrades to reading
   `.compozy/DECISIONS.md` manually.
 
 Because the index carries only active, `proven` decisions, what loads into every session stays terse
@@ -158,6 +170,11 @@ shape in `make verify`, so the documented grammar and its examples stay self-con
 regression in the format contract fails CI. It is a test-only asset (ADR-004) that guards the
 format definition — it does not run over the log a project actually produces, so a clean
 `make verify` proves the grammar is stable, not that a given `.compozy/DECISIONS.md` is well-formed.
+
+The opt-in behavioral harness under `evals/` installs the shipped extension into an isolated Compozy
+home and executes the full reconciliation and consumption matrix against a real model three times.
+Run it with `COMPOZY_EVAL_MODEL=<model> make eval-cy-capture-decisions`; it is intentionally outside
+`make verify` because it consumes a paid, nondeterministic model.
 
 ## Acknowledgements
 

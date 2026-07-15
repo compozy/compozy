@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..def5678
 --- /dev/null
 +++ b/internal/payments/idempotency.go
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,15 @@
 +package payments
 +
 +// DEVIATION FROM PLAN: the plan (adr-001) specified a 24h dedupe window keyed on an

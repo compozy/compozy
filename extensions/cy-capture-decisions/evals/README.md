@@ -1,38 +1,73 @@
 # cy-capture-decisions — Behavioral Eval Runbook
 
-`cy-capture-decisions` ships no compilable logic; its correctness is **reconciliation quality**, which is
-validated by running the skill against curated fixture workflows and asserting **structural properties**
-of the produced log (which `AD` ids exist, their `status`/frontmatter, index membership) — never exact
-prose. This runbook is the eval suite: it maps every assigned test case to a fixture and the log
-properties the run must produce. It is a documented suite, not part of `make verify`'s unit path (which
-covers only the deterministic format check owned by task_02).
+`cy-capture-decisions` ships an LLM-driven reconciliation workflow, so its behavioral contract is tested
+by an executable, opt-in model-backed harness. The harness installs the exact extension under test into
+an isolated Compozy home, invokes the installed skill against scratch Git repositories, validates every
+produced log with the deterministic grammar validator, and then asserts case-specific structural
+properties. Assertions cover ids, provenance, status, evidence, supersession, index membership, and
+file-system safety — never exact prose.
+
+The matrix contains the 21 E2E cases plus IT-001, IT-005, and IT-006: 24 cases total. Every selected case
+runs three times by default, so the full matrix produces 72 independently asserted trials.
 
 ## Layout
 
 ```
 evals/
   README.md                      # this runbook
+  cases.go                       # executable case journeys and structural assertions
+  harness.go                     # isolated install, model runner, artifacts, and 3x orchestration
+  cmd/cy-capture-decisions-eval/ # opt-in CLI entrypoint
   fixtures/<slug>/
     workflow/                    # staged as .compozy/tasks/<slug>/ (adrs/, memory/, reviews-NNN/, task_*.md)
     diff.patch                   # the code change; apply so `git diff main...HEAD` is scopable
     diff-phase2.patch            # (feat-search only) second-phase evidence for the candidate lifecycle
     seed-log/                    # (feat-auth only) pre-existing .compozy/DECISIONS.md + decisions/ to supersede
     expected.md                  # the expected outcome properties for that fixture
+  examples/fitnesshub-web/       # sanitized-path, real-world supersession example
+  results/                       # generated raw events, output logs, workspaces, and summaries
 ```
 
-## Harness (per eval)
+## Run the executable harness
 
-1. Create a scratch git repo with a `main` branch and a working `HEAD` branch (so `git diff main...HEAD`
-   resolves). A coding-agent runtime (e.g. Claude Code) is required — the skill uses the agent's own
-   file/shell tools.
-2. Copy `fixtures/<slug>/workflow/` to `.compozy/tasks/<slug>/`.
-3. For a supersession eval, copy `fixtures/<slug>/seed-log/` contents to `.compozy/DECISIONS.md` +
+The paid model run is deliberately opt-in and is not part of `make verify`:
+
+```bash
+COMPOZY_EVAL_MODEL=gpt-5.6-luna \
+  COMPOZY_EVAL_REASONING_EFFORT=medium \
+  make eval-cy-capture-decisions
+```
+
+For a fast harness smoke test, select one case and one repetition directly:
+
+```bash
+make build
+go run ./extensions/cy-capture-decisions/evals/cmd/cy-capture-decisions-eval \
+  --model gpt-5.6-luna --reasoning-effort medium \
+  --cases E2E-001 --repetitions 1
+```
+
+The command exits non-zero if any structural assertion fails. It always writes `summary.json` and
+`summary.md`; each trial also retains raw ACP JSONL, stderr, generated decision artifacts, and the Git
+diff under `evals/results/<case>/run-<n>/`.
+
+## Harness behavior (per eval)
+
+1. Build Compozy, create an isolated `COMPOZY_HOME`, install and enable the extension from this checkout,
+   start an isolated daemon, and install the shipped skill into each scratch workspace.
+2. Digest-compare the complete installed skill tree (`SKILL.md` plus every reference) with the shipped
+   source so a stale local skill cannot satisfy the eval accidentally.
+3. Create a scratch git repo with a `main` branch and a working `HEAD` branch so
+   `git diff main...HEAD` resolves, then copy `fixtures/<slug>/workflow/` to
+   `.compozy/tasks/<slug>/`.
+4. For a supersession eval, copy `fixtures/<slug>/seed-log/` contents to `.compozy/DECISIONS.md` +
    `.compozy/decisions/`. Otherwise start with no log (or the empty-state index for fresh-project cases).
-4. Apply `fixtures/<slug>/diff.patch` (and commit on `HEAD`) so the diff is scopable. For degraded-mode
+5. Apply `fixtures/<slug>/diff.patch` and commit on `HEAD` so the diff is scopable. For degraded-mode
    evals, deliberately make the diff unscopable instead (see feat-telemetry).
-5. Run `/cy-capture-decisions <slug>` (or `compozy exec "/cy-capture-decisions <slug>"`).
-6. Assert the properties in `fixtures/<slug>/expected.md` and in the matrix below. Assert on structure
-   (ids, `status`, frontmatter fields, index membership), not on wording.
+6. Invoke Compozy with the selected IDE, model, and reasoning effort using the natural-language skill
+   request `Use the cy-capture-decisions skill to capture the finished <slug> workflow.` ACP runtimes do
+   not interpret a skill name as a slash command when it is passed through `compozy exec`.
+7. Validate the complete generated log and assert the properties in the matrix below.
 
 ## Assigned case → fixture → expected properties
 
@@ -52,21 +87,21 @@ evals/
 | E2E-014 | timing (before vs after review) | feat-orders                                           | remove `reviews-001/`, run; then restore, re-run | before review → log from diff+verify only; re-run after review → affected `AD` updated in place (E2E-006).                                                                                |
 | E2E-015 | VCS review of output            | feat-orders                                           | capture, edit `AD-001.md`, re-capture            | capture is a reviewable diff; editing/reverting a wrong entry then re-capturing reconciles to the corrected state via provenance (no blind re-add).                                       |
 | E2E-016 | degraded mode                   | feat-telemetry                                        | unscopable diff                                  | degrades to memory + reviews, marks entries "unverified against code" as `candidate`; with neither diff nor reviews → promotes nothing; broken range → reports scoping failure, no crash. |
-| E2E-017 | no promotable decisions         | feat-noop                                             | existing log; then fresh project                 | no `Accepted`/all feature-local → no-op, zero promotions with reasons, no empty files; fresh project → valid empty-state index.                                                           |
+| E2E-017 | no promotable decisions         | feat-noop                                             | existing log; then fresh project                 | no `Accepted`/all feature-local → no-op with reasons; an existing log stays unchanged and a fresh project gets no unnecessary empty log files.                                            |
 | E2E-018 | bad slug                        | (none)                                                | run `no-such-slug`; run empty slug               | non-existent/archived slug → clear "not found / already archived", nothing written; omitted/malformed slug → rejected, no guessed target.                                                 |
 | E2E-019 | malformed source ADR            | feat-payments                                         | canonical                                        | malformed `adrs/adr-002.md` skipped with a warning; adr-001 still processed.                                                                                                              |
 | E2E-020 | weak semantic match → NEW       | feat-search                                           | stage a weakly-similar-titled prior AD           | no `source_adr` match + only weak semantic match → classified NEW (not an incorrect UPDATE), with a low-confidence note.                                                                  |
-| E2E-021 | interrupted / concurrent        | feat-orders                                           | write a half `AD` then re-run                    | re-running yields a consistent log (no duplicate/half-written `AD`); two captures on one slug do not corrupt (single-serial-run constraint verified by the reconciled outcome).           |
+| E2E-021 | interrupted serial recovery     | feat-orders                                           | write a half `AD` then re-run serially           | re-running yields a valid consistent log with exactly one provenance-matched decision and no duplicate or half-written `AD`; concurrent capture is explicitly outside the contract.       |
 | IT-001  | capture wiring                  | feat-orders                                           | canonical                                        | writes `.compozy/DECISIONS.md` (one active-proven line) + `.compozy/decisions/AD-001.md` with `source_slug=feat-orders`, `source_adr=adrs/adr-002.md`.                                    |
 | IT-005  | unwritable target               | feat-orders                                           | `chmod -w .compozy` before run                   | write step fails; the pre-existing log is unchanged (no partial/truncated files).                                                                                                         |
 | IT-006  | VCS reviewability               | feat-orders                                           | capture, then `git status`/`git diff`            | the log change is a normal reviewable diff; a pre-existing local edit is surfaced as a diff/merge, not silently overwritten.                                                              |
-| E2E-011 | consumption: auto-loaded index  | feat-orders (seed a proven log, wire the `@import`)   | consume harness (below)                          | a fresh agent session (e.g. starting `/cy-create-prd`) has the proven index in context with no manual step; an empty index adds negligible context.                                       |
+| E2E-011 | consumption: automatic index    | feat-orders (seed a proven log, wire agent memory)    | consume harness (below)                          | a fresh agent session reads the proven index with no manual user step; an empty index adds negligible context.                                                                            |
 | E2E-012 | consumption: on-demand bodies   | feat-orders (seed a proven log incl. a superseded AD) | consume harness (below)                          | during a new feature touching a tagged area the relevant `decisions/AD-NNN.md` body is read on demand; unrelated bodies are not loaded; a superseded body surfaces its active successor.  |
 
 ## Consumption evals (US-011, US-012 — the read side)
 
-E2E-011 and E2E-012 validate the _read_ side, so they use a **consume harness**, not the capture harness
-above — no `/cy-capture-decisions` run is involved. The deterministic core of both (importing the index
+E2E-011 and E2E-012 validate the _read_ side, so their executable cases use a **consume journey**, not a
+capture invocation. The deterministic core of both (importing the index
 surfaces its text; bodies under `decisions/` are not pulled by the index import) is guarded in
 `make verify` by IT-002 in the `packaging` package; these evals cover the behavioral, in-session half.
 
@@ -75,12 +110,12 @@ Consume harness (per eval):
 1. Stage a seeded log: write a proven `.compozy/DECISIONS.md` index plus its `.compozy/decisions/AD-NNN.md`
    bodies at the workspace root (reuse `fixtures/feat-orders/expected.md` shape, or a hand-authored seed).
    For E2E-012, include a `superseded` body whose successor is active in the index.
-2. Wire consumption exactly as the extension README documents: add `@.compozy/DECISIONS.md` to `CLAUDE.md`
-   (and/or `AGENTS.md`).
+2. Wire consumption exactly as the extension README documents: use `@.compozy/DECISIONS.md` for an
+   import-capable agent, or put the read-on-start instruction in `AGENTS.md` for Codex.
 3. Start a **fresh** coding-agent session in that workspace (e.g. begin `/cy-create-prd`); do no manual
    copy step.
 4. Assert the properties:
-   - **E2E-011:** the proven index lines are present in the session's context with no manual action; an
+   - **E2E-011:** the proven index lines are consumed in a fresh session with no manual user action; an
      empty-state index adds only its header (negligible context). If the `@import` line is absent, the
      index is simply not auto-loaded (US-011.EC-1) — the documented degrade, not a failure.
    - **E2E-012:** when the new work touches a tagged area, the matching `decisions/AD-NNN.md` body is read
@@ -98,3 +133,21 @@ follow (required fields, `status` enum, active-proven-only index, bidirectional 
 in `make verify` by the task_02 `decisionlog` validator — but that validator parses hand-authored fixtures
 of this same shape, not the eval-produced logs here, whose format is asserted structurally by running this
 suite.
+
+## Concurrency contract
+
+The extension guarantees interruption recovery for a **single serial writer**. Concurrent captures on
+the same workspace are unsupported. The skill, extension README, this runbook, and E2E-021 all use that
+same contract. E2E-021 proves the supported recovery path by seeding a half-written record, running one
+capture, validating the whole log, and asserting that only one provenance-matched `AD` exists.
+
+This is an intentional guarantee boundary, not a claim that concurrent writers are safe. A future
+concurrent-writer guarantee would require an implementation-level lock or transactional writer and a
+separate parallel-process integration test.
+
+## Real-world supersession example
+
+`examples/fitnesshub-web/` contains the self-contained subset from a production project that demonstrates
+a two-to-one supersession: AD-011 and AD-014 are retained as `superseded`, both point to AD-016, and AD-016
+links back to both. The reduced `DECISIONS.md` contains only active AD-016, exactly as the index contract
+requires. AD-015 is not part of this chain and is intentionally excluded.

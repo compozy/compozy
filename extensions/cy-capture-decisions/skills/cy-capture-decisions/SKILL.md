@@ -195,6 +195,8 @@ A later re-run once the diff is scopable promotes the same `AD-001` to `proven` 
 - **Cite evidence for every `proven` record.** A decision without cited diff/review/verify evidence is
   `candidate`, not `proven`.
 - **Be idempotent.** A provenance match with no change is a no-op; do not re-add or renumber.
+- **Run capture serially.** Only one capture may write a workspace's decision log at a time. Concurrent
+  captures on the same workspace are unsupported; finish or recover one run before starting another.
 - **Do not fabricate evidence or promote everything.** Prefer not promoting when the relevance gate is
   unsure (ADR-008).
 - **Do not silently edit the user's `.gitignore`** or `CLAUDE.md` / `AGENTS.md`. Consumption wiring and

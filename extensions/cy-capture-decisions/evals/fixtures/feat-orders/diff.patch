@@ -3,13 +3,14 @@ new file mode 100644
 index 0000000..abc1234
 --- /dev/null
 +++ b/internal/orders/eventstore.go
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,27 @@
 +package orders
 +
 +// EventStore is an append-only stream of order events; current state is a fold.
 +type EventStore struct {
 +	events []Event
 +	seen   map[string]struct{} // idempotency: command ids already applied
++	bus    EventBus
 +}
 +
 +// Append records an event unless its command id was already applied (idempotent write).
@@ -19,6 +20,7 @@ index 0000000..abc1234
 +	}
 +	s.seen[cmdID] = struct{}{}
 +	s.events = append(s.events, e)
++	s.bus.Publish(e)
 +}
 +
 +// Project folds the event stream into the current order read model.
