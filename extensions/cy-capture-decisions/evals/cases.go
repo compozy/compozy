@@ -643,28 +643,31 @@ func runE2E017(ctx context.Context, t *trial) error {
 }
 
 func runE2E018(ctx context.Context, t *trial) error {
-	w, err := t.newWorkspace(ctx, "bad-slug", workspaceOptions{})
-	if err != nil {
-		return err
-	}
-	for _, prompt := range []string{
-		"Use the cy-capture-decisions skill with no workflow slug.",
-		"Use the cy-capture-decisions skill to capture no-such-slug.",
+	for _, scenario := range []struct {
+		name   string
+		prompt string
+	}{
+		{name: "missing-slug", prompt: "Use the cy-capture-decisions skill with no workflow slug."},
+		{name: "unknown-slug", prompt: "Use the cy-capture-decisions skill to capture no-such-slug."},
 	} {
-		output, runErr := t.runModel(ctx, w, prompt)
+		w, err := t.newWorkspace(ctx, scenario.name, workspaceOptions{})
+		if err != nil {
+			return err
+		}
+		output, runErr := t.runModel(ctx, w, scenario.prompt)
 		if runErr != nil {
 			return runErr
 		}
 		if err := requireContains(output, "slug", "bad-slug response"); err != nil {
 			return err
 		}
-	}
-	hasLog, statErr := hasDecisionLog(w.Root)
-	if statErr != nil {
-		return statErr
-	}
-	if hasLog {
-		return errors.New("bad slug wrote a decision log")
+		hasLog, statErr := hasDecisionLog(w.Root)
+		if statErr != nil {
+			return statErr
+		}
+		if hasLog {
+			return fmt.Errorf("%s scenario wrote a decision log", scenario.name)
+		}
 	}
 
 	archived, err := t.newWorkspace(ctx, "archived-slug", workspaceOptions{})
@@ -686,7 +689,7 @@ func runE2E018(ctx context.Context, t *trial) error {
 	if err := requireContains(output, "archived", "archived-slug response"); err != nil {
 		return err
 	}
-	hasLog, err = hasDecisionLog(archived.Root)
+	hasLog, err := hasDecisionLog(archived.Root)
 	if err != nil {
 		return err
 	}
@@ -733,8 +736,11 @@ func runE2E020(ctx context.Context, t *trial) error {
 	if err != nil {
 		return err
 	}
-	if len(snapshot.Records) < 2 {
-		return fmt.Errorf("weak-match capture has %d records, want prior plus NEW", len(snapshot.Records))
+	if len(snapshot.Records) != 2 {
+		return fmt.Errorf("weak-match capture has %d records, want exactly prior plus NEW", len(snapshot.Records))
+	}
+	if _, ok := snapshot.Records["AD-001"]; !ok {
+		return errors.New("weak-match capture removed the prior AD-001")
 	}
 	newRecord, err := findByProvenance(snapshot, "feat-search", "adrs/adr-001.md")
 	if err != nil {
@@ -796,6 +802,17 @@ func runIT005(ctx context.Context, t *trial) error {
 	}
 	if err := setTreePermissions(logRoot, 0o555, 0o444); err != nil {
 		return err
+	}
+	writable, probeErr := treeAllowsCreate(logRoot)
+	if probeErr != nil {
+		restoreErr := setTreePermissions(logRoot, 0o755, 0o644)
+		return errors.Join(probeErr, restoreErr)
+	}
+	if writable {
+		if err := setTreePermissions(logRoot, 0o755, 0o644); err != nil {
+			return err
+		}
+		return skipEval("filesystem does not enforce chmod write restrictions for this process")
 	}
 	output, runErr := t.capture(ctx, w, "feat-orders")
 	restoreErr := setTreePermissions(logRoot, 0o755, 0o644)
@@ -988,7 +1005,10 @@ func assertSupersession(snapshot logSnapshot, oldID, newID string) error {
 	if !found {
 		return fmt.Errorf("%s does not supersede %s", newID, oldID)
 	}
-	return requireIndexed(snapshot, oldID, false)
+	if err := requireIndexed(snapshot, oldID, false); err != nil {
+		return err
+	}
+	return requireIndexed(snapshot, newID, true)
 }
 
 func writeConsumptionLog(root string) error {
@@ -1246,4 +1266,13 @@ func setTreePermissions(root string, dirMode, fileMode fs.FileMode) error {
 		}
 	}
 	return nil
+}
+
+func treeAllowsCreate(root string) (bool, error) {
+	probe := filepath.Join(root, ".write-probe")
+	file, err := os.OpenFile(probe, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return false, nil
+	}
+	return true, errors.Join(file.Close(), os.Remove(probe))
 }

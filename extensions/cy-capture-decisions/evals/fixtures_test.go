@@ -17,46 +17,51 @@ import (
 )
 
 func TestFixturePatchesApply(t *testing.T) {
-	t.Parallel()
+	t.Run("Should discover fixtures and apply every patch", func(t *testing.T) {
+		fixtures, err := filepath.Glob(filepath.Join("fixtures", "*"))
+		if err != nil {
+			t.Fatalf("list fixture directories: %v", err)
+		}
+		if len(fixtures) == 0 {
+			t.Fatal("no fixture directories discovered")
+		}
+		for _, fixture := range fixtures {
+			fixture := fixture
+			t.Run("Should apply "+filepath.Base(fixture)+" patches", func(t *testing.T) {
+				t.Parallel()
 
-	fixtures, err := filepath.Glob(filepath.Join("fixtures", "*"))
-	if err != nil {
-		t.Fatalf("list fixture directories: %v", err)
-	}
-	for _, fixture := range fixtures {
-		fixture := fixture
-		t.Run(filepath.Base(fixture), func(t *testing.T) {
-			t.Parallel()
-
-			patches, globErr := filepath.Glob(filepath.Join(fixture, "*.patch"))
-			if globErr != nil {
-				t.Fatalf("list patches: %v", globErr)
-			}
-			if len(patches) == 0 {
-				return
-			}
-			sort.Strings(patches)
-
-			repo := t.TempDir()
-			runGit(t, repo, "init", "-q", "-b", "main")
-			for _, patch := range patches {
-				absolute, absErr := filepath.Abs(patch)
-				if absErr != nil {
-					t.Fatalf("resolve patch %s: %v", patch, absErr)
+				patches, globErr := filepath.Glob(filepath.Join(fixture, "*.patch"))
+				if globErr != nil {
+					t.Fatalf("list patches: %v", globErr)
 				}
-				runGit(t, repo, "apply", absolute)
-			}
-		})
-	}
+				if len(patches) == 0 {
+					return
+				}
+				sort.Strings(patches)
+
+				repo := t.TempDir()
+				runGit(t, repo, "init", "-q", "-b", "main")
+				for _, patch := range patches {
+					absolute, absErr := filepath.Abs(patch)
+					if absErr != nil {
+						t.Fatalf("resolve patch %s: %v", patch, absErr)
+					}
+					runGit(t, repo, "apply", absolute)
+				}
+			})
+		}
+	})
 }
 
 func TestFitnessHubExampleIsACompleteValidSupersessionChain(t *testing.T) {
-	t.Parallel()
+	t.Run("Should validate the complete FitnessHub supersession chain", func(t *testing.T) {
+		t.Parallel()
 
-	root := filepath.Join("examples", "fitnesshub-web", ".compozy")
-	if err := decisionlog.Validate(os.DirFS(root)); err != nil {
-		t.Fatalf("validate real-world example: %v", err)
-	}
+		root := filepath.Join("examples", "fitnesshub-web", ".compozy")
+		if err := decisionlog.Validate(os.DirFS(root)); err != nil {
+			t.Fatalf("validate real-world example: %v", err)
+		}
+	})
 }
 
 func runGit(t *testing.T, dir string, args ...string) {

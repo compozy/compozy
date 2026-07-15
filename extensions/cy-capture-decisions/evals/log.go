@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/extensions/cy-capture-decisions/decisionlog"
@@ -20,23 +21,25 @@ type logSnapshot struct {
 func loadLog(workspaceRoot string) (logSnapshot, error) {
 	root := filepath.Join(workspaceRoot, ".compozy")
 	if err := decisionlog.Validate(os.DirFS(root)); err != nil {
-		return logSnapshot{}, err
+		return logSnapshot{}, fmt.Errorf("validate decision log in workspace %q: %w", workspaceRoot, err)
 	}
 	snapshot := logSnapshot{
 		Records: make(map[string]decisionlog.DecisionRecordMeta),
 		Indexed: make(map[string]struct{}),
 	}
-	entries, err := os.ReadDir(filepath.Join(root, "decisions"))
+	decisionsDir := filepath.Join(root, "decisions")
+	entries, err := os.ReadDir(decisionsDir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return logSnapshot{}, fmt.Errorf("read decision bodies: %w", err)
+		return logSnapshot{}, fmt.Errorf("read decision directory %q: %w", decisionsDir, err)
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "AD-") || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		content, err := os.ReadFile(filepath.Join(root, "decisions", entry.Name()))
+		path := filepath.Join(decisionsDir, entry.Name())
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return logSnapshot{}, err
+			return logSnapshot{}, fmt.Errorf("read decision body %q: %w", path, err)
 		}
 		var meta decisionlog.DecisionRecordMeta
 		if _, err := frontmatter.Parse(string(content), &meta); err != nil {
@@ -44,9 +47,10 @@ func loadLog(workspaceRoot string) (logSnapshot, error) {
 		}
 		snapshot.Records[meta.ID] = meta
 	}
-	index, err := os.ReadFile(filepath.Join(root, "DECISIONS.md"))
+	indexPath := filepath.Join(root, "DECISIONS.md")
+	index, err := os.ReadFile(indexPath)
 	if err != nil {
-		return logSnapshot{}, err
+		return logSnapshot{}, fmt.Errorf("read decision index %q: %w", indexPath, err)
 	}
 	for _, line := range strings.Split(string(index), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -62,13 +66,30 @@ func loadLog(workspaceRoot string) (logSnapshot, error) {
 }
 
 func findByProvenance(snapshot logSnapshot, slug, sourceADR string) (decisionlog.DecisionRecordMeta, error) {
+	matches := make([]decisionlog.DecisionRecordMeta, 0, 1)
 	for id := range snapshot.Records {
 		record := snapshot.Records[id]
 		if record.SourceSlug == slug && record.SourceADR == sourceADR {
-			return record, nil
+			matches = append(matches, record)
 		}
 	}
-	return decisionlog.DecisionRecordMeta{}, fmt.Errorf("record not found for %s/%s", slug, sourceADR)
+	if len(matches) == 0 {
+		return decisionlog.DecisionRecordMeta{}, fmt.Errorf("record not found for %s/%s", slug, sourceADR)
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	sort.Slice(matches, func(i, j int) bool { return matches[i].ID < matches[j].ID })
+	ids := make([]string, 0, len(matches))
+	for i := range matches {
+		ids = append(ids, matches[i].ID)
+	}
+	return decisionlog.DecisionRecordMeta{}, fmt.Errorf(
+		"multiple records found for %s/%s: %s",
+		slug,
+		sourceADR,
+		strings.Join(ids, ", "),
+	)
 }
 
 func requireStatus(snapshot logSnapshot, slug, sourceADR, status string) (decisionlog.DecisionRecordMeta, error) {

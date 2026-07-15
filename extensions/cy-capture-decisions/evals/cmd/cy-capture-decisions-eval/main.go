@@ -12,10 +12,14 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	repoRoot, err := filepath.Abs(".")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "resolve repository root: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
 	config := evals.DefaultConfig(repoRoot)
 	var cases string
@@ -34,16 +38,21 @@ func main() {
 		}
 	}
 
-	_, runErr := evals.Run(context.Background(), config)
+	ctx, stop := signalContext(context.Background())
+	defer stop()
+	_, runErr := evals.Run(ctx, config)
 	if runErr != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", runErr)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 func printResult(result evals.Result) {
 	status := "PASS"
-	if !result.Passed {
+	if result.Skipped {
+		status = "SKIP"
+	} else if !result.Passed {
 		status = "FAIL"
 	}
 	fmt.Printf("%s run-%d %s %s\n", result.CaseID, result.Trial, status, result.Duration)

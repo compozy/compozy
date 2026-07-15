@@ -20,6 +20,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	coreagent "github.com/compozy/compozy/internal/core/agent"
 )
 
 const (
@@ -47,9 +49,11 @@ type Result struct {
 	CaseID      string        `json:"case_id"`
 	Trial       int           `json:"trial"`
 	Passed      bool          `json:"passed"`
+	Skipped     bool          `json:"skipped,omitempty"`
 	Duration    time.Duration `json:"duration"`
 	ArtifactDir string        `json:"artifact_dir"`
 	Error       string        `json:"error,omitempty"`
+	SkipReason  string        `json:"skip_reason,omitempty"`
 }
 
 // Summary is the reproducible structural result manifest emitted by Run.
@@ -98,6 +102,18 @@ type workspaceOptions struct {
 	SeedLog      bool
 	ApplyPatches []string
 	NoMainBranch bool
+}
+
+type skipError struct {
+	reason string
+}
+
+func (e *skipError) Error() string {
+	return e.reason
+}
+
+func skipEval(reason string) error {
+	return &skipError{reason: reason}
 }
 
 // DefaultConfig returns the standard Codex-backed configuration. Callers must
@@ -149,7 +165,7 @@ func Run(ctx context.Context, config Config) (summary Summary, runErr error) {
 		return Summary{}, err
 	}
 	defer func() {
-		runErr = errors.Join(runErr, h.stopDaemon())
+		runErr = errors.Join(runErr, h.stopDaemon(ctx))
 	}()
 
 	selected, err := selectCases(h.cases, resolved.CaseIDs)
@@ -170,14 +186,10 @@ func Run(ctx context.Context, config Config) (summary Summary, runErr error) {
 		StartedAt:       startedAt,
 	}
 
-	for _, eval := range selected {
-		for repetition := 1; repetition <= resolved.Repetitions; repetition++ {
-			result := h.runTrial(ctx, eval, repetition)
-			summary.Results = append(summary.Results, result)
-			if resolved.OnResult != nil {
-				resolved.OnResult(result)
-			}
-		}
+	results, err := h.runCases(ctx, selected)
+	summary.Results = results
+	if err != nil {
+		return summary, err
 	}
 	summary.FinishedAt = time.Now().UTC()
 	if err := writeSummary(resolved.ResultsDir, summary); err != nil {
@@ -186,7 +198,7 @@ func Run(ctx context.Context, config Config) (summary Summary, runErr error) {
 
 	failures := 0
 	for _, result := range summary.Results {
-		if !result.Passed {
+		if !result.Passed && !result.Skipped {
 			failures++
 		}
 	}
@@ -194,6 +206,23 @@ func Run(ctx context.Context, config Config) (summary Summary, runErr error) {
 		return summary, fmt.Errorf("model-backed eval: %d of %d trials failed", failures, len(summary.Results))
 	}
 	return summary, nil
+}
+
+func (h *harness) runCases(ctx context.Context, selected []evalCase) ([]Result, error) {
+	results := make([]Result, 0, len(selected)*h.config.Repetitions)
+	for _, eval := range selected {
+		for repetition := 1; repetition <= h.config.Repetitions; repetition++ {
+			if err := ctx.Err(); err != nil {
+				return results, fmt.Errorf("model-backed eval canceled: %w", err)
+			}
+			result := h.runTrial(ctx, eval, repetition)
+			results = append(results, result)
+			if h.config.OnResult != nil {
+				h.config.OnResult(result)
+			}
+		}
+	}
+	return results, nil
 }
 
 func evalTempBase() string {
@@ -259,8 +288,8 @@ func (h *harness) prepareRuntime(ctx context.Context) error {
 	return nil
 }
 
-func (h *harness) stopDaemon() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+func (h *harness) stopDaemon(parent context.Context) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 15*time.Second)
 	defer cancel()
 	if _, err := h.commandOutput(
 		ctx,
@@ -294,11 +323,25 @@ func (h *harness) runTrial(ctx context.Context, eval evalCase, repetition int) R
 		artifactDir: artifactDir,
 	}
 	started := time.Now()
-	err := eval.Run(ctx, current)
+	evalErr := eval.Run(ctx, current)
 	result.Duration = time.Since(started)
-	if archiveErr := current.archiveWorkspaces(ctx); archiveErr != nil {
-		err = errors.Join(err, archiveErr)
+	archiveErr := current.archiveWorkspaces(ctx)
+	var skipped *skipError
+	if errors.As(evalErr, &skipped) && archiveErr == nil {
+		result.Skipped = true
+		result.SkipReason = skipped.Error()
+		if err := os.WriteFile(
+			filepath.Join(artifactDir, "skip.txt"),
+			[]byte(skipped.Error()+"\n"),
+			0o600,
+		); err != nil {
+			result.Skipped = false
+			result.SkipReason = ""
+			result.Error = fmt.Sprintf("write skip artifact: %v", err)
+		}
+		return result
 	}
+	err := errors.Join(evalErr, archiveErr)
 	if err != nil {
 		failurePath := filepath.Join(artifactDir, "failure.txt")
 		if writeErr := os.WriteFile(failurePath, []byte(err.Error()+"\n"), 0o600); writeErr != nil {
@@ -347,7 +390,16 @@ func (t *trial) initializeRepository(ctx context.Context, w *workspace) error {
 	if _, err := t.harness.gitOutput(ctx, root, "init", "-q", "-b", "main"); err != nil {
 		return err
 	}
-	for _, pair := range [][2]string{{"user.name", "Compozy Eval"}, {"user.email", "eval@example.invalid"}} {
+	hooksPath := filepath.Join(root, ".git", "hooks-disabled")
+	if err := os.MkdirAll(hooksPath, 0o755); err != nil {
+		return fmt.Errorf("create empty Git hooks directory: %w", err)
+	}
+	for _, pair := range [][2]string{
+		{"user.name", "Compozy Eval"},
+		{"user.email", "eval@example.invalid"},
+		{"commit.gpgSign", "false"},
+		{"core.hooksPath", hooksPath},
+	} {
 		if _, err := t.harness.gitOutput(ctx, root, "config", pair[0], pair[1]); err != nil {
 			return err
 		}
@@ -393,7 +445,11 @@ func (t *trial) stageFixture(ctx context.Context, w *workspace, opts workspaceOp
 }
 
 func (t *trial) installSkill(ctx context.Context, w *workspace) error {
-	args := []string{"setup", "--agent", "codex", "--skill", "cy-capture-decisions", "--copy", "--yes"}
+	agentName, err := coreagent.SetupAgentName(t.harness.config.IDE)
+	if err != nil {
+		return fmt.Errorf("resolve setup agent for IDE %q: %w", t.harness.config.IDE, err)
+	}
+	args := []string{"setup", "--agent", agentName, "--skill", "cy-capture-decisions", "--copy", "--yes"}
 	if _, err := t.harness.commandOutput(ctx, w.Root, t.harness.config.CompozyBinary, args...); err != nil {
 		return fmt.Errorf("install shipped skill in %s: %w", w.Name, err)
 	}
@@ -418,11 +474,11 @@ func (t *trial) runModel(ctx context.Context, w *workspace, prompt string) (stri
 	base := fmt.Sprintf("model-run-%02d", t.modelRunSeq)
 	stdoutPath := filepath.Join(t.artifactDir, base+".raw.jsonl")
 	stderrPath := filepath.Join(t.artifactDir, base+".stderr.log")
-	stdoutFile, err := os.Create(stdoutPath)
+	stdoutFile, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("create model stdout artifact: %w", err)
 	}
-	stderrFile, err := os.Create(stderrPath)
+	stderrFile, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		if closeErr := stdoutFile.Close(); closeErr != nil {
 			err = errors.Join(err, fmt.Errorf("close model stdout artifact: %w", closeErr))
@@ -444,10 +500,7 @@ func (t *trial) runModel(ctx context.Context, w *workspace, prompt string) (stri
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	commandArgs := append([]string{t.harness.config.CompozyBinary}, args...)
-	cmd := exec.CommandContext(modelCtx, "env", commandArgs...)
-	cmd.Dir = w.Root
-	cmd.Env = t.harness.env
+	cmd := t.harness.command(modelCtx, w.Root, t.harness.config.CompozyBinary, args...)
 	cmd.Stdout = io.MultiWriter(stdoutFile, &stdout)
 	cmd.Stderr = io.MultiWriter(stderrFile, &stderr)
 	runErr := cmd.Run()
@@ -514,14 +567,19 @@ func (t *trial) archiveWorkspaces(ctx context.Context) error {
 }
 
 func (h *harness) commandOutput(ctx context.Context, dir, command string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, command, args...)
-	cmd.Dir = dir
-	cmd.Env = h.env
+	cmd := h.command(ctx, dir, command, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(output), fmt.Errorf("%s %v: %w\n%s", command, args, err, output)
 	}
 	return string(output), nil
+}
+
+func (h *harness) command(ctx context.Context, dir, command string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Dir = dir
+	cmd.Env = h.env
+	return cmd
 }
 
 func (h *harness) gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
@@ -578,7 +636,9 @@ func writeSummary(resultsDir string, summary Summary) error {
 	markdown.WriteString("| Case | Trial | Result | Duration |\n| --- | ---: | --- | ---: |\n")
 	for _, result := range summary.Results {
 		status := "PASS"
-		if !result.Passed {
+		if result.Skipped {
+			status = "SKIP: " + strings.ReplaceAll(result.SkipReason, "\n", " ")
+		} else if !result.Passed {
 			status = "FAIL: " + strings.ReplaceAll(result.Error, "\n", " ")
 		}
 		duration := result.Duration.Round(time.Millisecond)

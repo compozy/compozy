@@ -49,7 +49,8 @@ go run ./extensions/cy-capture-decisions/evals/cmd/cy-capture-decisions-eval \
 
 The command exits non-zero if any structural assertion fails. It always writes `summary.json` and
 `summary.md`; each trial also retains raw ACP JSONL, stderr, generated decision artifacts, and the Git
-diff under `evals/results/<case>/run-<n>/`.
+diff under `evals/results/<case>/run-<n>/`. IT-005 is reported as `SKIP`, never `PASS`, when the host
+permission model does not enforce the read-only sandbox (for example, a privileged process or Windows).
 
 ## Harness behavior (per eval)
 
