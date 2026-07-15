@@ -1358,47 +1358,39 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	}
 
 	startedAt := m.now().UTC()
-	row, createdRun, resumedRun, err := m.prepareRunRow(
+	requestID := apicore.RequestIDFromContext(ctx)
+	row, createdRun, _, err := m.prepareRunRow(
 		ctx,
 		spec,
 		explicitRunID,
 		startedAt,
-		apicore.RequestIDFromContext(ctx),
+		requestID,
 	)
 	if err != nil {
 		return apicore.Run{}, err
 	}
-	m.publishRunWorkspaceEvent(ctx, row, spec.workflowSlug, apicore.WorkspaceEventKindRunCreated)
-
-	runID := row.RunID
-	runtimeCfg.RunID = runID
-	runtimeCfg.JobControls = model.NewJobControlRegistry()
-	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
-	if err != nil {
-		if resumedRun {
-			return apicore.Run{}, m.failStartRun(ctx, row, 0, nil, createdRun, err)
-		}
-		if createdRun {
-			cleanupRunDirectory(m.runArtifacts(runID).RunDir)
-			if deleteErr := m.globalDB.DeleteRun(detachContext(ctx), runID); deleteErr != nil {
-				err = errors.Join(err, deleteErr)
-			}
-		}
-		return apicore.Run{}, err
-	}
-
-	runCtx, cancel := context.WithCancel(withRequestID(m.lifecycleCtx, apicore.RequestIDFromContext(ctx)))
+	runCtx, cancel := context.WithCancel(withRequestID(m.lifecycleCtx, requestID))
 	started := false
 	defer func() {
 		if !started {
 			cancel()
 		}
 	}()
+	m.publishRunWorkspaceEvent(runCtx, row, spec.workflowSlug, apicore.WorkspaceEventKindRunCreated)
+
+	runID := row.RunID
+	runtimeCfg.RunID = runID
+	runtimeCfg.JobControls = model.NewJobControlRegistry()
+	scope, err := m.openRunScopeForStart(runCtx, runtimeCfg, spec.workspace.RootDir)
+	if err != nil {
+		return apicore.Run{}, m.failStartRun(runCtx, row, 0, nil, createdRun, err)
+	}
+
 	active := newActiveRun(runCtx, cancel, row, spec, scope)
 	active.jobControls = runtimeCfg.JobControls
 	if err := m.startWatcher(active); err != nil {
 		active.cancel()
-		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
+		return apicore.Run{}, m.failStartRun(runCtx, row, active.currentCloseTimeout(), scope, createdRun, err)
 	}
 	m.setActive(active)
 
@@ -1406,7 +1398,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	go m.runAsync(active, row, runtimeCfg)
 	started = true
 
-	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
+	return m.toCoreRun(runCtx, row, active.workflowSlug)
 }
 
 func (m *RunManager) prepareRunRow(
@@ -1594,7 +1586,10 @@ func (m *RunManager) openRunScopeForStart(
 	runtimeCfg *model.RuntimeConfig,
 	workspaceRoot string,
 ) (model.RunScope, error) {
-	scopeCtx := detachContext(ctx)
+	scopeCtx := ctx
+	if scopeCtx == nil {
+		scopeCtx = context.Background()
+	}
 	if runtimeCfg != nil && runtimeCfg.EnableExecutableExtensions {
 		resolvedRoot := strings.TrimSpace(runtimeCfg.WorkspaceRoot)
 		if resolvedRoot == "" {

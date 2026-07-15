@@ -51,6 +51,9 @@ const (
 	// message is shown, so the common fast path stays quiet and only a genuinely
 	// slow (contended) start surfaces feedback.
 	reviewRunFeedbackDelay = time.Second
+	// reviewRunRecoveryTimeout bounds the fresh lookup used when the start response
+	// loses the race with the client deadline after the daemon commits the run.
+	reviewRunRecoveryTimeout = 5 * time.Second
 )
 
 func newReviewsCommand() *cobra.Command {
@@ -447,6 +450,10 @@ func startReviewRunWithFeedback(
 	timeout time.Duration,
 	feedbackDelay time.Duration,
 ) (apicore.Run, error) {
+	request, runID, err := ensureReviewRunID(name, round, req)
+	if err != nil {
+		return apicore.Run{}, err
+	}
 	startCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// Show the preparing message only if the start is slow (a contended global.db
@@ -462,20 +469,71 @@ func startReviewRunWithFeedback(
 		case <-done:
 		}
 	}()
-	run, err := client.StartReviewRun(startCtx, workspaceRoot, name, round, req)
+	run, err := client.StartReviewRun(startCtx, workspaceRoot, name, round, request)
 	close(done)
 	<-finished
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			recoveryCtx, recoveryCancel := context.WithTimeout(ctx, reviewRunRecoveryTimeout)
+			recovered, recoveryErr := client.GetRun(recoveryCtx, runID)
+			recoveryCancel()
+			if recoveryErr == nil && strings.TrimSpace(recovered.RunID) == runID {
+				return recovered, nil
+			}
+			if recoveryErr == nil {
+				recoveryErr = fmt.Errorf("daemon returned run id %q", recovered.RunID)
+			}
 			return apicore.Run{}, fmt.Errorf(
-				"review run did not start within %s: the daemon canceled the start before "+
-					"creating a durable run; retry after workflow sync contention clears",
+				"review run start outcome was not confirmed within %s; run ID %q belongs to this start "+
+					"and the daemon may still complete it; inspect it before starting another run with "+
+					"`compozy runs watch %s` or `compozy runs attach %s` (recovery lookup: %v): %w",
 				timeout,
+				runID,
+				runID,
+				runID,
+				recoveryErr,
+				err,
 			)
 		}
 		return apicore.Run{}, err
 	}
 	return run, nil
+}
+
+func ensureReviewRunID(
+	name string,
+	round int,
+	req apicore.ReviewRunRequest,
+) (apicore.ReviewRunRequest, string, error) {
+	overrides := daemonRuntimeOverrides{}
+	if len(req.RuntimeOverrides) > 0 {
+		if err := json.Unmarshal(req.RuntimeOverrides, &overrides); err != nil {
+			return apicore.ReviewRunRequest{}, "", fmt.Errorf("decode review runtime overrides: %w", err)
+		}
+	}
+
+	runID := ""
+	if overrides.RunID != nil {
+		runID = strings.TrimSpace(*overrides.RunID)
+	}
+	if runID == "" {
+		generated, err := model.BuildRunID(&model.RuntimeConfig{
+			Name:  strings.TrimSpace(name),
+			Round: round,
+			Mode:  model.ExecutionModePRReview,
+		})
+		if err != nil {
+			return apicore.ReviewRunRequest{}, "", fmt.Errorf("build review run id: %w", err)
+		}
+		runID = generated
+	}
+	overrides.RunID = stringPointer(runID)
+	payload, err := json.Marshal(overrides)
+	if err != nil {
+		return apicore.ReviewRunRequest{}, "", fmt.Errorf("encode review runtime overrides: %w", err)
+	}
+	req.RuntimeOverrides = payload
+	return req, runID, nil
 }
 
 func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) error {

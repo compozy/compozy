@@ -77,6 +77,8 @@ type stubDaemonCommandClient struct {
 	runs                 []apicore.Run
 	runsErr              error
 	runListRequests      []apiclient.RunListOptions
+	getRun               apicore.Run
+	getRunErr            error
 	deleteRef            string
 	deleteErr            error
 	workflows            []apicore.WorkflowSummary
@@ -268,6 +270,16 @@ func (c *stubDaemonCommandClient) ListRuns(
 		}
 	}
 	return runs, nil
+}
+
+func (c *stubDaemonCommandClient) GetRun(_ context.Context, _ string) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, errors.New("stub daemon client is required")
+	}
+	if c.getRunErr != nil {
+		return apicore.Run{}, c.getRunErr
+	}
+	return c.getRun, nil
 }
 
 func stubRunListStatuses(opts apiclient.RunListOptions) []string {

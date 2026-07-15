@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	extensions "github.com/compozy/compozy/internal/core/extension"
@@ -1281,6 +1282,7 @@ func isolateCLIConfigHome(t *testing.T) string {
 	t.Helper()
 
 	homeDir := t.TempDir()
+	t.Setenv(compozyconfig.HomeEnvVar, "")
 	t.Setenv("HOME", homeDir)
 	return homeDir
 }
