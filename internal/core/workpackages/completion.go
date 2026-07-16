@@ -265,6 +265,15 @@ func (s *Store) markCompleteLocked(
 	if statErr != nil {
 		return CompletionResult{}, fmt.Errorf("stat work package plan: %w", statErr)
 	}
+	if info.Mode().Perm()&0o222 == 0 {
+		return CompletionResult{}, newError(
+			ErrPlanReadOnly,
+			plan.Initiative,
+			packageID,
+			planPath,
+			[]Issue{{Path: planPath, Field: "write", Message: "work package plan has no write permission"}},
+		)
+	}
 	if writeErr := s.ops.write(planPath, rewrite.Content, info.Mode().Perm()); writeErr != nil {
 		if errors.Is(writeErr, fs.ErrPermission) {
 			return CompletionResult{}, newError(

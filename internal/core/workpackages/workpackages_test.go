@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -519,6 +520,33 @@ func TestCompletion(t *testing.T) {
 		rewrite, err := RewriteCompletion(twoPackagePlan(t), "WP-001")
 		if err != nil || !rewrite.WriteRequired || !strings.Contains(string(rewrite.Content), "## [x] WP-001") {
 			t.Fatalf("Git/remote-independent rewrite = %#v, error = %v", rewrite, err)
+		}
+	})
+
+	t.Run("IT-028 rejects a read-only plan without changing its bytes", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("read-only replacement semantics differ on Windows")
+		}
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		before := twoPackagePlan(t)
+		writeTestFile(t, initiativeDir, ManifestFileName, string(before))
+		planPath := filepath.Join(initiativeDir, ManifestFileName)
+		if err := os.Chmod(planPath, 0o444); err != nil {
+			t.Fatalf("chmod read-only plan: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(planPath, 0o600); err != nil {
+				t.Errorf("restore plan permissions: %v", err)
+			}
+		})
+
+		result, err := NewStore().MarkComplete(context.Background(), initiativeDir, "WP-001")
+		assertDomainError(t, err, ErrPlanReadOnly)
+		if result.CompletionRecorded || result.AlreadyCompleted {
+			t.Fatalf("MarkComplete() result = %#v, want no completion", result)
+		}
+		if got := mustReadFile(t, planPath); !slices.Equal(got, before) {
+			t.Fatalf("read-only completion changed plan bytes\nwant %q\ngot  %q", before, got)
 		}
 	})
 
