@@ -1967,6 +1967,9 @@
                     "prd": {
                         "$ref": "#/components/schemas/MarkdownDocument"
                     },
+                    "plan_excerpt": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    },
                     "techspec": {
                         "$ref": "#/components/schemas/MarkdownDocument"
                     },
@@ -2004,11 +2007,29 @@
                     "can_start_run": {
                         "type": "boolean"
                     },
+                    "display_title": {
+                        "type": "string"
+                    },
                     "id": {
                         "type": "string"
                     },
                     "last_synced_at": {
                         "format": "date-time",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "lifecycle_complete": {
+                        "type": "boolean"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    },
+                    "package_id": {
+                        "type": "string"
+                    },
+                    "parent_workflow_id": {
                         "type": "string"
                     },
                     "slug": {
@@ -2020,11 +2041,93 @@
                     "task_counts": {
                         "$ref": "#/components/schemas/WorkflowTaskCounts"
                     },
+                    "work_packages": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkPackageSummary"
+                        },
+                        "type": "array"
+                    },
                     "workspace_id": {
                         "type": "string"
                     }
                 },
                 "required": ["id", "slug", "workspace_id"],
+                "type": "object"
+            },
+            "WorkPackageSummary": {
+                "properties": {
+                    "active_runs": {
+                        "type": "integer"
+                    },
+                    "archive_eligible": {
+                        "type": "boolean"
+                    },
+                    "archive_reason": {
+                        "type": "string"
+                    },
+                    "can_start_run": {
+                        "type": "boolean"
+                    },
+                    "dependencies": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkPackageDependency"
+                        },
+                        "type": "array"
+                    },
+                    "independently_eligible": {
+                        "type": "boolean"
+                    },
+                    "lifecycle_complete": {
+                        "type": "boolean"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    },
+                    "package_id": {
+                        "type": "string"
+                    },
+                    "reference": {
+                        "type": "string"
+                    },
+                    "start_block_reason": {
+                        "type": "string"
+                    },
+                    "task_counts": {
+                        "$ref": "#/components/schemas/WorkflowTaskCounts"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "unmet_dependency_count": {
+                        "type": "integer"
+                    },
+                    "unresolved_reviews": {
+                        "type": "integer"
+                    },
+                    "workflow_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "lifecycle_complete",
+                    "outcome",
+                    "package_id",
+                    "reference",
+                    "title",
+                    "workflow_id"
+                ],
+                "type": "object"
+            },
+            "WorkPackageDependency": {
+                "properties": {
+                    "package_id": {
+                        "type": "string"
+                    },
+                    "rationale": {
+                        "type": "string"
+                    }
+                },
+                "required": ["package_id", "rationale"],
                 "type": "object"
             },
             "WorkflowTaskCounts": {

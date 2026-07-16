@@ -143,6 +143,10 @@ func workflowListSummary(
 	if row.Kind != globaldb.WorkflowKindInitiative {
 		return summary, nil
 	}
+	readinessByPackageID, err := projectWorkPackageReadiness(children)
+	if err != nil {
+		return apicore.WorkflowSummary{}, err
+	}
 	for childIndex := range children {
 		child := children[childIndex]
 		childCounts := taskCountsByWorkflowID[child.ID]
@@ -155,6 +159,7 @@ func workflowListSummary(
 				Pending:   childCounts.Pending,
 			},
 			childEligibility,
+			readinessByPackageID[child.PackageID],
 		))
 	}
 	return summary, nil

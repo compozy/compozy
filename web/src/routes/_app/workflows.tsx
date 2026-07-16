@@ -118,21 +118,25 @@ function WorkflowsRoute(): ReactElement {
     }
   }
 
-  async function handleStartRun(slug: string) {
+  async function handleStartRun(slug: string, packageId?: string) {
     setActionMessage(null);
     setActionError(null);
     setStartedRun(null);
     setArchiveConfirmation(null);
-    setPendingStartSlug(slug);
+    const reference = packageId ? `${slug}/${packageId}` : slug;
+    setPendingStartSlug(reference);
     try {
       const run = await startRun.mutateAsync({
         workspaceId: activeWorkspace.id,
         slug,
-        body: { presentation_mode: "detach" },
+        body: {
+          presentation_mode: "detach",
+          ...(packageId ? { package_id: packageId } : {}),
+        },
       });
       setStartedRun(run);
     } catch (error) {
-      setActionError(apiErrorMessage(error, `Failed to start run for ${slug}`));
+      setActionError(apiErrorMessage(error, `Failed to start run for ${reference}`));
     } finally {
       setPendingStartSlug(null);
     }

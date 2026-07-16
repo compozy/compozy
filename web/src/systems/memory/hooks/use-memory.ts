@@ -4,9 +4,13 @@ import { getWorkflowMemoryFile, getWorkflowMemoryIndex } from "../adapters/memor
 import { memoryKeys } from "../lib/query-keys";
 import type { MarkdownDocument, WorkflowMemoryIndex } from "../types";
 
-export function useWorkflowMemoryIndex(workspaceId: string | null, slug: string | null) {
+export function useWorkflowMemoryIndex(
+  workspaceId: string | null,
+  slug: string | null,
+  packageId?: string
+) {
   return useQuery<WorkflowMemoryIndex>({
-    queryKey: memoryKeys.index(workspaceId ?? "none", slug ?? "none") as QueryKey,
+    queryKey: memoryKeys.index(workspaceId ?? "none", slug ?? "none", packageId) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load memory index");
@@ -14,7 +18,7 @@ export function useWorkflowMemoryIndex(workspaceId: string | null, slug: string 
       if (!slug) {
         throw new Error("workflow slug is required to load memory index");
       }
-      return getWorkflowMemoryIndex({ workspaceId, slug });
+      return getWorkflowMemoryIndex({ workspaceId, slug, packageId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });
@@ -23,10 +27,16 @@ export function useWorkflowMemoryIndex(workspaceId: string | null, slug: string 
 export function useWorkflowMemoryFile(
   workspaceId: string | null,
   slug: string | null,
-  fileId: string | null
+  fileId: string | null,
+  packageId?: string
 ) {
   return useQuery<MarkdownDocument>({
-    queryKey: memoryKeys.file(workspaceId ?? "none", slug ?? "none", fileId ?? "none") as QueryKey,
+    queryKey: memoryKeys.file(
+      workspaceId ?? "none",
+      slug ?? "none",
+      fileId ?? "none",
+      packageId
+    ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load a memory file");
@@ -37,7 +47,7 @@ export function useWorkflowMemoryFile(
       if (!fileId) {
         throw new Error("file id is required to load a memory file");
       }
-      return getWorkflowMemoryFile({ workspaceId, slug, fileId });
+      return getWorkflowMemoryFile({ workspaceId, slug, fileId, packageId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && Boolean(fileId),
   });

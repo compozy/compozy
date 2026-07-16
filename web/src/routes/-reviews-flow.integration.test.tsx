@@ -260,6 +260,62 @@ describe("reviews flow integration", () => {
     await screen.findByTestId("reviews-index-empty");
   });
 
+  it("Should preserve package scope through review round, issue, and fix-run paths", async () => {
+    // CONTRACT: IT-063, IT-064.
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2?package_id=WP-002"),
+        status: 200,
+        body: {
+          round: { ...reviewRoundPayload.round, workflow_slug: "alpha/WP-002" },
+        },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?package_id=WP-002"),
+        status: 200,
+        body: issuesPayload,
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues/issue_004?package_id=WP-002"),
+        status: 200,
+        body: {
+          review: {
+            ...reviewDetailPayload.review,
+            workflow: { ...workflowSummary, slug: "alpha/WP-002", package_id: "WP-002" },
+          },
+        },
+      },
+      {
+        matcher: matchUrl("/api/reviews/alpha/rounds/2/runs", "POST"),
+        status: 201,
+        body: reviewRunResponse,
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/reviews/alpha/2?package_id=WP-002");
+
+    const issueLink = await screen.findByTestId("review-round-issue-link-alpha-issue_004");
+    expect((issueLink as HTMLAnchorElement).getAttribute("href")).toBe(
+      "/reviews/alpha/2/issue_004?package_id=WP-002"
+    );
+    await userEvent.click(issueLink);
+    await screen.findByTestId("review-detail-view");
+    await userEvent.click(screen.getByTestId("review-detail-dispatch-fix"));
+    await screen.findByTestId("review-detail-dispatch-success");
+
+    const postedCall = stub.calls.find(call => call.method === "POST");
+    expect(JSON.parse(postedCall?.body ?? "{}")).toMatchObject({
+      workspace: "ws-1",
+      package_id: "WP-002",
+    });
+    expect(stub.calls.some(call => call.url.includes("alpha/WP-002"))).toBe(false);
+  });
+
   it("Should return to workspace selection when the reviews index reports stale workspace context", async () => {
     const stub = installFetchStub([
       {

@@ -31,6 +31,7 @@ export const PLAYWRIGHT_WORKFLOW_SLUGS = [
   PLAYWRIGHT_START_WORKFLOW_SLUG,
 ] as const;
 export const PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG = "archive-ready";
+export const PLAYWRIGHT_NESTED_WORKFLOW_SLUG = "nested-fixture";
 
 export function resolvePlaywrightPaths(): PlaywrightPaths {
   const supportDir = path.dirname(fileURLToPath(import.meta.url));

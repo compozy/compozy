@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -56,6 +58,7 @@ func transportWorkPackageSummary(
 	row globaldb.Workflow,
 	counts WorkflowTaskCounts,
 	eligibility globaldb.WorkflowArchiveEligibility,
+	readiness workPackageReadinessProjection,
 ) apicore.WorkPackageSummary {
 	dependencies := make([]apicore.WorkPackageDependency, 0, len(row.Dependencies))
 	for _, dependency := range row.Dependencies {
@@ -69,20 +72,79 @@ func transportWorkPackageSummary(
 	if row.ArchivedAt != nil {
 		archiveEligible = false
 	}
-	return apicore.WorkPackageSummary{
-		WorkflowID:        row.ID,
-		PackageID:         row.PackageID,
-		Reference:         row.Slug,
-		Title:             row.DisplayTitle,
-		Outcome:           row.Outcome,
-		LifecycleComplete: row.LifecycleCompleted,
-		Dependencies:      dependencies,
-		TaskCounts:        &apiCounts,
-		UnresolvedReviews: eligibility.UnresolvedReviewIssues,
-		ActiveRuns:        eligibility.ActiveRuns,
-		ArchiveEligible:   &archiveEligible,
-		ArchiveReason:     eligibility.SkipReason(),
+	canStart, startBlockReason := workflowStartAction(row, counts)
+	if canStart && readiness.unmetDependencyCount > 0 {
+		canStart = false
+		startBlockReason = fmt.Sprintf(
+			"%d unmet %s",
+			readiness.unmetDependencyCount,
+			pluralizeDependency(readiness.unmetDependencyCount),
+		)
 	}
+	return apicore.WorkPackageSummary{
+		WorkflowID:            row.ID,
+		PackageID:             row.PackageID,
+		Reference:             row.Slug,
+		Title:                 row.DisplayTitle,
+		Outcome:               row.Outcome,
+		LifecycleComplete:     row.LifecycleCompleted,
+		Dependencies:          dependencies,
+		TaskCounts:            &apiCounts,
+		UnresolvedReviews:     eligibility.UnresolvedReviewIssues,
+		UnmetDependencyCount:  readiness.unmetDependencyCount,
+		IndependentlyEligible: readiness.independentlyEligible,
+		ActiveRuns:            eligibility.ActiveRuns,
+		CanStartRun:           &canStart,
+		StartBlockReason:      startBlockReason,
+		ArchiveEligible:       &archiveEligible,
+		ArchiveReason:         eligibility.SkipReason(),
+	}
+}
+
+func pluralizeDependency(count int) string {
+	if count == 1 {
+		return "dependency"
+	}
+	return "dependencies"
+}
+
+type workPackageReadinessProjection struct {
+	unmetDependencyCount  int
+	independentlyEligible bool
+}
+
+func projectWorkPackageReadiness(
+	children []*globaldb.Workflow,
+) (map[string]workPackageReadinessProjection, error) {
+	plan := workpackages.Plan{Packages: make([]workpackages.Package, 0, len(children))}
+	for _, child := range children {
+		pkg := workpackages.Package{
+			ID:        child.PackageID,
+			Completed: child.LifecycleCompleted,
+		}
+		for _, dependency := range child.Dependencies {
+			edge := workpackages.Dependency{
+				From:      dependency.PackageID,
+				To:        child.PackageID,
+				Rationale: dependency.Rationale,
+			}
+			pkg.Dependencies = append(pkg.Dependencies, edge)
+			plan.Edges = append(plan.Edges, edge)
+		}
+		plan.Packages = append(plan.Packages, pkg)
+	}
+	result := make(map[string]workPackageReadinessProjection, len(children))
+	for _, child := range children {
+		readiness, err := workpackages.EvaluateReadiness(plan, child.PackageID)
+		if err != nil {
+			return nil, fmt.Errorf("project work package %q readiness: %w", child.PackageID, err)
+		}
+		result[child.PackageID] = workPackageReadinessProjection{
+			unmetDependencyCount:  len(readiness.DirectUnmet),
+			independentlyEligible: len(readiness.IndependentPeers) > 0,
+		}
+	}
+	return result, nil
 }
 
 func transportWorkflowSummaryWithTaskCounts(
@@ -381,6 +443,10 @@ func transportWorkflowSpec(doc WorkflowSpecDocument) apicore.WorkflowSpecDocumen
 	if doc.TechSpec != nil {
 		techspec := transportMarkdownDocument(*doc.TechSpec)
 		out.TechSpec = &techspec
+	}
+	if doc.PlanExcerpt != nil {
+		excerpt := transportMarkdownDocument(*doc.PlanExcerpt)
+		out.PlanExcerpt = &excerpt
 	}
 	for i := range doc.ADRs {
 		out.ADRs = append(out.ADRs, transportMarkdownDocument(doc.ADRs[i]))

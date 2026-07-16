@@ -3,18 +3,21 @@ import type { ReactElement } from "react";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 
 import { apiErrorMessage } from "@/lib/api-client";
+import { workPackageSearchSchema } from "@/lib/work-package-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { TaskBoardView, useWorkflowBoard } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/workflows_/$slug/tasks")({
   component: WorkflowTasksBoardRoute,
+  validateSearch: workPackageSearchSchema,
 });
 
 function WorkflowTasksBoardRoute(): ReactElement {
   const { slug } = useParams({ from: "/_app/workflows_/$slug/tasks" });
+  const { package_id: packageId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
-  const boardQuery = useWorkflowBoard(activeWorkspace.id, slug);
+  const boardQuery = useWorkflowBoard(activeWorkspace.id, slug, packageId);
 
   return (
     <AppShellLayout
@@ -44,6 +47,7 @@ function WorkflowTasksBoardRoute(): ReactElement {
         }
         isLoading={boardQuery.isLoading}
         isRefetching={boardQuery.isRefetching}
+        packageId={packageId}
         workflowSlug={slug}
         workspaceName={activeWorkspace.name}
       />

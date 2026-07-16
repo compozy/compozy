@@ -33,6 +33,41 @@ const workflows: WorkflowSummary[] = [
   },
 ];
 
+const initiativeWorkflow: WorkflowSummary = {
+  id: "wf-initiative",
+  kind: "initiative",
+  slug: "customer-management",
+  workspace_id: "ws-1",
+  work_packages: [
+    {
+      workflow_id: "wf-package-1",
+      package_id: "WP-001",
+      reference: "customer-management/WP-001",
+      title: "Persistence",
+      outcome: "Persist customer records.",
+      lifecycle_complete: true,
+      unmet_dependency_count: 0,
+      independently_eligible: false,
+      task_counts: { total: 2, completed: 2, pending: 0 },
+      can_start_run: false,
+    },
+    {
+      workflow_id: "wf-package-2",
+      package_id: "WP-002",
+      reference: "customer-management/WP-002",
+      title: "Interface",
+      outcome: "Render customer records.",
+      lifecycle_complete: false,
+      unmet_dependency_count: 1,
+      independently_eligible: false,
+      dependencies: [{ package_id: "WP-001", rationale: "API contract first" }],
+      task_counts: { total: 3, completed: 1, pending: 2 },
+      can_start_run: false,
+      start_block_reason: "1 unmet dependency",
+    },
+  ],
+};
+
 const defaults = {
   archiveConfirmation: null,
   isLoading: false,
@@ -113,6 +148,47 @@ describe("WorkflowInventoryView", () => {
       workflows: [],
     });
     expect(screen.getByTestId("workflow-inventory-empty")).toBeInTheDocument();
+  });
+
+  it("Should render and filter accessible Work Packages only beneath their initiative", async () => {
+    // CONTRACT: IT-055, E2E-004, E2E-006.
+    const onStartRun = vi.fn();
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [initiativeWorkflow],
+    });
+
+    expect(screen.getByTestId("workflow-row-customer-management")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-packages-customer-management")).toHaveTextContent(
+      "Work Packages · 2"
+    );
+    expect(screen.queryByTestId("workflow-row-customer-management/WP-001")).not.toBeInTheDocument();
+    const packageLink = screen.getByRole("link", {
+      name: /WP-002, Interface.*lifecycle incomplete.*1 unmet dependency/i,
+    }) as HTMLAnchorElement;
+    expect(packageLink.getAttribute("href")).toBe(
+      "/workflows/customer-management/tasks?package_id=WP-002"
+    );
+    expect(screen.getByTestId("workflow-package-lifecycle-WP-001")).toHaveTextContent(
+      "Git integration is not tracked"
+    );
+    expect(screen.getByTestId("workflow-package-dependencies-WP-002")).toHaveTextContent(
+      "API contract first"
+    );
+
+    const filter = screen.getByTestId("workflow-packages-filter-customer-management");
+    await userEvent.type(filter, "WP-002");
+    expect(
+      screen.queryByTestId("workflow-package-customer-management-WP-001")
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-package-customer-management-WP-002")).toBeInTheDocument();
+
+    expect(screen.getByText("1 unmet dependency")).toBeInTheDocument();
+    expect(onStartRun).not.toHaveBeenCalled();
   });
 
   it("Should fire sync-all, start-run, sync-one, and archive handlers", async () => {

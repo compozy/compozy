@@ -259,6 +259,38 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	if _, ok := archiveProperties["force"]; !ok {
 		t.Fatal("WorkflowArchiveRequest must expose force")
 	}
+	workflowSummaryProperties := getMap(t, getSchema(t, spec, "WorkflowSummary"), "properties")
+	for _, field := range []string{"kind", "package_id", "lifecycle_complete", "work_packages"} {
+		if _, ok := workflowSummaryProperties[field]; !ok {
+			t.Fatalf("WorkflowSummary must expose %s", field)
+		}
+	}
+	workPackageProperties := getMap(t, getSchema(t, spec, "WorkPackageSummary"), "properties")
+	for _, field := range []string{
+		"package_id",
+		"reference",
+		"title",
+		"outcome",
+		"lifecycle_complete",
+		"dependencies",
+		"task_counts",
+		"unresolved_reviews",
+		"unmet_dependency_count",
+		"independently_eligible",
+		"active_runs",
+		"can_start_run",
+		"start_block_reason",
+		"archive_eligible",
+		"archive_reason",
+	} {
+		if _, ok := workPackageProperties[field]; !ok {
+			t.Fatalf("WorkPackageSummary must expose %s", field)
+		}
+	}
+	workflowSpecProperties := getMap(t, getSchema(t, spec, "WorkflowSpecDocument"), "properties")
+	if _, ok := workflowSpecProperties["plan_excerpt"]; !ok {
+		t.Fatal("WorkflowSpecDocument must expose plan_excerpt")
+	}
 
 	runSnapshot := getSchema(t, spec, "RunSnapshotPayload")
 	if !schemaRequires(runSnapshot, "run") {

@@ -284,11 +284,12 @@ type MarkdownDocument struct {
 
 // WorkflowSpecDocument captures the canonical workflow spec artifacts.
 type WorkflowSpecDocument struct {
-	Workspace Workspace          `json:"workspace"`
-	Workflow  WorkflowSummary    `json:"workflow"`
-	PRD       *MarkdownDocument  `json:"prd,omitempty"`
-	TechSpec  *MarkdownDocument  `json:"techspec,omitempty"`
-	ADRs      []MarkdownDocument `json:"adrs,omitempty"`
+	Workspace   Workspace          `json:"workspace"`
+	Workflow    WorkflowSummary    `json:"workflow"`
+	PRD         *MarkdownDocument  `json:"prd,omitempty"`
+	TechSpec    *MarkdownDocument  `json:"techspec,omitempty"`
+	ADRs        []MarkdownDocument `json:"adrs,omitempty"`
+	PlanExcerpt *MarkdownDocument  `json:"plan_excerpt,omitempty"`
 }
 
 // WorkflowMemoryIndex lists workflow memory files using opaque daemon-issued identifiers.

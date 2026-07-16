@@ -208,6 +208,56 @@ describe("workflow tasks integration", () => {
     await screen.findByTestId("task-board-empty");
   });
 
+  it("Should isolate package board and detail reads with query state", async () => {
+    // CONTRACT: IT-058.
+    const packageWorkflow = { ...workflow, slug: "alpha/WP-002", package_id: "WP-002" };
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/tasks/alpha/board?package_id=WP-002"),
+        status: 200,
+        body: {
+          board: {
+            ...boardPayload.board,
+            workflow: packageWorkflow,
+            lanes: [
+              {
+                ...boardPayload.board.lanes[0],
+                items: [{ ...boardPayload.board.lanes[0]!.items[0]!, title: "WP-002 task" }],
+              },
+            ],
+          },
+        },
+      },
+      {
+        matcher: matchUrl("/api/tasks/alpha/items/task_01?package_id=WP-002"),
+        status: 200,
+        body: {
+          task: {
+            ...taskDetailPayload.task,
+            workflow: packageWorkflow,
+            task: { ...taskDetailPayload.task.task, title: "WP-002 task" },
+            related_runs: [],
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/workflows/alpha/tasks?package_id=WP-002");
+
+    expect(await screen.findByTestId("task-board-view")).toHaveTextContent("alpha/WP-002");
+    const taskLink = (await screen.findByTestId("task-board-link-task_01")) as HTMLAnchorElement;
+    expect(taskLink.getAttribute("href")).toBe("/workflows/alpha/tasks/task_01?package_id=WP-002");
+    await userEvent.click(taskLink);
+    expect(await screen.findByTestId("task-detail-view")).toHaveTextContent("WP-002 task");
+    expect(stub.calls.some(call => call.url.includes("package_id=WP-002"))).toBe(true);
+    expect(stub.calls.some(call => call.url.includes("/tasks/alpha/WP-002"))).toBe(false);
+  });
+
   it("Should render the board error state when the daemon returns not-found", async () => {
     const stub = installFetchStub([
       {

@@ -1,4 +1,5 @@
 export const specKeys = {
   all: ["spec"] as const,
-  workflow: (workspaceId: string, slug: string) => [...specKeys.all, workspaceId, slug] as const,
+  workflow: (workspaceId: string, slug: string, packageId?: string) =>
+    [...specKeys.all, workspaceId, slug, packageId ?? null] as const,
 };

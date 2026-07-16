@@ -4,11 +4,13 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
+import { workPackageSearchSchema } from "@/lib/work-package-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { ReviewRoundDetailView, useReviewIssues, useReviewRound } from "@/systems/reviews";
 
 export const Route = createFileRoute("/_app/reviews_/$slug/$round")({
   component: ReviewRoundDetailRoute,
+  validateSearch: workPackageSearchSchema,
   parseParams: params => ({
     slug: params.slug,
     round: params.round,
@@ -19,18 +21,21 @@ function ReviewRoundDetailRoute(): ReactElement {
   const { slug, round } = useParams({
     from: "/_app/reviews_/$slug/$round",
   });
+  const { package_id: packageId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
   const parsedRound = parseRound(round);
   const roundQuery = useReviewRound(
     activeWorkspace.id,
     slug,
-    Number.isFinite(parsedRound) ? parsedRound : null
+    Number.isFinite(parsedRound) ? parsedRound : null,
+    packageId
   );
   const issuesQuery = useReviewIssues(
     activeWorkspace.id,
     slug,
-    Number.isFinite(parsedRound) ? parsedRound : null
+    Number.isFinite(parsedRound) ? parsedRound : null,
+    packageId
   );
 
   const header = (
@@ -91,7 +96,9 @@ function ReviewRoundDetailRoute(): ReactElement {
           }
           isIssuesLoading={issuesQuery.isLoading && !issuesQuery.data}
           isRefreshing={roundQuery.isRefetching || issuesQuery.isRefetching}
+          packageId={packageId}
           round={roundQuery.data}
+          workflowSlug={slug}
         />
       ) : null}
     </AppShellLayout>

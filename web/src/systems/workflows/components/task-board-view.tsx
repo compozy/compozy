@@ -23,21 +23,22 @@ export interface TaskBoardViewProps {
   isLoading: boolean;
   isRefetching: boolean;
   error?: string | null;
+  packageId?: string;
   workflowSlug: string;
   workspaceName: string;
 }
 
 export function TaskBoardView(props: TaskBoardViewProps): ReactElement {
-  const { board, isLoading, isRefetching, error, workflowSlug, workspaceName } = props;
+  const { board, isLoading, isRefetching, error, packageId, workflowSlug, workspaceName } = props;
   const lanes = board?.lanes ?? [];
   const totalTasks = board?.task_counts?.total ?? 0;
 
   return (
     <div className="space-y-6" data-testid="task-board-view">
       <SectionHeading
-        description={`Tasks registered for ${workflowSlug} in ${workspaceName}.`}
+        description={`Tasks registered for ${packageId ? `${workflowSlug}/${packageId}` : workflowSlug} in ${workspaceName}.`}
         eyebrow="Workflow · Tasks"
-        title={workflowSlug}
+        title={packageId ? `${workflowSlug}/${packageId}` : workflowSlug}
       />
 
       {error ? (
@@ -67,7 +68,12 @@ export function TaskBoardView(props: TaskBoardViewProps): ReactElement {
       {lanes.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3" data-testid="task-board-lanes">
           {lanes.map(lane => (
-            <BoardLane key={`${lane.status}-${lane.title}`} lane={lane} slug={workflowSlug} />
+            <BoardLane
+              key={`${lane.status}-${lane.title}`}
+              lane={lane}
+              packageId={packageId}
+              slug={workflowSlug}
+            />
           ))}
         </div>
       ) : null}
@@ -103,7 +109,15 @@ function CountsSummary({ counts }: { counts: WorkflowTaskCounts }): ReactElement
   );
 }
 
-function BoardLane({ lane, slug }: { lane: TaskLane; slug: string }): ReactElement {
+function BoardLane({
+  lane,
+  packageId,
+  slug,
+}: {
+  lane: TaskLane;
+  packageId?: string;
+  slug: string;
+}): ReactElement {
   const items = lane.items ?? [];
   const tone = resolveLaneTone(lane.status);
   return (
@@ -133,7 +147,7 @@ function BoardLane({ lane, slug }: { lane: TaskLane; slug: string }): ReactEleme
         ) : (
           <ul className="space-y-2" data-testid={`task-board-lane-items-${lane.status}`}>
             {items.map(task => (
-              <TaskRow key={task.task_id} slug={slug} task={task} />
+              <TaskRow key={task.task_id} packageId={packageId} slug={slug} task={task} />
             ))}
           </ul>
         )}
@@ -142,7 +156,15 @@ function BoardLane({ lane, slug }: { lane: TaskLane; slug: string }): ReactEleme
   );
 }
 
-function TaskRow({ slug, task }: { slug: string; task: TaskCard }): ReactElement {
+function TaskRow({
+  packageId,
+  slug,
+  task,
+}: {
+  packageId?: string;
+  slug: string;
+  task: TaskCard;
+}): ReactElement {
   const tone = resolveStatusTone(task.status);
   const deps = task.depends_on ?? [];
   return (
@@ -159,6 +181,7 @@ function TaskRow({ slug, task }: { slug: string; task: TaskCard }): ReactElement
             className="block truncate text-sm font-medium text-foreground hover:underline"
             data-testid={`task-board-link-${task.task_id}`}
             params={{ slug, taskId: task.task_id }}
+            search={packageId ? { package_id: packageId } : {}}
             to="/workflows/$slug/tasks/$taskId"
             title={task.title}
           >

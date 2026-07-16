@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useId, useState, type ReactElement } from "react";
 
 import { AlertTriangle, Archive, BookOpen, FileText, Play, RefreshCw } from "lucide-react";
 
@@ -26,7 +26,7 @@ import { Link } from "@tanstack/react-router";
 
 import type { Run } from "@/systems/runs";
 
-import type { WorkflowSummary } from "../types";
+import type { WorkflowSummary, WorkPackageSummary } from "../types";
 
 function isWorkflowCompleted(workflow: WorkflowSummary): boolean {
   if (workflow.archived_at) return false;
@@ -54,7 +54,7 @@ export interface WorkflowInventoryViewProps {
   isReadOnly?: boolean;
   onSyncAll: () => void;
   onSyncOne: (slug: string) => void;
-  onStartRun: (slug: string) => void;
+  onStartRun: (slug: string, packageId?: string) => void;
   onArchive: (slug: string) => void;
   onConfirmArchiveConfirmation: (slug: string) => void;
   onCancelArchiveConfirmation: () => void;
@@ -258,10 +258,12 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
+                onStartPackage={packageId => onStartRun(workflow.slug, packageId)}
                 onSync={() => onSyncOne(workflow.slug)}
                 readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
                 pendingStart={pendingStartSlug === workflow.slug}
+                pendingStartReference={pendingStartSlug}
                 pendingSync={pendingSyncSlug === workflow.slug}
                 workflow={workflow}
               />
@@ -279,10 +281,12 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
+                onStartPackage={packageId => onStartRun(workflow.slug, packageId)}
                 onSync={() => onSyncOne(workflow.slug)}
                 readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
                 pendingStart={pendingStartSlug === workflow.slug}
+                pendingStartReference={pendingStartSlug}
                 pendingSync={pendingSyncSlug === workflow.slug}
                 workflow={workflow}
               />
@@ -315,18 +319,22 @@ function WorkflowRow({
   workflow,
   onSync,
   onStartRun,
+  onStartPackage,
   onArchive,
   pendingSync,
   pendingStart,
+  pendingStartReference,
   pendingArchive,
   readOnly,
 }: {
   workflow: WorkflowSummary;
   onSync: () => void;
   onStartRun: () => void;
+  onStartPackage: (packageId: string) => void;
   onArchive: () => void;
   pendingSync: boolean;
   pendingStart: boolean;
+  pendingStartReference: string | null;
   pendingArchive: boolean;
   readOnly: boolean;
 }): ReactElement {
@@ -431,7 +439,249 @@ function WorkflowRow({
           </Button>
         </SurfaceCardBody>
       </SurfaceCard>
+      {(workflow.work_packages?.length ?? 0) > 0 ? (
+        <WorkPackageList
+          initiativeSlug={workflow.slug}
+          onStartPackage={onStartPackage}
+          packages={workflow.work_packages ?? []}
+          pendingStartReference={pendingStartReference}
+          readOnly={readOnly}
+        />
+      ) : null}
     </li>
+  );
+}
+
+function WorkPackageList({
+  initiativeSlug,
+  onStartPackage,
+  packages,
+  pendingStartReference,
+  readOnly,
+}: {
+  initiativeSlug: string;
+  onStartPackage: (packageId: string) => void;
+  packages: WorkPackageSummary[];
+  pendingStartReference: string | null;
+  readOnly: boolean;
+}): ReactElement {
+  const inputId = useId();
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visiblePackages = normalizedQuery
+    ? packages.filter(pkg =>
+        [pkg.package_id, pkg.title, pkg.outcome, pkg.reference].some(value =>
+          value.toLocaleLowerCase().includes(normalizedQuery)
+        )
+      )
+    : packages;
+
+  return (
+    <section
+      aria-label={`Work Packages for ${initiativeSlug}`}
+      className="ml-3 border-l border-border pl-4 pt-3 sm:ml-6 sm:pl-6"
+      data-testid={`workflow-packages-${initiativeSlug}`}
+    >
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="eyebrow text-muted-foreground">Work Packages · {packages.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Child execution scopes for this initiative.
+          </p>
+        </div>
+        <label className="grid gap-1 text-xs text-muted-foreground" htmlFor={inputId}>
+          Filter packages
+          <input
+            className="h-9 w-full rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-[color:var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring)] sm:w-64"
+            data-testid={`workflow-packages-filter-${initiativeSlug}`}
+            id={inputId}
+            onChange={event => setQuery(event.currentTarget.value)}
+            placeholder="ID, title, outcome"
+            type="search"
+            value={query}
+          />
+        </label>
+      </div>
+      {visiblePackages.length > 0 ? (
+        <ul className="grid gap-2" data-testid={`workflow-packages-list-${initiativeSlug}`}>
+          {visiblePackages.map(pkg => (
+            <WorkPackageRow
+              initiativeSlug={initiativeSlug}
+              key={pkg.workflow_id}
+              onStart={() => onStartPackage(pkg.package_id)}
+              pendingStart={pendingStartReference === pkg.reference}
+              pkg={pkg}
+              readOnly={readOnly}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p
+          className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-4 text-sm text-muted-foreground"
+          data-testid={`workflow-packages-filter-empty-${initiativeSlug}`}
+        >
+          No Work Packages match “{query}”.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function WorkPackageRow({
+  initiativeSlug,
+  onStart,
+  pendingStart,
+  pkg,
+  readOnly,
+}: {
+  initiativeSlug: string;
+  onStart: () => void;
+  pendingStart: boolean;
+  pkg: WorkPackageSummary;
+  readOnly: boolean;
+}): ReactElement {
+  const unmetCount = pkg.unmet_dependency_count ?? 0;
+  const completionText = pkg.lifecycle_complete
+    ? "Compozy lifecycle complete; Git integration is not tracked"
+    : "Compozy lifecycle incomplete";
+  const selectionLabel = `${pkg.package_id}, ${pkg.title}. ${completionText}. ${unmetCount} unmet ${unmetCount === 1 ? "dependency" : "dependencies"}.`;
+  const canStart = !pkg.lifecycle_complete && pkg.can_start_run !== false;
+  const taskCounts = pkg.task_counts;
+
+  return (
+    <li>
+      <SurfaceCard data-testid={`workflow-package-${initiativeSlug}-${pkg.package_id}`}>
+        <SurfaceCardHeader>
+          <div className="min-w-0">
+            <SurfaceCardEyebrow>{pkg.package_id}</SurfaceCardEyebrow>
+            <SurfaceCardTitle>
+              <Link
+                aria-label={selectionLabel}
+                className="block text-foreground hover:underline"
+                data-testid={`workflow-package-open-${initiativeSlug}-${pkg.package_id}`}
+                params={{ slug: initiativeSlug }}
+                search={{ package_id: pkg.package_id }}
+                to="/workflows/$slug/tasks"
+              >
+                {pkg.title}
+              </Link>
+            </SurfaceCardTitle>
+            <SurfaceCardDescription>{pkg.outcome}</SurfaceCardDescription>
+          </div>
+          <StatusBadge
+            tone={pkg.lifecycle_complete ? "success" : unmetCount > 0 ? "warning" : "info"}
+          >
+            {pkg.lifecycle_complete
+              ? "lifecycle complete"
+              : unmetCount > 0
+                ? "dependencies unmet"
+                : "ready"}
+          </StatusBadge>
+        </SurfaceCardHeader>
+        <SurfaceCardBody className="space-y-3">
+          <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
+            <p data-testid={`workflow-package-lifecycle-${pkg.package_id}`}>{completionText}.</p>
+            <p data-testid={`workflow-package-readiness-${pkg.package_id}`}>
+              {unmetCount > 0
+                ? `${pluralize(unmetCount, "unmet dependency")}.`
+                : "All declared dependencies are complete."}
+            </p>
+            <p>
+              {pkg.independently_eligible
+                ? "May be developed independently of an eligible peer."
+                : "Follows the declared dependency order."}
+            </p>
+            <p>
+              {taskCounts
+                ? `${taskCounts.completed}/${taskCounts.total} tasks complete`
+                : "Task counts unavailable"}
+              {` · ${pluralize(pkg.unresolved_reviews ?? 0, "unresolved review")}`}
+              {` · ${pluralize(pkg.active_runs ?? 0, "active run")}`}
+            </p>
+          </div>
+          {(pkg.dependencies?.length ?? 0) > 0 ? (
+            <ul
+              aria-label={`Dependencies for ${pkg.package_id}`}
+              className="flex flex-wrap gap-2"
+              data-testid={`workflow-package-dependencies-${pkg.package_id}`}
+            >
+              {pkg.dependencies?.map(dependency => (
+                <li
+                  className="rounded-[var(--radius-sm)] border border-border-subtle bg-[color:var(--surface-inset)] px-2 py-1 text-xs text-muted-foreground"
+                  key={`${dependency.package_id}-${dependency.rationale}`}
+                >
+                  <span className="font-mono text-foreground">{dependency.package_id}</span>
+                  {` — ${dependency.rationale}`}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <PackageLink
+              label="Task board"
+              packageId={pkg.package_id}
+              slug={initiativeSlug}
+              testId={`workflow-package-tasks-${initiativeSlug}-${pkg.package_id}`}
+              to="/workflows/$slug/tasks"
+            />
+            <PackageLink
+              label="Spec + plan"
+              packageId={pkg.package_id}
+              slug={initiativeSlug}
+              testId={`workflow-package-spec-${initiativeSlug}-${pkg.package_id}`}
+              to="/workflows/$slug/spec"
+            />
+            <PackageLink
+              label="Memory"
+              packageId={pkg.package_id}
+              slug={initiativeSlug}
+              testId={`workflow-package-memory-${initiativeSlug}-${pkg.package_id}`}
+              to="/memory/$slug"
+            />
+            {canStart ? (
+              <Button
+                data-testid={`workflow-package-start-${initiativeSlug}-${pkg.package_id}`}
+                disabled={pendingStart || readOnly}
+                icon={<Play className="size-4" />}
+                loading={pendingStart}
+                onClick={onStart}
+                size="sm"
+              >
+                Start package run
+              </Button>
+            ) : pkg.lifecycle_complete ? null : (
+              <StatusBadge tone="warning">{pkg.start_block_reason || "not startable"}</StatusBadge>
+            )}
+          </div>
+        </SurfaceCardBody>
+      </SurfaceCard>
+    </li>
+  );
+}
+
+function PackageLink({
+  label,
+  packageId,
+  slug,
+  testId,
+  to,
+}: {
+  label: string;
+  packageId: string;
+  slug: string;
+  testId: string;
+  to: "/memory/$slug" | "/workflows/$slug/spec" | "/workflows/$slug/tasks";
+}): ReactElement {
+  return (
+    <Link
+      className="inline-flex items-center justify-center rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
+      data-testid={testId}
+      params={{ slug }}
+      search={{ package_id: packageId }}
+      to={to}
+    >
+      {label}
+    </Link>
   );
 }
 
@@ -452,6 +702,27 @@ function ArchivedRow({ workflow }: { workflow: WorkflowSummary }): ReactElement 
           <StatusBadge tone="neutral">archived</StatusBadge>
         </SurfaceCardHeader>
       </SurfaceCard>
+      {(workflow.work_packages?.length ?? 0) > 0 ? (
+        <ul
+          aria-label={`Archived Work Packages for ${workflow.slug}`}
+          className="ml-3 grid gap-2 border-l border-border pl-4 pt-3 sm:ml-6 sm:pl-6"
+        >
+          {workflow.work_packages?.map(pkg => (
+            <li
+              className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
+              key={pkg.workflow_id}
+            >
+              <p className="font-mono text-xs text-muted-foreground">{pkg.package_id}</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{pkg.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {pkg.lifecycle_complete
+                  ? "Compozy lifecycle complete; Git integration is not tracked."
+                  : "Compozy lifecycle incomplete."}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </li>
   );
 }

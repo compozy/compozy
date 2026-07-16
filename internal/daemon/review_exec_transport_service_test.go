@@ -123,6 +123,73 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 	}
 }
 
+func TestTransportReviewServicePackageMutationsUseChildReviewsAndParentSpecs(t *testing.T) {
+	// INVARIANT: package fetch/fix mutations write child review state while lifecycle scope retains parent specs.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-064.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package task"),
+	)
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
+	recordPath := filepath.Join(t.TempDir(), "sdk-review-package-records.jsonl")
+	installSDKReviewProviderExtension(t, env.homeDir, env.workspaceRoot, recordPath)
+
+	service := newTransportReviewService(env.globalDB, env.manager)
+	fetched, err := service.Fetch(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.ReviewFetchRequest{Provider: "sdk-review", PRRef: "package-1"},
+	)
+	if err != nil {
+		t.Fatalf("Fetch(package) error = %v", err)
+	}
+	if fetched.Summary.WorkflowSlug != packageRef || fetched.Summary.RoundNumber != 1 {
+		t.Fatalf("Fetch(package) summary = %#v", fetched.Summary)
+	}
+	childIssue := filepath.Join(
+		env.workflowDir(initiative),
+		"_packages",
+		"WP-001",
+		"reviews-001",
+		"issue_001.md",
+	)
+	if _, err := os.Stat(childIssue); err != nil {
+		t.Fatalf("package review issue stat error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(env.workflowDir(initiative), "reviews-001")); !os.IsNotExist(err) {
+		t.Fatalf("initiative review directory stat = %v, want not exist", err)
+	}
+
+	run, err := service.StartRun(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		1,
+		apicore.ReviewRunRequest{
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"review-package-fix","dry_run":true}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartRun(package) error = %v", err)
+	}
+	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if run.WorkflowSlug != packageRef || row.Mode != runModeReview {
+		t.Fatalf("package review-fix run = %#v / %#v", run, row)
+	}
+}
+
 func TestTransportReviewServiceFetchSyncsNoMetaRoundAfterLegacyReview(t *testing.T) {
 	t.Run("Should sync a no-meta round after a legacy review round", func(t *testing.T) {
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})

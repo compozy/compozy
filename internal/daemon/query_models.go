@@ -122,11 +122,12 @@ type MarkdownDocument struct {
 
 // WorkflowSpecDocument captures the canonical workflow spec artifacts.
 type WorkflowSpecDocument struct {
-	Workspace apicore.Workspace
-	Workflow  apicore.WorkflowSummary
-	PRD       *MarkdownDocument
-	TechSpec  *MarkdownDocument
-	ADRs      []MarkdownDocument
+	Workspace   apicore.Workspace
+	Workflow    apicore.WorkflowSummary
+	PRD         *MarkdownDocument
+	TechSpec    *MarkdownDocument
+	ADRs        []MarkdownDocument
+	PlanExcerpt *MarkdownDocument
 }
 
 // WorkflowMemoryIndex lists memory files using opaque IDs.

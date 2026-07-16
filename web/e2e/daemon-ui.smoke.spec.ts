@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 import {
   loadDaemonUIEnvironment,
   PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG,
+  PLAYWRIGHT_NESTED_WORKFLOW_SLUG,
   PLAYWRIGHT_START_WORKFLOW_SLUG,
 } from "./support/daemon-fixture";
 
@@ -66,6 +67,69 @@ test.describe.serial("daemon-served web UI smoke flows", () => {
     await page.goto(`${env.baseUrl}/runs`);
     await expect(page.getByTestId("runs-list-view")).toBeVisible();
     await expect(page.getByTestId(`runs-list-link-${env.seededTaskRunId}`)).toBeVisible();
+  });
+
+  test("navigates an initiative hierarchy without exposing package slugs as routes", async ({
+    page,
+  }) => {
+    // CONTRACT: E2E-004.
+    const env = await loadDaemonUIEnvironment();
+
+    await page.goto(`${env.baseUrl}/workflows`);
+    await expect(page.getByTestId(`workflow-row-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`)).toBeVisible();
+    await expect(
+      page.getByTestId(`workflow-packages-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`)
+    ).toBeVisible();
+    await expect(page.getByTestId("workflow-row-nested-fixture/WP-001")).toHaveCount(0);
+
+    await page
+      .getByTestId(`workflow-package-tasks-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-WP-002`)
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/tasks\\?package_id=WP-002`)
+    );
+    await expect(page.getByTestId("task-board-view")).toContainText(
+      `${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/WP-002`
+    );
+
+    await page.locator("[data-testid^='task-board-link-']").first().click();
+    await expect(page).toHaveURL(/\/tasks\/task_001\?package_id=WP-002/);
+
+    await page.goto(
+      `${env.baseUrl}/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/spec?package_id=WP-002`
+    );
+    await expect(page.getByTestId("workflow-spec-tab-package")).toBeVisible();
+    await expect(page.getByTestId("workflow-spec-package-body")).toContainText(
+      "WP-002 — Package 002"
+    );
+    await expect(page.getByTestId("workflow-spec-package-body")).not.toContainText(
+      "WP-001 — Package 001"
+    );
+  });
+
+  test("filters a large package collection and selects it from the keyboard", async ({ page }) => {
+    // CONTRACT: E2E-006.
+    const env = await loadDaemonUIEnvironment();
+    await page.goto(`${env.baseUrl}/workflows`);
+
+    const filter = page.getByTestId(`workflow-packages-filter-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`);
+    await filter.focus();
+    await page.keyboard.type("WP-100");
+    await expect(
+      page.getByTestId(`workflow-package-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-WP-100`)
+    ).toBeVisible();
+    await expect(
+      page.getByTestId(`workflow-package-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-WP-001`)
+    ).toHaveCount(0);
+
+    const selection = page.getByRole("link", {
+      name: /WP-100, Package 100.*lifecycle incomplete.*0 unmet dependencies/i,
+    });
+    await selection.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(
+      new RegExp(`/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/tasks\\?package_id=WP-100`)
+    );
   });
 
   test("archives a workflow through the daemon API surface", async ({ page }) => {

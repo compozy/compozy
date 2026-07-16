@@ -4,18 +4,21 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
+import { workPackageSearchSchema } from "@/lib/work-package-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { WorkflowSpecView, useWorkflowSpec } from "@/systems/spec";
 
 export const Route = createFileRoute("/_app/workflows_/$slug/spec")({
   component: WorkflowSpecRoute,
+  validateSearch: workPackageSearchSchema,
 });
 
 function WorkflowSpecRoute(): ReactElement {
   const { slug } = useParams({ from: "/_app/workflows_/$slug/spec" });
+  const { package_id: packageId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
-  const specQuery = useWorkflowSpec(activeWorkspace.id, slug);
+  const specQuery = useWorkflowSpec(activeWorkspace.id, slug, packageId);
 
   return (
     <AppShellLayout

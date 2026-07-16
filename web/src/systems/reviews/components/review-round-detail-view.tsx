@@ -24,10 +24,14 @@ export interface ReviewRoundDetailViewProps {
   issuesError?: string | null;
   isIssuesLoading: boolean;
   isRefreshing: boolean;
+  packageId?: string;
+  workflowSlug?: string;
 }
 
 export function ReviewRoundDetailView(props: ReviewRoundDetailViewProps): ReactElement {
-  const { round, issues, issuesError, isIssuesLoading, isRefreshing } = props;
+  const { round, issues, issuesError, isIssuesLoading, isRefreshing, packageId, workflowSlug } =
+    props;
+  const routeSlug = workflowSlug ?? round.workflow_slug;
   const roundLabel = String(round.round_number).padStart(3, "0");
   const tone = round.unresolved_count > 0 ? "warning" : "success";
 
@@ -95,8 +99,9 @@ export function ReviewRoundDetailView(props: ReviewRoundDetailViewProps): ReactE
                 <ReviewIssueRow
                   issue={issue}
                   key={issue.id}
+                  packageId={packageId}
                   round={round.round_number}
-                  slug={round.workflow_slug}
+                  slug={routeSlug}
                 />
               ))}
             </ul>
@@ -114,10 +119,12 @@ export function ReviewRoundDetailView(props: ReviewRoundDetailViewProps): ReactE
 
 function ReviewIssueRow({
   issue,
+  packageId,
   round,
   slug,
 }: {
   issue: ReviewIssue;
+  packageId?: string;
   round: number;
   slug: string;
 }): ReactElement {
@@ -132,6 +139,7 @@ function ReviewIssueRow({
           className="block truncate text-sm font-medium text-foreground hover:underline"
           data-testid={`review-round-issue-link-${slug}-${issue.id}`}
           params={{ slug, round: String(round), issueId: issue.id }}
+          search={packageId ? { package_id: packageId } : {}}
           title={issue.source_path}
           to="/reviews/$slug/$round/$issueId"
         >

@@ -127,6 +127,7 @@ export interface StartReviewRunParams {
   workspaceId: string;
   slug: string;
   round: number;
+  packageId?: string;
   body?: ReviewRunRequest;
 }
 
@@ -140,6 +141,7 @@ export async function startReviewRun(params: StartReviewRunParams): Promise<Run>
       },
       body: {
         ...params.body,
+        ...(params.packageId ? { package_id: params.packageId } : {}),
         workspace: params.workspaceId,
       },
     }

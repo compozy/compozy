@@ -485,6 +485,7 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 	// IN: sync and archive transport calls backed by the real global catalog
 	// OUT: package execution and picker behavior
 	// Invariant: API reads nest hidden children, and package-only archive targets are rejected.
+	// CONTRACT: IT-055.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	t.Setenv("HOME", env.homeDir)
 	initiative := "watcher"
@@ -531,7 +532,8 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 	}
 	child := workflows[0].WorkPackages[0]
 	if child.PackageID != "WP-001" || child.Reference != "watcher/WP-001" || !child.LifecycleComplete ||
-		child.TaskCounts == nil || child.TaskCounts.Completed != 1 {
+		child.TaskCounts == nil || child.TaskCounts.Completed != 1 || child.UnmetDependencyCount != 0 ||
+		child.IndependentlyEligible || child.CanStartRun == nil || *child.CanStartRun {
 		t.Fatalf("nested package summary = %#v", child)
 	}
 

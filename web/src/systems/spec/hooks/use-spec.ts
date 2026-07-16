@@ -4,9 +4,13 @@ import { getWorkflowSpec } from "../adapters/spec-api";
 import { specKeys } from "../lib/query-keys";
 import type { WorkflowSpecDocument } from "../types";
 
-export function useWorkflowSpec(workspaceId: string | null, slug: string | null) {
+export function useWorkflowSpec(
+  workspaceId: string | null,
+  slug: string | null,
+  packageId?: string
+) {
   return useQuery<WorkflowSpecDocument>({
-    queryKey: specKeys.workflow(workspaceId ?? "none", slug ?? "none") as QueryKey,
+    queryKey: specKeys.workflow(workspaceId ?? "none", slug ?? "none", packageId) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load workflow spec");
@@ -14,7 +18,7 @@ export function useWorkflowSpec(workspaceId: string | null, slug: string | null)
       if (!slug) {
         throw new Error("workflow slug is required to load workflow spec");
       }
-      return getWorkflowSpec({ workspaceId, slug });
+      return getWorkflowSpec({ workspaceId, slug, packageId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });

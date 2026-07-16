@@ -182,6 +182,46 @@ describe("spec + memory flow integration", () => {
     expect(alert).toHaveTextContent("spec missing");
   });
 
+  it("Should render canonical specs with only the selected package plan excerpt", async () => {
+    // CONTRACT: IT-057.
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/tasks/alpha/spec?package_id=WP-001"),
+        status: 200,
+        body: {
+          spec: {
+            ...specPayload.spec,
+            workflow: { ...workflow, slug: "alpha/WP-001", package_id: "WP-001" },
+            plan_excerpt: {
+              id: "work-package-WP-001",
+              kind: "work_package",
+              title: "WP-001 — Persistence",
+              updated_at: "2026-01-03T00:00:00Z",
+              markdown: "## [ ] WP-001 — Persistence\n\nSelected package only.",
+            },
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/workflows/alpha/spec?package_id=WP-001");
+
+    await screen.findByTestId("workflow-spec-view");
+    expect(screen.getByTestId("workflow-spec-package-body")).toHaveTextContent(
+      "WP-001 — Persistence"
+    );
+    await userEvent.click(screen.getByTestId("workflow-spec-tab-prd"));
+    expect(screen.getByTestId("workflow-spec-prd-body")).toHaveTextContent("PRD body");
+    const call = stub.calls.find(call => call.url.includes("/api/tasks/alpha/spec"));
+    expect(call?.url).toContain("package_id=WP-001");
+    expect(call?.url).not.toContain("alpha/WP-001/spec");
+  });
+
   it("Should render the memory index from the workflows list", async () => {
     const stub = installFetchStub([
       {
@@ -269,6 +309,47 @@ describe("spec + memory flow integration", () => {
     await renderApp("/memory/alpha");
     expect(await screen.findByTestId("workspace-picker-stale")).toBeInTheDocument();
     expect(screen.queryByTestId("workflow-memory-load-error")).not.toBeInTheDocument();
+  });
+
+  it("Should scope memory index and opaque file reads to the selected package", async () => {
+    // CONTRACT: IT-059.
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchPath("/api/tasks/alpha/memory?package_id=WP-002"),
+        status: 200,
+        body: {
+          memory: {
+            ...memoryIndexPayload.memory,
+            workflow: { ...workflow, slug: "alpha/WP-002", package_id: "WP-002" },
+            entries: [memoryIndexPayload.memory.entries[0]],
+          },
+        },
+      },
+      {
+        matcher: matchPath("/api/tasks/alpha/memory/files/file-shared?package_id=WP-002"),
+        status: 200,
+        body: {
+          document: {
+            ...sharedMemoryFilePayload.document,
+            markdown: "## WP-002 private memory",
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/memory/alpha?package_id=WP-002");
+
+    expect(await screen.findByTestId("workflow-memory-document-body")).toHaveTextContent(
+      "WP-002 private memory"
+    );
+    const packageCalls = stub.calls.filter(call => call.url.includes("package_id=WP-002"));
+    expect(packageCalls).toHaveLength(2);
+    expect(packageCalls.every(call => !call.url.includes("alpha/WP-002"))).toBe(true);
   });
 
   it("Should recover when the selected memory file fails but the index is present", async () => {

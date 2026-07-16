@@ -165,6 +165,22 @@ func TestValidatePlan(t *testing.T) {
 			t.Fatalf("render/reparse mismatch: %#v %#v", original, reparsed)
 		}
 	})
+
+	t.Run("renders only the selected package excerpt", func(t *testing.T) {
+		t.Parallel()
+		plan := mustParsePlan(t, twoPackagePlan(t))
+		excerpt, err := RenderPackageExcerpt(plan, "WP-002")
+		if err != nil {
+			t.Fatalf("RenderPackageExcerpt() error = %v", err)
+		}
+		markdown := string(excerpt)
+		if !strings.Contains(markdown, "WP-002 — Interface") || !strings.Contains(markdown, "API contract") {
+			t.Fatalf("RenderPackageExcerpt() = %q, want selected package and dependency rationale", markdown)
+		}
+		if strings.Contains(markdown, "WP-001 — Persistence") {
+			t.Fatalf("RenderPackageExcerpt() leaked sibling package: %q", markdown)
+		}
+	})
 }
 
 func TestTaskOwnership(t *testing.T) {

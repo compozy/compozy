@@ -1150,6 +1150,7 @@ export interface components {
         WorkflowSpecDocument: {
             adrs?: components["schemas"]["MarkdownDocument"][];
             prd?: components["schemas"]["MarkdownDocument"];
+            plan_excerpt?: components["schemas"]["MarkdownDocument"];
             techspec?: components["schemas"]["MarkdownDocument"];
             workflow: components["schemas"]["WorkflowSummary"];
             workspace: components["schemas"]["Workspace"];
@@ -1163,13 +1164,42 @@ export interface components {
             /** Format: date-time */
             archived_at?: string;
             can_start_run?: boolean;
+            display_title?: string;
             id: string;
             /** Format: date-time */
             last_synced_at?: string;
+            kind?: string;
+            lifecycle_complete?: boolean;
+            outcome?: string;
+            package_id?: string;
+            parent_workflow_id?: string;
             slug: string;
             start_block_reason?: string;
             task_counts?: components["schemas"]["WorkflowTaskCounts"];
+            work_packages?: components["schemas"]["WorkPackageSummary"][];
             workspace_id: string;
+        };
+        WorkPackageSummary: {
+            active_runs?: number;
+            archive_eligible?: boolean;
+            archive_reason?: string;
+            can_start_run?: boolean;
+            dependencies?: components["schemas"]["WorkPackageDependency"][];
+            independently_eligible?: boolean;
+            lifecycle_complete: boolean;
+            outcome: string;
+            package_id: string;
+            reference: string;
+            start_block_reason?: string;
+            task_counts?: components["schemas"]["WorkflowTaskCounts"];
+            title: string;
+            unmet_dependency_count?: number;
+            unresolved_reviews?: number;
+            workflow_id: string;
+        };
+        WorkPackageDependency: {
+            package_id: string;
+            rationale: string;
         };
         WorkflowTaskCounts: {
             completed: number;

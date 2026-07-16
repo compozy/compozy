@@ -1713,7 +1713,7 @@ func defaultPickWorkPackage(_ *cobra.Command, target workpackages.Target) (strin
 		}
 		completion := "incomplete"
 		if pkg.Completed {
-			completion = "completed"
+			completion = execStatusCompleted
 		}
 		label := fmt.Sprintf(
 			"%s — %s — %s — %d unmet dependencies",

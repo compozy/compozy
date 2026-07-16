@@ -549,6 +549,17 @@ func RenderPlan(plan Plan) ([]byte, error) {
 	return []byte("---\n" + string(header) + "---\n\n" + renderPlanBody(plan, packages)), nil
 }
 
+// RenderPackageExcerpt renders one validated package as a standalone Markdown excerpt.
+func RenderPackageExcerpt(plan Plan, packageID string) ([]byte, error) {
+	pkg, found := plan.Package(strings.TrimSpace(packageID))
+	if !found {
+		return nil, packageNotFound(Ref{Initiative: plan.Initiative, PackageID: packageID}, plan)
+	}
+	var body strings.Builder
+	renderPackageBody(&body, plan, pkg)
+	return []byte(body.String()), nil
+}
+
 func renderablePackages(plan Plan) ([]Package, error) {
 	if plan.SchemaVersion == "" {
 		plan.SchemaVersion = SchemaVersion
@@ -622,30 +633,33 @@ func renderPlanBody(plan Plan, packages []Package) string {
 	body.WriteString(plan.Initiative)
 	body.WriteString(" Work Packages\n\n")
 	for index := range packages {
-		pkg := &packages[index]
-		checkbox := " "
-		if pkg.Completed {
-			checkbox = "x"
-		}
-		fmt.Fprintf(&body, "## [%s] %s — %s\n\n", checkbox, pkg.ID, pkg.Title)
-		fmt.Fprintf(&body, "- Reference: `%s/%s`\n", plan.Initiative, pkg.ID)
-		fmt.Fprintf(&body, "- Outcome: %s\n", pkg.Outcome)
-		body.WriteString("- Owns:\n")
-		for _, scope := range pkg.OwnedScope {
-			fmt.Fprintf(&body, "  - %s\n", scope)
-		}
-		dependencies := incomingForPackage(plan.Edges, pkg.ID)
-		if len(dependencies) == 0 {
-			body.WriteString("- Dependencies: None\n")
-		} else {
-			body.WriteString("- Dependencies:\n")
-			for _, dependency := range dependencies {
-				fmt.Fprintf(&body, "  - `%s` — %s\n", dependency.From, dependency.Rationale)
-			}
-		}
-		body.WriteByte('\n')
+		renderPackageBody(&body, plan, packages[index])
 	}
 	return body.String()
+}
+
+func renderPackageBody(body *strings.Builder, plan Plan, pkg Package) {
+	checkbox := " "
+	if pkg.Completed {
+		checkbox = "x"
+	}
+	fmt.Fprintf(body, "## [%s] %s — %s\n\n", checkbox, pkg.ID, pkg.Title)
+	fmt.Fprintf(body, "- Reference: `%s/%s`\n", plan.Initiative, pkg.ID)
+	fmt.Fprintf(body, "- Outcome: %s\n", pkg.Outcome)
+	body.WriteString("- Owns:\n")
+	for _, scope := range pkg.OwnedScope {
+		fmt.Fprintf(body, "  - %s\n", scope)
+	}
+	dependencies := incomingForPackage(plan.Edges, pkg.ID)
+	if len(dependencies) == 0 {
+		body.WriteString("- Dependencies: None\n")
+	} else {
+		body.WriteString("- Dependencies:\n")
+		for _, dependency := range dependencies {
+			fmt.Fprintf(body, "  - `%s` — %s\n", dependency.From, dependency.Rationale)
+		}
+	}
+	body.WriteByte('\n')
 }
 
 func incomingForPackage(edges []Dependency, id string) []Dependency {

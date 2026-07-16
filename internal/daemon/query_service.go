@@ -13,6 +13,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -153,6 +154,10 @@ func (s *queryService) attachDashboardWorkPackages(
 	if card.Workflow.Kind != string(globaldb.WorkflowKindInitiative) {
 		return nil
 	}
+	readinessByPackageID, err := projectWorkPackageReadiness(children)
+	if err != nil {
+		return err
+	}
 	for childIndex := range children {
 		child := children[childIndex]
 		childCard, err := s.buildWorkflowCard(ctx, *child, visibleRuns)
@@ -171,6 +176,7 @@ func (s *queryService) attachDashboardWorkPackages(
 				Pending:   childCard.TaskPending,
 			},
 			childEligibility,
+			readinessByPackageID[child.PackageID],
 		))
 	}
 	return nil
@@ -267,6 +273,10 @@ func (s *queryService) WorkflowSpec(
 	}
 	workspace := target.workspace
 	workflow := target.workflow
+	specTarget, err := s.resolveSpecificationReadTarget(ctx, target)
+	if err != nil {
+		return WorkflowSpecDocument{}, err
+	}
 
 	spec := WorkflowSpecDocument{
 		Workspace: transportWorkspace(workspace),
@@ -275,7 +285,7 @@ func (s *queryService) WorkflowSpec(
 
 	if prdDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		target,
+		specTarget,
 		"_prd.md",
 		markdownDocumentKindPRD,
 		markdownDocumentKindPRD,
@@ -286,7 +296,7 @@ func (s *queryService) WorkflowSpec(
 	}
 	if techspecDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		target,
+		specTarget,
 		"_techspec.md",
 		markdownDocumentKindTechSpec,
 		markdownDocumentKindTechSpec,
@@ -295,7 +305,24 @@ func (s *queryService) WorkflowSpec(
 	} else if ok {
 		spec.TechSpec = &techspecDoc
 	}
+	if workflow.ParentWorkflowID != "" {
+		excerpt, excerptErr := readWorkPackagePlanExcerpt(ctx, specTarget, workflow)
+		if excerptErr != nil {
+			return WorkflowSpecDocument{}, excerptErr
+		}
+		spec.PlanExcerpt = &excerpt
+	}
+	spec.ADRs, err = s.readWorkflowADRs(ctx, specTarget)
+	if err != nil {
+		return WorkflowSpecDocument{}, err
+	}
+	return spec, nil
+}
 
+func (s *queryService) readWorkflowADRs(
+	ctx context.Context,
+	target workflowReadTarget,
+) ([]MarkdownDocument, error) {
 	if adrs, ok, err := snapshotDocumentsByPrefix(
 		target.snapshotsByPath,
 		"adrs/",
@@ -304,20 +331,20 @@ func (s *queryService) WorkflowSpec(
 			return strings.TrimSuffix(filepath.Base(relativePath), filepath.Ext(relativePath))
 		},
 	); err != nil {
-		return WorkflowSpecDocument{}, err
+		return nil, err
 	} else if ok {
-		spec.ADRs = adrs
-		return spec, nil
+		return adrs, nil
 	}
 
 	adrsDir := filepath.Join(target.rootDir, "adrs")
 	entries, err := readMarkdownDir(adrsDir)
 	if err != nil {
 		if !errors.Is(err, ErrDocumentMissing) {
-			return WorkflowSpecDocument{}, err
+			return nil, err
 		}
-		return spec, nil
+		return nil, nil
 	}
+	adrs := make([]MarkdownDocument, 0, len(entries))
 	for _, entry := range entries {
 		doc, err := s.documents.Read(
 			ctx,
@@ -326,11 +353,11 @@ func (s *queryService) WorkflowSpec(
 			strings.TrimSuffix(filepath.Base(entry.displayPath), filepath.Ext(entry.displayPath)),
 		)
 		if err != nil {
-			return WorkflowSpecDocument{}, err
+			return nil, err
 		}
-		spec.ADRs = append(spec.ADRs, doc)
+		adrs = append(adrs, doc)
 	}
-	return spec, nil
+	return adrs, nil
 }
 
 func (s *queryService) WorkflowMemoryIndex(
@@ -604,6 +631,89 @@ func (s *queryService) resolveWorkflowReadTarget(
 		workflow:        workflow,
 		rootDir:         rootDir,
 		snapshotsByPath: snapshots,
+	}, nil
+}
+
+func (s *queryService) resolveSpecificationReadTarget(
+	ctx context.Context,
+	target workflowReadTarget,
+) (workflowReadTarget, error) {
+	if target.workflow.ParentWorkflowID == "" {
+		return target, nil
+	}
+	parent, err := s.globalDB.GetWorkflow(ctx, target.workflow.ParentWorkflowID)
+	if err != nil {
+		return workflowReadTarget{}, fmt.Errorf(
+			"load initiative %q for package specification: %w",
+			target.workflow.ParentWorkflowID,
+			err,
+		)
+	}
+	rootDir, err := readableWorkflowRootDir(target.workspace.RootDir, parent)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	snapshots, err := s.snapshotIndex(ctx, parent.ID)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	return workflowReadTarget{
+		workspace:       target.workspace,
+		workflow:        parent,
+		rootDir:         rootDir,
+		snapshotsByPath: snapshots,
+	}, nil
+}
+
+func readWorkPackagePlanExcerpt(
+	ctx context.Context,
+	initiativeTarget workflowReadTarget,
+	packageWorkflow globaldb.Workflow,
+) (MarkdownDocument, error) {
+	if contextErr := context.Cause(ctx); contextErr != nil {
+		return MarkdownDocument{}, fmt.Errorf("read work package plan excerpt: %w", contextErr)
+	}
+	planPath := filepath.Join(initiativeTarget.rootDir, workpackages.ManifestFileName)
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return MarkdownDocument{}, DocumentMissingError{
+				Kind:         "work_package",
+				WorkflowSlug: packageWorkflow.Slug,
+				RelativePath: workpackages.ManifestFileName,
+			}
+		}
+		return MarkdownDocument{}, fmt.Errorf("read work package plan excerpt: %w", err)
+	}
+	plan, err := workpackages.ParsePlanForInitiative(string(content), initiativeTarget.workflow.Slug)
+	if err != nil {
+		return MarkdownDocument{}, fmt.Errorf("parse work package plan excerpt: %w", err)
+	}
+	excerpt, err := workpackages.RenderPackageExcerpt(plan, packageWorkflow.PackageID)
+	if err != nil {
+		return MarkdownDocument{}, fmt.Errorf("render work package plan excerpt: %w", err)
+	}
+	pkg, found := plan.Package(packageWorkflow.PackageID)
+	if !found {
+		return MarkdownDocument{}, fmt.Errorf(
+			"read work package plan excerpt: package %q not found",
+			packageWorkflow.PackageID,
+		)
+	}
+	info, err := os.Stat(planPath)
+	if err != nil {
+		return MarkdownDocument{}, fmt.Errorf("stat work package plan excerpt: %w", err)
+	}
+	return MarkdownDocument{
+		ID:        "work-package-" + packageWorkflow.PackageID,
+		Kind:      "work_package",
+		Title:     packageWorkflow.PackageID + " — " + pkg.Title,
+		UpdatedAt: info.ModTime().UTC(),
+		Markdown:  string(excerpt),
+		Metadata: map[string]any{
+			"package_id":   packageWorkflow.PackageID,
+			"workflow_ref": packageWorkflow.Slug,
+		},
 	}, nil
 }
 

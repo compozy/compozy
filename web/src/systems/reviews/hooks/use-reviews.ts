@@ -13,9 +13,13 @@ import {
 import { reviewKeys } from "../lib/query-keys";
 import type { ReviewDetailPayload, ReviewIssue, ReviewRound, ReviewSummary, Run } from "../types";
 
-export function useLatestReview(workspaceId: string | null, slug: string | null) {
+export function useLatestReview(
+  workspaceId: string | null,
+  slug: string | null,
+  packageId?: string
+) {
   return useQuery<ReviewSummary>({
-    queryKey: reviewKeys.summary(workspaceId ?? "none", slug ?? "none") as QueryKey,
+    queryKey: reviewKeys.summary(workspaceId ?? "none", slug ?? "none", packageId) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load the latest review");
@@ -23,7 +27,7 @@ export function useLatestReview(workspaceId: string | null, slug: string | null)
       if (!slug) {
         throw new Error("workflow slug is required to load the latest review");
       }
-      return getLatestReview({ workspaceId, slug });
+      return getLatestReview({ workspaceId, slug, packageId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });
@@ -32,10 +36,16 @@ export function useLatestReview(workspaceId: string | null, slug: string | null)
 export function useReviewRound(
   workspaceId: string | null,
   slug: string | null,
-  round: number | null
+  round: number | null,
+  packageId?: string
 ) {
   return useQuery<ReviewRound>({
-    queryKey: reviewKeys.round(workspaceId ?? "none", slug ?? "none", round ?? -1) as QueryKey,
+    queryKey: reviewKeys.round(
+      workspaceId ?? "none",
+      slug ?? "none",
+      round ?? -1,
+      packageId
+    ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load a review round");
@@ -46,7 +56,7 @@ export function useReviewRound(
       if (round == null || round <= 0) {
         throw new Error("review round is required to load a review round");
       }
-      return getReviewRound({ workspaceId, slug, round });
+      return getReviewRound({ workspaceId, slug, round, packageId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
@@ -55,10 +65,16 @@ export function useReviewRound(
 export function useReviewIssues(
   workspaceId: string | null,
   slug: string | null,
-  round: number | null
+  round: number | null,
+  packageId?: string
 ) {
   return useQuery<ReviewIssue[]>({
-    queryKey: reviewKeys.issues(workspaceId ?? "none", slug ?? "none", round ?? -1) as QueryKey,
+    queryKey: reviewKeys.issues(
+      workspaceId ?? "none",
+      slug ?? "none",
+      round ?? -1,
+      packageId
+    ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load review issues");
@@ -69,7 +85,7 @@ export function useReviewIssues(
       if (round == null || round <= 0) {
         throw new Error("review round is required to load review issues");
       }
-      return listReviewIssues({ workspaceId, slug, round });
+      return listReviewIssues({ workspaceId, slug, round, packageId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
@@ -79,14 +95,16 @@ export function useReviewIssue(
   workspaceId: string | null,
   slug: string | null,
   round: number | null,
-  issueId: string | null
+  issueId: string | null,
+  packageId?: string
 ) {
   return useQuery<ReviewDetailPayload>({
     queryKey: reviewKeys.issue(
       workspaceId ?? "none",
       slug ?? "none",
       round ?? -1,
-      issueId ?? "none"
+      issueId ?? "none",
+      packageId
     ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
@@ -101,7 +119,7 @@ export function useReviewIssue(
       if (!issueId) {
         throw new Error("issue id is required to load a review issue");
       }
-      return getReviewIssue({ workspaceId, slug, round, issueId });
+      return getReviewIssue({ workspaceId, slug, round, issueId, packageId });
     },
     enabled:
       Boolean(workspaceId) && Boolean(slug) && round != null && round > 0 && Boolean(issueId),
@@ -117,18 +135,24 @@ export function useStartReviewRun() {
         queryKey: reviewKeys.issues(
           variables.workspaceId,
           variables.slug,
-          variables.round
+          variables.round,
+          variables.packageId
         ) as QueryKey,
       });
       void queryClient.invalidateQueries({
         queryKey: reviewKeys.round(
           variables.workspaceId,
           variables.slug,
-          variables.round
+          variables.round,
+          variables.packageId
         ) as QueryKey,
       });
       void queryClient.invalidateQueries({
-        queryKey: reviewKeys.summary(variables.workspaceId, variables.slug) as QueryKey,
+        queryKey: reviewKeys.summary(
+          variables.workspaceId,
+          variables.slug,
+          variables.packageId
+        ) as QueryKey,
       });
       void queryClient.invalidateQueries({ queryKey: runKeys.lists() as QueryKey });
     },

@@ -143,6 +143,51 @@ func TestRunManagerReviewWatchRejectsAutoPushForWorkPackages(t *testing.T) {
 	}
 }
 
+func TestRunManagerReviewWatchUsesStructuredPackageScope(t *testing.T) {
+	// INVARIANT: a package watch run keeps the public reference structured and never writes parent reviews.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-064.
+	reviewProvider := &fakeReviewWatchProvider{
+		statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+		fetches:  [][]provider.ReviewItem{{}},
+	}
+	env := newReviewWatchTestEnv(
+		t,
+		reviewProvider,
+		&fakeReviewWatchGit{states: []ReviewWatchGitState{{HeadSHA: "head-1"}}},
+		runManagerTestDeps{},
+	)
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package task"),
+	)
+
+	run, err := env.manager.StartReviewWatch(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		reviewWatchRequest(`{"run_id":"review-watch-package"}`),
+	)
+	if err != nil {
+		t.Fatalf("StartReviewWatch(package) error = %v", err)
+	}
+	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	if run.WorkflowSlug != packageRef || row.Mode != runModeReviewWatch {
+		t.Fatalf("package review-watch run = %#v / %#v", run, row)
+	}
+	if _, err := os.Stat(filepath.Join(env.workflowDir(initiative), "reviews-001")); !os.IsNotExist(err) {
+		t.Fatalf("initiative review directory stat = %v, want not exist", err)
+	}
+}
+
 func TestRunManagerReviewWatchRequiresExistingDirectoryForExplicitWorkflowName(t *testing.T) {
 	t.Run("Should not create arbitrary missing workflow directory", func(t *testing.T) {
 		reviewProvider := &fakeReviewWatchProvider{

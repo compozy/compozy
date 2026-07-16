@@ -32,6 +32,8 @@ const RunTranscriptPanel = lazy(() =>
 
 export interface TaskDetailViewProps {
   payload: TaskDetailPayload;
+  packageId?: string;
+  workflowSlug?: string;
   isRefreshing: boolean;
   runTranscript?: RunTranscript;
   runTranscriptRunId?: string | null;
@@ -43,6 +45,8 @@ export interface TaskDetailViewProps {
 export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
   const {
     payload,
+    packageId,
+    workflowSlug,
     isRefreshing,
     runTranscript,
     runTranscriptRunId = null,
@@ -51,6 +55,7 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
     runTranscriptError = null,
   } = props;
   const { task, workflow, document, memory_entries, related_runs } = payload;
+  const routeSlug = workflowSlug ?? workflow.slug;
   const tone = resolveStatusTone(task.status);
   const deps = task.depends_on ?? [];
   const memory = memory_entries ?? [];
@@ -64,10 +69,11 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
             <Link
               className="underline-offset-4 hover:underline"
               data-testid="task-detail-back-to-board"
-              params={{ slug: workflow.slug }}
+              params={{ slug: routeSlug }}
+              search={packageId ? { package_id: packageId } : {}}
               to="/workflows/$slug/tasks"
             >
-              Back to {workflow.slug} board
+              Back to {packageId ? `${routeSlug}/${packageId}` : routeSlug} board
             </Link>
             {" · "}
             {task.type} · updated {formatTimestamp(task.updated_at)}
@@ -103,7 +109,7 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
               />
             </Suspense>
           ) : null}
-          <MemoryCard entries={memory} slug={workflow.slug} />
+          <MemoryCard entries={memory} packageId={packageId} slug={routeSlug} />
         </aside>
       </div>
 
@@ -263,9 +269,11 @@ function RelatedRunRow({ run }: { run: TaskRelatedRun }): ReactElement {
 
 function MemoryCard({
   entries,
+  packageId,
   slug,
 }: {
   entries: WorkflowMemoryEntry[];
+  packageId?: string;
   slug: string;
 }): ReactElement {
   return (
@@ -296,9 +304,15 @@ function MemoryCard({
                 key={entry.file_id}
               >
                 <p className="eyebrow text-muted-foreground">{entry.kind}</p>
-                <p className="mt-1 truncate text-sm text-foreground" title={entry.display_path}>
+                <Link
+                  className="mt-1 block truncate text-sm text-foreground hover:underline"
+                  params={{ slug }}
+                  search={packageId ? { package_id: packageId } : {}}
+                  title={entry.display_path}
+                  to="/memory/$slug"
+                >
                   {entry.title}
-                </p>
+                </Link>
                 <p className="truncate text-xs text-muted-foreground">{entry.display_path}</p>
               </li>
             ))}
