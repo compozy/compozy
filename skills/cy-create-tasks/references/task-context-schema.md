@@ -30,6 +30,32 @@ Graph rules:
 - Use `edges: []` when there are no dependencies.
 - The graph MUST be acyclic.
 
+## `_tasks.md` Task Table
+
+After the YAML frontmatter, `_tasks.md` MUST include a `## Tasks` section with a markdown table listing all tasks.
+
+Required table format:
+
+```markdown
+## Tasks
+
+| # | Title | Status | Complexity | Dependencies |
+|---|-------|--------|------------|--------------|
+| 01 | Task title | pending | medium | - |
+| 02 | Another task | pending | high | task_01 |
+```
+
+Table rules:
+
+- The header row MUST be exactly `| # | Title | Status | Complexity | Dependencies |`
+- The separator row MUST follow the header (e.g., `|---|-------|--------|------------|--------------|`)
+- Each task row MUST have 5 columns matching the header
+- Column 1 (`#`): Zero-padded 2-digit task number (01, 02, etc.)
+- Column 2 (`Title`): Task title matching the task file's frontmatter
+- Column 3 (`Status`): Task status (default: `pending`)
+- Column 4 (`Complexity`): Complexity level (low, medium, high, critical)
+- Column 5 (`Dependencies`): Comma-separated task IDs or `-` if none
+
 ## Individual Task Frontmatter
 
 Individual task files own task metadata only. They do not own graph topology.

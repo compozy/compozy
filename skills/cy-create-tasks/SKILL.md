@@ -82,9 +82,21 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
          - from: task_01
            to: task_02
      ---
-
-     # [Feature Name] Task List
      ```
+   - After the frontmatter, include a `## Tasks` section with a markdown table listing all tasks. The table MUST use this exact column order and header:
+     ```markdown
+     # [Feature Name] Task List
+
+     ## Tasks
+
+     | # | Title | Status | Complexity | Dependencies |
+     |---|-------|--------|------------|--------------|
+     | 01 | Task title | pending | medium | - |
+     | 02 | Another task | pending | high | task_01 |
+     ```
+   - The table header MUST be exactly `| # | Title | Status | Complexity | Dependencies |`
+   - Status column values should match the frontmatter status (default: `pending`).
+   - Dependencies column should list task IDs separated by commas, or `-` if none.
    - `_tasks.md` is the only place dependency relationships are stored. Each edge means `from` must finish before `to` can start.
    - Include every task in `graph.nodes`, using canonical sequential ids (`task_01`, `task_02`, ...) and matching files (`task_01.md`, `task_02.md`, ...).
    - Use `edges: []` when there are no dependencies.

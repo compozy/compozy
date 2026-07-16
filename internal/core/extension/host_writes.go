@@ -418,7 +418,7 @@ func appendTaskIndexRow(content string, row string) (string, error) {
 	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	headerIdx := -1
 	for idx, line := range lines {
-		if strings.TrimSpace(line) == "| # | Title | Status | Complexity | Dependencies |" {
+		if isTaskTableHeader(strings.TrimSpace(line)) {
 			headerIdx = idx
 			break
 		}
@@ -441,6 +441,24 @@ func appendTaskIndexRow(content string, row string) (string, error) {
 	updated = append(updated, row)
 	updated = append(updated, lines[insertIdx:]...)
 	return strings.Join(updated, "\n") + "\n", nil
+}
+
+// isTaskTableHeader checks if a line is a valid markdown table header
+// containing the required columns: #, Title, Status, Complexity, Dependencies
+func isTaskTableHeader(line string) bool {
+	if !strings.HasPrefix(line, "|") || !strings.HasSuffix(line, "|") {
+		return false
+	}
+	// Normalize: remove spaces and lowercase for comparison
+	normalized := strings.ToLower(strings.ReplaceAll(line, " ", ""))
+	// Check for required columns in any order
+	required := []string{"#", "title", "status", "complexity", "dependencies"}
+	for _, col := range required {
+		if !strings.Contains(normalized, "|"+col+"|") {
+			return false
+		}
+	}
+	return true
 }
 
 func isTaskIndexSeparator(line string) bool {

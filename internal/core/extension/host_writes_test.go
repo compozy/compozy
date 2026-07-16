@@ -703,3 +703,171 @@ func TestHostRunsStartRecursionGuardAllowsThreeNestedRunsThenRejectsFourth(t *te
 	}))
 	assertRequestErrorReason(t, err, capabilityDeniedCode, "recursion_depth_exceeded")
 }
+
+func TestIsTaskTableHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{
+			name: "exact match from SDK",
+			line: "| # | Title | Status | Complexity | Dependencies |",
+			want: true,
+		},
+		{
+			name: "different column order",
+			line: "| # | Title | Complexity | Status | Dependencies |",
+			want: true,
+		},
+		{
+			name: "extra spaces",
+			line: "|  #  |  Title  |  Status  |  Complexity  |  Dependencies  |",
+			want: true,
+		},
+		{
+			name: "missing column",
+			line: "| # | Title | Status | Complexity |",
+			want: false,
+		},
+		{
+			name: "wrong column name",
+			line: "| # | Title | Status | Complexity | Deps |",
+			want: false,
+		},
+		{
+			name: "not a table row",
+			line: "# Title",
+			want: false,
+		},
+		{
+			name: "empty string",
+			line: "",
+			want: false,
+		},
+		{
+			name: "task graph header",
+			line: "| Task | Title | Type | Complexity | Depends On |",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isTaskTableHeader(tt.line)
+			if got != tt.want {
+				t.Errorf("isTaskTableHeader(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAppendTaskIndexRowWithExactHeader(t *testing.T) {
+	t.Parallel()
+
+	content := `# Test Task List
+
+## Tasks
+
+| # | Title | Status | Complexity | Dependencies |
+|---|-------|--------|------------|--------------|
+| 01 | First task | pending | medium | - |
+`
+	row := "| 02 | Second task | pending | high | task_01 |"
+	result, err := appendTaskIndexRow(content, row)
+	if err != nil {
+		t.Fatalf("appendTaskIndexRow() error = %v", err)
+	}
+	if !strings.Contains(result, row) {
+		t.Errorf("result does not contain new row:\n%s", result)
+	}
+	if !strings.Contains(result, "| 01 | First task | pending | medium | - |") {
+		t.Errorf("result does not contain existing row:\n%s", result)
+	}
+}
+
+func TestAppendTaskIndexRowWithDifferentColumnOrder(t *testing.T) {
+	t.Parallel()
+
+	content := `# Test Task List
+
+## Tasks
+
+| # | Title | Complexity | Status | Dependencies |
+|---|-------|------------|--------|--------------|
+| 01 | First task | medium | pending | - |
+`
+	row := "| 02 | Second task | high | pending | task_01 |"
+	result, err := appendTaskIndexRow(content, row)
+	if err != nil {
+		t.Fatalf("appendTaskIndexRow() error = %v", err)
+	}
+	if !strings.Contains(result, row) {
+		t.Errorf("result does not contain new row:\n%s", result)
+	}
+}
+
+func TestAppendTaskIndexRowWithTaskGraphTable(t *testing.T) {
+	t.Parallel()
+
+	content := `# Test Task List
+
+## Task Graph
+
+| Task | Title | Type | Complexity | Depends On |
+|------|-------|------|------------|------------|
+| task_01 | First task | infra | medium | - |
+
+## Tasks
+
+| # | Title | Status | Complexity | Dependencies |
+|---|-------|--------|------------|--------------|
+| 01 | First task | pending | medium | - |
+`
+	row := "| 02 | Second task | pending | high | task_01 |"
+	result, err := appendTaskIndexRow(content, row)
+	if err != nil {
+		t.Fatalf("appendTaskIndexRow() error = %v", err)
+	}
+	if !strings.Contains(result, row) {
+		t.Errorf("result does not contain new row:\n%s", result)
+	}
+	// Ensure the row was added to the Tasks table, not the Task Graph table
+	lines := strings.Split(result, "\n")
+	inTasksTable := false
+	for _, line := range lines {
+		if strings.Contains(line, "## Tasks") {
+			inTasksTable = true
+		}
+		if strings.Contains(line, "## Task Graph") {
+			inTasksTable = false
+		}
+		if strings.Contains(line, "02 | Second task") && !inTasksTable {
+			t.Error("row was added to wrong table")
+		}
+	}
+}
+
+func TestAppendTaskIndexRowMissingHeader(t *testing.T) {
+	t.Parallel()
+
+	content := `# Test Task List
+
+## Tasks
+
+| Task | Title | Type | Complexity | Depends On |
+|------|-------|------|------------|------------|
+| task_01 | First task | infra | medium | - |
+`
+	row := "| 02 | Second task | pending | high | task_01 |"
+	_, err := appendTaskIndexRow(content, row)
+	if err == nil {
+		t.Fatal("appendTaskIndexRow() expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "tasks table header not found") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
