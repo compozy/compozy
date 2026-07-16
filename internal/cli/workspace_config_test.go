@@ -312,8 +312,6 @@ tui = false
 }
 
 func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		name          string
 		configContent string
@@ -344,8 +342,7 @@ nitpicks = true
 	for _, tc := range cases {
 		tc := tc
 		t.Run("Should "+tc.name, func(t *testing.T) {
-			t.Parallel()
-
+			isolateCLIConfigHome(t)
 			root := t.TempDir()
 			startDir := filepath.Join(root, "pkg", "feature")
 			if err := os.MkdirAll(startDir, 0o755); err != nil {

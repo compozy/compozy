@@ -1,0 +1,11 @@
+[extension]
+name = "cy-improve-architecture"
+version = "1.0.0"
+description = "Architecture depth audit and durable agent guidance skill pack"
+min_compozy_version = "0.1.10"
+
+[security]
+capabilities = ["skills.ship"]
+
+[resources]
+skills = ["skills/*"]
