@@ -290,6 +290,13 @@ func (c *inProcessDaemonCommandClient) ListRuns(
 	})
 }
 
+func (c *inProcessDaemonCommandClient) GetRun(ctx context.Context, runID string) (apicore.Run, error) {
+	if c == nil || c.manager == nil {
+		return apicore.Run{}, errors.New("GetRun requires an in-process run manager")
+	}
+	return c.manager.Get(ctx, runID)
+}
+
 func (*inProcessDaemonCommandClient) ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error) {
 	return nil, errors.New("ListTaskWorkflows not implemented for in-process exec tests")
 }

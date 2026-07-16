@@ -62,6 +62,13 @@ const (
 	maxImplicitRunIDAllocationAttempts = 8
 )
 
+type syncWorkflowFunc func(
+	context.Context,
+	*globaldb.GlobalDB,
+	globaldb.Workspace,
+	model.SyncConfig,
+) (*corepkg.SyncResult, error)
+
 // RunManagerConfig wires the daemon-owned run manager dependencies.
 type RunManagerConfig struct {
 	GlobalDB               *globaldb.GlobalDB
@@ -71,6 +78,7 @@ type RunManagerConfig struct {
 	ShutdownDrainTimeout   time.Duration
 	Now                    func() time.Time
 	BuildRunID             func(*model.RuntimeConfig) (string, error)
+	SyncWorkflow           syncWorkflowFunc
 	OpenRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	Prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	Execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -93,6 +101,7 @@ type RunManager struct {
 	homePaths              compozyconfig.HomePaths
 	now                    func() time.Time
 	buildRunID             func(*model.RuntimeConfig) (string, error)
+	syncWorkflow           syncWorkflowFunc
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -261,6 +270,7 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		homePaths:              homePaths,
 		now:                    resolveRunManagerNow(cfg.Now),
 		buildRunID:             resolveRunManagerBuildRunID(cfg.BuildRunID),
+		syncWorkflow:           resolveRunManagerSyncWorkflow(cfg.SyncWorkflow),
 		openRunScope:           resolveRunManagerOpenRunScope(cfg.OpenRunScope),
 		prepare:                resolveRunManagerPrepare(cfg.Prepare),
 		execute:                resolveRunManagerExecute(cfg.Execute),
@@ -328,6 +338,15 @@ func resolveRunManagerBuildRunID(
 		return buildRunID
 	}
 	return model.BuildRunID
+}
+
+func resolveRunManagerSyncWorkflow(
+	syncWorkflow syncWorkflowFunc,
+) syncWorkflowFunc {
+	if syncWorkflow != nil {
+		return syncWorkflow
+	}
+	return corepkg.SyncWithDB
 }
 
 func resolveRunManagerOpenRunScope(
@@ -460,7 +479,7 @@ func (m *RunManager) StartTaskRun(
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
 	workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, err := m.prepareTaskStart(
-		detachContext(ctx),
+		ctx,
 		workspaceRef,
 		workflowSlug,
 		req,
@@ -549,7 +568,7 @@ func (m *RunManager) startReviewRun(
 	parentRunID string,
 ) (apicore.Run, error) {
 	workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareReviewStart(
-		detachContext(ctx),
+		ctx,
 		workspaceRef,
 		workflowSlug,
 		round,
@@ -577,7 +596,7 @@ func (m *RunManager) StartExecRun(
 	ctx context.Context,
 	req apicore.ExecRequest,
 ) (apicore.Run, error) {
-	workspaceRow, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareExecStart(detachContext(ctx), req)
+	workspaceRow, runtimeCfg, recoveryCfg, presentationMode, err := m.prepareExecStart(ctx, req)
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -1135,24 +1154,24 @@ func (m *RunManager) prepareReviewStart(
 	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
-func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, active *activeRun) error {
-	if active == nil || strings.TrimSpace(active.workflowRoot) == "" {
+func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, spec startRunSpec) error {
+	if strings.TrimSpace(spec.workflowRoot) == "" {
 		return nil
 	}
-	result, err := corepkg.SyncWithDB(
+	result, err := m.syncWorkflow(
 		ctx,
 		m.globalDB,
-		globaldb.Workspace{ID: active.workspaceID, RootDir: active.workspaceRoot},
-		model.SyncConfig{TasksDir: active.workflowRoot},
+		spec.workspace,
+		model.SyncConfig{TasksDir: spec.workflowRoot},
 	)
 	if err != nil {
-		return fmt.Errorf("daemon: sync workflow %s before run: %w", active.workflowRoot, err)
+		return fmt.Errorf("daemon: sync workflow %s before run: %w", spec.workflowRoot, err)
 	}
 	m.publishWorkflowSyncWorkspaceEvent(
 		ctx,
-		active.workspaceID,
-		active.workflowID,
-		active.workflowSlug,
+		spec.workspace.ID,
+		spec.workflowID,
+		spec.workflowSlug,
 		result.SyncedPaths,
 	)
 	return nil
@@ -1321,6 +1340,9 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	if spec.runtimeCfg == nil {
 		return apicore.Run{}, errors.New("daemon: runtime config is required")
 	}
+	if err := ctx.Err(); err != nil {
+		return apicore.Run{}, err
+	}
 	if err := ensureHomeLayout(m.homePaths); err != nil {
 		return apicore.Run{}, err
 	}
@@ -1330,53 +1352,47 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	runtimeCfg.ApplyDefaults()
 	explicitRunID := strings.TrimSpace(runtimeCfg.RunID) != ""
 	spec.runtimeCfg = runtimeCfg
+	if err := m.syncWorkflowBeforeRun(ctx, spec); err != nil {
+		return apicore.Run{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return apicore.Run{}, err
+	}
 
 	startedAt := m.now().UTC()
-	row, createdRun, resumedRun, err := m.prepareRunRow(
-		detachContext(ctx),
+	requestID := apicore.RequestIDFromContext(ctx)
+	row, createdRun, _, err := m.prepareRunRow(
+		ctx,
 		spec,
 		explicitRunID,
 		startedAt,
-		apicore.RequestIDFromContext(ctx),
+		requestID,
 	)
 	if err != nil {
 		return apicore.Run{}, err
 	}
-	m.publishRunWorkspaceEvent(ctx, row, spec.workflowSlug, apicore.WorkspaceEventKindRunCreated)
-
-	runID := row.RunID
-	runtimeCfg.RunID = runID
-	runtimeCfg.JobControls = model.NewJobControlRegistry()
-	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
-	if err != nil {
-		if resumedRun {
-			return apicore.Run{}, m.failStartRun(ctx, row, 0, nil, createdRun, err)
-		}
-		if createdRun {
-			cleanupRunDirectory(m.runArtifacts(runID).RunDir)
-			if deleteErr := m.globalDB.DeleteRun(detachContext(ctx), runID); deleteErr != nil {
-				err = errors.Join(err, deleteErr)
-			}
-		}
-		return apicore.Run{}, err
-	}
-
-	runCtx, cancel := context.WithCancel(withRequestID(m.lifecycleCtx, apicore.RequestIDFromContext(ctx)))
+	runCtx, cancel := context.WithCancel(withRequestID(m.lifecycleCtx, requestID))
 	started := false
 	defer func() {
 		if !started {
 			cancel()
 		}
 	}()
+	m.publishRunWorkspaceEvent(runCtx, row, spec.workflowSlug, apicore.WorkspaceEventKindRunCreated)
+
+	runID := row.RunID
+	runtimeCfg.RunID = runID
+	runtimeCfg.JobControls = model.NewJobControlRegistry()
+	scope, err := m.openRunScopeForStart(runCtx, runtimeCfg, spec.workspace.RootDir)
+	if err != nil {
+		return apicore.Run{}, m.failStartRun(runCtx, row, 0, nil, createdRun, err)
+	}
+
 	active := newActiveRun(runCtx, cancel, row, spec, scope)
 	active.jobControls = runtimeCfg.JobControls
-	if err := m.syncWorkflowBeforeRun(runCtx, active); err != nil {
-		active.cancel()
-		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
-	}
 	if err := m.startWatcher(active); err != nil {
 		active.cancel()
-		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
+		return apicore.Run{}, m.failStartRun(runCtx, row, active.currentCloseTimeout(), scope, createdRun, err)
 	}
 	m.setActive(active)
 
@@ -1384,7 +1400,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	go m.runAsync(active, row, runtimeCfg)
 	started = true
 
-	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
+	return m.toCoreRun(runCtx, row, active.workflowSlug)
 }
 
 func (m *RunManager) prepareRunRow(
@@ -1572,7 +1588,10 @@ func (m *RunManager) openRunScopeForStart(
 	runtimeCfg *model.RuntimeConfig,
 	workspaceRoot string,
 ) (model.RunScope, error) {
-	scopeCtx := detachContext(ctx)
+	scopeCtx := ctx
+	if scopeCtx == nil {
+		scopeCtx = context.Background()
+	}
 	if runtimeCfg != nil && runtimeCfg.EnableExecutableExtensions {
 		resolvedRoot := strings.TrimSpace(runtimeCfg.WorkspaceRoot)
 		if resolvedRoot == "" {
