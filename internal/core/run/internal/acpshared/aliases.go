@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runshared"
@@ -15,6 +16,7 @@ type job = runshared.Job
 type failInfo = runshared.FailInfo
 type jobAttemptResult = runshared.JobAttemptResult
 type activityMonitor = runshared.ActivityMonitor
+type clock = runshared.Clock
 type lineBuffer = runshared.LineBuffer
 type reusableAgentExecution = runshared.ReusableAgentExecution
 type SessionViewSnapshot = transcript.SessionViewSnapshot
@@ -35,8 +37,45 @@ const (
 	attemptStatusSetupFailed = runshared.AttemptStatusSetupFailed
 )
 
+// activityClock is the clock powering the activity monitor and the stall
+// watchdog. It is a package var so tests can drive idle windows deterministically
+// via SetActivityClockForTest, mirroring the newAgentClient override seam. The
+// mutex keeps the seam race-free even if a future test overrides the clock in
+// parallel; a concrete-type-varying value rules out atomic.Value here.
+var (
+	activityClockMu sync.RWMutex
+	activityClock   clock = runshared.RealClock{}
+)
+
+// SetActivityClockForTest overrides the clock used by newly created activity
+// monitors and stall watchdogs, returning a restore func. Test-only seam.
+func SetActivityClockForTest(c clock) func() {
+	if c == nil {
+		c = runshared.RealClock{}
+	}
+	activityClockMu.Lock()
+	previous := activityClock
+	activityClock = c
+	activityClockMu.Unlock()
+	return func() {
+		activityClockMu.Lock()
+		activityClock = previous
+		activityClockMu.Unlock()
+	}
+}
+
 func newActivityMonitor() *activityMonitor {
-	return runshared.NewActivityMonitor()
+	activityClockMu.RLock()
+	c := activityClock
+	activityClockMu.RUnlock()
+	return runshared.NewActivityMonitorWithClock(c)
+}
+
+// terminalCloser is the optional capability the watchdog uses to reap a stalled
+// session's terminal commands on fire. *agent clientImpl satisfies it; fakes that
+// do not implement it simply skip terminal teardown.
+type terminalCloser interface {
+	CloseTerminals() error
 }
 
 func appendLinesToBuffer(buf *lineBuffer, lines []string) {

@@ -75,6 +75,7 @@ type SessionSetupRequest struct {
 }
 
 func (s *SessionExecution) Close() {
+	s.emitProgressSignalDiagnostics()
 	if s.ReleaseClient != nil {
 		defer s.ReleaseClient()
 	}
@@ -89,6 +90,26 @@ func (s *SessionExecution) Close() {
 			s.Logger.Warn("failed to close ACP client cleanly", "error", err)
 		}
 	}
+}
+
+// emitProgressSignalDiagnostics logs this execution's drop/backpressure signals
+// once at close, reading the journal drop counters when the submitter exposes
+// them.
+func (s *SessionExecution) emitProgressSignalDiagnostics() {
+	if s.Session == nil {
+		return
+	}
+	logger := s.Logger
+	if logger == nil {
+		logger = silentLogger()
+	}
+	var jrnl stallDiagnosticsJournal
+	if s.Handler != nil {
+		if typed, ok := s.Handler.journal.(stallDiagnosticsJournal); ok {
+			jrnl = typed
+		}
+	}
+	logProgressSignalDiagnostics(logger, s.Session.ID(), s.Session, jrnl)
 }
 
 func NotifyJobStart(
@@ -313,13 +334,14 @@ func resolveSessionLogger(logger *slog.Logger) *slog.Logger {
 func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Logger) (agent.Client, error) {
 	ide := jobIDE(cfg, job)
 	client, err := newAgentClient(ctx, agent.ClientConfig{
-		IDE:             ide,
-		Model:           jobModel(cfg, job),
-		AddDirs:         append([]string(nil), cfg.AddDirs...),
-		ReasoningEffort: jobReasoningEffort(cfg, job),
-		AccessMode:      cfg.AccessMode,
-		Logger:          logger.With("component", "acp.client", "agent_id", ide),
-		ShutdownTimeout: runshared.ProcessTerminationGracePeriod,
+		IDE:                    ide,
+		Model:                  jobModel(cfg, job),
+		AddDirs:                append([]string(nil), cfg.AddDirs...),
+		ReasoningEffort:        jobReasoningEffort(cfg, job),
+		AccessMode:             cfg.AccessMode,
+		Logger:                 logger.With("component", "acp.client", "agent_id", ide),
+		ShutdownTimeout:        runshared.ProcessTerminationGracePeriod,
+		TerminalCommandTimeout: cfg.Stall.TerminalCap,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create ACP client: %w", err)

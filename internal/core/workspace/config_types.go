@@ -47,17 +47,30 @@ type ProjectConfig struct {
 }
 
 type RuntimeOverrides struct {
-	IDE                    *string   `toml:"ide,omitempty"`
-	Model                  *string   `toml:"model,omitempty"`
-	OutputFormat           *string   `toml:"output_format,omitempty"`
-	ReasoningEffort        *string   `toml:"reasoning_effort,omitempty"`
-	AccessMode             *string   `toml:"access_mode,omitempty"`
-	Timeout                *string   `toml:"timeout,omitempty"`
-	TailLines              *int      `toml:"tail_lines,omitempty"`
-	AddDirs                *[]string `toml:"add_dirs,omitempty"`
-	AutoCommit             *bool     `toml:"auto_commit,omitempty"`
-	MaxRetries             *int      `toml:"max_retries,omitempty"`
-	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier,omitempty"`
+	IDE                    *string        `toml:"ide,omitempty"`
+	Model                  *string        `toml:"model,omitempty"`
+	OutputFormat           *string        `toml:"output_format,omitempty"`
+	ReasoningEffort        *string        `toml:"reasoning_effort,omitempty"`
+	AccessMode             *string        `toml:"access_mode,omitempty"`
+	Timeout                *string        `toml:"timeout,omitempty"`
+	TailLines              *int           `toml:"tail_lines,omitempty"`
+	AddDirs                *[]string      `toml:"add_dirs,omitempty"`
+	AutoCommit             *bool          `toml:"auto_commit,omitempty"`
+	MaxRetries             *int           `toml:"max_retries,omitempty"`
+	RetryBackoffMultiplier *float64       `toml:"retry_backoff_multiplier,omitempty"`
+	Stall                  StallOverrides `toml:"stall,omitempty"`
+}
+
+// StallOverrides are the optional TOML knobs for stall detection and recovery.
+// Durations are parsed from Go duration strings (e.g. "3m") consistent with the
+// existing timeout override handling. All fields are resolved into
+// model.RuntimeConfig, where defaults and the child > idle invariant are applied.
+type StallOverrides struct {
+	Enabled                *bool   `toml:"enabled,omitempty"                  json:"enabled,omitempty"`
+	Timeout                *string `toml:"timeout,omitempty"                  json:"timeout,omitempty"`
+	ChildTimeout           *string `toml:"child_timeout,omitempty"            json:"child_timeout,omitempty"`
+	TerminalCommandTimeout *string `toml:"terminal_command_timeout,omitempty" json:"terminal_command_timeout,omitempty"`
+	Retries                *int    `toml:"retries,omitempty"                  json:"retries,omitempty"`
 }
 
 type DefaultsConfig RuntimeOverrides
@@ -268,4 +281,5 @@ type SoundConfig struct {
 	Enabled     *bool   `toml:"enabled"`
 	OnCompleted *string `toml:"on_completed"`
 	OnFailed    *string `toml:"on_failed"`
+	OnParked    *string `toml:"on_parked"`
 }

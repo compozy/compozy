@@ -176,6 +176,8 @@ func shouldEmitLeanWorkflowEvent(ev events.Event) bool {
 		events.EventKindTaskParallelRolledBack,
 		events.EventKindJobStarted,
 		events.EventKindJobRetryScheduled,
+		events.EventKindJobStalled,
+		events.EventKindJobParked,
 		events.EventKindJobPausing,
 		events.EventKindJobPaused,
 		events.EventKindJobResumed,

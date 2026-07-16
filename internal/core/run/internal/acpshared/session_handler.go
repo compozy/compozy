@@ -41,6 +41,7 @@ type SessionUpdateHandler struct {
 
 	mu                   sync.Mutex
 	err                  error
+	lastToolCall         string
 	blockCounts          map[model.ContentBlockType]int
 	nestedToolCalls      map[string]nestedReusableAgentCall
 	pendingNestedResults map[string]runAgentToolResult
@@ -209,6 +210,33 @@ func (h *SessionUpdateHandler) applySessionUpdate(update model.SessionUpdate) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sessionView.Apply(update)
+	if toolCall := lastToolCallOf(update); toolCall != "" {
+		h.lastToolCall = toolCall
+	}
+}
+
+// lastToolCallOf returns the tool call an update refers to, or "" when the
+// update is not a tool-call transition. Tool-call updates are the critical,
+// never-dropped class of session update, so the value they leave behind is the
+// most reliable answer to "what was the agent doing when it froze?".
+func lastToolCallOf(update model.SessionUpdate) string {
+	switch update.Kind {
+	case model.UpdateKindToolCallStarted, model.UpdateKindToolCallUpdated:
+		return strings.TrimSpace(update.ToolCallID)
+	default:
+		return ""
+	}
+}
+
+// LastToolCall reports the most recent tool call the agent started or updated.
+// Safe to call concurrently with session streaming, and on a nil handler.
+func (h *SessionUpdateHandler) LastToolCall() string {
+	if h == nil {
+		return ""
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastToolCall
 }
 
 func (h *SessionUpdateHandler) emitSessionUpdateEvent(payload json.RawMessage) error {

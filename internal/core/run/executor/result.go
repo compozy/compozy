@@ -16,6 +16,7 @@ const (
 	runStatusSucceeded = "succeeded"
 	runStatusFailed    = "failed"
 	runStatusCanceled  = "canceled"
+	runStatusParked    = "parked"
 	runStatusUnknown   = "unknown"
 )
 
@@ -92,18 +93,27 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 	return result
 }
 
+// deriveRunStatus collapses per-job outcomes into one run status. A parked job
+// records a failure so the run still exits non-zero, so the parked check must
+// run before the failures fallback or every parked run would report as failed.
 func deriveRunStatus(jobs []job, failures []failInfo) string {
 	hasCanceled := false
+	hasParked := false
 	for idx := range jobs {
 		switch jobs[idx].Status {
 		case runStatusFailed:
 			return runStatusFailed
 		case runStatusCanceled:
 			hasCanceled = true
+		case runStatusParked:
+			hasParked = true
 		}
 	}
 	if hasCanceled {
 		return runStatusCanceled
+	}
+	if hasParked {
+		return runStatusParked
 	}
 	if len(failures) > 0 {
 		return runStatusFailed

@@ -57,35 +57,27 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// dispatchSingleUIMsg routes one already-translated message. Every cockpit message
+// resolves through applyUIMsg's own type switch, so they share a single case clause
+// here; anything else is a task.parallel.* message.
 func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
 	switch v := msg.(type) {
-	case jobQueuedMsg:
-		return m.applyUIMsg(v), true
-	case jobStartedMsg:
-		return m.applyUIMsg(v), true
-	case jobRetryMsg:
-		return m.applyUIMsg(v), true
-	case jobPausingMsg:
-		return m.applyUIMsg(v), true
-	case jobPausedMsg:
-		return m.applyUIMsg(v), true
-	case jobResumedMsg:
-		return m.applyUIMsg(v), true
-	case jobFinishedMsg:
-		return m.applyUIMsg(v), true
-	case jobUpdateMsg:
-		return m.applyUIMsg(v), true
-	case usageUpdateMsg:
-		return m.applyUIMsg(v), true
-	case runStatusMsg:
-		return m.applyUIMsg(v), true
-	case shutdownStatusMsg:
-		return m.applyUIMsg(v), true
-	case remoteConnectionStatusMsg:
-		return m.applyUIMsg(v), true
-	case jobFailureMsg:
-		return m.applyUIMsg(v), true
-	case jobControlResultMsg:
+	case jobQueuedMsg,
+		jobStartedMsg,
+		jobRetryMsg,
+		jobStalledMsg,
+		jobParkedMsg,
+		jobPausingMsg,
+		jobPausedMsg,
+		jobResumedMsg,
+		jobFinishedMsg,
+		jobUpdateMsg,
+		usageUpdateMsg,
+		runStatusMsg,
+		shutdownStatusMsg,
+		remoteConnectionStatusMsg,
+		jobFailureMsg,
+		jobControlResultMsg:
 		return m.applyUIMsg(v), true
 	default:
 		return m.applyParallelUIMsg(v)
@@ -109,21 +101,10 @@ func (m *uiModel) handleDispatchBatch(v dispatchBatchMsg) tea.Cmd {
 }
 
 func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
+	if cmd, ok := m.applyJobLifecycleUIMsg(msg); ok {
+		return cmd
+	}
 	switch value := msg.(type) {
-	case jobQueuedMsg:
-		return m.handleJobQueued(&value)
-	case jobStartedMsg:
-		return m.handleJobStarted(value)
-	case jobRetryMsg:
-		return m.handleJobRetry(value)
-	case jobPausingMsg:
-		return m.handleJobPausing(value)
-	case jobPausedMsg:
-		return m.handleJobPaused(value)
-	case jobResumedMsg:
-		return m.handleJobResumed(value)
-	case jobFinishedMsg:
-		return m.handleJobFinished(value)
 	case jobUpdateMsg:
 		return m.handleJobUpdate(value)
 	case usageUpdateMsg:
@@ -142,6 +123,37 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 		}
 		cmd, _ := m.applyParallelUIMsg(value)
 		return cmd
+	}
+}
+
+// applyJobLifecycleUIMsg routes the per-job state transitions, returning ok=false
+// for any other message. Kept separate from applyUIMsg to bound that switch's
+// cyclomatic complexity.
+func (m *uiModel) applyJobLifecycleUIMsg(msg uiMsg) (tea.Cmd, bool) {
+	switch value := msg.(type) {
+	case jobQueuedMsg:
+		m.handleJobQueued(&value)
+		return nil, true
+	case jobStartedMsg:
+		return m.handleJobStarted(value), true
+	case jobRetryMsg:
+		m.handleJobRetry(value)
+		return nil, true
+	case jobStalledMsg:
+		m.handleJobStalled(value)
+		return nil, true
+	case jobParkedMsg:
+		return m.handleJobParked(value), true
+	case jobPausingMsg:
+		return m.handleJobPausing(value), true
+	case jobPausedMsg:
+		return m.handleJobPaused(value), true
+	case jobResumedMsg:
+		return m.handleJobResumed(value), true
+	case jobFinishedMsg:
+		return m.handleJobFinished(value), true
+	default:
+		return nil, false
 	}
 }
 
@@ -721,8 +733,14 @@ func (m *uiModel) refreshSidebarContent() {
 	}
 }
 
+// settledJobs counts every job that reached a terminal state. Parked is terminal
+// and distinct from both completed and failed, so it settles the run like them.
+func (m *uiModel) settledJobs() int {
+	return m.completed + m.failed + m.parked
+}
+
 func (m *uiModel) isRunComplete() bool {
-	return m.completed+m.failed >= m.total
+	return m.settledJobs() >= m.total
 }
 
 func (m *uiModel) currentJob() *uiJob {
@@ -744,7 +762,8 @@ func (m *uiModel) persistSelectedViewportState() {
 
 func (m *uiModel) selectNextRunningJob() {
 	for i := range m.jobs {
-		if m.jobs[i].state == jobRunning || m.jobs[i].state == jobRetrying {
+		switch m.jobs[i].state {
+		case jobRunning, jobStalled, jobRetrying:
 			m.selectedJob = i
 			return
 		}
@@ -792,7 +811,7 @@ func (m *uiModel) ensureSpinnerTick() tea.Cmd {
 	return m.spinnerTick()
 }
 
-func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
+func (m *uiModel) handleJobQueued(v *jobQueuedMsg) {
 	existing, _ := m.ensureJobSlot(v.Index)
 	m.jobs[v.Index] = mergeQueuedJobState(existing, uiJob{
 		codeFile:             v.CodeFile,
@@ -816,7 +835,6 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 	})
 	m.sidebarDirty = true
 	m.refreshViewportContent()
-	return nil
 }
 
 func queuedTaskNumber(v *jobQueuedMsg) int {
@@ -872,7 +890,7 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 	return m.ensureSpinnerTick()
 }
 
-func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
+func (m *uiModel) handleJobRetry(v jobRetryMsg) {
 	retryAt := time.Now()
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
@@ -888,7 +906,100 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 		m.sidebarDirty = true
 	}
 	m.refreshViewportContent()
+}
+
+// handleJobStalled renders the transient stalled state. The stalled flag is
+// sticky for the rest of the run: it is what later separates a recovered
+// completion from a plain one, so a follow-up retry must not clear it.
+func (m *uiModel) handleJobStalled(v jobStalledMsg) {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
+		m.persistSelectedViewportState()
+		job.state = jobStalled
+		job.stalled = true
+		job.stallReason = strings.TrimSpace(v.Reason)
+		job.stallLastToolCall = strings.TrimSpace(v.LastToolCall)
+		job.retrying = false
+		job.retryReason = ""
+		if v.Attempt > 0 {
+			job.attempt = v.Attempt
+		}
+		job.maxAttempts = max(v.MaxAttempts, job.attempt)
+		m.selectedJob = v.Index
+		m.sidebarDirty = true
+	}
+	m.refreshViewportContent()
+}
+
+// handleJobParked applies the terminal parked outcome. Parked is its own bucket:
+// it never counts as completed or failed, and it settles the job so the run can
+// reach completion with siblings that finished normally.
+func (m *uiModel) handleJobParked(v jobParkedMsg) tea.Cmd {
+	parkedAt := time.Now()
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
+		m.persistSelectedViewportState()
+		job.state = jobParked
+		job.stalled = true
+		job.stallReason = strings.TrimSpace(v.Reason)
+		job.stallLastToolCall = strings.TrimSpace(v.LastToolCall)
+		job.parkProgressSeq = v.LastProgressSeq
+		job.retrying = false
+		job.retryReason = ""
+		if v.Attempt > 0 {
+			job.attempt = v.Attempt
+		}
+		job.maxAttempts = max(v.MaxAttempts, job.attempt)
+		if worktreePath := strings.TrimSpace(v.WorktreePath); worktreePath != "" {
+			job.worktreePath = worktreePath
+		}
+		job.parkLogPath = strings.TrimSpace(v.LogPath)
+		if !job.startedAt.IsZero() {
+			job.completedAt = parkedAt
+			job.duration = job.completedAt.Sub(job.startedAt)
+		}
+		if parkedAt.After(m.now) {
+			m.now = parkedAt
+		}
+		m.parked++
+		m.selectNextRunningJob()
+		m.sidebarDirty = true
+	}
+	m.settleTerminalJob()
+	m.refreshViewportContent()
+	if m.hasActiveJobs() {
+		return m.ensureSpinnerTick()
+	}
+	m.spinnerRunning = false
 	return nil
+}
+
+// stallDetailText renders the plain-language stall reason, appending the last
+// tool call observed before the silence when the payload carries one.
+func stallDetailText(reason string, lastToolCall string) string {
+	reason = strings.TrimSpace(reason)
+	lastToolCall = strings.TrimSpace(lastToolCall)
+	switch {
+	case reason == "" && lastToolCall == "":
+		return ""
+	case reason == "":
+		return "last tool call: " + lastToolCall
+	case lastToolCall == "":
+		return reason
+	default:
+		return reason + "; last tool call: " + lastToolCall
+	}
+}
+
+// settleTerminalJob applies the shared post-terminal bookkeeping: it clears any
+// pending shutdown once every job has settled and opens the summary view when the
+// run finished with something the user must look at.
+func (m *uiModel) settleTerminalJob() {
+	if m.isRunComplete() {
+		m.closeQuitDialog()
+		m.shutdown = shutdownState{}
+	}
+	if m.isRunComplete() && m.total > 0 && (m.failed > 0 || m.parked > 0) && m.currentView != uiViewSummary {
+		m.showSummaryView()
+	}
 }
 
 func (m *uiModel) handleJobPausing(v jobPausingMsg) tea.Cmd {
@@ -971,6 +1082,11 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 		if v.Success {
 			job.state = jobSuccess
 			m.completed++
+			// A completion that followed a stall is a recovery: the retry worked and
+			// the user was never involved. Plain completions never count here.
+			if job.stalled {
+				m.recovered++
+			}
 		} else {
 			job.state = jobFailed
 			job.exitCode = v.ExitCode
@@ -1000,13 +1116,7 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 		m.selectNextRunningJob()
 		m.sidebarDirty = true
 	}
-	if m.isRunComplete() {
-		m.closeQuitDialog()
-		m.shutdown = shutdownState{}
-	}
-	if m.total > 0 && m.completed+m.failed >= m.total && m.failed > 0 && m.currentView != uiViewSummary {
-		m.showSummaryView()
-	}
+	m.settleTerminalJob()
 	m.refreshViewportContent()
 	if m.hasActiveJobs() {
 		return m.ensureSpinnerTick()
@@ -1091,10 +1201,12 @@ func (m *uiModel) sidebarNeedsClockRefresh() bool {
 	return false
 }
 
+// hasActiveJobs treats a stalled job as active: its attempt is still being torn
+// down and a retry may follow, so the spinner must keep running.
 func (m *uiModel) hasActiveJobs() bool {
 	for i := range m.jobs {
 		switch m.jobs[i].state {
-		case jobRunning, jobPausing, jobRetrying:
+		case jobRunning, jobPausing, jobStalled, jobRetrying:
 			return true
 		}
 	}

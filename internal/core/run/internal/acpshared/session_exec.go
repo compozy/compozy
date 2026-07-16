@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -32,11 +34,13 @@ func ExecuteJobWithTimeout(
 	trackClient func(agent.Client) func(),
 ) JobAttemptResult {
 	emitHuman := cfg.HumanOutputEnabled() && !useUI
+	idleTimeout := watchdogIdleTimeout(cfg)
+	armWatchdog := idleTimeout > 0
 	attemptCtx := ctx
-	cancel := func(error) {}
+	cancel := context.CancelCauseFunc(func(error) {})
 	stopActivityWatchdog := func() {}
 	var activity *activityMonitor
-	if timeout > 0 {
+	if armWatchdog {
 		activity = newActivityMonitor()
 		attemptCtx, cancel = context.WithCancelCause(ctx)
 	}
@@ -62,36 +66,97 @@ func ExecuteJobWithTimeout(
 		TrackClient:       trackClient,
 	})
 	if err != nil {
-		if timeout > 0 && isSessionTimeout(attemptCtx, err) {
-			return HandleSessionTimeout(
-				ResolveTimeoutError(timeout, err, context.Cause(attemptCtx)),
-				j,
-				index,
-				emitHuman,
-				timeout,
-			)
-		}
-		if isSessionCancellation(attemptCtx, err) {
-			return HandleSessionCancellation(
-				ResolveCancellationError(context.Cause(attemptCtx), err, attemptCtx.Err()),
-				j,
-				index,
-				emitHuman,
-			)
-		}
-		fail := RecordFailureWithContext(nil, j, nil, err, -1)
-		return jobAttemptResult{
-			Status:    attemptStatusSetupFailed,
-			ExitCode:  -1,
-			Failure:   &fail,
-			Retryable: RetryableSetupFailure(err),
-		}
+		return handleSetupFailure(attemptCtx, err, j, index, emitHuman, timeout)
 	}
-	if timeout > 0 {
+	// The init/activity Timeout only drives ResolveACPInitTimeout above; the idle
+	// window is the stall policy's IdleTimeout, which also becomes the reported
+	// timeout when the watchdog fires.
+	reportTimeout := timeout
+	if armWatchdog {
+		reportTimeout = idleTimeout
 		activity.RecordActivity()
-		stopActivityWatchdog = StartACPActivityWatchdog(attemptCtx, activity, timeout, cancel)
+		stopActivityWatchdog = StartACPActivityWatchdog(ActivityWatchdogConfig{
+			Ctx:           attemptCtx,
+			Monitor:       activity,
+			IdleTimeout:   idleTimeout,
+			Cancel:        cancel,
+			KillTerminals: watchdogTerminalKiller(execution),
+			Clock:         activityClock,
+			Logger:        execution.Logger,
+			SessionID:     watchdogSessionID(execution),
+		})
 	}
-	return ExecuteSessionAndResolve(attemptCtx, cfg, timeout, execution, j, index, emitHuman)
+	return ExecuteSessionAndResolve(attemptCtx, cfg, reportTimeout, execution, j, index, emitHuman)
+}
+
+// watchdogIdleTimeout returns the idle window the stall watchdog should enforce,
+// or zero when stall detection is disabled. It is deliberately independent of the
+// init/activity Timeout so the watchdog stays armed even when Timeout<=0.
+func watchdogIdleTimeout(cfg *config) time.Duration {
+	if cfg == nil || !cfg.Stall.Enabled || cfg.Stall.IdleTimeout <= 0 {
+		return 0
+	}
+	return cfg.Stall.IdleTimeout
+}
+
+// watchdogTerminalKiller returns the callback the watchdog invokes on fire to
+// reap the session's terminal commands via the graceful process-group kill
+// ladder. Returns nil when the client does not expose terminal teardown.
+func watchdogTerminalKiller(execution *SessionExecution) func() {
+	if execution == nil || execution.Client == nil {
+		return nil
+	}
+	closer, ok := execution.Client.(terminalCloser)
+	if !ok {
+		return nil
+	}
+	logger := execution.Logger
+	return func() {
+		if err := closer.CloseTerminals(); err != nil && logger != nil {
+			logger.Warn("failed to reap terminals on stall", "error", err)
+		}
+	}
+}
+
+func watchdogSessionID(execution *SessionExecution) string {
+	if execution == nil || execution.Session == nil {
+		return ""
+	}
+	return execution.Session.ID()
+}
+
+func handleSetupFailure(
+	attemptCtx context.Context,
+	err error,
+	j *job,
+	index int,
+	emitHuman bool,
+	timeout time.Duration,
+) JobAttemptResult {
+	if timeout > 0 && isSessionTimeout(attemptCtx, err) {
+		return HandleSessionTimeout(
+			ResolveTimeoutError(timeout, err, context.Cause(attemptCtx)),
+			j,
+			index,
+			emitHuman,
+			timeout,
+		)
+	}
+	if isSessionCancellation(attemptCtx, err) {
+		return HandleSessionCancellation(
+			ResolveCancellationError(context.Cause(attemptCtx), err, attemptCtx.Err()),
+			j,
+			index,
+			emitHuman,
+		)
+	}
+	fail := RecordFailureWithContext(nil, j, nil, err, -1)
+	return jobAttemptResult{
+		Status:    attemptStatusSetupFailed,
+		ExitCode:  -1,
+		Failure:   &fail,
+		Retryable: RetryableSetupFailure(err),
+	}
 }
 
 type activityTimeoutError struct {
@@ -141,49 +206,124 @@ func ResolveACPInitTimeout(activityTimeout time.Duration) time.Duration {
 	return activityTimeout * acpInitTimeoutMultiplier
 }
 
-func StartACPActivityWatchdog(
-	ctx context.Context,
-	monitor *activityMonitor,
-	timeout time.Duration,
-	cancel context.CancelCauseFunc,
-) func() {
-	if monitor == nil || timeout <= 0 || cancel == nil {
+// ActivityWatchdogConfig configures the progress-aware stall watchdog. Monitor,
+// IdleTimeout and Cancel are required to arm; KillTerminals, Clock, Logger and
+// SessionID are optional and default to no-op / RealClock / silent when unset.
+type ActivityWatchdogConfig struct {
+	Ctx           context.Context
+	Monitor       *activityMonitor
+	IdleTimeout   time.Duration
+	Cancel        context.CancelCauseFunc
+	KillTerminals func()
+	Clock         clock
+	Logger        *slog.Logger
+	SessionID     string
+}
+
+// StartACPActivityWatchdog arms the progress-aware stall watchdog. It resets on
+// any recorded activity (idle-on-any-output) and, when the idle window is
+// exceeded, reaps the session's terminals via the graceful kill ladder before
+// canceling the attempt with a typed stall cause. It emits one diagnostic when
+// idle first crosses 50% and 80% of the window. The returned func stops it.
+func StartACPActivityWatchdog(cfg ActivityWatchdogConfig) func() {
+	if cfg.Monitor == nil || cfg.IdleTimeout <= 0 || cfg.Cancel == nil {
 		return func() {}
 	}
-
+	if cfg.Ctx == nil {
+		cfg.Ctx = context.Background()
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = runshared.RealClock{}
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = silentLogger()
+	}
 	stopCh := make(chan struct{})
-	var stopOnce sync.Once
-	interval := timeout / 2
+	var (
+		stopOnce sync.Once
+		wg       sync.WaitGroup
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runActivityWatchdog(cfg, watchdogInterval(cfg.IdleTimeout), stopCh)
+	}()
+	// The stop closure waits for the goroutine to return so no watchdog tick can
+	// still reap terminals or cancel the attempt after the caller has torn down.
+	return func() {
+		stopOnce.Do(func() {
+			close(stopCh)
+		})
+		wg.Wait()
+	}
+}
+
+func watchdogInterval(idleTimeout time.Duration) time.Duration {
+	interval := idleTimeout / 2
 	if interval <= 0 || interval > activityCheckInterval {
 		interval = activityCheckInterval
 	}
 	if interval < time.Millisecond {
 		interval = time.Millisecond
 	}
+	return interval
+}
 
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if monitor.TimeSinceLastActivity() > timeout {
-					cancel(&activityTimeoutError{timeout: timeout})
-					return
-				}
-			case <-ctx.Done():
-				return
-			case <-stopCh:
+func runActivityWatchdog(cfg ActivityWatchdogConfig, interval time.Duration, stopCh <-chan struct{}) {
+	ticker := cfg.Clock.NewTicker(interval)
+	defer ticker.Stop()
+	warner := &idleThresholdWarner{}
+	for {
+		select {
+		case <-ticker.C():
+			if watchdogTick(cfg, warner) {
 				return
 			}
+		case <-cfg.Ctx.Done():
+			return
+		case <-stopCh:
+			return
 		}
-	}()
+	}
+}
 
-	return func() {
-		stopOnce.Do(func() {
-			close(stopCh)
-		})
+// watchdogTick evaluates one idle sample. It returns true when the watchdog fired
+// (terminals reaped, attempt canceled) so the loop exits.
+func watchdogTick(cfg ActivityWatchdogConfig, warner *idleThresholdWarner) bool {
+	idle := cfg.Monitor.TimeSinceLastActivity()
+	if idle >= cfg.IdleTimeout {
+		// Reap terminals first so the graceful kill ladder runs before the
+		// attempt cancel force-kills the process group via cmd.Cancel.
+		if cfg.KillTerminals != nil {
+			cfg.KillTerminals()
+		}
+		cfg.Cancel(&activityTimeoutError{timeout: cfg.IdleTimeout})
+		return true
+	}
+	warner.observe(cfg.Logger, cfg.SessionID, idle, cfg.IdleTimeout)
+	return false
+}
+
+// idleThresholdWarner emits the 50%/80% idle diagnostics at most once each per
+// attempt, latching after the first crossing.
+type idleThresholdWarner struct {
+	warned50 bool
+	warned80 bool
+}
+
+func (w *idleThresholdWarner) observe(
+	logger *slog.Logger,
+	sessionID string,
+	idle time.Duration,
+	idleTimeout time.Duration,
+) {
+	if !w.warned50 && idle >= idleTimeout/2 {
+		w.warned50 = true
+		logIdleThresholdDiagnostic(logger, sessionID, 50, idle, idleTimeout)
+	}
+	if !w.warned80 && idle >= idleTimeout*8/10 {
+		w.warned80 = true
+		logIdleThresholdDiagnostic(logger, sessionID, 80, idle, idleTimeout)
 	}
 }
 
@@ -233,7 +373,11 @@ func ExecuteSessionAndResolve(
 		unregister = cfg.JobControls.Register(cfg.RunArtifacts.RunID, index, safeJobID(j), controller)
 	}
 	defer unregister()
-	return controller.run()
+	result := controller.run()
+	if result.Stalled {
+		result.LastToolCall = execution.Handler.LastToolCall()
+	}
+	return result
 }
 
 func executeSingleSessionTurn(
@@ -801,11 +945,14 @@ func HandleSessionTimeout(
 		ErrLog:   j.ErrLog,
 		Err:      timeoutErr,
 	}
+	// Only an idle-window expiry is a stall. An init timeout means the agent never
+	// came up, which stays on the ordinary retry path.
 	return jobAttemptResult{
 		Status:    attemptStatusTimeout,
 		ExitCode:  exitCodeTimeout,
 		Failure:   &failure,
 		Retryable: true,
+		Stalled:   IsActivityTimeout(timeoutErr),
 	}
 }
 
