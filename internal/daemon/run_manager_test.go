@@ -70,6 +70,239 @@ func TestRunManagerStartTaskRunAllocatesRunDBAndRejectsDuplicateRunID(t *testing
 	}
 }
 
+func TestRunManagerCanceledContendedReviewStartLeavesNoRun(t *testing.T) {
+	t.Run("Should leave no run when a contended start is canceled", func(t *testing.T) {
+		const runID = "review-run-canceled-before-commit"
+
+		type writerLockResult struct {
+			tx  *sql.Tx
+			err error
+		}
+		writerLockCh := make(chan writerLockResult, 1)
+		var writerDB *sql.DB
+		var executed atomic.Bool
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			syncWorkflow: func(
+				ctx context.Context,
+				db *globaldb.GlobalDB,
+				workspace globaldb.Workspace,
+				cfg model.SyncConfig,
+			) (*corepkg.SyncResult, error) {
+				writerTx, err := writerDB.BeginTx(context.Background(), nil)
+				if err == nil {
+					_, err = writerTx.ExecContext(
+						context.Background(),
+						`UPDATE workspaces SET updated_at = updated_at WHERE id = ?`,
+						workspace.ID,
+					)
+				}
+				if err != nil && writerTx != nil {
+					if rollbackErr := writerTx.Rollback(); rollbackErr != nil {
+						err = errors.Join(err, fmt.Errorf("rollback failed writer transaction: %w", rollbackErr))
+					}
+					writerTx = nil
+				}
+				writerLockCh <- writerLockResult{tx: writerTx, err: err}
+				if err != nil {
+					return nil, err
+				}
+				return corepkg.SyncWithDB(ctx, db, workspace, cfg)
+			},
+			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				executed.Store(true)
+				return nil
+			},
+		})
+		env.createReviewRound(t, 1)
+
+		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
+		}
+		if _, err := corepkg.SyncWithDB(
+			context.Background(),
+			env.globalDB,
+			workspace,
+			model.SyncConfig{TasksDir: env.workflowDir(env.workflowSlug)},
+		); err != nil {
+			t.Fatalf("initial SyncWithDB() error = %v", err)
+		}
+
+		writerDB, err = store.OpenSQLiteDatabase(context.Background(), env.paths.GlobalDBPath, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(writer) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := writerDB.Close(); closeErr != nil {
+				t.Errorf("close writer database: %v", closeErr)
+			}
+		})
+		var writerTx *sql.Tx
+		writerReleased := false
+		t.Cleanup(func() {
+			if writerTx != nil && !writerReleased {
+				if rollbackErr := writerTx.Rollback(); rollbackErr != nil {
+					t.Errorf("rollback writer transaction during cleanup: %v", rollbackErr)
+				}
+			}
+		})
+
+		type startResult struct {
+			run apicore.Run
+			err error
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		runtimeOverrides := rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`)
+		resultCh := make(chan startResult, 1)
+		go func() {
+			run, startErr := env.manager.StartReviewRun(
+				ctx,
+				env.workspaceRoot,
+				env.workflowSlug,
+				1,
+				apicore.ReviewRunRequest{
+					Workspace:        env.workspaceRoot,
+					PresentationMode: defaultPresentationMode,
+					RuntimeOverrides: runtimeOverrides,
+				},
+			)
+			resultCh <- startResult{run: run, err: startErr}
+		}()
+
+		select {
+		case lockResult := <-writerLockCh:
+			if lockResult.err != nil {
+				t.Fatalf("hold global.db writer lock: %v", lockResult.err)
+			}
+			writerTx = lockResult.tx
+		case <-time.After(5 * time.Second):
+			t.Fatal("StartReviewRun() did not enter pre-run sync")
+		}
+		cancel()
+
+		var result startResult
+		returnedWhileLocked := false
+		select {
+		case result = <-resultCh:
+			returnedWhileLocked = true
+		case <-time.After(time.Second):
+		}
+
+		if writerTx == nil {
+			t.Fatal("global.db writer transaction = nil")
+		}
+		if err := writerTx.Rollback(); err != nil {
+			t.Fatalf("release global.db writer lock: %v", err)
+		}
+		writerReleased = true
+		if !returnedWhileLocked {
+			select {
+			case result = <-resultCh:
+			case <-time.After(5 * time.Second):
+				t.Fatal("StartReviewRun() did not return after releasing writer lock")
+			}
+			t.Fatal("StartReviewRun() ignored cancellation while blocked on global.db")
+		}
+
+		if !errors.Is(result.err, context.Canceled) {
+			t.Fatalf("StartReviewRun() error = %v, want context.Canceled", result.err)
+		}
+		if result.run.RunID != "" {
+			t.Fatalf("StartReviewRun() run id = %q, want empty", result.run.RunID)
+		}
+		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+		}
+		if _, err := os.Stat(env.manager.runArtifacts(runID).RunDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("stat canceled run directory error = %v, want os.ErrNotExist", err)
+		}
+		if executed.Load() {
+			t.Fatal("canceled review start executed after returning an error")
+		}
+	})
+}
+
+func TestRunManagerCallerCancellationAfterCommitDoesNotOwnStartup(t *testing.T) {
+	t.Run("Should complete daemon-owned startup after caller cancellation", func(t *testing.T) {
+		const runID = "review-run-daemon-owned-after-commit"
+
+		scopeEntered := make(chan struct{})
+		releaseScope := make(chan struct{})
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			openRunScope: func(
+				ctx context.Context,
+				cfg *model.RuntimeConfig,
+				_ model.OpenRunScopeOptions,
+			) (model.RunScope, error) {
+				close(scopeEntered)
+				<-releaseScope
+				if ctx.Done() == nil {
+					return nil, errors.New("post-commit startup context has no daemon cancellation")
+				}
+				return model.OpenBaseRunScope(ctx, cfg)
+			},
+		})
+		env.createReviewRound(t, 1)
+
+		type startResult struct {
+			run apicore.Run
+			err error
+		}
+		callerCtx, cancelCaller := context.WithCancel(context.Background())
+		runtimeOverrides := rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`)
+		resultCh := make(chan startResult, 1)
+		go func() {
+			run, err := env.manager.StartReviewRun(
+				callerCtx,
+				env.workspaceRoot,
+				env.workflowSlug,
+				1,
+				apicore.ReviewRunRequest{
+					Workspace:        env.workspaceRoot,
+					PresentationMode: defaultPresentationMode,
+					RuntimeOverrides: runtimeOverrides,
+				},
+			)
+			resultCh <- startResult{run: run, err: err}
+		}()
+
+		select {
+		case <-scopeEntered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("StartReviewRun() did not reach post-commit scope initialization")
+		}
+		row, err := env.globalDB.GetRun(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("GetRun(%q) after scope entry error = %v", runID, err)
+		}
+		if row.Status != runStatusStarting {
+			t.Fatalf("committed row status = %q, want %q", row.Status, runStatusStarting)
+		}
+
+		cancelCaller()
+		close(releaseScope)
+
+		var result startResult
+		select {
+		case result = <-resultCh:
+		case <-time.After(5 * time.Second):
+			t.Fatal("StartReviewRun() did not finish daemon-owned startup")
+		}
+		if result.err != nil {
+			t.Fatalf("StartReviewRun() after caller cancellation error = %v", result.err)
+		}
+		if result.run.RunID != runID {
+			t.Fatalf("StartReviewRun() run id = %q, want %q", result.run.RunID, runID)
+		}
+		terminal := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if terminal.Status != runStatusCompleted {
+			t.Fatalf("terminal status = %q, want %q", terminal.Status, runStatusCompleted)
+		}
+	})
+}
+
 func TestRunManagerRejectsCompletedTaskWorkflowBeforeCreatingRun(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Done task"))
@@ -1515,41 +1748,44 @@ func TestRunManagerStartExecRunAllocatesDistinctImplicitRunIDsInParallel(t *test
 	})
 }
 
-func TestRunManagerOpenRunScopeFailureCleansReservedDirectory(t *testing.T) {
-	scopeErr := errors.New("scope unavailable")
-	env := newRunManagerTestEnv(t, runManagerTestDeps{
-		openRunScope: func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error) {
-			return nil, scopeErr
-		},
+func TestRunManagerOpenRunScopeFailurePreservesFailedRun(t *testing.T) {
+	t.Run("Should preserve a failed row and clean its reserved directory", func(t *testing.T) {
+		scopeErr := errors.New("scope unavailable")
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			openRunScope: func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error) {
+				return nil, scopeErr
+			},
+		})
+		const runID = "scope-open-failure"
+
+		_, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			env.workflowSlug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`"}`),
+			},
+		)
+		if !errors.Is(err, scopeErr) {
+			t.Fatalf("StartTaskRun(open scope failure) error = %v, want %v", err, scopeErr)
+		}
+
+		runArtifacts := env.manager.runArtifacts(runID)
+		if _, err := os.Stat(runArtifacts.RunDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("run dir stat error = %v, want not exist", err)
+		}
+		row := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+			return row.Status == runStatusFailed
+		})
+		if row.EndedAt == nil {
+			t.Fatal("EndedAt = nil, want terminal timestamp")
+		}
+		if !strings.Contains(row.ErrorText, scopeErr.Error()) {
+			t.Fatalf("row.ErrorText = %q, want %q", row.ErrorText, scopeErr.Error())
+		}
 	})
-
-	_, err := env.manager.StartTaskRun(
-		context.Background(),
-		env.workspaceRoot,
-		env.workflowSlug,
-		apicore.TaskRunRequest{
-			Workspace:        env.workspaceRoot,
-			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"scope-open-failure"}`),
-		},
-	)
-	if !errors.Is(err, scopeErr) {
-		t.Fatalf("StartTaskRun(open scope failure) error = %v, want %v", err, scopeErr)
-	}
-
-	runArtifacts := env.manager.runArtifacts("scope-open-failure")
-	if _, err := os.Stat(runArtifacts.RunDir); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("run dir stat error = %v, want not exist", err)
-	}
-	if _, err := env.globalDB.GetRun(
-		context.Background(),
-		"scope-open-failure",
-	); !errors.Is(
-		err,
-		globaldb.ErrRunNotFound,
-	) {
-		t.Fatalf("GetRun(open scope failure) error = %v, want ErrRunNotFound", err)
-	}
 }
 
 func TestRunManagerStartExecRunOpenRunScopeFailureMarksResumedRowFailed(t *testing.T) {
@@ -1634,50 +1870,49 @@ func TestRunManagerStartExecRunOpenRunScopeFailureMarksResumedRowFailed(t *testi
 	})
 }
 
-func TestRunManagerStartRunSyncFailureMarksRunFailed(t *testing.T) {
-	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+func TestRunManagerStartRunSyncFailureLeavesNoRun(t *testing.T) {
+	t.Run("Should leave no run when workflow synchronization fails", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
 
-	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
-	if err != nil {
-		t.Fatalf("ResolveOrRegister() error = %v", err)
-	}
+		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister() error = %v", err)
+		}
 
-	runID := "sync-failure-run"
-	workflowRoot := filepath.Join(env.workspaceRoot, ".compozy", "tasks", "missing-workflow")
-	_, err = env.manager.startRun(context.Background(), startRunSpec{
-		workspace:        workspace,
-		workflowSlug:     "missing-workflow",
-		workflowRoot:     workflowRoot,
-		mode:             runModeTask,
-		presentationMode: defaultPresentationMode,
-		runtimeCfg: &model.RuntimeConfig{
-			RunID:         runID,
-			WorkspaceRoot: env.workspaceRoot,
-			Name:          "missing-workflow",
-			TasksDir:      workflowRoot,
-			Mode:          model.ExecutionModePRDTasks,
-			DaemonOwned:   true,
-		},
+		runID := "sync-failure-run"
+		workflowRoot := filepath.Join(env.workspaceRoot, ".compozy", "tasks", "missing-workflow")
+		_, err = env.manager.startRun(context.Background(), startRunSpec{
+			workspace:        workspace,
+			workflowSlug:     "missing-workflow",
+			workflowRoot:     workflowRoot,
+			mode:             runModeTask,
+			presentationMode: defaultPresentationMode,
+			runtimeCfg: &model.RuntimeConfig{
+				RunID:         runID,
+				WorkspaceRoot: env.workspaceRoot,
+				Name:          "missing-workflow",
+				TasksDir:      workflowRoot,
+				Mode:          model.ExecutionModePRDTasks,
+				DaemonOwned:   true,
+			},
+		})
+		if err == nil {
+			t.Fatal("startRun(sync failure) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "sync workflow") {
+			t.Fatalf("startRun(sync failure) error = %v, want sync workflow context", err)
+		}
+
+		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+		}
+		if _, err := os.Stat(env.manager.runArtifacts(runID).RunDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("stat failed-sync run directory error = %v, want os.ErrNotExist", err)
+		}
+		if active := env.manager.getActive(runID); active != nil {
+			t.Fatalf("active run after sync failure = %#v, want nil", active)
+		}
 	})
-	if err == nil {
-		t.Fatal("startRun(sync failure) error = nil, want non-nil")
-	}
-	if !strings.Contains(err.Error(), "sync workflow") {
-		t.Fatalf("startRun(sync failure) error = %v, want sync workflow context", err)
-	}
-
-	row := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
-		return row.Status == runStatusFailed
-	})
-	if row.EndedAt == nil {
-		t.Fatal("EndedAt = nil, want terminal timestamp")
-	}
-	if !strings.Contains(row.ErrorText, "sync workflow") {
-		t.Fatalf("row.ErrorText = %q, want sync workflow context", row.ErrorText)
-	}
-	if active := env.manager.getActive(runID); active != nil {
-		t.Fatalf("active run after sync failure = %#v, want nil", active)
-	}
 }
 
 func TestRunManagerStartTaskRunBindsDaemonHostBridgeToRunScopeContext(t *testing.T) {
@@ -2942,6 +3177,7 @@ type runManagerTestEnv struct {
 type runManagerTestDeps struct {
 	now                    func() time.Time
 	buildRunID             func(*model.RuntimeConfig) (string, error)
+	syncWorkflow           syncWorkflowFunc
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -2997,6 +3233,7 @@ func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTes
 		ShutdownDrainTimeout:   deps.shutdownDrainTimeout,
 		Now:                    deps.now,
 		BuildRunID:             deps.buildRunID,
+		SyncWorkflow:           deps.syncWorkflow,
 		OpenRunScope:           firstOpenRunScope(deps.openRunScope),
 		Prepare:                firstPrepare(deps.prepare),
 		Execute:                firstExecute(deps.execute),

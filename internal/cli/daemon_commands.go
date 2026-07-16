@@ -61,6 +61,7 @@ type daemonCommandClient interface {
 	DeleteWorkspace(context.Context, string) error
 	ResolveWorkspace(context.Context, string) (apicore.Workspace, error)
 	ListRuns(context.Context, apiclient.RunListOptions) ([]apicore.Run, error)
+	GetRun(context.Context, string) (apicore.Run, error)
 	ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error)
 	ArchiveTaskWorkflow(context.Context, string, string) (apicore.ArchiveResult, error)
 	SyncWorkflow(context.Context, apicore.SyncRequest) (apicore.SyncResult, error)

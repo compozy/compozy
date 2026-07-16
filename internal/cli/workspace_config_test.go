@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	extensions "github.com/compozy/compozy/internal/core/extension"
@@ -312,7 +313,7 @@ tui = false
 }
 
 func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
-	t.Parallel()
+	isolateCLIConfigHome(t)
 
 	cases := []struct {
 		name          string
@@ -344,8 +345,6 @@ nitpicks = true
 	for _, tc := range cases {
 		tc := tc
 		t.Run("Should "+tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			root := t.TempDir()
 			startDir := filepath.Join(root, "pkg", "feature")
 			if err := os.MkdirAll(startDir, 0o755); err != nil {
@@ -1283,6 +1282,7 @@ func isolateCLIConfigHome(t *testing.T) string {
 	t.Helper()
 
 	homeDir := t.TempDir()
+	t.Setenv(compozyconfig.HomeEnvVar, "")
 	t.Setenv("HOME", homeDir)
 	return homeDir
 }
