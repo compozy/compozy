@@ -33,6 +33,10 @@ const (
 	taskMultiStatusCompleted = "completed"
 	taskMultiStatusFailed    = "failed"
 	taskMultiStatusCanceled  = "canceled"
+
+	// Parallel-task worktree statuses that count as a successful task settlement.
+	taskParallelStatusMerged    = "merged"
+	taskParallelStatusRecovered = "recovered"
 )
 
 var (

@@ -573,7 +573,7 @@ func waveStatusLabel(status waveStatus) string {
 	case waveStatusConflict:
 		return "conflict"
 	case waveStatusMerged:
-		return "merged"
+		return taskParallelStatusMerged
 	default:
 		return "pending"
 	}

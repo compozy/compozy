@@ -56,6 +56,7 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindTaskRunMultipleItemCanceled,
 		EventKindTaskRunMultipleQueueCanceled,
 		EventKindTaskRunMultipleQueueCompleted,
+		EventKindTaskRunMultipleSummary,
 		EventKindTaskRunMultipleQueueFailed,
 		EventKindTaskParallelPlanStarted,
 		EventKindTaskParallelWaveStarted,
@@ -96,8 +97,8 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindShutdownDraining,
 		EventKindShutdownTerminated,
 	}
-	if got := len(kinds); got != 82 {
-		t.Fatalf("public event inventory = %d, want 82", got)
+	if got := len(kinds); got != 83 {
+		t.Fatalf("public event inventory = %d, want 83", got)
 	}
 	for _, kind := range kinds {
 		want := "`" + string(kind) + "`"

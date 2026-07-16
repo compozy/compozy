@@ -34,10 +34,12 @@ const (
 	jobPhaseQueued    = runshared.JobPhaseQueued
 	jobPhaseScheduled = runshared.JobPhaseScheduled
 	jobPhaseRunning   = runshared.JobPhaseRunning
+	jobPhaseStalled   = runshared.JobPhaseStalled
 	jobPhaseRetrying  = runshared.JobPhaseRetrying
 	jobPhaseSucceeded = runshared.JobPhaseSucceeded
 	jobPhaseFailed    = runshared.JobPhaseFailed
 	jobPhaseCanceled  = runshared.JobPhaseCanceled
+	jobPhaseParked    = runshared.JobPhaseParked
 
 	shutdownPhaseIdle     = runshared.ShutdownPhaseIdle
 	shutdownPhaseDraining = runshared.ShutdownPhaseDraining

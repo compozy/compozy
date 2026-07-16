@@ -555,6 +555,12 @@ type RuntimeConfig struct {
 	SoundEnabled               bool
 	SoundOnCompleted           string
 	SoundOnFailed              string
+	SoundOnParked              string
+	StallEnabled               *bool
+	StallTimeout               time.Duration
+	ChildStallTimeout          time.Duration
+	TerminalCommandTimeout     time.Duration
+	StallRetries               *int
 }
 
 // RunArtifacts mirrors the run artifact directory layout exposed to run hooks.

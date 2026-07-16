@@ -1,7 +1,3 @@
-// Suite: Parallel task status semantics.
-// Invariant: Only canonical merged and recovered statuses report integrated content.
-// Boundary IN: TaskParallelTaskStatus values and IsIntegrated.
-// Boundary OUT: Event transport and UI rendering, covered by their package suites.
 package kinds
 
 import "testing"

@@ -25,10 +25,12 @@ const (
 	JobPhaseQueued    JobPhase = "queued"
 	JobPhaseScheduled JobPhase = "scheduled"
 	JobPhaseRunning   JobPhase = "running"
+	JobPhaseStalled   JobPhase = "stalled"
 	JobPhaseRetrying  JobPhase = "retrying"
 	JobPhaseSucceeded JobPhase = "succeeded"
 	JobPhaseFailed    JobPhase = "failed"
 	JobPhaseCanceled  JobPhase = "canceled"
+	JobPhaseParked    JobPhase = "parked"
 )
 
 type JobAttemptStatus string
@@ -46,6 +48,13 @@ type JobAttemptResult struct {
 	ExitCode  int
 	Failure   *FailInfo
 	Retryable bool
+	// Stalled marks an attempt the stall watchdog canceled because the agent went
+	// silent, as opposed to an ordinary retryable failure. Only a stalled attempt
+	// draws on the stall-retry budget and can end in a parked job.
+	Stalled bool
+	// LastToolCall identifies the tool call the agent was executing when it went
+	// silent. Populated on stalled attempts to give a parked job triage context.
+	LastToolCall string
 }
 
 // ReusableAgentExecution carries reusable-agent metadata needed for runtime
@@ -66,6 +75,13 @@ func (r JobAttemptResult) NeedsRetry() bool {
 
 func (r JobAttemptResult) IsCanceled() bool {
 	return r.Status == AttemptStatusCanceled
+}
+
+// IsStalled reports whether the attempt ended because the agent stopped making
+// progress. Stalled attempts are always retryable, but they take the stall
+// recovery path (clean-state retry, then park) instead of the ordinary one.
+func (r JobAttemptResult) IsStalled() bool {
+	return r.Stalled
 }
 
 func AtLeastOne(value int) int {
