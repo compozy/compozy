@@ -1,5 +1,5 @@
-## 0.2.14 - 2026-07-15
+## 0.2.15 - 2026-07-16
 
 ### 🐛 Bug Fixes
 
-- Acp integratoin
+- Recover stalled and wedged multi-runs (#230)
