@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,9 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 func TestSyncTaskMetadataSyncsSingleWorkflowIntoGlobalDBWithoutMutatingArtifacts(t *testing.T) {
@@ -885,6 +888,243 @@ func TestSyncWorkflowRejectsNilInputs(t *testing.T) {
 	}
 }
 
+func TestSyncWorkPackageInitiativePreservesParentChildOwnership(t *testing.T) {
+	// Suite boundary
+	// IN: root sync, real Work Package manifest parsing, and SQLite projection
+	// OUT: task execution and API transport, owned by later workflow tasks
+	// Invariant: valid Work Package sync owns mutable artifacts through child workflow IDs only.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "completed",
+		"WP-002": "pending",
+	})
+
+	result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(valid work package initiative): %v", err)
+	}
+	if result.WorkflowsScanned != 3 {
+		t.Fatalf("WorkflowsScanned = %d, want parent plus two children", result.WorkflowsScanned)
+	}
+	if result.Partial {
+		t.Fatalf("valid work package sync marked partial: %#v", result)
+	}
+	if len(result.WorkPackageChildIDs) != 2 {
+		t.Fatalf("WorkPackageChildIDs = %#v, want two stable child IDs", result.WorkPackageChildIDs)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+	var parentID string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT id FROM workflows WHERE slug = ? AND kind = 'initiative'`,
+		"initiative",
+	).Scan(&parentID); err != nil {
+		t.Fatalf("query initiative parent: %v", err)
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM workflows WHERE parent_workflow_id = ? AND kind = 'work_package'`,
+		parentID,
+	); got != 2 {
+		t.Fatalf("child workflow count = %d, want 2", got)
+	}
+	if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM task_items WHERE workflow_id = ?`, parentID); got != 0 {
+		t.Fatalf("parent task projection count = %d, want 0", got)
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM artifact_snapshots WHERE workflow_id = ? AND relative_path LIKE '_packages/%'`,
+		parentID,
+	); got != 0 {
+		t.Fatalf("parent package snapshot count = %d, want 0", got)
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM task_items WHERE workflow_id IN (SELECT id FROM workflows WHERE parent_workflow_id = ?)`,
+		parentID,
+	); got != 2 {
+		t.Fatalf("child task projection count = %d, want 2", got)
+	}
+
+	planPath := filepath.Join(initiativeDir, "_work_packages.md")
+	reopenedPlan := strings.Replace(
+		mustReadFile(t, planPath),
+		"## [x] WP-001 — Persistence",
+		"## [ ] WP-001 — Persistence",
+		1,
+	)
+	writeSyncWorkflowFile(t, initiativeDir, "_work_packages.md", reopenedPlan)
+	reopened, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(reopened package): %v", err)
+	}
+	if !reflect.DeepEqual(reopened.WorkPackageChildIDs, result.WorkPackageChildIDs) {
+		t.Fatalf(
+			"reopened child ids = %#v, want stable %#v",
+			reopened.WorkPackageChildIDs,
+			result.WorkPackageChildIDs,
+		)
+	}
+	var lifecycleCompleted bool
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT lifecycle_completed FROM workflows WHERE slug = ?`,
+		"initiative/WP-001",
+	).Scan(&lifecycleCompleted); err != nil {
+		t.Fatalf("query reopened package lifecycle: %v", err)
+	}
+	if lifecycleCompleted {
+		t.Fatal("reopened package lifecycle_completed = true, want false")
+	}
+}
+
+func TestSyncWorkPackageInitiativeFailsClosedAndPreservesChildren(t *testing.T) {
+	// Suite boundary
+	// IN: real filesystem marker validation and aggregate SQLite reconciliation
+	// OUT: CLI/API error mapping, owned by transport task work
+	// Invariant: a malformed marker never flattens package artifacts or deletes a valid child projection.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "completed",
+		"WP-002": "completed",
+	})
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(initial): %v", err)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+	beforeChildren := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM workflows WHERE kind = 'work_package' AND archived_at IS NULL`,
+	)
+	writeSyncWorkflowFile(t, initiativeDir, "_work_packages.md", "---\ninvalid")
+	writeSyncWorkflowFile(t, initiativeDir, "task_99.md", taskBody("pending", "must not flatten"))
+
+	_, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if !errors.Is(err, workpackages.ErrInvalidPlan) {
+		t.Fatalf("Sync(malformed marker) error = %v, want work package invalid plan", err)
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM workflows WHERE kind = 'work_package' AND archived_at IS NULL`,
+	); got != beforeChildren {
+		t.Fatalf("child rows after invalid sync = %d, want preserved %d", got, beforeChildren)
+	}
+	if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM task_items WHERE task_id = 'task_99'`); got != 0 {
+		t.Fatalf("flattened parent task rows = %d, want 0", got)
+	}
+	if err := os.Remove(filepath.Join(initiativeDir, "_work_packages.md")); err != nil {
+		t.Fatalf("remove malformed marker: %v", err)
+	}
+	legacyResult, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(marker removed): %v", err)
+	}
+	if legacyResult.WorkflowsScanned != 1 {
+		t.Fatalf("legacy marker-absent sync workflows = %d, want 1", legacyResult.WorkflowsScanned)
+	}
+	var kind string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT kind FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+		"initiative",
+	).Scan(&kind); err != nil {
+		t.Fatalf("query marker-absent parent: %v", err)
+	}
+	if kind != string(globaldb.WorkflowKindOrdinary) {
+		t.Fatalf("marker-absent parent kind = %q, want ordinary", kind)
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM workflows WHERE kind = 'work_package' AND archived_at IS NULL`,
+	); got != 0 {
+		t.Fatalf("marker-absent child rows = %d, want 0", got)
+	}
+	if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM task_items WHERE task_id = 'task_99'`); got != 1 {
+		t.Fatalf("legacy task projection count = %d, want 1", got)
+	}
+}
+
+func TestSyncWorkPackageInitiativeReportsMissingChildWithoutPruning(t *testing.T) {
+	// Suite boundary
+	// IN: root aggregate sync against filesystem and SQLite
+	// OUT: watcher event delivery, owned by daemon watcher tests
+	// Invariant: one missing declared package preserves its prior child while readable siblings update.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "pending",
+		"WP-002": "pending",
+	})
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(initial): %v", err)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+	var wp002ID string
+	if err := sqlDB.QueryRowContext(context.Background(), `SELECT id FROM workflows WHERE slug = ?`, "initiative/WP-002").
+		Scan(&wp002ID); err != nil {
+		t.Fatalf("query WP-002 child: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-002")); err != nil {
+		t.Fatalf("remove WP-002: %v", err)
+	}
+	writeSyncWorkflowFile(
+		t,
+		filepath.Join(initiativeDir, "_packages", "WP-001"),
+		"task_01.md",
+		taskBody("completed", "WP-001 task"),
+	)
+
+	result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(missing child): %v", err)
+	}
+	if !result.Partial || !reflect.DeepEqual(result.MissingWorkPackages, []string{"WP-002"}) {
+		t.Fatalf("missing child result = %#v, want partial WP-002", result)
+	}
+	var preservedID string
+	if err := sqlDB.QueryRowContext(context.Background(), `SELECT id FROM workflows WHERE slug = ?`, "initiative/WP-002").
+		Scan(&preservedID); err != nil {
+		t.Fatalf("query preserved WP-002 child: %v", err)
+	}
+	if preservedID != wp002ID {
+		t.Fatalf("WP-002 child id changed after partial sync: got %q want %q", preservedID, wp002ID)
+	}
+	var wp001Status string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT status FROM task_items WHERE workflow_id = (SELECT id FROM workflows WHERE slug = ?)`,
+		"initiative/WP-001",
+	).Scan(&wp001Status); err != nil {
+		t.Fatalf("query WP-001 task state: %v", err)
+	}
+	if wp001Status != "completed" {
+		t.Fatalf("WP-001 task status = %q, want completed", wp001Status)
+	}
+}
+
 func setSyncTestHome(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
@@ -962,6 +1202,62 @@ func canonicalTaskListBody() string {
 		"| 01 | Demo task | pending | low | — |",
 		"",
 	}, "\n")
+}
+
+func writeWorkPackageFixture(t *testing.T, initiativeDir string, states map[string]string) {
+	t.Helper()
+
+	planStatus := func(packageID string) string {
+		if states[packageID] == "completed" {
+			return "x"
+		}
+		return " "
+	}
+	writeSyncWorkflowFile(t, initiativeDir, "_prd.md", "# Initiative\n")
+	writeSyncWorkflowFile(t, initiativeDir, "_techspec.md", "# Initiative Techspec\n")
+	writeSyncWorkflowFile(t, initiativeDir, "_tasks.md", canonicalTaskListBody())
+	writeSyncWorkflowFile(t, initiativeDir, "_work_packages.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: initiative",
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"    - id: WP-002",
+		"      directory: _packages/WP-002",
+		"  edges:",
+		"    - from: WP-001",
+		"      to: WP-002",
+		"      rationale: WP-002 consumes the WP-001 contract.",
+		"---",
+		"",
+		"# Initiative Work Packages",
+		"",
+		"## [" + planStatus("WP-001") + "] WP-001 — Persistence",
+		"",
+		"- Reference: `initiative/WP-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+		"## [" + planStatus("WP-002") + "] WP-002 — Archive",
+		"",
+		"- Reference: `initiative/WP-002`",
+		"- Outcome: Archive the aggregate workflow.",
+		"- Owns:",
+		"  - archive",
+		"- Dependencies:",
+		"  - `WP-001` — WP-002 consumes the WP-001 contract.",
+		"",
+	}, "\n"))
+
+	for _, packageID := range []string{"WP-001", "WP-002"} {
+		packageDir := filepath.Join(initiativeDir, "_packages", packageID)
+		writeSyncWorkflowFile(t, packageDir, "_tasks.md", canonicalTaskListBody())
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody(states[packageID], packageID+" task"))
+	}
 }
 
 func canonicalTaskGraphManifestBody(workflow string) string {

@@ -240,16 +240,45 @@ type WorkspaceSyncResult struct {
 }
 
 type WorkflowSummary struct {
-	ID               string              `json:"id"`
-	WorkspaceID      string              `json:"workspace_id"`
-	Slug             string              `json:"slug"`
-	ArchivedAt       *time.Time          `json:"archived_at,omitempty"`
-	LastSyncedAt     *time.Time          `json:"last_synced_at,omitempty"`
-	TaskCounts       *WorkflowTaskCounts `json:"task_counts,omitempty"`
-	CanStartRun      *bool               `json:"can_start_run,omitempty"`
-	StartBlockReason string              `json:"start_block_reason,omitempty"`
-	ArchiveEligible  *bool               `json:"archive_eligible,omitempty"`
-	ArchiveReason    string              `json:"archive_reason,omitempty"`
+	ID                string               `json:"id"`
+	WorkspaceID       string               `json:"workspace_id"`
+	Slug              string               `json:"slug"`
+	ArchivedAt        *time.Time           `json:"archived_at,omitempty"`
+	LastSyncedAt      *time.Time           `json:"last_synced_at,omitempty"`
+	TaskCounts        *WorkflowTaskCounts  `json:"task_counts,omitempty"`
+	CanStartRun       *bool                `json:"can_start_run,omitempty"`
+	StartBlockReason  string               `json:"start_block_reason,omitempty"`
+	ArchiveEligible   *bool                `json:"archive_eligible,omitempty"`
+	ArchiveReason     string               `json:"archive_reason,omitempty"`
+	Kind              string               `json:"kind,omitempty"`
+	ParentWorkflowID  string               `json:"parent_workflow_id,omitempty"`
+	PackageID         string               `json:"package_id,omitempty"`
+	DisplayTitle      string               `json:"display_title,omitempty"`
+	Outcome           string               `json:"outcome,omitempty"`
+	LifecycleComplete bool                 `json:"lifecycle_complete,omitempty"`
+	WorkPackages      []WorkPackageSummary `json:"work_packages,omitempty"`
+}
+
+// WorkPackageSummary is the nested read projection for one hidden child workflow.
+type WorkPackageSummary struct {
+	WorkflowID        string                  `json:"workflow_id"`
+	PackageID         string                  `json:"package_id"`
+	Reference         string                  `json:"reference"`
+	Title             string                  `json:"title"`
+	Outcome           string                  `json:"outcome"`
+	LifecycleComplete bool                    `json:"lifecycle_complete"`
+	Dependencies      []WorkPackageDependency `json:"dependencies,omitempty"`
+	TaskCounts        *WorkflowTaskCounts     `json:"task_counts,omitempty"`
+	UnresolvedReviews int                     `json:"unresolved_reviews,omitempty"`
+	ActiveRuns        int                     `json:"active_runs,omitempty"`
+	ArchiveEligible   *bool                   `json:"archive_eligible,omitempty"`
+	ArchiveReason     string                  `json:"archive_reason,omitempty"`
+}
+
+// WorkPackageDependency identifies one declared prerequisite and its rationale.
+type WorkPackageDependency struct {
+	PackageID string `json:"package_id"`
+	Rationale string `json:"rationale"`
 }
 
 type WorkflowTaskCounts struct {
@@ -281,6 +310,8 @@ type ArchiveResult struct {
 	Forced               bool       `json:"forced,omitempty"`
 	CompletedTasks       int        `json:"completed_tasks,omitempty"`
 	ResolvedReviewIssues int        `json:"resolved_review_issues,omitempty"`
+	WorkPackageChildIDs  []string   `json:"work_package_child_ids,omitempty"`
+	PendingWorkPackages  []string   `json:"pending_work_packages,omitempty"`
 }
 
 type ReviewFetchResult struct {
@@ -575,6 +606,9 @@ type SyncResult struct {
 	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
 	SyncedPaths            []string   `json:"synced_paths,omitempty"`
 	PrunedWorkflows        []string   `json:"pruned_workflows,omitempty"`
+	WorkPackageChildIDs    []string   `json:"work_package_child_ids,omitempty"`
+	MissingWorkPackages    []string   `json:"missing_work_packages,omitempty"`
+	Partial                bool       `json:"partial,omitempty"`
 	Warnings               []string   `json:"warnings,omitempty"`
 }
 

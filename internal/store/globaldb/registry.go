@@ -55,13 +55,45 @@ const workspaceSelectColumns = `
 	COALESCE((SELECT COUNT(1) FROM workflows wf WHERE wf.workspace_id = w.id), 0) AS workflow_count,
 	COALESCE((SELECT COUNT(1) FROM runs r WHERE r.workspace_id = w.id), 0) AS run_count`
 
+const workflowSelectColumns = `
+	id,
+	workspace_id,
+	slug,
+	kind,
+	parent_workflow_id,
+	package_id,
+	display_title,
+	outcome,
+	lifecycle_completed,
+	dependencies_json,
+	archived_at,
+	last_synced_at,
+	created_at,
+	updated_at`
+
 const (
+	// WorkflowKindOrdinary identifies legacy workflow rows.
+	WorkflowKindOrdinary WorkflowKind = "ordinary"
+	// WorkflowKindInitiative identifies an opted-in Work Package root row.
+	WorkflowKindInitiative WorkflowKind = "initiative"
+	// WorkflowKindWorkPackage identifies a hidden Work Package child row.
+	WorkflowKindWorkPackage WorkflowKind = "work_package"
+
 	// WorkspaceFilesystemStatePresent means the workspace root exists on disk.
 	WorkspaceFilesystemStatePresent = "present"
 	// WorkspaceFilesystemStateMissing means the registry row is retained only
 	// because durable catalog data still exists in global.db.
 	WorkspaceFilesystemStateMissing = "missing"
 )
+
+// WorkflowKind describes the persistence role of a workflow row.
+type WorkflowKind string
+
+// WorkflowDependency is a package prerequisite projected for catalog reads.
+type WorkflowDependency struct {
+	PackageID string `json:"package_id"`
+	Rationale string `json:"rationale"`
+}
 
 // Workspace captures one durable workspace registration.
 type Workspace struct {
@@ -82,13 +114,20 @@ type Workspace struct {
 
 // Workflow captures one durable workflow identity row.
 type Workflow struct {
-	ID           string
-	WorkspaceID  string
-	Slug         string
-	ArchivedAt   *time.Time
-	LastSyncedAt *time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                 string
+	WorkspaceID        string
+	Slug               string
+	Kind               WorkflowKind
+	ParentWorkflowID   string
+	PackageID          string
+	DisplayTitle       string
+	Outcome            string
+	LifecycleCompleted bool
+	Dependencies       []WorkflowDependency
+	ArchivedAt         *time.Time
+	LastSyncedAt       *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // ListWorkflowsOptions controls workflow listing behavior.
@@ -450,7 +489,7 @@ func (g *GlobalDB) GetWorkflow(ctx context.Context, id string) (Workflow, error)
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE id = ?`,
 		strings.TrimSpace(id),
@@ -473,7 +512,7 @@ func (g *GlobalDB) GetActiveWorkflowBySlug(ctx context.Context, workspaceID stri
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE workspace_id = ? AND slug = ? AND archived_at IS NULL`,
 		strings.TrimSpace(workspaceID),
@@ -501,7 +540,7 @@ func (g *GlobalDB) ListWorkflows(ctx context.Context, opts ListWorkflowsOptions)
 	}
 
 	query := `
-		SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		SELECT ` + workflowSelectColumns + `
 		FROM workflows
 		WHERE workspace_id = ?`
 	args := []any{workspaceID}
@@ -531,6 +570,50 @@ func (g *GlobalDB) ListWorkflows(ctx context.Context, opts ListWorkflowsOptions)
 	}
 
 	return workflows, nil
+}
+
+// ListChildWorkflows returns child rows for one initiative in stable package order.
+func (g *GlobalDB) ListChildWorkflows(
+	ctx context.Context,
+	parentWorkflowID string,
+	includeArchived bool,
+) ([]Workflow, error) {
+	if err := g.requireContext(ctx, "list child workflows"); err != nil {
+		return nil, err
+	}
+	parentWorkflowID = strings.TrimSpace(parentWorkflowID)
+	if parentWorkflowID == "" {
+		return nil, errors.New("globaldb: parent workflow id is required")
+	}
+	query := `SELECT ` + workflowSelectColumns + `
+		FROM workflows
+		WHERE parent_workflow_id = ?`
+	args := []any{parentWorkflowID}
+	if !includeArchived {
+		query += ` AND archived_at IS NULL`
+	}
+	query += ` ORDER BY package_id ASC, created_at ASC, id ASC`
+
+	rows, err := g.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query child workflows: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	children := make([]Workflow, 0)
+	for rows.Next() {
+		child, scanErr := scanWorkflow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		children = append(children, child)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("globaldb: iterate child workflows: %w", err)
+	}
+	return children, nil
 }
 
 // PutRun inserts one durable run index row.
@@ -934,8 +1017,10 @@ func normalizeWorkspaceFilesystemState(value string) (string, error) {
 }
 
 func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workflow, error) {
-	workflow.WorkspaceID = strings.TrimSpace(workflow.WorkspaceID)
-	workflow.Slug = strings.TrimSpace(workflow.Slug)
+	workflow, dependenciesJSON, err := normalizeWorkflow(workflow)
+	if err != nil {
+		return Workflow{}, err
+	}
 	if workflow.WorkspaceID == "" {
 		return Workflow{}, errors.New("globaldb: workflow workspace id is required")
 	}
@@ -952,14 +1037,23 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 		workflow.UpdatedAt = workflow.CreatedAt
 	}
 
-	_, err := g.db.ExecContext(
+	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO workflows (
-			id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			id, workspace_id, slug, kind, parent_workflow_id, package_id,
+			display_title, outcome, lifecycle_completed, dependencies_json,
+			archived_at, last_synced_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workflow.ID,
 		workflow.WorkspaceID,
 		workflow.Slug,
+		workflow.Kind,
+		store.NullableString(workflow.ParentWorkflowID),
+		workflow.PackageID,
+		workflow.DisplayTitle,
+		workflow.Outcome,
+		workflow.LifecycleCompleted,
+		dependenciesJSON,
 		nullableTimestamp(workflow.ArchivedAt),
 		nullableTimestamp(workflow.LastSyncedAt),
 		store.FormatTimestamp(workflow.CreatedAt),
@@ -976,9 +1070,10 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 }
 
 func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workflow, error) {
-	workflow.ID = strings.TrimSpace(workflow.ID)
-	workflow.WorkspaceID = strings.TrimSpace(workflow.WorkspaceID)
-	workflow.Slug = strings.TrimSpace(workflow.Slug)
+	workflow, dependenciesJSON, err := normalizeWorkflow(workflow)
+	if err != nil {
+		return Workflow{}, err
+	}
 	if workflow.ID == "" {
 		return Workflow{}, errors.New("globaldb: workflow id is required")
 	}
@@ -995,10 +1090,19 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE workflows
-		 SET workspace_id = ?, slug = ?, archived_at = ?, last_synced_at = ?, updated_at = ?
+		 SET workspace_id = ?, slug = ?, kind = ?, parent_workflow_id = ?, package_id = ?,
+		     display_title = ?, outcome = ?, lifecycle_completed = ?, dependencies_json = ?,
+		     archived_at = ?, last_synced_at = ?, updated_at = ?
 		 WHERE id = ?`,
 		workflow.WorkspaceID,
 		workflow.Slug,
+		workflow.Kind,
+		store.NullableString(workflow.ParentWorkflowID),
+		workflow.PackageID,
+		workflow.DisplayTitle,
+		workflow.Outcome,
+		workflow.LifecycleCompleted,
+		dependenciesJSON,
 		nullableTimestamp(workflow.ArchivedAt),
 		nullableTimestamp(workflow.LastSyncedAt),
 		store.FormatTimestamp(workflow.UpdatedAt),
@@ -1024,22 +1128,42 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 
 func scanWorkflow(scanner rowScanner) (Workflow, error) {
 	var (
-		workflow        Workflow
-		archivedAtRaw   sql.NullString
-		lastSyncedAtRaw sql.NullString
-		createdAtRaw    string
-		updatedAtRaw    string
+		workflow            Workflow
+		kind                string
+		parentWorkflowIDRaw sql.NullString
+		lifecycleCompleted  int
+		dependenciesJSON    string
+		archivedAtRaw       sql.NullString
+		lastSyncedAtRaw     sql.NullString
+		createdAtRaw        string
+		updatedAtRaw        string
 	)
 	if err := scanner.Scan(
 		&workflow.ID,
 		&workflow.WorkspaceID,
 		&workflow.Slug,
+		&kind,
+		&parentWorkflowIDRaw,
+		&workflow.PackageID,
+		&workflow.DisplayTitle,
+		&workflow.Outcome,
+		&lifecycleCompleted,
+		&dependenciesJSON,
 		&archivedAtRaw,
 		&lastSyncedAtRaw,
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
 		return Workflow{}, err
+	}
+	workflow.Kind = WorkflowKind(strings.TrimSpace(kind))
+	workflow.ParentWorkflowID = strings.TrimSpace(parentWorkflowIDRaw.String)
+	workflow.PackageID = strings.TrimSpace(workflow.PackageID)
+	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
+	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
+	workflow.LifecycleCompleted = lifecycleCompleted != 0
+	if err := json.Unmarshal([]byte(dependenciesJSON), &workflow.Dependencies); err != nil {
+		return Workflow{}, fmt.Errorf("globaldb: decode workflow dependencies: %w", err)
 	}
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
@@ -1069,6 +1193,50 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 	}
 
 	return workflow, nil
+}
+
+func normalizeWorkflow(workflow Workflow) (Workflow, string, error) {
+	workflow.ID = strings.TrimSpace(workflow.ID)
+	workflow.WorkspaceID = strings.TrimSpace(workflow.WorkspaceID)
+	workflow.Slug = strings.TrimSpace(workflow.Slug)
+	workflow.Kind = WorkflowKind(strings.TrimSpace(string(workflow.Kind)))
+	workflow.ParentWorkflowID = strings.TrimSpace(workflow.ParentWorkflowID)
+	workflow.PackageID = strings.TrimSpace(workflow.PackageID)
+	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
+	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
+	if workflow.Kind == "" {
+		workflow.Kind = WorkflowKindOrdinary
+	}
+	if workflow.Kind != WorkflowKindOrdinary &&
+		workflow.Kind != WorkflowKindInitiative &&
+		workflow.Kind != WorkflowKindWorkPackage {
+		return Workflow{}, "", fmt.Errorf("globaldb: invalid workflow kind %q", workflow.Kind)
+	}
+	if workflow.Kind == WorkflowKindWorkPackage {
+		if workflow.ParentWorkflowID == "" {
+			return Workflow{}, "", errors.New("globaldb: child workflow parent id is required")
+		}
+		if workflow.PackageID == "" {
+			return Workflow{}, "", errors.New("globaldb: child workflow package id is required")
+		}
+	} else if workflow.ParentWorkflowID != "" || workflow.PackageID != "" {
+		return Workflow{}, "", errors.New("globaldb: only child workflows may have parent or package identity")
+	}
+	dependencies := make([]WorkflowDependency, 0, len(workflow.Dependencies))
+	for _, dependency := range workflow.Dependencies {
+		dependency.PackageID = strings.TrimSpace(dependency.PackageID)
+		dependency.Rationale = strings.TrimSpace(dependency.Rationale)
+		if dependency.PackageID == "" || dependency.Rationale == "" {
+			return Workflow{}, "", errors.New("globaldb: workflow dependency package id and rationale are required")
+		}
+		dependencies = append(dependencies, dependency)
+	}
+	workflow.Dependencies = dependencies
+	dependenciesJSON, err := json.Marshal(dependencies)
+	if err != nil {
+		return Workflow{}, "", fmt.Errorf("globaldb: encode workflow dependencies: %w", err)
+	}
+	return workflow, string(dependenciesJSON), nil
 }
 
 func scanRun(scanner rowScanner) (Run, error) {

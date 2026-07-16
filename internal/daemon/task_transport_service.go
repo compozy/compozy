@@ -67,8 +67,8 @@ func (s *transportTaskService) ListWorkflows(
 	}
 
 	workflowIDs := make([]string, 0, len(rows))
-	for _, row := range rows {
-		workflowIDs = append(workflowIDs, row.ID)
+	for rowIndex := range rows {
+		workflowIDs = append(workflowIDs, rows[rowIndex].ID)
 	}
 	taskCountsByWorkflowID, err := s.globalDB.TaskCountsByWorkflowIDs(ctx, workflowIDs)
 	if err != nil {
@@ -79,27 +79,81 @@ func (s *transportTaskService) ListWorkflows(
 		return nil, err
 	}
 
+	childrenByParentID := make(map[string][]*globaldb.Workflow)
+	for rowIndex := range rows {
+		row := &rows[rowIndex]
+		if row.ParentWorkflowID == "" {
+			continue
+		}
+		childrenByParentID[row.ParentWorkflowID] = append(childrenByParentID[row.ParentWorkflowID], row)
+	}
+
 	workflows := make([]apicore.WorkflowSummary, 0, len(rows))
-	for _, row := range rows {
-		taskCounts := taskCountsByWorkflowID[row.ID]
-		summary := transportWorkflowSummaryWithTaskCounts(row, WorkflowTaskCounts{
-			Total:     taskCounts.Total,
-			Completed: taskCounts.Completed,
-			Pending:   taskCounts.Pending,
-		})
-		if row.ArchivedAt != nil {
-			archiveEligible := false
-			summary.ArchiveEligible = &archiveEligible
-			summary.ArchiveReason = workflowArchiveReasonArchived
-		} else {
-			eligibility := archiveEligibilityByWorkflowID[row.ID]
-			archiveEligible := eligibility.Archivable()
-			summary.ArchiveEligible = &archiveEligible
-			summary.ArchiveReason = eligibility.SkipReason()
+	for rowIndex := range rows {
+		row := &rows[rowIndex]
+		if row.ParentWorkflowID != "" {
+			continue
+		}
+		summary, summaryErr := workflowListSummary(
+			ctx,
+			s.globalDB,
+			row,
+			taskCountsByWorkflowID,
+			archiveEligibilityByWorkflowID,
+			childrenByParentID[row.ID],
+		)
+		if summaryErr != nil {
+			return nil, summaryErr
 		}
 		workflows = append(workflows, summary)
 	}
 	return workflows, nil
+}
+
+func workflowListSummary(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	row *globaldb.Workflow,
+	taskCountsByWorkflowID map[string]globaldb.WorkflowTaskCountsRow,
+	archiveEligibilityByWorkflowID map[string]globaldb.WorkflowArchiveEligibility,
+	children []*globaldb.Workflow,
+) (apicore.WorkflowSummary, error) {
+	taskCounts := taskCountsByWorkflowID[row.ID]
+	summary := transportWorkflowSummaryWithTaskCounts(*row, WorkflowTaskCounts{
+		Total:     taskCounts.Total,
+		Completed: taskCounts.Completed,
+		Pending:   taskCounts.Pending,
+	})
+	if row.ArchivedAt != nil {
+		archiveEligible := false
+		summary.ArchiveEligible = &archiveEligible
+		summary.ArchiveReason = workflowArchiveReasonArchived
+	} else {
+		archiveEligible, archiveReason, err := workflowArchiveAction(ctx, db, *row)
+		if err != nil {
+			return apicore.WorkflowSummary{}, err
+		}
+		summary.ArchiveEligible = &archiveEligible
+		summary.ArchiveReason = archiveReason
+	}
+	if row.Kind != globaldb.WorkflowKindInitiative {
+		return summary, nil
+	}
+	for childIndex := range children {
+		child := children[childIndex]
+		childCounts := taskCountsByWorkflowID[child.ID]
+		childEligibility := archiveEligibilityByWorkflowID[child.ID]
+		summary.WorkPackages = append(summary.WorkPackages, transportWorkPackageSummary(
+			*child,
+			WorkflowTaskCounts{
+				Total:     childCounts.Total,
+				Completed: childCounts.Completed,
+				Pending:   childCounts.Pending,
+			},
+			childEligibility,
+		))
+	}
+	return summary, nil
 }
 
 func (s *transportTaskService) GetWorkflow(

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -61,6 +62,91 @@ func TestApplyMigrationsIsIdempotent(t *testing.T) {
 		if _, ok := beforeSchema["table:"+tableName]; !ok {
 			t.Fatalf("missing required table %q in schema snapshot", tableName)
 		}
+	}
+}
+
+func TestApplyMigrationsUpgradesExistingCatalogWithWorkflowHierarchy(t *testing.T) {
+	// Suite boundary
+	// IN: a real v5 SQLite catalog upgraded through the registered migration chain
+	// OUT: workflow reconciliation behavior, covered by sync tests
+	// Invariant: hierarchy metadata is additive and active sibling package identity is unique.
+	t.Parallel()
+
+	sqlDB, err := store.OpenSQLiteDatabase(
+		context.Background(),
+		filepath.Join(t.TempDir(), "v5-catalog.db"),
+		func(ctx context.Context, db *sql.DB) error {
+			if err := store.EnsureSchema(ctx, db, migrationTableStatements); err != nil {
+				return err
+			}
+			for _, item := range migrations[:len(migrations)-1] {
+				if err := applyMigration(ctx, db, item, time.Now); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(v5): %v", err)
+	}
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+
+	if err := applyMigrations(context.Background(), sqlDB, time.Now); err != nil {
+		t.Fatalf("applyMigrations(v5): %v", err)
+	}
+	columns := make(map[string]bool)
+	rows, err := sqlDB.QueryContext(context.Background(), `PRAGMA table_info(workflows)`)
+	if err != nil {
+		t.Fatalf("PRAGMA table_info(workflows): %v", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			columnType string
+			notNull    int
+			defaultVal any
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &primaryKey); err != nil {
+			t.Fatalf("scan workflows column: %v", err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate workflows columns: %v", err)
+	}
+	for _, name := range []string{
+		"kind",
+		"parent_workflow_id",
+		"package_id",
+		"display_title",
+		"outcome",
+		"lifecycle_completed",
+		"dependencies_json",
+	} {
+		if !columns[name] {
+			t.Fatalf("workflow hierarchy column %q is missing", name)
+		}
+	}
+
+	var indexSQL string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
+		"uq_workflows_active_child_package",
+	).Scan(&indexSQL); err != nil {
+		t.Fatalf("query active child uniqueness index: %v", err)
+	}
+	if !strings.Contains(indexSQL, "parent_workflow_id, package_id") ||
+		!strings.Contains(indexSQL, "archived_at IS NULL") {
+		t.Fatalf("active child uniqueness index = %q", indexSQL)
 	}
 }
 

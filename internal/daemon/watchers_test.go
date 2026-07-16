@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -83,6 +84,85 @@ func TestWorkflowWatcherDebouncesBurstyWritesAndPersistsCheckpoint(t *testing.T)
 	}
 	if got := emitCount.Load(); got != 1 {
 		t.Fatalf("emit count after debounce window = %d, want 1", got)
+	}
+}
+
+func TestWorkflowWatcherProjectsReopenedWorkPackageExactlyOnce(t *testing.T) {
+	// Suite boundary
+	// IN: fsnotify event, aggregate core sync, and durable child lifecycle projection
+	// OUT: transport presentation of package state
+	// Invariant: reopening a package checkbox causes one root sync and one child lifecycle update.
+	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "watcher")
+	packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatalf("mkdir package dir: %v", err)
+	}
+	planPath := filepath.Join(initiativeDir, "_work_packages.md")
+	if err := os.WriteFile(planPath, []byte(daemonWorkPackagePlan("x")), 0o600); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(packageDir, "task_01.md"),
+		[]byte(daemonTaskBody("completed", "package task")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write package task: %v", err)
+	}
+	if _, err := corepkg.SyncDirect(context.Background(), corepkg.SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("SyncDirect(initial initiative): %v", err)
+	}
+
+	var (
+		syncCount atomic.Int64
+		emitCount atomic.Int64
+	)
+	emitted := make(chan artifactSyncEvent, 2)
+	watcher, err := startWorkflowWatcher(context.Background(), workflowWatcherConfig{
+		WorkflowRoot: initiativeDir,
+		Debounce:     40 * time.Millisecond,
+		Sync: func(ctx context.Context, workflowRoot string) error {
+			syncCount.Add(1)
+			_, syncErr := corepkg.SyncDirect(ctx, corepkg.SyncConfig{TasksDir: workflowRoot})
+			return syncErr
+		},
+		Emit: func(_ context.Context, event artifactSyncEvent) error {
+			emitCount.Add(1)
+			emitted <- event
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("startWorkflowWatcher(): %v", err)
+	}
+	defer func() {
+		if stopErr := watcher.Stop(); stopErr != nil {
+			t.Fatalf("watcher.Stop(): %v", stopErr)
+		}
+	}()
+
+	if err := os.WriteFile(planPath, []byte(daemonWorkPackagePlan(" ")), 0o600); err != nil {
+		t.Fatalf("reopen package plan: %v", err)
+	}
+	waitForCondition(t, 5*time.Second, "reopened package watcher sync", func() bool {
+		return syncCount.Load() == 1 &&
+			emitCount.Load() == 1 &&
+			!queryWorkflowLifecycleComplete(t, globalCatalogPath(t), "watcher/WP-001")
+	})
+	event := <-emitted
+	if event.RelativePath != "_work_packages.md" {
+		t.Fatalf("watcher event path = %q, want _work_packages.md", event.RelativePath)
+	}
+	quietWindow := time.NewTimer(3 * 40 * time.Millisecond)
+	defer quietWindow.Stop()
+	select {
+	case duplicate := <-emitted:
+		t.Fatalf("unexpected duplicate watcher event: %#v", duplicate)
+	case <-quietWindow.C:
+	}
+	if syncCount.Load() != 1 || emitCount.Load() != 1 {
+		t.Fatalf("reopen watcher counts = sync %d emit %d, want exactly one", syncCount.Load(), emitCount.Load())
 	}
 }
 
@@ -323,7 +403,11 @@ func TestWorkflowWatcherValidatesConfigAndClassifiesArtifacts(t *testing.T) {
 	}{
 		{path: "task_01.md", want: true},
 		{path: "_meta.md", want: true},
+		{path: "_work_packages.md", want: true},
+		{path: "_packages/WP-001/task_01.md", want: true},
+		{path: "_packages/WP-001/reviews-001/issue_001.md", want: true},
 		{path: "reviews-001/issue_001.md", want: true},
+		{path: "_packages/WP-001/notes.txt", want: false},
 		{path: "memory/MEMORY.md", want: true},
 		{path: "notes.txt", want: false},
 	} {
@@ -419,4 +503,47 @@ func globalCatalogPath(t *testing.T) string {
 		t.Fatalf("ResolveHomePaths(): %v", err)
 	}
 	return paths.GlobalDBPath
+}
+
+func queryWorkflowLifecycleComplete(t *testing.T, dbPath string, workflowSlug string) bool {
+	t.Helper()
+
+	db := openGlobalCatalog(t, dbPath)
+	defer func() {
+		_ = db.Close()
+	}()
+	var completed bool
+	if err := db.QueryRowContext(
+		context.Background(),
+		`SELECT lifecycle_completed FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+		workflowSlug,
+	).Scan(&completed); err != nil {
+		t.Fatalf("query package lifecycle for %q: %v", workflowSlug, err)
+	}
+	return completed
+}
+
+func daemonWorkPackagePlan(checkbox string) string {
+	return strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: watcher",
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"  edges: []",
+		"---",
+		"",
+		"# Work Packages",
+		"",
+		"## [" + checkbox + "] WP-001 — Watch package",
+		"",
+		"- Reference: `watcher/WP-001`",
+		"- Outcome: Project checkbox changes.",
+		"- Owns:",
+		"  - watcher projection",
+		"- Dependencies: None",
+		"",
+	}, "\n")
 }

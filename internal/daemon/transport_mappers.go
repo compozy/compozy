@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -37,11 +38,50 @@ func transportWorkspace(row globaldb.Workspace) apicore.Workspace {
 
 func transportWorkflowSummary(row globaldb.Workflow) apicore.WorkflowSummary {
 	return apicore.WorkflowSummary{
-		ID:           row.ID,
-		WorkspaceID:  row.WorkspaceID,
-		Slug:         row.Slug,
-		ArchivedAt:   row.ArchivedAt,
-		LastSyncedAt: row.LastSyncedAt,
+		ID:                row.ID,
+		WorkspaceID:       row.WorkspaceID,
+		Slug:              row.Slug,
+		ArchivedAt:        row.ArchivedAt,
+		LastSyncedAt:      row.LastSyncedAt,
+		Kind:              string(row.Kind),
+		ParentWorkflowID:  row.ParentWorkflowID,
+		PackageID:         row.PackageID,
+		DisplayTitle:      row.DisplayTitle,
+		Outcome:           row.Outcome,
+		LifecycleComplete: row.LifecycleCompleted,
+	}
+}
+
+func transportWorkPackageSummary(
+	row globaldb.Workflow,
+	counts WorkflowTaskCounts,
+	eligibility globaldb.WorkflowArchiveEligibility,
+) apicore.WorkPackageSummary {
+	dependencies := make([]apicore.WorkPackageDependency, 0, len(row.Dependencies))
+	for _, dependency := range row.Dependencies {
+		dependencies = append(dependencies, apicore.WorkPackageDependency{
+			PackageID: dependency.PackageID,
+			Rationale: dependency.Rationale,
+		})
+	}
+	apiCounts := transportWorkflowTaskCounts(counts)
+	archiveEligible := eligibility.Archivable()
+	if row.ArchivedAt != nil {
+		archiveEligible = false
+	}
+	return apicore.WorkPackageSummary{
+		WorkflowID:        row.ID,
+		PackageID:         row.PackageID,
+		Reference:         row.Slug,
+		Title:             row.DisplayTitle,
+		Outcome:           row.Outcome,
+		LifecycleComplete: row.LifecycleCompleted,
+		Dependencies:      dependencies,
+		TaskCounts:        &apiCounts,
+		UnresolvedReviews: eligibility.UnresolvedReviewIssues,
+		ActiveRuns:        eligibility.ActiveRuns,
+		ArchiveEligible:   &archiveEligible,
+		ArchiveReason:     eligibility.SkipReason(),
 	}
 }
 
@@ -84,11 +124,52 @@ func workflowArchiveAction(
 	if row.ArchivedAt != nil {
 		return false, workflowArchiveReasonArchived, nil
 	}
+	if row.Kind == globaldb.WorkflowKindInitiative {
+		return initiativeArchiveAction(ctx, db, row)
+	}
 	eligibility, err := db.GetWorkflowArchiveEligibility(ctx, row.WorkspaceID, row.Slug)
 	if err != nil {
 		return false, "", err
 	}
 	return eligibility.Archivable(), eligibility.SkipReason(), nil
+}
+
+func initiativeArchiveAction(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	parent globaldb.Workflow,
+) (bool, string, error) {
+	children, err := db.ListChildWorkflows(ctx, parent.ID, false)
+	if err != nil {
+		return false, "", err
+	}
+	if len(children) == 0 {
+		return false, "no work packages present", nil
+	}
+	eligibilityByID, err := db.WorkflowArchiveEligibilityByIDs(ctx, children)
+	if err != nil {
+		return false, "", err
+	}
+	pendingPackages := make([]string, 0)
+	blockedChildren := make([]string, 0)
+	for childIndex := range children {
+		child := &children[childIndex]
+		if !child.LifecycleCompleted {
+			pendingPackages = append(pendingPackages, child.PackageID)
+		}
+		if reason := eligibilityByID[child.ID].SkipReason(); reason != "" {
+			blockedChildren = append(blockedChildren, child.PackageID+": "+reason)
+		}
+	}
+	if len(pendingPackages) > 0 {
+		sort.Strings(pendingPackages)
+		return false, "pending packages: " + strings.Join(pendingPackages, ", "), nil
+	}
+	if len(blockedChildren) > 0 {
+		sort.Strings(blockedChildren)
+		return false, strings.Join(blockedChildren, "; "), nil
+	}
+	return true, "", nil
 }
 
 func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool, string) {
@@ -127,6 +208,9 @@ func transportSyncResult(
 	out.LegacyArtifactsRemoved = result.LegacyArtifactsRemoved
 	out.SyncedPaths = append([]string(nil), result.SyncedPaths...)
 	out.PrunedWorkflows = append([]string(nil), result.PrunedWorkflows...)
+	out.WorkPackageChildIDs = append([]string(nil), result.WorkPackageChildIDs...)
+	out.MissingWorkPackages = append([]string(nil), result.MissingWorkPackages...)
+	out.Partial = result.Partial
 	out.Warnings = append([]string(nil), result.Warnings...)
 	return out
 }
@@ -142,6 +226,8 @@ func transportArchiveResult(result *corepkg.ArchiveResult) apicore.ArchiveResult
 	out.Forced = result.Forced
 	out.CompletedTasks = result.CompletedTasks
 	out.ResolvedReviewIssues = result.ResolvedReviewIssues
+	out.WorkPackageChildIDs = append([]string(nil), result.WorkPackageChildIDs...)
+	out.PendingWorkPackages = append([]string(nil), result.PendingWorkPackages...)
 	return out
 }
 

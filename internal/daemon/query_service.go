@@ -85,11 +85,23 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 	}
 	visibleRuns := dashboardVisibleRuns(runs)
 
-	cards := make([]WorkflowCard, 0, len(workflows))
+	parents, childrenByParentID := groupDashboardWorkflows(workflows)
+
+	cards := make([]WorkflowCard, 0, len(parents))
 	pendingReviews := 0
-	for _, workflow := range workflows {
-		card, err := s.buildWorkflowCard(ctx, workflow, visibleRuns)
+	for parentIndex := range parents {
+		workflow := parents[parentIndex]
+		card, err := s.buildWorkflowCard(ctx, *workflow, visibleRuns)
 		if err != nil {
+			return WorkspaceDashboard{}, err
+		}
+		if err := s.attachDashboardWorkPackages(
+			ctx,
+			workspace,
+			&card,
+			childrenByParentID[workflow.ID],
+			visibleRuns,
+		); err != nil {
 			return WorkspaceDashboard{}, err
 		}
 		if card.LatestReview != nil {
@@ -115,6 +127,53 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 		ActiveRuns:     activeRuns,
 		PendingReviews: pendingReviews,
 	}, nil
+}
+
+func groupDashboardWorkflows(workflows []globaldb.Workflow) ([]*globaldb.Workflow, map[string][]*globaldb.Workflow) {
+	childrenByParentID := make(map[string][]*globaldb.Workflow)
+	parents := make([]*globaldb.Workflow, 0, len(workflows))
+	for workflowIndex := range workflows {
+		workflow := &workflows[workflowIndex]
+		if workflow.ParentWorkflowID == "" {
+			parents = append(parents, workflow)
+			continue
+		}
+		childrenByParentID[workflow.ParentWorkflowID] = append(childrenByParentID[workflow.ParentWorkflowID], workflow)
+	}
+	return parents, childrenByParentID
+}
+
+func (s *queryService) attachDashboardWorkPackages(
+	ctx context.Context,
+	workspace globaldb.Workspace,
+	card *WorkflowCard,
+	children []*globaldb.Workflow,
+	visibleRuns []apicore.Run,
+) error {
+	if card.Workflow.Kind != string(globaldb.WorkflowKindInitiative) {
+		return nil
+	}
+	for childIndex := range children {
+		child := children[childIndex]
+		childCard, err := s.buildWorkflowCard(ctx, *child, visibleRuns)
+		if err != nil {
+			return err
+		}
+		childEligibility, err := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, child.Slug)
+		if err != nil {
+			return err
+		}
+		card.Workflow.WorkPackages = append(card.Workflow.WorkPackages, transportWorkPackageSummary(
+			*child,
+			WorkflowTaskCounts{
+				Total:     childCard.TaskTotal,
+				Completed: childCard.TaskCompleted,
+				Pending:   childCard.TaskPending,
+			},
+			childEligibility,
+		))
+	}
+	return nil
 }
 
 func (s *queryService) WorkflowOverview(

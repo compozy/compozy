@@ -441,6 +441,84 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 	})
 }
 
+func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoots(t *testing.T) {
+	// Suite boundary
+	// IN: sync and archive transport calls backed by the real global catalog
+	// OUT: package execution and picker behavior
+	// Invariant: API reads nest hidden children, and package-only archive targets are rejected.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	t.Setenv("HOME", env.homeDir)
+	initiative := "watcher"
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan("x"))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("completed", "package task"),
+	)
+
+	syncService := newTransportSyncService(env.globalDB)
+	syncResult, err := syncService.Sync(context.Background(), apicore.SyncRequest{
+		Workspace:    env.workspaceRoot,
+		WorkflowSlug: initiative,
+	})
+	if err != nil {
+		t.Fatalf("Sync(initiative): %v", err)
+	}
+	if syncResult.WorkflowsScanned != 2 || len(syncResult.WorkPackageChildIDs) != 1 || syncResult.Partial {
+		t.Fatalf("Sync(initiative) result = %#v, want root plus one complete child", syncResult)
+	}
+	_, err = syncService.Sync(context.Background(), apicore.SyncRequest{
+		Workspace:    env.workspaceRoot,
+		WorkflowSlug: "watcher/WP-001",
+	})
+	if !errors.Is(err, corepkg.ErrWorkPackageRootOnly) {
+		t.Fatalf("Sync(package target) error = %v, want root-only error", err)
+	}
+
+	service := newTransportTaskService(env.globalDB, env.manager)
+	workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ListWorkflows(initiative): %v", err)
+	}
+	if len(workflows) != 1 || workflows[0].Slug != initiative || workflows[0].Kind != "initiative" {
+		t.Fatalf("initiative workflow list = %#v", workflows)
+	}
+	if workflows[0].ArchiveEligible == nil || !*workflows[0].ArchiveEligible || workflows[0].ArchiveReason != "" {
+		t.Fatalf("initiative aggregate archive action = %#v, want eligible", workflows[0])
+	}
+	if len(workflows[0].WorkPackages) != 1 {
+		t.Fatalf("initiative package summary = %#v, want one hidden child", workflows[0].WorkPackages)
+	}
+	child := workflows[0].WorkPackages[0]
+	if child.PackageID != "WP-001" || child.Reference != "watcher/WP-001" || !child.LifecycleComplete ||
+		child.TaskCounts == nil || child.TaskCounts.Completed != 1 {
+		t.Fatalf("nested package summary = %#v", child)
+	}
+
+	_, err = service.Archive(
+		context.Background(),
+		env.workspaceRoot,
+		"watcher/WP-001",
+		apicore.ArchiveRequest{},
+	)
+	if !errors.Is(err, corepkg.ErrWorkPackageRootOnly) {
+		t.Fatalf("Archive(package target) error = %v, want root-only error", err)
+	}
+	archiveResult, err := service.Archive(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.ArchiveRequest{},
+	)
+	if err != nil {
+		t.Fatalf("Archive(initiative): %v", err)
+	}
+	if !archiveResult.Archived || len(archiveResult.WorkPackageChildIDs) != 1 {
+		t.Fatalf("Archive(initiative) result = %#v, want one root archive and one child id", archiveResult)
+	}
+}
+
 func syncWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv) {
 	t.Helper()
 

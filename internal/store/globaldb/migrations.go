@@ -180,6 +180,29 @@ var migrations = []migration{
 				WHERE parent_run_id <> '';`,
 		},
 	},
+	{
+		version: 6,
+		name:    "workflow_hierarchy",
+		statements: []string{
+			`ALTER TABLE workflows ADD COLUMN kind TEXT NOT NULL DEFAULT 'ordinary'
+				CHECK (kind IN ('ordinary', 'initiative', 'work_package'));`,
+			`ALTER TABLE workflows ADD COLUMN parent_workflow_id TEXT REFERENCES workflows(id);`,
+			`ALTER TABLE workflows ADD COLUMN package_id TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workflows ADD COLUMN display_title TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workflows ADD COLUMN outcome TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workflows ADD COLUMN lifecycle_completed INTEGER NOT NULL DEFAULT 0
+				CHECK (lifecycle_completed IN (0, 1));`,
+			`ALTER TABLE workflows ADD COLUMN dependencies_json TEXT NOT NULL DEFAULT '[]';`,
+			`CREATE INDEX IF NOT EXISTS idx_workflows_parent_workflow_id
+				ON workflows(parent_workflow_id)
+				WHERE parent_workflow_id IS NOT NULL;`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_workflows_active_child_package
+				ON workflows(parent_workflow_id, package_id)
+				WHERE archived_at IS NULL
+				  AND parent_workflow_id IS NOT NULL
+				  AND package_id <> '';`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -20,9 +21,23 @@ const workflowStateNotSyncedReason = "workflow state not synced"
 
 var (
 	ErrWorkflowForceRequired      = errors.New("core: workflow force required")
+	ErrWorkPackageRootOnly        = errors.New("core: work package sync or archive requires initiative root")
 	ErrArchiveDatabaseRequired    = errors.New("core: archive database is required")
 	ErrArchiveWorkspaceIDRequired = errors.New("core: archive workspace id is required")
 )
+
+// WorkPackageRootOnlyError rejects a package-local sync or archive target.
+type WorkPackageRootOnlyError struct {
+	Target string
+}
+
+func (e WorkPackageRootOnlyError) Error() string {
+	return fmt.Sprintf("core: work package target %q cannot be synchronized or archived independently", e.Target)
+}
+
+func (e WorkPackageRootOnlyError) Is(target error) bool {
+	return target == ErrWorkPackageRootOnly
+}
 
 // ArchiveWorkspaceMismatchError reports that the archive target is outside the
 // injected workspace boundary.
@@ -132,6 +147,9 @@ func archiveResolvedTarget(
 	result *ArchiveResult,
 ) (*ArchiveResult, error) {
 	if singleWorkflow {
+		if isWorkPackageOperationalDirectory(workspace.RootDir, target) {
+			return result, WorkPackageRootOnlyError{Target: target}
+		}
 		if err := archiveWorkflow(ctx, db, workspace, target, cfg.Force, result, true); err != nil {
 			return result, err
 		}
@@ -167,10 +185,28 @@ func archiveResolvedTarget(
 	return result, nil
 }
 
+func isWorkPackageOperationalDirectory(workspaceRoot string, path string) bool {
+	tasksRoot := canonicalWorkflowScopePath(model.TasksBaseDirForWorkspace(workspaceRoot))
+	target := canonicalWorkflowScopePath(path)
+	relative, err := filepath.Rel(tasksRoot, target)
+	if err != nil || relative == "." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return false
+	}
+	for _, component := range strings.Split(filepath.Clean(relative), string(filepath.Separator)) {
+		if component == "_packages" {
+			return true
+		}
+	}
+	return false
+}
+
 func resolveArchiveTarget(ctx context.Context, cfg ArchiveConfig) (string, string, bool, error) {
 	name := strings.TrimSpace(cfg.Name)
 	if name == model.ArchivedWorkflowDirName {
 		return "", "", false, fmt.Errorf("archive target cannot be %s", model.ArchivedWorkflowDirName)
+	}
+	if target, ok := namedWorkPackageTarget(name); ok {
+		return "", "", false, WorkPackageRootOnlyError{Target: target}
 	}
 
 	resolvedTarget, rootDir, specificTarget, slug, err := resolveArchiveSelection(cfg, name)
@@ -313,6 +349,15 @@ func archiveWorkflow(
 	if result == nil {
 		return errors.New("archive result is required")
 	}
+	if workflowRoot, ok := workspaceWorkflowRoot(workspace.RootDir, tasksDir); ok {
+		target, resolveErr := (workpackages.TargetResolver{}).Resolve(ctx, workspace.RootDir, workflowRoot)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve archive workflow %s: %w", tasksDir, resolveErr)
+		}
+		if target.Mode == workpackages.TargetModeInitiative {
+			return archiveWorkPackageInitiative(ctx, db, workspace, target, force, result, conflictOnSkip)
+		}
+	}
 
 	result.WorkflowsScanned++
 
@@ -351,6 +396,320 @@ func archiveWorkflow(
 	}
 
 	return persistArchivedWorkflow(ctx, db, tasksDir, result, slug, eligibility.Workflow.ID)
+}
+
+func workspaceWorkflowRoot(workspaceRoot string, tasksDir string) (string, bool) {
+	tasksRoot := canonicalWorkflowScopePath(model.TasksBaseDirForWorkspace(workspaceRoot))
+	target := canonicalWorkflowScopePath(tasksDir)
+	relative, err := filepath.Rel(tasksRoot, target)
+	if err != nil || relative == "." || strings.Contains(relative, string(filepath.Separator)) {
+		return "", false
+	}
+	if !model.IsActiveWorkflowDirName(relative) {
+		return "", false
+	}
+	return relative, true
+}
+
+type initiativeArchiveState struct {
+	Parent          globaldb.Workflow
+	Children        map[string]globaldb.WorkflowArchiveEligibility
+	PendingPackages []string
+	MissingPackages []string
+}
+
+func archiveWorkPackageInitiative(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+	force bool,
+	result *ArchiveResult,
+	conflictOnSkip bool,
+) error {
+	result.WorkflowsScanned++
+	latestTarget, state, err := refreshInitiativeArchiveState(ctx, db, workspace, target.Ref.Initiative)
+	if err != nil {
+		return err
+	}
+	populateInitiativeArchiveResult(result, state)
+	if len(state.MissingPackages) > 0 {
+		return resolveInitiativeArchiveConflict(
+			result,
+			latestTarget.InitiativeDir,
+			conflictOnSkip,
+			state,
+			"declared work package directories are missing: "+strings.Join(state.MissingPackages, ", "),
+		)
+	}
+	if activeErr := activeInitiativeRunConflict(state); activeErr != nil {
+		return activeErr
+	}
+	if initiativeArchiveBlocked(state) {
+		if !force {
+			return resolveInitiativeArchiveConflict(
+				result,
+				latestTarget.InitiativeDir,
+				conflictOnSkip,
+				state,
+				initiativeArchiveReason(state),
+			)
+		}
+		completedTasks, resolvedReviewIssues, forceErr := forceArchiveInitiative(ctx, workspace.RootDir, latestTarget)
+		if forceErr != nil {
+			return forceErr
+		}
+		result.Forced = true
+		result.CompletedTasks += completedTasks
+		result.ResolvedReviewIssues += resolvedReviewIssues
+		latestTarget, state, err = refreshInitiativeArchiveState(ctx, db, workspace, target.Ref.Initiative)
+		if err != nil {
+			return err
+		}
+		populateInitiativeArchiveResult(result, state)
+		if activeErr := activeInitiativeRunConflict(state); activeErr != nil {
+			return activeErr
+		}
+		if initiativeChildStateBlocked(state) {
+			return resolveInitiativeArchiveConflict(
+				result,
+				latestTarget.InitiativeDir,
+				true,
+				state,
+				initiativeArchiveReason(state),
+			)
+		}
+	}
+
+	return persistArchivedWorkflowHierarchy(
+		ctx,
+		db,
+		latestTarget.InitiativeDir,
+		result,
+		latestTarget.Ref.Initiative,
+		state.Parent.ID,
+	)
+}
+
+func refreshInitiativeArchiveState(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	initiative string,
+) (workpackages.Target, initiativeArchiveState, error) {
+	resolver := workpackages.TargetResolver{}
+	target, err := resolver.Resolve(ctx, workspace.RootDir, initiative)
+	if err != nil {
+		return workpackages.Target{}, initiativeArchiveState{}, fmt.Errorf("reload work package archive plan: %w", err)
+	}
+	if _, err := SyncWithDB(ctx, db, workspace, SyncConfig{
+		WorkspaceRoot: workspace.RootDir,
+		TasksDir:      target.InitiativeDir,
+	}); err != nil {
+		return workpackages.Target{}, initiativeArchiveState{}, fmt.Errorf(
+			"refresh work package archive state: %w",
+			err,
+		)
+	}
+	target, err = resolver.Resolve(ctx, workspace.RootDir, initiative)
+	if err != nil {
+		return workpackages.Target{}, initiativeArchiveState{}, fmt.Errorf("reload work package archive plan: %w", err)
+	}
+	state, err := loadInitiativeArchiveState(ctx, db, workspace, target)
+	if err != nil {
+		return workpackages.Target{}, initiativeArchiveState{}, err
+	}
+	return target, state, nil
+}
+
+func populateInitiativeArchiveResult(result *ArchiveResult, state initiativeArchiveState) {
+	result.PendingWorkPackages = append([]string(nil), state.PendingPackages...)
+	result.WorkPackageChildIDs = result.WorkPackageChildIDs[:0]
+	for packageID := range state.Children {
+		result.WorkPackageChildIDs = append(result.WorkPackageChildIDs, state.Children[packageID].Workflow.ID)
+	}
+	sort.Strings(result.WorkPackageChildIDs)
+}
+
+func loadInitiativeArchiveState(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+) (initiativeArchiveState, error) {
+	parent, err := db.GetActiveWorkflowBySlug(ctx, workspace.ID, target.Ref.Initiative)
+	if err != nil {
+		return initiativeArchiveState{}, err
+	}
+	children, err := db.ListChildWorkflows(ctx, parent.ID, false)
+	if err != nil {
+		return initiativeArchiveState{}, err
+	}
+	childByPackageID := make(map[string]globaldb.Workflow, len(children))
+	for childIndex := range children {
+		child := &children[childIndex]
+		childByPackageID[child.PackageID] = *child
+	}
+	declaredChildren := make([]globaldb.Workflow, 0, len(target.Plan.Packages))
+	state := initiativeArchiveState{
+		Parent:   parent,
+		Children: make(map[string]globaldb.WorkflowArchiveEligibility, len(target.Plan.Packages)),
+	}
+	for packageIndex := range target.Plan.Packages {
+		pkg := &target.Plan.Packages[packageIndex]
+		child, exists := childByPackageID[pkg.ID]
+		if !exists {
+			state.MissingPackages = append(state.MissingPackages, pkg.ID)
+			continue
+		}
+		declaredChildren = append(declaredChildren, child)
+		if !pkg.Completed {
+			state.PendingPackages = append(state.PendingPackages, pkg.ID)
+		}
+	}
+	if len(declaredChildren) > 0 {
+		eligibilityByID, eligibilityErr := db.WorkflowArchiveEligibilityByIDs(ctx, declaredChildren)
+		if eligibilityErr != nil {
+			return initiativeArchiveState{}, eligibilityErr
+		}
+		for childIndex := range declaredChildren {
+			child := &declaredChildren[childIndex]
+			state.Children[child.PackageID] = eligibilityByID[child.ID]
+		}
+	}
+	sort.Strings(state.PendingPackages)
+	sort.Strings(state.MissingPackages)
+	return state, nil
+}
+
+func activeInitiativeRunConflict(state initiativeArchiveState) error {
+	packageIDs := make([]string, 0, len(state.Children))
+	for packageID := range state.Children {
+		packageIDs = append(packageIDs, packageID)
+	}
+	sort.Strings(packageIDs)
+	for _, packageID := range packageIDs {
+		eligibility := state.Children[packageID]
+		if eligibility.ActiveRuns > 0 {
+			return eligibility.ConflictError()
+		}
+	}
+	return nil
+}
+
+func initiativeArchiveBlocked(state initiativeArchiveState) bool {
+	if len(state.PendingPackages) > 0 {
+		return true
+	}
+	return initiativeChildStateBlocked(state)
+}
+
+func initiativeChildStateBlocked(state initiativeArchiveState) bool {
+	for packageID := range state.Children {
+		eligibility := state.Children[packageID]
+		if eligibility.SkipReason() != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func initiativeArchiveReason(state initiativeArchiveState) string {
+	parts := make([]string, 0, len(state.PendingPackages)+len(state.Children))
+	if len(state.PendingPackages) > 0 {
+		parts = append(parts, "pending packages: "+strings.Join(state.PendingPackages, ", "))
+	}
+	for packageID := range state.Children {
+		eligibility := state.Children[packageID]
+		if reason := eligibility.SkipReason(); reason != "" {
+			parts = append(parts, packageID+": "+reason)
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "; ")
+}
+
+func resolveInitiativeArchiveConflict(
+	result *ArchiveResult,
+	tasksDir string,
+	conflictOnSkip bool,
+	state initiativeArchiveState,
+	reason string,
+) error {
+	if conflictOnSkip {
+		return WorkflowArchiveForceRequiredError{
+			WorkspaceID:      state.Parent.WorkspaceID,
+			WorkflowID:       state.Parent.ID,
+			Slug:             state.Parent.Slug,
+			Reason:           reason,
+			TaskTotal:        initiativeTaskTotal(state),
+			TaskNonTerminal:  initiativePendingTaskTotal(state),
+			ReviewTotal:      initiativeReviewTotal(state),
+			ReviewUnresolved: initiativeUnresolvedReviewTotal(state),
+		}
+	}
+	recordArchiveSkip(result, tasksDir, reason)
+	return nil
+}
+
+func forceArchiveInitiative(ctx context.Context, workspaceRoot string, target workpackages.Target) (int, int, error) {
+	resolver := workpackages.TargetResolver{}
+	completedTasks := 0
+	resolvedReviewIssues := 0
+	for packageIndex := range target.Plan.Packages {
+		pkg := &target.Plan.Packages[packageIndex]
+		childTarget, err := resolver.Resolve(ctx, workspaceRoot, target.Ref.Initiative+"/"+pkg.ID)
+		if err != nil {
+			return completedTasks, resolvedReviewIssues, fmt.Errorf("resolve force archive package %s: %w", pkg.ID, err)
+		}
+		completed, err := tasks.CompleteNonTerminalTasks(childTarget.PackageDir)
+		if err != nil {
+			return completedTasks, resolvedReviewIssues, err
+		}
+		resolved, err := reviews.ResolveUnresolvedIssues(childTarget.PackageDir)
+		if err != nil {
+			return completedTasks + completed, resolvedReviewIssues, err
+		}
+		completedTasks += completed
+		resolvedReviewIssues += resolved
+	}
+	return completedTasks, resolvedReviewIssues, nil
+}
+
+func initiativeTaskTotal(state initiativeArchiveState) int {
+	total := 0
+	for packageID := range state.Children {
+		eligibility := state.Children[packageID]
+		total += eligibility.TaskTotal
+	}
+	return total
+}
+
+func initiativePendingTaskTotal(state initiativeArchiveState) int {
+	total := 0
+	for packageID := range state.Children {
+		eligibility := state.Children[packageID]
+		total += eligibility.PendingTasks
+	}
+	return total
+}
+
+func initiativeReviewTotal(state initiativeArchiveState) int {
+	total := 0
+	for packageID := range state.Children {
+		eligibility := state.Children[packageID]
+		total += eligibility.ReviewIssueTotal
+	}
+	return total
+}
+
+func initiativeUnresolvedReviewTotal(state initiativeArchiveState) int {
+	total := 0
+	for packageID := range state.Children {
+		eligibility := state.Children[packageID]
+		total += eligibility.UnresolvedReviewIssues
+	}
+	return total
 }
 
 func loadArchiveEligibility(
@@ -542,6 +901,43 @@ func persistArchivedWorkflow(
 			)
 		}
 		return fmt.Errorf("persist archived workflow state %s: %w", workflowID, err)
+	}
+
+	result.Archived++
+	result.ArchivedAt = &archivedAt
+	result.ArchivedPaths = append(result.ArchivedPaths, archivedDir)
+	return nil
+}
+
+func persistArchivedWorkflowHierarchy(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	tasksDir string,
+	result *ArchiveResult,
+	slug string,
+	parentWorkflowID string,
+) error {
+	if err := os.MkdirAll(result.ArchiveRoot, 0o755); err != nil {
+		return fmt.Errorf("mkdir archive root: %w", err)
+	}
+
+	archivedAt := time.Now().UTC()
+	archivedDir := filepath.Join(
+		result.ArchiveRoot,
+		model.ArchivedWorkflowName(slug, parentWorkflowID, archivedAt),
+	)
+	if err := os.Rename(tasksDir, archivedDir); err != nil {
+		return fmt.Errorf("archive workflow hierarchy %s: %w", tasksDir, err)
+	}
+
+	if _, err := db.MarkWorkflowHierarchyArchived(ctx, parentWorkflowID, archivedAt); err != nil {
+		if rollbackErr := os.Rename(archivedDir, tasksDir); rollbackErr != nil {
+			return errors.Join(
+				fmt.Errorf("persist archived workflow hierarchy %s: %w", parentWorkflowID, err),
+				fmt.Errorf("rollback archived workflow hierarchy rename %s: %w", archivedDir, rollbackErr),
+			)
+		}
+		return fmt.Errorf("persist archived workflow hierarchy %s: %w", parentWorkflowID, err)
 	}
 
 	result.Archived++

@@ -87,6 +87,13 @@ type ReviewRoundInput struct {
 type WorkflowSyncInput struct {
 	WorkspaceID        string
 	WorkflowSlug       string
+	Kind               WorkflowKind
+	ParentWorkflowID   string
+	PackageID          string
+	DisplayTitle       string
+	Outcome            string
+	LifecycleCompleted bool
+	Dependencies       []WorkflowDependency
 	SyncedAt           time.Time
 	CheckpointScope    string
 	CheckpointChecksum string
@@ -103,6 +110,22 @@ type WorkflowSyncResult struct {
 	ReviewRoundsUpserted int
 	ReviewIssuesUpserted int
 	CheckpointsUpdated   int
+}
+
+// AggregateWorkflowSyncInput reconciles an opted-in initiative and each
+// readable Work Package child in one database transaction.
+type AggregateWorkflowSyncInput struct {
+	Parent                  WorkflowSyncInput
+	Children                []WorkflowSyncInput
+	PreserveMissingChildren bool
+}
+
+// AggregateWorkflowSyncResult reports all rows touched by aggregate sync.
+type AggregateWorkflowSyncResult struct {
+	Parent                WorkflowSyncResult
+	Children              []WorkflowSyncResult
+	PrunedChildPackageIDs []string
+	SkippedChildPrunes    []WorkflowPruneSkipped
 }
 
 // WorkflowPruneSkipped reports a stale active workflow row that pruning kept
@@ -135,7 +158,8 @@ func (g *GlobalDB) ReconcileWorkflowSync(
 	if err := g.requireContext(ctx, "reconcile workflow sync"); err != nil {
 		return WorkflowSyncResult{}, err
 	}
-	if err := validateWorkflowSyncInput(input); err != nil {
+	input, err := normalizeWorkflowSyncInput(input)
+	if err != nil {
 		return WorkflowSyncResult{}, err
 	}
 
@@ -156,11 +180,213 @@ func (g *GlobalDB) ReconcileWorkflowSync(
 		}
 	}()
 
-	workflow, err := g.reconcileWorkflowRowTx(ctx, tx, input.WorkspaceID, input.WorkflowSlug, syncedAt)
+	result, err = g.reconcileWorkflowSyncTx(ctx, tx, input, syncedAt)
 	if err != nil {
 		return WorkflowSyncResult{}, err
 	}
 
+	if err := tx.Commit(); err != nil {
+		return WorkflowSyncResult{}, fmt.Errorf("globaldb: commit workflow sync: %w", err)
+	}
+	committed = true
+
+	return result, nil
+}
+
+func normalizeWorkflowSyncInput(input WorkflowSyncInput) (WorkflowSyncInput, error) {
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
+	input.WorkflowSlug = strings.TrimSpace(input.WorkflowSlug)
+	input.Kind = WorkflowKind(strings.TrimSpace(string(input.Kind)))
+	input.ParentWorkflowID = strings.TrimSpace(input.ParentWorkflowID)
+	input.PackageID = strings.TrimSpace(input.PackageID)
+	input.DisplayTitle = strings.TrimSpace(input.DisplayTitle)
+	input.Outcome = strings.TrimSpace(input.Outcome)
+	if input.Kind == "" {
+		input.Kind = WorkflowKindOrdinary
+	}
+	if input.WorkspaceID == "" {
+		return WorkflowSyncInput{}, newWorkflowSyncValidationError("globaldb: workflow sync workspace id is required")
+	}
+	if input.WorkflowSlug == "" {
+		return WorkflowSyncInput{}, newWorkflowSyncValidationError("globaldb: workflow sync slug is required")
+	}
+	if input.Kind != WorkflowKindOrdinary && input.Kind != WorkflowKindInitiative &&
+		input.Kind != WorkflowKindWorkPackage {
+		return WorkflowSyncInput{}, newWorkflowSyncValidationError(
+			"globaldb: invalid workflow sync kind %q",
+			input.Kind,
+		)
+	}
+	if input.Kind == WorkflowKindWorkPackage {
+		if input.PackageID == "" {
+			return WorkflowSyncInput{}, newWorkflowSyncValidationError(
+				"globaldb: child workflow package id is required",
+			)
+		}
+		if input.ParentWorkflowID != "" {
+			return WorkflowSyncInput{}, newWorkflowSyncValidationError(
+				"globaldb: child workflow parent id is assigned by aggregate sync",
+			)
+		}
+	} else if input.ParentWorkflowID != "" || input.PackageID != "" {
+		return WorkflowSyncInput{}, newWorkflowSyncValidationError(
+			"globaldb: only child workflow sync may include package identity",
+		)
+	}
+	dependencies := make([]WorkflowDependency, 0, len(input.Dependencies))
+	for _, dependency := range input.Dependencies {
+		dependency.PackageID = strings.TrimSpace(dependency.PackageID)
+		dependency.Rationale = strings.TrimSpace(dependency.Rationale)
+		if dependency.PackageID == "" || dependency.Rationale == "" {
+			return WorkflowSyncInput{}, newWorkflowSyncValidationError(
+				"globaldb: workflow dependency package id and rationale are required",
+			)
+		}
+		dependencies = append(dependencies, dependency)
+	}
+	input.Dependencies = dependencies
+	return input, nil
+}
+
+func validateWorkflowSyncInput(input WorkflowSyncInput) error {
+	_, err := normalizeWorkflowSyncInput(input)
+	return err
+}
+
+// ReconcileAggregateWorkflowSync upserts one initiative and its readable
+// package children atomically. A missing child directory is represented by an
+// omitted child plus PreserveMissingChildren, which intentionally suppresses
+// stale-child pruning for that transaction.
+func (g *GlobalDB) ReconcileAggregateWorkflowSync(
+	ctx context.Context,
+	input AggregateWorkflowSyncInput,
+) (result AggregateWorkflowSyncResult, retErr error) {
+	if err := g.requireContext(ctx, "reconcile aggregate workflow sync"); err != nil {
+		return AggregateWorkflowSyncResult{}, err
+	}
+	parent, children, seenPackageIDs, err := normalizeAggregateWorkflowSyncInput(input)
+	if err != nil {
+		return AggregateWorkflowSyncResult{}, err
+	}
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return AggregateWorkflowSyncResult{}, fmt.Errorf("globaldb: begin aggregate workflow sync: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = errors.Join(retErr, fmt.Errorf("globaldb: rollback aggregate workflow sync: %w", rollbackErr))
+		}
+	}()
+
+	parentSyncedAt := normalizeSyncTimestamp(parent.SyncedAt, g.now)
+	result.Parent, err = g.reconcileWorkflowSyncTx(ctx, tx, parent, parentSyncedAt)
+	if err != nil {
+		return AggregateWorkflowSyncResult{}, err
+	}
+	for childIndex := range children {
+		child := children[childIndex]
+		child.ParentWorkflowID = result.Parent.Workflow.ID
+		childSyncedAt := normalizeSyncTimestamp(child.SyncedAt, g.now)
+		childResult, reconcileErr := g.reconcileWorkflowSyncTx(ctx, tx, child, childSyncedAt)
+		if reconcileErr != nil {
+			return AggregateWorkflowSyncResult{}, reconcileErr
+		}
+		result.Children = append(result.Children, childResult)
+	}
+	if !input.PreserveMissingChildren {
+		pruned, skipped, pruneErr := g.pruneMissingChildRowsTx(ctx, tx, result.Parent.Workflow.ID, seenPackageIDs)
+		if pruneErr != nil {
+			return AggregateWorkflowSyncResult{}, pruneErr
+		}
+		result.PrunedChildPackageIDs = pruned
+		result.SkippedChildPrunes = skipped
+	}
+	if err := tx.Commit(); err != nil {
+		return AggregateWorkflowSyncResult{}, fmt.Errorf("globaldb: commit aggregate workflow sync: %w", err)
+	}
+	committed = true
+	return result, nil
+}
+
+func normalizeAggregateWorkflowSyncInput(
+	input AggregateWorkflowSyncInput,
+) (WorkflowSyncInput, []WorkflowSyncInput, map[string]struct{}, error) {
+	parent, err := normalizeWorkflowSyncInput(input.Parent)
+	if err != nil {
+		return WorkflowSyncInput{}, nil, nil, err
+	}
+	if parent.Kind != WorkflowKindInitiative {
+		return WorkflowSyncInput{}, nil, nil, newWorkflowSyncValidationError(
+			"globaldb: aggregate parent kind must be %q", WorkflowKindInitiative,
+		)
+	}
+	children := make([]WorkflowSyncInput, 0, len(input.Children))
+	seenPackageIDs := make(map[string]struct{}, len(input.Children))
+	for childIndex := range input.Children {
+		child, err := normalizeWorkflowSyncInput(input.Children[childIndex])
+		if err != nil {
+			return WorkflowSyncInput{}, nil, nil, err
+		}
+		if err := validateAggregateWorkflowChild(parent, child, seenPackageIDs); err != nil {
+			return WorkflowSyncInput{}, nil, nil, err
+		}
+		seenPackageIDs[child.PackageID] = struct{}{}
+		children = append(children, child)
+	}
+	return parent, children, seenPackageIDs, nil
+}
+
+func validateAggregateWorkflowChild(
+	parent WorkflowSyncInput,
+	child WorkflowSyncInput,
+	seenPackageIDs map[string]struct{},
+) error {
+	if child.Kind != WorkflowKindWorkPackage {
+		return newWorkflowSyncValidationError(
+			"globaldb: aggregate child kind must be %q", WorkflowKindWorkPackage,
+		)
+	}
+	if child.WorkspaceID != parent.WorkspaceID {
+		return newWorkflowSyncValidationError(
+			"globaldb: aggregate child %q has a different workspace", child.PackageID,
+		)
+	}
+	if _, exists := seenPackageIDs[child.PackageID]; exists {
+		return newWorkflowSyncValidationError(
+			"globaldb: duplicate aggregate child package %q", child.PackageID,
+		)
+	}
+	return nil
+}
+
+func (g *GlobalDB) reconcileWorkflowSyncTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	input WorkflowSyncInput,
+	syncedAt time.Time,
+) (WorkflowSyncResult, error) {
+	wasInitiative := false
+	existing, existingErr := getActiveWorkflowBySlugTx(ctx, tx, input.WorkspaceID, input.WorkflowSlug)
+	if existingErr == nil {
+		wasInitiative = existing.Kind == WorkflowKindInitiative
+	} else if !errors.Is(existingErr, ErrWorkflowNotFound) {
+		return WorkflowSyncResult{}, existingErr
+	}
+	workflow, err := g.reconcileWorkflowInputRowTx(ctx, tx, input, syncedAt)
+	if err != nil {
+		return WorkflowSyncResult{}, err
+	}
+	if wasInitiative && input.Kind == WorkflowKindOrdinary {
+		if _, _, pruneErr := g.pruneMissingChildRowsTx(ctx, tx, workflow.ID, map[string]struct{}{}); pruneErr != nil {
+			return WorkflowSyncResult{}, pruneErr
+		}
+	}
+	result := WorkflowSyncResult{Workflow: workflow}
 	if result.SnapshotsUpserted, err = g.reconcileArtifactSnapshotsTx(
 		ctx,
 		tx,
@@ -180,42 +406,16 @@ func (g *GlobalDB) ReconcileWorkflowSync(
 		return WorkflowSyncResult{}, err
 	}
 	if result.ReviewRoundsUpserted, result.ReviewIssuesUpserted, err = g.reconcileReviewRoundsTx(
-		ctx,
-		tx,
-		workflow.ID,
-		input.ReviewRounds,
-		syncedAt,
+		ctx, tx, workflow.ID, input.ReviewRounds, syncedAt,
 	); err != nil {
 		return WorkflowSyncResult{}, err
 	}
 	if result.CheckpointsUpdated, err = g.reconcileSyncCheckpointTx(
-		ctx,
-		tx,
-		workflow.ID,
-		input.CheckpointScope,
-		input.CheckpointChecksum,
-		syncedAt,
+		ctx, tx, workflow.ID, input.CheckpointScope, input.CheckpointChecksum, syncedAt,
 	); err != nil {
 		return WorkflowSyncResult{}, err
 	}
-
-	if err := tx.Commit(); err != nil {
-		return WorkflowSyncResult{}, fmt.Errorf("globaldb: commit workflow sync: %w", err)
-	}
-	committed = true
-
-	result.Workflow = workflow
 	return result, nil
-}
-
-func validateWorkflowSyncInput(input WorkflowSyncInput) error {
-	if strings.TrimSpace(input.WorkspaceID) == "" {
-		return newWorkflowSyncValidationError("globaldb: workflow sync workspace id is required")
-	}
-	if strings.TrimSpace(input.WorkflowSlug) == "" {
-		return newWorkflowSyncValidationError("globaldb: workflow sync slug is required")
-	}
-	return nil
 }
 
 func normalizeSyncTimestamp(value time.Time, fallback func() time.Time) time.Time {
@@ -261,7 +461,11 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 		PrunedSlugs: make([]string, 0),
 		Skipped:     make([]WorkflowPruneSkipped, 0),
 	}
-	for _, workflow := range workflows {
+	for workflowIndex := range workflows {
+		workflow := &workflows[workflowIndex]
+		if workflow.ParentWorkflowID != "" {
+			continue
+		}
 		if _, ok := present[workflow.Slug]; ok {
 			continue
 		}
@@ -346,6 +550,116 @@ func (g *GlobalDB) deleteActiveWorkflowIfNoActiveRuns(ctx context.Context, workf
 	return affected > 0, nil
 }
 
+func (g *GlobalDB) reconcileWorkflowInputRowTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	input WorkflowSyncInput,
+	syncedAt time.Time,
+) (Workflow, error) {
+	workflow, dependenciesJSON, err := normalizeWorkflow(Workflow{
+		WorkspaceID:        input.WorkspaceID,
+		Slug:               input.WorkflowSlug,
+		Kind:               input.Kind,
+		ParentWorkflowID:   input.ParentWorkflowID,
+		PackageID:          input.PackageID,
+		DisplayTitle:       input.DisplayTitle,
+		Outcome:            input.Outcome,
+		LifecycleCompleted: input.LifecycleCompleted,
+		Dependencies:       input.Dependencies,
+		CreatedAt:          syncedAt,
+		UpdatedAt:          syncedAt,
+		LastSyncedAt:       &syncedAt,
+	})
+	if err != nil {
+		return Workflow{}, err
+	}
+	existing, err := getActiveWorkflowBySlugTx(ctx, tx, workflow.WorkspaceID, workflow.Slug)
+	if err == nil {
+		return updateWorkflowSyncRowTx(ctx, tx, existing, workflow, dependenciesJSON, syncedAt)
+	}
+	if !errors.Is(err, ErrWorkflowNotFound) {
+		return Workflow{}, err
+	}
+	return g.insertWorkflowSyncRowTx(ctx, tx, workflow, dependenciesJSON, syncedAt)
+}
+
+func updateWorkflowSyncRowTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	existing Workflow,
+	workflow Workflow,
+	dependenciesJSON string,
+	syncedAt time.Time,
+) (Workflow, error) {
+	existing.Kind = workflow.Kind
+	existing.ParentWorkflowID = workflow.ParentWorkflowID
+	existing.PackageID = workflow.PackageID
+	existing.DisplayTitle = workflow.DisplayTitle
+	existing.Outcome = workflow.Outcome
+	existing.LifecycleCompleted = workflow.LifecycleCompleted
+	existing.Dependencies = workflow.Dependencies
+	existing.LastSyncedAt = &syncedAt
+	existing.UpdatedAt = syncedAt
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE workflows
+		 SET kind = ?, parent_workflow_id = ?, package_id = ?, display_title = ?, outcome = ?,
+		     lifecycle_completed = ?, dependencies_json = ?, last_synced_at = ?, updated_at = ?
+		 WHERE id = ?`,
+		existing.Kind,
+		store.NullableString(existing.ParentWorkflowID),
+		existing.PackageID,
+		existing.DisplayTitle,
+		existing.Outcome,
+		existing.LifecycleCompleted,
+		dependenciesJSON,
+		store.FormatTimestamp(syncedAt),
+		store.FormatTimestamp(syncedAt),
+		existing.ID,
+	); err != nil {
+		return Workflow{}, fmt.Errorf("globaldb: update workflow sync state %q: %w", existing.ID, err)
+	}
+	return existing, nil
+}
+
+func (g *GlobalDB) insertWorkflowSyncRowTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	workflow Workflow,
+	dependenciesJSON string,
+	syncedAt time.Time,
+) (Workflow, error) {
+	workflow.ID = g.newID("wf")
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO workflows (
+			id, workspace_id, slug, kind, parent_workflow_id, package_id,
+			display_title, outcome, lifecycle_completed, dependencies_json,
+			archived_at, last_synced_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		workflow.ID,
+		workflow.WorkspaceID,
+		workflow.Slug,
+		workflow.Kind,
+		store.NullableString(workflow.ParentWorkflowID),
+		workflow.PackageID,
+		workflow.DisplayTitle,
+		workflow.Outcome,
+		workflow.LifecycleCompleted,
+		dependenciesJSON,
+		nil,
+		store.FormatTimestamp(syncedAt),
+		store.FormatTimestamp(workflow.CreatedAt),
+		store.FormatTimestamp(workflow.UpdatedAt),
+	); err != nil {
+		if isWorkflowSlugConflict(err) {
+			return getActiveWorkflowBySlugTx(ctx, tx, workflow.WorkspaceID, workflow.Slug)
+		}
+		return Workflow{}, fmt.Errorf("globaldb: insert workflow sync row %q: %w", workflow.ID, err)
+	}
+	return workflow, nil
+}
+
 func (g *GlobalDB) reconcileWorkflowRowTx(
 	ctx context.Context,
 	tx *sql.Tx,
@@ -353,57 +667,15 @@ func (g *GlobalDB) reconcileWorkflowRowTx(
 	slug string,
 	syncedAt time.Time,
 ) (Workflow, error) {
-	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	trimmedSlug := strings.TrimSpace(slug)
-
-	workflow, err := getActiveWorkflowBySlugTx(ctx, tx, trimmedWorkspaceID, trimmedSlug)
-	if err == nil {
-		workflow.LastSyncedAt = &syncedAt
-		workflow.UpdatedAt = syncedAt
-		if _, err := tx.ExecContext(
-			ctx,
-			`UPDATE workflows
-			 SET last_synced_at = ?, updated_at = ?
-			 WHERE id = ?`,
-			store.FormatTimestamp(syncedAt),
-			store.FormatTimestamp(syncedAt),
-			workflow.ID,
-		); err != nil {
-			return Workflow{}, fmt.Errorf("globaldb: update workflow sync state %q: %w", workflow.ID, err)
-		}
-		return workflow, nil
-	}
-	if !errors.Is(err, ErrWorkflowNotFound) {
+	input, err := normalizeWorkflowSyncInput(WorkflowSyncInput{
+		WorkspaceID:  workspaceID,
+		WorkflowSlug: slug,
+		SyncedAt:     syncedAt,
+	})
+	if err != nil {
 		return Workflow{}, err
 	}
-
-	workflow = Workflow{
-		ID:           g.newID("wf"),
-		WorkspaceID:  trimmedWorkspaceID,
-		Slug:         trimmedSlug,
-		CreatedAt:    syncedAt,
-		UpdatedAt:    syncedAt,
-		LastSyncedAt: &syncedAt,
-	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO workflows (
-			id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		workflow.ID,
-		workflow.WorkspaceID,
-		workflow.Slug,
-		nil,
-		store.FormatTimestamp(syncedAt),
-		store.FormatTimestamp(workflow.CreatedAt),
-		store.FormatTimestamp(workflow.UpdatedAt),
-	); err != nil {
-		if isWorkflowSlugConflict(err) {
-			return getActiveWorkflowBySlugTx(ctx, tx, trimmedWorkspaceID, trimmedSlug)
-		}
-		return Workflow{}, fmt.Errorf("globaldb: insert workflow sync row %q: %w", workflow.ID, err)
-	}
-	return workflow, nil
+	return g.reconcileWorkflowInputRowTx(ctx, tx, input, syncedAt)
 }
 
 func getActiveWorkflowBySlugTx(
@@ -414,7 +686,7 @@ func getActiveWorkflowBySlugTx(
 ) (Workflow, error) {
 	row := tx.QueryRowContext(
 		ctx,
-		`SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE workspace_id = ? AND slug = ? AND archived_at IS NULL`,
 		strings.TrimSpace(workspaceID),
@@ -428,6 +700,80 @@ func getActiveWorkflowBySlugTx(
 		return Workflow{}, fmt.Errorf("globaldb: query active workflow %q: %w", strings.TrimSpace(slug), err)
 	}
 	return workflow, nil
+}
+
+func (g *GlobalDB) pruneMissingChildRowsTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	parentWorkflowID string,
+	presentPackageIDs map[string]struct{},
+) ([]string, []WorkflowPruneSkipped, error) {
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT id, package_id, slug
+		 FROM workflows
+		 WHERE parent_workflow_id = ? AND archived_at IS NULL
+		 ORDER BY package_id ASC, id ASC`,
+		strings.TrimSpace(parentWorkflowID),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("globaldb: query stale child workflows: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	pruned := make([]string, 0)
+	skipped := make([]WorkflowPruneSkipped, 0)
+	for rows.Next() {
+		var childID, packageID, slug string
+		if err := rows.Scan(&childID, &packageID, &slug); err != nil {
+			return nil, nil, fmt.Errorf("globaldb: scan stale child workflow: %w", err)
+		}
+		if _, present := presentPackageIDs[packageID]; present {
+			continue
+		}
+		activeRuns, countErr := countActiveRunsForWorkflowTx(ctx, tx, childID)
+		if countErr != nil {
+			return nil, nil, countErr
+		}
+		if skippedRow, active := workflowPruneActiveRunSkip(slug, activeRuns); active {
+			skipped = append(skipped, skippedRow)
+			continue
+		}
+		if _, deleteErr := tx.ExecContext(
+			ctx,
+			`DELETE FROM workflows
+			 WHERE id = ? AND archived_at IS NULL
+			   AND NOT EXISTS (
+				SELECT 1 FROM runs
+				WHERE runs.workflow_id = workflows.id
+				  AND runs.status NOT IN ('completed', 'failed', 'canceled', 'crashed')
+			   )`,
+			childID,
+		); deleteErr != nil {
+			return nil, nil, fmt.Errorf("globaldb: prune stale child workflow %q: %w", packageID, deleteErr)
+		}
+		pruned = append(pruned, packageID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("globaldb: iterate stale child workflows: %w", err)
+	}
+	return pruned, skipped, nil
+}
+
+func countActiveRunsForWorkflowTx(ctx context.Context, tx *sql.Tx, workflowID string) (int, error) {
+	var count int
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT COUNT(1) FROM runs
+		 WHERE workflow_id = ?
+		   AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')`,
+		strings.TrimSpace(workflowID),
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("globaldb: count active child runs for workflow %q: %w", workflowID, err)
+	}
+	return count, nil
 }
 
 func (g *GlobalDB) reconcileArtifactSnapshotsTx(

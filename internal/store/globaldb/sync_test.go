@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -251,6 +252,301 @@ func TestReconcileWorkflowSyncKeepsStableChecksumsOnIdempotentResync(t *testing.
 			lastScanAtRaw,
 			lastSuccessAtRaw,
 		)
+	}
+}
+
+func TestReconcileAggregateWorkflowSyncKeepsHierarchyAtomicAndStable(t *testing.T) {
+	// Suite boundary
+	// IN: aggregate parent/child reconciliation through the real SQLite transaction
+	// OUT: filesystem plan discovery and daemon read models
+	// Invariant: an initiative owns exactly one active child per package across retries and partial scans.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC)
+	parent := WorkflowSyncInput{
+		WorkspaceID:        workspace.ID,
+		WorkflowSlug:       "initiative",
+		Kind:               WorkflowKindInitiative,
+		DisplayTitle:       "Initiative",
+		SyncedAt:           syncedAt,
+		CheckpointChecksum: "initiative-checkpoint",
+	}
+	child := func(packageID string, completed bool) WorkflowSyncInput {
+		status := "pending"
+		if completed {
+			status = "completed"
+		}
+		dependencies := []WorkflowDependency(nil)
+		if packageID == "WP-002" {
+			dependencies = []WorkflowDependency{{
+				PackageID: "WP-001",
+				Rationale: "Consumes the persisted contract.",
+			}}
+		}
+		return WorkflowSyncInput{
+			WorkspaceID:        workspace.ID,
+			WorkflowSlug:       "initiative/" + packageID,
+			Kind:               WorkflowKindWorkPackage,
+			PackageID:          packageID,
+			DisplayTitle:       "Package " + packageID,
+			Outcome:            "Deliver " + packageID,
+			LifecycleCompleted: completed,
+			Dependencies:       dependencies,
+			SyncedAt:           syncedAt,
+			CheckpointChecksum: packageID + "-checkpoint",
+			TaskItems: []TaskItemInput{{
+				TaskNumber: 1,
+				TaskID:     packageID + "-task",
+				Title:      packageID + " task",
+				Status:     status,
+				Kind:       "backend",
+				SourcePath: "task_01.md",
+			}},
+		}
+	}
+
+	first, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent: parent,
+		Children: []WorkflowSyncInput{
+			child("WP-001", true),
+			child("WP-002", false),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(first): %v", err)
+	}
+	if first.Parent.Workflow.Kind != WorkflowKindInitiative || len(first.Children) != 2 {
+		t.Fatalf("first aggregate result = %#v, want initiative parent and two children", first)
+	}
+	firstIDs := map[string]string{}
+	for _, result := range first.Children {
+		childWorkflow := result.Workflow
+		if childWorkflow.ParentWorkflowID != first.Parent.Workflow.ID || childWorkflow.Kind != WorkflowKindWorkPackage {
+			t.Fatalf("child hierarchy = %#v, want parent %q", childWorkflow, first.Parent.Workflow.ID)
+		}
+		firstIDs[childWorkflow.PackageID] = childWorkflow.ID
+	}
+	wp002 := first.Children[1].Workflow
+	if wp002.DisplayTitle != "Package WP-002" || wp002.Outcome != "Deliver WP-002" ||
+		len(wp002.Dependencies) != 1 || wp002.Dependencies[0].PackageID != "WP-001" {
+		t.Fatalf("WP-002 metadata projection = %#v", wp002)
+	}
+
+	parent.SyncedAt = syncedAt.Add(time.Minute)
+	second, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent: parent,
+		Children: []WorkflowSyncInput{
+			child("WP-001", true),
+			child("WP-002", false),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(retry): %v", err)
+	}
+	for _, result := range second.Children {
+		if got, want := result.Workflow.ID, firstIDs[result.Workflow.PackageID]; got != want {
+			t.Fatalf("child %s id = %q, want stable %q", result.Workflow.PackageID, got, want)
+		}
+	}
+
+	partial, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent:                  parent,
+		Children:                []WorkflowSyncInput{child("WP-001", true)},
+		PreserveMissingChildren: true,
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(partial): %v", err)
+	}
+	if len(partial.PrunedChildPackageIDs) != 0 {
+		t.Fatalf("partial sync pruned children: %#v", partial.PrunedChildPackageIDs)
+	}
+	children, err := db.ListChildWorkflows(context.Background(), first.Parent.Workflow.ID, false)
+	if err != nil {
+		t.Fatalf("ListChildWorkflows(): %v", err)
+	}
+	if len(children) != 2 || children[1].ID != firstIDs["WP-002"] {
+		t.Fatalf("children after partial sync = %#v, want preserved WP-002", children)
+	}
+
+	_, err = db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent: WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: "interrupted",
+			Kind:         WorkflowKindInitiative,
+			SyncedAt:     syncedAt,
+		},
+		Children: []WorkflowSyncInput{{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: "interrupted/WP-001",
+			Kind:         WorkflowKindWorkPackage,
+			PackageID:    "WP-001",
+			SyncedAt:     syncedAt,
+			TaskItems: []TaskItemInput{{
+				TaskNumber: 1,
+			}},
+		}},
+	})
+	if err == nil {
+		t.Fatal("ReconcileAggregateWorkflowSync(interrupted) error = nil, want rollback")
+	}
+	if got := queryTableRowCount(t, db, "workflows", "slug LIKE ?", "interrupted%"); got != 0 {
+		t.Fatalf("interrupted aggregate left %d workflow rows, want 0", got)
+	}
+}
+
+func TestReconcileAggregateWorkflowSyncCollapsesConcurrentRetries(t *testing.T) {
+	// Suite boundary
+	// IN: concurrent callers against the same real SQLite global catalog
+	// OUT: daemon scheduling and package run ownership
+	// Invariant: retries leave one active initiative and one active child for each declared package.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 4, 18, 9, 30, 0, 0, time.UTC)
+	input := AggregateWorkflowSyncInput{
+		Parent: WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: "concurrent-initiative",
+			Kind:         WorkflowKindInitiative,
+			SyncedAt:     syncedAt,
+		},
+		Children: []WorkflowSyncInput{
+			{
+				WorkspaceID:  workspace.ID,
+				WorkflowSlug: "concurrent-initiative/WP-001",
+				Kind:         WorkflowKindWorkPackage,
+				PackageID:    "WP-001",
+				SyncedAt:     syncedAt,
+			},
+			{
+				WorkspaceID:  workspace.ID,
+				WorkflowSlug: "concurrent-initiative/WP-002",
+				Kind:         WorkflowKindWorkPackage,
+				PackageID:    "WP-002",
+				SyncedAt:     syncedAt,
+			},
+		},
+	}
+
+	const attempts = 8
+	start := make(chan struct{})
+	errs := make(chan error, attempts)
+	var workers sync.WaitGroup
+	for range attempts {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			_, err := db.ReconcileAggregateWorkflowSync(context.Background(), input)
+			errs <- err
+		}()
+	}
+	close(start)
+	workers.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent ReconcileAggregateWorkflowSync() error = %v", err)
+		}
+	}
+
+	parent, err := db.GetActiveWorkflowBySlug(context.Background(), workspace.ID, "concurrent-initiative")
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug(parent): %v", err)
+	}
+	children, err := db.ListChildWorkflows(context.Background(), parent.ID, false)
+	if err != nil {
+		t.Fatalf("ListChildWorkflows(): %v", err)
+	}
+	if len(children) != 2 || children[0].PackageID != "WP-001" || children[1].PackageID != "WP-002" {
+		t.Fatalf("concurrent child hierarchy = %#v, want WP-001 and WP-002 once", children)
+	}
+	if got := queryTableRowCount(
+		t,
+		db,
+		"workflows",
+		"workspace_id = ? AND slug = ? AND archived_at IS NULL",
+		workspace.ID,
+		parent.Slug,
+	); got != 1 {
+		t.Fatalf("active parent rows = %d, want 1", got)
+	}
+	if got := queryTableRowCount(
+		t,
+		db,
+		"workflows",
+		"parent_workflow_id = ? AND archived_at IS NULL",
+		parent.ID,
+	); got != 2 {
+		t.Fatalf("active child rows = %d, want 2", got)
+	}
+}
+
+func TestReconcileAggregateWorkflowSyncRetainsLargePackagePlansAcrossRetries(t *testing.T) {
+	// Suite boundary
+	// IN: a 300-child aggregate transaction and deterministic retry
+	// OUT: filesystem manifest parsing and user-facing pagination
+	// Invariant: package cardinality and child identities are not truncated by aggregate persistence.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 4, 18, 10, 0, 0, 0, time.UTC)
+	children := make([]WorkflowSyncInput, 0, 300)
+	for number := 1; number <= 300; number++ {
+		packageID := fmt.Sprintf("WP-%03d", number)
+		children = append(children, WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: "large-initiative/" + packageID,
+			Kind:         WorkflowKindWorkPackage,
+			PackageID:    packageID,
+			SyncedAt:     syncedAt,
+		})
+	}
+	input := AggregateWorkflowSyncInput{
+		Parent: WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: "large-initiative",
+			Kind:         WorkflowKindInitiative,
+			SyncedAt:     syncedAt,
+		},
+		Children: children,
+	}
+	first, err := db.ReconcileAggregateWorkflowSync(context.Background(), input)
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(large first): %v", err)
+	}
+	if len(first.Children) != 300 {
+		t.Fatalf("large first child count = %d, want 300", len(first.Children))
+	}
+	firstIDs := make(map[string]string, len(first.Children))
+	for _, child := range first.Children {
+		firstIDs[child.Workflow.PackageID] = child.Workflow.ID
+	}
+	input.Parent.SyncedAt = syncedAt.Add(time.Minute)
+	second, err := db.ReconcileAggregateWorkflowSync(context.Background(), input)
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(large retry): %v", err)
+	}
+	if len(second.Children) != 300 || len(second.PrunedChildPackageIDs) != 0 {
+		t.Fatalf("large retry = %#v, want 300 stable children without prunes", second)
+	}
+	for _, child := range second.Children {
+		if got, want := child.Workflow.ID, firstIDs[child.Workflow.PackageID]; got != want {
+			t.Fatalf("large child %s id = %q, want %q", child.Workflow.PackageID, got, want)
+		}
 	}
 }
 

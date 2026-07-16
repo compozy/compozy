@@ -64,6 +64,9 @@ type SyncResult struct {
 	LegacyArtifactsRemoved int
 	SyncedPaths            []string
 	PrunedWorkflows        []string
+	WorkPackageChildIDs    []string
+	MissingWorkPackages    []string
+	Partial                bool
 	Warnings               []string
 }
 
@@ -80,4 +83,6 @@ type ArchiveResult struct {
 	ArchivedPaths        []string          `json:"archived_paths,omitempty"`
 	SkippedPaths         []string          `json:"skipped_paths,omitempty"`
 	SkippedReasons       map[string]string `json:"skipped_reasons,omitempty"`
+	WorkPackageChildIDs  []string          `json:"work_package_child_ids,omitempty"`
+	PendingWorkPackages  []string          `json:"pending_work_packages,omitempty"`
 }

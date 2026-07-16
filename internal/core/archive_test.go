@@ -275,6 +275,118 @@ func TestArchiveTaskWorkflowForceDoesNotBypassActiveRunConflict(t *testing.T) {
 	}
 }
 
+func TestArchiveWorkPackageInitiativeMovesOnlyRootAndArchivesChildren(t *testing.T) {
+	// Suite boundary
+	// IN: real initiative filesystem, aggregate sync, archive move, and SQLite hierarchy rows
+	// OUT: HTTP transport and CLI confirmation rendering
+	// Invariant: archiving a Work Package initiative moves one root and archives its children as one durable unit.
+	rootDir := archiveTestRoot(t)
+	initiativeDir := filepath.Join(rootDir, "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "completed",
+		"WP-002": "completed",
+	})
+
+	syncResult, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(work package initiative): %v", err)
+	}
+	if syncResult.WorkflowsScanned != 3 {
+		t.Fatalf("Sync workflows scanned = %d, want parent plus two children", syncResult.WorkflowsScanned)
+	}
+	_, err = Archive(context.Background(), ArchiveConfig{TasksDir: filepath.Join(initiativeDir, "_packages", "WP-001")})
+	if !errors.Is(err, ErrWorkPackageRootOnly) {
+		t.Fatalf("Archive(package target) error = %v, want ErrWorkPackageRootOnly", err)
+	}
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Archive(work package initiative): %v", err)
+	}
+	if result.Archived != 1 || result.WorkflowsScanned != 1 || len(result.WorkPackageChildIDs) != 2 {
+		t.Fatalf("Archive(work package initiative) result = %#v, want one root and two archived children", result)
+	}
+	if len(result.ArchivedPaths) != 1 {
+		t.Fatalf("ArchivedPaths = %#v, want one root move", result.ArchivedPaths)
+	}
+	if _, statErr := os.Stat(filepath.Join(result.ArchivedPaths[0], "_packages", "WP-001")); statErr != nil {
+		t.Fatalf("archived root did not retain WP-001 directory: %v", statErr)
+	}
+	if _, statErr := os.Stat(initiativeDir); !os.IsNotExist(statErr) {
+		t.Fatalf("initiative root remains active after archive: %v", statErr)
+	}
+
+	db, workspace := openArchiveWorkflowDB(t, rootDir)
+	defer func() {
+		_ = db.Close()
+	}()
+	rows, err := db.ListWorkflows(context.Background(), globaldb.ListWorkflowsOptions{
+		WorkspaceID:     workspace.ID,
+		IncludeArchived: true,
+	})
+	if err != nil {
+		t.Fatalf("ListWorkflows(archived hierarchy): %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("archived hierarchy rows = %#v, want initiative and two children", rows)
+	}
+	var parent globaldb.Workflow
+	children := 0
+	for _, row := range rows {
+		if row.Kind == globaldb.WorkflowKindInitiative {
+			parent = row
+		}
+		if row.Kind == globaldb.WorkflowKindWorkPackage {
+			children++
+			if row.ArchivedAt == nil {
+				t.Fatalf("child %q was not marked archived", row.PackageID)
+			}
+		}
+	}
+	if parent.ID == "" || parent.ArchivedAt == nil || children != 2 {
+		t.Fatalf("archived parent/children = parent %#v children %d", parent, children)
+	}
+
+	_, err = Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir})
+	if !errors.Is(err, globaldb.ErrWorkflowArchived) {
+		t.Fatalf("second Archive() error = %v, want archived identity conflict", err)
+	}
+}
+
+func TestArchiveWorkPackageInitiativeForceArchivesPendingPlanAsOneRoot(t *testing.T) {
+	// Suite boundary
+	// IN: aggregate archive eligibility, task completion, and root archive move
+	// OUT: interactive force confirmation rendering
+	// Invariant: force archive completes child mutable state but never moves a package independently.
+	rootDir := archiveTestRoot(t)
+	initiativeDir := filepath.Join(rootDir, "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "completed",
+		"WP-002": "pending",
+	})
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir})
+	if !errors.Is(err, ErrWorkflowForceRequired) {
+		t.Fatalf("Archive(pending package) error = %v, want force required", err)
+	}
+	if result == nil || !equalStrings(result.PendingWorkPackages, []string{"WP-002"}) {
+		t.Fatalf("pending package archive result = %#v, want WP-002", result)
+	}
+
+	result, err = Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: true})
+	if err != nil {
+		t.Fatalf("Archive(force pending package): %v", err)
+	}
+	if !result.Forced || result.Archived != 1 || result.CompletedTasks != 1 || len(result.ArchivedPaths) != 1 {
+		t.Fatalf("forced initiative archive result = %#v", result)
+	}
+	if _, statErr := os.Stat(
+		filepath.Join(result.ArchivedPaths[0], "_packages", "WP-002", "task_01.md"),
+	); statErr != nil {
+		t.Fatalf("forced archive did not preserve child artifact: %v", statErr)
+	}
+}
+
 func TestArchiveTaskWorkflowForceArchivesAfterLocalReviewResolutionWithoutManualResync(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "gamma")

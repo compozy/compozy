@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -39,7 +40,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		_ = db.Close()
 	}()
 
-	return syncResolvedTarget(ctx, db, workspace.ID, target, singleWorkflow, result)
+	return syncResolvedTarget(ctx, db, workspace, target, singleWorkflow, result)
 }
 
 // SyncWithDB reconciles workflow artifacts into an already-open global.db.
@@ -57,14 +58,13 @@ func SyncWithDB(
 	if db == nil {
 		return result, errors.New("sync database is required")
 	}
-	workspaceID := strings.TrimSpace(workspace.ID)
-	if workspaceID == "" {
+	if strings.TrimSpace(workspace.ID) == "" {
 		return result, errors.New("sync workspace id is required")
 	}
 	if !syncTargetBelongsToWorkspace(target, workspace.RootDir) {
 		return result, fmt.Errorf("mismatched workspace and sync target: %s is outside %s", target, workspace.RootDir)
 	}
-	return syncResolvedTarget(ctx, db, workspaceID, target, singleWorkflow, result)
+	return syncResolvedTarget(ctx, db, workspace, target, singleWorkflow, result)
 }
 
 func syncTargetBelongsToWorkspace(target string, workspaceRoot string) bool {
@@ -93,13 +93,16 @@ func canonicalWorkflowScopePath(path string) string {
 func syncResolvedTarget(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
-	workspaceID string,
+	workspace globaldb.Workspace,
 	target string,
 	singleWorkflow bool,
 	result *SyncResult,
 ) (*SyncResult, error) {
 	if singleWorkflow {
-		if err := syncWorkflow(ctx, db, workspaceID, target, result); err != nil {
+		if isWorkPackageOperationalDirectory(workspace.RootDir, target) {
+			return result, WorkPackageRootOnlyError{Target: target}
+		}
+		if err := syncWorkspaceWorkflow(ctx, db, workspace, target, result); err != nil {
 			return result, err
 		}
 		sortSyncResult(result)
@@ -119,11 +122,11 @@ func syncResolvedTarget(
 			continue
 		}
 		presentSlugs = append(presentSlugs, entry.Name())
-		if err := syncWorkflow(ctx, db, workspaceID, filepath.Join(target, entry.Name()), result); err != nil {
+		if err := syncWorkspaceWorkflow(ctx, db, workspace, filepath.Join(target, entry.Name()), result); err != nil {
 			return result, err
 		}
 	}
-	if err := pruneMissingWorkflowRows(ctx, db, workspaceID, presentSlugs, result); err != nil {
+	if err := pruneMissingWorkflowRows(ctx, db, workspace.ID, presentSlugs, result); err != nil {
 		return result, err
 	}
 
@@ -184,6 +187,9 @@ func openWorkflowGlobalDB(
 }
 
 func resolveSyncTarget(cfg SyncConfig) (string, bool, error) {
+	if target, ok := namedWorkPackageTarget(cfg.Name); ok {
+		return "", false, WorkPackageRootOnlyError{Target: target}
+	}
 	resolved, err := resolveWorkflowTarget(workflowTargetOptions{
 		command:       "sync",
 		workspaceRoot: cfg.WorkspaceRoot,
@@ -196,6 +202,45 @@ func resolveSyncTarget(cfg SyncConfig) (string, bool, error) {
 		return "", false, err
 	}
 	return resolved.target, resolved.specificTarget, nil
+}
+
+func namedWorkPackageTarget(name string) (string, bool) {
+	ref, err := workpackages.ParseRef(strings.TrimSpace(name))
+	if err != nil || !ref.IsPackage() {
+		return "", false
+	}
+	return ref.String(), true
+}
+
+func syncWorkspaceWorkflow(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	tasksDir string,
+	result *SyncResult,
+) error {
+	if db == nil {
+		return errors.New("sync database is required")
+	}
+	if result == nil {
+		return errors.New("sync result is required")
+	}
+
+	initiativeTarget, resolveErr := (workpackages.TargetResolver{}).Resolve(
+		ctx,
+		workspace.RootDir,
+		filepath.Base(tasksDir),
+	)
+	if resolveErr != nil {
+		if errors.Is(resolveErr, workpackages.ErrInvalidPlan) {
+			return fmt.Errorf("sync workflow %s: %w", tasksDir, resolveErr)
+		}
+		return fmt.Errorf("resolve sync workflow target %s: %w", tasksDir, resolveErr)
+	}
+	if initiativeTarget.Mode == workpackages.TargetModeInitiative {
+		return syncWorkPackageInitiative(ctx, db, workspace, initiativeTarget, result)
+	}
+	return syncWorkflow(ctx, db, workspace.ID, tasksDir, result)
 }
 
 func syncWorkflow(
@@ -267,77 +312,295 @@ func syncWorkflow(
 	return nil
 }
 
+func syncWorkPackageInitiative(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+	result *SyncResult,
+) error {
+	parentSnapshots, parentChecksum, err := collectArtifactSnapshotsExcludingPackages(target.InitiativeDir)
+	if err != nil {
+		return err
+	}
+
+	collection, err := collectWorkPackageSyncChildren(ctx, workspace, target)
+	if err != nil {
+		return err
+	}
+
+	aggregate, err := db.ReconcileAggregateWorkflowSync(ctx, globaldb.AggregateWorkflowSyncInput{
+		Parent: globaldb.WorkflowSyncInput{
+			WorkspaceID:        workspace.ID,
+			WorkflowSlug:       target.Ref.Initiative,
+			Kind:               globaldb.WorkflowKindInitiative,
+			SyncedAt:           time.Now().UTC(),
+			CheckpointScope:    "workflow",
+			CheckpointChecksum: parentChecksum,
+			ArtifactSnapshots:  parentSnapshots,
+		},
+		Children:                collection.children,
+		PreserveMissingChildren: len(collection.missingPackageIDs) > 0,
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile work package initiative %s: %w", target.Ref.Initiative, err)
+	}
+
+	applyWorkflowSyncResult(result, target.InitiativeDir, &aggregate.Parent)
+	for childIndex := range aggregate.Children {
+		child := &aggregate.Children[childIndex]
+		applyWorkflowSyncResult(result, collection.childPaths[child.Workflow.PackageID], child)
+		result.WorkPackageChildIDs = append(result.WorkPackageChildIDs, child.Workflow.ID)
+	}
+	result.WorkflowsPruned += len(aggregate.PrunedChildPackageIDs)
+	result.PrunedWorkflows = append(result.PrunedWorkflows, aggregate.PrunedChildPackageIDs...)
+	for _, skipped := range aggregate.SkippedChildPrunes {
+		result.Warnings = append(result.Warnings, fmt.Sprintf(
+			"%s: skipped stale work package prune: %s (%d active run(s))",
+			skipped.Slug,
+			skipped.Reason,
+			skipped.ActiveRuns,
+		))
+	}
+	result.LegacyArtifactsRemoved += len(collection.removedLegacyArtifacts)
+	if len(collection.removedLegacyArtifacts) > 0 {
+		sort.Strings(collection.removedLegacyArtifacts)
+		result.Warnings = append(result.Warnings, fmt.Sprintf(
+			"%s: removed legacy generated artifacts %s",
+			target.Ref.Initiative,
+			strings.Join(collection.removedLegacyArtifacts, ", "),
+		))
+	}
+	if len(collection.missingPackageIDs) > 0 {
+		sort.Strings(collection.missingPackageIDs)
+		result.Partial = true
+		result.MissingWorkPackages = append(result.MissingWorkPackages, collection.missingPackageIDs...)
+		result.Warnings = append(result.Warnings, fmt.Sprintf(
+			"%s: partial work package sync; missing package directories %s",
+			target.Ref.Initiative,
+			strings.Join(collection.missingPackageIDs, ", "),
+		))
+	}
+	return nil
+}
+
+type workPackageSyncChildren struct {
+	children               []globaldb.WorkflowSyncInput
+	childPaths             map[string]string
+	missingPackageIDs      []string
+	removedLegacyArtifacts []string
+}
+
+func collectWorkPackageSyncChildren(
+	ctx context.Context,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+) (workPackageSyncChildren, error) {
+	result := workPackageSyncChildren{
+		children:   make([]globaldb.WorkflowSyncInput, 0, len(target.Plan.Packages)),
+		childPaths: make(map[string]string, len(target.Plan.Packages)),
+	}
+	resolver := workpackages.TargetResolver{}
+	for packageIndex := range target.Plan.Packages {
+		pkg := &target.Plan.Packages[packageIndex]
+		child, childPath, removed, err := collectWorkPackageSyncChild(ctx, resolver, workspace, target, pkg)
+		if err != nil {
+			if errors.Is(err, workpackages.ErrPackageNotFound) {
+				result.missingPackageIDs = append(result.missingPackageIDs, pkg.ID)
+				continue
+			}
+			return workPackageSyncChildren{}, err
+		}
+		result.children = append(result.children, child)
+		result.childPaths[pkg.ID] = childPath
+		result.removedLegacyArtifacts = append(result.removedLegacyArtifacts, removed...)
+	}
+	return result, nil
+}
+
+func collectWorkPackageSyncChild(
+	ctx context.Context,
+	resolver workpackages.TargetResolver,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+	pkg *workpackages.Package,
+) (globaldb.WorkflowSyncInput, string, []string, error) {
+	if err := ctx.Err(); err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, err
+	}
+	childTarget, err := resolver.Resolve(ctx, workspace.RootDir, target.Ref.Initiative+"/"+pkg.ID)
+	if err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("resolve work package %s: %w", pkg.ID, err)
+	}
+	removed, err := cleanupLegacyWorkflowMetadata(childTarget.PackageDir)
+	if err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("cleanup work package %s metadata: %w", pkg.ID, err)
+	}
+	snapshots, checksum, err := collectArtifactSnapshots(childTarget.PackageDir)
+	if err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("collect work package %s artifacts: %w", pkg.ID, err)
+	}
+	taskItems, err := collectTaskItems(childTarget.PackageDir)
+	if err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("collect work package %s tasks: %w", pkg.ID, err)
+	}
+	reviewRounds, err := collectReviewRounds(childTarget.PackageDir)
+	if err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("collect work package %s reviews: %w", pkg.ID, err)
+	}
+	removedWithPackageID := make([]string, 0, len(removed))
+	for _, path := range removed {
+		removedWithPackageID = append(removedWithPackageID, pkg.ID+"/"+path)
+	}
+	return globaldb.WorkflowSyncInput{
+		WorkspaceID:        workspace.ID,
+		WorkflowSlug:       target.Ref.Initiative + "/" + pkg.ID,
+		Kind:               globaldb.WorkflowKindWorkPackage,
+		PackageID:          pkg.ID,
+		DisplayTitle:       pkg.Title,
+		Outcome:            pkg.Outcome,
+		LifecycleCompleted: pkg.Completed,
+		Dependencies:       packageDependencies(pkg),
+		SyncedAt:           time.Now().UTC(),
+		CheckpointScope:    "workflow",
+		CheckpointChecksum: checksum,
+		ArtifactSnapshots:  snapshots,
+		TaskItems:          taskItems,
+		ReviewRounds:       reviewRounds,
+	}, childTarget.PackageDir, removedWithPackageID, nil
+}
+
+func packageDependencies(pkg *workpackages.Package) []globaldb.WorkflowDependency {
+	dependencies := make([]globaldb.WorkflowDependency, 0, len(pkg.Dependencies))
+	for _, dependency := range pkg.Dependencies {
+		dependencies = append(dependencies, globaldb.WorkflowDependency{
+			PackageID: dependency.From,
+			Rationale: dependency.Rationale,
+		})
+	}
+	sort.Slice(dependencies, func(i, j int) bool {
+		if dependencies[i].PackageID == dependencies[j].PackageID {
+			return dependencies[i].Rationale < dependencies[j].Rationale
+		}
+		return dependencies[i].PackageID < dependencies[j].PackageID
+	})
+	return dependencies
+}
+
+func applyWorkflowSyncResult(result *SyncResult, path string, state *globaldb.WorkflowSyncResult) {
+	if result == nil {
+		return
+	}
+	result.WorkflowsScanned++
+	result.SnapshotsUpserted += state.SnapshotsUpserted
+	result.TaskItemsUpserted += state.TaskItemsUpserted
+	result.ReviewRoundsUpserted += state.ReviewRoundsUpserted
+	result.ReviewIssuesUpserted += state.ReviewIssuesUpserted
+	result.CheckpointsUpdated += state.CheckpointsUpdated
+	result.SyncedPaths = append(result.SyncedPaths, path)
+}
+
 func collectArtifactSnapshots(tasksDir string) ([]globaldb.ArtifactSnapshotInput, string, error) {
-	snapshots := make([]globaldb.ArtifactSnapshotInput, 0)
-	checksumParts := make([]string, 0)
+	return collectArtifactSnapshotsWithOptions(tasksDir, false)
+}
+
+func collectArtifactSnapshotsExcludingPackages(tasksDir string) ([]globaldb.ArtifactSnapshotInput, string, error) {
+	return collectArtifactSnapshotsWithOptions(tasksDir, true)
+}
+
+func collectArtifactSnapshotsWithOptions(
+	tasksDir string,
+	excludePackages bool,
+) ([]globaldb.ArtifactSnapshotInput, string, error) {
 	root, err := os.OpenRoot(strings.TrimSpace(tasksDir))
 	if err != nil {
 		return nil, "", fmt.Errorf("open workflow root for artifact scan: %w", err)
 	}
 	defer root.Close()
 
-	err = filepath.WalkDir(tasksDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		if entry.IsDir() {
-			if path != tasksDir && strings.HasPrefix(entry.Name(), ".") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !entry.Type().IsRegular() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") {
-			return nil
-		}
-
-		relativePath, err := filepath.Rel(tasksDir, path)
-		if err != nil {
-			return fmt.Errorf("resolve relative artifact path for %s: %w", path, err)
-		}
-		relativePath = filepath.ToSlash(relativePath)
-		if relativePath == "_meta.md" || isReviewRoundMetaPath(relativePath) {
-			return nil
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("stat artifact %s: %w", path, err)
-		}
-		content, err := root.ReadFile(filepath.FromSlash(relativePath))
-		if err != nil {
-			return fmt.Errorf("read artifact %s: %w", path, err)
-		}
-
-		frontmatterJSON, bodyText, err := snapshotArtifactContent(string(content))
-		if err != nil {
-			return fmt.Errorf("parse artifact %s: %w", path, err)
-		}
-
-		checksum := checksumHex(content)
-		artifactKind := classifyArtifactKind(relativePath)
-		snapshots = append(snapshots, globaldb.ArtifactSnapshotInput{
-			ArtifactKind:    artifactKind,
-			RelativePath:    relativePath,
-			Checksum:        checksum,
-			FrontmatterJSON: frontmatterJSON,
-			BodyText:        bodyText,
-			SourceMTime:     info.ModTime().UTC(),
-		})
-		checksumParts = append(checksumParts, artifactKind+"\x00"+relativePath+"\x00"+checksum)
-		return nil
-	})
+	collector := artifactSnapshotCollector{
+		root:            root,
+		tasksDir:        tasksDir,
+		excludePackages: excludePackages,
+	}
+	err = filepath.WalkDir(tasksDir, collector.visit)
 	if err != nil {
 		return nil, "", fmt.Errorf("walk workflow artifacts: %w", err)
 	}
 
-	sort.SliceStable(snapshots, func(i, j int) bool {
-		left := snapshots[i].ArtifactKind + "\x00" + snapshots[i].RelativePath
-		right := snapshots[j].ArtifactKind + "\x00" + snapshots[j].RelativePath
+	sort.SliceStable(collector.snapshots, func(i, j int) bool {
+		left := collector.snapshots[i].ArtifactKind + "\x00" + collector.snapshots[i].RelativePath
+		right := collector.snapshots[j].ArtifactKind + "\x00" + collector.snapshots[j].RelativePath
 		return left < right
 	})
-	sort.Strings(checksumParts)
-	return snapshots, checksumHex([]byte(strings.Join(checksumParts, "\n"))), nil
+	sort.Strings(collector.checksumParts)
+	return collector.snapshots, checksumHex([]byte(strings.Join(collector.checksumParts, "\n"))), nil
+}
+
+type artifactSnapshotCollector struct {
+	root            *os.Root
+	tasksDir        string
+	excludePackages bool
+	snapshots       []globaldb.ArtifactSnapshotInput
+	checksumParts   []string
+}
+
+func (c *artifactSnapshotCollector) visit(path string, entry fs.DirEntry, walkErr error) error {
+	if walkErr != nil {
+		return walkErr
+	}
+	if entry.IsDir() {
+		return c.visitDirectory(path, entry)
+	}
+	if !entry.Type().IsRegular() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") {
+		return nil
+	}
+	return c.collectArtifact(path, entry)
+}
+
+func (c *artifactSnapshotCollector) visitDirectory(path string, entry fs.DirEntry) error {
+	if c.excludePackages && path != c.tasksDir && entry.Name() == "_packages" {
+		return filepath.SkipDir
+	}
+	if path != c.tasksDir && strings.HasPrefix(entry.Name(), ".") {
+		return filepath.SkipDir
+	}
+	return nil
+}
+
+func (c *artifactSnapshotCollector) collectArtifact(path string, entry fs.DirEntry) error {
+	relativePath, err := filepath.Rel(c.tasksDir, path)
+	if err != nil {
+		return fmt.Errorf("resolve relative artifact path for %s: %w", path, err)
+	}
+	relativePath = filepath.ToSlash(relativePath)
+	if relativePath == "_meta.md" || isReviewRoundMetaPath(relativePath) {
+		return nil
+	}
+	info, err := entry.Info()
+	if err != nil {
+		return fmt.Errorf("stat artifact %s: %w", path, err)
+	}
+	content, err := c.root.ReadFile(filepath.FromSlash(relativePath))
+	if err != nil {
+		return fmt.Errorf("read artifact %s: %w", path, err)
+	}
+	frontmatterJSON, bodyText, err := snapshotArtifactContent(string(content))
+	if err != nil {
+		return fmt.Errorf("parse artifact %s: %w", path, err)
+	}
+	checksum := checksumHex(content)
+	artifactKind := classifyArtifactKind(relativePath)
+	c.snapshots = append(c.snapshots, globaldb.ArtifactSnapshotInput{
+		ArtifactKind:    artifactKind,
+		RelativePath:    relativePath,
+		Checksum:        checksum,
+		FrontmatterJSON: frontmatterJSON,
+		BodyText:        bodyText,
+		SourceMTime:     info.ModTime().UTC(),
+	})
+	c.checksumParts = append(c.checksumParts, artifactKind+"\x00"+relativePath+"\x00"+checksum)
+	return nil
 }
 
 func snapshotArtifactContent(content string) (string, string, error) {
@@ -367,6 +630,8 @@ func classifyArtifactKind(relativePath string) string {
 		return "techspec"
 	case clean == "_tasks.md":
 		return "tasks_index"
+	case clean == workpackages.ManifestFileName:
+		return "work_package_plan"
 	case tasks.ExtractTaskNumber(base) > 0 && !strings.Contains(clean, "/"):
 		return "task"
 	case strings.HasPrefix(clean, "adrs/"):
