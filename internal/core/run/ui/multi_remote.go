@@ -1039,7 +1039,7 @@ func applyParallelAggregateTaskOutcome(child *uiModel, ev events.Event) {
 		return
 	}
 	success := ev.Kind == events.EventKindTaskParallelMerged ||
-		payload.Status == taskParallelStatusMerged || payload.Status == taskParallelStatusRecovered
+		kinds.TaskParallelTaskStatus(payload.Status).IsIntegrated()
 	for idx := range child.jobs {
 		if child.jobs[idx].taskNumber != number {
 			continue
