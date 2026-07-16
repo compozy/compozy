@@ -12,10 +12,21 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
+
+type completionStoreFunc func(context.Context, string, string) (workpackages.CompletionResult, error)
+
+func (fn completionStoreFunc) MarkComplete(
+	ctx context.Context,
+	initiativeDir string,
+	packageID string,
+) (workpackages.CompletionResult, error) {
+	return fn(ctx, initiativeDir, packageID)
+}
 
 func TestSyncTaskMetadataSyncsSingleWorkflowIntoGlobalDBWithoutMutatingArtifacts(t *testing.T) {
 	workspaceRoot := t.TempDir()
@@ -985,6 +996,297 @@ func TestSyncWorkPackageInitiativePreservesParentChildOwnership(t *testing.T) {
 	if lifecycleCompleted {
 		t.Fatal("reopened package lifecycle_completed = true, want false")
 	}
+}
+
+func TestSyncWorkPackageExecutionScopeReconcilesOnlySelectedChild(t *testing.T) {
+	// INVARIANT: a package lifecycle refresh reads root specifications and one
+	// selected child without inspecting sibling operational artifacts.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/sync_test.go.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "completed",
+		"WP-002": "pending",
+	})
+	writeSyncWorkflowFile(
+		t,
+		filepath.Join(initiativeDir, "_packages", "WP-002"),
+		"task_01.md",
+		"this sibling artifact is deliberately invalid and must not be read\n",
+	)
+
+	target, err := (workpackages.TargetResolver{}).ResolvePackage(
+		context.Background(),
+		workspaceRoot,
+		"initiative/WP-001",
+	)
+	if err != nil {
+		t.Fatalf("ResolvePackage() error = %v", err)
+	}
+	scope, err := workpackages.BuildExecutionScope(target)
+	if err != nil {
+		t.Fatalf("BuildExecutionScope() error = %v", err)
+	}
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	db, err := globaldb.Open(context.Background(), homePaths.GlobalDBPath)
+	if err != nil {
+		t.Fatalf("globaldb.Open() error = %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	workspace, err := db.ResolveOrRegister(context.Background(), workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+
+	result, err := SyncWithDB(context.Background(), db, workspace, SyncConfig{ExecutionScope: &scope})
+	if err != nil {
+		t.Fatalf("SyncWithDB(scoped package): %v", err)
+	}
+	if result.WorkflowsScanned != 2 ||
+		!reflect.DeepEqual(result.SyncedPaths, []string{scope.SpecDir, scope.OperationalDir}) {
+		t.Fatalf("scoped sync result = %#v, want root plus WP-001 only", result)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() { _ = sqlDB.Close() }()
+	if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM workflows WHERE slug = 'initiative/WP-001'`); got != 1 {
+		t.Fatalf("WP-001 workflow count = %d, want 1", got)
+	}
+	if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM workflows WHERE slug = 'initiative/WP-002'`); got != 0 {
+		t.Fatalf("IT-019 scoped sync created or read WP-002 child count = %d, want 0", got)
+	}
+	if err := os.Remove(filepath.Join(initiativeDir, "_techspec.md")); err != nil {
+		t.Fatalf("remove canonical techspec: %v", err)
+	}
+	if _, err := SyncWithDB(
+		context.Background(),
+		db,
+		workspace,
+		SyncConfig{ExecutionScope: &scope},
+	); err == nil ||
+		!strings.Contains(err.Error(), "_techspec.md") {
+		t.Fatalf("IT-038 scoped sync error = %v, want inaccessible canonical techspec", err)
+	}
+}
+
+func TestWorkPackageCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testing.T) {
+	// INVARIANT: clean review evidence, plan mutation, and catalog sync have
+	// independent truthful outcomes.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/sync_test.go.
+	t.Run("IT-076 records a clean package and is idempotent", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		setSyncTestHome(t)
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_packages", "WP-001"),
+			"task_01.md",
+			taskBody("completed", "WP-001 task"),
+		)
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_packages", "WP-002"),
+			"task_01.md",
+			"sibling mutable artifact must not be read during completion\n",
+		)
+
+		request := WorkPackageCompletionRequest{
+			WorkspaceRoot:      workspaceRoot,
+			Reference:          "initiative/WP-001",
+			VerificationPassed: true,
+		}
+		first, err := CompleteWorkPackage(context.Background(), request)
+		if err != nil {
+			t.Fatalf("CompleteWorkPackage(first): %v", err)
+		}
+		if !first.ReviewClean || !first.CompletionRecorded || first.AlreadyCompleted || first.SyncPending {
+			t.Fatalf("first completion result = %#v", first)
+		}
+		second, err := CompleteWorkPackage(context.Background(), request)
+		if err != nil {
+			t.Fatalf("CompleteWorkPackage(second): %v", err)
+		}
+		if !second.ReviewClean || second.CompletionRecorded || !second.AlreadyCompleted || second.SyncPending {
+			t.Fatalf("second completion result = %#v", second)
+		}
+		plan, err := workpackages.NewStore().Load(context.Background(), initiativeDir)
+		if err != nil {
+			t.Fatalf("Load(completed plan): %v", err)
+		}
+		if !plan.IsComplete("WP-001") {
+			t.Fatal("IT-076 completed package checkbox was not recorded")
+		}
+
+		sqlDB := openSyncSQLite(t)
+		defer func() { _ = sqlDB.Close() }()
+		var complete bool
+		if err := sqlDB.QueryRowContext(
+			context.Background(),
+			`SELECT lifecycle_completed FROM workflows WHERE slug = 'initiative/WP-001'`,
+		).Scan(&complete); err != nil {
+			t.Fatalf("query completed package projection: %v", err)
+		}
+		if !complete {
+			t.Fatal("IT-076 child lifecycle projection = false, want true")
+		}
+		if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM workflows WHERE slug = 'initiative/WP-002'`); got != 0 {
+			t.Fatalf("IT-024 completion sync read sibling WP-002 count = %d, want 0", got)
+		}
+	})
+
+	t.Run("IT-025 preserves a clean review when the current plan is malformed", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_packages", "WP-001"),
+			"task_01.md",
+			taskBody("completed", "WP-001 task"),
+		)
+		planPath := filepath.Join(initiativeDir, workpackages.ManifestFileName)
+		malformed := "---\ninvalid"
+		writeSyncWorkflowFile(t, initiativeDir, workpackages.ManifestFileName, malformed)
+
+		result, err := NewWorkPackageCompletionService().Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if !errors.Is(err, workpackages.ErrInvalidPlan) {
+			t.Fatalf("Complete(malformed plan) error = %v, want invalid plan", err)
+		}
+		if !result.ReviewClean || result.CompletionRecorded || result.SyncPending {
+			t.Fatalf("IT-025 completion result = %#v", result)
+		}
+		if got := mustReadFile(t, planPath); got != malformed {
+			t.Fatalf("malformed plan bytes changed\nwant: %q\ngot:  %q", malformed, got)
+		}
+	})
+
+	t.Run("IT-028 and sync failure keep completion outcomes distinct", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_packages", "WP-001"),
+			"task_01.md",
+			taskBody("completed", "WP-001 task"),
+		)
+		service := NewWorkPackageCompletionService()
+		service.sync = func(context.Context, string, model.ExecutionScope) error {
+			return errors.New("catalog temporarily unavailable")
+		}
+
+		result, err := service.Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if err == nil || !strings.Contains(err.Error(), "catalog temporarily unavailable") {
+			t.Fatalf("Complete(sync failure) error = %v", err)
+		}
+		if !result.ReviewClean || !result.CompletionRecorded || !result.SyncPending {
+			t.Fatalf("sync-pending completion result = %#v", result)
+		}
+		plan, loadErr := workpackages.NewStore().Load(context.Background(), initiativeDir)
+		if loadErr != nil || !plan.IsComplete("WP-001") {
+			t.Fatalf("completion record after sync failure plan=%#v error=%v", plan, loadErr)
+		}
+	})
+
+	t.Run("IT-028 preserves a clean review when the plan is read only", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_packages", "WP-001"),
+			"task_01.md",
+			taskBody("completed", "WP-001 task"),
+		)
+		planPath := filepath.Join(initiativeDir, workpackages.ManifestFileName)
+		before := mustReadFile(t, planPath)
+		service := NewWorkPackageCompletionService()
+		service.store = completionStoreFunc(
+			func(context.Context, string, string) (workpackages.CompletionResult, error) {
+				return workpackages.CompletionResult{}, fmt.Errorf(
+					"record completion: %w",
+					workpackages.ErrPlanReadOnly,
+				)
+			},
+		)
+		service.sync = func(context.Context, string, model.ExecutionScope) error {
+			t.Fatal("sync must not run after a read-only completion failure")
+			return nil
+		}
+
+		result, err := service.Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if !errors.Is(err, workpackages.ErrPlanReadOnly) {
+			t.Fatalf("Complete(read-only plan) error = %v", err)
+		}
+		if !result.ReviewClean || result.CompletionRecorded || result.SyncPending {
+			t.Fatalf("IT-028 completion result = %#v", result)
+		}
+		if got := mustReadFile(t, planPath); got != before {
+			t.Fatal("read-only completion failure changed plan bytes")
+		}
+	})
+
+	t.Run("IT-027 rechecks reopened dependencies before recording completion", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_packages", "WP-002"),
+			"task_01.md",
+			taskBody("completed", "WP-002 task"),
+		)
+		before := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName))
+
+		result, err := NewWorkPackageCompletionService().Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-002", VerificationPassed: true,
+		})
+		if !errors.Is(err, workpackages.ErrDependenciesUnmet) {
+			t.Fatalf("Complete(reopened dependency) error = %v, want dependency error", err)
+		}
+		if !result.ReviewClean || result.CompletionRecorded {
+			t.Fatalf("IT-027 completion result = %#v", result)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName)); got != before {
+			t.Fatal("dependency-blocked completion changed plan bytes")
+		}
+	})
+
+	t.Run("IT-021 rejects unresolved review evidence without changing the plan", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody("completed", "WP-001 task"))
+		writeSyncWorkflowFile(
+			t,
+			packageDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBody("pending", "high"),
+		)
+		before := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName))
+
+		result, err := NewWorkPackageCompletionService().Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if err == nil || result.ReviewClean || result.CompletionRecorded {
+			t.Fatalf("IT-021 unresolved review result=%#v error=%v", result, err)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName)); got != before {
+			t.Fatal("completion changed plan despite unresolved review")
+		}
+	})
 }
 
 func TestSyncWorkPackageInitiativeFailsClosedAndPreservesChildren(t *testing.T) {

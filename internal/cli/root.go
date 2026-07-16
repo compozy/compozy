@@ -96,6 +96,7 @@ Use explicit workflow subcommands:
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
 		newExecCommandWithDefaults(defaults),
+		newInternalCommand(),
 		newMCPServeCommand(),
 	)
 	return root

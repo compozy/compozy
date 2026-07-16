@@ -190,6 +190,9 @@ func WriteFetchedReviewRoundDirect(pending *FetchedReviewItems) (*FetchResult, e
 
 func resolveFetchPRDDirectory(cfg *model.RuntimeConfig) (string, error) {
 	prdDir := reviews.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, cfg.Name)
+	if cfg.ExecutionScope != nil {
+		prdDir = cfg.ExecutionScope.OperationalDir
+	}
 	resolvedPRDDir, err := filepath.Abs(prdDir)
 	if err != nil {
 		return "", fmt.Errorf("resolve prd dir: %w", err)

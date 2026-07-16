@@ -36,10 +36,11 @@ type MigrationResult struct {
 }
 
 type SyncConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
+	WorkspaceRoot  string
+	RootDir        string
+	Name           string
+	TasksDir       string
+	ExecutionScope *ExecutionScope
 }
 
 type ArchiveConfig struct {

@@ -2064,6 +2064,95 @@ func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgePackageRunsResolveChildScope(t *testing.T) {
+	// INVARIANT: extension-created package runs retain the selected child
+	// identity and ignore caller-provided sibling operational directories.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-019, IT-024.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	packageDir := filepath.Join(env.workflowDir(initiative), "_packages", "WP-001")
+	siblingDir := filepath.Join(env.workflowDir(initiative), "_packages", "WP-002")
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "reviews-001", "issue_001.md"),
+		daemonReviewIssueBody("pending", "high"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-002", "task_01.md"),
+		"sibling artifact must not be read\n",
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-002", "reviews-001", "issue_001.md"),
+		"sibling review must not be read\n",
+	)
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+	taskHandle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Name:          packageRef,
+		TasksDir:      siblingDir,
+		Mode:          model.ExecutionModePRDTasks,
+		ParentRunID:   "parent-package-task",
+	})
+	if err != nil {
+		t.Fatalf("StartRun(package task) error = %v", err)
+	}
+	taskRun := waitForRun(t, env.globalDB, taskHandle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	child, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, packageRef)
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug(package): %v", err)
+	}
+	if taskRun.WorkflowID == nil || *taskRun.WorkflowID != child.ID {
+		t.Fatalf("IT-019 task WorkflowID = %v, want child %q", taskRun.WorkflowID, child.ID)
+	}
+
+	reviewHandle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Name:          packageRef,
+		Round:         1,
+		ReviewsDir:    filepath.Join(siblingDir, "reviews-001"),
+		Mode:          model.ExecutionModePRReview,
+		ParentRunID:   "parent-package-review",
+	})
+	if err != nil {
+		t.Fatalf("StartRun(package review) error = %v", err)
+	}
+	reviewRun := waitForRun(t, env.globalDB, reviewHandle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if reviewRun.WorkflowID == nil || *reviewRun.WorkflowID != child.ID {
+		t.Fatalf("IT-022 review WorkflowID = %v, want child %q", reviewRun.WorkflowID, child.ID)
+	}
+	if _, err := os.Stat(filepath.Join(packageDir, "reviews-001", "issue_001.md")); err != nil {
+		t.Fatalf("selected package review artifact was not retained: %v", err)
+	}
+}
+
 func TestExtensionBridgeStartRunCreatesDetachedReviewRun(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	env.createReviewRound(t, 1)
@@ -3116,6 +3205,248 @@ func TestRunManagerReviewRunWatcherSyncsOwnedWorkflowArtifacts(t *testing.T) {
 	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
 		return row.Status == runStatusCancelled
 	})
+}
+
+func TestRunManagerPackageLifecycleUsesChildScopeForTaskAndReviewPreparation(t *testing.T) {
+	// INVARIANT: package task and review preparation retain the public child
+	// workflow identity while all mutable inputs resolve under that package.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	packageDir := filepath.Join(env.workflowDir(initiative), "_packages", "WP-001")
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-002", "task_01.md"),
+		"sibling artifact must not be read\n",
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "reviews-001", "issue_001.md"),
+		daemonReviewIssueBody("pending", "high"),
+	)
+
+	_, workflowID, taskCfg, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
+	)
+	if err != nil {
+		t.Fatalf("prepareTaskStart(package): %v", err)
+	}
+	canonicalPackageDir, err := filepath.EvalSymlinks(packageDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(package): %v", err)
+	}
+	if workflowID == nil || taskCfg.ExecutionScope == nil || taskCfg.Name != packageRef ||
+		taskCfg.WorkflowName != packageRef ||
+		taskCfg.TasksDir != taskCfg.ExecutionScope.TasksDir ||
+		taskCfg.ExecutionScope.OperationalDir != canonicalPackageDir {
+		t.Fatalf("IT-017/IT-019 task package config = %#v workflowID=%v", taskCfg, workflowID)
+	}
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(workspace): %v", err)
+	}
+	workflow, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, packageRef)
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug(package): %v", err)
+	}
+	if workflow.ID != *workflowID || workflow.Kind != globaldb.WorkflowKindWorkPackage {
+		t.Fatalf("child workflow = %#v, want package child %q", workflow, *workflowID)
+	}
+
+	_, reviewWorkflowID, reviewCfg, _, _, err := env.manager.prepareReviewStart(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		1,
+		apicore.ReviewRunRequest{Workspace: env.workspaceRoot},
+	)
+	if err != nil {
+		t.Fatalf("prepareReviewStart(package): %v", err)
+	}
+	if reviewWorkflowID == nil || *reviewWorkflowID != *workflowID || reviewCfg.ExecutionScope == nil ||
+		reviewCfg.ReviewsDir != reviewCfg.ExecutionScope.ReviewDir(1) {
+		t.Fatalf("IT-022/IT-041 review package config = %#v workflowID=%v", reviewCfg, reviewWorkflowID)
+	}
+	if err := os.Remove(filepath.Join(env.workflowDir(initiative), "_techspec.md")); err != nil {
+		t.Fatalf("remove canonical techspec: %v", err)
+	}
+	if _, _, _, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
+	); err == nil || !strings.Contains(err.Error(), "_techspec.md") {
+		t.Fatalf("IT-038 prepareTaskStart() error = %v, want inaccessible canonical techspec", err)
+	}
+}
+
+func TestRunManagerPackageWorktreeExecutionIsRejected(t *testing.T) {
+	// INVARIANT: package lifecycle operations never delegate Git worktree
+	// creation or switching to the parallel task runner.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-030.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package task"),
+	)
+
+	assertPackageGitMutationForbidden := func(t *testing.T, err error) {
+		t.Helper()
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) || problem.Status != http.StatusUnprocessableEntity ||
+			problem.Code != "package_git_mutation_forbidden" {
+			t.Fatalf("problem = %#v error = %v, want 422 package_git_mutation_forbidden", problem, err)
+		}
+		if got := problem.Details["workflow"]; got != packageRef {
+			t.Fatalf("problem workflow = %#v, want %q", got, packageRef)
+		}
+	}
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"package-parallel-task","parallel_tasks":{"enabled":true}}`),
+		},
+	)
+	assertPackageGitMutationForbidden(t, err)
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"package-parallel-task",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(package-parallel-task) error = %v, want no run created", err)
+	}
+
+	_, err = env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Slugs:            []string{packageRef},
+			Mode:             workspacecfg.TaskRunMultipleModeParallel,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"package-parallel-multi"}`),
+		},
+	)
+	assertPackageGitMutationForbidden(t, err)
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"package-parallel-multi",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(package-parallel-multi) error = %v, want no run created", err)
+	}
+}
+
+func TestRunManagerPackageEmptyTaskSuiteFailsBeforeRunCreation(t *testing.T) {
+	// INVARIANT: an opted-in package with no executable task file never starts
+	// an agent session or creates a durable run.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-018.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(t, initiative, filepath.Join("_packages", "WP-001", "_tasks.md"), "# Empty package\n")
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"package-empty-suite"}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusUnprocessableEntity ||
+		problem.Code != "package_no_executable_tasks" {
+		t.Fatalf("IT-018 problem = %#v error = %v", problem, err)
+	}
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"package-empty-suite",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(package-empty-suite) error = %v, want no run created", err)
+	}
+}
+
+func TestRunManagerPackageRerunUsesExistingCompletionPolicy(t *testing.T) {
+	// INVARIANT: package runs use the established include-completed policy and
+	// never rewrite the completion checkbox while applying it.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-014, IT-017.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("completed", "Completed package task"),
+	)
+
+	_, _, _, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
+		problem.Code != "workflow_no_pending_tasks" {
+		t.Fatalf("IT-017 completed package problem = %#v error = %v", problem, err)
+	}
+
+	_, _, runtimeCfg, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		packageRef,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			RuntimeOverrides: rawJSON(t, `{"include_completed":true}`),
+		},
+	)
+	if err != nil || runtimeCfg == nil || !runtimeCfg.IncludeCompleted || runtimeCfg.ExecutionScope == nil {
+		t.Fatalf("IT-014 include-completed package config = %#v error = %v", runtimeCfg, err)
+	}
 }
 
 func TestRunManagerTaskRunWatchersStayIsolatedAcrossWorkflows(t *testing.T) {

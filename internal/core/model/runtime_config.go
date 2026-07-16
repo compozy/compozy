@@ -25,6 +25,7 @@ type RuntimeConfig struct {
 	Provider                   string
 	PR                         string
 	Nitpicks                   bool
+	ExecutionScope             *ExecutionScope `json:"-"`
 	ReviewsDir                 string
 	TasksDir                   string
 	DryRun                     bool

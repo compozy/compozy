@@ -22,6 +22,14 @@ type reviewPromptContext struct {
 }
 
 func buildCodeReviewPrompt(p BatchParams) string {
+	promptText, err := buildCodeReviewPromptWithScope(p)
+	if err != nil {
+		return ""
+	}
+	return promptText
+}
+
+func buildCodeReviewPromptWithScope(p BatchParams) (string, error) {
 	codeFiles := sortCodeFiles(p.BatchGroups)
 	batchIssues := FlattenAndSortIssues(p.BatchGroups, model.ExecutionModePRReview)
 	minIssue, maxIssue, hasIssueRange := batchIssueRange(batchIssues)
@@ -39,15 +47,20 @@ func buildCodeReviewPrompt(p BatchParams) string {
 		HasIssueRange: hasIssueRange,
 	}
 
+	executionScope, err := buildExecutionScopeSection(p.Scope)
+	if err != nil {
+		return "", err
+	}
 	sections := []string{
 		buildBatchHeader(p),
 		buildReviewRequiredSkillsSection(),
 		buildReviewScopeSection(ctx),
+		executionScope,
 		buildBatchIssueFilesSection(batchIssues),
 		buildReviewExecutionSection(ctx),
 		buildBatchChecklist(p),
 	}
-	return strings.Join(sections, "\n\n")
+	return strings.Join(compactPromptSections(sections), "\n\n"), nil
 }
 
 func buildReviewRequiredSkillsSection() string {

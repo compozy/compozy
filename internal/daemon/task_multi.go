@@ -105,6 +105,13 @@ func (m *RunManager) StartTaskRunMultiple(
 	if err != nil {
 		return apicore.Run{}, err
 	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		for _, item := range prepared.items {
+			if item.runtimeCfg != nil && item.runtimeCfg.ExecutionScope != nil {
+				return apicore.Run{}, packageWorktreeExecutionProblem(item.runtimeCfg.ExecutionScope)
+			}
+		}
+	}
 	runtimeCfg, err := taskMultiParentRuntimeConfig(req.RuntimeOverrides, prepared.workspace.RootDir)
 	if err != nil {
 		return apicore.Run{}, err
@@ -134,6 +141,9 @@ func (m *RunManager) startParallelTaskRunIfEnabled(
 	parallelCfg = parallelCfg.ApplyDefaults()
 	if parallelCfg.Enabled == nil || !*parallelCfg.Enabled {
 		return apicore.Run{}, false, nil
+	}
+	if runtimeCfg.ExecutionScope != nil {
+		return apicore.Run{}, true, packageWorktreeExecutionProblem(runtimeCfg.ExecutionScope)
 	}
 	waves, taskSpecs, err := buildDaemonParallelTaskPlan(
 		ctx,

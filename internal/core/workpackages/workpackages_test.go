@@ -338,6 +338,46 @@ func TestResolver(t *testing.T) {
 	})
 }
 
+func TestExecutionScope(t *testing.T) {
+	// INVARIANT: a package reference always separates root specifications from
+	// one contained package operational directory.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/core/workpackages/workpackages_test.go.
+	workspace := t.TempDir()
+	initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
+	planContent := strings.ReplaceAll(string(twoPackagePlan(t)), "demo", "customer-management")
+	writeTestFile(t, initiativeDir, ManifestFileName, planContent)
+	writeTestFile(
+		t,
+		initiativeDir,
+		"_packages/WP-001/task_01.md",
+		"---\nstatus: pending\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
+	)
+
+	target, err := (TargetResolver{}).ResolvePackage(context.Background(), workspace, "customer-management/WP-001")
+	if err != nil {
+		t.Fatalf("ResolvePackage() error = %v", err)
+	}
+	scope, err := BuildExecutionScope(target)
+	if err != nil {
+		t.Fatalf("BuildExecutionScope() error = %v", err)
+	}
+	canonicalInitiativeDir, err := filepath.EvalSymlinks(initiativeDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(initiative): %v", err)
+	}
+	if scope.WorkflowRef != "customer-management/WP-001" || scope.SpecDir != canonicalInitiativeDir ||
+		scope.OperationalDir != filepath.Join(canonicalInitiativeDir, "_packages", "WP-001") ||
+		scope.TasksDir != scope.OperationalDir || scope.ReviewsDir != scope.OperationalDir ||
+		scope.MemoryDir != filepath.Join(scope.OperationalDir, "memory") {
+		t.Fatalf("UT-037 execution scope = %#v", scope)
+	}
+
+	target.PackageDir = ""
+	if _, err := BuildExecutionScope(target); err == nil {
+		t.Fatal("BuildExecutionScope() error = nil for incomplete target")
+	}
+}
+
 func TestReadiness(t *testing.T) {
 	t.Parallel()
 	t.Run("UT-016 keeps direct blockers before transitive context", func(t *testing.T) {

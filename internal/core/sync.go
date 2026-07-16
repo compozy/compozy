@@ -26,6 +26,9 @@ import (
 const authoredTaskListHeader = "| # | Title | Status | Complexity | Dependencies |"
 
 func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+	if cfg.ExecutionScope != nil {
+		return syncScopedWorkPackageDirect(ctx, cfg)
+	}
 	target, singleWorkflow, err := resolveSyncTarget(cfg)
 	result := &SyncResult{Target: target}
 	if err != nil {
@@ -43,6 +46,37 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 	return syncResolvedTarget(ctx, db, workspace, target, singleWorkflow, result)
 }
 
+func syncScopedWorkPackageDirect(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+	scope := cfg.ExecutionScope
+	result := &SyncResult{}
+	if scope != nil {
+		result.Target = scope.OperationalDir
+	}
+	workspaceRoot := strings.TrimSpace(cfg.WorkspaceRoot)
+	if workspaceRoot == "" {
+		return result, errors.New("work package execution scope requires workspace root")
+	}
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		return result, fmt.Errorf("resolve compozy home paths: %w", err)
+	}
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+		return result, fmt.Errorf("ensure compozy home layout: %w", err)
+	}
+	db, err := globaldb.Open(ctx, homePaths.GlobalDBPath)
+	if err != nil {
+		return result, fmt.Errorf("open scoped sync database: %w", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace, err := db.ResolveOrRegister(ctx, workspaceRoot)
+	if err != nil {
+		return result, fmt.Errorf("resolve scoped sync workspace: %w", err)
+	}
+	return syncScopedWorkPackage(ctx, db, workspace, cfg)
+}
+
 // SyncWithDB reconciles workflow artifacts into an already-open global.db.
 func SyncWithDB(
 	ctx context.Context,
@@ -50,6 +84,9 @@ func SyncWithDB(
 	workspace globaldb.Workspace,
 	cfg SyncConfig,
 ) (*SyncResult, error) {
+	if cfg.ExecutionScope != nil {
+		return syncScopedWorkPackage(ctx, db, workspace, cfg)
+	}
 	target, singleWorkflow, err := resolveSyncTarget(cfg)
 	result := &SyncResult{Target: target}
 	if err != nil {
@@ -65,6 +102,60 @@ func SyncWithDB(
 		return result, fmt.Errorf("mismatched workspace and sync target: %s is outside %s", target, workspace.RootDir)
 	}
 	return syncResolvedTarget(ctx, db, workspace, target, singleWorkflow, result)
+}
+
+func syncScopedWorkPackage(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	cfg SyncConfig,
+) (*SyncResult, error) {
+	if cfg.ExecutionScope == nil {
+		return nil, errors.New("work package execution scope is required")
+	}
+	if db == nil {
+		return nil, errors.New("sync database is required")
+	}
+	if strings.TrimSpace(workspace.ID) == "" {
+		return nil, errors.New("sync workspace id is required")
+	}
+	scope := *cfg.ExecutionScope
+	result := &SyncResult{Target: scope.OperationalDir}
+	if strings.TrimSpace(scope.WorkflowRef) == "" {
+		return result, errors.New("work package execution scope workflow reference is required")
+	}
+	if !syncTargetBelongsToWorkspace(scope.SpecDir, workspace.RootDir) ||
+		!syncTargetBelongsToWorkspace(scope.OperationalDir, workspace.RootDir) {
+		return result, fmt.Errorf("mismatched workspace and work package execution scope: %s", scope.WorkflowRef)
+	}
+	if err := ensureCurrentExecutionScopeSpecifications(scope); err != nil {
+		return result, err
+	}
+
+	target, err := (workpackages.TargetResolver{}).ResolvePackage(ctx, workspace.RootDir, scope.WorkflowRef)
+	if err != nil {
+		return result, fmt.Errorf("resolve work package execution scope %s: %w", scope.WorkflowRef, err)
+	}
+	currentScope, err := workpackages.BuildExecutionScope(target)
+	if err != nil {
+		return result, err
+	}
+	if !sameExecutionScope(scope, currentScope) {
+		return result, fmt.Errorf("work package execution scope changed while syncing %s", scope.WorkflowRef)
+	}
+	if err := syncWorkPackageTarget(ctx, db, workspace, target, result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func sameExecutionScope(left, right model.ExecutionScope) bool {
+	return canonicalWorkflowScopePath(left.SpecDir) == canonicalWorkflowScopePath(right.SpecDir) &&
+		canonicalWorkflowScopePath(left.OperationalDir) == canonicalWorkflowScopePath(right.OperationalDir) &&
+		strings.TrimSpace(left.WorkflowRef) == strings.TrimSpace(right.WorkflowRef) &&
+		canonicalWorkflowScopePath(left.TasksDir) == canonicalWorkflowScopePath(right.TasksDir) &&
+		canonicalWorkflowScopePath(left.ReviewsDir) == canonicalWorkflowScopePath(right.ReviewsDir) &&
+		canonicalWorkflowScopePath(left.MemoryDir) == canonicalWorkflowScopePath(right.MemoryDir)
 }
 
 func syncTargetBelongsToWorkspace(target string, workspaceRoot string) bool {
@@ -384,6 +475,58 @@ func syncWorkPackageInitiative(
 	return nil
 }
 
+func syncWorkPackageTarget(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+	result *SyncResult,
+) error {
+	if target.Mode != workpackages.TargetModePackage {
+		return fmt.Errorf("sync work package target: %s is not a package", target.DisplayRef)
+	}
+	parentSnapshots, parentChecksum, err := collectArtifactSnapshotsExcludingPackages(target.InitiativeDir)
+	if err != nil {
+		return err
+	}
+	child, childPath, removed, err := collectWorkPackageSyncChildFromTarget(ctx, workspace, target)
+	if err != nil {
+		return err
+	}
+	aggregate, err := db.ReconcileAggregateWorkflowSync(ctx, globaldb.AggregateWorkflowSyncInput{
+		Parent: globaldb.WorkflowSyncInput{
+			WorkspaceID:        workspace.ID,
+			WorkflowSlug:       target.Ref.Initiative,
+			Kind:               globaldb.WorkflowKindInitiative,
+			SyncedAt:           time.Now().UTC(),
+			CheckpointScope:    "workflow",
+			CheckpointChecksum: parentChecksum,
+			ArtifactSnapshots:  parentSnapshots,
+		},
+		Children:                []globaldb.WorkflowSyncInput{child},
+		PreserveMissingChildren: true,
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile work package %s: %w", target.DisplayRef, err)
+	}
+	applyWorkflowSyncResult(result, target.InitiativeDir, &aggregate.Parent)
+	for childIndex := range aggregate.Children {
+		childResult := &aggregate.Children[childIndex]
+		applyWorkflowSyncResult(result, childPath, childResult)
+		result.WorkPackageChildIDs = append(result.WorkPackageChildIDs, childResult.Workflow.ID)
+	}
+	result.LegacyArtifactsRemoved += len(removed)
+	if len(removed) > 0 {
+		sort.Strings(removed)
+		result.Warnings = append(result.Warnings, fmt.Sprintf(
+			"%s: removed legacy generated artifacts %s",
+			target.DisplayRef,
+			strings.Join(removed, ", "),
+		))
+	}
+	return nil
+}
+
 type workPackageSyncChildren struct {
 	children               []globaldb.WorkflowSyncInput
 	childPaths             map[string]string
@@ -432,35 +575,68 @@ func collectWorkPackageSyncChild(
 	if err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("resolve work package %s: %w", pkg.ID, err)
 	}
+	return collectWorkPackageSyncChildFromTarget(ctx, workspace, childTarget)
+}
+
+func collectWorkPackageSyncChildFromTarget(
+	ctx context.Context,
+	workspace globaldb.Workspace,
+	childTarget workpackages.Target,
+) (globaldb.WorkflowSyncInput, string, []string, error) {
+	if err := ctx.Err(); err != nil {
+		return globaldb.WorkflowSyncInput{}, "", nil, err
+	}
+	if childTarget.Mode != workpackages.TargetModePackage {
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
+			"resolve work package target: %s is not a package",
+			childTarget.DisplayRef,
+		)
+	}
 	removed, err := cleanupLegacyWorkflowMetadata(childTarget.PackageDir)
 	if err != nil {
-		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("cleanup work package %s metadata: %w", pkg.ID, err)
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
+			"cleanup work package %s metadata: %w",
+			childTarget.Package.ID,
+			err,
+		)
 	}
 	snapshots, checksum, err := collectArtifactSnapshots(childTarget.PackageDir)
 	if err != nil {
-		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("collect work package %s artifacts: %w", pkg.ID, err)
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
+			"collect work package %s artifacts: %w",
+			childTarget.Package.ID,
+			err,
+		)
 	}
 	taskItems, err := collectTaskItems(childTarget.PackageDir)
 	if err != nil {
-		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("collect work package %s tasks: %w", pkg.ID, err)
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
+			"collect work package %s tasks: %w",
+			childTarget.Package.ID,
+			err,
+		)
 	}
 	reviewRounds, err := collectReviewRounds(childTarget.PackageDir)
 	if err != nil {
-		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("collect work package %s reviews: %w", pkg.ID, err)
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
+			"collect work package %s reviews: %w",
+			childTarget.Package.ID,
+			err,
+		)
 	}
 	removedWithPackageID := make([]string, 0, len(removed))
 	for _, path := range removed {
-		removedWithPackageID = append(removedWithPackageID, pkg.ID+"/"+path)
+		removedWithPackageID = append(removedWithPackageID, childTarget.Package.ID+"/"+path)
 	}
 	return globaldb.WorkflowSyncInput{
 		WorkspaceID:        workspace.ID,
-		WorkflowSlug:       target.Ref.Initiative + "/" + pkg.ID,
+		WorkflowSlug:       childTarget.DisplayRef,
 		Kind:               globaldb.WorkflowKindWorkPackage,
-		PackageID:          pkg.ID,
-		DisplayTitle:       pkg.Title,
-		Outcome:            pkg.Outcome,
-		LifecycleCompleted: pkg.Completed,
-		Dependencies:       packageDependencies(pkg),
+		PackageID:          childTarget.Package.ID,
+		DisplayTitle:       childTarget.Package.Title,
+		Outcome:            childTarget.Package.Outcome,
+		LifecycleCompleted: childTarget.Package.Completed,
+		Dependencies:       packageDependencies(&childTarget.Package),
 		SyncedAt:           time.Now().UTC(),
 		CheckpointScope:    "workflow",
 		CheckpointChecksum: checksum,

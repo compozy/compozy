@@ -783,6 +783,23 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 	}
 }
 
+func TestRootCommandRegistersHiddenWorkPackageCompletionBridge(t *testing.T) {
+	// INVARIANT: final-review automation has one non-public, deterministic
+	// completion bridge rather than a user-visible lifecycle command.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/cli/root_test.go.
+	root := NewRootCommand()
+	command, _, err := root.Find([]string{"internal", "work-packages", "complete"})
+	if err != nil {
+		t.Fatalf("Find(hidden completion bridge): %v", err)
+	}
+	if command == nil || !command.Hidden || command.Use != "complete <initiative>/WP-NNN" {
+		t.Fatalf("hidden completion command = %#v", command)
+	}
+	if command.Flags().Lookup("verification-passed") == nil {
+		t.Fatal("hidden completion bridge is missing final verification gate flag")
+	}
+}
+
 func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	t.Parallel()
 

@@ -31,6 +31,9 @@ func Prepare(
 	if scope == nil {
 		return nil, errors.New("prepare run: missing run scope")
 	}
+	if err := ensureCurrentScopedSpecifications(cfg); err != nil {
+		return nil, err
+	}
 
 	prep := &model.SolvePreparation{}
 	prep.RunArtifacts = scope.RunArtifacts()
@@ -54,6 +57,23 @@ func Prepare(
 	}
 
 	return prep, nil
+}
+
+func ensureCurrentScopedSpecifications(cfg *model.RuntimeConfig) error {
+	if cfg == nil || cfg.ExecutionScope == nil {
+		return nil
+	}
+	specDir := strings.TrimSpace(cfg.ExecutionScope.SpecDir)
+	if specDir == "" {
+		return errors.New("prepare scoped run: specification directory is required")
+	}
+	for _, name := range []string{"_prd.md", "_techspec.md"} {
+		path := filepath.Join(specDir, name)
+		if _, err := os.ReadFile(path); err != nil {
+			return fmt.Errorf("read current canonical specification %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 func prepareWorkflowRun(
@@ -466,6 +486,7 @@ func buildBatchJob(
 		BatchGroups: batchGroups,
 		AutoCommit:  cfg.AutoCommit,
 		Mode:        cfg.Mode,
+		Scope:       cfg.ExecutionScope,
 		Context:     ctx,
 		RunID:       runArtifacts.RunID,
 		JobID:       safeName,

@@ -18,25 +18,48 @@ type WorkflowMemoryContext struct {
 }
 
 func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool, memory *WorkflowMemoryContext) string {
+	promptText, err := buildPRDTaskPromptWithScope(task, autoCommit, memory, nil)
+	if err != nil {
+		return ""
+	}
+	return promptText
+}
+
+func buildPRDTaskPromptWithScope(
+	task model.IssueEntry,
+	autoCommit bool,
+	memory *WorkflowMemoryContext,
+	scope *model.ExecutionScope,
+) (string, error) {
 	taskData, err := tasks.ParseTaskFile(task.Content)
 	if err != nil {
 		taskData = model.TaskEntry{Content: task.Content, Status: "UNCONFIRMED"}
 	}
-	prdDir := filepath.Dir(task.AbsPath)
-	tasksFile := filepath.Join(prdDir, "_tasks.md")
+	operationalDir := filepath.Dir(task.AbsPath)
+	specDir := operationalDir
+	if scope != nil {
+		operationalDir = scope.OperationalDir
+		specDir = scope.SpecDir
+	}
+	tasksFile := filepath.Join(operationalDir, "_tasks.md")
+	executionScope, err := buildExecutionScopeSection(scope)
+	if err != nil {
+		return "", err
+	}
 
 	sections := []string{
 		fmt.Sprintf("# Implementation Task: %s", task.Name),
 		buildPRDKickoffDirective(task.Name),
 		buildTaskContextSection(taskData),
 		buildPRDRequiredSkillsSection(),
-		buildPRDExecutionRulesSection(prdDir, autoCommit),
+		buildPRDExecutionRulesSection(specDir, autoCommit),
+		executionScope,
 		buildWorkflowMemorySection(memory),
 		fmt.Sprintf("## Task Specification\n\n%s", task.Content),
-		buildTaskFilesSection(task.AbsPath, tasksFile, prdDir, autoCommit),
+		buildTaskFilesSection(task.AbsPath, tasksFile, specDir, operationalDir, autoCommit),
 		buildPRDClosingDirective(task.Name),
 	}
-	return strings.Join(sections, "\n\n")
+	return strings.Join(compactPromptSections(sections), "\n\n"), nil
 }
 
 // buildPRDKickoffDirective produces the imperative opener that prevents the
@@ -181,10 +204,13 @@ func buildPRDSystemPromptAddendum(memory *WorkflowMemoryContext) string {
 	return strings.Join(lines, "\n")
 }
 
-func buildTaskFilesSection(taskAbsPath, tasksFile, prdDir string, autoCommit bool) string {
+func buildTaskFilesSection(taskAbsPath, tasksFile, specDir, operationalDir string, autoCommit bool) string {
 	var sb strings.Builder
 	sb.WriteString("## Task Files\n\n")
-	fmt.Fprintf(&sb, "- PRD directory: `%s`\n", prdDir)
+	fmt.Fprintf(&sb, "- Initiative specification directory: `%s`\n", specDir)
+	if operationalDir != specDir {
+		fmt.Fprintf(&sb, "- Package operational directory: `%s`\n", operationalDir)
+	}
 	fmt.Fprintf(&sb, "- Task file: `%s`\n", taskAbsPath)
 	fmt.Fprintf(&sb, "- Master tasks file: `%s`\n", tasksFile)
 	sb.WriteString("- Use these exact paths when `cy-execute-task` updates task tracking.\n")
@@ -205,4 +231,14 @@ func buildTaskFilesSection(taskAbsPath, tasksFile, prdDir string, autoCommit boo
 		sb.WriteString("- Do not create an automatic commit for this run. Leave the diff ready for manual review.\n")
 	}
 	return sb.String()
+}
+
+func compactPromptSections(sections []string) []string {
+	result := make([]string, 0, len(sections))
+	for _, section := range sections {
+		if strings.TrimSpace(section) != "" {
+			result = append(result, section)
+		}
+	}
+	return result
 }

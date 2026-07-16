@@ -111,6 +111,38 @@ func TestRunManagerReviewWatchCreatesReviewOnlyWorkflowDirectory(t *testing.T) {
 	})
 }
 
+func TestRunManagerReviewWatchRejectsAutoPushForWorkPackages(t *testing.T) {
+	// INVARIANT: a package lifecycle cannot acquire Git branch or remote
+	// ownership through the review-watch auto-push option.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/review_watch_test.go.
+	env := newReviewWatchTestEnv(
+		t,
+		&fakeReviewWatchProvider{},
+		&fakeReviewWatchGit{},
+		runManagerTestDeps{},
+	)
+	initiative := "watcher"
+	packageRef := initiative + "/WP-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package task"),
+	)
+
+	req := reviewWatchRequest(`{"run_id":"package-auto-push"}`)
+	req.AutoPush = true
+	req.PushRemote = "origin"
+	req.PushBranch = "feature/package"
+	_, _, _, _, err := env.manager.prepareReviewWatchStart(context.Background(), env.workspaceRoot, packageRef, req)
+	if err == nil || !strings.Contains(err.Error(), "cannot push") {
+		t.Fatalf("IT-029 package auto-push error = %v, want Git mutation rejection", err)
+	}
+}
+
 func TestRunManagerReviewWatchRequiresExistingDirectoryForExplicitWorkflowName(t *testing.T) {
 	t.Run("Should not create arbitrary missing workflow directory", func(t *testing.T) {
 		reviewProvider := &fakeReviewWatchProvider{

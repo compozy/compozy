@@ -77,6 +77,7 @@ type preparedReviewWatch struct {
 	workflowID     *string
 	workflowSlug   string
 	workflowRoot   string
+	executionScope *model.ExecutionScope
 	options        reviewWatchOptions
 	lastRound      int
 	lastChildRunID string
@@ -170,7 +171,8 @@ func (m *RunManager) prepareReviewWatchStart(
 	workflowSlug string,
 	req apicore.ReviewWatchRequest,
 ) (*preparedReviewWatch, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
-	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, workflowID, projectCfg, executionScope, err :=
+		m.resolveLifecycleWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
@@ -190,14 +192,8 @@ func (m *RunManager) prepareReviewWatchStart(
 	if err != nil {
 		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
-	if options.AutoPush && overrides.AutoCommit != nil && !*overrides.AutoCommit {
-		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
-			http.StatusUnprocessableEntity,
-			"invalid_watch_request",
-			"auto_push requires auto_commit to be true",
-			map[string]any{"field": "runtime_overrides.auto_commit"},
-			nil,
-		)
+	if err := validateReviewWatchGitOptions(options, overrides, executionScope); err != nil {
+		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 	options.ProjectMaxRetriesConfigured = projectCfg.Defaults.MaxRetries != nil
 	childRuntimeOverrides, err := reviewWatchChildRuntimeOverrides(
@@ -216,6 +212,9 @@ func (m *RunManager) prepareReviewWatchStart(
 	options.Batching = cloneJSON(req.Batching)
 
 	workflowRoot := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
+	if executionScope != nil {
+		workflowRoot = executionScope.OperationalDir
+	}
 	if err := ensureReviewWatchWorkflowDirectory(workflowRoot, workflowSlug, options.PR); err != nil {
 		return nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
@@ -226,6 +225,7 @@ func (m *RunManager) prepareReviewWatchStart(
 		Provider:                   options.Provider,
 		PR:                         options.PR,
 		TasksDir:                   workflowRoot,
+		ExecutionScope:             executionScope,
 		Mode:                       model.ExecutionModePRReview,
 		DaemonOwned:                true,
 		EnableExecutableExtensions: true,
@@ -239,12 +239,47 @@ func (m *RunManager) prepareReviewWatchStart(
 	runtimeCfg.EnableExecutableExtensions = true
 
 	return &preparedReviewWatch{
-		workspace:    workspaceRow,
-		workflowID:   workflowID,
-		workflowSlug: strings.TrimSpace(workflowSlug),
-		workflowRoot: workflowRoot,
-		options:      options,
+		workspace:      workspaceRow,
+		workflowID:     workflowID,
+		workflowSlug:   strings.TrimSpace(workflowSlug),
+		workflowRoot:   workflowRoot,
+		executionScope: executionScope,
+		options:        options,
 	}, runtimeCfg, recoveryCfg, presentationMode, nil
+}
+
+func validateReviewWatchGitOptions(
+	options reviewWatchOptions,
+	overrides runtimeOverrideInput,
+	scope *model.ExecutionScope,
+) error {
+	if options.AutoPush && overrides.AutoCommit != nil && !*overrides.AutoCommit {
+		return apicore.NewProblem(
+			http.StatusUnprocessableEntity,
+			"invalid_watch_request",
+			"auto_push requires auto_commit to be true",
+			map[string]any{"field": "runtime_overrides.auto_commit"},
+			nil,
+		)
+	}
+	if scope != nil && options.AutoPush {
+		return packageReviewWatchPushProblem(scope)
+	}
+	return nil
+}
+
+func packageReviewWatchPushProblem(scope *model.ExecutionScope) error {
+	workflowRef := "work package"
+	if scope != nil && strings.TrimSpace(scope.WorkflowRef) != "" {
+		workflowRef = strings.TrimSpace(scope.WorkflowRef)
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"package_git_mutation_forbidden",
+		"work package review watches cannot push or mutate Git lifecycle state",
+		map[string]any{"workflow": workflowRef, "field": "auto_push"},
+		nil,
+	)
 }
 
 func ensureReviewWatchWorkflowDirectory(dir string, workflowSlug string, prRef string) error {
@@ -675,11 +710,12 @@ func (m *RunManager) fetchReviewWatchPending(
 ) (*corepkg.FetchedReviewItems, error) {
 	options := runtime.options
 	pending, err := corepkg.FetchReviewItemsWithRegistryDirect(active.ctx, corepkg.Config{
-		WorkspaceRoot: prepared.workspace.RootDir,
-		Name:          prepared.workflowSlug,
-		Provider:      options.Provider,
-		PR:            options.PR,
-		Nitpicks:      options.Nitpicks,
+		WorkspaceRoot:  prepared.workspace.RootDir,
+		Name:           prepared.workflowSlug,
+		Provider:       options.Provider,
+		PR:             options.PR,
+		Nitpicks:       options.Nitpicks,
+		ExecutionScope: prepared.executionScope,
 	}, runtime.registry)
 	if err != nil {
 		return nil, err
@@ -725,7 +761,13 @@ func (m *RunManager) persistReviewWatchPending(
 	if err != nil {
 		return nil, err
 	}
-	roundRow, err := m.syncFetchedReviewRound(active.ctx, prepared.workspace, prepared.workflowSlug, result)
+	roundRow, err := m.syncFetchedReviewRound(
+		active.ctx,
+		prepared.workspace,
+		prepared.workflowSlug,
+		prepared.executionScope,
+		result,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,12 +1171,14 @@ func (m *RunManager) syncFetchedReviewRound(
 	ctx context.Context,
 	workspaceRow globaldb.Workspace,
 	workflowSlug string,
+	executionScope *model.ExecutionScope,
 	result *corepkg.FetchResult,
 ) (globaldb.ReviewRound, error) {
 	slug := strings.TrimSpace(workflowSlug)
 	syncResult, err := corepkg.SyncWithDB(ctx, m.globalDB, workspaceRow, corepkg.SyncConfig{
-		WorkspaceRoot: workspaceRow.RootDir,
-		Name:          slug,
+		WorkspaceRoot:  workspaceRow.RootDir,
+		Name:           slug,
+		ExecutionScope: executionScope,
 	})
 	if err != nil {
 		return globaldb.ReviewRound{}, reviewFetchPostWriteProblem(

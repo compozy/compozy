@@ -140,6 +140,7 @@ type Config struct {
 	SoundOnCompleted           string
 	SoundOnFailed              string
 	SoundOnParked              string
+	ExecutionScope             *model.ExecutionScope
 }
 
 // Job is a prepared execution unit with its generated artifacts.
@@ -390,6 +391,7 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		SoundOnCompleted:           cfg.SoundOnCompleted,
 		SoundOnFailed:              cfg.SoundOnFailed,
 		SoundOnParked:              cfg.SoundOnParked,
+		ExecutionScope:             cfg.ExecutionScope,
 	}
 	runtimeCfg.ApplyDefaults()
 	return runtimeCfg

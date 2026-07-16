@@ -26,6 +26,7 @@ import (
 	runpkg "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
@@ -149,6 +150,7 @@ type activeRun struct {
 	cancel         context.CancelFunc
 	done           chan struct{}
 	workflowRoot   string
+	executionScope *model.ExecutionScope
 	watcher        *workflowWatcher
 	reviewWatch    *preparedReviewWatch
 	reviewWatchKey *reviewWatchKey
@@ -544,6 +546,24 @@ func validateTaskExecutionDescriptor(
 			"received_kind":           strings.TrimSpace(descriptor.Kind),
 			"received_uses_worktrees": descriptor.UsesWorktrees,
 		},
+		nil,
+	)
+}
+
+// packageWorktreeExecutionProblem keeps package lifecycle execution out of the
+// worktree runner. That runner creates and switches Git worktrees as part of
+// its existing ownership model, whereas a work package must leave Git flow to
+// the user.
+func packageWorktreeExecutionProblem(scope *model.ExecutionScope) error {
+	workflowRef := "work package"
+	if scope != nil && strings.TrimSpace(scope.WorkflowRef) != "" {
+		workflowRef = strings.TrimSpace(scope.WorkflowRef)
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"package_git_mutation_forbidden",
+		"work package execution cannot use the Git worktree runner",
+		map[string]any{"workflow": workflowRef},
 		nil,
 	)
 }
@@ -960,7 +980,8 @@ func (m *RunManager) prepareTaskStart(
 	string,
 	error,
 ) {
-	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, workflowID, projectCfg, executionScope, err :=
+		m.resolveLifecycleWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
@@ -982,8 +1003,8 @@ func (m *RunManager) prepareTaskStart(
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 
-	tasksDir := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
-	if err := requireDirectory(tasksDir); err != nil {
+	tasksDir, err := resolveTaskOperationalDirectory(workspaceRow.RootDir, workflowSlug, executionScope)
+	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	runtimeCfg := &model.RuntimeConfig{
@@ -991,6 +1012,7 @@ func (m *RunManager) prepareTaskStart(
 		Name:                       strings.TrimSpace(workflowSlug),
 		WorkflowName:               strings.TrimSpace(workflowSlug),
 		TasksDir:                   tasksDir,
+		ExecutionScope:             executionScope,
 		Mode:                       model.ExecutionModePRDTasks,
 		EnableExecutableExtensions: true,
 	}
@@ -1023,6 +1045,43 @@ func (m *RunManager) prepareTaskStart(
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, nil
+}
+
+func resolveTaskOperationalDirectory(
+	workspaceRoot string,
+	workflowSlug string,
+	scope *model.ExecutionScope,
+) (string, error) {
+	tasksDir := model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+	if scope != nil {
+		tasksDir = scope.TasksDir
+	}
+	if err := requireDirectory(tasksDir); err != nil {
+		return "", err
+	}
+	if scope != nil {
+		if err := requirePackageExecutableTasks(tasksDir, scope.WorkflowRef); err != nil {
+			return "", err
+		}
+	}
+	return tasksDir, nil
+}
+
+func requirePackageExecutableTasks(tasksDir string, workflowRef string) error {
+	meta, err := taskscore.SnapshotTaskMeta(tasksDir)
+	if err != nil {
+		return fmt.Errorf("inspect package tasks for %s: %w", strings.TrimSpace(workflowRef), err)
+	}
+	if meta.Total > 0 {
+		return nil
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"package_no_executable_tasks",
+		"work package has no executable tasks",
+		map[string]any{"workflow": strings.TrimSpace(workflowRef)},
+		nil,
+	)
 }
 
 func (m *RunManager) rejectCompletedTaskWorkflow(
@@ -1083,17 +1142,12 @@ func (m *RunManager) prepareReviewStart(
 	round int,
 	req apicore.ReviewRunRequest,
 ) (globaldb.Workspace, *string, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
-	if round <= 0 {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
-			http.StatusUnprocessableEntity,
-			"round_invalid",
-			"round must be a positive integer",
-			map[string]any{"field": "round"},
-			nil,
-		)
+	if err := validateReviewRound(round); err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
-	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, workflowID, projectCfg, executionScope, err :=
+		m.resolveLifecycleWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
@@ -1115,11 +1169,13 @@ func (m *RunManager) prepareReviewStart(
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
-	reviewDir := filepath.Join(
-		model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug),
-		reviews.RoundDirName(round),
+	reviewDir, err := resolveReviewOperationalDirectory(
+		workspaceRow.RootDir,
+		workflowSlug,
+		round,
+		executionScope,
 	)
-	if err := requireDirectory(reviewDir); err != nil {
+	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
@@ -1128,6 +1184,7 @@ func (m *RunManager) prepareReviewStart(
 		Name:                       strings.TrimSpace(workflowSlug),
 		Round:                      round,
 		ReviewsDir:                 reviewDir,
+		ExecutionScope:             executionScope,
 		Mode:                       model.ExecutionModePRReview,
 		EnableExecutableExtensions: true,
 	}
@@ -1154,6 +1211,36 @@ func (m *RunManager) prepareReviewStart(
 	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
+func validateReviewRound(round int) error {
+	if round > 0 {
+		return nil
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"round_invalid",
+		"round must be a positive integer",
+		map[string]any{"field": "round"},
+		nil,
+	)
+}
+
+func resolveReviewOperationalDirectory(
+	workspaceRoot string,
+	workflowSlug string,
+	round int,
+	scope *model.ExecutionScope,
+) (string, error) {
+	reviewRoot := model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+	if scope != nil {
+		reviewRoot = scope.ReviewsDir
+	}
+	reviewDir := filepath.Join(reviewRoot, reviews.RoundDirName(round))
+	if err := requireDirectory(reviewDir); err != nil {
+		return "", err
+	}
+	return reviewDir, nil
+}
+
 func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, spec startRunSpec) error {
 	if strings.TrimSpace(spec.workflowRoot) == "" {
 		return nil
@@ -1162,7 +1249,7 @@ func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, spec startRunSpe
 		ctx,
 		m.globalDB,
 		spec.workspace,
-		model.SyncConfig{TasksDir: spec.workflowRoot},
+		model.SyncConfig{TasksDir: spec.workflowRoot, ExecutionScope: spec.runtimeCfg.ExecutionScope},
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: sync workflow %s before run: %w", spec.workflowRoot, err)
@@ -1292,6 +1379,67 @@ func (m *RunManager) resolveWorkflowContext(
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, err
 	}
 	return workspaceRow, workflowID, projectCfg, nil
+}
+
+func (m *RunManager) resolveLifecycleWorkflowContext(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+) (globaldb.Workspace, *string, workspacecfg.ProjectConfig, *model.ExecutionScope, error) {
+	if !strings.Contains(strings.TrimSpace(workflowSlug), "/") {
+		workspace, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+		return workspace, workflowID, projectCfg, nil, err
+	}
+
+	ref, err := workpackages.ParsePackageRef(strings.TrimSpace(workflowSlug))
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if err := requireWorkspacePathAvailable(workspace); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	projectCfg, err := m.loadProjectConfig(ctx, workspace.RootDir)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	target, err := (workpackages.TargetResolver{}).ResolvePackage(ctx, workspace.RootDir, ref.String())
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	scope, err := workpackages.BuildExecutionScope(target)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if err := ensureCurrentPackageSpecifications(scope); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if _, err := corepkg.SyncWithDB(ctx, m.globalDB, workspace, model.SyncConfig{ExecutionScope: &scope}); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, fmt.Errorf(
+			"sync package lifecycle target %s: %w",
+			scope.WorkflowRef,
+			err,
+		)
+	}
+	workflow, err := m.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, scope.WorkflowRef)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	workflowID := workflow.ID
+	return workspace, &workflowID, projectCfg, &scope, nil
+}
+
+func ensureCurrentPackageSpecifications(scope model.ExecutionScope) error {
+	for _, name := range []string{"_prd.md", "_techspec.md"} {
+		path := filepath.Join(scope.SpecDir, name)
+		if _, err := os.ReadFile(path); err != nil {
+			return fmt.Errorf("read current canonical specification %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 func (m *RunManager) ensureWorkflowIdentity(
@@ -1629,6 +1777,7 @@ func newActiveRun(
 		done:           make(chan struct{}),
 		closeTimeout:   defaultRunCloseTimeout,
 		workflowRoot:   strings.TrimSpace(spec.workflowRoot),
+		executionScope: cloneExecutionScope(spec.runtimeCfg.ExecutionScope),
 		reviewWatch:    spec.reviewWatch,
 		reviewWatchKey: cloneReviewWatchKey(spec.reviewWatchKey),
 		taskMulti:      spec.taskMulti,
@@ -1672,7 +1821,7 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 				ctx,
 				m.globalDB,
 				globaldb.Workspace{ID: active.workspaceID, RootDir: active.workspaceRoot},
-				model.SyncConfig{TasksDir: workflowRoot},
+				model.SyncConfig{TasksDir: workflowRoot, ExecutionScope: active.executionScope},
 			)
 			return err
 		},
@@ -1690,6 +1839,14 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 	}
 	active.setWatcher(watcher)
 	return nil
+}
+
+func cloneExecutionScope(scope *model.ExecutionScope) *model.ExecutionScope {
+	if scope == nil {
+		return nil
+	}
+	cloned := *scope
+	return &cloned
 }
 
 func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *model.RuntimeConfig) {
