@@ -2,6 +2,7 @@ package workpackages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,6 +55,36 @@ func ValidatePackageManifest(
 	}
 	slices.Sort(result.TaskIDs)
 	return result, sortedIssues(issues), nil
+}
+
+// ValidatePackageManifestContainment rejects a package graph that resolves a
+// node outside the selected package. Packages without a graph manifest retain
+// the legacy flat-task execution path.
+func ValidatePackageManifestContainment(ctx context.Context, target Target) error {
+	if err := context.Cause(ctx); err != nil {
+		return fmt.Errorf("validate package manifest containment: %w", err)
+	}
+	if target.Mode != TargetModePackage {
+		return newError(
+			ErrSelectionRequired,
+			target.Ref.Initiative,
+			target.Ref.PackageID,
+			target.PackageDir,
+			[]Issue{{Field: "reference", Message: "a complete workflow target is required"}},
+		)
+	}
+	manifest, err := tasks.ReadTaskGraphManifest(target.TasksDir)
+	if errors.Is(err, tasks.ErrTaskGraphManifestMissing) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	issues := validateManifestTaskPaths(target.TasksDir, target.Package.ID, manifest)
+	if len(issues) == 0 {
+		return nil
+	}
+	return newError(ErrInvalidPlan, target.Ref.Initiative, target.Package.ID, manifest.Path, issues)
 }
 
 func validateManifestTaskPaths(tasksDir, packageID string, manifest tasks.TaskGraphManifest) []Issue {

@@ -142,6 +142,76 @@ func TestLoadValidatedTaskGraphManifest(t *testing.T) {
 	})
 }
 
+func TestLoadValidatedTaskGraphManifestRejectsEscapedNodeFiles(t *testing.T) {
+	// INVARIANT: every graph node resolves to a task file inside its manifest root.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/tasks/manifest_test.go.
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		file func(t *testing.T, tasksDir, siblingTask string) string
+	}{
+		{
+			name: "parent directory reference",
+			file: func(_ *testing.T, _, _ string) string {
+				return "../WP-001/task_01.md"
+			},
+		},
+		{
+			name: "absolute reference",
+			file: func(_ *testing.T, _, siblingTask string) string {
+				return filepath.ToSlash(siblingTask)
+			},
+		},
+		{
+			name: "symlink reference",
+			file: func(t *testing.T, tasksDir, siblingTask string) string {
+				t.Helper()
+				link := filepath.Join(tasksDir, "task_01.md")
+				if err := os.Symlink(siblingTask, link); err != nil {
+					t.Fatalf("create task symlink: %v", err)
+				}
+				return "task_01.md"
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			tasksDir := filepath.Join(root, "WP-002")
+			siblingTask := filepath.Join(root, "WP-001", "task_01.md")
+			if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+				t.Fatalf("create tasks directory: %v", err)
+			}
+			writeTaskManifestTestFile(t, filepath.Dir(siblingTask), filepath.Base(siblingTask), taskMarkdown(
+				[]string{"status: pending", "title: Sibling task", "type: backend", "complexity: low"},
+				"# Sibling task",
+			))
+			file := tt.file(t, tasksDir, siblingTask)
+			writeTaskManifestTestFile(t, tasksDir, "_tasks.md", singleTaskGraphManifestMarkdown("demo/WP-002", file))
+
+			_, _, err := LoadValidatedTaskGraphManifest(context.Background(), tasksDir, "demo/WP-002")
+			var validationErr *TaskGraphManifestValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("LoadValidatedTaskGraphManifest() error = %v, want manifest validation error", err)
+			}
+			found := false
+			for _, issue := range validationErr.Issues {
+				if strings.Contains(issue.Message, "must resolve within task root") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("validation issues = %#v, want containment failure", validationErr.Issues)
+			}
+		})
+	}
+}
+
 func taskGraphManifestMarkdown(workflow string, edges []string) string {
 	lines := []string{
 		"---",
@@ -169,6 +239,23 @@ func taskGraphManifestMarkdown(workflow string, edges []string) string {
 		"",
 	)
 	return strings.Join(lines, "\n")
+}
+
+func singleTaskGraphManifestMarkdown(workflow string, file string) string {
+	return strings.Join([]string{
+		"---",
+		"schema_version: \"compozy.tasks/v2\"",
+		"workflow: " + workflow,
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: " + file,
+		"  edges: []",
+		"---",
+		"",
+		"# " + workflow + " Tasks",
+		"",
+	}, "\n")
 }
 
 func writeTaskManifestTestFile(t *testing.T, dir string, name string, content string) {

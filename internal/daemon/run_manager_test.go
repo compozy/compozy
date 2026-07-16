@@ -3449,6 +3449,86 @@ func writeDaemonDependentPackageFixture(
 	)
 }
 
+func TestRunManagerRejectsEscapedPackageManifestBeforeTaskStarts(t *testing.T) {
+	// INVARIANT: package task starts never accept graph nodes that resolve outside the selected package.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
+	newEscapedPackage := func(t *testing.T) (*runManagerTestEnv, string) {
+		t.Helper()
+
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		initiative := "watcher"
+		packageRef := initiative + "/WP-002"
+		writeDaemonDependentPackageFixture(t, env, initiative, true)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_packages", "WP-001", "task_01.md"),
+			daemonTaskBody("pending", "Sibling package task"),
+		)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_packages", "WP-002", "_tasks.md"),
+			strings.Replace(
+				packageTaskGraphManifest(packageRef),
+				"file: task_01.md",
+				"file: ../WP-001/task_01.md",
+				1,
+			),
+		)
+		return env, packageRef
+	}
+
+	assertContainmentFailure := func(t *testing.T, err error) {
+		t.Helper()
+
+		var packageErr *workpackages.Error
+		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrInvalidPlan) {
+			t.Fatalf("package start error = %v, want invalid package manifest", err)
+		}
+		if len(packageErr.Issues) != 1 || !strings.Contains(packageErr.Issues[0].Message, "sibling-ownership") {
+			t.Fatalf("package containment issues = %#v", packageErr.Issues)
+		}
+	}
+
+	t.Run("single task run", func(t *testing.T) {
+		t.Parallel()
+
+		env, packageRef := newEscapedPackage(t)
+		const runID = "package-escaped-single"
+		_, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			packageRef,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`),
+			},
+		)
+		assertContainmentFailure(t, err)
+		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want no run created", runID, err)
+		}
+	})
+
+	t.Run("multiple task run", func(t *testing.T) {
+		t.Parallel()
+
+		env, _ := newEscapedPackage(t)
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: "watcher", PackageID: "WP-002"}},
+				PresentationMode: defaultPresentationMode,
+			},
+		)
+		assertContainmentFailure(t, err)
+	})
+}
+
 func TestRunManagerPackageWorktreeExecutionIsRejected(t *testing.T) {
 	// INVARIANT: package lifecycle operations never delegate Git worktree
 	// creation or switching to the parallel task runner.

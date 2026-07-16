@@ -1543,6 +1543,9 @@ func (m *RunManager) resolveLifecycleWorkflowContext(
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
+	if err := workpackages.ValidatePackageManifestContainment(ctx, target); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
 	scope, err := workpackages.BuildExecutionScope(target)
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err

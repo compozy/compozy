@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -297,6 +298,32 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		}
 		if problem.Status != 422 || problem.Code != "task_validation_failed" {
 			t.Fatalf("Validate(wrong package manifest) problem = %#v", problem)
+		}
+
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_packages", "WP-001", "task_01.md"),
+			daemonTaskBody("pending", "Sibling package task"),
+		)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_packages", "WP-002", "_tasks.md"),
+			strings.Replace(
+				packageTaskGraphManifest("watcher/WP-002"),
+				"file: task_01.md",
+				"file: ../WP-001/task_01.md",
+				1,
+			),
+		)
+		_, err = service.Validate(context.Background(), env.workspaceRoot, "watcher/WP-002")
+		var packageErr *workpackages.Error
+		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrInvalidPlan) {
+			t.Fatalf("Validate(escaped package manifest) error = %v, want invalid package manifest", err)
+		}
+		if len(packageErr.Issues) != 1 || !strings.Contains(packageErr.Issues[0].Message, "sibling-ownership") {
+			t.Fatalf("Validate(escaped package manifest) issues = %#v", packageErr.Issues)
 		}
 	})
 
