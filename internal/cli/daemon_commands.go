@@ -652,37 +652,7 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"",
 		"Comma-separated task workflow slugs to run through one daemon-owned parent queue",
 	)
-	cmd.Flags().BoolVar(
-		&state.parallel,
-		"parallel",
-		false,
-		"Run --multiple task workflows in parallel with git worktree isolation "+
-			"(overrides run_multiple_mode; valid only with --multiple)",
-	)
-	cmd.Flags().IntVar(
-		&state.parallelLimit,
-		"parallel-limit",
-		workspacecfg.DefaultRunMultipleParallelLimit,
-		"Maximum number of child runs started at once in --parallel mode "+
-			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
-	)
-	cmd.Flags().BoolVar(
-		&state.parallelTasks,
-		taskRunParallelTasksFlag,
-		false,
-		"Run this PRD task workflow in dependency-aware parallel task mode",
-	)
-	cmd.Flags().StringVar(&state.parallelConflictResolverIDE, taskRunParallelConflictResolverIDEFlag, "", "")
-	cmd.Flags().StringVar(&state.parallelConflictResolverModel, taskRunParallelConflictResolverModelFlag, "", "")
-	cmd.Flags().StringVar(
-		&state.parallelConflictResolverReasoningEffort,
-		taskRunParallelConflictResolverReasoningFlag,
-		"",
-		"",
-	)
-	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverIDEFlag)
-	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverModelFlag)
-	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverReasoningFlag)
+	addTaskRunParallelFlags(cmd, state)
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVarP(
 		&state.recursive,
@@ -725,6 +695,40 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"task-runtime",
 		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.6-sol or id=task_01,reasoning-effort=xhigh`,
 	)
+}
+
+func addTaskRunParallelFlags(cmd *cobra.Command, state *commandState) {
+	cmd.Flags().BoolVar(
+		&state.parallel,
+		"parallel",
+		false,
+		"Run --multiple task workflows in parallel with git worktree isolation "+
+			"(overrides run_multiple_mode; valid only with --multiple)",
+	)
+	cmd.Flags().IntVar(
+		&state.parallelLimit,
+		"parallel-limit",
+		workspacecfg.DefaultRunMultipleParallelLimit,
+		"Maximum number of child runs started at once in --parallel mode "+
+			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
+	)
+	cmd.Flags().BoolVar(
+		&state.parallelTasks,
+		taskRunParallelTasksFlag,
+		false,
+		"Run this PRD task workflow in dependency-aware parallel task mode",
+	)
+	cmd.Flags().StringVar(&state.parallelConflictResolverIDE, taskRunParallelConflictResolverIDEFlag, "", "")
+	cmd.Flags().StringVar(&state.parallelConflictResolverModel, taskRunParallelConflictResolverModelFlag, "", "")
+	cmd.Flags().StringVar(
+		&state.parallelConflictResolverReasoningEffort,
+		taskRunParallelConflictResolverReasoningFlag,
+		"",
+		"",
+	)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverIDEFlag)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverModelFlag)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverReasoningFlag)
 }
 
 func hideTaskRunWizardFlag(cmd *cobra.Command, flagName string) {
@@ -777,8 +781,16 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return mapWorkPackageSelectionError(err)
 	}
+	return s.startPreparedTaskRun(ctx, cmd, target)
+}
 
+func (s *commandState) startPreparedTaskRun(
+	ctx context.Context,
+	cmd *cobra.Command,
+	target workpackages.Target,
+) error {
 	resolvedTasksDir := target.TasksDir
+	var err error
 	if target.Mode == workpackages.TargetModeOrdinary {
 		resolvedTasksDir, err = resolveTaskWorkflowDir(s.workspaceRoot, s.name, "")
 	}
@@ -1576,29 +1588,7 @@ func (s *commandState) resolveTaskRunTarget(ctx context.Context, cmd *cobra.Comm
 		return workpackages.Target{}, err
 	}
 	if target.Mode == workpackages.TargetModeInitiative {
-		isInteractive := s.isInteractive
-		if isInteractive == nil {
-			isInteractive = isInteractiveTerminal
-		}
-		if !isInteractive() {
-			return workpackages.Target{}, workPackageSelectionRequiredError(target)
-		}
-		picker := s.pickWorkPackage
-		if picker == nil {
-			picker = defaultPickWorkPackage
-		}
-		packageID, pickErr := picker(cmd, target)
-		if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errWorkPackageSelectionCanceled) {
-			return workpackages.Target{}, errWorkPackageSelectionCanceled
-		}
-		if pickErr != nil {
-			return workpackages.Target{}, fmt.Errorf("select work package: %w", pickErr)
-		}
-		target, err = (workpackages.TargetResolver{}).ResolvePackage(
-			ctx,
-			s.workspaceRoot,
-			target.Ref.Initiative+"/"+strings.TrimSpace(packageID),
-		)
+		target, err = s.resolveInteractiveWorkPackage(ctx, cmd, target)
 		if err != nil {
 			return workpackages.Target{}, err
 		}
@@ -1611,36 +1601,78 @@ func (s *commandState) resolveTaskRunTarget(ctx context.Context, cmd *cobra.Comm
 	if err != nil {
 		return workpackages.Target{}, err
 	}
-	if !readiness.Eligible {
-		isInteractive := s.isInteractive
-		if isInteractive == nil {
-			isInteractive = isInteractiveTerminal
-		}
-		if !isInteractive() {
-			if !s.allowOutOfOrder {
-				return workpackages.Target{}, workPackageDependenciesUnmetError(target, readiness)
-			}
-		} else {
-			confirm := s.confirmPackageRun
-			if confirm == nil {
-				confirm = defaultConfirmPackageRun
-			}
-			confirmed, confirmErr := confirm(cmd, target, readiness)
-			if errors.Is(confirmErr, huh.ErrUserAborted) || errors.Is(confirmErr, errWorkPackageSelectionCanceled) {
-				return workpackages.Target{}, errWorkPackageSelectionCanceled
-			}
-			if confirmErr != nil {
-				return workpackages.Target{}, fmt.Errorf("confirm out-of-order work package run: %w", confirmErr)
-			}
-			if !confirmed {
-				return workpackages.Target{}, errWorkPackageSelectionCanceled
-			}
-			s.allowOutOfOrder = true
-		}
+	if err := s.authorizeWorkPackageRun(cmd, target, readiness); err != nil {
+		return workpackages.Target{}, err
 	}
 	s.name = target.Ref.Initiative
 	s.packageID = target.Package.ID
 	return target, nil
+}
+
+func (s *commandState) resolveInteractiveWorkPackage(
+	ctx context.Context,
+	cmd *cobra.Command,
+	target workpackages.Target,
+) (workpackages.Target, error) {
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		return workpackages.Target{}, workPackageSelectionRequiredError(target)
+	}
+	picker := s.pickWorkPackage
+	if picker == nil {
+		picker = defaultPickWorkPackage
+	}
+	packageID, pickErr := picker(cmd, target)
+	if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errWorkPackageSelectionCanceled) {
+		return workpackages.Target{}, errWorkPackageSelectionCanceled
+	}
+	if pickErr != nil {
+		return workpackages.Target{}, fmt.Errorf("select work package: %w", pickErr)
+	}
+	return (workpackages.TargetResolver{}).ResolvePackage(
+		ctx,
+		s.workspaceRoot,
+		target.Ref.Initiative+"/"+strings.TrimSpace(packageID),
+	)
+}
+
+func (s *commandState) authorizeWorkPackageRun(
+	cmd *cobra.Command,
+	target workpackages.Target,
+	readiness workpackages.Readiness,
+) error {
+	if readiness.Eligible {
+		return nil
+	}
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		if !s.allowOutOfOrder {
+			return workPackageDependenciesUnmetError(target, readiness)
+		}
+		return nil
+	}
+	confirm := s.confirmPackageRun
+	if confirm == nil {
+		confirm = defaultConfirmPackageRun
+	}
+	confirmed, confirmErr := confirm(cmd, target, readiness)
+	if errors.Is(confirmErr, huh.ErrUserAborted) || errors.Is(confirmErr, errWorkPackageSelectionCanceled) {
+		return errWorkPackageSelectionCanceled
+	}
+	if confirmErr != nil {
+		return fmt.Errorf("confirm out-of-order work package run: %w", confirmErr)
+	}
+	if !confirmed {
+		return errWorkPackageSelectionCanceled
+	}
+	s.allowOutOfOrder = true
+	return nil
 }
 
 func workPackageSelectionRequiredError(target workpackages.Target) error {
@@ -1673,7 +1705,8 @@ func workPackageDependenciesUnmetError(target workpackages.Target, readiness wor
 
 func defaultPickWorkPackage(_ *cobra.Command, target workpackages.Target) (string, error) {
 	options := make([]huh.Option[string], 0, len(target.Plan.Packages))
-	for _, pkg := range target.Plan.Packages {
+	for i := range target.Plan.Packages {
+		pkg := &target.Plan.Packages[i]
 		readiness, err := workpackages.EvaluateReadiness(target.Plan, pkg.ID)
 		if err != nil {
 			return "", err

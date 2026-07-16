@@ -150,7 +150,8 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 	}))
 
 	t.Run("single package body", func(t *testing.T) {
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost,
 			"/api/tasks/customer-management/runs",
 			strings.NewReader(`{"workspace":"ws-1","package_id":"WP-002","allow_out_of_order":true}`),
@@ -170,7 +171,8 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 	})
 
 	t.Run("multiple package targets", func(t *testing.T) {
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost,
 			"/api/task-runs/multiple",
 			strings.NewReader(
@@ -189,7 +191,8 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 	})
 
 	t.Run("slash child route is not accepted", func(t *testing.T) {
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost,
 			"/api/tasks/customer-management/WP-002/runs",
 			http.NoBody,

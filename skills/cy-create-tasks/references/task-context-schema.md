@@ -68,3 +68,23 @@ The leading underscore prefix is reserved for meta documents:
 ## Parser Compatibility
 
 Compozy reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with YAML frontmatter for `ParseTaskFile()` to read the metadata.
+
+## Work Package identity and scope
+
+For an opted-in initiative, `_work_packages.md` at initiative root is marker and
+canonical plan. Package operational files live only under `_packages/WP-NNN/`;
+root remains shared `SpecDir` for `_prd.md`, `_techspec.md`, `_user_stories.md`,
+`_tests.md`, and ADRs. Package-local manifest is valid only when logical
+`workflow` equals full public reference `<initiative>/WP-NNN` and task paths
+remain inside that package directory.
+
+Package ID is stable identity; title and outcome are display fields. Validate
+task ownership using qualified keys `<package-id>/<task-id>`, so repeated local
+task filenames in different packages do not collide while cross-package file
+references or repeated qualified keys are rejected. Audit `_tests.md`
+assignments across every package manifest exactly once before generation
+succeeds.
+
+These rules apply only after `_work_packages.md` validates. If marker is absent,
+retain ordinary discovery and manifest behavior exactly as before; if marker is
+present but empty or malformed, fail closed as invalid opt-in.

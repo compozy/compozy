@@ -38,45 +38,61 @@ func statusForError(err error) int {
 		return problem.Status
 	}
 
+	if status, ok := statusForKnownClientError(err); ok {
+		return status
+	}
+
+	if status, ok := statusForArtifactError(err); ok {
+		return status
+	}
+	return statusForWorkflowConflict(err)
+}
+
+func statusForKnownClientError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, os.ErrNotExist),
 		errors.Is(err, globaldb.ErrWorkspaceNotFound),
 		errors.Is(err, globaldb.ErrWorkflowNotFound),
 		errors.Is(err, globaldb.ErrRunNotFound),
-		errors.Is(err, model.ErrJobControlNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, model.ErrJobControlMessageRequired):
-		return http.StatusBadRequest
-	case errors.Is(err, model.ErrJobControlMessageTooLarge):
-		return http.StatusRequestEntityTooLarge
-	case errors.Is(err, workpackages.ErrPackageNotFound),
+		errors.Is(err, model.ErrJobControlNotFound),
+		errors.Is(err, workpackages.ErrPackageNotFound),
 		errors.Is(err, workpackages.ErrInitiativeNotFound):
-		return http.StatusNotFound
+		return http.StatusNotFound, true
+	case errors.Is(err, model.ErrJobControlMessageRequired):
+		return http.StatusBadRequest, true
+	case errors.Is(err, model.ErrJobControlMessageTooLarge):
+		return http.StatusRequestEntityTooLarge, true
 	case errors.Is(err, workpackages.ErrPlanReadOnly):
-		return http.StatusForbidden
+		return http.StatusForbidden, true
 	case errors.Is(err, workpackages.ErrDependenciesUnmet),
 		errors.Is(err, workpackages.ErrCompletionConflict):
-		return http.StatusConflict
+		return http.StatusConflict, true
 	case errors.Is(err, workpackages.ErrInvalidPlan),
 		errors.Is(err, workpackages.ErrSelectionRequired),
 		errors.Is(err, workpackages.ErrInvalidReference),
-		errors.Is(err, workpackages.ErrContainment):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, tasks.ErrLegacyTaskMetadata),
+		errors.Is(err, workpackages.ErrContainment),
+		errors.Is(err, tasks.ErrLegacyTaskMetadata),
 		errors.Is(err, tasks.ErrV1TaskMetadata),
 		errors.Is(err, reviews.ErrLegacyReviewMetadata):
-		return http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity, true
+	default:
+		return 0, false
 	}
+}
 
+func statusForArtifactError(err error) (int, bool) {
 	var taskParseErr *tasks.ArtifactParseError
 	if errors.As(err, &taskParseErr) {
-		return http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity, true
 	}
 	var reviewParseErr *reviews.ArtifactParseError
 	if errors.As(err, &reviewParseErr) {
-		return http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity, true
 	}
+	return 0, false
+}
 
+func statusForWorkflowConflict(err error) int {
 	switch {
 	case errors.Is(err, globaldb.ErrWorkspaceHasActiveRuns),
 		errors.Is(err, model.ErrJobControlConflict),

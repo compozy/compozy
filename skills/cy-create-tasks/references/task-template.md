@@ -72,3 +72,22 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 
 - Write one subtask per coherent unit of work — WHAT to accomplish, not HOW; robust tasks typically carry 5-12.
 - Sizing, independence, and test-assignment rules live in SKILL.md; the `<critical>` block above ships verbatim in every generated task file.
+
+## Work Package task-suite additions
+
+When task belongs to opted-in Work Package, preserve this shape in package-local
+suite:
+
+- Store suite under `.compozy/tasks/<initiative>/_packages/WP-NNN/`.
+- Set `_tasks.md` frontmatter `workflow` to logical public reference
+  `<initiative>/WP-NNN`; do not derive identity from `filepath.Base()`.
+- Keep local filenames (`task_01.md`, `task_02.md`) but qualify ownership audit
+  keys as `<package-id>/<task-id>`. Repeated local task numbers across packages
+  are valid; one qualified key may occur in only one manifest.
+- Assign every `_tests.md` case exactly once across all package suites. A case
+  assigned to consumer package covers integration with producer outcome; it does
+  not copy or re-own producer task.
+- Keep initiative PRD, TechSpec, stories, tests, and ADRs at root and reference
+  them from task context. Do not copy specification corpora into package.
+- Package task suite is not executable until plan, manifest, ownership,
+  dependency, and exactly-once test-assignment audits pass.

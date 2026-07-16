@@ -381,25 +381,15 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return withExitCode(2, err)
 	}
 
-	effectiveExtensionPacks, err := effectiveExtensionSkillSources(assets.Discovery)
+	presentationMode, runtimeOverrides, batching, err := s.prepareReviewDaemonRun(
+		cmd,
+		cfg,
+		assets,
+		false,
+		false,
+	)
 	if err != nil {
-		return withExitCode(2, err)
-	}
-	if err := s.preflightBundledSkills(cmd, cfg, effectiveExtensionPacks); err != nil {
 		return err
-	}
-
-	presentationMode, err := s.resolveTaskPresentationMode(cmd)
-	if err != nil {
-		return withExitCode(1, err)
-	}
-	runtimeOverrides, err := s.buildReviewRunRuntimeOverrides(cmd, false)
-	if err != nil {
-		return withExitCode(2, err)
-	}
-	batching, err := s.buildReviewBatchingOverrides(cmd)
-	if err != nil {
-		return withExitCode(2, err)
 	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
@@ -582,25 +572,15 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 		return withExitCode(1, err)
 	}
 
-	effectiveExtensionPacks, err := effectiveExtensionSkillSources(assets.Discovery)
+	presentationMode, runtimeOverrides, batching, err := s.prepareReviewDaemonRun(
+		cmd,
+		cfg,
+		assets,
+		true,
+		s.autoPush,
+	)
 	if err != nil {
-		return withExitCode(2, err)
-	}
-	if err := s.preflightBundledSkills(cmd, cfg, effectiveExtensionPacks); err != nil {
 		return err
-	}
-
-	presentationMode, err := s.resolveReviewWatchPresentationMode(cmd)
-	if err != nil {
-		return withExitCode(1, err)
-	}
-	runtimeOverrides, err := s.buildReviewRunRuntimeOverrides(cmd, s.autoPush)
-	if err != nil {
-		return withExitCode(2, err)
-	}
-	batching, err := s.buildReviewBatchingOverrides(cmd)
-	if err != nil {
-		return withExitCode(2, err)
 	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
@@ -630,6 +610,43 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 	}
 
 	return s.observeStartedReviewWatchRun(ctx, cmd, client, run)
+}
+
+func (s *commandState) prepareReviewDaemonRun(
+	cmd *cobra.Command,
+	cfg core.Config,
+	assets declarativeAssets,
+	watch bool,
+	forceAutoCommit bool,
+) (string, json.RawMessage, json.RawMessage, error) {
+	effectiveExtensionPacks, err := effectiveExtensionSkillSources(assets.Discovery)
+	if err != nil {
+		return "", nil, nil, withExitCode(2, err)
+	}
+	if err := s.preflightBundledSkills(cmd, cfg, effectiveExtensionPacks); err != nil {
+		return "", nil, nil, err
+	}
+
+	presentationMode, err := s.resolveReviewPresentationMode(cmd, watch)
+	if err != nil {
+		return "", nil, nil, withExitCode(1, err)
+	}
+	runtimeOverrides, err := s.buildReviewRunRuntimeOverrides(cmd, forceAutoCommit)
+	if err != nil {
+		return "", nil, nil, withExitCode(2, err)
+	}
+	batching, err := s.buildReviewBatchingOverrides(cmd)
+	if err != nil {
+		return "", nil, nil, withExitCode(2, err)
+	}
+	return presentationMode, runtimeOverrides, batching, nil
+}
+
+func (s *commandState) resolveReviewPresentationMode(cmd *cobra.Command, watch bool) (string, error) {
+	if watch {
+		return s.resolveReviewWatchPresentationMode(cmd)
+	}
+	return s.resolveTaskPresentationMode(cmd)
 }
 
 func (s *commandState) observeStartedReviewWatchRun(

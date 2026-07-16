@@ -7,6 +7,12 @@ description: Performs a comprehensive code review of a PRD implementation and ge
 
 Perform a structured code review of a PRD implementation and produce a review round directory that the `cy-fix-reviews` workflow can process.
 
+When reviewing `<initiative>/WP-NNN`, read
+`references/review-criteria.md` for package scope and
+`../cy-create-tasks/references/work-package-planning.md` for the artifact
+contract. The selected package is review boundary; sibling mutable artifacts
+are context exclusions, not additional scope.
+
 ## Required Inputs
 
 - Feature name identifying the `.compozy/tasks/<name>/` directory.
@@ -28,6 +34,9 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - If the user provided specific files or directories, scope the review to those paths.
    - If no explicit scope was provided, run `git diff main...HEAD --name-only` to discover all files created or modified on the current branch. If the diff is empty or unhelpful, ask the user to specify files.
    - Spawn an Agent tool call to explore the identified files, their imports, and their dependencies to build a map of the implementation.
+   - Resolve the target before reading mutable artifacts. For a package, use the initiative root as `SpecDir` and read the canonical `_prd.md`, `_techspec.md`, `_user_stories.md`, `_tests.md`, ADRs, and root `_work_packages.md`; use only selected `_packages/WP-NNN/` `_tasks.md`, task files, memory, and review rounds as `OperationalDir`. Do not read sibling package tasks, memory, or review issues as owned scope, and do not use copied package specifications.
+   - Review the branch diff against the selected package outcome, owned scope, dependency rationale, and task manifest. Report changes attributable only to a sibling package as a sibling-scope warning with affected paths; do not reset, discard, silently ignore, or reassign those changes.
+   - An ordinary workflow without `_work_packages.md` follows the existing scope and artifact discovery unchanged. A present invalid marker is a plan error, not ordinary fallback.
 
 3. Perform the code review.
    - Read `references/review-criteria.md` for severity definitions and evaluation areas.
@@ -43,7 +52,10 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Skip issues that linters or formatters already catch. Run `make lint` first to filter these out.
    - **Focus on signal, not volume.** Aim for fewer, higher-quality issues rather than an exhaustive list. If you find more than 20 issues, re-evaluate: keep all critical and high issues, but prune medium and low issues to only the most impactful. A review with 8 precise issues is more useful than one with 30 that includes marginal concerns.
    - Also note well-implemented aspects of the code. These observations inform the summary but do not produce issue files.
-   - If no issues are found after a thorough review, report that the implementation looks clean and skip steps 4 through 6. Do not create the review round directory.
+   - A package review is `review_clean=true` only when this round adds no issue, every prior issue in the selected package is `resolved`, and `cy-final-verify` passes. Keep review evidence and completion state separate.
+   - After those gates, invoke exactly the hidden bridge `compozy internal work-packages complete <initiative>/WP-NNN`. Do not edit `_work_packages.md` directly, expose the bridge as a new public lifecycle step, perform Git/branch/PR operations, or start another package.
+   - Report bridge outcomes separately: `review_clean`, `completion_recorded`, and `sync_pending`. A missing/malformed/read-only plan or completion conflict preserves the clean review evidence and reports `completion_recorded=false`; it never claims lifecycle completion. An already checked stable ID is an idempotent success with no duplicate write.
+   - If no issues are found after a thorough review, report a clean round and skip issue-file generation. For a Work Package, continue the final-verification and completion gates below; do not create an empty review round directory.
 
 4. Generate issue files.
    - Create the review round directory determined in step 1.
@@ -100,6 +112,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Read back each generated issue file and verify the frontmatter parses correctly.
    - Verify every issue file in the round has matching `provider`, `pr`, `round`, and `round_created_at` values.
    - Confirm the review round directory follows the `reviews-NNN` naming convention.
+   - For a Work Package review, verify selected-root scope, sibling warning coverage, clean-review gates, hidden bridge invocation, idempotent already-checked behavior, and separate completion/sync fields before reporting the round complete.
 
 ## Critical Rules
 
