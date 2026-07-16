@@ -1340,7 +1340,7 @@ func TestRunManagerTaskRunMultipleChildPollReturnsRunLookupErrors(t *testing.T) 
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		_, err := env.manager.waitForTaskMultiChild(ctx, "child-alpha")
+		_, err := env.manager.waitForTaskMultiChild(ctx, "child-alpha", model.StallPolicy{})
 		if err == nil {
 			t.Fatal("waitForTaskMultiChild() error = nil, want run lookup error")
 		}
@@ -1410,7 +1410,7 @@ func TestRunManagerTaskRunMultipleChildWaitReconcilesTerminalJournalOnDone(t *te
 		err error
 	}, 1)
 	go func() {
-		row, waitErr := env.manager.waitForTaskMultiChild(ctx, childRunID)
+		row, waitErr := env.manager.waitForTaskMultiChild(ctx, childRunID, model.StallPolicy{})
 		waited <- struct {
 			row globaldb.Run
 			err error

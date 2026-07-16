@@ -431,12 +431,18 @@ kinds share one payload type, `kinds.TaskRunMultiplePayload`.
 - `worktree_status`: actual lifecycle state, one of `active`, `removed`, or `preserved`
 - `worktree_reason`: why cleanup removed or preserved the tree
 - `result_branch`: deterministic retained-output branch for parallel multi-spec children
+- `completed`: children that finished successfully, emitted on the summary event
+- `recovered`: children that stalled and then completed, emitted on the summary event
+- `parked`: children parked for triage after a second stall, emitted on the summary event
 
 `parallel_limit` and the `worktree_*` fields are additive and optional. They are
 populated only for parallel-mode runs once a child worktree is planned, and they
 stay empty for enqueued runs and for older parent events emitted before this
 metadata existed. Snapshot reconstruction treats any empty field as unknown so
 older event streams stay compatible.
+
+`completed`, `recovered`, and `parked` are populated only on
+`task.multi.summary`; every other kind leaves them at zero.
 
 ### `task.multi.started`
 
@@ -496,6 +502,20 @@ Payload type: `kinds.TaskRunMultiplePayload`
 
 The parent queue settled with one or more failed children. Carries `total` and
 the aggregate failure summary in `error`.
+
+### `task.multi.summary`
+
+Payload type: `kinds.TaskRunMultiplePayload`
+
+The end-of-run recovery summary for a parallel parent run, emitted once every
+launched child has settled and before the parent reports its own outcome. It is
+emitted whether the batch succeeded, failed, parked a child, or was canceled, so
+the closing counts are always available.
+
+Carries `total`, `completed`, `recovered`, and `parked`. A child counts as
+`recovered` when it emitted `job.stalled` and then completed; a plain completion
+counts as `completed` only. A child that emitted `job.parked` counts as `parked`
+and never as `completed`.
 
 ## Parallel Task Events
 

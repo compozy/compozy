@@ -2680,11 +2680,11 @@ func TestTerminalCommandHelperProcess(_ *testing.T) {
 			}
 		}
 		fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
-		select {}
+		blockTerminalHelperUntilSignalled()
 	}
 	fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
 	if os.Getenv("GO_TERMINAL_HELPER_MODE") == "block" {
-		select {}
+		blockTerminalHelperUntilSignalled()
 	}
 	code, err := strconv.Atoi(os.Getenv("GO_TERMINAL_HELPER_EXIT_CODE"))
 	if err != nil {
@@ -2698,7 +2698,18 @@ func TestTerminalChildHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_TERMINAL_CHILD_HELPER") != "1" {
 		return
 	}
-	select {}
+	blockTerminalHelperUntilSignalled()
+}
+
+// blockTerminalHelperUntilSignalled keeps a terminal helper process genuinely
+// running (never emitting output, never exiting) so lifecycle tests must
+// terminate it with a signal. It sleeps in a loop rather than using select{}
+// because Go's deadlock detector ignores timer-parked goroutines but aborts a
+// process whose only goroutines are blocked with no pending timers.
+func blockTerminalHelperUntilSignalled() {
+	for i := 0; i < 600; i++ {
+		time.Sleep(time.Second)
+	}
 }
 
 func TestProcessStderrHelperProcess(_ *testing.T) {

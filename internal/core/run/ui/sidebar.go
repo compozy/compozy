@@ -30,7 +30,7 @@ func (m *uiModel) renderSidebarTitle(width int) string {
 	statusLine := m.renderSidebarStatusLine(width)
 	pct := 0.0
 	if m.total > 0 {
-		pct = float64(m.completed+m.failed) / float64(m.total)
+		pct = float64(m.settledJobs()) / float64(m.total)
 	}
 	m.progressBar.SetWidth(max(width, 1))
 	progressLine := renderOwnedLineKnownOwned(width, renderOwnedBlock(width, m.progressBar.ViewAs(pct)))
@@ -88,21 +88,26 @@ func (m *uiModel) sidebarStatusText() string {
 	if m.shutdown.Active() {
 		return m.shutdownHeaderLabel()
 	}
-	progress := fmt.Sprintf("%d/%d", m.completed+m.failed, m.total)
+	progress := fmt.Sprintf("%d/%d", m.settledJobs(), m.total)
+	segments := make([]string, 0, 3)
+	segments = append(segments, progress)
 	if m.failed > 0 {
-		return fmt.Sprintf("%s · %d FAIL", progress, m.failed)
+		segments = append(segments, fmt.Sprintf("%d FAIL", m.failed))
 	}
-	return progress
+	if m.parked > 0 {
+		segments = append(segments, fmt.Sprintf("%d PARKED", m.parked))
+	}
+	return strings.Join(segments, " · ")
 }
 
 func (m *uiModel) sidebarStatusStyle() lipgloss.Style {
 	if m == nil {
 		return styleMutedText
 	}
-	if m.shutdown.Active() || m.failed > 0 {
+	if m.shutdown.Active() || m.failed > 0 || m.parked > 0 {
 		return lipgloss.NewStyle().Bold(true).Foreground(colorWarning)
 	}
-	if m.total > 0 && m.completed+m.failed >= m.total {
+	if m.total > 0 && m.isRunComplete() {
 		return lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
 	}
 	return styleMutedText
@@ -237,6 +242,8 @@ func sidebarJobTitle(job *uiJob) string {
 const (
 	jobIconPending = "⏸"
 	jobIconRetry   = "↻"
+	jobIconStalled = "⧗"
+	jobIconParked  = "⚑"
 	jobIconSuccess = "✓"
 	jobIconFailed  = "✗"
 	jobIconUnknown = "•"
@@ -255,12 +262,16 @@ func (m *uiModel) jobStateIcon(state jobState) string {
 		return spinnerFrames[m.frame%len(spinnerFrames)]
 	case jobPaused:
 		return jobIconPending
+	case jobStalled:
+		return jobIconStalled
 	case jobRetrying:
 		return jobIconRetry
 	case jobSuccess:
 		return jobIconSuccess
 	case jobFailed:
 		return jobIconFailed
+	case jobParked:
+		return jobIconParked
 	default:
 		return jobIconUnknown
 	}
@@ -276,12 +287,16 @@ func (m *uiModel) jobStateColor(state jobState) color.Color {
 		return colorWarning
 	case jobPaused:
 		return colorInfo
+	case jobStalled:
+		return colorWarning
 	case jobRetrying:
 		return colorWarning
 	case jobSuccess:
 		return colorSuccess
 	case jobFailed:
 		return colorError
+	case jobParked:
+		return colorAccent
 	default:
 		return colorInfo
 	}
@@ -295,12 +310,16 @@ func (m *uiModel) jobBorderColor(job *uiJob) color.Color {
 		return colorWarning
 	case jobPaused:
 		return colorInfo
+	case jobStalled:
+		return colorWarning
 	case jobRetrying:
 		return colorWarning
 	case jobSuccess:
 		return colorSuccess
 	case jobFailed:
 		return colorError
+	case jobParked:
+		return colorAccent
 	default:
 		return colorBorder
 	}
@@ -318,12 +337,12 @@ func (m *uiModel) jobElapsedDuration(job *uiJob) time.Duration {
 		return 0
 	}
 	switch job.state {
-	case jobRunning, jobPausing:
+	case jobRunning, jobPausing, jobStalled:
 		if job.startedAt.IsZero() {
 			return 0
 		}
 		return m.currentTime().Sub(job.startedAt)
-	case jobPaused, jobSuccess, jobFailed:
+	case jobPaused, jobSuccess, jobFailed, jobParked:
 		if job.duration > 0 {
 			return job.duration
 		}
@@ -346,8 +365,12 @@ func (m *uiModel) sidebarTimeString(job *uiJob) string {
 		return "pausing"
 	case jobPaused:
 		return "paused"
+	case jobStalled:
+		return "stalled"
 	case jobRetrying:
 		return m.retryAttemptLabel(job)
+	case jobParked:
+		return "parked"
 	case jobSuccess, jobFailed:
 		if d := m.jobElapsedDuration(job); d > 0 {
 			return formatDuration(d)

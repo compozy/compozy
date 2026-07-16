@@ -45,10 +45,29 @@ type ActivityMonitor struct {
 	mu           sync.Mutex
 	lastActivity time.Time
 	active       int
+	clock        Clock
 }
 
 func NewActivityMonitor() *ActivityMonitor {
-	return &ActivityMonitor{lastActivity: time.Now()}
+	return NewActivityMonitorWithClock(RealClock{})
+}
+
+// NewActivityMonitorWithClock builds a monitor whose idle window advances on the
+// injected clock, so the stall watchdog can be tested without real sleeps.
+func NewActivityMonitorWithClock(clock Clock) *ActivityMonitor {
+	if clock == nil {
+		clock = RealClock{}
+	}
+	return &ActivityMonitor{lastActivity: clock.Now(), clock: clock}
+}
+
+// now returns the monitor's clock time, defaulting to wall time when the monitor
+// was constructed without an explicit clock (e.g. a zero-value literal).
+func (a *ActivityMonitor) now() time.Time {
+	if a.clock != nil {
+		return a.clock.Now()
+	}
+	return time.Now()
 }
 
 func (a *ActivityMonitor) RecordActivity() {
@@ -57,7 +76,7 @@ func (a *ActivityMonitor) RecordActivity() {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.lastActivity = time.Now()
+	a.lastActivity = a.now()
 }
 
 func (a *ActivityMonitor) BeginActivity() {
@@ -67,7 +86,7 @@ func (a *ActivityMonitor) BeginActivity() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.active++
-	a.lastActivity = time.Now()
+	a.lastActivity = a.now()
 }
 
 func (a *ActivityMonitor) EndActivity() {
@@ -79,7 +98,7 @@ func (a *ActivityMonitor) EndActivity() {
 	if a.active > 0 {
 		a.active--
 	}
-	a.lastActivity = time.Now()
+	a.lastActivity = a.now()
 }
 
 func (a *ActivityMonitor) TimeSinceLastActivity() time.Duration {
@@ -91,7 +110,7 @@ func (a *ActivityMonitor) TimeSinceLastActivity() time.Duration {
 	if a.active > 0 {
 		return 0
 	}
-	return time.Since(a.lastActivity)
+	return a.now().Sub(a.lastActivity)
 }
 
 func AppendLinesToBuffer(buf *LineBuffer, lines []string) {

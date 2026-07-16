@@ -164,7 +164,7 @@ func syncCompletedParallelTaskArtifacts(
 			return err
 		}
 		task := tasks[index]
-		if !parallelTaskStatusSyncsArtifact(task.Status) {
+		if !task.Status.IsIntegrated() {
 			continue
 		}
 		if err := syncParallelTaskArtifact(workspaceRoot, task, destinationsBySlug); err != nil {
@@ -172,15 +172,6 @@ func syncCompletedParallelTaskArtifacts(
 		}
 	}
 	return nil
-}
-
-func parallelTaskStatusSyncsArtifact(status runparallel.TaskOutcomeStatus) bool {
-	switch status {
-	case runparallel.TaskOutcomeMerged, runparallel.TaskOutcomeRecovered:
-		return true
-	default:
-		return false
-	}
 }
 
 // syncParallelTaskArtifact copies only the completed task's canonical

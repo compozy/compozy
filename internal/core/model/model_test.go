@@ -124,6 +124,108 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 	})
 }
 
+func TestRuntimeConfigStallDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply on-by-default stall policy for an empty config", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if !policy.Enabled {
+			t.Fatalf("expected stall enabled by default, got %#v", policy)
+		}
+		if policy.IdleTimeout != model.DefaultStallIdleTimeout {
+			t.Fatalf("idle timeout = %s, want %s", policy.IdleTimeout, model.DefaultStallIdleTimeout)
+		}
+		if policy.ChildTimeout != model.DefaultStallChildTimeout {
+			t.Fatalf("child timeout = %s, want %s", policy.ChildTimeout, model.DefaultStallChildTimeout)
+		}
+		if policy.ChildTimeout <= policy.IdleTimeout {
+			t.Fatalf("child timeout %s must exceed idle timeout %s", policy.ChildTimeout, policy.IdleTimeout)
+		}
+		if policy.TerminalCap != model.DefaultStallTerminalCap {
+			t.Fatalf("terminal cap = %s, want %s", policy.TerminalCap, model.DefaultStallTerminalCap)
+		}
+		if policy.Retries != model.DefaultStallRetries {
+			t.Fatalf("retries = %d, want %d", policy.Retries, model.DefaultStallRetries)
+		}
+		if cfg.SoundOnParked != model.DefaultSoundOnParked {
+			t.Fatalf("parked sound = %q, want %q", cfg.SoundOnParked, model.DefaultSoundOnParked)
+		}
+	})
+
+	t.Run("Should correct child timeout to exceed idle timeout", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			StallTimeout:      10 * time.Minute,
+			ChildStallTimeout: 5 * time.Minute,
+		}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if policy.ChildTimeout <= policy.IdleTimeout {
+			t.Fatalf("invariant not enforced: child %s <= idle %s", policy.ChildTimeout, policy.IdleTimeout)
+		}
+		if policy.ChildTimeout != 20*time.Minute {
+			t.Fatalf("corrected child timeout = %s, want 20m", policy.ChildTimeout)
+		}
+	})
+
+	t.Run("Should resolve an explicit disable to a disabled policy", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := false
+		cfg := &model.RuntimeConfig{StallEnabled: &disabled}
+		cfg.ApplyDefaults()
+
+		if cfg.StallPolicy().Enabled {
+			t.Fatal("expected explicit stall disable to be preserved through defaulting")
+		}
+	})
+
+	t.Run("Should preserve an explicit zero-retry override", func(t *testing.T) {
+		t.Parallel()
+
+		zero := 0
+		cfg := &model.RuntimeConfig{StallRetries: &zero}
+		cfg.ApplyDefaults()
+
+		if cfg.StallPolicy().Retries != 0 {
+			t.Fatalf("retries = %d, want 0 preserved", cfg.StallPolicy().Retries)
+		}
+	})
+
+	t.Run("Should preserve explicit stall durations and trim parked sound", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			StallTimeout:           90 * time.Second,
+			ChildStallTimeout:      4 * time.Minute,
+			TerminalCommandTimeout: 30 * time.Minute,
+			SoundOnParked:          "  ping  ",
+		}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if policy.IdleTimeout != 90*time.Second {
+			t.Fatalf("idle timeout = %s, want 90s", policy.IdleTimeout)
+		}
+		if policy.ChildTimeout != 4*time.Minute {
+			t.Fatalf("child timeout = %s, want 4m", policy.ChildTimeout)
+		}
+		if policy.TerminalCap != 30*time.Minute {
+			t.Fatalf("terminal cap = %s, want 30m", policy.TerminalCap)
+		}
+		if cfg.SoundOnParked != "ping" {
+			t.Fatalf("parked sound = %q, want trimmed ping", cfg.SoundOnParked)
+		}
+	})
+}
+
 func TestPathHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -587,6 +689,24 @@ func TestRuntimeConfigClonePreservesTargetTaskNumber(t *testing.T) {
 		}
 		if cfg.AddDirs[0] != "/workspace/docs" {
 			t.Fatalf("base AddDirs changed to %#v", cfg.AddDirs)
+		}
+	})
+
+	t.Run("Should deep-copy stall pointer fields", func(t *testing.T) {
+		t.Parallel()
+
+		enabled := false
+		retries := 2
+		cfg := &model.RuntimeConfig{StallEnabled: &enabled, StallRetries: &retries}
+
+		cloned := cfg.Clone()
+		if cloned.StallEnabled == cfg.StallEnabled || cloned.StallRetries == cfg.StallRetries {
+			t.Fatal("Clone() aliases stall pointer fields")
+		}
+		*cloned.StallEnabled = true
+		*cloned.StallRetries = 9
+		if *cfg.StallEnabled != false || *cfg.StallRetries != 2 {
+			t.Fatalf("mutating clone changed base stall fields: %#v / %#v", cfg.StallEnabled, cfg.StallRetries)
 		}
 	})
 }

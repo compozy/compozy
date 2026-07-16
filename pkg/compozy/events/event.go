@@ -41,6 +41,8 @@ const (
 	EventKindJobAttemptStarted  EventKind = "job.attempt_started"
 	EventKindJobAttemptFinished EventKind = "job.attempt_finished"
 	EventKindJobRetryScheduled  EventKind = "job.retry_scheduled"
+	EventKindJobStalled         EventKind = "job.stalled"
+	EventKindJobParked          EventKind = "job.parked"
 	EventKindJobPausing         EventKind = "job.pausing"
 	EventKindJobPaused          EventKind = "job.paused"
 	EventKindJobResumed         EventKind = "job.resumed"
@@ -79,6 +81,7 @@ const (
 	EventKindTaskRunMultipleItemCanceled   EventKind = "task.multi.item_canceled"
 	EventKindTaskRunMultipleQueueCanceled  EventKind = "task.multi.queue_canceled"
 	EventKindTaskRunMultipleQueueCompleted EventKind = "task.multi.queue_completed"
+	EventKindTaskRunMultipleSummary        EventKind = "task.multi.summary"
 	EventKindTaskRunMultipleQueueFailed    EventKind = "task.multi.queue_failed"
 
 	// Parallel task execution events emitted by the ParallelExecutionOrchestrator.

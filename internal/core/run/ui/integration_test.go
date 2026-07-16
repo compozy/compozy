@@ -331,6 +331,21 @@ func TestParallelConflictResolvingThenMergedUpdatesPaneAndWaveHeader(t *testing.
 	}
 }
 
+func TestParallelTaskCompletedRequiresCanonicalIntegratedStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject non-canonical integrated status", func(t *testing.T) {
+		t.Parallel()
+
+		m := newParallelTestModel(t, tea.WindowSizeMsg{Width: 120, Height: 30}, 1)
+		m.applyUIMsg(parallelTaskCompletedMsg{WaveIndex: 0, TaskID: "task_01", Status: " merged "})
+
+		if got := m.jobs[0].state; got != jobFailed {
+			t.Fatalf("task state = %v, want failed for non-canonical status", got)
+		}
+	})
+}
+
 func TestParallelRolledBackRendersWithoutPanic(t *testing.T) {
 	t.Parallel()
 

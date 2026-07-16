@@ -309,6 +309,15 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 					JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
 					IDE:            "codex",
 				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobQueued, kinds.JobQueuedPayload{
+					Index:    1,
+					SafeName: "batch_002",
+					IDE:      "cursor",
+				})
+				submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
+					IDE:            "cursor",
+				})
 				submitEvent(
 					ctx,
 					t,
@@ -323,6 +332,24 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 							ToolCallID: "tool-1",
 							Blocks: []kinds.ContentBlock{
 								mustRunManagerToolUseBlock(t, "tool-1", "Bash", `{"command":"make verify"}`),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:       kinds.UpdateKindToolCallStarted,
+							Status:     kinds.StatusRunning,
+							ToolCallID: "tool-1",
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerToolUseBlock(t, "tool-1", "Bash", `{"command":"go test ./..."}`),
 							},
 						},
 					},
@@ -376,6 +403,24 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 					cfg.RunID,
 					eventspkg.EventKindSessionUpdate,
 					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:       kinds.UpdateKindToolCallUpdated,
+							Status:     kinds.StatusCompleted,
+							ToolCallID: "tool-1",
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerToolResultBlock(t, "tool-1", "job 1 final output"),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
 						Index: 0,
 						Update: kinds.SessionUpdate{
 							Kind:   kinds.UpdateKindAgentMessageChunk,
@@ -391,9 +436,36 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 					t,
 					prep.Journal(),
 					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:   kinds.UpdateKindAgentMessageChunk,
+							Status: kinds.StatusCompleted,
+							Blocks: []kinds.ContentBlock{
+								mustRunManagerTextBlock(t, "job 1 done"),
+							},
+						},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
 					eventspkg.EventKindJobCompleted,
 					kinds.JobCompletedPayload{
 						JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+					},
+				)
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindJobCompleted,
+					kinds.JobCompletedPayload{
+						JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
 					},
 				)
 				submitEvent(
@@ -423,17 +495,47 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 		if err != nil {
 			t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
 		}
-		if len(snapshot.Jobs) != 1 || snapshot.Jobs[0].Status != runStatusCompleted {
-			t.Fatalf("snapshot jobs = %#v, want one completed job", snapshot.Jobs)
+		if len(snapshot.Jobs) != 2 || snapshot.Jobs[0].Status != runStatusCompleted ||
+			snapshot.Jobs[1].Status != runStatusCompleted {
+			t.Fatalf("snapshot jobs = %#v, want two completed jobs", snapshot.Jobs)
 		}
-		if snapshot.Jobs[0].Summary == nil {
-			t.Fatal("snapshot job summary = nil, want compact lifecycle metadata")
+		if snapshot.Jobs[0].Summary == nil || snapshot.Jobs[1].Summary == nil {
+			t.Fatal("snapshot job summary = nil, want compact lifecycle metadata for both jobs")
 		}
-		if entries := snapshot.Jobs[0].Summary.Session.Entries; len(entries) != 0 {
-			t.Fatalf(
-				"historical snapshot session entries = %d, want compact summary without dense entries",
-				len(entries),
-			)
+		for index, job := range snapshot.Jobs {
+			if entries := job.Summary.Session.Entries; len(entries) == 0 {
+				t.Fatalf("historical snapshot job %d session entries are empty, want compact ACP transcript", index)
+			}
+		}
+		firstSessionJSON, err := json.Marshal(snapshot.Jobs[0].Summary.Session)
+		if err != nil {
+			t.Fatalf("json.Marshal(snapshot job 0 session) error = %v", err)
+		}
+		firstSessionPayload := string(firstSessionJSON)
+		for _, want := range []string{"make verify", "final output", "done"} {
+			if !strings.Contains(firstSessionPayload, want) {
+				t.Fatalf("snapshot job 0 session missing %q: %s", want, firstSessionPayload)
+			}
+		}
+		for _, unwanted := range []string{obsoleteOutput, "go test ./...", "job 1 final output", "job 1 done"} {
+			if strings.Contains(firstSessionPayload, unwanted) {
+				t.Fatalf("snapshot job 0 session retained unrelated %q", unwanted)
+			}
+		}
+		secondSessionJSON, err := json.Marshal(snapshot.Jobs[1].Summary.Session)
+		if err != nil {
+			t.Fatalf("json.Marshal(snapshot job 1 session) error = %v", err)
+		}
+		secondSessionPayload := string(secondSessionJSON)
+		for _, want := range []string{"go test ./...", "job 1 final output", "job 1 done"} {
+			if !strings.Contains(secondSessionPayload, want) {
+				t.Fatalf("snapshot job 1 session missing %q: %s", want, secondSessionPayload)
+			}
+		}
+		for _, unwanted := range []string{obsoleteOutput, "make verify"} {
+			if strings.Contains(secondSessionPayload, unwanted) {
+				t.Fatalf("snapshot job 1 session retained unrelated %q", unwanted)
+			}
 		}
 		snapshotJSON, err := json.Marshal(snapshot)
 		if err != nil {
@@ -452,7 +554,14 @@ func TestRunManagerHistoricalSnapshotAndTranscriptUseCompactProjection(t *testin
 			t.Fatalf("json.Marshal(transcript) error = %v", err)
 		}
 		transcriptPayload := string(transcriptJSON)
-		for _, want := range []string{"make verify", "final output", "done"} {
+		for _, want := range []string{
+			"make verify",
+			"final output",
+			"done",
+			"go test ./...",
+			"job 1 final output",
+			"job 1 done",
+		} {
 			if !strings.Contains(transcriptPayload, want) {
 				t.Fatalf("transcript payload missing %q: %s", want, transcriptPayload)
 			}
@@ -1965,6 +2074,44 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}
 	})
 
+	t.Run("Should parse and apply snake_case stall runtime overrides from JSON", func(t *testing.T) {
+		overrides, err := parseRuntimeOverrides(rawJSON(
+			t,
+			`{"stall":{"enabled":false,"timeout":"200ms","child_timeout":"500ms","terminal_command_timeout":"1s","retries":2}}`,
+		))
+		if err != nil {
+			t.Fatalf("parseRuntimeOverrides() error = %v", err)
+		}
+
+		cfg := &model.RuntimeConfig{}
+		if err := applyRuntimeOverrideInput(cfg, overrides); err != nil {
+			t.Fatalf("applyRuntimeOverrideInput() error = %v", err)
+		}
+		if cfg.StallEnabled == nil || *cfg.StallEnabled {
+			t.Fatalf("stall enabled = %#v, want false", cfg.StallEnabled)
+		}
+		if cfg.StallTimeout != 200*time.Millisecond {
+			t.Fatalf("stall timeout = %v, want 200ms", cfg.StallTimeout)
+		}
+		if cfg.ChildStallTimeout != 500*time.Millisecond {
+			t.Fatalf("child stall timeout = %v, want 500ms", cfg.ChildStallTimeout)
+		}
+		if cfg.TerminalCommandTimeout != time.Second {
+			t.Fatalf("terminal command timeout = %v, want 1s", cfg.TerminalCommandTimeout)
+		}
+		if cfg.StallRetries == nil || *cfg.StallRetries != 2 {
+			t.Fatalf("stall retries = %#v, want 2", cfg.StallRetries)
+		}
+	})
+
+	t.Run("Should reject unknown snake_case stall runtime overrides", func(t *testing.T) {
+		_, err := parseRuntimeOverrides(rawJSON(t, `{"stall":{"unknown":true}}`))
+		if err == nil {
+			t.Fatal("parseRuntimeOverrides() error = nil, want non-nil")
+		}
+		assertProblemStatus(t, err, http.StatusUnprocessableEntity)
+	})
+
 	t.Run("Should apply runtime and project overrides in order", func(t *testing.T) {
 		cfg := &model.RuntimeConfig{}
 		rules := []model.TaskRuntimeRule{
@@ -2089,6 +2236,138 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 
 		err := overrideValueError("runtime_overrides", "timeout", errors.New("bad duration"))
 		assertProblemStatus(t, err, 422)
+	})
+
+	t.Run("Should apply stall overrides with per-run precedence over project", func(t *testing.T) {
+		cfg := &model.RuntimeConfig{}
+		if err := applyRuntimeOverridesFromProject(cfg, workspacecfg.RuntimeOverrides{
+			Stall: workspacecfg.StallOverrides{
+				Enabled:      boolPtr(true),
+				Timeout:      stringPtr("2m"),
+				ChildTimeout: stringPtr("5m"),
+				Retries:      intPtr(3),
+			},
+		}, "defaults"); err != nil {
+			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
+		}
+		if cfg.StallTimeout != 2*time.Minute {
+			t.Fatalf("project stall timeout = %v, want 2m", cfg.StallTimeout)
+		}
+		if err := applyRuntimeOverrideInput(cfg, runtimeOverrideInput{
+			Stall: &workspacecfg.StallOverrides{
+				Timeout:                stringPtr("5m"),
+				TerminalCommandTimeout: stringPtr("20m"),
+				Enabled:                boolPtr(false),
+			},
+		}); err != nil {
+			t.Fatalf("applyRuntimeOverrideInput() error = %v", err)
+		}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if policy.IdleTimeout != 5*time.Minute {
+			t.Fatalf("per-run stall timeout precedence failed: %v, want 5m", policy.IdleTimeout)
+		}
+		if policy.Enabled {
+			t.Fatal("per-run stall disable did not take precedence")
+		}
+		if policy.TerminalCap != 20*time.Minute {
+			t.Fatalf("terminal cap = %v, want 20m", policy.TerminalCap)
+		}
+		if policy.Retries != 3 {
+			t.Fatalf("project retries not retained: %d, want 3", policy.Retries)
+		}
+		if policy.ChildTimeout <= policy.IdleTimeout {
+			t.Fatalf("child %v must exceed idle %v after correction", policy.ChildTimeout, policy.IdleTimeout)
+		}
+	})
+
+	t.Run("Should surface an invalid stall duration parse error", func(t *testing.T) {
+		cfg := &model.RuntimeConfig{}
+		err := applyRuntimeOverridesFromProject(cfg, workspacecfg.RuntimeOverrides{
+			Stall: workspacecfg.StallOverrides{Timeout: stringPtr("not-a-duration")},
+		}, "defaults")
+		if err == nil {
+			t.Fatal("applyRuntimeOverridesFromProject(invalid stall.timeout) error = nil, want non-nil")
+		}
+		assertProblemStatus(t, err, 422)
+
+		perRunErr := applyRuntimeOverrideInput(cfg, runtimeOverrideInput{
+			Stall: &workspacecfg.StallOverrides{ChildTimeout: stringPtr("bogus")},
+		})
+		if perRunErr == nil {
+			t.Fatal("applyRuntimeOverrideInput(invalid stall.child_timeout) error = nil, want non-nil")
+		}
+		assertProblemStatus(t, perRunErr, 422)
+
+		terminalErr := applyRuntimeOverridesFromProject(cfg, workspacecfg.RuntimeOverrides{
+			Stall: workspacecfg.StallOverrides{TerminalCommandTimeout: stringPtr("nope")},
+		}, "defaults")
+		if terminalErr == nil {
+			t.Fatal(
+				"applyRuntimeOverridesFromProject(invalid stall.terminal_command_timeout) error = nil, want non-nil",
+			)
+		}
+		assertProblemStatus(t, terminalErr, 422)
+	})
+
+	t.Run("Should resolve the parked sound override", func(t *testing.T) {
+		cfg := &model.RuntimeConfig{}
+		applySoundConfig(cfg, workspacecfg.SoundConfig{OnParked: stringPtr("  ping  ")})
+		if cfg.SoundOnParked != "ping" {
+			t.Fatalf("parked sound override = %q, want trimmed ping", cfg.SoundOnParked)
+		}
+	})
+
+	t.Run("Should resolve a loaded stall config through the daemon apply path", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv(compozyconfig.HomeEnvVar, "")
+		root := t.TempDir()
+		configDir := filepath.Join(root, ".compozy")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("mkdir config dir: %v", err)
+		}
+		content := "[defaults.stall]\n" +
+			"timeout = \"2m\"\n" +
+			"child_timeout = \"9m\"\n" +
+			"terminal_command_timeout = \"30m\"\n" +
+			"retries = 2\n\n" +
+			"[sound]\n" +
+			"on_parked = \"ping\"\n"
+		if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o600); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+
+		projectCfg, _, err := workspacecfg.LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("LoadConfig() error = %v", err)
+		}
+
+		cfg := &model.RuntimeConfig{}
+		applySoundConfig(cfg, projectCfg.Sound)
+		if err := applyRuntimeOverridesFromProject(
+			cfg,
+			workspacecfg.RuntimeOverrides(projectCfg.Defaults),
+			"defaults",
+		); err != nil {
+			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
+		}
+		cfg.ApplyDefaults()
+
+		policy := cfg.StallPolicy()
+		if !policy.Enabled {
+			t.Fatalf("expected enabled-by-default when unset, got %#v", policy)
+		}
+		if policy.IdleTimeout != 2*time.Minute || policy.ChildTimeout != 9*time.Minute {
+			t.Fatalf("resolved timeouts = %v / %v, want 2m / 9m", policy.IdleTimeout, policy.ChildTimeout)
+		}
+		if policy.TerminalCap != 30*time.Minute || policy.Retries != 2 {
+			t.Fatalf("resolved cap/retries = %v / %d, want 30m / 2", policy.TerminalCap, policy.Retries)
+		}
+		if cfg.SoundOnParked != "ping" {
+			t.Fatalf("resolved parked sound = %q, want ping", cfg.SoundOnParked)
+		}
 	})
 
 	t.Run("Should detach context and normalize raw helper values", func(t *testing.T) {
