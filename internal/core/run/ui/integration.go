@@ -230,7 +230,7 @@ func (m *uiModel) handleParallelTaskCompleted(v parallelTaskCompletedMsg) {
 		m.sidebarDirty = true
 		return
 	}
-	success := v.Status == "merged" || v.Status == "recovered"
+	success := v.Status == taskParallelStatusMerged || v.Status == taskParallelStatusRecovered
 	finishParallelAggregateTask(m, index, success)
 	m.sidebarDirty = true
 }
@@ -572,7 +572,7 @@ func waveStatusLabel(status waveStatus) string {
 	case waveStatusConflict:
 		return "conflict"
 	case waveStatusMerged:
-		return "merged"
+		return taskParallelStatusMerged
 	default:
 		return "pending"
 	}

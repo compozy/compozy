@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store/rundb"
@@ -43,6 +45,14 @@ func (m *RunManager) compactSnapshot(
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
+	sessionUpdateRows, err := runDB.ListCompactedSessionUpdateEvents(ctx)
+	if err != nil {
+		return apicore.RunSnapshot{}, err
+	}
+	eventRows = append(eventRows, sessionUpdateRows...)
+	slices.SortFunc(eventRows, func(left, right eventspkg.Event) int {
+		return cmp.Compare(left.Seq, right.Seq)
+	})
 	transcriptRows, err := runDB.ListTranscriptMessagesTail(
 		ctx,
 		maxSnapshotTranscriptMessages,

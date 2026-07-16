@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
@@ -33,6 +34,11 @@ const (
 	taskMultiItemStatusFailed    = "failed"
 	taskMultiItemStatusCanceled  = "canceled"
 )
+
+// taskMultiChildPollInterval is how often waitForTaskMultiChild wakes while a
+// child is in flight to run the durable per-child liveness backstop (ADR-003)
+// alongside the event-driven wait on the child's done channel.
+const taskMultiChildPollInterval = 100 * time.Millisecond
 
 type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
@@ -1203,7 +1209,11 @@ func (r *parallelPreparedTaskRun) awaitChild(
 	ctx context.Context,
 	child taskWorktreeChildRun,
 ) (recovery.RunOutcome, error) {
-	childRow, err := r.launcher.manager.waitForTaskMultiChild(ctx, child.Run.RunID)
+	childRow, err := r.launcher.manager.waitForTaskMultiChild(
+		ctx,
+		child.Run.RunID,
+		childStallPolicy(child.RuntimeConfig),
+	)
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1404,6 +1414,8 @@ func recoveryStatusForRunStatus(status string) recovery.RunStatus {
 		return recovery.StatusSucceeded
 	case runStatusCancelled:
 		return recovery.StatusCanceled
+	case runStatusParked:
+		return recovery.StatusParked
 	case runStatusFailed, runStatusCrashed:
 		return recovery.StatusFailed
 	default:
@@ -1490,6 +1502,9 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 	}
 	sem := make(chan struct{}, limit)
 	childErrs := make([]error, len(prepared.items))
+	// Indexed by queue position and written by exactly one worker each, so the
+	// finalizer can read every launched child's journal without extra locking.
+	childRunIDs := make([]string, len(prepared.items))
 	var wg sync.WaitGroup
 	launched := 0
 	var cancelCause error
@@ -1513,7 +1528,9 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			childErrs[index] = m.runTaskMultiParallelChild(active, prepared, item, index, total, base)
+			childErrs[index] = m.runTaskMultiParallelChild(
+				active, prepared, item, index, total, base, &childRunIDs[index],
+			)
 		}()
 	}
 	wg.Wait()
@@ -1522,7 +1539,7 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 			cancelCause = cause
 		}
 	}
-	return m.finalizeTaskMultiParallel(active, prepared, total, childErrs, launched, cancelCause)
+	return m.finalizeTaskMultiParallel(active, prepared, total, childErrs, childRunIDs, launched, cancelCause)
 }
 
 // runTaskMultiParallelChild starts one parallel child in its allocated worktree
@@ -1530,6 +1547,9 @@ func (m *RunManager) runTaskMultiParallelQueue(active *activeRun, prepared *prep
 // path, a start failure or non-completed terminal status is recorded and returned
 // for aggregation while healthy siblings keep running (fail-late). Parent
 // cancellation still cancels the in-flight child via the shared wait helper.
+// runIDOut receives the child's run id as soon as it exists, so finalization can
+// read the child's journal for the end-of-run recovery summary even when the
+// child ended parked, failed, or canceled.
 func (m *RunManager) runTaskMultiParallelChild(
 	active *activeRun,
 	prepared *preparedTaskMulti,
@@ -1537,6 +1557,7 @@ func (m *RunManager) runTaskMultiParallelChild(
 	index int,
 	total int,
 	base taskMultiWorktreeBase,
+	runIDOut *string,
 ) error {
 	child, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
 	if err != nil {
@@ -1561,7 +1582,10 @@ func (m *RunManager) runTaskMultiParallelChild(
 		)
 		return errors.Join(fmt.Errorf("start child %s: %w", item.slug, err), emitErr)
 	}
-	childRow, err := m.waitForTaskMultiChild(active.ctx, child.Run.RunID)
+	if runIDOut != nil {
+		*runIDOut = child.Run.RunID
+	}
+	childRow, err := m.waitForTaskMultiChild(active.ctx, child.Run.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1598,38 +1622,85 @@ func (m *RunManager) runTaskMultiParallelChild(
 	); emitErr != nil {
 		return emitErr
 	}
-	if childRow.Status == runStatusCompleted {
+	return taskMultiChildTerminalError(childRow, item.slug)
+}
+
+// taskMultiChildTerminalError maps a settled child's run status to the error the
+// aggregate parent result reports: nil for a completion, a typed error otherwise.
+func taskMultiChildTerminalError(childRow globaldb.Run, slug string) error {
+	switch childRow.Status {
+	case runStatusCompleted:
 		return nil
+	case runStatusCancelled:
+		return fmt.Errorf("task multi child run %s for %s was canceled", childRow.RunID, slug)
+	default:
+		return fmt.Errorf(
+			"task multi child run %s for %s ended with status %s: %s",
+			childRow.RunID,
+			slug,
+			childRow.Status,
+			childRow.ErrorText,
+		)
 	}
-	if childRow.Status == runStatusCancelled {
-		return fmt.Errorf("task multi child run %s for %s was canceled", childRow.RunID, item.slug)
-	}
-	return fmt.Errorf(
-		"task multi child run %s for %s ended with status %s: %s",
-		childRow.RunID,
-		item.slug,
-		childRow.Status,
-		childRow.ErrorText,
-	)
 }
 
 // finalizeTaskMultiParallel computes the terminal parent result after every
 // launched child has settled. When the parent was canceled it marks the
 // not-started items canceled and returns the cancellation cause; otherwise it
-// returns the aggregate child failure, or nil when every child completed.
+// returns the aggregate child failure, or nil when every child completed. The
+// recovery summary is emitted first, on every path, because a batch that parked
+// or failed a child is exactly the batch whose closing counts the user needs; the
+// summary is best-effort, so its own failure never changes the parent result.
 func (m *RunManager) finalizeTaskMultiParallel(
 	active *activeRun,
 	prepared *preparedTaskMulti,
 	total int,
 	childErrs []error,
+	childRunIDs []string,
 	launched int,
 	cancelCause error,
 ) error {
+	summaryErr := m.emitTaskMultiRecoverySummary(active, prepared, total, childRunIDs)
 	if cancelCause != nil {
 		cancelErr := m.cancelTaskMultiQueuedItems(active, prepared.items, launched, total, cancelCause)
-		return errors.Join(cancelCause, errors.Join(childErrs...), cancelErr)
+		return errors.Join(cancelCause, errors.Join(childErrs...), cancelErr, summaryErr)
 	}
+	// The queue-terminal event is emitted once by emitTaskMultiQueueSettlement at
+	// the dispatcher, driven by this return value, so a best-effort summary write
+	// failure must not fail an otherwise-successful batch. summaryErr is surfaced
+	// only on the cancel path above, where the run is already failing.
 	return aggregateTaskMultiParallelResult(prepared.items, childErrs)
+}
+
+// emitTaskMultiRecoverySummary aggregates the batch's completed, recovered, and
+// parked counts from the children's durable journals and publishes them as the
+// end-of-run summary event.
+func (m *RunManager) emitTaskMultiRecoverySummary(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	total int,
+	childRunIDs []string,
+) error {
+	if active == nil {
+		return nil
+	}
+	summary := m.collectTaskMultiRecoverySummary(active.ctx, total, childRunIDs)
+	slog.Default().Info(
+		"daemon: multi-run recovery summary",
+		"run_id", active.runID,
+		"total", summary.Total,
+		"completed", summary.Completed,
+		"recovered", summary.Recovered,
+		"parked", summary.Parked,
+	)
+	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleSummary, kinds.TaskRunMultiplePayload{
+		Mode:      prepared.mode,
+		Slugs:     preparedTaskMultiSlugs(prepared.items),
+		Total:     summary.Total,
+		Completed: summary.Completed,
+		Recovered: summary.Recovered,
+		Parked:    summary.Parked,
+	})
 }
 
 // aggregateTaskMultiParallelResult returns nil when every child completed
@@ -1725,7 +1796,7 @@ func (m *RunManager) awaitTaskMultiChild(
 	total int,
 	childRun apicore.Run,
 ) error {
-	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID)
+	childRow, err := m.waitForTaskMultiChild(active.ctx, childRun.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
 		var childCancelErr error
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1960,13 +2031,32 @@ func (m *RunManager) startTaskWorktreeChild(
 		)
 	}
 	if err := mirrorTaskMultiWorkflowArtifacts(item.workflowRoot, allocation.Path, item.slug); err != nil {
-		return taskWorktreeChildRun{Allocation: allocation}, err
+		return taskWorktreeChildRun{Allocation: m.cleanupAllocatedTaskWorktree(active, prepared, allocation)}, err
 	}
 	child, err := m.startTaskWorktreeChildInAllocation(active, prepared, item, targetTaskNumber, allocation)
 	if err != nil {
-		return taskWorktreeChildRun{Allocation: allocation}, err
+		return taskWorktreeChildRun{Allocation: m.cleanupAllocatedTaskWorktree(active, prepared, allocation)}, err
 	}
 	return child, nil
+}
+
+// cleanupAllocatedTaskWorktree removes a worktree that was allocated for a child
+// which then failed to launch, so a launch failure never leaves an orphaned
+// worktree on disk. It is best-effort: cleanupSettledTaskWorktree preserves any
+// tree that is not safely removable and records the reason on the allocation.
+func (m *RunManager) cleanupAllocatedTaskWorktree(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	allocation taskMultiWorktreeAllocation,
+) taskMultiWorktreeAllocation {
+	if active == nil || prepared == nil || strings.TrimSpace(allocation.Path) == "" {
+		return allocation
+	}
+	return m.cleanupSettledTaskWorktree(
+		context.WithoutCancel(active.ctx),
+		prepared.workspace.RootDir,
+		allocation,
+	)
 }
 
 func (m *RunManager) startTaskWorktreeChildInAllocation(
@@ -2228,7 +2318,17 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 	return allocation
 }
 
-func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (globaldb.Run, error) {
+// waitForTaskMultiChild blocks until one child run settles. A child normally
+// settles by closing its active.done channel, which this waits on directly. It
+// also carries the durable per-child liveness backstop (ADR-003) as a safety net
+// for a child wedged so hard it never closes that channel: the ticker periodically
+// reaps a child whose journal high-water sequence has stopped advancing, which
+// then closes active.done and releases the batch join instead of wedging it.
+func (m *RunManager) waitForTaskMultiChild(
+	ctx context.Context,
+	runID string,
+	policy model.StallPolicy,
+) (globaldb.Run, error) {
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
 		return globaldb.Run{}, errors.New("wait for child run: run id is required")
@@ -2245,17 +2345,35 @@ func (m *RunManager) waitForTaskMultiChild(ctx context.Context, runID string) (g
 		return m.reconcileExitedTaskMultiChild(detachContext(ctx), row, active)
 	}
 
-	select {
-	case <-ctx.Done():
-		if cancelErr := m.Cancel(detachContext(ctx), trimmedRunID); cancelErr != nil {
-			return globaldb.Run{}, errors.Join(
-				ctx.Err(),
-				fmt.Errorf("cancel child run %s: %w", trimmedRunID, cancelErr),
-			)
+	backstop := m.newChildBackstop(trimmedRunID, policy)
+	defer backstop.close()
+	ticker := time.NewTicker(taskMultiChildPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			if cancelErr := m.Cancel(detachContext(ctx), trimmedRunID); cancelErr != nil {
+				return globaldb.Run{}, errors.Join(
+					ctx.Err(),
+					fmt.Errorf("cancel child run %s: %w", trimmedRunID, cancelErr),
+				)
+			}
+			return globaldb.Run{}, ctx.Err()
+		case <-active.done:
+			return m.reconcileExitedTaskMultiChild(detachContext(ctx), row, active)
+		case <-ticker.C:
+			// Re-read the durable status so the backstop's own reap settles the join
+			// even when a child is wedged hard enough that active.done never closes.
+			latest, err := m.globalDB.GetRun(detachContext(ctx), trimmedRunID)
+			if err != nil {
+				return globaldb.Run{}, fmt.Errorf("load child run %s: %w", trimmedRunID, err)
+			}
+			if isTerminalRunStatus(latest.Status) {
+				return latest, nil
+			}
+			backstop.check(ctx)
 		}
-		return globaldb.Run{}, ctx.Err()
-	case <-active.done:
-		return m.reconcileExitedTaskMultiChild(detachContext(ctx), row, active)
 	}
 }
 

@@ -46,6 +46,7 @@ const (
 	runStatusFailed    = "failed"
 	runStatusCancelled = "canceled"
 	runStatusCrashed   = "crashed"
+	runStatusParked    = "parked"
 
 	defaultRunListLimit       = 100
 	defaultPresentationMode   = "stream"
@@ -193,6 +194,7 @@ type runtimeOverrideInput struct {
 	EnableExecutableExtensions *bool                             `json:"enable_executable_extensions"`
 	Recovery                   *workspacecfg.AgentRecoveryConfig `json:"recovery"`
 	ParallelTasks              *workspacecfg.ParallelTasksConfig `json:"parallel_tasks"`
+	Stall                      *workspacecfg.StallOverrides      `json:"stall"`
 }
 
 type reviewBatchingInput struct {
@@ -2766,7 +2768,7 @@ func cancelledTerminalState(err error) terminalState {
 
 func isTerminalRunStatus(status string) bool {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case runStatusCompleted, runStatusFailed, runStatusCancelled, runStatusCrashed:
+	case runStatusCompleted, runStatusFailed, runStatusCancelled, runStatusCrashed, runStatusParked:
 		return true
 	default:
 		return false
@@ -3038,6 +3040,10 @@ func applyRuntimeOverridesFromProject(
 	if overrides.RetryBackoffMultiplier != nil {
 		cfg.RetryBackoffMultiplier = *overrides.RetryBackoffMultiplier
 	}
+	if err := applyStallDurations(cfg, overrides.Stall, scope); err != nil {
+		return err
+	}
+	applyStallScalars(cfg, overrides.Stall)
 	return nil
 }
 
@@ -3132,6 +3138,11 @@ func applyRuntimeOverrideInput(cfg *model.RuntimeConfig, overrides runtimeOverri
 	if err := applyOptionalDuration(cfg, overrides.Timeout); err != nil {
 		return overrideValueError("runtime_overrides", "timeout", err)
 	}
+	if overrides.Stall != nil {
+		if err := applyStallDurations(cfg, *overrides.Stall, "runtime_overrides"); err != nil {
+			return err
+		}
+	}
 	applyRuntimeOverrideScalars(cfg, overrides)
 	return nil
 }
@@ -3181,6 +3192,9 @@ func applyRuntimeOverrideExecutionScalars(cfg *model.RuntimeConfig, overrides ru
 	}
 	if overrides.ExplicitRuntime != nil {
 		cfg.ExplicitRuntime = *overrides.ExplicitRuntime
+	}
+	if overrides.Stall != nil {
+		applyStallScalars(cfg, *overrides.Stall)
 	}
 }
 
@@ -3233,6 +3247,9 @@ func applySoundConfig(cfg *model.RuntimeConfig, soundCfg workspacecfg.SoundConfi
 	if soundCfg.OnFailed != nil {
 		cfg.SoundOnFailed = strings.TrimSpace(*soundCfg.OnFailed)
 	}
+	if soundCfg.OnParked != nil {
+		cfg.SoundOnParked = strings.TrimSpace(*soundCfg.OnParked)
+	}
 }
 
 func applyOptionalString(dst *string, value *string) {
@@ -3250,20 +3267,65 @@ func applyOptionalOutputFormat(cfg *model.RuntimeConfig, value *string) {
 }
 
 func applyOptionalDuration(cfg *model.RuntimeConfig, value *string) error {
-	if cfg == nil || value == nil {
+	if cfg == nil {
+		return nil
+	}
+	return applyOptionalDurationField(&cfg.Timeout, value)
+}
+
+// applyOptionalDurationField parses an optional Go duration string into dst,
+// treating an empty string as a zero duration. Parsing is consistent with the
+// timeout override handling so all duration knobs behave identically.
+func applyOptionalDurationField(dst *time.Duration, value *string) error {
+	if dst == nil || value == nil {
 		return nil
 	}
 	trimmed := strings.TrimSpace(*value)
 	if trimmed == "" {
-		cfg.Timeout = 0
+		*dst = 0
 		return nil
 	}
 	parsed, err := time.ParseDuration(trimmed)
 	if err != nil {
 		return err
 	}
-	cfg.Timeout = parsed
+	*dst = parsed
 	return nil
+}
+
+// applyStallDurations resolves the stall duration overrides into cfg, wrapping a
+// parse failure in a scope-tagged problem consistent with the timeout override.
+func applyStallDurations(cfg *model.RuntimeConfig, stall workspacecfg.StallOverrides, scope string) error {
+	if cfg == nil {
+		return nil
+	}
+	if err := applyOptionalDurationField(&cfg.StallTimeout, stall.Timeout); err != nil {
+		return overrideValueError(scope, "stall.timeout", err)
+	}
+	if err := applyOptionalDurationField(&cfg.ChildStallTimeout, stall.ChildTimeout); err != nil {
+		return overrideValueError(scope, "stall.child_timeout", err)
+	}
+	if err := applyOptionalDurationField(&cfg.TerminalCommandTimeout, stall.TerminalCommandTimeout); err != nil {
+		return overrideValueError(scope, "stall.terminal_command_timeout", err)
+	}
+	return nil
+}
+
+// applyStallScalars resolves the non-duration stall overrides (enabled, retries)
+// into cfg. Values stay as pointers so ApplyDefaults can distinguish an explicit
+// disable / zero-retry from an unset knob.
+func applyStallScalars(cfg *model.RuntimeConfig, stall workspacecfg.StallOverrides) {
+	if cfg == nil {
+		return
+	}
+	if stall.Enabled != nil {
+		enabled := *stall.Enabled
+		cfg.StallEnabled = &enabled
+	}
+	if stall.Retries != nil {
+		retries := *stall.Retries
+		cfg.StallRetries = &retries
+	}
 }
 
 func validateDaemonRuntimeConfig(cfg *model.RuntimeConfig) error {

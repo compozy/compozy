@@ -263,6 +263,9 @@ func applySoundConfig(s *commandState, cfg workspace.SoundConfig) {
 	if cfg.OnFailed != nil {
 		s.soundOnFailed = *cfg.OnFailed
 	}
+	if cfg.OnParked != nil {
+		s.soundOnParked = *cfg.OnParked
+	}
 }
 
 func (s *commandState) applyRecoveryConfig(cmd *cobra.Command, cfg workspace.AgentRecoveryConfig) {

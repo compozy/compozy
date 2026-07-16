@@ -51,7 +51,7 @@ func (f *fakePlayer) observedCtxErr(i int) error {
 func TestPickSound(t *testing.T) {
 	t.Parallel()
 
-	cfg := Config{OnCompleted: "glass", OnFailed: "basso"}
+	cfg := Config{OnCompleted: "glass", OnFailed: "basso", OnParked: "funk"}
 	cases := []struct {
 		name string
 		kind events.EventKind
@@ -60,6 +60,10 @@ func TestPickSound(t *testing.T) {
 		{"completed plays success sound", events.EventKindRunCompleted, "glass"},
 		{"failed plays failure sound", events.EventKindRunFailed, "basso"},
 		{"canceled plays failure sound", events.EventKindRunCancelled, "basso"},
+		{"parked plays the parked alert", events.EventKindJobParked, "funk"},
+		{"retry scheduled is silent", events.EventKindJobRetryScheduled, ""},
+		{"stalled is silent", events.EventKindJobStalled, ""},
+		{"job failed is silent", events.EventKindJobFailed, ""},
 		{"started is silent", events.EventKindRunStarted, ""},
 		{"queued is silent", events.EventKindRunQueued, ""},
 		{"unrelated kind is silent", events.EventKindToolCallStarted, ""},
@@ -84,6 +88,9 @@ func TestPickSound_EmptyConfigsAreSilent(t *testing.T) {
 	if got := pickSound(events.EventKindRunFailed, cfg); got != "" {
 		t.Fatalf("expected silence when OnFailed is empty, got %q", got)
 	}
+	if got := pickSound(events.EventKindJobParked, cfg); got != "" {
+		t.Fatalf("expected silence when OnParked is empty, got %q", got)
+	}
 }
 
 func TestNotify_PlaysSoundForEachKind(t *testing.T) {
@@ -96,6 +103,7 @@ func TestNotify_PlaysSoundForEachKind(t *testing.T) {
 		{"completed", events.EventKindRunCompleted, "glass"},
 		{"failed", events.EventKindRunFailed, "basso"},
 		{"canceled", events.EventKindRunCancelled, "basso"},
+		{"parked", events.EventKindJobParked, "funk"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -103,7 +111,7 @@ func TestNotify_PlaysSoundForEachKind(t *testing.T) {
 			player := &fakePlayer{}
 			Notify(
 				context.Background(),
-				Config{Player: player, OnCompleted: "glass", OnFailed: "basso"},
+				Config{Player: player, OnCompleted: "glass", OnFailed: "basso", OnParked: "funk"},
 				tc.kind,
 				nil,
 			)
@@ -135,9 +143,40 @@ func TestNotify_SilentForNonTerminalKinds(t *testing.T) {
 	}
 }
 
+// Only a park alerts. A stall and its clean-state retry are routine recovery the
+// walked-away user must never be woken for, so they stay silent even when the
+// parked alert is configured.
+func TestNotify_OnlyParkAlertsAmongJobKinds(t *testing.T) {
+	t.Parallel()
+	cfg := Config{OnCompleted: "glass", OnFailed: "basso", OnParked: "funk"}
+
+	silentPlayer := &fakePlayer{}
+	for _, kind := range []events.EventKind{
+		events.EventKindJobStalled,
+		events.EventKindJobRetryScheduled,
+		events.EventKindJobStarted,
+		events.EventKindJobFailed,
+		events.EventKindJobCompleted,
+	} {
+		cfg.Player = silentPlayer
+		Notify(context.Background(), cfg, kind, nil)
+	}
+	if got := silentPlayer.snapshot(); len(got) != 0 {
+		t.Fatalf("expected no alert for non-park job kinds, got %#v", got)
+	}
+
+	parkPlayer := &fakePlayer{}
+	cfg.Player = parkPlayer
+	Notify(context.Background(), cfg, events.EventKindJobParked, nil)
+	if got := parkPlayer.snapshot(); len(got) != 1 || got[0] != "funk" {
+		t.Fatalf("expected exactly one funk alert on park, got %#v", got)
+	}
+}
+
 func TestNotify_NilPlayerIsNoOp(t *testing.T) {
 	t.Parallel()
 	Notify(context.Background(), Config{OnCompleted: "glass"}, events.EventKindRunCompleted, nil)
+	Notify(context.Background(), Config{OnParked: "funk"}, events.EventKindJobParked, nil)
 }
 
 func TestNotify_EmptyPresetForKindIsNoOp(t *testing.T) {

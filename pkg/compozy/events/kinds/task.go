@@ -49,6 +49,9 @@ type TaskMetadataRefreshedPayload struct {
 // allocated, and they stay empty for enqueued runs and for parent events emitted
 // before this metadata existed. Snapshot reconstruction must treat any empty
 // field as "unknown" so older parent event streams remain compatible.
+//
+// Completed, Recovered, and Parked are the end-of-run recovery counts and are
+// populated only on EventKindTaskRunMultipleSummary.
 type TaskRunMultiplePayload struct {
 	RunID          string   `json:"run_id,omitempty"`
 	Mode           string   `json:"mode,omitempty"`
@@ -64,6 +67,9 @@ type TaskRunMultiplePayload struct {
 	BaseBranch     string   `json:"base_branch,omitempty"`
 	BaseCommit     string   `json:"base_commit,omitempty"`
 	WorktreeStatus string   `json:"worktree_status,omitempty"`
+	Completed      int      `json:"completed,omitempty"`
+	Recovered      int      `json:"recovered,omitempty"`
+	Parked         int      `json:"parked,omitempty"`
 	WorktreeReason string   `json:"worktree_reason,omitempty"`
 	ResultBranch   string   `json:"result_branch,omitempty"`
 }
