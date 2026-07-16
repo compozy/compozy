@@ -229,14 +229,14 @@ type TaskOutcome struct {
 }
 
 // TaskOutcomeStatus is the per-task status reported by the parallel run.
-type TaskOutcomeStatus string
+type TaskOutcomeStatus = kinds.TaskParallelTaskStatus
 
 const (
-	TaskOutcomeMerged    TaskOutcomeStatus = "merged"
-	TaskOutcomeRecovered TaskOutcomeStatus = "recovered"
-	TaskOutcomeFailed    TaskOutcomeStatus = "failed"
-	TaskOutcomeSkipped   TaskOutcomeStatus = "skipped"
-	TaskOutcomeCanceled  TaskOutcomeStatus = "canceled"
+	TaskOutcomeMerged    = kinds.TaskParallelTaskStatusMerged
+	TaskOutcomeRecovered = kinds.TaskParallelTaskStatusRecovered
+	TaskOutcomeFailed    = kinds.TaskParallelTaskStatusFailed
+	TaskOutcomeSkipped   = kinds.TaskParallelTaskStatusSkipped
+	TaskOutcomeCanceled  = kinds.TaskParallelTaskStatusCanceled
 )
 
 // StatusReport returns the user-facing per-task status string.
@@ -973,7 +973,7 @@ func (o *ExecutionOrchestrator) cleanupTaskOutcomes(
 			WorkspaceRoot:     plan.WorkspaceRoot,
 			Path:              task.WorktreePath,
 			BaseCommit:        task.BaseCommit,
-			ContentIntegrated: contentIntegrated && task.Status.removesWorktree(),
+			ContentIntegrated: contentIntegrated && task.Status.IsIntegrated(),
 		})
 		if err != nil {
 			task.WorktreeStatus = string(WorktreeCleanupStatusPreserved)
@@ -1505,10 +1505,6 @@ func mergedStatus(execution taskExecution) TaskOutcomeStatus {
 		return TaskOutcomeRecovered
 	}
 	return TaskOutcomeMerged
-}
-
-func (s TaskOutcomeStatus) removesWorktree() bool {
-	return s == TaskOutcomeMerged || s == TaskOutcomeRecovered
 }
 
 func sortTaskOutcomes(outcomes []TaskOutcome) {
