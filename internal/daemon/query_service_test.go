@@ -190,7 +190,11 @@ func TestQueryServicesIsolatePackageTasksMemoryAndReviews(t *testing.T) {
 	}
 	blockedPackage := workflows[0].WorkPackages[1]
 	if blockedPackage.UnmetDependencyCount != 1 || blockedPackage.CanStartRun == nil ||
-		*blockedPackage.CanStartRun || blockedPackage.StartBlockReason != "1 unmet dependency" {
+		!*blockedPackage.CanStartRun || blockedPackage.StartBlockReason != "" ||
+		!blockedPackage.RequiresStartConfirmation || len(blockedPackage.UnmetDependencies) != 1 ||
+		blockedPackage.UnmetDependencies[0].PackageID != "WP-001" ||
+		blockedPackage.UnmetDependencies[0].Title != "Foundation" ||
+		blockedPackage.UnmetDependencies[0].Rationale != "Foundation must be complete first" {
 		t.Fatalf("WP-002 readiness = %#v", workflows[0].WorkPackages[1])
 	}
 	parentOverview, err := query.WorkflowOverview(context.Background(), env.workspaceRoot, initiative)

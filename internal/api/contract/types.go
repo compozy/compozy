@@ -277,28 +277,38 @@ type WorkflowSummary struct {
 
 // WorkPackageSummary is the nested read projection for one hidden child workflow.
 type WorkPackageSummary struct {
-	WorkflowID            string                  `json:"workflow_id"`
-	PackageID             string                  `json:"package_id"`
-	Reference             string                  `json:"reference"`
-	Title                 string                  `json:"title"`
-	Outcome               string                  `json:"outcome"`
-	LifecycleComplete     bool                    `json:"lifecycle_complete"`
-	Dependencies          []WorkPackageDependency `json:"dependencies,omitempty"`
-	TaskCounts            *WorkflowTaskCounts     `json:"task_counts,omitempty"`
-	UnresolvedReviews     int                     `json:"unresolved_reviews,omitempty"`
-	UnmetDependencyCount  int                     `json:"unmet_dependency_count,omitempty"`
-	IndependentlyEligible bool                    `json:"independently_eligible,omitempty"`
-	ActiveRuns            int                     `json:"active_runs,omitempty"`
-	CanStartRun           *bool                   `json:"can_start_run,omitempty"`
-	StartBlockReason      string                  `json:"start_block_reason,omitempty"`
-	ArchiveEligible       *bool                   `json:"archive_eligible,omitempty"`
-	ArchiveReason         string                  `json:"archive_reason,omitempty"`
+	WorkflowID                string                      `json:"workflow_id"`
+	PackageID                 string                      `json:"package_id"`
+	Reference                 string                      `json:"reference"`
+	Title                     string                      `json:"title"`
+	Outcome                   string                      `json:"outcome"`
+	LifecycleComplete         bool                        `json:"lifecycle_complete"`
+	Dependencies              []WorkPackageDependency     `json:"dependencies,omitempty"`
+	UnmetDependencies         []WorkPackageDependency     `json:"unmet_dependencies,omitempty"`
+	UnmetDependencyPaths      []WorkPackageDependencyPath `json:"unmet_dependency_paths,omitempty"`
+	TaskCounts                *WorkflowTaskCounts         `json:"task_counts,omitempty"`
+	UnresolvedReviews         int                         `json:"unresolved_reviews,omitempty"`
+	UnmetDependencyCount      int                         `json:"unmet_dependency_count,omitempty"`
+	IndependentlyEligible     bool                        `json:"independently_eligible,omitempty"`
+	ActiveRuns                int                         `json:"active_runs,omitempty"`
+	CanStartRun               *bool                       `json:"can_start_run,omitempty"`
+	RequiresStartConfirmation bool                        `json:"requires_start_confirmation,omitempty"`
+	StartBlockReason          string                      `json:"start_block_reason,omitempty"`
+	ArchiveEligible           *bool                       `json:"archive_eligible,omitempty"`
+	ArchiveReason             string                      `json:"archive_reason,omitempty"`
 }
 
 // WorkPackageDependency identifies one declared prerequisite and its rationale.
 type WorkPackageDependency struct {
 	PackageID string `json:"package_id"`
+	Title     string `json:"title"`
 	Rationale string `json:"rationale"`
+}
+
+// WorkPackageDependencyPath explains an unmet prerequisite that is transitive.
+type WorkPackageDependencyPath struct {
+	PackageIDs   []string                `json:"package_ids"`
+	Dependencies []WorkPackageDependency `json:"dependencies"`
 }
 
 type WorkflowTaskCounts struct {

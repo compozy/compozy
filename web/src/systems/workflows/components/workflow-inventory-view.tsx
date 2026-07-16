@@ -41,6 +41,11 @@ export interface ArchiveConfirmationState {
   reviewTotal: number;
 }
 
+export interface WorkflowRunRequest {
+  packageId?: string;
+  allowOutOfOrder?: boolean;
+}
+
 function pluralize(count: number, singular: string): string {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
 }
@@ -54,7 +59,7 @@ export interface WorkflowInventoryViewProps {
   isReadOnly?: boolean;
   onSyncAll: () => void;
   onSyncOne: (slug: string) => void;
-  onStartRun: (slug: string, packageId?: string) => void;
+  onStartRun: (slug: string, request?: WorkflowRunRequest) => void | Promise<void>;
   onArchive: (slug: string) => void;
   onConfirmArchiveConfirmation: (slug: string) => void;
   onCancelArchiveConfirmation: () => void;
@@ -258,7 +263,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
-                onStartPackage={packageId => onStartRun(workflow.slug, packageId)}
+                onStartPackage={request => onStartRun(workflow.slug, request)}
                 onSync={() => onSyncOne(workflow.slug)}
                 readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
@@ -281,7 +286,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
-                onStartPackage={packageId => onStartRun(workflow.slug, packageId)}
+                onStartPackage={request => onStartRun(workflow.slug, request)}
                 onSync={() => onSyncOne(workflow.slug)}
                 readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
@@ -330,7 +335,7 @@ function WorkflowRow({
   workflow: WorkflowSummary;
   onSync: () => void;
   onStartRun: () => void;
-  onStartPackage: (packageId: string) => void;
+  onStartPackage: (request: WorkflowRunRequest) => void | Promise<void>;
   onArchive: () => void;
   pendingSync: boolean;
   pendingStart: boolean;
@@ -460,7 +465,7 @@ function WorkPackageList({
   readOnly,
 }: {
   initiativeSlug: string;
-  onStartPackage: (packageId: string) => void;
+  onStartPackage: (request: WorkflowRunRequest) => void | Promise<void>;
   packages: WorkPackageSummary[];
   pendingStartReference: string | null;
   readOnly: boolean;
@@ -508,7 +513,7 @@ function WorkPackageList({
             <WorkPackageRow
               initiativeSlug={initiativeSlug}
               key={pkg.workflow_id}
-              onStart={() => onStartPackage(pkg.package_id)}
+              onStart={request => onStartPackage(request)}
               pendingStart={pendingStartReference === pkg.reference}
               pkg={pkg}
               readOnly={readOnly}
@@ -535,18 +540,41 @@ function WorkPackageRow({
   readOnly,
 }: {
   initiativeSlug: string;
-  onStart: () => void;
+  onStart: (request: WorkflowRunRequest) => void | Promise<void>;
   pendingStart: boolean;
   pkg: WorkPackageSummary;
   readOnly: boolean;
 }): ReactElement {
   const unmetCount = pkg.unmet_dependency_count ?? 0;
+  const unmetDependencies = pkg.unmet_dependencies ?? [];
+  const unmetDependencyPaths = pkg.unmet_dependency_paths ?? [];
+  const requiresStartConfirmation = pkg.requires_start_confirmation === true || unmetCount > 0;
+  const [dependencyConfirmationOpen, setDependencyConfirmationOpen] = useState(false);
+  const [dependencyConfirmationPending, setDependencyConfirmationPending] = useState(false);
   const completionText = pkg.lifecycle_complete
     ? "Compozy lifecycle complete; Git integration is not tracked"
     : "Compozy lifecycle incomplete";
   const selectionLabel = `${pkg.package_id}, ${pkg.title}. ${completionText}. ${unmetCount} unmet ${unmetCount === 1 ? "dependency" : "dependencies"}.`;
-  const canStart = !pkg.lifecycle_complete && pkg.can_start_run !== false;
+  const canStart =
+    !pkg.lifecycle_complete &&
+    pkg.can_start_run !== false &&
+    (!requiresStartConfirmation || unmetDependencies.length > 0 || unmetDependencyPaths.length > 0);
+  const startBlockReason =
+    requiresStartConfirmation && unmetDependencies.length === 0 && unmetDependencyPaths.length === 0
+      ? "dependency details unavailable"
+      : pkg.start_block_reason || "not startable";
   const taskCounts = pkg.task_counts;
+
+  async function handleConfirmDependencyOverride() {
+    if (dependencyConfirmationPending) return;
+    setDependencyConfirmationPending(true);
+    try {
+      await onStart({ packageId: pkg.package_id, allowOutOfOrder: true });
+      setDependencyConfirmationOpen(false);
+    } finally {
+      setDependencyConfirmationPending(false);
+    }
+  }
 
   return (
     <li>
@@ -644,17 +672,87 @@ function WorkPackageRow({
                 disabled={pendingStart || readOnly}
                 icon={<Play className="size-4" />}
                 loading={pendingStart}
-                onClick={onStart}
+                onClick={() => {
+                  if (requiresStartConfirmation) {
+                    setDependencyConfirmationOpen(true);
+                    return;
+                  }
+                  void onStart({ packageId: pkg.package_id });
+                }}
                 size="sm"
               >
                 Start package run
               </Button>
             ) : pkg.lifecycle_complete ? null : (
-              <StatusBadge tone="warning">{pkg.start_block_reason || "not startable"}</StatusBadge>
+              <StatusBadge tone="warning">{startBlockReason}</StatusBadge>
             )}
           </div>
         </SurfaceCardBody>
       </SurfaceCard>
+      <AlertDialog open={dependencyConfirmationOpen}>
+        <AlertDialogContent
+          data-testid={`workflow-package-dependency-confirmation-${initiativeSlug}-${pkg.package_id}`}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start {pkg.reference} out of order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This run has unmet dependencies. Continuing authorizes only this package run and does
+              not change the work package plan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 px-6 pb-6">
+            <Alert
+              icon={<AlertTriangle className="size-4" />}
+              title="Unmet dependency details"
+              variant="warning"
+            >
+              Review each prerequisite before authorizing this one out-of-order run.
+            </Alert>
+            <ul
+              aria-label={`Unmet dependency details for ${pkg.package_id}`}
+              className="space-y-2 rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-4 py-3 text-sm text-muted-foreground"
+              data-testid={`workflow-package-dependency-confirmation-dependencies-${initiativeSlug}-${pkg.package_id}`}
+            >
+              {unmetDependencies.map(dependency => (
+                <li key={`${dependency.package_id}-${dependency.rationale}`}>
+                  <span className="font-mono text-foreground">{dependency.package_id}</span>
+                  {` — ${dependency.title}: ${dependency.rationale}`}
+                </li>
+              ))}
+              {unmetDependencyPaths.map(path => (
+                <li key={path.package_ids.join("/")}>
+                  <p>Transitive path: {path.package_ids.join(" → ")}</p>
+                  <ul className="mt-1 space-y-1">
+                    {path.dependencies.map(dependency => (
+                      <li key={`${dependency.package_id}-${dependency.rationale}`}>
+                        <span className="font-mono text-foreground">{dependency.package_id}</span>
+                        {` — ${dependency.title}: ${dependency.rationale}`}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <AlertDialogFooter>
+            <Button
+              data-testid={`workflow-package-dependency-confirmation-cancel-${initiativeSlug}-${pkg.package_id}`}
+              disabled={dependencyConfirmationPending}
+              onClick={() => setDependencyConfirmationOpen(false)}
+              variant="secondary"
+            >
+              Cancel
+            </Button>
+            <Button
+              data-testid={`workflow-package-dependency-confirmation-confirm-${initiativeSlug}-${pkg.package_id}`}
+              loading={dependencyConfirmationPending}
+              onClick={() => void handleConfirmDependencyOverride()}
+            >
+              Start out of order
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   );
 }

@@ -2092,6 +2092,9 @@
                     "reference": {
                         "type": "string"
                     },
+                    "requires_start_confirmation": {
+                        "type": "boolean"
+                    },
                     "start_block_reason": {
                         "type": "string"
                     },
@@ -2103,6 +2106,18 @@
                     },
                     "unmet_dependency_count": {
                         "type": "integer"
+                    },
+                    "unmet_dependencies": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkPackageDependency"
+                        },
+                        "type": "array"
+                    },
+                    "unmet_dependency_paths": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkPackageDependencyPath"
+                        },
+                        "type": "array"
                     },
                     "unresolved_reviews": {
                         "type": "integer"
@@ -2128,9 +2143,30 @@
                     },
                     "rationale": {
                         "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
                     }
                 },
-                "required": ["package_id", "rationale"],
+                "required": ["package_id", "rationale", "title"],
+                "type": "object"
+            },
+            "WorkPackageDependencyPath": {
+                "properties": {
+                    "dependencies": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkPackageDependency"
+                        },
+                        "type": "array"
+                    },
+                    "package_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["dependencies", "package_ids"],
                 "type": "object"
             },
             "WorkflowTaskCounts": {

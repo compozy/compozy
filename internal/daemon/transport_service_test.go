@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -551,6 +552,10 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 	if len(workflows) != 1 || workflows[0].Slug != initiative || workflows[0].Kind != "initiative" {
 		t.Fatalf("initiative workflow list = %#v", workflows)
 	}
+	if workflows[0].CanStartRun == nil || *workflows[0].CanStartRun ||
+		workflows[0].StartBlockReason != "select a work package" {
+		t.Fatalf("initiative start action = %#v, want package selection required", workflows[0])
+	}
 	if workflows[0].ArchiveEligible == nil || !*workflows[0].ArchiveEligible || workflows[0].ArchiveReason != "" {
 		t.Fatalf("initiative aggregate archive action = %#v, want eligible", workflows[0])
 	}
@@ -584,6 +589,107 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 	}
 	if !archiveResult.Archived || len(archiveResult.WorkPackageChildIDs) != 1 {
 		t.Fatalf("Archive(initiative) result = %#v, want one root archive and one child id", archiveResult)
+	}
+}
+
+func TestTaskTransportService_ShouldRequireConfirmationForTransitiveDependencyAfterPrerequisiteReopens(t *testing.T) {
+	// Suite boundary
+	// IN: workflow sync, global catalog, and nested transport projection
+	// OUT: execution authorization, which owns detailed override handling
+	// Invariant: a package with an unmet transitive prerequisite requires explicit authorization.
+	// CONTRACT: IT-055.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	t.Setenv("HOME", env.homeDir)
+	initiative := "reopened-dependencies"
+	plan, err := workpackages.RenderPlan(workpackages.Plan{
+		SchemaVersion: workpackages.SchemaVersion,
+		Initiative:    initiative,
+		Packages: []workpackages.Package{
+			{
+				ID:         "WP-001",
+				Title:      "Foundation",
+				Outcome:    "Provide the prerequisite",
+				Directory:  "_packages/WP-001",
+				OwnedScope: []string{"foundation"},
+			},
+			{
+				ID:         "WP-002",
+				Title:      "Delivery",
+				Outcome:    "Use the prerequisite",
+				Directory:  "_packages/WP-002",
+				Completed:  true,
+				OwnedScope: []string{"delivery"},
+			},
+			{
+				ID:         "WP-003",
+				Title:      "Notifications",
+				Outcome:    "Use the completed direct prerequisite",
+				Directory:  "_packages/WP-003",
+				OwnedScope: []string{"notifications"},
+			},
+		},
+		Edges: []workpackages.Dependency{
+			{From: "WP-001", To: "WP-002", Rationale: "Foundation must be complete first"},
+			{From: "WP-002", To: "WP-003", Rationale: "Delivery must be complete first"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", string(plan))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "Package foundation task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-002", "task_01.md"),
+		daemonTaskBody("completed", "Package delivery task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-003", "task_01.md"),
+		daemonTaskBody("pending", "Package notification task"),
+	)
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
+
+	workflows, err := newTransportTaskService(env.globalDB, env.manager).ListWorkflows(
+		context.Background(),
+		env.workspaceRoot,
+	)
+	if err != nil {
+		t.Fatalf("ListWorkflows() error = %v", err)
+	}
+	if len(workflows) != 1 || len(workflows[0].WorkPackages) != 3 {
+		t.Fatalf("ListWorkflows() = %#v, want one initiative with three packages", workflows)
+	}
+
+	var notification apicore.WorkPackageSummary
+	for _, pkg := range workflows[0].WorkPackages {
+		if pkg.PackageID == "WP-003" {
+			notification = pkg
+			break
+		}
+	}
+	if notification.PackageID == "" {
+		t.Fatalf("WP-003 summary missing from %#v", workflows[0].WorkPackages)
+	}
+	if notification.UnmetDependencyCount != 1 || notification.CanStartRun == nil ||
+		!*notification.CanStartRun || !notification.RequiresStartConfirmation ||
+		notification.StartBlockReason != "" || len(notification.UnmetDependencies) != 0 ||
+		len(notification.UnmetDependencyPaths) != 1 ||
+		!slices.Equal(notification.UnmetDependencyPaths[0].PackageIDs, []string{"WP-001", "WP-002"}) ||
+		len(notification.UnmetDependencyPaths[0].Dependencies) != 1 ||
+		notification.UnmetDependencyPaths[0].Dependencies[0].PackageID != "WP-001" ||
+		notification.UnmetDependencyPaths[0].Dependencies[0].Title != "Foundation" ||
+		notification.UnmetDependencyPaths[0].Dependencies[0].Rationale != "Foundation must be complete first" {
+		t.Fatalf("WP-003 readiness = %#v, want one transitive blocker and start confirmation", notification)
 	}
 }
 

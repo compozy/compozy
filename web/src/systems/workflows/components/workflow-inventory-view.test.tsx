@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -38,6 +38,8 @@ const initiativeWorkflow: WorkflowSummary = {
   kind: "initiative",
   slug: "customer-management",
   workspace_id: "ws-1",
+  can_start_run: false,
+  start_block_reason: "select a work package",
   work_packages: [
     {
       workflow_id: "wf-package-1",
@@ -60,7 +62,20 @@ const initiativeWorkflow: WorkflowSummary = {
       lifecycle_complete: false,
       unmet_dependency_count: 1,
       independently_eligible: false,
-      dependencies: [{ package_id: "WP-001", rationale: "API contract first" }],
+      dependencies: [
+        {
+          package_id: "WP-001",
+          title: "Persistence",
+          rationale: "API contract first",
+        },
+      ],
+      unmet_dependencies: [
+        {
+          package_id: "WP-001",
+          title: "Persistence",
+          rationale: "API contract first",
+        },
+      ],
       task_counts: { total: 3, completed: 1, pending: 2 },
       can_start_run: false,
       start_block_reason: "1 unmet dependency",
@@ -189,6 +204,150 @@ describe("WorkflowInventoryView", () => {
 
     expect(screen.getByText("1 unmet dependency")).toBeInTheDocument();
     expect(onStartRun).not.toHaveBeenCalled();
+  });
+
+  it("Should require package selection before starting an initiative run", async () => {
+    const onStartRun = vi.fn();
+    const readyPackage = {
+      workflow_id: "wf-package-3",
+      package_id: "WP-003",
+      reference: "customer-management/WP-003",
+      title: "Notifications",
+      outcome: "Send customer notifications.",
+      lifecycle_complete: false,
+      unmet_dependency_count: 0,
+      independently_eligible: false,
+      task_counts: { total: 1, completed: 0, pending: 1 },
+      can_start_run: true,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [{ ...initiativeWorkflow, work_packages: [readyPackage] }],
+    });
+
+    expect(screen.queryByTestId("workflow-start-customer-management")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-start-blocked-customer-management")).toHaveTextContent(
+      "select a work package"
+    );
+    await userEvent.click(screen.getByTestId("workflow-package-start-customer-management-WP-003"));
+    expect(onStartRun).toHaveBeenCalledWith("customer-management", { packageId: "WP-003" });
+  });
+
+  it("Should require a single explicit dependency override without changing package readiness", async () => {
+    let resolveStart: (() => void) | undefined;
+    const onStartRun = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolveStart = resolve;
+        })
+    );
+    const blockedPackage = {
+      ...initiativeWorkflow.work_packages![1]!,
+      can_start_run: true,
+      requires_start_confirmation: true,
+      start_block_reason: undefined,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [{ ...initiativeWorkflow, work_packages: [blockedPackage] }],
+    });
+
+    const startButton = screen.getByTestId("workflow-package-start-customer-management-WP-002");
+    await userEvent.click(startButton);
+    expect(onStartRun).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("workflow-package-dependency-confirmation-customer-management-WP-002")
+    ).toHaveTextContent("Persistence");
+    expect(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-dependencies-customer-management-WP-002"
+      )
+    ).toHaveTextContent("API contract first");
+
+    await userEvent.click(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-cancel-customer-management-WP-002"
+      )
+    );
+    expect(onStartRun).not.toHaveBeenCalled();
+
+    await userEvent.click(startButton);
+    const confirmButton = screen.getByTestId(
+      "workflow-package-dependency-confirmation-confirm-customer-management-WP-002"
+    );
+    await userEvent.click(confirmButton);
+    expect(onStartRun).toHaveBeenCalledWith("customer-management", {
+      packageId: "WP-002",
+      allowOutOfOrder: true,
+    });
+    expect(confirmButton).toBeDisabled();
+    await userEvent.click(confirmButton);
+    expect(onStartRun).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByTestId("workflow-package-readiness-WP-002")).toHaveTextContent(
+      "1 unmet dependency"
+    );
+    expect(screen.getByTestId("workflow-package-dependencies-WP-002")).toHaveTextContent(
+      "API contract first"
+    );
+    resolveStart?.();
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("workflow-package-dependency-confirmation-customer-management-WP-002")
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("Should include transitive dependency context before authorizing a package run", async () => {
+    const onStartRun = vi.fn();
+    const transitivePackage = {
+      ...initiativeWorkflow.work_packages![1]!,
+      can_start_run: true,
+      requires_start_confirmation: true,
+      unmet_dependencies: [],
+      unmet_dependency_paths: [
+        {
+          package_ids: ["WP-001", "WP-002"],
+          dependencies: [
+            {
+              package_id: "WP-001",
+              title: "Persistence",
+              rationale: "API contract first",
+            },
+          ],
+        },
+      ],
+      start_block_reason: undefined,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [{ ...initiativeWorkflow, work_packages: [transitivePackage] }],
+    });
+
+    await userEvent.click(screen.getByTestId("workflow-package-start-customer-management-WP-002"));
+    expect(onStartRun).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-dependencies-customer-management-WP-002"
+      )
+    ).toHaveTextContent("Transitive path: WP-001 → WP-002");
+    expect(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-dependencies-customer-management-WP-002"
+      )
+    ).toHaveTextContent("Persistence");
   });
 
   it("Should fire sync-all, start-run, sync-one, and archive handlers", async () => {

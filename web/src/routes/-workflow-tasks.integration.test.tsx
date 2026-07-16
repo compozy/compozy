@@ -19,6 +19,37 @@ const workspaceOne = {
 
 const workflow = { id: "wf-1", slug: "alpha", workspace_id: "ws-1" };
 
+const initiativeWithBlockedPackage = {
+  id: "wf-initiative",
+  kind: "initiative",
+  slug: "customer-management",
+  workspace_id: "ws-1",
+  can_start_run: false,
+  start_block_reason: "select a work package",
+  work_packages: [
+    {
+      workflow_id: "wf-package-2",
+      package_id: "WP-002",
+      reference: "customer-management/WP-002",
+      title: "Interface",
+      outcome: "Render customer records.",
+      lifecycle_complete: false,
+      unmet_dependency_count: 1,
+      unmet_dependencies: [
+        {
+          package_id: "WP-001",
+          title: "Persistence",
+          rationale: "API contract first",
+        },
+      ],
+      independently_eligible: false,
+      task_counts: { total: 1, completed: 0, pending: 1 },
+      can_start_run: true,
+      requires_start_confirmation: true,
+    },
+  ],
+};
+
 const boardPayload = {
   board: {
     workspace: workspaceOne,
@@ -399,5 +430,81 @@ describe("workflow tasks integration", () => {
       "workflow-inventory-start-success-link"
     ) as HTMLAnchorElement;
     expect(runLink.getAttribute("href")).toBe("/runs/run-new");
+  });
+
+  it("Should authorize one out-of-order package run only after dependency confirmation", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/tasks", "GET"),
+        status: 200,
+        body: { workflows: [initiativeWithBlockedPackage] },
+      },
+      {
+        matcher: matchUrl("/api/tasks/customer-management/runs", "POST"),
+        status: 201,
+        body: {
+          run: {
+            run_id: "run-package",
+            mode: "task",
+            presentation_mode: "text",
+            workspace_id: "ws-1",
+            started_at: "2026-01-01T00:00:00Z",
+            status: "queued",
+            workflow_slug: "customer-management/WP-002",
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/workflows");
+    const startButton = await screen.findByTestId(
+      "workflow-package-start-customer-management-WP-002"
+    );
+
+    await userEvent.click(startButton);
+    expect(
+      screen.getByTestId("workflow-package-dependency-confirmation-customer-management-WP-002")
+    ).toHaveTextContent("Persistence");
+    expect(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-dependencies-customer-management-WP-002"
+      )
+    ).toHaveTextContent("API contract first");
+    await userEvent.click(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-cancel-customer-management-WP-002"
+      )
+    );
+    expect(
+      stub.calls.filter(
+        call => call.url.includes("/api/tasks/customer-management/runs") && call.method === "POST"
+      )
+    ).toHaveLength(0);
+
+    await userEvent.click(startButton);
+    await userEvent.click(
+      screen.getByTestId(
+        "workflow-package-dependency-confirmation-confirm-customer-management-WP-002"
+      )
+    );
+    await screen.findByTestId("workflow-inventory-start-success");
+    const startCalls = stub.calls.filter(
+      call => call.url.includes("/api/tasks/customer-management/runs") && call.method === "POST"
+    );
+    expect(startCalls).toHaveLength(1);
+    expect(JSON.parse(startCalls[0]?.body ?? "{}")).toMatchObject({
+      workspace: "ws-1",
+      package_id: "WP-002",
+      allow_out_of_order: true,
+      presentation_mode: "detach",
+    });
+    expect(screen.getByTestId("workflow-package-readiness-WP-002")).toHaveTextContent(
+      "1 unmet dependency"
+    );
   });
 });

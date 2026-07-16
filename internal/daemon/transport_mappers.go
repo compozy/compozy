@@ -60,63 +60,96 @@ func transportWorkPackageSummary(
 	eligibility globaldb.WorkflowArchiveEligibility,
 	readiness workPackageReadinessProjection,
 ) apicore.WorkPackageSummary {
-	dependencies := make([]apicore.WorkPackageDependency, 0, len(row.Dependencies))
-	for _, dependency := range row.Dependencies {
-		dependencies = append(dependencies, apicore.WorkPackageDependency{
-			PackageID: dependency.PackageID,
-			Rationale: dependency.Rationale,
-		})
-	}
 	apiCounts := transportWorkflowTaskCounts(counts)
 	archiveEligible := eligibility.Archivable()
 	if row.ArchivedAt != nil {
 		archiveEligible = false
 	}
 	canStart, startBlockReason := workflowStartAction(row, counts)
-	if canStart && readiness.unmetDependencyCount > 0 {
-		canStart = false
-		startBlockReason = fmt.Sprintf(
-			"%d unmet %s",
-			readiness.unmetDependencyCount,
-			pluralizeDependency(readiness.unmetDependencyCount),
-		)
-	}
+	unmetDependencyCount := len(readiness.unmetDependencies) + len(readiness.unmetDependencyPaths)
+	requiresStartConfirmation := canStart && unmetDependencyCount > 0
 	return apicore.WorkPackageSummary{
-		WorkflowID:            row.ID,
-		PackageID:             row.PackageID,
-		Reference:             row.Slug,
-		Title:                 row.DisplayTitle,
-		Outcome:               row.Outcome,
-		LifecycleComplete:     row.LifecycleCompleted,
-		Dependencies:          dependencies,
-		TaskCounts:            &apiCounts,
-		UnresolvedReviews:     eligibility.UnresolvedReviewIssues,
-		UnmetDependencyCount:  readiness.unmetDependencyCount,
-		IndependentlyEligible: readiness.independentlyEligible,
-		ActiveRuns:            eligibility.ActiveRuns,
-		CanStartRun:           &canStart,
-		StartBlockReason:      startBlockReason,
-		ArchiveEligible:       &archiveEligible,
-		ArchiveReason:         eligibility.SkipReason(),
+		WorkflowID:                row.ID,
+		PackageID:                 row.PackageID,
+		Reference:                 row.Slug,
+		Title:                     row.DisplayTitle,
+		Outcome:                   row.Outcome,
+		LifecycleComplete:         row.LifecycleCompleted,
+		Dependencies:              transportWorkPackageDependencies(readiness.dependencies),
+		UnmetDependencies:         transportWorkPackageDependencies(readiness.unmetDependencies),
+		UnmetDependencyPaths:      transportWorkPackageDependencyPaths(readiness.unmetDependencyPaths),
+		TaskCounts:                &apiCounts,
+		UnresolvedReviews:         eligibility.UnresolvedReviewIssues,
+		UnmetDependencyCount:      unmetDependencyCount,
+		IndependentlyEligible:     readiness.independentlyEligible,
+		ActiveRuns:                eligibility.ActiveRuns,
+		CanStartRun:               &canStart,
+		RequiresStartConfirmation: requiresStartConfirmation,
+		StartBlockReason:          startBlockReason,
+		ArchiveEligible:           &archiveEligible,
+		ArchiveReason:             eligibility.SkipReason(),
 	}
 }
 
-func pluralizeDependency(count int) string {
-	if count == 1 {
-		return "dependency"
+func transportWorkPackageDependencies(
+	dependencies []workPackageDependencyProjection,
+) []apicore.WorkPackageDependency {
+	if len(dependencies) == 0 {
+		return nil
 	}
-	return "dependencies"
+	result := make([]apicore.WorkPackageDependency, 0, len(dependencies))
+	for _, dependency := range dependencies {
+		result = append(result, apicore.WorkPackageDependency{
+			PackageID: dependency.packageID,
+			Title:     dependency.title,
+			Rationale: dependency.rationale,
+		})
+	}
+	return result
+}
+
+func transportWorkPackageDependencyPaths(
+	paths []workPackageDependencyPathProjection,
+) []apicore.WorkPackageDependencyPath {
+	if len(paths) == 0 {
+		return nil
+	}
+	result := make([]apicore.WorkPackageDependencyPath, 0, len(paths))
+	for _, path := range paths {
+		result = append(result, apicore.WorkPackageDependencyPath{
+			PackageIDs:   append([]string(nil), path.packageIDs...),
+			Dependencies: transportWorkPackageDependencies(path.dependencies),
+		})
+	}
+	return result
 }
 
 type workPackageReadinessProjection struct {
-	unmetDependencyCount  int
+	dependencies          []workPackageDependencyProjection
+	unmetDependencies     []workPackageDependencyProjection
+	unmetDependencyPaths  []workPackageDependencyPathProjection
 	independentlyEligible bool
+}
+
+type workPackageDependencyProjection struct {
+	packageID string
+	title     string
+	rationale string
+}
+
+type workPackageDependencyPathProjection struct {
+	packageIDs   []string
+	dependencies []workPackageDependencyProjection
 }
 
 func projectWorkPackageReadiness(
 	children []*globaldb.Workflow,
 ) (map[string]workPackageReadinessProjection, error) {
 	plan := workpackages.Plan{Packages: make([]workpackages.Package, 0, len(children))}
+	titlesByPackageID := make(map[string]string, len(children))
+	for _, child := range children {
+		titlesByPackageID[child.PackageID] = child.DisplayTitle
+	}
 	for _, child := range children {
 		pkg := workpackages.Package{
 			ID:        child.PackageID,
@@ -139,8 +172,45 @@ func projectWorkPackageReadiness(
 		if err != nil {
 			return nil, fmt.Errorf("project work package %q readiness: %w", child.PackageID, err)
 		}
+		dependencies := make([]workPackageDependencyProjection, 0, len(child.Dependencies))
+		for _, dependency := range child.Dependencies {
+			dependencies = append(dependencies, workPackageDependencyProjection{
+				packageID: dependency.PackageID,
+				title:     titlesByPackageID[dependency.PackageID],
+				rationale: dependency.Rationale,
+			})
+		}
+		unmetDependencies := make([]workPackageDependencyProjection, 0, len(readiness.DirectUnmet))
+		for _, dependency := range readiness.DirectUnmet {
+			unmetDependencies = append(unmetDependencies, workPackageDependencyProjection{
+				packageID: dependency.From,
+				title:     titlesByPackageID[dependency.From],
+				rationale: dependency.Rationale,
+			})
+		}
+		unmetDependencyPaths := make(
+			[]workPackageDependencyPathProjection,
+			0,
+			len(readiness.TransitiveUnmet),
+		)
+		for _, path := range readiness.TransitiveUnmet {
+			pathDependencies := make([]workPackageDependencyProjection, 0, len(path.Edges))
+			for _, dependency := range path.Edges {
+				pathDependencies = append(pathDependencies, workPackageDependencyProjection{
+					packageID: dependency.From,
+					title:     titlesByPackageID[dependency.From],
+					rationale: dependency.Rationale,
+				})
+			}
+			unmetDependencyPaths = append(unmetDependencyPaths, workPackageDependencyPathProjection{
+				packageIDs:   append([]string(nil), path.PackageIDs...),
+				dependencies: pathDependencies,
+			})
+		}
 		result[child.PackageID] = workPackageReadinessProjection{
-			unmetDependencyCount:  len(readiness.DirectUnmet),
+			dependencies:          dependencies,
+			unmetDependencies:     unmetDependencies,
+			unmetDependencyPaths:  unmetDependencyPaths,
 			independentlyEligible: len(readiness.IndependentPeers) > 0,
 		}
 	}
@@ -237,6 +307,9 @@ func initiativeArchiveAction(
 func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool, string) {
 	if row.ArchivedAt != nil {
 		return false, workflowArchiveReasonArchived
+	}
+	if row.Kind == globaldb.WorkflowKindInitiative {
+		return false, "select a work package"
 	}
 	if counts.Total > 0 && counts.Pending == 0 {
 		return false, "no pending tasks"

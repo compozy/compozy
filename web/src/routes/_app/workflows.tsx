@@ -12,6 +12,7 @@ import {
   useSyncWorkflows,
   useWorkflows,
   WorkflowInventoryView,
+  type WorkflowRunRequest,
 } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/workflows")({
@@ -118,12 +119,12 @@ function WorkflowsRoute(): ReactElement {
     }
   }
 
-  async function handleStartRun(slug: string, packageId?: string) {
+  async function handleStartRun(slug: string, request?: WorkflowRunRequest) {
     setActionMessage(null);
     setActionError(null);
     setStartedRun(null);
     setArchiveConfirmation(null);
-    const reference = packageId ? `${slug}/${packageId}` : slug;
+    const reference = request?.packageId ? `${slug}/${request.packageId}` : slug;
     setPendingStartSlug(reference);
     try {
       const run = await startRun.mutateAsync({
@@ -131,7 +132,8 @@ function WorkflowsRoute(): ReactElement {
         slug,
         body: {
           presentation_mode: "detach",
-          ...(packageId ? { package_id: packageId } : {}),
+          ...(request?.packageId ? { package_id: request.packageId } : {}),
+          ...(request?.allowOutOfOrder ? { allow_out_of_order: true } : {}),
         },
       });
       setStartedRun(run);

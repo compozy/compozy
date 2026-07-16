@@ -188,6 +188,7 @@ type WorkspaceSyncResult = contract.WorkspaceSyncResult
 type WorkflowSummary = contract.WorkflowSummary
 type WorkPackageSummary = contract.WorkPackageSummary
 type WorkPackageDependency = contract.WorkPackageDependency
+type WorkPackageDependencyPath = contract.WorkPackageDependencyPath
 type TaskItem = contract.TaskItem
 type ValidationSuccess = contract.ValidationSuccess
 type ArchiveRequest = contract.WorkflowArchiveRequest

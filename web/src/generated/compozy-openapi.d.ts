@@ -1191,16 +1191,24 @@ export interface components {
             outcome: string;
             package_id: string;
             reference: string;
+            requires_start_confirmation?: boolean;
             start_block_reason?: string;
             task_counts?: components["schemas"]["WorkflowTaskCounts"];
             title: string;
             unmet_dependency_count?: number;
+            unmet_dependencies?: components["schemas"]["WorkPackageDependency"][];
+            unmet_dependency_paths?: components["schemas"]["WorkPackageDependencyPath"][];
             unresolved_reviews?: number;
             workflow_id: string;
         };
         WorkPackageDependency: {
             package_id: string;
             rationale: string;
+            title: string;
+        };
+        WorkPackageDependencyPath: {
+            dependencies: components["schemas"]["WorkPackageDependency"][];
+            package_ids: string[];
         };
         WorkflowTaskCounts: {
             completed: number;

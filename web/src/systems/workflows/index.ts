@@ -1,6 +1,7 @@
 export {
   WorkflowInventoryView,
   type ArchiveConfirmationState,
+  type WorkflowRunRequest,
 } from "./components/workflow-inventory-view";
 export {
   TaskBoardView,
