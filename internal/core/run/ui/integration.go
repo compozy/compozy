@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
 	"charm.land/lipgloss/v2"
 )
@@ -230,7 +231,7 @@ func (m *uiModel) handleParallelTaskCompleted(v parallelTaskCompletedMsg) {
 		m.sidebarDirty = true
 		return
 	}
-	success := v.Status == taskParallelStatusMerged || v.Status == taskParallelStatusRecovered
+	success := kinds.TaskParallelTaskStatus(v.Status).IsIntegrated()
 	finishParallelAggregateTask(m, index, success)
 	m.sidebarDirty = true
 }
