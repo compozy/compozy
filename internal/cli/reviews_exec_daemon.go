@@ -38,6 +38,24 @@ const (
 	daemonRunTerminalPollInterval = 10 * time.Millisecond
 )
 
+// reviewRunPreparingMessage tells the operator the review run is being prepared,
+// so a slow daemon-side workflow sync reads as progress rather than a silent
+// freeze.
+const reviewRunPreparingMessage = "Preparing review run (syncing workflow state into the daemon catalog)…"
+
+const (
+	// reviewRunStartTimeout bounds the cancellable daemon-side workflow sync that
+	// completes before a review run is committed.
+	reviewRunStartTimeout = 60 * time.Second
+	// reviewRunFeedbackDelay is how long the start may take before the preparing
+	// message is shown, so the common fast path stays quiet and only a genuinely
+	// slow (contended) start surfaces feedback.
+	reviewRunFeedbackDelay = time.Second
+	// reviewRunRecoveryTimeout bounds the fresh lookup used when the start response
+	// loses the race with the client deadline after the daemon commits the run.
+	reviewRunRecoveryTimeout = 5 * time.Second
+)
+
 func newReviewsCommand() *cobra.Command {
 	return newReviewsCommandWithDefaults(defaultCommandStateDefaults())
 }
@@ -374,12 +392,22 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return withExitCode(2, err)
 	}
 
-	run, err := client.StartReviewRun(ctx, s.workspaceRoot, s.name, s.round, apicore.ReviewRunRequest{
-		Workspace:        s.workspaceRoot,
-		PresentationMode: presentationMode,
-		RuntimeOverrides: runtimeOverrides,
-		Batching:         batching,
-	})
+	run, err := startReviewRunWithFeedback(
+		ctx,
+		reviewRunStatusWriter(cmd, s.outputFormat),
+		client,
+		s.workspaceRoot,
+		s.name,
+		s.round,
+		apicore.ReviewRunRequest{
+			Workspace:        s.workspaceRoot,
+			PresentationMode: presentationMode,
+			RuntimeOverrides: runtimeOverrides,
+			Batching:         batching,
+		},
+		reviewRunStartTimeout,
+		reviewRunFeedbackDelay,
+	)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -392,6 +420,120 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	default:
 		return handleStartedTaskRun(ctx, cmd, client, run)
 	}
+}
+
+// reviewRunStatusWriter routes the preparing status to stderr for human output
+// and discards it for machine formats so json/raw-json stay clean.
+func reviewRunStatusWriter(cmd *cobra.Command, outputFormat string) io.Writer {
+	switch strings.TrimSpace(outputFormat) {
+	case string(core.OutputFormatJSON), string(core.OutputFormatRawJSON):
+		return io.Discard
+	default:
+		return cmd.ErrOrStderr()
+	}
+}
+
+// startReviewRunWithFeedback starts the daemon-backed review run. It prints a
+// preparing status so the operator sees progress while the daemon synchronously
+// syncs workflow state into its catalog, and bounds the call with a timeout so a
+// stuck or contended global.db write fails with an actionable error instead of
+// freezing the CLI indefinitely. Non-timeout errors are returned unchanged for
+// the caller to map.
+func startReviewRunWithFeedback(
+	ctx context.Context,
+	statusW io.Writer,
+	client daemonCommandClient,
+	workspaceRoot string,
+	name string,
+	round int,
+	req apicore.ReviewRunRequest,
+	timeout time.Duration,
+	feedbackDelay time.Duration,
+) (apicore.Run, error) {
+	request, runID, err := ensureReviewRunID(name, round, req)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	startCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	// Show the preparing message only if the start is slow (a contended global.db
+	// write), so the common fast path stays quiet. The goroutine always exits
+	// before this function returns, so nothing writes to statusW afterwards.
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		select {
+		case <-time.After(feedbackDelay):
+			fmt.Fprintln(statusW, reviewRunPreparingMessage)
+		case <-done:
+		}
+	}()
+	run, err := client.StartReviewRun(startCtx, workspaceRoot, name, round, request)
+	close(done)
+	<-finished
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			recoveryCtx, recoveryCancel := context.WithTimeout(ctx, reviewRunRecoveryTimeout)
+			recovered, recoveryErr := client.GetRun(recoveryCtx, runID)
+			recoveryCancel()
+			if recoveryErr == nil && strings.TrimSpace(recovered.RunID) == runID {
+				return recovered, nil
+			}
+			if recoveryErr == nil {
+				recoveryErr = fmt.Errorf("daemon returned run id %q", recovered.RunID)
+			}
+			return apicore.Run{}, fmt.Errorf(
+				"review run start outcome was not confirmed within %s; run ID %q belongs to this start "+
+					"and the daemon may still complete it; inspect it before starting another run with "+
+					"`compozy runs watch %s` or `compozy runs attach %s` (recovery lookup: %v): %w",
+				timeout,
+				runID,
+				runID,
+				runID,
+				recoveryErr,
+				err,
+			)
+		}
+		return apicore.Run{}, err
+	}
+	return run, nil
+}
+
+func ensureReviewRunID(
+	name string,
+	round int,
+	req apicore.ReviewRunRequest,
+) (apicore.ReviewRunRequest, string, error) {
+	overrides := daemonRuntimeOverrides{}
+	if len(req.RuntimeOverrides) > 0 {
+		if err := json.Unmarshal(req.RuntimeOverrides, &overrides); err != nil {
+			return apicore.ReviewRunRequest{}, "", fmt.Errorf("decode review runtime overrides: %w", err)
+		}
+	}
+
+	runID := ""
+	if overrides.RunID != nil {
+		runID = strings.TrimSpace(*overrides.RunID)
+	}
+	if runID == "" {
+		generated, err := model.BuildRunID(&model.RuntimeConfig{
+			Name:  strings.TrimSpace(name),
+			Round: round,
+			Mode:  model.ExecutionModePRReview,
+		})
+		if err != nil {
+			return apicore.ReviewRunRequest{}, "", fmt.Errorf("build review run id: %w", err)
+		}
+		runID = generated
+	}
+	overrides.RunID = stringPointer(runID)
+	payload, err := json.Marshal(overrides)
+	if err != nil {
+		return apicore.ReviewRunRequest{}, "", fmt.Errorf("encode review runtime overrides: %w", err)
+	}
+	req.RuntimeOverrides = payload
+	return req, runID, nil
 }
 
 func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) error {
@@ -1223,6 +1365,8 @@ func shouldEmitLeanWorkflowEvent(event eventspkg.Event) bool {
 		eventspkg.EventKindTaskParallelRolledBack,
 		eventspkg.EventKindJobStarted,
 		eventspkg.EventKindJobRetryScheduled,
+		eventspkg.EventKindJobStalled,
+		eventspkg.EventKindJobParked,
 		eventspkg.EventKindJobPausing,
 		eventspkg.EventKindJobPaused,
 		eventspkg.EventKindJobResumed,

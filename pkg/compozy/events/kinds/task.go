@@ -2,6 +2,22 @@ package kinds
 
 import "time"
 
+// TaskParallelTaskStatus is the terminal status of one task in a parallel run.
+type TaskParallelTaskStatus string
+
+const (
+	TaskParallelTaskStatusMerged    TaskParallelTaskStatus = "merged"
+	TaskParallelTaskStatusRecovered TaskParallelTaskStatus = "recovered"
+	TaskParallelTaskStatusFailed    TaskParallelTaskStatus = "failed"
+	TaskParallelTaskStatusSkipped   TaskParallelTaskStatus = "skipped"
+	TaskParallelTaskStatusCanceled  TaskParallelTaskStatus = "canceled"
+)
+
+// IsIntegrated reports whether the task content reached the integration branch.
+func (s TaskParallelTaskStatus) IsIntegrated() bool {
+	return s == TaskParallelTaskStatusMerged || s == TaskParallelTaskStatusRecovered
+}
+
 // TaskFileUpdatedPayload describes a rewritten task file.
 type TaskFileUpdatedPayload struct {
 	TasksDir  string `json:"tasks_dir"`
@@ -49,6 +65,9 @@ type TaskMetadataRefreshedPayload struct {
 // allocated, and they stay empty for enqueued runs and for parent events emitted
 // before this metadata existed. Snapshot reconstruction must treat any empty
 // field as "unknown" so older parent event streams remain compatible.
+//
+// Completed, Recovered, and Parked are the end-of-run recovery counts and are
+// populated only on EventKindTaskRunMultipleSummary.
 type TaskRunMultiplePayload struct {
 	RunID          string   `json:"run_id,omitempty"`
 	Mode           string   `json:"mode,omitempty"`
@@ -64,6 +83,9 @@ type TaskRunMultiplePayload struct {
 	BaseBranch     string   `json:"base_branch,omitempty"`
 	BaseCommit     string   `json:"base_commit,omitempty"`
 	WorktreeStatus string   `json:"worktree_status,omitempty"`
+	Completed      int      `json:"completed,omitempty"`
+	Recovered      int      `json:"recovered,omitempty"`
+	Parked         int      `json:"parked,omitempty"`
 	WorktreeReason string   `json:"worktree_reason,omitempty"`
 	ResultBranch   string   `json:"result_branch,omitempty"`
 }

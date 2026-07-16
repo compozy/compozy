@@ -892,6 +892,56 @@ func TestClientCreateSessionCompletesWithExplicitModelForNonBootstrapACP(t *test
 	}
 }
 
+func TestClientCreateSessionSkipsRuntimeModelUpdateForKiro(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep an explicit Kiro model pinned at bootstrap", func(t *testing.T) {
+		t.Parallel()
+
+		kiroSpec, err := lookupAgentSpec(model.IDEKiro)
+		if err != nil {
+			t.Fatalf("lookup Kiro spec: %v", err)
+		}
+		scenario := helperScenario{
+			ExpectedCWD:    t.TempDir(),
+			ExpectedPrompt: "use explicit Kiro model",
+			StopReason:     string(acp.StopReasonEndTurn),
+		}
+		client := newTestClientWithSpecConfig(
+			t,
+			scenario,
+			func(spec *Spec) {
+				spec.DisplayName = kiroSpec.DisplayName
+				spec.DefaultModel = kiroSpec.DefaultModel
+				spec.UsesBootstrapModel = kiroSpec.UsesBootstrapModel
+			},
+			func(cfg *ClientConfig) {
+				cfg.Model = "claude-sonnet-4.6"
+			},
+		)
+		t.Cleanup(func() {
+			if err := client.Close(); err != nil {
+				t.Errorf("close client: %v", err)
+			}
+		})
+
+		session, err := client.CreateSession(context.Background(), SessionRequest{
+			WorkingDir: scenario.ExpectedCWD,
+			Prompt:     []byte(scenario.ExpectedPrompt),
+		})
+		if err != nil {
+			t.Fatalf("create Kiro session: %v", err)
+		}
+		updates := collectSessionUpdates(t, session)
+		if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+			t.Fatalf("Kiro session updates = %#v, want one completed update", updates)
+		}
+		if session.Err() != nil {
+			t.Fatalf("Kiro session error: %v", session.Err())
+		}
+	})
+}
+
 func TestClientCreateSessionPassesExplicitModelThroughLaunchEnv(t *testing.T) {
 	t.Parallel()
 
@@ -2680,11 +2730,11 @@ func TestTerminalCommandHelperProcess(_ *testing.T) {
 			}
 		}
 		fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
-		select {}
+		blockTerminalHelperUntilSignalled()
 	}
 	fmt.Print(os.Getenv("GO_TERMINAL_HELPER_OUTPUT"))
 	if os.Getenv("GO_TERMINAL_HELPER_MODE") == "block" {
-		select {}
+		blockTerminalHelperUntilSignalled()
 	}
 	code, err := strconv.Atoi(os.Getenv("GO_TERMINAL_HELPER_EXIT_CODE"))
 	if err != nil {
@@ -2698,7 +2748,18 @@ func TestTerminalChildHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_TERMINAL_CHILD_HELPER") != "1" {
 		return
 	}
-	select {}
+	blockTerminalHelperUntilSignalled()
+}
+
+// blockTerminalHelperUntilSignalled keeps a terminal helper process genuinely
+// running (never emitting output, never exiting) so lifecycle tests must
+// terminate it with a signal. It sleeps in a loop rather than using select{}
+// because Go's deadlock detector ignores timer-parked goroutines but aborts a
+// process whose only goroutines are blocked with no pending timers.
+func blockTerminalHelperUntilSignalled() {
+	for i := 0; i < 600; i++ {
+		time.Sleep(time.Second)
+	}
 }
 
 func TestProcessStderrHelperProcess(_ *testing.T) {

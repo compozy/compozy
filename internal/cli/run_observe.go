@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -614,6 +615,8 @@ func renderObservedTaskMultiLifecycle(event eventspkg.Event) (string, bool) {
 		eventspkg.EventKindTaskRunMultipleQueueCanceled,
 		eventspkg.EventKindTaskRunMultipleQueueFailed:
 		return renderObservedTaskMultiSettlement(event)
+	case eventspkg.EventKindTaskRunMultipleSummary:
+		return renderObservedTaskMultiSummary(event)
 	default:
 		return "", false
 	}
@@ -650,6 +653,24 @@ func renderObservedTaskMultiSettlement(event eventspkg.Event) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// renderObservedTaskMultiSummary renders the end-of-run recovery summary line:
+// what completed, what recovered after a stall, and what parked for triage. It is
+// printed for every batch, so a run with no stalls closes with zeroes rather than
+// with nothing.
+func renderObservedTaskMultiSummary(event eventspkg.Event) (string, bool) {
+	payload, ok := decodeObservedPayload[kinds.TaskRunMultiplePayload](event)
+	if !ok {
+		return "task queue summary\n", true
+	}
+	return fmt.Sprintf(
+		"task queue summary | total=%d completed=%d recovered=%d parked=%d\n",
+		payload.Total,
+		payload.Completed,
+		payload.Recovered,
+		payload.Parked,
+	), true
 }
 
 func observedTaskMultiErrorSettlement(
@@ -907,6 +928,10 @@ func renderObservedJobLifecycle(event eventspkg.Event) (string, bool) {
 		return renderObservedJobStarted(event), true
 	case eventspkg.EventKindJobRetryScheduled:
 		return renderObservedJobRetryScheduled(event), true
+	case eventspkg.EventKindJobStalled:
+		return renderObservedJobStalled(event), true
+	case eventspkg.EventKindJobParked:
+		return renderObservedJobParked(event), true
 	case eventspkg.EventKindJobCompleted:
 		return renderObservedJobCompleted(event), true
 	case eventspkg.EventKindJobFailed:
@@ -1021,6 +1046,49 @@ func renderObservedJobRetryScheduled(event eventspkg.Event) string {
 		max(payload.Attempt, 1),
 		max(payload.MaxAttempts, max(payload.Attempt, 1)),
 	)
+}
+
+func renderObservedJobStalled(event eventspkg.Event) string {
+	payload, ok := decodeObservedPayload[kinds.JobStalledPayload](event)
+	if !ok {
+		return "job stalled\n"
+	}
+	segments := []string{observedJobLabel(payload.Index) + " stalled"}
+	if reason := strings.TrimSpace(payload.Reason); reason != "" {
+		segments = append(segments, reason)
+	}
+	if lastToolCall := strings.TrimSpace(payload.LastToolCall); lastToolCall != "" {
+		segments = append(segments, "last tool call: "+lastToolCall)
+	}
+	return strings.Join(segments, " | ") + "\n"
+}
+
+// renderObservedJobParked prints the parked job's full triage detail. A park is
+// terminal and needs a human, so the line carries everything needed to rerun or
+// inspect without hunting: the plain reason, what the agent was last doing, how
+// far it got, and the preserved worktree and log.
+func renderObservedJobParked(event eventspkg.Event) string {
+	payload, ok := decodeObservedPayload[kinds.JobParkedPayload](event)
+	if !ok {
+		return "job parked\n"
+	}
+	segments := []string{observedJobLabel(payload.Index) + " parked"}
+	if reason := strings.TrimSpace(payload.Reason); reason != "" {
+		segments = append(segments, reason)
+	}
+	if lastToolCall := strings.TrimSpace(payload.LastToolCall); lastToolCall != "" {
+		segments = append(segments, "last tool call: "+lastToolCall)
+	}
+	if payload.LastProgressSeq > 0 {
+		segments = append(segments, "last_progress_seq="+strconv.FormatUint(payload.LastProgressSeq, 10))
+	}
+	if worktreePath := strings.TrimSpace(payload.WorktreePath); worktreePath != "" {
+		segments = append(segments, "worktree="+worktreePath)
+	}
+	if logPath := strings.TrimSpace(payload.LogPath); logPath != "" {
+		segments = append(segments, "log="+logPath)
+	}
+	return strings.Join(segments, " | ") + "\n"
 }
 
 func renderObservedJobCompleted(event eventspkg.Event) string {

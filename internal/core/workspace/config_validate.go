@@ -66,7 +66,10 @@ func validateSound(scope string, cfg SoundConfig) error {
 	if err := validateSoundField(configFieldName(scope, "sound.on_completed"), cfg.OnCompleted); err != nil {
 		return err
 	}
-	return validateSoundField(configFieldName(scope, "sound.on_failed"), cfg.OnFailed)
+	if err := validateSoundField(configFieldName(scope, "sound.on_failed"), cfg.OnFailed); err != nil {
+		return err
+	}
+	return validateSoundField(configFieldName(scope, "sound.on_parked"), cfg.OnParked)
 }
 
 func validateSoundField(field string, value *string) error {

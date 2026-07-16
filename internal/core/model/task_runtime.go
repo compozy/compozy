@@ -107,6 +107,14 @@ func (cfg *RuntimeConfig) Clone() *RuntimeConfig {
 		target := *cfg.TargetTaskNumber
 		cloned.TargetTaskNumber = &target
 	}
+	if cfg.StallEnabled != nil {
+		enabled := *cfg.StallEnabled
+		cloned.StallEnabled = &enabled
+	}
+	if cfg.StallRetries != nil {
+		retries := *cfg.StallRetries
+		cloned.StallRetries = &retries
+	}
 	return &cloned
 }
 

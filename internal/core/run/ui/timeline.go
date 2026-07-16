@@ -189,10 +189,14 @@ func (m *uiModel) composerDisabledLabel(job *uiJob) string {
 		return "Pausing task..."
 	case jobRunning, jobRetrying:
 		return "Task running"
+	case jobStalled:
+		return "Task stalled"
 	case jobSuccess:
 		return "Task completed"
 	case jobFailed:
 		return "Task failed"
+	case jobParked:
+		return "Task parked - needs attention"
 	default:
 		return "Task pending"
 	}
@@ -334,7 +338,30 @@ func (m *uiModel) timelineAttemptMeta(job *uiJob, base string) string {
 	if job != nil && job.retrying && strings.TrimSpace(job.retryReason) != "" {
 		parts = append(parts, "retrying: "+truncateString(job.retryReason, 72))
 	}
+	if detail := stallMetaLabel(job); detail != "" {
+		parts = append(parts, detail)
+	}
 	return strings.Join(parts, " · ")
+}
+
+// stallMetaLabel renders the stall explanation on the timeline meta line for the
+// two states where the user needs it: the live stall, and the terminal park.
+func stallMetaLabel(job *uiJob) string {
+	if job == nil {
+		return ""
+	}
+	detail := stallDetailText(job.stallReason, job.stallLastToolCall)
+	if detail == "" {
+		return ""
+	}
+	switch job.state {
+	case jobStalled:
+		return "stalled: " + truncateString(detail, 72)
+	case jobParked:
+		return "parked: " + truncateString(detail, 72)
+	default:
+		return ""
+	}
 }
 
 func timelineHeaderLabel(job *uiJob) string {

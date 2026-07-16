@@ -21,6 +21,10 @@ type Config struct {
 	Player      Player
 	OnCompleted string
 	OnFailed    string
+	// OnParked is the proactive alert played when a job parks for triage. Only a
+	// park alerts; a routine stall retry stays silent so the walked-away user is
+	// pulled back exactly when they are needed.
+	OnParked string
 }
 
 // Notify plays the configured sound for the given lifecycle event kind and
@@ -87,6 +91,8 @@ func pickSound(kind events.EventKind, cfg Config) string {
 		return cfg.OnCompleted
 	case events.EventKindRunFailed, events.EventKindRunCancelled:
 		return cfg.OnFailed
+	case events.EventKindJobParked:
+		return cfg.OnParked
 	default:
 		return ""
 	}
