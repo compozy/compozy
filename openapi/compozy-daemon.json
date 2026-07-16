@@ -38,6 +38,15 @@
                     "type": "integer"
                 }
             },
+            "PackageIDQuery": {
+                "description": "Optional stable Work Package ID selected beneath the initiative route slug.",
+                "in": "query",
+                "name": "package_id",
+                "schema": {
+                    "pattern": "^WP-[0-9]{3}$",
+                    "type": "string"
+                }
+            },
             "Round": {
                 "description": "Review round number.",
                 "in": "path",
@@ -645,6 +654,9 @@
                         "additionalProperties": true,
                         "type": "object"
                     },
+                    "package_id": {
+                        "type": "string"
+                    },
                     "presentation_mode": {
                         "type": "string"
                     },
@@ -715,6 +727,12 @@
                     },
                     "parent_run_id": {
                         "type": "string"
+                    },
+                    "out_of_order_needed": {
+                        "type": "boolean"
+                    },
+                    "out_of_order_requested": {
+                        "type": "boolean"
                     },
                     "presentation_mode": {
                         "type": "string"
@@ -1581,8 +1599,14 @@
             },
             "TaskRunRequest": {
                 "properties": {
+                    "allow_out_of_order": {
+                        "type": "boolean"
+                    },
                     "execution": {
                         "$ref": "#/components/schemas/TaskExecutionDescriptor"
+                    },
+                    "package_id": {
+                        "type": "string"
                     },
                     "presentation_mode": {
                         "type": "string"
@@ -1595,6 +1619,18 @@
                         "type": "string"
                     }
                 },
+                "type": "object"
+            },
+            "TaskRunTarget": {
+                "properties": {
+                    "initiative_slug": {
+                        "type": "string"
+                    },
+                    "package_id": {
+                        "type": "string"
+                    }
+                },
+                "required": ["initiative_slug"],
                 "type": "object"
             },
             "TaskRunMultipleItem": {
@@ -1662,11 +1698,16 @@
                         "minItems": 1,
                         "type": "array"
                     },
+                    "targets": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskRunTarget"
+                        },
+                        "type": "array"
+                    },
                     "workspace": {
                         "type": "string"
                     }
                 },
-                "required": ["slugs"],
                 "type": "object"
             },
             "TaskRunMultipleSnapshotResponse": {
@@ -1892,6 +1933,9 @@
             },
             "WorkflowRefRequest": {
                 "properties": {
+                    "package_id": {
+                        "type": "string"
+                    },
                     "workspace": {
                         "type": "string"
                     }
@@ -1902,6 +1946,9 @@
                 "properties": {
                     "force": {
                         "type": "boolean"
+                    },
+                    "package_id": {
+                        "type": "string"
                     },
                     "workspace": {
                         "type": "string"
@@ -2161,6 +2208,9 @@
                     "max_rounds": {
                         "type": "integer"
                     },
+                    "package_id": {
+                        "type": "string"
+                    },
                     "poll_interval": {
                         "type": "string"
                     },
@@ -2289,6 +2339,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     }
                 ],
                 "responses": {
@@ -2395,6 +2448,9 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
+                        "$ref": "#/components/parameters/PackageIDQuery"
+                    },
+                    {
                         "$ref": "#/components/parameters/Round"
                     }
                 ],
@@ -2437,6 +2493,9 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
+                        "$ref": "#/components/parameters/PackageIDQuery"
+                    },
+                    {
                         "$ref": "#/components/parameters/Round"
                     }
                 ],
@@ -2477,6 +2536,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/Round"
@@ -3045,6 +3107,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     }
                 ],
                 "responses": {
@@ -3136,6 +3201,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     }
                 ],
                 "responses": {
@@ -3172,6 +3240,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/TaskID"
@@ -3211,6 +3282,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     }
                 ],
                 "responses": {
@@ -3247,6 +3321,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/FileID"
@@ -3341,6 +3418,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/PackageIDQuery"
                     }
                 ],
                 "responses": {

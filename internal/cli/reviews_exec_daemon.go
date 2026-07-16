@@ -17,6 +17,7 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	runspkg "github.com/compozy/compozy/pkg/compozy/runs"
@@ -224,6 +225,10 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
+	target, err := s.resolveReviewWorkPackageTarget(ctx)
+	if err != nil {
+		return withExitCode(1, err)
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
@@ -232,6 +237,7 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 
 	result, err := client.FetchReview(ctx, s.workspaceRoot, s.name, apicore.ReviewFetchRequest{
 		Workspace: s.workspaceRoot,
+		PackageID: s.packageID,
 		Provider:  s.provider,
 		PRRef:     s.pr,
 		Round:     intPointerOrNil(s.round),
@@ -245,7 +251,7 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 		"Fetched review issues from %s for PR %s into %s (round %03d)\n",
 		result.Summary.Provider,
 		result.Summary.PRRef,
-		reviewRoundDirForWorkflow(s.workspaceRoot, s.name, result.Summary.RoundNumber),
+		reviewRoundDirectory(target, s.workspaceRoot, result.Summary.RoundNumber),
 		result.Summary.RoundNumber,
 	); err != nil {
 		return withExitCode(2, fmt.Errorf("write fetch summary: %w", err))
@@ -263,13 +269,16 @@ func (s *commandState) listReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
+	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+		return withExitCode(1, err)
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
 		return withExitCode(2, err)
 	}
 
-	review, err := client.GetLatestReview(ctx, s.workspaceRoot, s.name)
+	review, err := getLatestReviewForPackage(ctx, client, s.workspaceRoot, s.name, s.packageID)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -299,17 +308,20 @@ func (s *commandState) showReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.resolveWorkflowNameAndRoundArgs(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
+	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+		return withExitCode(1, err)
+	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
 		return withExitCode(2, err)
 	}
 
-	round, err := client.GetReviewRound(ctx, s.workspaceRoot, s.name, s.round)
+	round, err := getReviewRoundForPackage(ctx, client, s.workspaceRoot, s.name, s.round, s.packageID)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
-	issues, err := client.ListReviewIssues(ctx, s.workspaceRoot, s.name, s.round)
+	issues, err := listReviewIssuesForPackage(ctx, client, s.workspaceRoot, s.name, s.round, s.packageID)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -354,6 +366,9 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return err
 	}
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
+		return withExitCode(1, err)
+	}
+	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
 		return withExitCode(1, err)
 	}
 	if err := s.resolveReviewRound(ctx); err != nil {
@@ -401,6 +416,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		s.round,
 		apicore.ReviewRunRequest{
 			Workspace:        s.workspaceRoot,
+			PackageID:        s.packageID,
 			PresentationMode: presentationMode,
 			RuntimeOverrides: runtimeOverrides,
 			Batching:         batching,
@@ -553,6 +569,9 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
+	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+		return withExitCode(1, err)
+	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()
@@ -591,6 +610,7 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 
 	run, err := client.StartReviewWatch(ctx, s.workspaceRoot, s.name, apicore.ReviewWatchRequest{
 		Workspace:        s.workspaceRoot,
+		PackageID:        s.packageID,
 		PresentationMode: presentationMode,
 		Provider:         s.provider,
 		PRRef:            s.pr,
@@ -1528,23 +1548,115 @@ func (s *commandState) resolveReviewRound(ctx context.Context) error {
 	if s.round > 0 {
 		return nil
 	}
-	if round, ok, err := latestLocalReviewRound(s.workspaceRoot, s.name); err != nil {
-		return err
-	} else if ok {
-		s.round = round
-		return nil
+	if strings.TrimSpace(s.packageID) == "" {
+		if round, ok, err := latestLocalReviewRound(s.workspaceRoot, s.name); err != nil {
+			return err
+		} else if ok {
+			s.round = round
+			return nil
+		}
 	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
 		return err
 	}
-	review, err := client.GetLatestReview(ctx, s.workspaceRoot, s.name)
+	review, err := getLatestReviewForPackage(ctx, client, s.workspaceRoot, s.name, s.packageID)
 	if err != nil {
 		return err
 	}
 	s.round = review.RoundNumber
 	return nil
+}
+
+func (s *commandState) resolveReviewWorkPackageTarget(ctx context.Context) (workpackages.Target, error) {
+	target, err := (workpackages.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
+	if err != nil {
+		if errors.Is(err, workpackages.ErrInitiativeNotFound) && !strings.Contains(strings.TrimSpace(s.name), "/") {
+			s.packageID = ""
+			return workpackages.Target{
+				Mode: workpackages.TargetModeOrdinary,
+				Ref:  workpackages.Ref{Initiative: strings.TrimSpace(s.name)},
+			}, nil
+		}
+		return workpackages.Target{}, err
+	}
+	if target.Mode == workpackages.TargetModeInitiative {
+		return workpackages.Target{}, workPackageSelectionRequiredError(target)
+	}
+	if target.Mode == workpackages.TargetModePackage {
+		s.name = target.Ref.Initiative
+		s.packageID = target.Package.ID
+		return target, nil
+	}
+	s.packageID = ""
+	return target, nil
+}
+
+func reviewRoundDirectory(target workpackages.Target, workspaceRoot string, round int) string {
+	if target.Mode == workpackages.TargetModePackage && strings.TrimSpace(target.ReviewsDir) != "" {
+		return filepath.Join(target.ReviewsDir, fmt.Sprintf("reviews-%03d", round))
+	}
+	return reviewRoundDirForWorkflow(workspaceRoot, target.Ref.Initiative, round)
+}
+
+type packageReviewClient interface {
+	GetLatestReviewForPackage(context.Context, string, string, string) (apicore.ReviewSummary, error)
+	GetReviewRoundForPackage(context.Context, string, string, int, string) (apicore.ReviewRound, error)
+	ListReviewIssuesForPackage(context.Context, string, string, int, string) ([]apicore.ReviewIssue, error)
+}
+
+func getLatestReviewForPackage(
+	ctx context.Context,
+	client daemonCommandClient,
+	workspace string,
+	slug string,
+	packageID string,
+) (apicore.ReviewSummary, error) {
+	if strings.TrimSpace(packageID) == "" {
+		return client.GetLatestReview(ctx, workspace, slug)
+	}
+	scoped, ok := client.(packageReviewClient)
+	if !ok {
+		return apicore.ReviewSummary{}, errors.New("daemon client does not support package-scoped review reads")
+	}
+	return scoped.GetLatestReviewForPackage(ctx, workspace, slug, packageID)
+}
+
+func getReviewRoundForPackage(
+	ctx context.Context,
+	client daemonCommandClient,
+	workspace string,
+	slug string,
+	round int,
+	packageID string,
+) (apicore.ReviewRound, error) {
+	if strings.TrimSpace(packageID) == "" {
+		return client.GetReviewRound(ctx, workspace, slug, round)
+	}
+	scoped, ok := client.(packageReviewClient)
+	if !ok {
+		return apicore.ReviewRound{}, errors.New("daemon client does not support package-scoped review reads")
+	}
+	return scoped.GetReviewRoundForPackage(ctx, workspace, slug, round, packageID)
+}
+
+func listReviewIssuesForPackage(
+	ctx context.Context,
+	client daemonCommandClient,
+	workspace string,
+	slug string,
+	round int,
+	packageID string,
+) ([]apicore.ReviewIssue, error) {
+	if strings.TrimSpace(packageID) == "" {
+		return client.ListReviewIssues(ctx, workspace, slug, round)
+	}
+	scoped, ok := client.(packageReviewClient)
+	if !ok {
+		return nil, errors.New("daemon client does not support package-scoped review reads")
+	}
+	return scoped.ListReviewIssuesForPackage(ctx, workspace, slug, round, packageID)
 }
 
 func latestLocalReviewRound(workspaceRoot string, workflowSlug string) (int, bool, error) {

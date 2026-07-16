@@ -22,15 +22,16 @@ func (c *Client) FetchReview(
 		return apicore.ReviewFetchResult{}, ErrDaemonClientRequired
 	}
 
-	trimmedSlug := strings.TrimSpace(slug)
-	if trimmedSlug == "" {
-		return apicore.ReviewFetchResult{}, ErrWorkflowSlugRequired
+	trimmedSlug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return apicore.ReviewFetchResult{}, err
 	}
 
 	var response contract.ReviewFetchResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/fetch"
 	statusCode, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewFetchRequest{
 		Workspace: strings.TrimSpace(workspace),
+		PackageID: strings.TrimSpace(req.PackageID),
 		Provider:  strings.TrimSpace(req.Provider),
 		PRRef:     strings.TrimSpace(req.PRRef),
 		Round:     req.Round,
@@ -46,21 +47,31 @@ func (c *Client) FetchReview(
 
 // GetLatestReview loads the latest review summary for one workflow.
 func (c *Client) GetLatestReview(ctx context.Context, workspace string, slug string) (apicore.ReviewSummary, error) {
+	return c.GetLatestReviewForPackage(ctx, workspace, slug, "")
+}
+
+// GetLatestReviewForPackage loads the latest review summary scoped by an optional package ID.
+func (c *Client) GetLatestReviewForPackage(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	packageID string,
+) (apicore.ReviewSummary, error) {
 	if c == nil {
 		return apicore.ReviewSummary{}, ErrDaemonClientRequired
 	}
 
-	trimmedSlug := strings.TrimSpace(slug)
-	if trimmedSlug == "" {
-		return apicore.ReviewSummary{}, ErrWorkflowSlugRequired
+	trimmedSlug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return apicore.ReviewSummary{}, err
 	}
 
 	var response contract.ReviewSummaryResponse
-	path := "/api/reviews/" + url.PathEscape(
-		trimmedSlug,
-	) + "?workspace=" + url.QueryEscape(
-		strings.TrimSpace(workspace),
-	)
+	values := url.Values{"workspace": []string{strings.TrimSpace(workspace)}}
+	if selectedPackage := strings.TrimSpace(packageID); selectedPackage != "" {
+		values.Set("package_id", selectedPackage)
+	}
+	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "?" + values.Encode()
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return apicore.ReviewSummary{}, err
 	}
@@ -74,18 +85,32 @@ func (c *Client) GetReviewRound(
 	slug string,
 	round int,
 ) (apicore.ReviewRound, error) {
+	return c.GetReviewRoundForPackage(ctx, workspace, slug, round, "")
+}
+
+// GetReviewRoundForPackage loads a review round scoped by an optional package ID.
+func (c *Client) GetReviewRoundForPackage(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	round int,
+	packageID string,
+) (apicore.ReviewRound, error) {
 	if c == nil {
 		return apicore.ReviewRound{}, ErrDaemonClientRequired
 	}
 
-	trimmedSlug := strings.TrimSpace(slug)
-	if trimmedSlug == "" {
-		return apicore.ReviewRound{}, ErrWorkflowSlugRequired
+	trimmedSlug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return apicore.ReviewRound{}, err
 	}
 
 	var response contract.ReviewRoundResponse
-	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) +
-		"?workspace=" + url.QueryEscape(strings.TrimSpace(workspace))
+	values := url.Values{"workspace": []string{strings.TrimSpace(workspace)}}
+	if selectedPackage := strings.TrimSpace(packageID); selectedPackage != "" {
+		values.Set("package_id", selectedPackage)
+	}
+	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) + "?" + values.Encode()
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return apicore.ReviewRound{}, err
 	}
@@ -99,18 +124,36 @@ func (c *Client) ListReviewIssues(
 	slug string,
 	round int,
 ) ([]apicore.ReviewIssue, error) {
+	return c.ListReviewIssuesForPackage(ctx, workspace, slug, round, "")
+}
+
+// ListReviewIssuesForPackage loads review issues scoped by an optional package ID.
+func (c *Client) ListReviewIssuesForPackage(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	round int,
+	packageID string,
+) ([]apicore.ReviewIssue, error) {
 	if c == nil {
 		return nil, ErrDaemonClientRequired
 	}
 
-	trimmedSlug := strings.TrimSpace(slug)
-	if trimmedSlug == "" {
-		return nil, ErrWorkflowSlugRequired
+	trimmedSlug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return nil, err
 	}
 
 	var response contract.ReviewIssuesResponse
-	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) +
-		"/issues?workspace=" + url.QueryEscape(strings.TrimSpace(workspace))
+	values := url.Values{"workspace": []string{strings.TrimSpace(workspace)}}
+	if selectedPackage := strings.TrimSpace(packageID); selectedPackage != "" {
+		values.Set("package_id", selectedPackage)
+	}
+	path := "/api/reviews/" + url.PathEscape(
+		trimmedSlug,
+	) + "/rounds/" + strconv.Itoa(
+		round,
+	) + "/issues?" + values.Encode()
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
@@ -129,15 +172,16 @@ func (c *Client) StartReviewRun(
 		return apicore.Run{}, ErrDaemonClientRequired
 	}
 
-	trimmedSlug := strings.TrimSpace(slug)
-	if trimmedSlug == "" {
-		return apicore.Run{}, ErrWorkflowSlugRequired
+	trimmedSlug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return apicore.Run{}, err
 	}
 
 	var response contract.RunResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) + "/runs"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewRunRequest{
 		Workspace:        strings.TrimSpace(workspace),
+		PackageID:        strings.TrimSpace(req.PackageID),
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
 		Batching:         req.Batching,
@@ -158,15 +202,16 @@ func (c *Client) StartReviewWatch(
 		return apicore.Run{}, ErrDaemonClientRequired
 	}
 
-	trimmedSlug := strings.TrimSpace(slug)
-	if trimmedSlug == "" {
-		return apicore.Run{}, ErrWorkflowSlugRequired
+	trimmedSlug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return apicore.Run{}, err
 	}
 
 	var response contract.RunResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/watch"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewWatchRequest{
 		Workspace:        strings.TrimSpace(workspace),
+		PackageID:        strings.TrimSpace(req.PackageID),
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		Provider:         strings.TrimSpace(req.Provider),
 		PRRef:            strings.TrimSpace(req.PRRef),

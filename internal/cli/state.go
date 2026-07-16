@@ -13,6 +13,7 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
@@ -27,6 +28,7 @@ type workflowIdentity struct {
 	nitpicks   bool
 	reviewsDir string
 	tasksDir   string
+	packageID  string
 }
 
 type runtimeConfig struct {
@@ -36,6 +38,7 @@ type runtimeConfig struct {
 	parallel                                bool
 	parallelLimit                           int
 	parallelTasks                           bool
+	allowOutOfOrder                         bool
 	parallelConflictResolverIDE             string
 	parallelConflictResolverModel           string
 	parallelConflictResolverReasoningEffort string
@@ -108,6 +111,8 @@ type commandStateCallbacks struct {
 	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
 	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
 	runWorkflow            func(context.Context, core.Config) error
+	pickWorkPackage        func(*cobra.Command, workpackages.Target) (string, error)
+	confirmPackageRun      func(*cobra.Command, workpackages.Target, workpackages.Readiness) (bool, error)
 }
 
 type commandState struct {
@@ -142,6 +147,8 @@ func defaultCommandStateDefaults() commandStateDefaults {
 			confirmSkillRefresh:    confirmSkillRefreshPrompt,
 			fetchReviewsFn:         core.FetchReviews,
 			runWorkflow:            core.Run,
+			pickWorkPackage:        defaultPickWorkPackage,
+			confirmPackageRun:      defaultConfirmPackageRun,
 		},
 	}
 }
@@ -178,6 +185,12 @@ func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	}
 	if result.runWorkflow == nil {
 		result.runWorkflow = builtin.runWorkflow
+	}
+	if result.pickWorkPackage == nil {
+		result.pickWorkPackage = builtin.pickWorkPackage
+	}
+	if result.confirmPackageRun == nil {
+		result.confirmPackageRun = builtin.confirmPackageRun
 	}
 	return result
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/huh/v2"
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -22,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	daemonlogger "github.com/compozy/compozy/internal/logger"
@@ -39,6 +41,8 @@ const (
 	defaultDaemonPollInterval   = 100 * time.Millisecond
 	taskRunGuardRunListLimit    = 1000
 )
+
+var errWorkPackageSelectionCanceled = errors.New("work package selection canceled")
 
 var (
 	resolveCLIDaemonHomePaths  = compozyconfig.ResolveHomePaths
@@ -701,6 +705,12 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		false,
 		"Continue after task metadata validation fails in non-interactive mode",
 	)
+	cmd.Flags().BoolVar(
+		&state.allowOutOfOrder,
+		"allow-out-of-order",
+		false,
+		"Authorize this one package run when declared dependencies are not complete",
+	)
 	cmd.Flags().StringVar(
 		&state.attachMode,
 		"attach",
@@ -760,7 +770,18 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 		return withExitCode(1, err)
 	}
 
-	resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, s.name, "")
+	target, err := s.resolveTaskRunTarget(ctx, cmd)
+	if errors.Is(err, errWorkPackageSelectionCanceled) {
+		return nil
+	}
+	if err != nil {
+		return mapWorkPackageSelectionError(err)
+	}
+
+	resolvedTasksDir := target.TasksDir
+	if target.Mode == workpackages.TargetModeOrdinary {
+		resolvedTasksDir, err = resolveTaskWorkflowDir(s.workspaceRoot, s.name, "")
+	}
 	if err != nil {
 		return withExitCode(2, err)
 	}
@@ -770,6 +791,9 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 	cfg, err := s.buildConfig()
 	if err != nil {
 		return withExitCode(2, err)
+	}
+	if target.Mode == workpackages.TargetModePackage {
+		cfg.Name = target.Ref.String()
 	}
 	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
 		return err
@@ -801,6 +825,8 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 
 	run, err := client.StartTaskRun(ctx, s.name, apicore.TaskRunRequest{
 		Workspace:        s.workspaceRoot,
+		PackageID:        s.packageID,
+		AllowOutOfOrder:  s.allowOutOfOrder,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
 		Execution:        &execution,
@@ -836,7 +862,11 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	cmd *cobra.Command,
 	slugs []string,
 ) error {
-	if err := s.preflightTaskWorkflowSlugs(ctx, cmd, slugs); err != nil {
+	selection, err := s.resolveTaskRunMultipleSelection(ctx, slugs)
+	if err != nil {
+		return mapWorkPackageSelectionError(err)
+	}
+	if err := s.preflightTaskWorkflowSelection(ctx, cmd, selection); err != nil {
 		return err
 	}
 
@@ -881,7 +911,8 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 
 	request := apicore.TaskRunMultipleRequest{
 		Workspace:        s.workspaceRoot,
-		Slugs:            slugs,
+		Slugs:            selection.Slugs,
+		Targets:          selection.Targets,
 		Mode:             mode,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
@@ -895,6 +926,61 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		return mapDaemonCommandError(err)
 	}
 	return handleStartedTaskRunMultiple(ctx, cmd, client, run)
+}
+
+type taskRunMultipleSelection struct {
+	Slugs   []string
+	Targets []apicore.TaskRunTarget
+	items   []taskRunMultipleSelectionItem
+}
+
+type taskRunMultipleSelectionItem struct {
+	workflowRef string
+	tasksDir    string
+}
+
+func (s *commandState) resolveTaskRunMultipleSelection(
+	ctx context.Context,
+	values []string,
+) (taskRunMultipleSelection, error) {
+	selection := taskRunMultipleSelection{items: make([]taskRunMultipleSelectionItem, 0, len(values))}
+	for _, value := range values {
+		target, err := (workpackages.TargetResolver{}).Resolve(ctx, s.workspaceRoot, value)
+		if err != nil {
+			return taskRunMultipleSelection{}, err
+		}
+		switch target.Mode {
+		case workpackages.TargetModeOrdinary:
+			tasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, target.Ref.Initiative, "")
+			if err != nil {
+				return taskRunMultipleSelection{}, err
+			}
+			selection.Slugs = append(selection.Slugs, target.Ref.Initiative)
+			selection.items = append(selection.items, taskRunMultipleSelectionItem{
+				workflowRef: target.Ref.Initiative,
+				tasksDir:    tasksDir,
+			})
+		case workpackages.TargetModePackage:
+			selection.Targets = append(selection.Targets, apicore.TaskRunTarget{
+				InitiativeSlug: target.Ref.Initiative,
+				PackageID:      target.Package.ID,
+			})
+			selection.items = append(selection.items, taskRunMultipleSelectionItem{
+				workflowRef: target.Ref.String(),
+				tasksDir:    target.TasksDir,
+			})
+		case workpackages.TargetModeInitiative:
+			return taskRunMultipleSelection{}, workPackageSelectionRequiredError(target)
+		default:
+			return taskRunMultipleSelection{}, fmt.Errorf("unsupported work package target mode %q", target.Mode)
+		}
+	}
+	if len(selection.Slugs) > 0 && len(selection.Targets) > 0 {
+		return taskRunMultipleSelection{}, errors.New(
+			"--multiple cannot mix ordinary workflow slugs and Work Package targets; run them separately",
+		)
+	}
+	return selection, nil
 }
 
 func (s *commandState) resolveTaskWorkflowSlugList(args []string) ([]string, error) {
@@ -911,7 +997,11 @@ func (s *commandState) resolveTaskWorkflowSlugList(args []string) ([]string, err
 	return slugs, nil
 }
 
-func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobra.Command, slugs []string) error {
+func (s *commandState) preflightTaskWorkflowSelection(
+	ctx context.Context,
+	cmd *cobra.Command,
+	selection taskRunMultipleSelection,
+) error {
 	cfg, err := s.buildConfig()
 	if err != nil {
 		return withExitCode(2, err)
@@ -924,15 +1014,11 @@ func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobr
 		s.tasksDir = originalTasksDir
 	}()
 
-	for _, slug := range slugs {
-		resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, slug, "")
-		if err != nil {
-			return withExitCode(2, err)
-		}
-		s.name = slug
-		s.tasksDir = resolvedTasksDir
-		cfg.Name = slug
-		cfg.TasksDir = resolvedTasksDir
+	for _, item := range selection.items {
+		s.name = item.workflowRef
+		s.tasksDir = item.tasksDir
+		cfg.Name = item.workflowRef
+		cfg.TasksDir = item.tasksDir
 		if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
 			return err
 		}
@@ -1484,6 +1570,178 @@ func (s *commandState) resolveTaskWorkflowName(args []string) error {
 	return nil
 }
 
+func (s *commandState) resolveTaskRunTarget(ctx context.Context, cmd *cobra.Command) (workpackages.Target, error) {
+	target, err := (workpackages.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
+	if err != nil {
+		return workpackages.Target{}, err
+	}
+	if target.Mode == workpackages.TargetModeInitiative {
+		isInteractive := s.isInteractive
+		if isInteractive == nil {
+			isInteractive = isInteractiveTerminal
+		}
+		if !isInteractive() {
+			return workpackages.Target{}, workPackageSelectionRequiredError(target)
+		}
+		picker := s.pickWorkPackage
+		if picker == nil {
+			picker = defaultPickWorkPackage
+		}
+		packageID, pickErr := picker(cmd, target)
+		if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errWorkPackageSelectionCanceled) {
+			return workpackages.Target{}, errWorkPackageSelectionCanceled
+		}
+		if pickErr != nil {
+			return workpackages.Target{}, fmt.Errorf("select work package: %w", pickErr)
+		}
+		target, err = (workpackages.TargetResolver{}).ResolvePackage(
+			ctx,
+			s.workspaceRoot,
+			target.Ref.Initiative+"/"+strings.TrimSpace(packageID),
+		)
+		if err != nil {
+			return workpackages.Target{}, err
+		}
+	}
+	if target.Mode != workpackages.TargetModePackage {
+		s.packageID = ""
+		return target, nil
+	}
+	readiness, err := workpackages.EvaluateReadiness(target.Plan, target.Package.ID)
+	if err != nil {
+		return workpackages.Target{}, err
+	}
+	if !readiness.Eligible {
+		isInteractive := s.isInteractive
+		if isInteractive == nil {
+			isInteractive = isInteractiveTerminal
+		}
+		if !isInteractive() {
+			if !s.allowOutOfOrder {
+				return workpackages.Target{}, workPackageDependenciesUnmetError(target, readiness)
+			}
+		} else {
+			confirm := s.confirmPackageRun
+			if confirm == nil {
+				confirm = defaultConfirmPackageRun
+			}
+			confirmed, confirmErr := confirm(cmd, target, readiness)
+			if errors.Is(confirmErr, huh.ErrUserAborted) || errors.Is(confirmErr, errWorkPackageSelectionCanceled) {
+				return workpackages.Target{}, errWorkPackageSelectionCanceled
+			}
+			if confirmErr != nil {
+				return workpackages.Target{}, fmt.Errorf("confirm out-of-order work package run: %w", confirmErr)
+			}
+			if !confirmed {
+				return workpackages.Target{}, errWorkPackageSelectionCanceled
+			}
+			s.allowOutOfOrder = true
+		}
+	}
+	s.name = target.Ref.Initiative
+	s.packageID = target.Package.ID
+	return target, nil
+}
+
+func workPackageSelectionRequiredError(target workpackages.Target) error {
+	return &workpackages.Error{
+		Cause:           workpackages.ErrSelectionRequired,
+		Initiative:      target.Ref.Initiative,
+		PlanPath:        target.Plan.Path,
+		ValidPackageIDs: target.Plan.PackageIDs(),
+		Issues: []workpackages.Issue{{
+			Field:   "package_id",
+			Message: "a complete initiative/WP-NNN reference is required",
+		}},
+	}
+}
+
+func workPackageDependenciesUnmetError(target workpackages.Target, readiness workpackages.Readiness) error {
+	return apicore.NewProblem(
+		http.StatusConflict,
+		"work_package_dependencies_unmet",
+		"work package dependencies are not complete; pass --allow-out-of-order to authorize this run",
+		map[string]any{
+			"initiative_slug":  target.Ref.Initiative,
+			"package_id":       target.Package.ID,
+			"direct_unmet":     readiness.DirectUnmet,
+			"transitive_unmet": readiness.TransitiveUnmet,
+		},
+		workpackages.ErrDependenciesUnmet,
+	)
+}
+
+func defaultPickWorkPackage(_ *cobra.Command, target workpackages.Target) (string, error) {
+	options := make([]huh.Option[string], 0, len(target.Plan.Packages))
+	for _, pkg := range target.Plan.Packages {
+		readiness, err := workpackages.EvaluateReadiness(target.Plan, pkg.ID)
+		if err != nil {
+			return "", err
+		}
+		completion := "incomplete"
+		if pkg.Completed {
+			completion = "completed"
+		}
+		label := fmt.Sprintf(
+			"%s — %s — %s — %d unmet dependencies",
+			pkg.ID,
+			pkg.Title,
+			completion,
+			len(readiness.DirectUnmet),
+		)
+		options = append(options, huh.NewOption(label, pkg.ID))
+	}
+	selected := ""
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Select a Work Package").
+			Description("Use the package ID, title, completion state, and unmet dependency count to choose one package.").
+			Options(options...).
+			Filtering(true).
+			Value(&selected),
+	))
+	if err := form.Run(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(selected) == "" {
+		return "", errWorkPackageSelectionCanceled
+	}
+	return selected, nil
+}
+
+func defaultConfirmPackageRun(
+	_ *cobra.Command,
+	target workpackages.Target,
+	readiness workpackages.Readiness,
+) (bool, error) {
+	lines := make([]string, 0, len(readiness.DirectUnmet)+len(readiness.TransitiveUnmet)+1)
+	for _, dependency := range readiness.DirectUnmet {
+		lines = append(lines, fmt.Sprintf("%s: %s", dependency.From, dependency.Rationale))
+	}
+	for _, dependency := range readiness.TransitiveUnmet {
+		lines = append(lines, "transitive: "+strings.Join(dependency.PackageIDs, " -> "))
+	}
+	confirmed := false
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("Run out of dependency order?").
+			Description(
+				fmt.Sprintf(
+					"%s has unmet dependencies:\n%s\nThis affects only this run and does not change completion checkboxes.",
+					target.Ref.String(),
+					strings.Join(lines, "\n"),
+				),
+			).
+			Affirmative("Continue this run").
+			Negative("Cancel").
+			Value(&confirmed),
+	))
+	if err := form.Run(); err != nil {
+		return false, err
+	}
+	return confirmed, nil
+}
+
 func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, error) {
 	mode := strings.TrimSpace(s.attachMode)
 	if mode == "" {
@@ -1702,15 +1960,63 @@ func mapDaemonCommandError(err error) error {
 
 	var remoteErr *apiclient.RemoteError
 	if errors.As(err, &remoteErr) {
+		mappedErr := decorateWorkPackageError(remoteErr)
 		switch remoteErr.StatusCode {
 		case http.StatusConflict, http.StatusUnprocessableEntity:
-			return withExitCode(1, remoteErr)
+			return withExitCode(1, mappedErr)
 		default:
-			return withExitCode(2, remoteErr)
+			return withExitCode(2, mappedErr)
 		}
 	}
 
 	return withExitCode(2, err)
+}
+
+func mapWorkPackageSelectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return withExitCode(1, decorateWorkPackageError(err))
+}
+
+func decorateWorkPackageError(err error) error {
+	if err == nil || strings.HasPrefix(err.Error(), "work_package_") {
+		return err
+	}
+	code := workPackageErrorCode(err)
+	if code == "" {
+		return err
+	}
+	return fmt.Errorf("%s: %w", code, err)
+}
+
+func workPackageErrorCode(err error) string {
+	var problem *apicore.Problem
+	if errors.As(err, &problem) && strings.HasPrefix(strings.TrimSpace(problem.Code), "work_package_") {
+		return strings.TrimSpace(problem.Code)
+	}
+	var remoteErr *apiclient.RemoteError
+	if errors.As(err, &remoteErr) && strings.HasPrefix(strings.TrimSpace(remoteErr.Envelope.Code), "work_package_") {
+		return strings.TrimSpace(remoteErr.Envelope.Code)
+	}
+	switch {
+	case errors.Is(err, workpackages.ErrPackageNotFound), errors.Is(err, workpackages.ErrInitiativeNotFound):
+		return "work_package_not_found"
+	case errors.Is(err, workpackages.ErrDependenciesUnmet):
+		return "work_package_dependencies_unmet"
+	case errors.Is(err, workpackages.ErrCompletionConflict):
+		return "work_package_completion_conflict"
+	case errors.Is(err, workpackages.ErrInvalidPlan):
+		return "work_package_plan_invalid"
+	case errors.Is(err, workpackages.ErrSelectionRequired):
+		return "work_package_selection_required"
+	case errors.Is(err, workpackages.ErrPlanReadOnly):
+		return "work_package_plan_read_only"
+	case errors.Is(err, workpackages.ErrInvalidReference), errors.Is(err, workpackages.ErrContainment):
+		return "work_package_invalid_reference"
+	default:
+		return ""
+	}
 }
 
 func cliDaemonHealthError(health apicore.DaemonHealth) error {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 )
 
@@ -284,7 +285,7 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 		}
 	})
 
-	t.Run("start task run escapes workflow slug in request path", func(t *testing.T) {
+	t.Run("start task run sends package identity in the request body", func(t *testing.T) {
 		client := &Client{
 			target:  Target{SocketPath: "/tmp/compozy.sock"},
 			baseURL: "http://daemon",
@@ -294,25 +295,42 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 					if req.Method != http.MethodPost {
 						t.Fatalf("method = %s, want POST", req.Method)
 					}
-					if req.URL.EscapedPath() != "/api/tasks/demo%20alpha%2Fbeta/runs" {
+					if req.URL.EscapedPath() != "/api/tasks/demo-alpha/runs" {
 						t.Fatalf(
-							"escaped path = %s, want /api/tasks/demo%%20alpha%%2Fbeta/runs",
+							"escaped path = %s, want /api/tasks/demo-alpha/runs",
 							req.URL.EscapedPath(),
 						)
+					}
+					var body contract.TaskRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode request body: %v", err)
+					}
+					if body.PackageID != "WP-001" || !body.AllowOutOfOrder {
+						t.Fatalf("request target = %#v, want WP-001 with override", body)
 					}
 					return jsonResponse(http.StatusCreated, `{"run":{"run_id":"task-run-1","mode":"task"}}`), nil
 				}),
 			},
 		}
 
-		run, err := client.StartTaskRun(context.Background(), " demo alpha/beta ", apicore.TaskRunRequest{
-			Workspace: "/tmp/workspace",
+		run, err := client.StartTaskRun(context.Background(), " demo-alpha ", apicore.TaskRunRequest{
+			Workspace:       "/tmp/workspace",
+			PackageID:       " WP-001 ",
+			AllowOutOfOrder: true,
 		})
 		if err != nil {
 			t.Fatalf("StartTaskRun() error = %v", err)
 		}
 		if run.RunID != "task-run-1" || run.Mode != "task" {
 			t.Fatalf("unexpected task run: %#v", run)
+		}
+	})
+
+	t.Run("start task run rejects slash-containing route slugs", func(t *testing.T) {
+		client := &Client{}
+		_, err := client.StartTaskRun(context.Background(), "demo/WP-001", apicore.TaskRunRequest{})
+		if !errors.Is(err, ErrWorkflowRouteSegmentInvalid) {
+			t.Fatalf("StartTaskRun() error = %v, want ErrWorkflowRouteSegmentInvalid", err)
 		}
 	})
 }

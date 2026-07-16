@@ -100,6 +100,67 @@ func TestClientUsesCanonicalTimeoutClassesByRoute(t *testing.T) {
 func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should post structured work package targets without route child references", func(t *testing.T) {
+		t.Parallel()
+
+		client := &Client{
+			target:  Target{SocketPath: "/tmp/compozy.sock"},
+			baseURL: "http://daemon",
+			httpClient: &http.Client{
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					if req.URL.Path != "/api/task-runs/multiple" {
+						t.Fatalf("path = %s, want /api/task-runs/multiple", req.URL.Path)
+					}
+					var body contract.TaskRunMultipleRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode request body: %v", err)
+					}
+					if len(body.Slugs) != 0 {
+						t.Fatalf("legacy slugs = %#v, want omitted", body.Slugs)
+					}
+					want := []contract.TaskRunTarget{
+						{InitiativeSlug: "customer-management", PackageID: "WP-001"},
+						{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+					}
+					if !reflect.DeepEqual(body.Targets, want) {
+						t.Fatalf("targets = %#v, want %#v", body.Targets, want)
+					}
+					return jsonResponse(http.StatusCreated, `{"run":{"run_id":"multi-run-1","mode":"task_multi"}}`), nil
+				}),
+			},
+		}
+
+		_, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
+			Workspace: "/tmp/workspace",
+			Targets: []apicore.TaskRunTarget{
+				{InitiativeSlug: " customer-management ", PackageID: " WP-001 "},
+				{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskRunMultiple() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject slash-containing legacy and structured route components", func(t *testing.T) {
+		t.Parallel()
+
+		client := &Client{}
+		if _, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
+			Slugs: []string{"customer-management/WP-001"},
+		}); !errors.Is(err, ErrWorkflowRouteSegmentInvalid) {
+			t.Fatalf("legacy error = %v, want route segment error", err)
+		}
+		if _, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
+			Targets: []apicore.TaskRunTarget{{
+				InitiativeSlug: "customer-management/WP-001",
+				PackageID:      "WP-001",
+			}},
+		}); !errors.Is(err, ErrWorkflowRouteSegmentInvalid) {
+			t.Fatalf("target error = %v, want route segment error", err)
+		}
+	})
+
 	t.Run("Should start multiple task run with ordered slugs", func(t *testing.T) {
 		t.Parallel()
 

@@ -121,6 +121,54 @@ func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
 	})
 }
 
+func TestRunManagerTaskRunMultipleUsesStructuredWorkPackageTarget(t *testing.T) {
+	// E2E-017: a multi-run package target is structured at the API boundary and
+	// executes the daemon-resolved child workflow, never a slash route value.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+			if cfg == nil {
+				return "", errors.New("runtime config is required")
+			}
+			if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+				return runID, nil
+			}
+			return "child-package-target", nil
+		},
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+	})
+	initiative := "watcher"
+	writeDaemonDependentPackageFixture(t, env, initiative, true)
+
+	parent, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, PackageID: "WP-002"}},
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-package-target"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple(package target) error = %v", err)
+	}
+	_ = waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	assertTaskMultiItems(t, snapshot.Items, []apicore.TaskRunMultipleItem{{
+		Slug:   "watcher/WP-002",
+		Status: taskMultiItemStatusCompleted,
+		RunID:  "child-package-target",
+	}})
+}
+
 func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
 	t.Parallel()
 

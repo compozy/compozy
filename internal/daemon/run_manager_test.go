@@ -25,6 +25,7 @@ import (
 	runpkg "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -3293,6 +3294,159 @@ func TestRunManagerPackageLifecycleUsesChildScopeForTaskAndReviewPreparation(t *
 	); err == nil || !strings.Contains(err.Error(), "_techspec.md") {
 		t.Fatalf("IT-038 prepareTaskStart() error = %v, want inaccessible canonical techspec", err)
 	}
+}
+
+// IT-015, IT-016, IT-033, IT-034, IT-035 and IT-036: the daemon owns the
+// final package readiness decision and persists why a one-run override was
+// requested and whether it was actually required.
+func TestRunManagerTaskRunPreflightUsesCurrentPackageReadinessAndRecordsOverride(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+	})
+	initiative := "watcher"
+	packageRef := initiative + "/WP-002"
+	writeDaemonDependentPackageFixture(t, env, initiative, false)
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PackageID:        "WP-002",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"package-blocked"}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
+		problem.Code != "work_package_dependencies_unmet" {
+		t.Fatalf("blocked package error = %#v (%v), want 409 dependency problem", problem, err)
+	}
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"package-blocked",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(package-blocked) error = %v, want no durable run", err)
+	}
+
+	run, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PackageID:        "WP-002",
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"package-override-needed"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRun(override) error = %v", err)
+	}
+	_ = waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	row, err := env.globalDB.GetRun(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("GetRun(%q) error = %v", run.RunID, err)
+	}
+	if !row.OutOfOrderRequested || !row.OutOfOrderNeeded {
+		t.Fatalf(
+			"override metadata = requested:%t needed:%t, want both true",
+			row.OutOfOrderRequested,
+			row.OutOfOrderNeeded,
+		)
+	}
+
+	// Change the source plan after the prior run. A new start must re-resolve
+	// this state rather than reuse the earlier blocked readiness result.
+	writeDaemonDependentPackageFixture(t, env, initiative, true)
+	run, err = env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PackageID:        "WP-002",
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"package-override-unneeded"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRun(current plan) error = %v", err)
+	}
+	_ = waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	row, err = env.globalDB.GetRun(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("GetRun(%q) error = %v", run.RunID, err)
+	}
+	if !row.OutOfOrderRequested || row.OutOfOrderNeeded {
+		t.Fatalf(
+			"current-plan metadata = requested:%t needed:%t, want true/false",
+			row.OutOfOrderRequested,
+			row.OutOfOrderNeeded,
+		)
+	}
+	if run.WorkflowSlug != packageRef {
+		t.Fatalf("run workflow = %q, want %q", run.WorkflowSlug, packageRef)
+	}
+}
+
+func writeDaemonDependentPackageFixture(
+	t *testing.T,
+	env *runManagerTestEnv,
+	initiative string,
+	firstPackageCompleted bool,
+) {
+	t.Helper()
+	plan, err := workpackages.RenderPlan(workpackages.Plan{
+		SchemaVersion: workpackages.SchemaVersion,
+		Initiative:    initiative,
+		Packages: []workpackages.Package{
+			{
+				ID:         "WP-001",
+				Title:      "Foundation",
+				Outcome:    "Provide the prerequisite",
+				Directory:  "_packages/WP-001",
+				Completed:  firstPackageCompleted,
+				OwnedScope: []string{"foundation"},
+			},
+			{
+				ID:         "WP-002",
+				Title:      "Delivery",
+				Outcome:    "Use the prerequisite",
+				Directory:  "_packages/WP-002",
+				OwnedScope: []string{"delivery"},
+			},
+		},
+		Edges: []workpackages.Dependency{{
+			From:      "WP-001",
+			To:        "WP-002",
+			Rationale: "Foundation must be complete first",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", string(plan))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-002", "task_01.md"),
+		daemonTaskBody("pending", "Package delivery task"),
+	)
 }
 
 func TestRunManagerPackageWorktreeExecutionIsRejected(t *testing.T) {

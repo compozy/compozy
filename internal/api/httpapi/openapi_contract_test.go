@@ -181,16 +181,23 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	if _, ok := getMap(t, taskRunSchema, "properties")["execution"]; !ok {
 		t.Fatal("TaskRunRequest must expose execution descriptor")
 	}
+	taskRunProperties := getMap(t, taskRunSchema, "properties")
+	for _, field := range []string{"package_id", "allow_out_of_order"} {
+		if _, ok := taskRunProperties[field]; !ok {
+			t.Fatalf("TaskRunRequest must expose %s", field)
+		}
+	}
 	taskRunMultipleSchema := getSchema(t, spec, "TaskRunMultipleRequest")
 	if schemaRequires(taskRunMultipleSchema, "workspace") {
 		t.Fatal("TaskRunMultipleRequest must not require workspace")
 	}
-	if !schemaRequires(taskRunMultipleSchema, "slugs") {
-		t.Fatal("TaskRunMultipleRequest must require slugs")
+	if schemaRequires(taskRunMultipleSchema, "slugs") {
+		t.Fatal("TaskRunMultipleRequest must keep legacy slugs optional for structured targets")
 	}
 	taskRunMultipleProperties := getMap(t, taskRunMultipleSchema, "properties")
 	for _, field := range []string{
 		"slugs",
+		"targets",
 		"mode",
 		"parallel_limit",
 		"presentation_mode",

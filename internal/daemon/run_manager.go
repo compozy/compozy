@@ -206,18 +206,20 @@ type reviewBatchingInput struct {
 }
 
 type startRunSpec struct {
-	workspace        globaldb.Workspace
-	workflowID       *string
-	workflowSlug     string
-	workflowRoot     string
-	mode             string
-	presentationMode string
-	parentRunID      string
-	runtimeCfg       *model.RuntimeConfig
-	reviewWatch      *preparedReviewWatch
-	reviewWatchKey   *reviewWatchKey
-	taskMulti        *preparedTaskMulti
-	recovery         workspacecfg.AgentRecoveryConfig
+	workspace           globaldb.Workspace
+	workflowID          *string
+	workflowSlug        string
+	workflowRoot        string
+	mode                string
+	presentationMode    string
+	parentRunID         string
+	runtimeCfg          *model.RuntimeConfig
+	reviewWatch         *preparedReviewWatch
+	reviewWatchKey      *reviewWatchKey
+	taskMulti           *preparedTaskMulti
+	recovery            workspacecfg.AgentRecoveryConfig
+	outOfOrderRequested bool
+	outOfOrderNeeded    bool
 }
 
 type terminalState struct {
@@ -480,10 +482,19 @@ func (m *RunManager) StartTaskRun(
 	workflowSlug string,
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
-	workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, err := m.prepareTaskStart(
+	resolvedWorkflowRef, err := m.resolveTaskRunReference(
 		ctx,
 		workspaceRef,
 		workflowSlug,
+		req.PackageID,
+	)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, err := m.prepareTaskStart(
+		ctx,
+		workspaceRef,
+		resolvedWorkflowRef,
 		req,
 	)
 	if err != nil {
@@ -498,12 +509,21 @@ func (m *RunManager) StartTaskRun(
 	if err := validateTaskExecutionDescriptor(req.Execution, expectedExecutionKind, expectedWorktrees); err != nil {
 		return apicore.Run{}, err
 	}
+	outOfOrderNeeded, err := m.preflightPackageTaskRun(
+		ctx,
+		workspaceRef,
+		resolvedWorkflowRef,
+		req.AllowOutOfOrder,
+	)
+	if err != nil {
+		return apicore.Run{}, err
+	}
 
 	if run, routed, err := m.startParallelTaskRunIfEnabled(
 		ctx,
 		workspaceRow,
 		workflowID,
-		workflowSlug,
+		resolvedWorkflowRef,
 		runtimeCfg,
 		recoveryCfg,
 		parallelCfg,
@@ -513,15 +533,128 @@ func (m *RunManager) StartTaskRun(
 	}
 
 	return m.startRun(ctx, startRunSpec{
-		workspace:        workspaceRow,
-		workflowID:       workflowID,
-		workflowSlug:     strings.TrimSpace(workflowSlug),
-		workflowRoot:     strings.TrimSpace(runtimeCfg.TasksDir),
-		mode:             runModeTask,
-		presentationMode: presentationMode,
-		runtimeCfg:       runtimeCfg,
-		recovery:         recoveryCfg,
+		workspace:           workspaceRow,
+		workflowID:          workflowID,
+		workflowSlug:        strings.TrimSpace(resolvedWorkflowRef),
+		workflowRoot:        strings.TrimSpace(runtimeCfg.TasksDir),
+		mode:                runModeTask,
+		presentationMode:    presentationMode,
+		runtimeCfg:          runtimeCfg,
+		recovery:            recoveryCfg,
+		outOfOrderRequested: req.AllowOutOfOrder,
+		outOfOrderNeeded:    outOfOrderNeeded,
 	})
+}
+
+func (m *RunManager) resolveTaskRunReference(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+	packageID string,
+) (string, error) {
+	reference := strings.TrimSpace(workflowSlug)
+	selectedPackage := strings.TrimSpace(packageID)
+	if selectedPackage != "" {
+		if strings.Contains(reference, "/") {
+			parsed, err := workpackages.ParsePackageRef(reference)
+			if err != nil {
+				return "", err
+			}
+			if parsed.PackageID != selectedPackage {
+				return "", apicore.NewProblem(
+					http.StatusUnprocessableEntity,
+					"work_package_target_mismatch",
+					"package_id does not match the selected workflow reference",
+					map[string]any{
+						"initiative_slug": parsed.Initiative,
+						"package_id":      selectedPackage,
+					},
+					nil,
+				)
+			}
+			return parsed.String(), nil
+		}
+		parsed, err := workpackages.ParsePackageRef(reference + "/" + selectedPackage)
+		if err != nil {
+			return "", err
+		}
+		return parsed.String(), nil
+	}
+	if strings.Contains(reference, "/") {
+		return reference, nil
+	}
+	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
+	if err != nil {
+		return "", err
+	}
+	if err := requireWorkspacePathAvailable(workspace); err != nil {
+		return "", err
+	}
+	target, err := (workpackages.TargetResolver{}).Resolve(ctx, workspace.RootDir, reference)
+	if err != nil {
+		return "", err
+	}
+	if target.Mode != workpackages.TargetModeInitiative {
+		return reference, nil
+	}
+	return "", &workpackages.Error{
+		Cause:           workpackages.ErrSelectionRequired,
+		Initiative:      target.Ref.Initiative,
+		PlanPath:        target.Plan.Path,
+		ValidPackageIDs: target.Plan.PackageIDs(),
+		Issues: []workpackages.Issue{{
+			Field:   "package_id",
+			Message: "a complete initiative/WP-NNN reference is required",
+		}},
+	}
+}
+
+func (m *RunManager) preflightPackageTaskRun(
+	ctx context.Context,
+	workspaceRef string,
+	workflowRef string,
+	allowOutOfOrder bool,
+) (bool, error) {
+	if !strings.Contains(strings.TrimSpace(workflowRef), "/") {
+		return false, nil
+	}
+	ref, err := workpackages.ParsePackageRef(strings.TrimSpace(workflowRef))
+	if err != nil {
+		return false, err
+	}
+	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
+	if err != nil {
+		return false, err
+	}
+	if err := requireWorkspacePathAvailable(workspace); err != nil {
+		return false, err
+	}
+	target, err := (workpackages.TargetResolver{}).ResolvePackage(ctx, workspace.RootDir, ref.String())
+	if err != nil {
+		return false, err
+	}
+	readiness, err := workpackages.EvaluateReadiness(target.Plan, ref.PackageID)
+	if err != nil {
+		return false, err
+	}
+	if readiness.Eligible {
+		return false, nil
+	}
+	if allowOutOfOrder {
+		return true, nil
+	}
+	return false, apicore.NewProblem(
+		http.StatusConflict,
+		"work_package_dependencies_unmet",
+		"work package dependencies are not complete",
+		map[string]any{
+			"initiative_slug":  target.Ref.Initiative,
+			"package_id":       target.Package.ID,
+			"direct_unmet":     readiness.DirectUnmet,
+			"transitive_unmet": readiness.TransitiveUnmet,
+		},
+		workpackages.ErrDependenciesUnmet,
+	)
 }
 
 func validateTaskExecutionDescriptor(
@@ -1617,15 +1750,17 @@ func (m *RunManager) insertRunRow(
 	}
 
 	row, err := m.globalDB.PutRun(ctx, globaldb.Run{
-		RunID:            runID,
-		WorkspaceID:      spec.workspace.ID,
-		WorkflowID:       spec.workflowID,
-		ParentRunID:      parentRunIDForSpec(spec),
-		Mode:             spec.mode,
-		Status:           runStatusStarting,
-		PresentationMode: spec.presentationMode,
-		StartedAt:        startedAt,
-		RequestID:        requestID,
+		RunID:               runID,
+		WorkspaceID:         spec.workspace.ID,
+		WorkflowID:          spec.workflowID,
+		ParentRunID:         parentRunIDForSpec(spec),
+		Mode:                spec.mode,
+		Status:              runStatusStarting,
+		PresentationMode:    spec.presentationMode,
+		StartedAt:           startedAt,
+		RequestID:           requestID,
+		OutOfOrderRequested: spec.outOfOrderRequested,
+		OutOfOrderNeeded:    spec.outOfOrderNeeded,
 	})
 	if err != nil {
 		cleanupRunDirectory(runArtifacts.RunDir)
@@ -2075,16 +2210,18 @@ func (m *RunManager) toCoreRun(
 	fallbackWorkflowSlug string,
 ) (apicore.Run, error) {
 	run := apicore.Run{
-		RunID:            row.RunID,
-		WorkspaceID:      row.WorkspaceID,
-		ParentRunID:      row.ParentRunID,
-		Mode:             row.Mode,
-		Status:           row.Status,
-		PresentationMode: row.PresentationMode,
-		StartedAt:        row.StartedAt,
-		EndedAt:          row.EndedAt,
-		ErrorText:        row.ErrorText,
-		RequestID:        row.RequestID,
+		RunID:               row.RunID,
+		WorkspaceID:         row.WorkspaceID,
+		ParentRunID:         row.ParentRunID,
+		Mode:                row.Mode,
+		Status:              row.Status,
+		PresentationMode:    row.PresentationMode,
+		StartedAt:           row.StartedAt,
+		EndedAt:             row.EndedAt,
+		ErrorText:           row.ErrorText,
+		RequestID:           row.RequestID,
+		OutOfOrderRequested: row.OutOfOrderRequested,
+		OutOfOrderNeeded:    row.OutOfOrderNeeded,
 	}
 
 	if row.WorkflowID != nil {

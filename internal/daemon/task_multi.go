@@ -19,6 +19,7 @@ import (
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 	"github.com/compozy/compozy/internal/core/run/recovery"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -80,7 +81,7 @@ func (m *RunManager) StartTaskRunMultiple(
 	workspaceRef string,
 	req apicore.TaskRunMultipleRequest,
 ) (apicore.Run, error) {
-	slugs, err := normalizeTaskMultiSlugs(req.Slugs)
+	slugs, err := normalizeTaskMultiRequest(req)
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -324,10 +325,14 @@ func (m *RunManager) prepareTaskMultiStart(
 	var workspaceRow globaldb.Workspace
 	var presentationMode string
 	for idx, slug := range slugs {
+		resolvedSlug, err := m.resolveTaskRunReference(ctx, workspaceRef, slug, "")
+		if err != nil {
+			return nil, err
+		}
 		row, workflowID, runtimeCfg, recoveryCfg, _, childPresentationMode, err := m.prepareTaskStart(
 			ctx,
 			workspaceRef,
-			slug,
+			resolvedSlug,
 			apicore.TaskRunRequest{
 				Workspace:        req.Workspace,
 				PresentationMode: req.PresentationMode,
@@ -337,12 +342,15 @@ func (m *RunManager) prepareTaskMultiStart(
 		if err != nil {
 			return nil, err
 		}
+		if _, err := m.preflightPackageTaskRun(ctx, workspaceRef, resolvedSlug, false); err != nil {
+			return nil, err
+		}
 		if idx == 0 {
 			workspaceRow = row
 			presentationMode = childPresentationMode
 		}
 		items = append(items, preparedTaskMultiItem{
-			slug:         strings.TrimSpace(slug),
+			slug:         strings.TrimSpace(resolvedSlug),
 			workflowID:   cloneStringPtr(workflowID),
 			workflowRoot: strings.TrimSpace(runtimeCfg.TasksDir),
 			runtimeCfg:   runtimeCfg,
@@ -575,6 +583,44 @@ func normalizeTaskMultiSlugs(values []string) ([]string, error) {
 		)
 	}
 	return slugs, nil
+}
+
+func normalizeTaskMultiRequest(req apicore.TaskRunMultipleRequest) ([]string, error) {
+	if len(req.Targets) == 0 {
+		return normalizeTaskMultiSlugs(req.Slugs)
+	}
+	if len(req.Slugs) > 0 {
+		return nil, taskMultiValidationProblem(
+			"task_targets_ambiguous",
+			"use either legacy slugs or structured targets",
+			"targets",
+		)
+	}
+	seen := make(map[string]struct{}, len(req.Targets))
+	refs := make([]string, 0, len(req.Targets))
+	for index, target := range req.Targets {
+		initiative := strings.TrimSpace(target.InitiativeSlug)
+		packageID := strings.TrimSpace(target.PackageID)
+		if packageID == "" {
+			return nil, apicore.NewProblem(
+				http.StatusUnprocessableEntity,
+				"work_package_selection_required",
+				"structured task targets require package_id",
+				map[string]any{"field": "targets", "index": index},
+				workpackages.ErrSelectionRequired,
+			)
+		}
+		ref, err := workpackages.ParsePackageRef(initiative + "/" + packageID)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[ref.String()]; exists {
+			return nil, taskMultiValidationProblem("target_duplicate", "targets must not contain duplicates", "targets")
+		}
+		seen[ref.String()] = struct{}{}
+		refs = append(refs, ref.String())
+	}
+	return refs, nil
 }
 
 func resolveTaskMultiMode(raw string) (string, error) {
@@ -1861,6 +1907,14 @@ func (m *RunManager) startTaskMultiChild(
 	index int,
 	total int,
 ) (apicore.Run, error) {
+	if _, err := m.preflightPackageTaskRun(
+		detachContext(active.ctx),
+		prepared.workspace.RootDir,
+		item.slug,
+		false,
+	); err != nil {
+		return apicore.Run{}, err
+	}
 	runtimeCfg := item.runtimeCfg.Clone()
 	if runtimeCfg == nil {
 		return apicore.Run{}, errors.New("task multi child runtime config is required")

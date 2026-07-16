@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -48,6 +49,19 @@ func statusForError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, model.ErrJobControlMessageTooLarge):
 		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, workpackages.ErrPackageNotFound),
+		errors.Is(err, workpackages.ErrInitiativeNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, workpackages.ErrPlanReadOnly):
+		return http.StatusForbidden
+	case errors.Is(err, workpackages.ErrDependenciesUnmet),
+		errors.Is(err, workpackages.ErrCompletionConflict):
+		return http.StatusConflict
+	case errors.Is(err, workpackages.ErrInvalidPlan),
+		errors.Is(err, workpackages.ErrSelectionRequired),
+		errors.Is(err, workpackages.ErrInvalidReference),
+		errors.Is(err, workpackages.ErrContainment):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, tasks.ErrLegacyTaskMetadata),
 		errors.Is(err, tasks.ErrV1TaskMetadata),
 		errors.Is(err, reviews.ErrLegacyReviewMetadata):
@@ -92,6 +106,21 @@ func codeForError(status int, err error) string {
 	switch {
 	case errors.Is(err, globaldb.ErrSchemaTooNew), errors.Is(err, rundb.ErrSchemaTooNew):
 		return string(contract.CodeSchemaTooNew)
+	case errors.Is(err, workpackages.ErrPackageNotFound),
+		errors.Is(err, workpackages.ErrInitiativeNotFound):
+		return "work_package_not_found"
+	case errors.Is(err, workpackages.ErrDependenciesUnmet):
+		return "work_package_dependencies_unmet"
+	case errors.Is(err, workpackages.ErrCompletionConflict):
+		return "work_package_completion_conflict"
+	case errors.Is(err, workpackages.ErrInvalidPlan):
+		return "work_package_plan_invalid"
+	case errors.Is(err, workpackages.ErrSelectionRequired):
+		return "work_package_selection_required"
+	case errors.Is(err, workpackages.ErrPlanReadOnly):
+		return "work_package_plan_read_only"
+	case errors.Is(err, workpackages.ErrInvalidReference), errors.Is(err, workpackages.ErrContainment):
+		return "work_package_invalid_reference"
 	default:
 		return defaultCodeForStatus(status)
 	}
@@ -123,6 +152,36 @@ func detailsForError(err error) map[string]any {
 		}
 	}
 
+	var packageErr *workpackages.Error
+	if errors.As(err, &packageErr) && packageErr != nil {
+		details := make(map[string]any)
+		if initiative := strings.TrimSpace(packageErr.Initiative); initiative != "" {
+			details["initiative_slug"] = initiative
+		}
+		if packageID := strings.TrimSpace(packageErr.PackageID); packageID != "" {
+			details["package_id"] = packageID
+		}
+		if len(packageErr.ValidPackageIDs) > 0 {
+			details["valid_package_ids"] = append([]string(nil), packageErr.ValidPackageIDs...)
+		}
+		if len(packageErr.Issues) > 0 {
+			issues := make([]map[string]string, 0, len(packageErr.Issues))
+			for _, issue := range packageErr.Issues {
+				issues = append(issues, map[string]string{
+					"field":   strings.TrimSpace(issue.Field),
+					"message": strings.TrimSpace(issue.Message),
+				})
+			}
+			details["issues"] = issues
+		}
+		if packageErr.PlanPath != "" {
+			details["plan"] = workpackages.ManifestFileName
+		}
+		if len(details) > 0 {
+			return details
+		}
+	}
+
 	return nil
 }
 
@@ -146,15 +205,17 @@ func RespondError(c *gin.Context, err error) {
 	}
 
 	status := statusForError(err)
+	payload := contract.TransportErrorEnvelope(
+		RequestIDFromContext(c.Request.Context()),
+		status,
+		err,
+		detailsForError(err),
+		true,
+	)
+	payload.Code = codeForError(status, err)
 	c.AbortWithStatusJSON(
 		status,
-		contract.TransportErrorEnvelope(
-			RequestIDFromContext(c.Request.Context()),
-			status,
-			err,
-			detailsForError(err),
-			true,
-		),
+		payload,
 	)
 }
 

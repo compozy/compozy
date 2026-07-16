@@ -58,7 +58,8 @@ func (g *GlobalDB) ListInterruptedRuns(ctx context.Context) ([]Run, error) {
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		        started_at, ended_at, error_text, parent_run_id, request_id
+		        started_at, ended_at, error_text, parent_run_id, request_id,
+		        out_of_order_requested, out_of_order_needed
 		 FROM runs
 		 WHERE status IN ('starting', 'running')
 		 ORDER BY started_at ASC, run_id ASC`,
@@ -243,7 +244,8 @@ func (g *GlobalDB) listTerminalRuns(ctx context.Context) ([]Run, error) {
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		        started_at, ended_at, error_text, parent_run_id, request_id
+		        started_at, ended_at, error_text, parent_run_id, request_id,
+		        out_of_order_requested, out_of_order_needed
 		 FROM runs
 		 WHERE status IN ('completed', 'failed', 'canceled', 'crashed')
 		 ORDER BY COALESCE(ended_at, started_at) ASC, run_id ASC`,

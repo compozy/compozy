@@ -608,6 +608,33 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 		}
 	})
 
+	t.Run("Should encode structured package targets without legacy slugs", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := json.Marshal(contract.TaskRunMultipleRequest{
+			Targets: []contract.TaskRunTarget{
+				{InitiativeSlug: "customer-management", PackageID: "WP-001"},
+				{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(data), `"slugs"`) || !strings.Contains(string(data), `"targets"`) {
+			t.Fatalf("structured target payload = %s", data)
+		}
+		var decoded contract.TaskRunMultipleRequest
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if !reflect.DeepEqual(decoded.Targets, []contract.TaskRunTarget{
+			{InitiativeSlug: "customer-management", PackageID: "WP-001"},
+			{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+		}) {
+			t.Fatalf("decoded targets = %#v", decoded.Targets)
+		}
+	})
+
 	t.Run("Should decode a snapshot item without worktree metadata", func(t *testing.T) {
 		t.Parallel()
 

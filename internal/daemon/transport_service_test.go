@@ -249,15 +249,54 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		})
 	})
 
-	t.Run("Should report unavailable item listing and validation", func(t *testing.T) {
+	t.Run("Should report unavailable item listing and validate task metadata", func(t *testing.T) {
 		env, service := newService(t)
 		if _, err := service.ListItems(context.Background(), env.workspaceRoot, env.workflowSlug); err == nil ||
 			!strings.Contains(err.Error(), "task item listing is not available") {
 			t.Fatalf("ListItems() error = %v, want unavailable", err)
 		}
-		if _, err := service.Validate(context.Background(), env.workspaceRoot, env.workflowSlug); err == nil ||
-			!strings.Contains(err.Error(), "task validation is not available") {
-			t.Fatalf("Validate() error = %v, want unavailable", err)
+		result, err := service.Validate(context.Background(), env.workspaceRoot, env.workflowSlug)
+		if err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+		if !result.Valid || result.CheckedAt.IsZero() {
+			t.Fatalf("Validate() result = %#v, want successful validation", result)
+		}
+	})
+
+	t.Run("Should validate a work package against its logical reference", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		initiative := "watcher"
+		writeDaemonDependentPackageFixture(t, env, initiative, true)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_packages", "WP-002", "_tasks.md"),
+			packageTaskGraphManifest("watcher/WP-002"),
+		)
+
+		service := newTransportTaskService(env.globalDB, env.manager)
+		result, err := service.Validate(context.Background(), env.workspaceRoot, "watcher/WP-002")
+		if err != nil {
+			t.Fatalf("Validate(package) error = %v", err)
+		}
+		if !result.Valid {
+			t.Fatalf("Validate(package) result = %#v, want valid", result)
+		}
+
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_packages", "WP-002", "_tasks.md"),
+			packageTaskGraphManifest("watcher/WP-001"),
+		)
+		_, err = service.Validate(context.Background(), env.workspaceRoot, "watcher/WP-002")
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("Validate(wrong package manifest) error = %v, want transport problem", err)
+		}
+		if problem.Status != 422 || problem.Code != "task_validation_failed" {
+			t.Fatalf("Validate(wrong package manifest) problem = %#v", problem)
 		}
 	})
 
@@ -523,6 +562,21 @@ func syncWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv) {
 	t.Helper()
 
 	syncNamedWorkflowForDaemonTest(t, env, env.workflowSlug)
+}
+
+func packageTaskGraphManifest(workflow string) string {
+	return strings.Join([]string{
+		"---",
+		"schema_version: \"compozy.tasks/v2\"",
+		"workflow: " + workflow,
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"  edges: []",
+		"---",
+		"# Task Graph",
+	}, "\n")
 }
 
 func syncNamedWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv, slug string) {

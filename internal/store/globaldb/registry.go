@@ -153,17 +153,19 @@ type WorkspaceCatalogStats struct {
 
 // Run captures one durable global run index row.
 type Run struct {
-	RunID            string
-	WorkspaceID      string
-	WorkflowID       *string
-	ParentRunID      string
-	Mode             string
-	Status           string
-	PresentationMode string
-	StartedAt        time.Time
-	EndedAt          *time.Time
-	ErrorText        string
-	RequestID        string
+	RunID               string
+	WorkspaceID         string
+	WorkflowID          *string
+	ParentRunID         string
+	Mode                string
+	Status              string
+	PresentationMode    string
+	StartedAt           time.Time
+	EndedAt             *time.Time
+	ErrorText           string
+	RequestID           string
+	OutOfOrderRequested bool
+	OutOfOrderNeeded    bool
 }
 
 // ActiveRunsError reports how many active runs blocked a workspace unregister.
@@ -651,8 +653,9 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		ctx,
 		`INSERT INTO runs (
 			run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-			started_at, ended_at, error_text, parent_run_id, request_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			started_at, ended_at, error_text, parent_run_id, request_id,
+			out_of_order_requested, out_of_order_needed
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.RunID,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -664,6 +667,8 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		strings.TrimSpace(run.ErrorText),
 		run.ParentRunID,
 		strings.TrimSpace(run.RequestID),
+		run.OutOfOrderRequested,
+		run.OutOfOrderNeeded,
 	)
 	if err != nil {
 		if isDuplicateRunError(err) {
@@ -718,7 +723,9 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		     ended_at = ?,
 		     error_text = ?,
 		     parent_run_id = ?,
-		     request_id = ?
+		     request_id = ?,
+		     out_of_order_requested = ?,
+		     out_of_order_needed = ?
 		 WHERE run_id = ?`,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -730,6 +737,8 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		strings.TrimSpace(run.ErrorText),
 		run.ParentRunID,
 		strings.TrimSpace(run.RequestID),
+		run.OutOfOrderRequested,
+		run.OutOfOrderNeeded,
 		run.RunID,
 	)
 	if err != nil {
@@ -756,7 +765,8 @@ func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		        started_at, ended_at, error_text, parent_run_id, request_id
+		        started_at, ended_at, error_text, parent_run_id, request_id,
+		        out_of_order_requested, out_of_order_needed
 		 FROM runs
 		 WHERE run_id = ?`,
 		strings.TrimSpace(runID),
@@ -784,7 +794,8 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 
 	query := `
 		SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		       started_at, ended_at, error_text, parent_run_id, request_id
+		       started_at, ended_at, error_text, parent_run_id, request_id,
+		       out_of_order_requested, out_of_order_needed
 		FROM runs
 		WHERE 1 = 1`
 	args := make([]any, 0, 4)
@@ -1258,6 +1269,8 @@ func scanRun(scanner rowScanner) (Run, error) {
 		&run.ErrorText,
 		&run.ParentRunID,
 		&run.RequestID,
+		&run.OutOfOrderRequested,
+		&run.OutOfOrderNeeded,
 	); err != nil {
 		return Run{}, err
 	}

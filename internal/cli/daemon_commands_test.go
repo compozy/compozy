@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -3419,6 +3421,183 @@ func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T
 	}
 }
 
+// E2E-005, E2E-007, E2E-008, E2E-009 and E2E-013: package selection is
+// explicit, cancellable, and advisory; it never mutates plan completion.
+func TestResolveTaskRunTargetRequiresExplicitPackageSelection(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "customer-management"
+	planPath := writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+	originalPlan, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("read plan: %v", err)
+	}
+
+	t.Run("non tty initiative requires an exact package reference", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return false }
+		state.pickWorkPackage = func(*cobra.Command, workpackages.Target) (string, error) {
+			t.Fatal("picker must not run outside a TTY")
+			return "", nil
+		}
+
+		_, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
+		var packageErr *workpackages.Error
+		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrSelectionRequired) {
+			t.Fatalf("selection error = %#v (%v), want selection-required work package error", packageErr, err)
+		}
+		if state.packageID != "" {
+			t.Fatalf("package id = %q, want empty after rejected selection", state.packageID)
+		}
+	})
+
+	t.Run("picker cancellation starts no target", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return true }
+		state.pickWorkPackage = func(*cobra.Command, workpackages.Target) (string, error) {
+			return "", errWorkPackageSelectionCanceled
+		}
+
+		_, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
+		if !errors.Is(err, errWorkPackageSelectionCanceled) {
+			t.Fatalf("picker error = %v, want cancellation", err)
+		}
+		if state.name != initiative || state.packageID != "" {
+			t.Fatalf("state after cancellation = name:%q package:%q", state.name, state.packageID)
+		}
+	})
+
+	t.Run("interactive picker and confirmation authorize only this run", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return true }
+		state.pickWorkPackage = func(_ *cobra.Command, target workpackages.Target) (string, error) {
+			if target.Mode != workpackages.TargetModeInitiative {
+				t.Fatalf("picker target mode = %q, want initiative", target.Mode)
+			}
+			return "WP-002", nil
+		}
+		confirmed := false
+		state.confirmPackageRun = func(
+			_ *cobra.Command,
+			target workpackages.Target,
+			readiness workpackages.Readiness,
+		) (bool, error) {
+			confirmed = target.Ref.String() == initiative+"/WP-002" && !readiness.Eligible
+			return true, nil
+		}
+
+		target, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
+		if err != nil {
+			t.Fatalf("resolve task target: %v", err)
+		}
+		if !confirmed || target.Ref.String() != initiative+"/WP-002" ||
+			state.name != initiative || state.packageID != "WP-002" || !state.allowOutOfOrder {
+			t.Fatalf(
+				"resolved target/state = %#v name:%q package:%q allow:%t confirmed:%t",
+				target,
+				state.name,
+				state.packageID,
+				state.allowOutOfOrder,
+				confirmed,
+			)
+		}
+		currentPlan, readErr := os.ReadFile(planPath)
+		if readErr != nil {
+			t.Fatalf("read plan after confirmation: %v", readErr)
+		}
+		if !bytes.Equal(currentPlan, originalPlan) {
+			t.Fatal("CLI dependency confirmation changed package completion state")
+		}
+	})
+}
+
+// E2E-013 and IT-036: non-interactive dependency bypass is opt-in and its
+// local check does not substitute for the daemon's authoritative preflight.
+func TestResolveTaskRunTargetRequiresNonInteractiveDependencyOverride(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "customer-management"
+	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+
+	state := newCommandState(commandKindTasksRun, "")
+	state.workspaceRoot = workspaceRoot
+	state.name = initiative + "/WP-002"
+	state.isInteractive = func() bool { return false }
+	_, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Code != "work_package_dependencies_unmet" {
+		t.Fatalf("non-interactive error = %#v (%v), want dependency problem", problem, err)
+	}
+
+	state = newCommandState(commandKindTasksRun, "")
+	state.workspaceRoot = workspaceRoot
+	state.name = initiative + "/WP-002"
+	state.allowOutOfOrder = true
+	state.isInteractive = func() bool { return false }
+	target, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
+	if err != nil {
+		t.Fatalf("resolve with --allow-out-of-order: %v", err)
+	}
+	if target.Ref.String() != initiative+"/WP-002" || state.name != initiative || state.packageID != "WP-002" {
+		t.Fatalf("resolved target/state = %#v name:%q package:%q", target, state.name, state.packageID)
+	}
+}
+
+func writeCLIWorkPackagePlan(t *testing.T, workspaceRoot string, initiative string, firstCompleted bool) string {
+	t.Helper()
+	plan, err := workpackages.RenderPlan(workpackages.Plan{
+		SchemaVersion: workpackages.SchemaVersion,
+		Initiative:    initiative,
+		Packages: []workpackages.Package{
+			{
+				ID:         "WP-001",
+				Title:      "Foundation",
+				Outcome:    "Provide the prerequisite",
+				Directory:  "_packages/WP-001",
+				Completed:  firstCompleted,
+				OwnedScope: []string{"foundation"},
+			},
+			{
+				ID:         "WP-002",
+				Title:      "Delivery",
+				Outcome:    "Use the prerequisite",
+				Directory:  "_packages/WP-002",
+				OwnedScope: []string{"delivery"},
+			},
+		},
+		Edges: []workpackages.Dependency{{
+			From:      "WP-001",
+			To:        "WP-002",
+			Rationale: "Foundation must be complete first",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative)
+	if err := os.MkdirAll(initiativeDir, 0o755); err != nil {
+		t.Fatalf("mkdir initiative: %v", err)
+	}
+	for _, packageID := range []string{"WP-001", "WP-002"} {
+		if err := os.MkdirAll(filepath.Join(initiativeDir, "_packages", packageID), 0o755); err != nil {
+			t.Fatalf("mkdir package %s: %v", packageID, err)
+		}
+	}
+	planPath := filepath.Join(initiativeDir, "_work_packages.md")
+	if err := os.WriteFile(planPath, plan, 0o600); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	return planPath
+}
+
 func TestWarnIfOtherWorkspaceTaskRunsActive(t *testing.T) {
 	t.Parallel()
 
@@ -3954,6 +4133,28 @@ func TestMapDaemonCommandErrorUsesStableExitCodes(t *testing.T) {
 		},
 	})
 	assertExitCode(t, validationErr, 1)
+
+	packageErr := mapDaemonCommandError(&apiclient.RemoteError{
+		StatusCode: http.StatusConflict,
+		Envelope: apicore.TransportError{
+			RequestID: "req-package",
+			Code:      "work_package_dependencies_unmet",
+			Message:   "work package dependencies are not complete",
+		},
+	})
+	assertExitCode(t, packageErr, 1)
+	if !strings.Contains(packageErr.Error(), "work_package_dependencies_unmet") {
+		t.Fatalf("package command error = %v, want stable package code", packageErr)
+	}
+
+	localSelectionErr := mapWorkPackageSelectionError(&workpackages.Error{
+		Cause:      workpackages.ErrSelectionRequired,
+		Initiative: "customer-management",
+	})
+	assertExitCode(t, localSelectionErr, 1)
+	if !strings.Contains(localSelectionErr.Error(), "work_package_selection_required") {
+		t.Fatalf("local selection error = %v, want stable package code", localSelectionErr)
+	}
 
 	transportErr := mapDaemonCommandError(fmt.Errorf("dial daemon: %w", errors.New("connection refused")))
 	assertExitCode(t, transportErr, 2)

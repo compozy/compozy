@@ -31,7 +31,8 @@ type Report struct {
 }
 
 type ValidateOptions struct {
-	Recursive bool
+	Recursive        bool
+	ExpectedWorkflow string
 }
 
 func (r Report) OK() bool {
@@ -77,7 +78,7 @@ func ValidateWithOptions(
 		}
 		report.Issues = append(report.Issues, taskIssues...)
 	}
-	manifestIssues, err := validateTaskGraphManifestFile(ctx, resolvedDir)
+	manifestIssues, err := validateTaskGraphManifestFile(ctx, resolvedDir, options.ExpectedWorkflow)
 	if err != nil {
 		return report, err
 	}
@@ -122,7 +123,7 @@ func validateTaskFiles(
 	return issues, nil
 }
 
-func validateTaskGraphManifestFile(ctx context.Context, resolvedDir string) ([]Issue, error) {
+func validateTaskGraphManifestFile(ctx context.Context, resolvedDir string, expectedWorkflow string) ([]Issue, error) {
 	manifest, err := ReadTaskGraphManifest(resolvedDir)
 	if errors.Is(err, ErrTaskGraphManifestMissing) {
 		return nil, nil
@@ -130,7 +131,11 @@ func validateTaskGraphManifestFile(ctx context.Context, resolvedDir string) ([]I
 	if err != nil {
 		return nil, err
 	}
-	_, issues, err := ValidateTaskGraphManifest(ctx, resolvedDir, filepath.Base(resolvedDir), manifest)
+	workflow := strings.TrimSpace(expectedWorkflow)
+	if workflow == "" {
+		workflow = filepath.Base(resolvedDir)
+	}
+	_, issues, err := ValidateTaskGraphManifest(ctx, resolvedDir, workflow, manifest)
 	return issues, err
 }
 

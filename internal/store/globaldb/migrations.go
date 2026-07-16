@@ -203,6 +203,16 @@ var migrations = []migration{
 				  AND package_id <> '';`,
 		},
 	},
+	{
+		version: 7,
+		name:    "runs_out_of_order_metadata",
+		statements: []string{
+			`ALTER TABLE runs ADD COLUMN out_of_order_requested INTEGER NOT NULL DEFAULT 0
+				CHECK (out_of_order_requested IN (0, 1));`,
+			`ALTER TABLE runs ADD COLUMN out_of_order_needed INTEGER NOT NULL DEFAULT 0
+				CHECK (out_of_order_needed IN (0, 1));`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

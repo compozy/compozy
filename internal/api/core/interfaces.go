@@ -405,6 +405,7 @@ type RunEventPage = contract.RunEventPage
 type TaskRunRequest = contract.TaskRunRequest
 type TaskExecutionDescriptor = contract.TaskExecutionDescriptor
 type TaskRunMultipleRequest = contract.TaskRunMultipleRequest
+type TaskRunTarget = contract.TaskRunTarget
 type TaskRunMultipleItem = contract.TaskRunMultipleItem
 type TaskRunMultipleSnapshot = contract.TaskRunMultipleSnapshot
 

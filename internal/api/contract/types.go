@@ -39,15 +39,19 @@ type WorkspaceResolveRequest struct {
 
 type WorkflowRefRequest struct {
 	Workspace string `json:"workspace"`
+	PackageID string `json:"package_id,omitempty"`
 }
 
 type WorkflowArchiveRequest struct {
 	Workspace string `json:"workspace"`
+	PackageID string `json:"package_id,omitempty"`
 	Force     bool   `json:"force,omitempty"`
 }
 
 type TaskRunRequest struct {
 	Workspace        string                   `json:"workspace"`
+	PackageID        string                   `json:"package_id,omitempty"`
+	AllowOutOfOrder  bool                     `json:"allow_out_of_order,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
 	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`
@@ -62,12 +66,20 @@ type TaskExecutionDescriptor struct {
 
 type TaskRunMultipleRequest struct {
 	Workspace        string                   `json:"workspace"`
-	Slugs            []string                 `json:"slugs"`
+	Slugs            []string                 `json:"slugs,omitempty"`
+	Targets          []TaskRunTarget          `json:"targets,omitempty"`
 	Mode             string                   `json:"mode,omitempty"`
 	ParallelLimit    int                      `json:"parallel_limit,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
 	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`
+}
+
+// TaskRunTarget identifies one explicit execution target without overloading a
+// workflow route segment with a child reference.
+type TaskRunTarget struct {
+	InitiativeSlug string `json:"initiative_slug"`
+	PackageID      string `json:"package_id,omitempty"`
 }
 
 type TaskRunMultipleItem struct {
@@ -95,6 +107,7 @@ type TaskRunMultipleSnapshot struct {
 
 type ReviewFetchRequest struct {
 	Workspace string `json:"workspace"`
+	PackageID string `json:"package_id,omitempty"`
 	Provider  string `json:"provider,omitempty"`
 	PRRef     string `json:"pr_ref,omitempty"`
 	Round     *int   `json:"round,omitempty"`
@@ -102,6 +115,7 @@ type ReviewFetchRequest struct {
 
 type ReviewRunRequest struct {
 	Workspace        string          `json:"workspace"`
+	PackageID        string          `json:"package_id,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
 	Batching         json.RawMessage `json:"batching,omitempty"`
@@ -109,6 +123,7 @@ type ReviewRunRequest struct {
 
 type ReviewWatchRequest struct {
 	Workspace        string          `json:"workspace"`
+	PackageID        string          `json:"package_id,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	Provider         string          `json:"provider,omitempty"`
 	PRRef            string          `json:"pr_ref"`
@@ -429,18 +444,20 @@ type SessionViewSnapshot struct {
 }
 
 type Run struct {
-	RunID            string     `json:"run_id"`
-	WorkspaceID      string     `json:"workspace_id"`
-	WorkflowID       *string    `json:"workflow_id,omitempty"`
-	WorkflowSlug     string     `json:"workflow_slug,omitempty"`
-	ParentRunID      string     `json:"parent_run_id,omitempty"`
-	Mode             string     `json:"mode"`
-	Status           string     `json:"status"`
-	PresentationMode string     `json:"presentation_mode"`
-	StartedAt        time.Time  `json:"started_at"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorText        string     `json:"error_text,omitempty"`
-	RequestID        string     `json:"request_id,omitempty"`
+	RunID               string     `json:"run_id"`
+	WorkspaceID         string     `json:"workspace_id"`
+	WorkflowID          *string    `json:"workflow_id,omitempty"`
+	WorkflowSlug        string     `json:"workflow_slug,omitempty"`
+	ParentRunID         string     `json:"parent_run_id,omitempty"`
+	Mode                string     `json:"mode"`
+	Status              string     `json:"status"`
+	PresentationMode    string     `json:"presentation_mode"`
+	StartedAt           time.Time  `json:"started_at"`
+	EndedAt             *time.Time `json:"ended_at,omitempty"`
+	ErrorText           string     `json:"error_text,omitempty"`
+	RequestID           string     `json:"request_id,omitempty"`
+	OutOfOrderRequested bool       `json:"out_of_order_requested,omitempty"`
+	OutOfOrderNeeded    bool       `json:"out_of_order_needed,omitempty"`
 }
 
 type RunJobSummary struct {

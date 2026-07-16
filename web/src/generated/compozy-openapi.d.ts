@@ -730,6 +730,7 @@ export interface components {
             batching?: {
                 [key: string]: unknown;
             };
+            package_id?: string;
             presentation_mode?: string;
             runtime_overrides?: {
                 [key: string]: unknown;
@@ -755,6 +756,8 @@ export interface components {
             error_text?: string;
             mode: string;
             parent_run_id?: string;
+            out_of_order_needed?: boolean;
+            out_of_order_requested?: boolean;
             presentation_mode: string;
             request_id?: string;
             run_id: string;
@@ -1027,12 +1030,18 @@ export interface components {
             uses_worktrees: boolean;
         };
         TaskRunRequest: {
+            allow_out_of_order?: boolean;
             execution?: components["schemas"]["TaskExecutionDescriptor"];
+            package_id?: string;
             presentation_mode?: string;
             runtime_overrides?: {
                 [key: string]: unknown;
             };
             workspace?: string;
+        };
+        TaskRunTarget: {
+            initiative_slug: string;
+            package_id?: string;
         };
         TaskRunMultipleItem: {
             base_branch?: string;
@@ -1057,7 +1066,8 @@ export interface components {
             runtime_overrides?: {
                 [key: string]: unknown;
             };
-            slugs: string[];
+            slugs?: string[];
+            targets?: components["schemas"]["TaskRunTarget"][];
             workspace?: string;
         };
         TaskRunMultipleSnapshotResponse: {
@@ -1129,10 +1139,12 @@ export interface components {
             workflow: components["schemas"]["WorkflowOverviewPayload"];
         };
         WorkflowRefRequest: {
+            package_id?: string;
             workspace?: string;
         };
         WorkflowArchiveRequest: {
             force?: boolean;
+            package_id?: string;
             workspace?: string;
         };
         WorkflowSpecDocument: {
@@ -1215,6 +1227,7 @@ export interface components {
             };
             presentation_mode?: string;
             max_rounds?: number;
+            package_id?: string;
             poll_interval?: string;
             pr_ref: string;
             provider?: string;
@@ -1312,6 +1325,8 @@ export interface components {
         LastEventID: string;
         /** @description Maximum number of runs to return. */
         Limit: number;
+        /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+        PackageIDQuery: string;
         /** @description Review round number. */
         Round: number;
         /** @description Run identifier. */
@@ -1413,7 +1428,10 @@ export interface operations {
     };
     getLatestReview: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1488,7 +1506,10 @@ export interface operations {
     };
     getReviewRound: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1520,7 +1541,10 @@ export interface operations {
     };
     listReviewIssues: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1552,7 +1576,10 @@ export interface operations {
     };
     getReviewIssue: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1968,7 +1995,10 @@ export interface operations {
     };
     getWorkflow: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2033,7 +2063,10 @@ export interface operations {
     };
     getWorkflowBoard: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2062,7 +2095,10 @@ export interface operations {
     };
     getWorkflowTask: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2093,7 +2129,10 @@ export interface operations {
     };
     listWorkflowMemoryFiles: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2122,7 +2161,10 @@ export interface operations {
     };
     getWorkflowMemoryFile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2189,7 +2231,10 @@ export interface operations {
     };
     getWorkflowSpec: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Work Package ID selected beneath the initiative route slug. */
+                package_id?: components["parameters"]["PackageIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];

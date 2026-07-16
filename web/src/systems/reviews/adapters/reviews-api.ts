@@ -14,15 +14,21 @@ function workspaceHeader(workspaceId: string) {
   return { header: { [ACTIVE_WORKSPACE_HEADER]: workspaceId } } as const;
 }
 
+function packageQuery(packageId: string | undefined) {
+  return packageId ? { query: { package_id: packageId } } : {};
+}
+
 export interface ReviewSummaryParams {
   workspaceId: string;
   slug: string;
+  packageId?: string;
 }
 
 export async function getLatestReview(params: ReviewSummaryParams): Promise<ReviewSummary> {
   const { data, error, response } = await daemonApiClient.GET("/api/reviews/{slug}", {
     params: {
       path: { slug: params.slug },
+      ...packageQuery(params.packageId),
       ...workspaceHeader(params.workspaceId),
     },
   });
@@ -39,6 +45,7 @@ export interface ReviewRoundParams {
   workspaceId: string;
   slug: string;
   round: number;
+  packageId?: string;
 }
 
 export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewRound> {
@@ -47,6 +54,7 @@ export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewR
     {
       params: {
         path: { slug: params.slug, round: params.round },
+        ...packageQuery(params.packageId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -64,6 +72,7 @@ export interface ReviewIssuesParams {
   workspaceId: string;
   slug: string;
   round: number;
+  packageId?: string;
 }
 
 export async function listReviewIssues(params: ReviewIssuesParams): Promise<ReviewIssue[]> {
@@ -72,6 +81,7 @@ export async function listReviewIssues(params: ReviewIssuesParams): Promise<Revi
     {
       params: {
         path: { slug: params.slug, round: params.round },
+        ...packageQuery(params.packageId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -90,6 +100,7 @@ export interface ReviewIssueParams {
   slug: string;
   round: number;
   issueId: string;
+  packageId?: string;
 }
 
 export async function getReviewIssue(params: ReviewIssueParams): Promise<ReviewDetailPayload> {
@@ -98,6 +109,7 @@ export async function getReviewIssue(params: ReviewIssueParams): Promise<ReviewD
     {
       params: {
         path: { slug: params.slug, round: params.round, issue_id: params.issueId },
+        ...packageQuery(params.packageId),
         ...workspaceHeader(params.workspaceId),
       },
     }

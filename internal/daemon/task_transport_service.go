@@ -3,12 +3,16 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
+	taskscore "github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -169,6 +173,9 @@ func (s *transportTaskService) GetWorkflow(
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
+	if err := validatePackageTransportReference(ctx, workspaceRow.RootDir, workflowSlug); err != nil {
+		return apicore.WorkflowSummary{}, err
+	}
 	row, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, workflowSlug)
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
@@ -192,6 +199,9 @@ func (s *transportTaskService) WorkflowOverview(
 	if s == nil || s.query == nil {
 		return apicore.WorkflowOverviewPayload{}, taskTransportUnavailable("workflow overview")
 	}
+	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+		return apicore.WorkflowOverviewPayload{}, err
+	}
 	payload, err := s.query.WorkflowOverview(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return apicore.WorkflowOverviewPayload{}, mapQueryTransportError(err)
@@ -211,6 +221,9 @@ func (s *transportTaskService) TaskBoard(
 	if s == nil || s.query == nil {
 		return apicore.TaskBoardPayload{}, taskTransportUnavailable("task board")
 	}
+	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+		return apicore.TaskBoardPayload{}, err
+	}
 	payload, err := s.query.TaskBoard(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return apicore.TaskBoardPayload{}, mapQueryTransportError(err)
@@ -226,6 +239,9 @@ func (s *transportTaskService) WorkflowSpec(
 	if s == nil || s.query == nil {
 		return apicore.WorkflowSpecDocument{}, taskTransportUnavailable("workflow spec")
 	}
+	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+		return apicore.WorkflowSpecDocument{}, err
+	}
 	payload, err := s.query.WorkflowSpec(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return apicore.WorkflowSpecDocument{}, mapQueryTransportError(err)
@@ -240,6 +256,9 @@ func (s *transportTaskService) WorkflowMemoryIndex(
 ) (apicore.WorkflowMemoryIndex, error) {
 	if s == nil || s.query == nil {
 		return apicore.WorkflowMemoryIndex{}, taskTransportUnavailable("workflow memory index")
+	}
+	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+		return apicore.WorkflowMemoryIndex{}, err
 	}
 	payload, err := s.query.WorkflowMemoryIndex(ctx, workspaceRef, workflowSlug)
 	if err != nil {
@@ -257,6 +276,9 @@ func (s *transportTaskService) WorkflowMemoryFile(
 	if s == nil || s.query == nil {
 		return apicore.MarkdownDocument{}, taskTransportUnavailable("workflow memory file")
 	}
+	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+		return apicore.MarkdownDocument{}, err
+	}
 	payload, err := s.query.WorkflowMemoryFile(ctx, workspaceRef, workflowSlug, fileID)
 	if err != nil {
 		return apicore.MarkdownDocument{}, mapQueryTransportError(err)
@@ -273,6 +295,9 @@ func (s *transportTaskService) TaskDetail(
 	if s == nil || s.query == nil {
 		return apicore.TaskDetailPayload{}, taskTransportUnavailable("task detail")
 	}
+	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+		return apicore.TaskDetailPayload{}, err
+	}
 	payload, err := s.query.TaskDetail(ctx, workspaceRef, workflowSlug, taskID)
 	if err != nil {
 		return apicore.TaskDetailPayload{}, mapQueryTransportError(err)
@@ -280,8 +305,82 @@ func (s *transportTaskService) TaskDetail(
 	return transportTaskDetail(payload), nil
 }
 
-func (*transportTaskService) Validate(context.Context, string, string) (apicore.ValidationSuccess, error) {
-	return apicore.ValidationSuccess{}, taskTransportUnavailable("task validation")
+func (s *transportTaskService) validatePackageReference(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+) error {
+	if s == nil || s.globalDB == nil {
+		return taskTransportUnavailable("work package selection")
+	}
+	workspace, err := resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
+	if err != nil {
+		return err
+	}
+	return validatePackageTransportReference(ctx, workspace.RootDir, workflowSlug)
+}
+
+// validatePackageTransportReference resolves a package reference against the
+// current plan before query paths touch the durable workflow catalog. This
+// keeps public package failures typed even when the catalog has not yet been
+// synced for an unknown or stale selection.
+func validatePackageTransportReference(ctx context.Context, workspaceRoot string, workflowSlug string) error {
+	if !strings.Contains(strings.TrimSpace(workflowSlug), "/") {
+		return nil
+	}
+	ref, err := workpackages.ParsePackageRef(strings.TrimSpace(workflowSlug))
+	if err != nil {
+		return err
+	}
+	_, err = (workpackages.TargetResolver{}).ResolvePackage(ctx, workspaceRoot, ref.String())
+	return err
+}
+
+func (s *transportTaskService) Validate(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+) (apicore.ValidationSuccess, error) {
+	if s == nil || s.runManager == nil {
+		return apicore.ValidationSuccess{}, taskTransportUnavailable("task validation")
+	}
+	workspace, _, projectCfg, scope, err := s.runManager.resolveLifecycleWorkflowContext(
+		ctx,
+		workspaceRef,
+		workflowSlug,
+	)
+	if err != nil {
+		return apicore.ValidationSuccess{}, err
+	}
+	tasksDir, err := resolveTaskOperationalDirectory(workspace.RootDir, workflowSlug, scope)
+	if err != nil {
+		return apicore.ValidationSuccess{}, err
+	}
+	configuredTypes := taskscore.BuiltinTypes
+	if projectCfg.Tasks.Types != nil {
+		configuredTypes = *projectCfg.Tasks.Types
+	}
+	registry, err := taskscore.NewRegistry(configuredTypes)
+	if err != nil {
+		return apicore.ValidationSuccess{}, fmt.Errorf("resolve task type registry: %w", err)
+	}
+	report, err := taskscore.ValidateWithOptions(ctx, tasksDir, registry, taskscore.ValidateOptions{
+		Recursive:        true,
+		ExpectedWorkflow: strings.TrimSpace(workflowSlug),
+	})
+	if err != nil {
+		return apicore.ValidationSuccess{}, err
+	}
+	if !report.OK() {
+		return apicore.ValidationSuccess{}, apicore.NewProblem(
+			http.StatusUnprocessableEntity,
+			"task_validation_failed",
+			"task validation failed",
+			map[string]any{"issues": report.Issues},
+			nil,
+		)
+	}
+	return apicore.ValidationSuccess{Valid: true, CheckedAt: time.Now().UTC()}, nil
 }
 
 func (s *transportTaskService) StartRun(
