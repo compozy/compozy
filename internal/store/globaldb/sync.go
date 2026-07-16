@@ -431,7 +431,7 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 	ctx context.Context,
 	workspaceID string,
 	presentSlugs []string,
-) (WorkflowPruneResult, error) {
+) (result WorkflowPruneResult, retErr error) {
 	if err := g.requireContext(ctx, "prune missing active workflows"); err != nil {
 		return WorkflowPruneResult{}, err
 	}
@@ -457,7 +457,21 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 		)
 	}
 
-	result := WorkflowPruneResult{
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return WorkflowPruneResult{}, fmt.Errorf("globaldb: begin workflow prune: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = errors.Join(retErr, fmt.Errorf("globaldb: rollback workflow prune: %w", rollbackErr))
+		}
+	}()
+
+	result = WorkflowPruneResult{
 		PrunedSlugs: make([]string, 0),
 		Skipped:     make([]WorkflowPruneSkipped, 0),
 	}
@@ -470,7 +484,7 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 			continue
 		}
 
-		activeRuns, err := g.countActiveRunsForWorkflow(ctx, workflow.ID)
+		activeRuns, err := countActiveRunsForWorkflowAggregateTx(ctx, tx, workflow.ID)
 		if err != nil {
 			return WorkflowPruneResult{}, err
 		}
@@ -479,7 +493,7 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 			continue
 		}
 
-		deleted, err := g.deleteActiveWorkflowIfNoActiveRuns(ctx, workflow.ID)
+		deleted, err := deleteActiveWorkflowAggregateTx(ctx, tx, workflow.ID)
 		if err != nil {
 			return WorkflowPruneResult{}, err
 		}
@@ -488,7 +502,7 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 			continue
 		}
 
-		activeRuns, err = g.countActiveRunsForWorkflow(ctx, workflow.ID)
+		activeRuns, err = countActiveRunsForWorkflowAggregateTx(ctx, tx, workflow.ID)
 		if err != nil {
 			return WorkflowPruneResult{}, err
 		}
@@ -497,6 +511,10 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return WorkflowPruneResult{}, fmt.Errorf("globaldb: commit workflow prune: %w", err)
+	}
+	committed = true
 	return result, nil
 }
 
@@ -511,41 +529,70 @@ func workflowPruneActiveRunSkip(slug string, activeRuns int) (WorkflowPruneSkipp
 	}, true
 }
 
-func (g *GlobalDB) countActiveRunsForWorkflow(ctx context.Context, workflowID string) (int, error) {
+func countActiveRunsForWorkflowAggregateTx(ctx context.Context, tx *sql.Tx, workflowID string) (int, error) {
 	var count int
-	if err := g.db.QueryRowContext(
+	if err := tx.QueryRowContext(
 		ctx,
 		`SELECT COUNT(1)
 		 FROM runs
-		 WHERE workflow_id = ?
+		 WHERE (workflow_id = ? OR workflow_id IN (
+			SELECT id FROM workflows WHERE parent_workflow_id = ?
+		 ))
 		   AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')`,
 		strings.TrimSpace(workflowID),
+		strings.TrimSpace(workflowID),
 	).Scan(&count); err != nil {
-		return 0, fmt.Errorf("globaldb: count active runs for workflow %q: %w", workflowID, err)
+		return 0, fmt.Errorf("globaldb: count active aggregate runs for workflow %q: %w", workflowID, err)
 	}
 	return count, nil
 }
 
-func (g *GlobalDB) deleteActiveWorkflowIfNoActiveRuns(ctx context.Context, workflowID string) (bool, error) {
-	result, err := g.db.ExecContext(
+func deleteActiveWorkflowAggregateTx(ctx context.Context, tx *sql.Tx, workflowID string) (bool, error) {
+	trimmedWorkflowID := strings.TrimSpace(workflowID)
+	if _, err := tx.ExecContext(
+		ctx,
+		`DELETE FROM workflows AS child
+		 WHERE child.parent_workflow_id = ?
+		   AND EXISTS (
+			SELECT 1 FROM workflows AS parent
+			WHERE parent.id = ? AND parent.archived_at IS NULL
+		   )
+		   AND NOT EXISTS (
+			SELECT 1 FROM runs
+			WHERE (workflow_id = ? OR workflow_id IN (
+				SELECT id FROM workflows WHERE parent_workflow_id = ?
+			))
+			  AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')
+		   )`,
+		trimmedWorkflowID,
+		trimmedWorkflowID,
+		trimmedWorkflowID,
+		trimmedWorkflowID,
+	); err != nil {
+		return false, fmt.Errorf("globaldb: delete stale child workflows for %q: %w", trimmedWorkflowID, err)
+	}
+
+	result, err := tx.ExecContext(
 		ctx,
 		`DELETE FROM workflows
-		 WHERE id = ?
-		   AND archived_at IS NULL
+		 WHERE id = ? AND archived_at IS NULL
 		   AND NOT EXISTS (
-			SELECT 1
-			FROM runs
-			WHERE runs.workflow_id = workflows.id
-			  AND runs.status NOT IN ('completed', 'failed', 'canceled', 'crashed')
+			SELECT 1 FROM runs
+			WHERE (workflow_id = ? OR workflow_id IN (
+				SELECT id FROM workflows WHERE parent_workflow_id = ?
+			))
+			  AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')
 		   )`,
-		strings.TrimSpace(workflowID),
+		trimmedWorkflowID,
+		trimmedWorkflowID,
+		trimmedWorkflowID,
 	)
 	if err != nil {
-		return false, fmt.Errorf("globaldb: delete stale active workflow %q: %w", workflowID, err)
+		return false, fmt.Errorf("globaldb: delete stale active workflow %q: %w", trimmedWorkflowID, err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("globaldb: rows affected for stale workflow %q: %w", workflowID, err)
+		return false, fmt.Errorf("globaldb: rows affected for stale workflow %q: %w", trimmedWorkflowID, err)
 	}
 	return affected > 0, nil
 }

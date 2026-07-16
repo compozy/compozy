@@ -766,6 +766,110 @@ func TestPruneMissingActiveWorkflowsDeletesOnlyStaleActiveRows(t *testing.T) {
 	}
 }
 
+func TestPruneMissingActiveWorkflowsHandlesInitiativeChildrenAsAnAggregate(t *testing.T) {
+	t.Parallel()
+
+	const initiativeSlug = "missing-initiative"
+	testCases := []struct {
+		name              string
+		addActiveChildRun bool
+		wantPruned        bool
+		wantActiveRuns    int
+	}{
+		{
+			name:       "deletes missing initiative and children without active runs",
+			wantPruned: true,
+		},
+		{
+			name:              "keeps initiative and children when a child run is active",
+			addActiveChildRun: true,
+			wantActiveRuns:    1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := openTestGlobalDB(t)
+			defer func() {
+				_ = db.Close()
+			}()
+
+			workspace := registerSyncTestWorkspace(t, db)
+			syncedAt := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+			aggregate, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+				Parent: WorkflowSyncInput{
+					WorkspaceID:  workspace.ID,
+					WorkflowSlug: initiativeSlug,
+					Kind:         WorkflowKindInitiative,
+					SyncedAt:     syncedAt,
+				},
+				Children: []WorkflowSyncInput{
+					{
+						WorkspaceID:  workspace.ID,
+						WorkflowSlug: initiativeSlug + "/WP-001",
+						Kind:         WorkflowKindWorkPackage,
+						PackageID:    "WP-001",
+						SyncedAt:     syncedAt,
+					},
+					{
+						WorkspaceID:  workspace.ID,
+						WorkflowSlug: initiativeSlug + "/WP-002",
+						Kind:         WorkflowKindWorkPackage,
+						PackageID:    "WP-002",
+						SyncedAt:     syncedAt,
+					},
+				},
+			})
+			if err != nil {
+				t.Fatalf("ReconcileAggregateWorkflowSync(): %v", err)
+			}
+
+			if tc.addActiveChildRun {
+				childID := aggregate.Children[0].Workflow.ID
+				if _, err := db.PutRun(context.Background(), Run{
+					RunID:            "active-child-run",
+					WorkspaceID:      workspace.ID,
+					WorkflowID:       &childID,
+					Mode:             "task",
+					Status:           "running",
+					PresentationMode: "stream",
+					StartedAt:        syncedAt,
+				}); err != nil {
+					t.Fatalf("PutRun(active child): %v", err)
+				}
+			}
+
+			result, err := db.PruneMissingActiveWorkflows(context.Background(), workspace.ID, nil)
+			if err != nil {
+				t.Fatalf("PruneMissingActiveWorkflows(): %v", err)
+			}
+
+			if tc.wantPruned {
+				if !equalStringSlices(result.PrunedSlugs, []string{initiativeSlug}) {
+					t.Fatalf("PrunedSlugs = %#v, want [%s]", result.PrunedSlugs, initiativeSlug)
+				}
+				if got := queryTableRowCount(t, db, "workflows", "workspace_id = ?", workspace.ID); got != 0 {
+					t.Fatalf("remaining aggregate workflow rows = %d, want 0", got)
+				}
+				return
+			}
+
+			if len(result.PrunedSlugs) != 0 {
+				t.Fatalf("PrunedSlugs = %#v, want none", result.PrunedSlugs)
+			}
+			if len(result.Skipped) != 1 || result.Skipped[0].Slug != initiativeSlug ||
+				result.Skipped[0].Reason != archiveReasonActiveRuns || result.Skipped[0].ActiveRuns != tc.wantActiveRuns {
+				t.Fatalf("Skipped = %#v, want active aggregate skip", result.Skipped)
+			}
+			if got := queryTableRowCount(t, db, "workflows", "workspace_id = ?", workspace.ID); got != 3 {
+				t.Fatalf("remaining aggregate workflow rows = %d, want 3", got)
+			}
+		})
+	}
+}
+
 func TestReconcileWorkflowSyncStoresOversizedBodiesInDeduplicatedTable(t *testing.T) {
 	t.Parallel()
 
