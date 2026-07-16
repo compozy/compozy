@@ -66,6 +66,7 @@ type runtimeConfig struct {
 	soundEnabled                            bool
 	soundOnCompleted                        string
 	soundOnFailed                           string
+	soundOnParked                           string
 	recoveryFlagsRegistered                 bool
 	recoveryEnabled                         bool
 	recoveryDisabled                        bool
@@ -403,6 +404,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		SoundEnabled:     s.soundEnabled,
 		SoundOnCompleted: s.soundOnCompleted,
 		SoundOnFailed:    s.soundOnFailed,
+		SoundOnParked:    s.soundOnParked,
 	}, nil
 }
 

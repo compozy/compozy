@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -14,21 +15,32 @@ import (
 
 	acp "github.com/coder/acp-go-sdk"
 
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 const (
 	terminalIDPrefix       = "term-"
 	defaultOutputByteLimit = 10 * 1024 * 1024
+	// terminalKillGracePeriod is how long the graceful kill ladder waits after
+	// SIGTERM before escalating to SIGKILL on the process group.
+	terminalKillGracePeriod = 2 * time.Second
 )
+
+// errTerminalCommandCap marks a terminal command terminated because it exceeded
+// its absolute wall-clock cap rather than being canceled by the run.
+var errTerminalCommandCap = errors.New("terminal command exceeded wall-clock cap")
 
 type terminalProcess struct {
 	id        string
 	sessionID string
+	ctx       context.Context
 	cancel    context.CancelFunc
 	cmd       *exec.Cmd
 	output    *terminalOutputBuffer
 	done      chan struct{}
+	grace     time.Duration
+	killOnce  sync.Once
 
 	mu       sync.Mutex
 	exitCode *int
@@ -61,17 +73,34 @@ func (c *clientImpl) createTerminal(
 		return acp.CreateTerminalResponse{}, err
 	}
 
-	terminalCtx, cancel := context.WithCancel(context.Background())
+	// Parent the command to the session's run/attempt context so cancellation
+	// and shutdown propagate, and bound it with an absolute wall-clock cap as a
+	// last-resort backstop for a truly runaway command.
+	baseCtx := terminalBaseContext(ctx, session)
+	terminalCtx, cancel := context.WithTimeoutCause(baseCtx, c.resolveTerminalCap(), errTerminalCommandCap)
 	// #nosec G204 -- ACP terminal execution is the requested session-scoped command runner.
 	cmd := exec.CommandContext(terminalCtx, params.Command, params.Args...)
-	cmd.Cancel = func() error {
-		return subprocess.ForceTerminateCommandProcessTree(cmd)
-	}
 	cmd.Dir = cwd
 	cmd.Env = terminalEnvironment(params.Env)
 	output := newTerminalOutputBuffer(params.OutputByteLimit)
 	cmd.Stdout = output
 	cmd.Stderr = output
+
+	terminal := &terminalProcess{
+		id:        c.nextTerminalID(),
+		sessionID: string(params.SessionId),
+		ctx:       terminalCtx,
+		cancel:    cancel,
+		cmd:       cmd,
+		output:    output,
+		done:      make(chan struct{}),
+		grace:     terminalKillGracePeriod,
+	}
+	// On context cancellation (attempt cancel or cap expiry) os/exec invokes
+	// cmd.Cancel. It must not block, so it force-kills the process group as the
+	// last-resort reaper; the graceful ladder lives in kill().
+	cmd.Cancel = terminal.forceTerminate
+
 	if err := subprocess.ConfigureCommandProcessGroup(cmd); err != nil {
 		cancel()
 		return acp.CreateTerminalResponse{}, fmt.Errorf("configure terminal command %q: %w", params.Command, err)
@@ -81,17 +110,32 @@ func (c *clientImpl) createTerminal(
 		return acp.CreateTerminalResponse{}, fmt.Errorf("start terminal command %q: %w", params.Command, err)
 	}
 
-	terminal := &terminalProcess{
-		id:        c.nextTerminalID(),
-		sessionID: string(params.SessionId),
-		cancel:    cancel,
-		cmd:       cmd,
-		output:    output,
-		done:      make(chan struct{}),
-	}
 	c.storeTerminal(terminal)
 	go terminal.wait()
 	return acp.CreateTerminalResponse{TerminalId: terminal.id}, nil
+}
+
+// terminalBaseContext returns the parent context for a terminal command,
+// preferring the session's run/attempt context so cancellation propagates.
+func terminalBaseContext(ctx context.Context, session *sessionImpl) context.Context {
+	if session != nil {
+		if runCtx := session.runContext(); runCtx != nil {
+			return runCtx
+		}
+	}
+	if ctx != nil {
+		return ctx
+	}
+	return context.Background()
+}
+
+// resolveTerminalCap returns the configured absolute per-command wall-clock cap,
+// falling back to the resolved stall-policy default when unset.
+func (c *clientImpl) resolveTerminalCap() time.Duration {
+	if c.terminalCommandTimeout > 0 {
+		return c.terminalCommandTimeout
+	}
+	return model.DefaultStallTerminalCap
 }
 
 func (c *clientImpl) killTerminal(
@@ -236,6 +280,22 @@ func (c *clientImpl) removeTerminal(sessionID acp.SessionId, terminalID string) 
 	return terminal, nil
 }
 
+// terminalReaper is the capability the stall watchdog asserts on the client to
+// reap a session's terminal commands on fire; *clientImpl satisfies it.
+type terminalReaper interface {
+	CloseTerminals() error
+}
+
+var _ terminalReaper = (*clientImpl)(nil)
+
+// CloseTerminals gracefully tears down every terminal command opened during this
+// client's sessions, running the SIGTERM/SIGKILL process-group kill ladder on
+// each. It is exported so the stall watchdog can reap a hung command's process
+// tree on fire without adding a parallel kill path.
+func (c *clientImpl) CloseTerminals() error {
+	return c.closeTerminals()
+}
+
 func (c *clientImpl) closeTerminals() error {
 	terminals := c.drainTerminals()
 	if len(terminals) == 0 {
@@ -281,6 +341,12 @@ func (t *terminalProcess) wait() {
 	}
 	if exitCode == nil && waitErr != nil {
 		message := waitErr.Error()
+		// Surface the cap as the cause when the command was terminated for
+		// exceeding its absolute wall-clock backstop, so a stalled command
+		// resolves as a clearly-attributed failure rather than a bare signal.
+		if cause := t.capCause(); cause != nil {
+			message = cause.Error()
+		}
 		signal = &message
 	}
 	t.mu.Lock()
@@ -290,11 +356,79 @@ func (t *terminalProcess) wait() {
 	t.mu.Unlock()
 }
 
+// capCause reports the absolute-cap cause when the terminal context expired
+// because the command outran its wall-clock backstop.
+func (t *terminalProcess) capCause() error {
+	if t == nil || t.ctx == nil {
+		return nil
+	}
+	if cause := context.Cause(t.ctx); errors.Is(cause, errTerminalCommandCap) {
+		return cause
+	}
+	return nil
+}
+
+// kill runs the graceful process-group kill ladder: cooperative SIGTERM, a
+// grace period, then SIGKILL, and finally cancels the command context so the
+// process tree is reaped and no orphaned subprocess survives.
 func (t *terminalProcess) kill() {
-	if t == nil || t.cancel == nil {
+	if t == nil {
 		return
 	}
-	t.cancel()
+	t.killOnce.Do(func() {
+		if err := subprocess.TerminateCommandProcessTree(t.cmd); err == nil {
+			if t.waitWithin(t.grace) {
+				t.cancelCommand()
+				return
+			}
+		}
+		if err := subprocess.ForceTerminateCommandProcessTree(t.cmd); err != nil {
+			slog.Warn(
+				"failed to force-terminate terminal process group",
+				"terminal_id", t.id,
+				"session_id", t.sessionID,
+				"error", err,
+			)
+		}
+		t.cancelCommand()
+	})
+}
+
+// forceTerminate SIGKILLs the process group without blocking. It is wired to
+// cmd.Cancel so context cancellation always reaps the tree even when the
+// graceful ladder is not driving termination.
+func (t *terminalProcess) forceTerminate() error {
+	if t == nil {
+		return nil
+	}
+	return subprocess.ForceTerminateCommandProcessTree(t.cmd)
+}
+
+func (t *terminalProcess) cancelCommand() {
+	if t.cancel != nil {
+		t.cancel()
+	}
+}
+
+// waitWithin reports whether the command exited within d. A non-positive d
+// performs a single non-blocking check.
+func (t *terminalProcess) waitWithin(d time.Duration) bool {
+	if d <= 0 {
+		select {
+		case <-t.done:
+			return true
+		default:
+			return false
+		}
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-t.done:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 func (t *terminalProcess) waitFor(ctx context.Context) error {

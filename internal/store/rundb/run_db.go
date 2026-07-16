@@ -447,12 +447,12 @@ func (r *RunDB) ListCompactedSessionUpdateEvents(ctx context.Context) ([]events.
 		       SELECT MIN(sequence)
 		       FROM events
 		       WHERE event_kind = ? AND step_key <> ''
-		       GROUP BY step_key
+		       GROUP BY job_id, step_key
 		       UNION
 		       SELECT MAX(sequence)
 		       FROM events
 		       WHERE event_kind = ? AND step_key <> ''
-		       GROUP BY step_key
+		       GROUP BY job_id, step_key
 		     )
 		   )
 		 ORDER BY sequence ASC`,

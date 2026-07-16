@@ -166,6 +166,7 @@ func hookRuntimeConfig(src *config) model.RuntimeConfig {
 		SoundEnabled:           src.SoundEnabled,
 		SoundOnCompleted:       src.SoundOnCompleted,
 		SoundOnFailed:          src.SoundOnFailed,
+		SoundOnParked:          src.SoundOnParked,
 	}
 }
 
@@ -205,6 +206,7 @@ func applyHookRuntimeConfig(dst *config, updated model.RuntimeConfig) {
 	dst.SoundEnabled = updated.SoundEnabled
 	dst.SoundOnCompleted = updated.SoundOnCompleted
 	dst.SoundOnFailed = updated.SoundOnFailed
+	dst.SoundOnParked = updated.SoundOnParked
 }
 
 func hookRunSummary(result executionResult) model.RunSummary {

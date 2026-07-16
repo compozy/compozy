@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 0.2.14 - 2026-07-15
+
+### 🐛 Bug Fixes
+
+- Acp integratoin
 ## 0.2.13 - 2026-07-10
 
 ### 🐛 Bug Fixes
@@ -362,6 +367,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
+[0.2.14]: https://github.com///compare/v0.2.13...v0.2.14
 [0.2.13]: https://github.com///compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com///compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com///compare/v0.2.10...v0.2.11

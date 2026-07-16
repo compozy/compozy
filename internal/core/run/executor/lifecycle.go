@@ -21,10 +21,21 @@ type jobLifecycle struct {
 	execCtx        *jobExecutionContext
 	state          jobPhase
 	attempt        int
+	attemptBudget  int
 	startedAt      time.Time
 	currentTimeout time.Duration
 	lastExitCode   int
 	lastFailure    *failInfo
+}
+
+// parkDetail carries the triage context preserved on a parked job: why it parked,
+// what the agent was last doing, and where to find the retained evidence.
+type parkDetail struct {
+	Reason          string
+	LastToolCall    string
+	LastProgressSeq uint64
+	WorktreePath    string
+	LogPath         string
 }
 
 func newJobLifecycle(index int, jb *job, execCtx *jobExecutionContext) *jobLifecycle {
@@ -42,6 +53,7 @@ func (l *jobLifecycle) schedule() {
 
 func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.Duration) {
 	l.attempt = attempt
+	l.attemptBudget = maxAttempts
 	l.currentTimeout = timeout
 	l.state = jobPhaseRunning
 	if l.startedAt.IsZero() {
@@ -75,11 +87,77 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 	}
 }
 
+// markStalled records a detected stall and publishes job.stalled. It is emitted
+// before the recovery decision, so every stall is observable whether it ends in
+// a clean-state retry or a park.
+func (l *jobLifecycle) markStalled(failure failInfo, lastToolCall string, maxAttempts int) {
+	l.lastFailure = &failure
+	l.lastExitCode = failure.ExitCode
+	l.state = jobPhaseStalled
+	l.job.Stalled = true
+	l.attemptBudget = maxAttempts
+	l.execCtx.submitEventOrWarn(
+		events.EventKindJobStalled,
+		kinds.JobStalledPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{
+				Index:       l.index,
+				Attempt:     l.attempt,
+				MaxAttempts: maxAttempts,
+			},
+			Reason:       failure.Err.Error(),
+			LastToolCall: lastToolCall,
+		},
+	)
+}
+
+// markParked moves a job to the terminal parked status. Parked is not failed:
+// the worktree and journal are preserved for triage. It still records a failure
+// so the run exits non-zero, and deriveRunStatus keeps the two apart.
+func (l *jobLifecycle) markParked(failure failInfo, detail parkDetail) {
+	l.lastFailure = &failure
+	l.lastExitCode = failure.ExitCode
+	l.state = jobPhaseParked
+	l.job.Status = runStatusParked
+	l.job.ExitCode = failure.ExitCode
+	l.job.Failure = failure.Err.Error()
+	recordFailure(&l.execCtx.failuresMu, &l.execCtx.failures, failure)
+	atomic.AddInt32(&l.execCtx.failed, 1)
+	l.execCtx.submitEventOrWarn(
+		events.EventKindJobParked,
+		kinds.JobParkedPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{
+				Index:       l.index,
+				Attempt:     l.attempt,
+				MaxAttempts: l.maxAttempts(),
+			},
+			Reason:          detail.Reason,
+			LastToolCall:    detail.LastToolCall,
+			LastProgressSeq: detail.LastProgressSeq,
+			WorktreePath:    detail.WorktreePath,
+			LogPath:         detail.LogPath,
+		},
+	)
+	if l.humanOutputEnabled() {
+		fmt.Fprintf(
+			os.Stderr,
+			"\n⏸️ Job %d (%s) parked for triage: %s\n   worktree: %s\n",
+			l.index+1,
+			l.job.CodeFileLabel(),
+			detail.Reason,
+			detail.WorktreePath,
+		)
+	}
+	// A park is the only job transition that alerts. Routine stall retries stay
+	// silent so an alert always means "a job needs you".
+	l.execCtx.notifyParkedAlert()
+}
+
 func (l *jobLifecycle) markRetry(failure failInfo, nextAttempt int, maxAttempts int) {
 	l.lastFailure = &failure
 	l.lastExitCode = failure.ExitCode
 	l.state = jobPhaseRetrying
 	l.attempt = nextAttempt
+	l.attemptBudget = maxAttempts
 	l.job.ExitCode = failure.ExitCode
 	l.job.Failure = failure.Err.Error()
 	l.execCtx.submitEventOrWarn(
@@ -227,7 +305,13 @@ func (l *jobLifecycle) execConfig() *config {
 	return l.execCtx.cfg
 }
 
+// maxAttempts reports the attempt budget currently in force. The runner widens
+// the budget when it grants a stall retry, so a job that recovers from a stall
+// reports "2/2" rather than the misleading "2/1" its MaxRetries would imply.
 func (l *jobLifecycle) maxAttempts() int {
+	if l.attemptBudget > 0 {
+		return l.attemptBudget
+	}
 	cfg := l.execConfig()
 	if cfg == nil {
 		return 1

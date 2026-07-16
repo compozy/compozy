@@ -54,6 +54,27 @@ type JobRetryScheduledPayload struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// JobStalledPayload is carried by EventKindJobStalled the moment the stall
+// watchdog classifies an attempt as frozen, before any recovery decision is
+// made. A stall is always followed by either a stall retry or a park.
+type JobStalledPayload struct {
+	JobAttemptInfo
+	Reason       string `json:"reason,omitempty"`
+	LastToolCall string `json:"last_tool_call,omitempty"`
+}
+
+// JobParkedPayload is carried by EventKindJobParked when a job stalls again
+// after its clean-state retry and is parked for triage. It preserves enough
+// context to explain the park and point at the retained worktree and log.
+type JobParkedPayload struct {
+	JobAttemptInfo
+	Reason          string `json:"reason,omitempty"`
+	LastToolCall    string `json:"last_tool_call,omitempty"`
+	LastProgressSeq uint64 `json:"last_progress_seq,omitempty"`
+	WorktreePath    string `json:"worktree_path,omitempty"`
+	LogPath         string `json:"log_path,omitempty"`
+}
+
 // JobPausingPayload describes a job whose active prompt turn is being paused.
 type JobPausingPayload struct {
 	JobAttemptInfo

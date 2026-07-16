@@ -33,6 +33,10 @@ const (
 	taskMultiStatusCompleted = "completed"
 	taskMultiStatusFailed    = "failed"
 	taskMultiStatusCanceled  = "canceled"
+
+	// Parallel-task worktree statuses that count as a successful task settlement.
+	taskParallelStatusMerged    = "merged"
+	taskParallelStatusRecovered = "recovered"
 )
 
 var (
@@ -1035,7 +1039,7 @@ func applyParallelAggregateTaskOutcome(child *uiModel, ev events.Event) {
 		return
 	}
 	success := ev.Kind == events.EventKindTaskParallelMerged ||
-		payload.Status == "merged" || payload.Status == "recovered"
+		payload.Status == taskParallelStatusMerged || payload.Status == taskParallelStatusRecovered
 	for idx := range child.jobs {
 		if child.jobs[idx].taskNumber != number {
 			continue

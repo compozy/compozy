@@ -613,6 +613,63 @@ func TestRunDBCompactHistoricalReadsAvoidUnboundedSessionPayloads(t *testing.T) 
 	}
 }
 
+func TestRunDBCompactedSessionUpdatesScopeToolCallsByJob(t *testing.T) {
+	t.Parallel()
+
+	const runID = "run-compact-tool-collision"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	startedAt := time.Date(2026, 7, 15, 2, 0, 0, 0, time.UTC)
+	items := []events.Event{
+		mustEvent(t, runID, 1, startedAt, events.EventKindSessionUpdate, kinds.SessionUpdatePayload{
+			Index: 0,
+			Update: kinds.SessionUpdate{
+				Kind:       kinds.UpdateKindToolCallStarted,
+				Status:     kinds.StatusRunning,
+				ToolCallID: "shared-call",
+			},
+		}),
+		mustEvent(t, runID, 2, startedAt.Add(time.Second), events.EventKindSessionUpdate, kinds.SessionUpdatePayload{
+			Index: 0,
+			Update: kinds.SessionUpdate{
+				Kind:       kinds.UpdateKindToolCallUpdated,
+				Status:     kinds.StatusCompleted,
+				ToolCallID: "shared-call",
+			},
+		}),
+		mustEvent(t, runID, 3, startedAt.Add(2*time.Second), events.EventKindSessionUpdate, kinds.SessionUpdatePayload{
+			Index: 1,
+			Update: kinds.SessionUpdate{
+				Kind:       kinds.UpdateKindToolCallStarted,
+				Status:     kinds.StatusRunning,
+				ToolCallID: "shared-call",
+			},
+		}),
+		mustEvent(t, runID, 4, startedAt.Add(3*time.Second), events.EventKindSessionUpdate, kinds.SessionUpdatePayload{
+			Index: 1,
+			Update: kinds.SessionUpdate{
+				Kind:       kinds.UpdateKindToolCallUpdated,
+				Status:     kinds.StatusCompleted,
+				ToolCallID: "shared-call",
+			},
+		}),
+	}
+	if err := db.StoreEventBatch(context.Background(), items); err != nil {
+		t.Fatalf("StoreEventBatch() error = %v", err)
+	}
+
+	compacted, err := db.ListCompactedSessionUpdateEvents(context.Background())
+	if err != nil {
+		t.Fatalf("ListCompactedSessionUpdateEvents() error = %v", err)
+	}
+	if got := collectedSeqs(compacted); !reflect.DeepEqual(got, []uint64{1, 2, 3, 4}) {
+		t.Fatalf("compacted seqs = %v, want each job's first and latest tool update", got)
+	}
+}
+
 func TestRunDBRequiresContext(t *testing.T) {
 	t.Parallel()
 
