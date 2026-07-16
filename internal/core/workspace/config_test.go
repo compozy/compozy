@@ -1243,6 +1243,8 @@ output_format = "raw-json"
 }
 
 func TestLoadConfigTaskTypes(t *testing.T) {
+	isolateWorkspaceConfigHome(t)
+
 	tests := []struct {
 		name      string
 		content   string
@@ -1292,8 +1294,6 @@ types = ["frontend", "backend"]
 	for _, tt := range tests {
 		tt := tt
 		t.Run("Should "+tt.name, func(t *testing.T) {
-			isolateWorkspaceConfigHome(t)
-
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, tt.content)
 
