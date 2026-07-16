@@ -1217,6 +1217,7 @@ func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
 			"run",
 			"--multiple",
 			"alpha,beta",
+			"--allow-out-of-order",
 			"--detach",
 			"--dry-run",
 			"--include-completed",
@@ -1232,6 +1233,9 @@ func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
 		}
 		if !slices.Equal(readyClient.startMultipleRequest.Slugs, []string{"alpha", "beta"}) {
 			t.Fatalf("unexpected multi-run slugs: %#v", readyClient.startMultipleRequest.Slugs)
+		}
+		if !readyClient.startMultipleRequest.AllowOutOfOrder {
+			t.Fatalf("multi-run request = %#v, want out-of-order authorization", readyClient.startMultipleRequest)
 		}
 		resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
 		if err != nil {

@@ -575,6 +575,32 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 		}
 	})
 
+	t.Run("Should round trip an explicit out-of-order authorization", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := json.Marshal(contract.TaskRunMultipleRequest{
+			Targets: []contract.TaskRunTarget{{
+				InitiativeSlug: "customer-management",
+				PackageID:      "WP-002",
+			}},
+			AllowOutOfOrder: true,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if !strings.Contains(string(data), `"allow_out_of_order":true`) {
+			t.Fatalf("payload = %s, want explicit authorization", data)
+		}
+
+		var decoded contract.TaskRunMultipleRequest
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if !decoded.AllowOutOfOrder {
+			t.Fatalf("decoded request = %#v, want authorization preserved", decoded)
+		}
+	})
+
 	t.Run("Should preserve ordered worktree metadata across snapshot items", func(t *testing.T) {
 		t.Parallel()
 

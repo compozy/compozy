@@ -925,6 +925,7 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		Workspace:        s.workspaceRoot,
 		Slugs:            selection.Slugs,
 		Targets:          selection.Targets,
+		AllowOutOfOrder:  s.allowOutOfOrder,
 		Mode:             mode,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,

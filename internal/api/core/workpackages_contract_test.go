@@ -176,7 +176,7 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 			http.MethodPost,
 			"/api/task-runs/multiple",
 			strings.NewReader(
-				`{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"WP-001"},{"initiative_slug":"customer-management","package_id":"WP-002"}]}`,
+				`{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"WP-001"},{"initiative_slug":"customer-management","package_id":"WP-002"}],"allow_out_of_order":true}`,
 			),
 		)
 		request.Header.Set("Content-Type", "application/json")
@@ -187,6 +187,9 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 		}
 		if len(tasks.multiRequest.Slugs) != 0 || len(tasks.multiRequest.Targets) != 2 {
 			t.Fatalf("multiple request = %#v, want two structured targets", tasks.multiRequest)
+		}
+		if !tasks.multiRequest.AllowOutOfOrder {
+			t.Fatalf("multiple request = %#v, want authorization preserved", tasks.multiRequest)
 		}
 	})
 

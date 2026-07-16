@@ -207,6 +207,7 @@ func (c *Client) StartTaskRunMultiple(
 		Workspace:        strings.TrimSpace(req.Workspace),
 		Slugs:            slugs,
 		Targets:          targets,
+		AllowOutOfOrder:  req.AllowOutOfOrder,
 		Mode:             strings.TrimSpace(req.Mode),
 		ParallelLimit:    req.ParallelLimit,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),

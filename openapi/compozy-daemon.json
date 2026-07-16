@@ -1673,6 +1673,9 @@
             },
             "TaskRunMultipleRequest": {
                 "properties": {
+                    "allow_out_of_order": {
+                        "type": "boolean"
+                    },
                     "execution": {
                         "$ref": "#/components/schemas/TaskExecutionDescriptor"
                     },

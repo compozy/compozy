@@ -188,6 +188,9 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 					if body.Mode != "enqueued" || body.PresentationMode != "stream" {
 						t.Fatalf("mode/presentation = %q/%q, want enqueued/stream", body.Mode, body.PresentationMode)
 					}
+					if !body.AllowOutOfOrder {
+						t.Fatalf("allow_out_of_order = false, want explicit authorization")
+					}
 					if string(body.RuntimeOverrides) != `{"persist":true}` {
 						t.Fatalf("runtime_overrides = %s, want persist override", body.RuntimeOverrides)
 					}
@@ -200,6 +203,7 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 			Workspace:        " /tmp/workspace ",
 			Slugs:            []string{" alpha ", "beta", " gamma "},
 			Mode:             " enqueued ",
+			AllowOutOfOrder:  true,
 			PresentationMode: " stream ",
 			RuntimeOverrides: json.RawMessage(`{"persist":true}`),
 		})

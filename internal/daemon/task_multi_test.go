@@ -169,6 +169,90 @@ func TestRunManagerTaskRunMultipleUsesStructuredWorkPackageTarget(t *testing.T) 
 	}})
 }
 
+// INVARIANT: an incomplete package starts through a multi-run only when the
+// caller explicitly authorizes out-of-order execution, and its child run
+// records both the requested authorization and why it was needed.
+// OWNING_LAYER: service-integration. CONTRACT: IT-036.
+func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderPackage(t *testing.T) {
+	const (
+		initiative  = "watcher"
+		parentRunID = "multi-package-override"
+		childRunID  = "child-package-override"
+	)
+
+	newEnv := func(t *testing.T) *runManagerTestEnv {
+		t.Helper()
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+				if cfg == nil {
+					return "", errors.New("runtime config is required")
+				}
+				if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+					return runID, nil
+				}
+				return childRunID, nil
+			},
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+		})
+		writeDaemonDependentPackageFixture(t, env, initiative, false)
+		return env
+	}
+
+	t.Run("Should reject an incomplete package without authorization", func(t *testing.T) {
+		env := newEnv(t)
+
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, PackageID: "WP-002"}},
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
+			},
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) || problem.Code != "work_package_dependencies_unmet" {
+			t.Fatalf("StartTaskRunMultiple() error = %#v (%v), want dependency problem", problem, err)
+		}
+		if _, err := env.globalDB.GetRun(context.Background(), parentRunID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want no parent run", parentRunID, err)
+		}
+	})
+
+	t.Run("Should start an incomplete package with authorization and persist metadata", func(t *testing.T) {
+		env := newEnv(t)
+
+		parent, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, PackageID: "WP-002"}},
+				AllowOutOfOrder:  true,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("StartTaskRunMultiple() error = %v", err)
+		}
+		_ = waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		child := requireTaskMultiChildRow(t, env, childRunID, parent.RunID, runStatusCompleted)
+		if !child.OutOfOrderRequested || !child.OutOfOrderNeeded {
+			t.Fatalf(
+				"child override metadata = requested:%t needed:%t, want both true",
+				child.OutOfOrderRequested,
+				child.OutOfOrderNeeded,
+			)
+		}
+	})
+}
+
 func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
 	t.Parallel()
 

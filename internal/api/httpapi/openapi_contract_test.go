@@ -196,6 +196,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	}
 	taskRunMultipleProperties := getMap(t, taskRunMultipleSchema, "properties")
 	for _, field := range []string{
+		"allow_out_of_order",
 		"slugs",
 		"targets",
 		"mode",

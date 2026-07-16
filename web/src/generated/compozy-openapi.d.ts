@@ -1058,6 +1058,7 @@ export interface components {
             worktree_status?: "active" | "removed" | "preserved";
         };
         TaskRunMultipleRequest: {
+            allow_out_of_order?: boolean;
             execution?: components["schemas"]["TaskExecutionDescriptor"];
             /** @enum {string} */
             mode?: "enqueued" | "parallel";

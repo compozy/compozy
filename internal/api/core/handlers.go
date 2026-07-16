@@ -1009,6 +1009,7 @@ func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
 		Workspace:        workspace,
 		Slugs:            slugs,
 		Targets:          targets,
+		AllowOutOfOrder:  body.AllowOutOfOrder,
 		Mode:             strings.TrimSpace(body.Mode),
 		ParallelLimit:    body.ParallelLimit,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),

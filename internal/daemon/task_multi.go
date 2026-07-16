@@ -45,6 +45,7 @@ type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
 	mode             string
 	presentationMode string
+	allowOutOfOrder  bool
 	parallelLimit    int
 	items            []preparedTaskMultiItem
 	parallelTasks    *preparedParallelTasks
@@ -342,7 +343,7 @@ func (m *RunManager) prepareTaskMultiStart(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := m.preflightPackageTaskRun(ctx, workspaceRef, resolvedSlug, false); err != nil {
+		if _, err := m.preflightPackageTaskRun(ctx, workspaceRef, resolvedSlug, req.AllowOutOfOrder); err != nil {
 			return nil, err
 		}
 		if idx == 0 {
@@ -379,6 +380,7 @@ func (m *RunManager) prepareTaskMultiStart(
 		workspace:        workspaceRow,
 		mode:             mode,
 		presentationMode: presentationMode,
+		allowOutOfOrder:  req.AllowOutOfOrder,
 		parallelLimit:    parallelLimit,
 		items:            items,
 	}, nil
@@ -1907,12 +1909,13 @@ func (m *RunManager) startTaskMultiChild(
 	index int,
 	total int,
 ) (apicore.Run, error) {
-	if _, err := m.preflightPackageTaskRun(
+	outOfOrderNeeded, err := m.preflightPackageTaskRun(
 		detachContext(active.ctx),
 		prepared.workspace.RootDir,
 		item.slug,
-		false,
-	); err != nil {
+		prepared.allowOutOfOrder,
+	)
+	if err != nil {
 		return apicore.Run{}, err
 	}
 	runtimeCfg := item.runtimeCfg.Clone()
@@ -1921,15 +1924,17 @@ func (m *RunManager) startTaskMultiChild(
 	}
 	runtimeCfg.ParentRunID = active.runID
 	childRun, err := m.startRun(active.ctx, startRunSpec{
-		workspace:        prepared.workspace,
-		workflowID:       cloneStringPtr(item.workflowID),
-		workflowSlug:     item.slug,
-		workflowRoot:     item.workflowRoot,
-		mode:             runModeTask,
-		presentationMode: prepared.presentationMode,
-		parentRunID:      active.runID,
-		runtimeCfg:       runtimeCfg,
-		recovery:         item.recovery,
+		workspace:           prepared.workspace,
+		workflowID:          cloneStringPtr(item.workflowID),
+		workflowSlug:        item.slug,
+		workflowRoot:        item.workflowRoot,
+		mode:                runModeTask,
+		presentationMode:    prepared.presentationMode,
+		parentRunID:         active.runID,
+		runtimeCfg:          runtimeCfg,
+		recovery:            item.recovery,
+		outOfOrderRequested: prepared.allowOutOfOrder,
+		outOfOrderNeeded:    outOfOrderNeeded,
 	})
 	if err != nil {
 		return apicore.Run{}, err

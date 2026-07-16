@@ -68,6 +68,7 @@ type TaskRunMultipleRequest struct {
 	Workspace        string                   `json:"workspace"`
 	Slugs            []string                 `json:"slugs,omitempty"`
 	Targets          []TaskRunTarget          `json:"targets,omitempty"`
+	AllowOutOfOrder  bool                     `json:"allow_out_of_order,omitempty"`
 	Mode             string                   `json:"mode,omitempty"`
 	ParallelLimit    int                      `json:"parallel_limit,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
