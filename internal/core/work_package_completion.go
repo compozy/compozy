@@ -57,6 +57,13 @@ func NewWorkPackageCompletionService() *WorkPackageCompletionService {
 	}
 }
 
+// completionGate is the fully re-derived evidence required to record one package.
+type completionGate struct {
+	target      workpackages.Target
+	scope       model.ExecutionScope
+	reviewClean bool
+}
+
 // Complete records one package checkbox only after package-local task and
 // review evidence plus final verification satisfy the completion gate.
 func (s *WorkPackageCompletionService) Complete(
@@ -69,35 +76,26 @@ func (s *WorkPackageCompletionService) Complete(
 	service := usableWorkPackageCompletionService(s)
 	result := WorkPackageCompletionResult{Reference: strings.TrimSpace(request.Reference)}
 
-	paths, reviewClean, err := validateCompletionEvidence(ctx, request)
-	result.ReviewClean = reviewClean
+	gate, err := service.evaluateCompletionGate(ctx, request, result.Reference)
+	result.ReviewClean = gate.reviewClean
 	if err != nil {
 		return result, err
 	}
 
-	target, err := service.resolver.ResolvePackage(ctx, request.WorkspaceRoot, result.Reference)
-	if err != nil {
-		return result, fmt.Errorf("resolve current work package plan: %w", err)
-	}
-	scope, err := workpackages.BuildExecutionScope(target)
-	if err != nil {
-		return result, err
-	}
-	if err := ensureCurrentExecutionScopeSpecifications(scope); err != nil {
-		return result, err
-	}
-	if !sameCompletionOperationalPaths(paths, scope) {
-		return result, fmt.Errorf("work package operational paths changed while completing %s", result.Reference)
-	}
-	readiness, err := workpackages.EvaluateReadiness(target.Plan, target.Package.ID)
+	// Re-derive current task, review, path, and dependency evidence immediately
+	// before the checkbox write. Store.MarkComplete locks only _work_packages.md,
+	// so a concurrent task, review, or plan writer could invalidate the gate above
+	// between the check and the record below. Recording completion from stale
+	// evidence would violate the bridge invariant that a package is completed only
+	// from current terminal-task, resolved-review, dependency, and verification
+	// evidence; this compare-and-swap refuses to record when any of it has changed.
+	gate, err = service.evaluateCompletionGate(ctx, request, result.Reference)
+	result.ReviewClean = gate.reviewClean
 	if err != nil {
 		return result, err
-	}
-	if !readiness.Eligible {
-		return result, completionDependencyError(target.Package.ID, readiness)
 	}
 
-	completed, err := service.store.MarkComplete(ctx, target.InitiativeDir, target.Package.ID)
+	completed, err := service.store.MarkComplete(ctx, gate.target.InitiativeDir, gate.target.Package.ID)
 	if err != nil {
 		return result, err
 	}
@@ -106,11 +104,51 @@ func (s *WorkPackageCompletionService) Complete(
 	if !result.CompletionRecorded && !result.AlreadyCompleted {
 		return result, errors.New("work package completion was not recorded")
 	}
-	if err := service.sync(ctx, request.WorkspaceRoot, scope); err != nil {
+	if err := service.sync(ctx, request.WorkspaceRoot, gate.scope); err != nil {
 		result.SyncPending = true
 		return result, fmt.Errorf("sync completed work package %s: %w", result.Reference, err)
 	}
 	return result, nil
+}
+
+// evaluateCompletionGate re-reads current task, review, verification, operational
+// path, and dependency evidence and only succeeds when a completion may be
+// recorded from that current evidence. reviewClean reports the review/verification
+// outcome even when a later completion precondition blocks the checkbox.
+func (s *WorkPackageCompletionService) evaluateCompletionGate(
+	ctx context.Context,
+	request WorkPackageCompletionRequest,
+	reference string,
+) (completionGate, error) {
+	paths, reviewClean, err := validateCompletionEvidence(ctx, request)
+	gate := completionGate{reviewClean: reviewClean}
+	if err != nil {
+		return gate, err
+	}
+	target, err := s.resolver.ResolvePackage(ctx, request.WorkspaceRoot, reference)
+	if err != nil {
+		return gate, fmt.Errorf("resolve current work package plan: %w", err)
+	}
+	gate.target = target
+	scope, err := workpackages.BuildExecutionScope(target)
+	if err != nil {
+		return gate, err
+	}
+	gate.scope = scope
+	if err := ensureCurrentExecutionScopeSpecifications(scope); err != nil {
+		return gate, err
+	}
+	if !sameCompletionOperationalPaths(paths, scope) {
+		return gate, fmt.Errorf("work package operational paths changed while completing %s", reference)
+	}
+	readiness, err := workpackages.EvaluateReadiness(target.Plan, target.Package.ID)
+	if err != nil {
+		return gate, err
+	}
+	if !readiness.Eligible {
+		return gate, completionDependencyError(target.Package.ID, readiness)
+	}
+	return gate, nil
 }
 
 func validateCompletionEvidence(

@@ -1361,6 +1361,118 @@ func TestWorkPackageCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *test
 	})
 }
 
+// completionResolverSpy simulates a concurrent task, review, or plan writer by
+// running a one-shot mutation immediately after the completion service resolves
+// the current plan. The mutation therefore lands after the initial evidence gate
+// but before the checkbox write, deterministically reproducing the stale-evidence
+// race without goroutines or timing hacks.
+type completionResolverSpy struct {
+	inner   packageTargetResolver
+	mutate  func()
+	mutated bool
+}
+
+func (r *completionResolverSpy) ResolvePackage(
+	ctx context.Context,
+	workspaceRoot string,
+	reference string,
+) (workpackages.Target, error) {
+	target, err := r.inner.ResolvePackage(ctx, workspaceRoot, reference)
+	if err == nil && !r.mutated && r.mutate != nil {
+		r.mutated = true
+		r.mutate()
+	}
+	return target, err
+}
+
+func TestWorkPackageCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
+	// INVARIANT: completion records a checkbox only from evidence that is still
+	// current at the moment of the write. A task, review, or dependency mutation
+	// that lands after the initial gate but before MarkComplete must abort the
+	// record, because Store.MarkComplete locks only _work_packages.md and never
+	// re-checks task or review artifacts.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/sync_test.go.
+	newBlockingService := func(t *testing.T, mutate func()) *WorkPackageCompletionService {
+		t.Helper()
+		service := NewWorkPackageCompletionService()
+		service.resolver = &completionResolverSpy{inner: workpackages.TargetResolver{}, mutate: mutate}
+		service.sync = func(context.Context, string, model.ExecutionScope) error {
+			t.Fatal("sync must not run when a stale-evidence race blocks completion")
+			return nil
+		}
+		return service
+	}
+
+	t.Run("refuses completion when a task turns nonterminal after the initial gate", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody("completed", "WP-001 task"))
+		before := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName))
+
+		service := newBlockingService(t, func() {
+			writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody("pending", "WP-001 task"))
+		})
+		result, err := service.Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if err == nil || !strings.Contains(err.Error(), "all package tasks to be terminal") {
+			t.Fatalf("stale-task completion error = %v, want terminal-task block", err)
+		}
+		// The review was verified and clean, so the review outcome must stay true
+		// even though the reopened task blocks the checkbox: the two must diverge.
+		if !result.ReviewClean {
+			t.Fatalf("verified clean review reported review_clean=false: %#v", result)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("stale-task race recorded completion: %#v", result)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName)); got != before {
+			t.Fatal("stale-task race changed plan bytes")
+		}
+	})
+
+	t.Run("refuses completion when a review reopens after the initial gate", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody("completed", "WP-001 task"))
+		writeSyncWorkflowFile(
+			t,
+			packageDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBody("resolved", "high"),
+		)
+		before := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName))
+
+		service := newBlockingService(t, func() {
+			writeSyncWorkflowFile(
+				t,
+				packageDir,
+				filepath.Join("reviews-001", "issue_002.md"),
+				reviewIssueBody("pending", "high"),
+			)
+		})
+		result, err := service.Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if err == nil || !strings.Contains(err.Error(), "prior_issues_unresolved") {
+			t.Fatalf("reopened-review completion error = %v, want prior-issues block", err)
+		}
+		if result.ReviewClean {
+			t.Fatalf("reopened review reported review_clean=true: %#v", result)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("reopened-review race recorded completion: %#v", result)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName)); got != before {
+			t.Fatal("reopened-review race changed plan bytes")
+		}
+	})
+}
+
 func TestSyncWorkPackageInitiativeFailsClosedAndPreservesChildren(t *testing.T) {
 	// Suite boundary
 	// IN: real filesystem marker validation and aggregate SQLite reconciliation
