@@ -419,6 +419,10 @@ func syncWorkPackageInitiative(
 	if err != nil {
 		return err
 	}
+	children, err := appendMissingWorkPackagePlaceholders(ctx, db, workspace, target, &collection)
+	if err != nil {
+		return err
+	}
 
 	aggregate, err := db.ReconcileAggregateWorkflowSync(ctx, globaldb.AggregateWorkflowSyncInput{
 		Parent: globaldb.WorkflowSyncInput{
@@ -430,7 +434,7 @@ func syncWorkPackageInitiative(
 			CheckpointChecksum: parentChecksum,
 			ArtifactSnapshots:  parentSnapshots,
 		},
-		Children:                collection.children,
+		Children:                children,
 		PreserveMissingChildren: len(collection.missingPackageIDs) > 0,
 	})
 	if err != nil {
@@ -559,6 +563,61 @@ func collectWorkPackageSyncChildren(
 		result.removedLegacyArtifacts = append(result.removedLegacyArtifacts, removed...)
 	}
 	return result, nil
+}
+
+// appendMissingWorkPackagePlaceholders seeds a durable placeholder child for
+// every declared package whose directory is absent and has no prior durable row.
+// A first-ever partial sync would otherwise omit the node entirely, so any
+// dependent package keeps a graph edge to a nonexistent node: DB-only read
+// models that reconstruct the plan (workpackages.EvaluateReadiness) then reject
+// the whole initiative and fail workflow listing, dashboard projection, and
+// archive eligibility. The placeholder carries the declared identity and
+// dependency edges but no artifacts and an incomplete lifecycle, so read models
+// keep a complete graph and block start/archive with a clear reason instead of
+// erroring or reporting a false archive-eligible state. Packages that already
+// own a durable row are left untouched so PreserveMissingChildren keeps their
+// prior projection intact rather than overwriting it with an empty placeholder.
+func appendMissingWorkPackagePlaceholders(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	target workpackages.Target,
+	collection *workPackageSyncChildren,
+) ([]globaldb.WorkflowSyncInput, error) {
+	if len(collection.missingPackageIDs) == 0 {
+		return collection.children, nil
+	}
+	missing := make(map[string]struct{}, len(collection.missingPackageIDs))
+	for _, packageID := range collection.missingPackageIDs {
+		missing[packageID] = struct{}{}
+	}
+	children := collection.children
+	for packageIndex := range target.Plan.Packages {
+		pkg := &target.Plan.Packages[packageIndex]
+		if _, ok := missing[pkg.ID]; !ok {
+			continue
+		}
+		slug := target.Ref.Initiative + "/" + pkg.ID
+		if _, err := db.GetActiveWorkflowBySlug(ctx, workspace.ID, slug); err == nil {
+			continue
+		} else if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+			return nil, fmt.Errorf("inspect durable work package %s: %w", pkg.ID, err)
+		}
+		children = append(children, globaldb.WorkflowSyncInput{
+			WorkspaceID:        workspace.ID,
+			WorkflowSlug:       slug,
+			Kind:               globaldb.WorkflowKindWorkPackage,
+			PackageID:          pkg.ID,
+			DisplayTitle:       pkg.Title,
+			Outcome:            pkg.Outcome,
+			LifecycleCompleted: false,
+			Dependencies:       packageDependencies(pkg),
+			SyncedAt:           time.Now().UTC(),
+			CheckpointScope:    "workflow",
+		})
+		collection.childPaths[pkg.ID] = filepath.Join(target.InitiativeDir, filepath.FromSlash(pkg.Directory))
+	}
+	return children, nil
 }
 
 func collectWorkPackageSyncChild(

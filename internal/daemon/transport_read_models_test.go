@@ -12,6 +12,7 @@ import (
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
@@ -643,6 +644,191 @@ func newTransportReadModelFixture(t *testing.T) transportReadModelFixture {
 		query:   query,
 		taskRun: taskRun,
 	}
+}
+
+func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
+	// A first-ever partial sync (a present package depends on a missing one, plus a
+	// missing independent package) must leave the daemon read models readable: the
+	// stored declared graph is complete, so EvaluateReadiness no longer rejects it,
+	// and the initiative is not falsely archive-eligible.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			return nil
+		},
+	})
+	const slug = "wp-initiative"
+	writeDaemonPartialWorkPackageInitiative(t, env, slug)
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	result, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		TasksDir: env.workflowDir(slug),
+	})
+	if err != nil {
+		t.Fatalf("SyncWithDB(first partial) error = %v", err)
+	}
+	if !result.Partial {
+		t.Fatalf("first partial sync not flagged partial: %#v", result)
+	}
+
+	query := NewQueryService(QueryServiceConfig{
+		GlobalDB:   env.globalDB,
+		RunManager: env.manager,
+		Daemon: stubDaemonStatusReader{
+			status: apicore.DaemonStatus{PID: 7, WorkspaceCount: 1},
+			health: apicore.DaemonHealth{Ready: true},
+		},
+	})
+	service := newTransportTaskService(env.globalDB, env.manager, query)
+
+	t.Run("Should list the initiative without rejecting the incomplete graph", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		if len(initiative.WorkPackages) != 3 {
+			t.Fatalf(
+				"initiative work packages = %d, want complete declared graph of 3",
+				len(initiative.WorkPackages),
+			)
+		}
+		if initiative.ArchiveEligible == nil || *initiative.ArchiveEligible {
+			t.Fatalf(
+				"initiative archive eligible = %v, want blocked by missing packages",
+				initiative.ArchiveEligible,
+			)
+		}
+		if !strings.Contains(initiative.ArchiveReason, "WP-001") ||
+			!strings.Contains(initiative.ArchiveReason, "WP-003") {
+			t.Fatalf("archive reason = %q, want missing WP-001 and independent WP-003", initiative.ArchiveReason)
+		}
+		dependent := findWorkPackageSummary(t, initiative.WorkPackages, "WP-002")
+		if len(dependent.UnmetDependencies) != 1 || dependent.UnmetDependencies[0].PackageID != "WP-001" {
+			t.Fatalf("WP-002 unmet dependencies = %#v, want single edge to WP-001", dependent.UnmetDependencies)
+		}
+	})
+
+	t.Run("Should project the same complete graph into the dashboard", func(t *testing.T) {
+		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("Dashboard() error = %v", err)
+		}
+		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
+		if len(card.Workflow.WorkPackages) != 3 {
+			t.Fatalf("dashboard initiative work packages = %d, want 3", len(card.Workflow.WorkPackages))
+		}
+	})
+}
+
+func writeDaemonPartialWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
+	t.Helper()
+	env.writeWorkflowFile(t, slug, "_prd.md", "# Initiative\n")
+	env.writeWorkflowFile(t, slug, "_techspec.md", "# Initiative Techspec\n")
+	env.writeWorkflowFile(t, slug, "_work_packages.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: " + slug,
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"    - id: WP-002",
+		"      directory: _packages/WP-002",
+		"    - id: WP-003",
+		"      directory: _packages/WP-003",
+		"  edges:",
+		"    - from: WP-001",
+		"      to: WP-002",
+		"      rationale: WP-002 consumes the WP-001 contract.",
+		"---",
+		"",
+		"# Initiative Work Packages",
+		"",
+		"## [ ] WP-001 — Persistence",
+		"",
+		"- Reference: `" + slug + "/WP-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+		"## [ ] WP-002 — Archive",
+		"",
+		"- Reference: `" + slug + "/WP-002`",
+		"- Outcome: Archive the aggregate workflow.",
+		"- Owns:",
+		"  - archive",
+		"- Dependencies:",
+		"  - `WP-001` — WP-002 consumes the WP-001 contract.",
+		"",
+		"## [x] WP-003 — Reporting",
+		"",
+		"- Reference: `" + slug + "/WP-003`",
+		"- Outcome: Report aggregate status.",
+		"- Owns:",
+		"  - reporting",
+		"- Dependencies: None",
+		"",
+	}, "\n"))
+	// Only WP-002 has a materialized directory. WP-001 (a declared prerequisite of
+	// WP-002) and WP-003 (declared but independent) are absent on this first sync.
+	env.writeWorkflowFile(
+		t,
+		slug,
+		filepath.Join("_packages", "WP-002", "task_01.md"),
+		daemonTaskBody("pending", "WP-002 task"),
+	)
+}
+
+func findInitiativeSummary(
+	t *testing.T,
+	workflows []apicore.WorkflowSummary,
+	slug string,
+) apicore.WorkflowSummary {
+	t.Helper()
+	for i := range workflows {
+		if workflows[i].Slug == slug && workflows[i].Kind == string(globaldb.WorkflowKindInitiative) {
+			return workflows[i]
+		}
+	}
+	t.Fatalf("initiative %q not found in %#v", slug, workflows)
+	return apicore.WorkflowSummary{}
+}
+
+func findDashboardInitiativeCard(
+	t *testing.T,
+	cards []apicore.WorkflowCard,
+	slug string,
+) apicore.WorkflowCard {
+	t.Helper()
+	for i := range cards {
+		if cards[i].Workflow.Slug == slug {
+			return cards[i]
+		}
+	}
+	t.Fatalf("initiative card %q not found in %#v", slug, cards)
+	return apicore.WorkflowCard{}
+}
+
+func findWorkPackageSummary(
+	t *testing.T,
+	packages []apicore.WorkPackageSummary,
+	packageID string,
+) apicore.WorkPackageSummary {
+	t.Helper()
+	for i := range packages {
+		if packages[i].PackageID == packageID {
+			return packages[i]
+		}
+	}
+	t.Fatalf("work package %q not found in %#v", packageID, packages)
+	return apicore.WorkPackageSummary{}
 }
 
 func mustProblem(t *testing.T, err error) *apicore.Problem {

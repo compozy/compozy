@@ -1427,6 +1427,98 @@ func TestSyncWorkPackageInitiativeReportsMissingChildWithoutPruning(t *testing.T
 	}
 }
 
+func TestSyncWorkPackageInitiativeFirstSyncSeedsMissingDependencyPlaceholder(t *testing.T) {
+	// Suite boundary
+	// IN: first-ever root aggregate sync against filesystem and SQLite
+	// OUT: daemon read-model projection, exercised by internal/daemon integration tests
+	// Invariant: a first-ever partial sync persists the complete declared graph so a
+	// present package never stores an edge to an unpersisted prerequisite node.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "pending",
+		"WP-002": "pending",
+	})
+	// Remove the prerequisite package directory before the first sync: WP-002
+	// (present) declares a dependency on WP-001 (now missing), reproducing the
+	// first-ever partial sync that previously left a dangling graph edge.
+	if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-001")); err != nil {
+		t.Fatalf("remove WP-001: %v", err)
+	}
+
+	result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(first partial): %v", err)
+	}
+	if !result.Partial || !reflect.DeepEqual(result.MissingWorkPackages, []string{"WP-001"}) {
+		t.Fatalf("first partial sync result = %#v, want partial WP-001", result)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+
+	var firstID, kind, dependenciesJSON string
+	var lifecycleCompleted bool
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT id, kind, lifecycle_completed, dependencies_json FROM workflows WHERE slug = ?`,
+		"initiative/WP-001",
+	).Scan(&firstID, &kind, &lifecycleCompleted, &dependenciesJSON); err != nil {
+		t.Fatalf("query seeded WP-001 placeholder: %v", err)
+	}
+	if kind != string(globaldb.WorkflowKindWorkPackage) {
+		t.Fatalf("placeholder kind = %q, want work_package", kind)
+	}
+	if lifecycleCompleted {
+		t.Fatal("placeholder lifecycle_completed = true, want false to block start and archive")
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM task_items WHERE workflow_id = (SELECT id FROM workflows WHERE slug = ?)`,
+		"initiative/WP-001",
+	); got != 0 {
+		t.Fatalf("placeholder task projection count = %d, want 0 fabricated rows", got)
+	}
+
+	// The present dependent keeps its declared edge; with the prerequisite now
+	// persisted the stored graph is complete instead of pointing at a missing node.
+	var dependentDeps string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT dependencies_json FROM workflows WHERE slug = ?`,
+		"initiative/WP-002",
+	).Scan(&dependentDeps); err != nil {
+		t.Fatalf("query dependent WP-002: %v", err)
+	}
+	if !strings.Contains(dependentDeps, "WP-001") {
+		t.Fatalf("dependent WP-002 dependencies = %q, want edge to WP-001", dependentDeps)
+	}
+
+	// Re-syncing while the directory stays absent must preserve the same placeholder
+	// row rather than duplicating or overwriting it.
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(second partial): %v", err)
+	}
+	if got := queryCount(t, sqlDB, `SELECT COUNT(1) FROM workflows WHERE slug = ?`, "initiative/WP-001"); got != 1 {
+		t.Fatalf("WP-001 placeholder rows after re-sync = %d, want 1", got)
+	}
+	var secondID string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT id FROM workflows WHERE slug = ?`,
+		"initiative/WP-001",
+	).Scan(&secondID); err != nil {
+		t.Fatalf("query preserved WP-001 placeholder: %v", err)
+	}
+	if secondID != firstID {
+		t.Fatalf("placeholder id changed after re-sync: got %q want %q", secondID, firstID)
+	}
+}
+
 func setSyncTestHome(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
