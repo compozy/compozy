@@ -368,10 +368,11 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+	target, err := s.resolveReviewWorkPackageTarget(ctx)
+	if err != nil {
 		return withExitCode(1, err)
 	}
-	if err := s.resolveReviewRound(ctx); err != nil {
+	if err := s.resolveReviewRound(ctx, target); err != nil {
 		return withExitCode(1, err)
 	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
@@ -1549,7 +1550,7 @@ func (s *commandState) resolveWorkflowNameAndRoundArgs(cmd *cobra.Command, args 
 	return nil
 }
 
-func (s *commandState) resolveReviewRound(ctx context.Context) error {
+func (s *commandState) resolveReviewRound(ctx context.Context, target workpackages.Target) error {
 	if s.round > 0 {
 		return nil
 	}
@@ -1565,13 +1566,11 @@ func (s *commandState) resolveReviewRound(ctx context.Context) error {
 	if s.round > 0 {
 		return nil
 	}
-	if strings.TrimSpace(s.packageID) == "" {
-		if round, ok, err := latestLocalReviewRound(s.workspaceRoot, s.name); err != nil {
-			return err
-		} else if ok {
-			s.round = round
-			return nil
-		}
+	if round, ok, err := latestLocalReviewRoundForTarget(target, s.workspaceRoot, s.name); err != nil {
+		return err
+	} else if ok {
+		s.round = round
+		return nil
 	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
@@ -1676,17 +1675,39 @@ func listReviewIssuesForPackage(
 	return scoped.ListReviewIssuesForPackage(ctx, workspace, slug, round, packageID)
 }
 
+// latestLocalReviewRoundForTarget resolves the newest non-empty review round written to
+// disk for the resolved target. A Work Package keeps its rounds under ReviewsDir (the package
+// directory), where a manual cy-review-round writes reviews-NNN before the daemon catalog is
+// synced, so scanning there makes a freshly created round discoverable without --round. Any
+// other target falls back to the ordinary .compozy/tasks/<slug> layout.
+func latestLocalReviewRoundForTarget(
+	target workpackages.Target,
+	workspaceRoot string,
+	workflowSlug string,
+) (int, bool, error) {
+	if target.Mode == workpackages.TargetModePackage && strings.TrimSpace(target.ReviewsDir) != "" {
+		return latestLocalReviewRoundInDir(target.ReviewsDir)
+	}
+	return latestLocalReviewRound(workspaceRoot, workflowSlug)
+}
+
 func latestLocalReviewRound(workspaceRoot string, workflowSlug string) (int, bool, error) {
 	if strings.TrimSpace(workspaceRoot) == "" || strings.TrimSpace(workflowSlug) == "" {
 		return 0, false, nil
 	}
-	workflowDir := filepathJoin(workspaceRoot, ".compozy", "tasks", workflowSlug)
-	entries, err := os.ReadDir(workflowDir)
+	return latestLocalReviewRoundInDir(filepathJoin(workspaceRoot, ".compozy", "tasks", workflowSlug))
+}
+
+func latestLocalReviewRoundInDir(reviewsDir string) (int, bool, error) {
+	if strings.TrimSpace(reviewsDir) == "" {
+		return 0, false, nil
+	}
+	entries, err := os.ReadDir(reviewsDir)
 	if os.IsNotExist(err) {
 		return 0, false, nil
 	}
 	if err != nil {
-		return 0, false, fmt.Errorf("read review workflow directory %s: %w", workflowDir, err)
+		return 0, false, fmt.Errorf("read review workflow directory %s: %w", reviewsDir, err)
 	}
 
 	latest := 0
@@ -1698,7 +1719,7 @@ func latestLocalReviewRound(workspaceRoot string, workflowSlug string) (int, boo
 		if !ok {
 			continue
 		}
-		hasIssueFile, err := reviewRoundHasIssueFile(filepath.Join(workflowDir, entry.Name()))
+		hasIssueFile, err := reviewRoundHasIssueFile(filepath.Join(reviewsDir, entry.Name()))
 		if err != nil {
 			return 0, false, err
 		}

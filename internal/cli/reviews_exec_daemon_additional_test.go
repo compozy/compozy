@@ -17,6 +17,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/setup"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -1188,7 +1189,7 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 	t.Run("resolve review round prefers reviews dir", func(t *testing.T) {
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.reviewsDir = filepath.Join(t.TempDir(), "reviews-009")
-		if err := state.resolveReviewRound(context.Background()); err != nil {
+		if err := state.resolveReviewRound(context.Background(), workpackages.Target{}); err != nil {
 			t.Fatalf("resolveReviewRound() error = %v", err)
 		}
 		if state.round != 9 {
@@ -1216,11 +1217,52 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.workspaceRoot = workspaceRoot
 		state.name = "demo"
-		if err := state.resolveReviewRound(context.Background()); err != nil {
+		if err := state.resolveReviewRound(context.Background(), workpackages.Target{}); err != nil {
 			t.Fatalf("resolveReviewRound() error = %v", err)
 		}
 		if state.round != 3 {
 			t.Fatalf("state.round = %d, want latest local round 3", state.round)
+		}
+	})
+
+	t.Run("resolve review round selects package-local round before daemon", func(t *testing.T) {
+		// A manual cy-review-round writes reviews-NNN under the package directory before the
+		// daemon catalog is synced. The fixer must discover that round on disk instead of
+		// asking a stale/empty daemon catalog that cannot yet serve the package.
+		workspaceRoot := t.TempDir()
+		packageDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative", "WP-001")
+		roundDir := filepath.Join(packageDir, "reviews-002")
+		if err := os.MkdirAll(roundDir, 0o755); err != nil {
+			t.Fatalf("mkdir package round dir: %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(roundDir, "issue_001.md"),
+			[]byte("# issue\n"),
+			0o644,
+		); err != nil {
+			t.Fatalf("write package issue file: %v", err)
+		}
+
+		// Plain stub client cannot serve package-scoped reads: reaching the daemon would fail,
+		// so a successful resolution proves the local scan short-circuited the catalog lookup.
+		installTestCLIReadyDaemonBootstrap(t, &stubDaemonCommandClient{
+			health:          apicore.DaemonHealth{Ready: true},
+			reviewLatestErr: errors.New("daemon catalog has not synced this package round"),
+		})
+
+		state := newCommandState(commandKindFixReviews, core.ModePRReview)
+		state.workspaceRoot = workspaceRoot
+		state.name = "initiative"
+		state.packageID = "WP-001"
+		target := workpackages.Target{
+			Mode:       workpackages.TargetModePackage,
+			ReviewsDir: packageDir,
+		}
+		if err := state.resolveReviewRound(context.Background(), target); err != nil {
+			t.Fatalf("resolveReviewRound() error = %v", err)
+		}
+		if state.round != 2 {
+			t.Fatalf("state.round = %d, want package-local round 2", state.round)
 		}
 	})
 
