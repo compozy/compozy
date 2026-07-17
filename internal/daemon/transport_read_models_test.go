@@ -1000,6 +1000,91 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 	})
 }
 
+func TestTaskTransportServiceBlocksMaterializedEmptyWorkPackageStart(t *testing.T) {
+	// A materialized-but-empty work package (directory present on disk, zero
+	// executable tasks) must be projected as not runnable across the read models
+	// with the no-executable-tasks reason, matching the runtime start preflight
+	// that rejects the same package with package_no_executable_tasks. A sibling
+	// package that carries a real pending task stays runnable, proving the
+	// predicate is scoped to empty packages rather than blocking the initiative.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			return nil
+		},
+	})
+	const slug = "wp-initiative"
+	writeDaemonEmptyWorkPackageInitiative(t, env, slug)
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		TasksDir: env.workflowDir(slug),
+	}); err != nil {
+		t.Fatalf("SyncWithDB(materialized empty) error = %v", err)
+	}
+
+	query := NewQueryService(QueryServiceConfig{
+		GlobalDB:   env.globalDB,
+		RunManager: env.manager,
+		Daemon: stubDaemonStatusReader{
+			status: apicore.DaemonStatus{PID: 7, WorkspaceCount: 1},
+			health: apicore.DaemonHealth{Ready: true},
+		},
+	})
+	service := newTransportTaskService(env.globalDB, env.manager, query)
+
+	t.Run("Should block the empty package start in the workflow list", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		assertEmptyPackageBlocked(t, initiative.WorkPackages, "WP-002")
+		runnable := findWorkPackageSummary(t, initiative.WorkPackages, "WP-001")
+		if runnable.CanStartRun == nil || !*runnable.CanStartRun || runnable.StartBlockReason != "" {
+			t.Fatalf(
+				"WP-001 can start = %v reason = %q, want the materialized package runnable",
+				runnable.CanStartRun,
+				runnable.StartBlockReason,
+			)
+		}
+	})
+
+	t.Run("Should block the empty package start in the dashboard", func(t *testing.T) {
+		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("Dashboard() error = %v", err)
+		}
+		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
+		assertEmptyPackageBlocked(t, card.Workflow.WorkPackages, "WP-002")
+	})
+
+	t.Run("Should refuse to really start the empty package", func(t *testing.T) {
+		_, startErr := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			slug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				PackageID:        "WP-002",
+			},
+		)
+		// The read-model block reason must agree with the endpoint the confirm
+		// action calls; the endpoint rejects the empty package outright.
+		var problem *apicore.Problem
+		if !errors.As(startErr, &problem) || problem.Status != http.StatusUnprocessableEntity ||
+			problem.Code != "package_no_executable_tasks" {
+			t.Fatalf("StartTaskRun(empty WP-002) problem = %#v error = %v", problem, startErr)
+		}
+	})
+}
+
 // assertMissingPlaceholderBlocked verifies a missing-directory work-package
 // placeholder is projected as not runnable with the missing-directory reason.
 func assertMissingPlaceholderBlocked(
@@ -1018,6 +1103,28 @@ func assertMissingPlaceholderBlocked(
 			packageID,
 			placeholder.StartBlockReason,
 			workflowStartReasonMissing,
+		)
+	}
+}
+
+// assertEmptyPackageBlocked verifies a materialized-but-empty work package is
+// projected as not runnable with the no-executable-tasks reason.
+func assertEmptyPackageBlocked(
+	t *testing.T,
+	packages []apicore.WorkPackageSummary,
+	packageID string,
+) {
+	t.Helper()
+	empty := findWorkPackageSummary(t, packages, packageID)
+	if empty.CanStartRun == nil || *empty.CanStartRun {
+		t.Fatalf("%s can start run = %v, want blocked empty package", packageID, empty.CanStartRun)
+	}
+	if empty.StartBlockReason != workflowStartReasonNoExecutableTasks {
+		t.Fatalf(
+			"%s start block reason = %q, want %q",
+			packageID,
+			empty.StartBlockReason,
+			workflowStartReasonNoExecutableTasks,
 		)
 	}
 }
@@ -1143,6 +1250,60 @@ func writeDaemonMaterializedWorkPackageInitiative(t *testing.T, env *runManagerT
 			daemonTaskBody("completed", packageID+" task"),
 		)
 	}
+}
+
+func writeDaemonEmptyWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
+	t.Helper()
+	env.writeWorkflowFile(t, slug, "_prd.md", "# Initiative\n")
+	env.writeWorkflowFile(t, slug, "_techspec.md", "# Initiative Techspec\n")
+	env.writeWorkflowFile(t, slug, "_work_packages.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: " + slug,
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"    - id: WP-002",
+		"      directory: _packages/WP-002",
+		"  edges: []",
+		"---",
+		"",
+		"# Initiative Work Packages",
+		"",
+		"## [ ] WP-001 — Persistence",
+		"",
+		"- Reference: `" + slug + "/WP-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+		"## [ ] WP-002 — Reporting",
+		"",
+		"- Reference: `" + slug + "/WP-002`",
+		"- Outcome: Report aggregate status.",
+		"- Owns:",
+		"  - reporting",
+		"- Dependencies: None",
+		"",
+	}, "\n"))
+	// WP-001 carries a real pending task and stays runnable. WP-002's directory is
+	// materialized but holds only a non-task artifact, so it resolves as present
+	// (not missing) with zero executable tasks -- the drift case the read model
+	// must block so its Start action agrees with the runtime start preflight.
+	env.writeWorkflowFile(
+		t,
+		slug,
+		filepath.Join("_packages", "WP-001", "task_01.md"),
+		daemonTaskBody("pending", "WP-001 task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		slug,
+		filepath.Join("_packages", "WP-002", "_tasks.md"),
+		"# Empty package\n",
+	)
 }
 
 func findInitiativeSummary(

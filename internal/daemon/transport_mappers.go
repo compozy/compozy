@@ -25,6 +25,13 @@ const workflowArchiveReasonArchived = "workflow archived"
 // graph whole; a real start would immediately fail to resolve the directory.
 const workflowStartReasonMissing = "package directory missing"
 
+// workflowStartReasonNoExecutableTasks blocks starting a materialized work
+// package whose directory is present but holds zero tasks. It mirrors the
+// runtime preflight requirePackageExecutableTasks, which rejects the same
+// package with package_no_executable_tasks, so the read-model Start action never
+// advertises a package the start endpoint would immediately refuse.
+const workflowStartReasonNoExecutableTasks = "no executable tasks"
+
 func transportWorkspace(row globaldb.Workspace) apicore.Workspace {
 	return apicore.Workspace{
 		ID:              row.ID,
@@ -337,6 +344,13 @@ func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool
 	}
 	if row.Missing {
 		return false, workflowStartReasonMissing
+	}
+	// A materialized work package with zero tasks is rejected by the runtime
+	// preflight (requirePackageExecutableTasks -> package_no_executable_tasks).
+	// Block it in the read model too so the Start action agrees with the endpoint.
+	// Ordinary workflows keep their legacy zero-task semantics and stay startable.
+	if row.Kind == globaldb.WorkflowKindWorkPackage && counts.Total == 0 {
+		return false, workflowStartReasonNoExecutableTasks
 	}
 	if counts.Total > 0 && counts.Pending == 0 {
 		return false, "no pending tasks"
