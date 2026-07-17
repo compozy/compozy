@@ -1627,10 +1627,11 @@
                         "type": "string"
                     },
                     "package_id": {
+                        "pattern": "^WP-[0-9]{3}$",
                         "type": "string"
                     }
                 },
-                "required": ["initiative_slug"],
+                "required": ["initiative_slug", "package_id"],
                 "type": "object"
             },
             "TaskRunMultipleItem": {

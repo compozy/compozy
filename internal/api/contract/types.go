@@ -80,7 +80,10 @@ type TaskRunMultipleRequest struct {
 // workflow route segment with a child reference.
 type TaskRunTarget struct {
 	InitiativeSlug string `json:"initiative_slug"`
-	PackageID      string `json:"package_id,omitempty"`
+	// PackageID is always required: runtime normalization rejects a blank value
+	// with work_package_selection_required, so it is not tagged omitempty and the
+	// transport schema marks it required with a WP-NNN pattern.
+	PackageID string `json:"package_id"`
 }
 
 type TaskRunMultipleItem struct {

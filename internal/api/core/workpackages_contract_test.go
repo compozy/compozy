@@ -208,6 +208,71 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 	})
 }
 
+// UT-038 companion: the published TaskRunTarget schema marks package_id required
+// with a WP-NNN pattern, so runtime normalization must reject any structured
+// target that would satisfy an "optional package_id" contract. This keeps the
+// generated schema's required fields honest against actual handler acceptance.
+func TestStructuredTaskTargetsRejectInvalidPackageID(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	engine := newCanonicalHandlersEngine(core.NewHandlers(&core.HandlerConfig{
+		TransportName: "test",
+		Tasks:         &smokeTaskService{run: core.Run{RunID: "multi-run", Mode: "task_multi"}},
+	}))
+
+	testCases := []struct {
+		name     string
+		body     string
+		wantCode string
+	}{
+		{
+			name:     "missing package id",
+			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management"}]}`,
+			wantCode: "work_package_selection_required",
+		},
+		{
+			name:     "blank package id",
+			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"   "}]}`,
+			wantCode: "work_package_selection_required",
+		},
+		{
+			name:     "malformed package id",
+			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"WP-1"}]}`,
+			wantCode: "work_package_invalid_reference",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/task-runs/multiple",
+				strings.NewReader(tc.body),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+
+			if response.Code != http.StatusUnprocessableEntity {
+				t.Fatalf(
+					"status = %d, want %d; body=%s",
+					response.Code,
+					http.StatusUnprocessableEntity,
+					response.Body.String(),
+				)
+			}
+			var payload core.TransportError
+			decodeJSON(t, response.Body.Bytes(), &payload)
+			if payload.Code != tc.wantCode {
+				t.Fatalf("code = %q, want %q; body=%s", payload.Code, tc.wantCode, response.Body.String())
+			}
+		})
+	}
+}
+
 type packageErrorTaskService struct {
 	*smokeTaskService
 	err error

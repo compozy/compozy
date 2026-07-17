@@ -1041,7 +1041,7 @@ export interface components {
         };
         TaskRunTarget: {
             initiative_slug: string;
-            package_id?: string;
+            package_id: string;
         };
         TaskRunMultipleItem: {
             base_branch?: string;

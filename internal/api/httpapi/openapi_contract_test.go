@@ -210,6 +210,24 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 			t.Fatalf("TaskRunMultipleRequest must expose %s", field)
 		}
 	}
+	if schemaRequires(taskRunMultipleSchema, "targets") {
+		t.Fatal("TaskRunMultipleRequest must keep structured targets optional versus legacy slugs")
+	}
+	targetsSchema := getMap(t, taskRunMultipleProperties, "targets")
+	targetItems := getMap(t, targetsSchema, "items")
+	if ref, _ := targetItems["$ref"].(string); ref != "#/components/schemas/TaskRunTarget" {
+		t.Fatalf("TaskRunMultipleRequest.targets items ref = %v, want TaskRunTarget", targetItems["$ref"])
+	}
+	taskRunTargetSchema := getSchema(t, spec, "TaskRunTarget")
+	for _, field := range []string{"initiative_slug", "package_id"} {
+		if !schemaRequires(taskRunTargetSchema, field) {
+			t.Fatalf("TaskRunTarget must require %s to match runtime normalization", field)
+		}
+	}
+	packageIDSchema := getMap(t, getMap(t, taskRunTargetSchema, "properties"), "package_id")
+	if pattern, _ := packageIDSchema["pattern"].(string); pattern != `^WP-[0-9]{3}$` {
+		t.Fatalf("TaskRunTarget.package_id pattern = %v, want ^WP-[0-9]{3}$", packageIDSchema["pattern"])
+	}
 	multiRunSnapshot := getSchema(t, spec, "TaskRunMultipleSnapshotResponse")
 	if !schemaRequires(multiRunSnapshot, "run") {
 		t.Fatal("TaskRunMultipleSnapshotResponse must require run")
