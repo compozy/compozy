@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -797,6 +798,132 @@ func TestRootCommandRegistersHiddenWorkPackageCompletionBridge(t *testing.T) {
 	}
 	if command.Flags().Lookup("verification-passed") == nil {
 		t.Fatal("hidden completion bridge is missing final verification gate flag")
+	}
+}
+
+func TestInternalCompleteBridgeRecordsDocumentedCleanPackage(t *testing.T) {
+	// INVARIANT: the exact command the cy-review-round skill documents —
+	// `compozy internal work-packages complete <initiative>/WP-NNN
+	// --verification-passed` — must record completion for a clean package, and
+	// omitting the flag must be refused. This guards the doc/flag contract that
+	// TestRootCommandRegistersHiddenWorkPackageCompletionBridge cannot, since it
+	// only asserts the flag exists rather than that the documented invocation
+	// works. The fail-closed default is why the docs must carry the flag.
+	// OWNING_LAYER: cli command. EXISTING_SUITE: internal/cli/root_test.go.
+	t.Run("Should record completion when the documented flag is passed", func(t *testing.T) {
+		workspaceRoot := writeCleanCompletionWorkspace(t)
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		t.Chdir(workspaceRoot)
+
+		out, err := runInternalCompletion(t, "initiative/WP-001", "--verification-passed")
+		if err != nil {
+			t.Fatalf("documented completion invocation failed: %v\noutput: %s", err, out.String())
+		}
+		result := decodeCompletionResult(t, out.Bytes())
+		if !result.ReviewClean || !result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("documented invocation result = %#v, want a recorded clean completion", result)
+		}
+	})
+
+	t.Run("Should refuse completion when the flag is omitted", func(t *testing.T) {
+		workspaceRoot := writeCleanCompletionWorkspace(t)
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		t.Chdir(workspaceRoot)
+
+		out, err := runInternalCompletion(t, "initiative/WP-001")
+		if err == nil {
+			t.Fatalf("expected verification_failed without --verification-passed, output: %s", out.String())
+		}
+		if !strings.Contains(err.Error(), "verification_failed") {
+			t.Fatalf("error = %v, want verification_failed", err)
+		}
+		result := decodeCompletionResult(t, out.Bytes())
+		if result.CompletionRecorded || result.ReviewClean {
+			t.Fatalf("flag-omitted result = %#v, want no completion recorded", result)
+		}
+	})
+}
+
+// runInternalCompletion drives the real root command with the documented
+// completion argv so the test exercises production flag wiring, not a
+// reconstructed command.
+func runInternalCompletion(t *testing.T, reference string, flags ...string) (*bytes.Buffer, error) {
+	t.Helper()
+	out := &bytes.Buffer{}
+	root := NewRootCommand()
+	root.SetOut(out)
+	root.SetErr(out)
+	args := append([]string{"internal", "work-packages", "complete", reference}, flags...)
+	root.SetArgs(args)
+	return out, root.Execute()
+}
+
+func decodeCompletionResult(t *testing.T, output []byte) core.WorkPackageCompletionResult {
+	t.Helper()
+	// The bridge encodes its JSON result before any error text, so decode the
+	// first JSON value and ignore trailing cobra error output.
+	var result core.WorkPackageCompletionResult
+	if err := json.NewDecoder(bytes.NewReader(output)).Decode(&result); err != nil {
+		t.Fatalf("decode completion result from %q: %v", string(output), err)
+	}
+	return result
+}
+
+// writeCleanCompletionWorkspace builds the minimal workspace whose single
+// dependency-free package satisfies every completion gate: canonical
+// specifications, a terminal task, no dependencies, and no unresolved reviews.
+// It returns the workspace root the hidden bridge should discover.
+func writeCleanCompletionWorkspace(t *testing.T) string {
+	t.Helper()
+	workspaceRoot := t.TempDir()
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeCompletionFixtureFile(t, initiativeDir, "_prd.md", "# Initiative\n")
+	writeCompletionFixtureFile(t, initiativeDir, "_techspec.md", "# Initiative Techspec\n")
+	writeCompletionFixtureFile(t, initiativeDir, "_work_packages.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: initiative",
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"  edges: []",
+		"---",
+		"",
+		"# Initiative Work Packages",
+		"",
+		"## [ ] WP-001 — Persistence",
+		"",
+		"- Reference: `initiative/WP-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+	}, "\n"))
+	packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+	writeCompletionFixtureFile(t, packageDir, "task_01.md", strings.Join([]string{
+		"---",
+		"status: completed",
+		"title: WP-001 task",
+		"type: backend",
+		"complexity: low",
+		"dependencies: []",
+		"---",
+		"",
+		"# WP-001 task",
+		"",
+	}, "\n"))
+	return workspaceRoot
+}
+
+func writeCompletionFixtureFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", filepath.Join(dir, name), err)
 	}
 }
 

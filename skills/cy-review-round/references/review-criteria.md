@@ -155,8 +155,11 @@ Package lifecycle completion requires all gates in order:
 3. Full `cy-final-verify` verification succeeds, including `make verify` where
    repository defines it.
 4. Invoke hidden `compozy internal work-packages complete
-   <initiative>/WP-NNN` bridge. Bridge owns locking, latest-plan reread,
-   stable-ID checkbox mutation, atomic write, post-write validation, and sync.
+   <initiative>/WP-NNN --verification-passed` bridge. The `--verification-passed`
+   flag asserts gate 3 (`cy-final-verify`) succeeded; the bridge defaults it to
+   `false` and refuses completion with `verification_failed` when omitted, so
+   never drop it. Bridge owns locking, latest-plan reread, stable-ID checkbox
+   mutation, atomic write, post-write validation, and sync.
 
 Never manually rewrite `[ ]` to `[x]` in review guidance. Bridge is hidden
 integration primitive, not additional user lifecycle step. It must not create or
