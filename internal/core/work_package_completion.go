@@ -118,7 +118,10 @@ func validateCompletionEvidence(
 	request WorkPackageCompletionRequest,
 ) (workpackages.OperationalPaths, bool, error) {
 	paths, evidence, err := completionEvidence(ctx, request.WorkspaceRoot, request.Reference)
-	reviewClean := request.VerificationPassed && err == nil && evidence.tasksTerminal && evidence.reviewsResolved
+	// ReviewClean reports only the final-verification and review outcome; terminal-task
+	// readiness is an independent completion precondition enforced below and must not
+	// corrupt a genuinely clean review result.
+	reviewClean := request.VerificationPassed && err == nil && evidence.reviewsResolved
 	if err != nil {
 		return paths, reviewClean, fmt.Errorf("inspect work package completion evidence: %w", err)
 	}

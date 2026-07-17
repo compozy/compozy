@@ -1287,6 +1287,39 @@ func TestWorkPackageCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *test
 			t.Fatal("completion changed plan despite unresolved review")
 		}
 	})
+
+	t.Run("keeps a clean resolved review distinct from a nonterminal task", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody("pending", "WP-001 task"))
+		writeSyncWorkflowFile(
+			t,
+			packageDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBody("resolved", "high"),
+		)
+		before := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName))
+
+		result, err := NewWorkPackageCompletionService().Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if err == nil || !strings.Contains(err.Error(), "all package tasks to be terminal") {
+			t.Fatalf("nonterminal-task completion error = %v, want terminal-task block", err)
+		}
+		// The review is verified and fully resolved, so review_clean must stay true even though
+		// the nonterminal task blocks the checkbox mutation. The two outcomes must diverge.
+		if !result.ReviewClean {
+			t.Fatalf("clean resolved review reported review_clean=false: %#v", result)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("nonterminal task recorded completion: %#v", result)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName)); got != before {
+			t.Fatal("nonterminal-task completion changed plan bytes")
+		}
+	})
 }
 
 func TestSyncWorkPackageInitiativeFailsClosedAndPreservesChildren(t *testing.T) {
