@@ -499,9 +499,11 @@ func editRuntimeDefaultsSelection(
 	}
 
 	return workspace.DefaultsConfig{
-		IDE:             stringPtr(strings.TrimSpace(selectedIDE)),
-		Model:           stringPtr(strings.TrimSpace(selectedModel)),
-		ReasoningEffort: stringPtr(strings.TrimSpace(selectedReasoning)),
+		RuntimeOverrides: workspace.RuntimeOverrides{
+			IDE:             stringPtr(strings.TrimSpace(selectedIDE)),
+			Model:           stringPtr(strings.TrimSpace(selectedModel)),
+			ReasoningEffort: stringPtr(strings.TrimSpace(selectedReasoning)),
+		},
 	}, nil
 }
 

@@ -421,7 +421,9 @@ func TestPreferredRuntimeIDEUsesSelectedAgentsWhenConfigUnset(t *testing.T) {
 func TestPreferredRuntimeModelFollowsConfiguredIDE(t *testing.T) {
 	t.Parallel()
 
-	defaults := workspace.DefaultsConfig{IDE: stringPtr(model.IDECursor)}
+	defaults := workspace.DefaultsConfig{
+		RuntimeOverrides: workspace.RuntimeOverrides{IDE: stringPtr(model.IDECursor)},
+	}
 	if got := preferredRuntimeModel(defaults, model.IDECursor); got != model.DefaultCursorModel {
 		t.Fatalf("unexpected cursor model default: %q", got)
 	}
@@ -463,7 +465,9 @@ func TestPersistRuntimeDefaultsPreservesOtherConfigSections(t *testing.T) {
 	provider := "coderabbit"
 	accessMode := "full"
 	if err := workspace.WriteConfig(context.Background(), configPath, workspace.ProjectConfig{
-		Defaults:     workspace.DefaultsConfig{AccessMode: &accessMode},
+		Defaults: workspace.DefaultsConfig{
+			RuntimeOverrides: workspace.RuntimeOverrides{AccessMode: &accessMode},
+		},
 		FetchReviews: workspace.FetchReviewsConfig{Provider: &provider},
 	}); err != nil {
 		t.Fatalf("write initial config: %v", err)
@@ -474,9 +478,11 @@ func TestPersistRuntimeDefaultsPreservesOtherConfigSections(t *testing.T) {
 		Enabled:    true,
 		ConfigPath: configPath,
 		Defaults: workspace.DefaultsConfig{
-			IDE:             stringPtr("codex"),
-			Model:           stringPtr("gpt-5.4"),
-			ReasoningEffort: stringPtr("medium"),
+			RuntimeOverrides: workspace.RuntimeOverrides{
+				IDE:             stringPtr("codex"),
+				Model:           stringPtr("gpt-5.4"),
+				ReasoningEffort: stringPtr("medium"),
+			},
 		},
 	}
 
@@ -572,9 +578,11 @@ func TestPersistRuntimeDefaultsUsesProvidedContextForLoadAndWrite(t *testing.T) 
 		Enabled:    true,
 		ConfigPath: filepath.Join(t.TempDir(), ".compozy", "config.toml"),
 		Defaults: workspace.DefaultsConfig{
-			IDE:             stringPtr("codex"),
-			Model:           stringPtr("gpt-5.4"),
-			ReasoningEffort: stringPtr("medium"),
+			RuntimeOverrides: workspace.RuntimeOverrides{
+				IDE:             stringPtr("codex"),
+				Model:           stringPtr("gpt-5.4"),
+				ReasoningEffort: stringPtr("medium"),
+			},
 		},
 	})
 	if err != nil {
@@ -598,9 +606,11 @@ func TestPersistRuntimeDefaultsWrapsWriteErrors(t *testing.T) {
 		Enabled:    true,
 		ConfigPath: filepath.Join(t.TempDir(), ".compozy", "config.toml"),
 		Defaults: workspace.DefaultsConfig{
-			IDE:             stringPtr("codex"),
-			Model:           stringPtr("gpt-5.4"),
-			ReasoningEffort: stringPtr("medium"),
+			RuntimeOverrides: workspace.RuntimeOverrides{
+				IDE:             stringPtr("codex"),
+				Model:           stringPtr("gpt-5.4"),
+				ReasoningEffort: stringPtr("medium"),
+			},
 		},
 	})
 	if err == nil {
@@ -706,7 +716,9 @@ func TestRuntimeDefaultsExistingTracksManagedFields(t *testing.T) {
 			name:   "missing file",
 			exists: false,
 			config: workspace.ProjectConfig{
-				Defaults: workspace.DefaultsConfig{Model: &modelName},
+				Defaults: workspace.DefaultsConfig{
+					RuntimeOverrides: workspace.RuntimeOverrides{Model: &modelName},
+				},
 			},
 			want: false,
 		},
@@ -714,7 +726,9 @@ func TestRuntimeDefaultsExistingTracksManagedFields(t *testing.T) {
 			name:   "blank managed field",
 			exists: true,
 			config: workspace.ProjectConfig{
-				Defaults: workspace.DefaultsConfig{IDE: &blank},
+				Defaults: workspace.DefaultsConfig{
+					RuntimeOverrides: workspace.RuntimeOverrides{IDE: &blank},
+				},
 			},
 			want: false,
 		},
@@ -722,7 +736,9 @@ func TestRuntimeDefaultsExistingTracksManagedFields(t *testing.T) {
 			name:   "unmanaged defaults field ignored",
 			exists: true,
 			config: workspace.ProjectConfig{
-				Defaults: workspace.DefaultsConfig{AccessMode: &accessMode},
+				Defaults: workspace.DefaultsConfig{
+					RuntimeOverrides: workspace.RuntimeOverrides{AccessMode: &accessMode},
+				},
 			},
 			want: false,
 		},
@@ -730,7 +746,9 @@ func TestRuntimeDefaultsExistingTracksManagedFields(t *testing.T) {
 			name:   "managed defaults field present",
 			exists: true,
 			config: workspace.ProjectConfig{
-				Defaults: workspace.DefaultsConfig{Model: &modelName},
+				Defaults: workspace.DefaultsConfig{
+					RuntimeOverrides: workspace.RuntimeOverrides{Model: &modelName},
+				},
 			},
 			want: true,
 		},
@@ -750,9 +768,11 @@ func TestRuntimeDefaultsExistingTracksManagedFields(t *testing.T) {
 			}
 			state.editRuntimeDefaults = func(string, string, string, string) (workspace.DefaultsConfig, error) {
 				return workspace.DefaultsConfig{
-					IDE:             stringPtr("codex"),
-					Model:           stringPtr("gpt-5.4"),
-					ReasoningEffort: stringPtr("medium"),
+					RuntimeOverrides: workspace.RuntimeOverrides{
+						IDE:             stringPtr("codex"),
+						Model:           stringPtr("gpt-5.4"),
+						ReasoningEffort: stringPtr("medium"),
+					},
 				}, nil
 			}
 
@@ -807,9 +827,11 @@ func TestExecuteInstallDoesNotPersistDefaultsWhenInstallFails(t *testing.T) {
 			Enabled:    true,
 			ConfigPath: filepath.Join(t.TempDir(), ".compozy", "config.toml"),
 			Defaults: workspace.DefaultsConfig{
-				IDE:             stringPtr("codex"),
-				Model:           stringPtr("gpt-5.4"),
-				ReasoningEffort: stringPtr("medium"),
+				RuntimeOverrides: workspace.RuntimeOverrides{
+					IDE:             stringPtr("codex"),
+					Model:           stringPtr("gpt-5.4"),
+					ReasoningEffort: stringPtr("medium"),
+				},
 			},
 		},
 	})

@@ -204,7 +204,7 @@ func TestRunManagerReviewWatchChildRunMaxRetriesPrecedence(t *testing.T) {
 	t.Run("Should preserve project default max retries over watch child default", func(t *testing.T) {
 		projectCfg := workspacecfg.ProjectConfig{
 			Defaults: workspacecfg.DefaultsConfig{
-				MaxRetries: intPtr(0),
+				RuntimeOverrides: workspacecfg.RuntimeOverrides{MaxRetries: intPtr(0)},
 			},
 			WatchReviews: workspacecfg.WatchReviewsConfig{
 				UntilClean: boolPtr(true),

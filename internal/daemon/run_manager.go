@@ -997,12 +997,12 @@ func (m *RunManager) prepareTaskStart(
 	applySoundConfig(runtimeCfg, projectCfg.Sound)
 	if err := applyRuntimeOverridesFromProject(
 		runtimeCfg,
-		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
+		projectCfg.Defaults.RuntimeOverrides,
 		"defaults",
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
-	applyTaskProjectConfig(runtimeCfg, projectCfg.Tasks.Run)
+	applyTaskProjectConfig(runtimeCfg, projectCfg.Defaults, projectCfg.Tasks.Run)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
@@ -1134,7 +1134,7 @@ func (m *RunManager) prepareReviewStart(
 	applySoundConfig(runtimeCfg, projectCfg.Sound)
 	if err := applyRuntimeOverridesFromProject(
 		runtimeCfg,
-		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
+		projectCfg.Defaults.RuntimeOverrides,
 		"defaults",
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
@@ -1247,7 +1247,7 @@ func (m *RunManager) prepareExecStart(
 	applySoundConfig(runtimeCfg, projectCfg.Sound)
 	if err := applyRuntimeOverridesFromProject(
 		runtimeCfg,
-		workspacecfg.RuntimeOverrides(projectCfg.Defaults),
+		projectCfg.Defaults.RuntimeOverrides,
 		"defaults",
 	); err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.AgentRecoveryConfig{}, "", err
@@ -3047,7 +3047,11 @@ func applyRuntimeOverridesFromProject(
 	return nil
 }
 
-func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.TaskRunConfig) {
+func applyTaskProjectConfig(
+	cfg *model.RuntimeConfig,
+	defaults workspacecfg.DefaultsConfig,
+	projectCfg workspacecfg.TaskRunConfig,
+) {
 	if cfg == nil {
 		return
 	}
@@ -3058,7 +3062,9 @@ func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.Ta
 	if projectCfg.Recursive != nil {
 		cfg.Recursive = *projectCfg.Recursive
 	}
-	cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(derefTaskRuntimeRules(projectCfg.TaskRuntimeRules))
+	rules := defaults.ComplexityRuntimeRules()
+	rules = append(rules, derefTaskRuntimeRules(projectCfg.TaskRuntimeRules)...)
+	cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(rules)
 }
 
 func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) {

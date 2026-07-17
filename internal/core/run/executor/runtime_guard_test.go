@@ -49,6 +49,56 @@ func TestPrepareExecutionConfigRunPreStartRejectsPreparedStateMutation(t *testin
 	}
 }
 
+func TestPrepareExecutionConfigRunPreStartRejectsComplexityRuleMutation(t *testing.T) {
+	t.Run("Should reject complexity rule mutation after workflow state preparation", func(t *testing.T) {
+		t.Parallel()
+
+		low := "low"
+		high := "high"
+		manager := &executionHookManager{
+			mutators: map[string]func(any) (any, error){
+				"run.pre_start": func(input any) (any, error) {
+					payload := input.(runPreStartPayload)
+					payload.Config.TaskRuntimeRules[0].Complexity = &high
+					return payload, nil
+				},
+			},
+		}
+
+		cfg := &model.RuntimeConfig{
+			WorkspaceRoot:          "/tmp/workspace",
+			Name:                   "demo",
+			TasksDir:               "/tmp/workspace/.compozy/tasks/demo",
+			Mode:                   model.ExecutionModePRDTasks,
+			IDE:                    model.IDECodex,
+			Model:                  "gpt-5.5",
+			ReasoningEffort:        "medium",
+			AccessMode:             model.AccessModeFull,
+			Timeout:                time.Minute,
+			RetryBackoffMultiplier: 1.5,
+			TaskRuntimeRules: []model.TaskRuntimeRule{{
+				Complexity: &low,
+			}},
+		}
+
+		_, err := prepareExecutionConfig(
+			context.Background(),
+			cfg,
+			model.RunArtifacts{RunID: "run-1"},
+			manager,
+		)
+		if err == nil {
+			t.Fatal("prepareExecutionConfig error = nil, want task-runtime mutation failure")
+		}
+		if !strings.Contains(
+			err.Error(),
+			"run.pre_start cannot mutate task_runtime_rules after workflow state preparation",
+		) {
+			t.Fatalf("prepareExecutionConfig error = %q, want task-runtime mutation guard", err.Error())
+		}
+	})
+}
+
 func TestPrepareExecutionConfigRunPreStartAllowsLateMutableFields(t *testing.T) {
 	t.Parallel()
 

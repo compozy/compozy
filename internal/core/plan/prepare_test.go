@@ -513,6 +513,11 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 		Mode:            model.ExecutionModePRDTasks,
 		TaskRuntimeRules: []model.TaskRuntimeRule{
 			{
+				Complexity:      testStringPointer("low"),
+				Model:           testStringPointer("complexity-model"),
+				ReasoningEffort: testStringPointer("low"),
+			},
+			{
 				Type:            testStringPointer("frontend"),
 				IDE:             testStringPointer(model.IDEClaude),
 				Model:           testStringPointer("sonnet"),
@@ -543,7 +548,7 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
 		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
 	}
-	if jobs[1].IDE != model.IDEClaude || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "medium" {
+	if jobs[1].IDE != model.IDEClaude || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "low" {
 		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
 	}
 }
@@ -1478,6 +1483,9 @@ complexity: low
 				}
 				if !strings.HasPrefix(payload.Task.SafeName, "task_01") {
 					t.Fatalf("unexpected task safe name: %q", payload.Task.SafeName)
+				}
+				if payload.Task.Complexity != "low" {
+					t.Fatalf("unexpected task complexity: %q", payload.Task.Complexity)
 				}
 				payload.Runtime = model.TaskRuntime{
 					IDE:             model.IDECodex,

@@ -587,10 +587,11 @@ func resolveBatchJobRuntime(
 			manager,
 			runID,
 			model.TaskRuntimeTask{
-				ID:       target.ID,
-				SafeName: safeName,
-				Title:    taskData.Title,
-				Type:     target.Type,
+				ID:         target.ID,
+				SafeName:   safeName,
+				Title:      taskData.Title,
+				Type:       target.Type,
+				Complexity: target.Complexity,
 			},
 			jobRuntime,
 		)
@@ -641,12 +642,14 @@ func resolveTaskRuntimeTarget(
 		workflow = taskRuntimeWorkflowName(cfg)
 	}
 	target := model.TaskRuntimeTarget{
-		Workflow: workflow,
-		ID:       safeName,
-		Type:     taskData.TaskType,
+		Workflow:   workflow,
+		ID:         safeName,
+		Type:       taskData.TaskType,
+		Complexity: taskData.Complexity,
 	}
 	if cfg != nil && cfg.Mode != model.ExecutionModePRDTasks {
 		target.Type = ""
+		target.Complexity = ""
 		return target
 	}
 	if len(batchIssues) > 0 {

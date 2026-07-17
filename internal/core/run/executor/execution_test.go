@@ -1007,6 +1007,55 @@ func TestAfterTaskJobSuccessWritesProducedWorktreeScope(t *testing.T) {
 	}
 }
 
+func TestCaptureWorkspaceSnapshotExcludesPRDTaskArtifacts(t *testing.T) {
+	t.Run("Should exclude PRD task artifacts from the workspace snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := initTaskWorkspaceRepo(t)
+		tasksDir := filepath.Join(workspace, ".compozy", "tasks", "demo")
+		if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir tasks dir: %v", err)
+		}
+		taskPath := filepath.Join(tasksDir, "task_01.md")
+		if err := os.WriteFile(taskPath, []byte("status: pending\n"), 0o600); err != nil {
+			t.Fatalf("write mirrored task artifact: %v", err)
+		}
+		runner := newJobRunner(0, &job{}, &jobExecutionContext{
+			cfg: &config{
+				Mode:          model.ExecutionModePRDTasks,
+				TasksDir:      tasksDir,
+				WorkspaceRoot: workspace,
+			},
+		})
+
+		baseline := runner.captureWorkspaceSnapshot(context.Background())
+		if !baseline.IsSupported() {
+			t.Fatalf("baseline supported = false: %#v", baseline.Document())
+		}
+		if err := os.WriteFile(taskPath, []byte("status: completed\n"), 0o600); err != nil {
+			t.Fatalf("update mirrored task artifact: %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(workspace, "produced.go"),
+			[]byte("package produced\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write agent output: %v", err)
+		}
+
+		scope, err := worktree.BuildScope(context.Background(), workspace, baseline)
+		if err != nil {
+			t.Fatalf("BuildScope: %v", err)
+		}
+		if got, want := strings.Join(scope.ProducedPaths, ","), "produced.go"; got != want {
+			t.Fatalf("produced paths = %q, want %q", got, want)
+		}
+		if len(scope.PreExistingChangedPaths) != 0 {
+			t.Fatalf("pre-existing changed paths = %#v, want none", scope.PreExistingChangedPaths)
+		}
+	})
+}
+
 func initTaskWorkspaceRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

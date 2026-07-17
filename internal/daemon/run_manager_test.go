@@ -2369,7 +2369,11 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}, "defaults"); err != nil {
 			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
 		}
-		applyTaskProjectConfig(cfg, workspacecfg.TaskRunConfig{
+		applyTaskProjectConfig(cfg, workspacecfg.DefaultsConfig{
+			ByComplexity: workspacecfg.TaskRuntimeByComplexityConfig{
+				Low: workspacecfg.TaskRuntimeOverrides{ReasoningEffort: stringPtr("low")},
+			},
+		}, workspacecfg.TaskRunConfig{
 			IncludeCompleted: boolPtr(true),
 			OutputFormat:     stringPtr(string(model.OutputFormatRawJSON)),
 			TaskRuntimeRules: &rules,
@@ -2445,9 +2449,10 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		if !cfg.SoundEnabled || cfg.SoundOnCompleted != "glass" || cfg.SoundOnFailed != "basso" {
 			t.Fatalf("sound config application failed: %#v", cfg)
 		}
-		if len(cfg.TaskRuntimeRules) != 1 || cfg.TaskRuntimeRules[0].Type == nil ||
-			*cfg.TaskRuntimeRules[0].Type != "backend" {
-			t.Fatalf("task runtime rules = %#v, want cloned backend rule", cfg.TaskRuntimeRules)
+		if len(cfg.TaskRuntimeRules) != 2 || cfg.TaskRuntimeRules[0].Complexity == nil ||
+			*cfg.TaskRuntimeRules[0].Complexity != "low" || cfg.TaskRuntimeRules[1].Type == nil ||
+			*cfg.TaskRuntimeRules[1].Type != "backend" {
+			t.Fatalf("task runtime rules = %#v, want complexity then cloned backend rule", cfg.TaskRuntimeRules)
 		}
 	})
 
@@ -2583,7 +2588,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		applySoundConfig(cfg, projectCfg.Sound)
 		if err := applyRuntimeOverridesFromProject(
 			cfg,
-			workspacecfg.RuntimeOverrides(projectCfg.Defaults),
+			projectCfg.Defaults.RuntimeOverrides,
 			"defaults",
 		); err != nil {
 			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)

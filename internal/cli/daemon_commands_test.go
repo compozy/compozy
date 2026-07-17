@@ -3781,6 +3781,7 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	mustSetFlag("retry-backoff-multiplier", "2.5")
 	state.retryBackoffMultiplier = 2.5
 	mustSetFlag("task-runtime", "id=task_01,model=codex-fast")
+	state.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
@@ -3817,6 +3818,11 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	}
 	if overrides.RetryBackoffMultiplier == nil || *overrides.RetryBackoffMultiplier != 2.5 {
 		t.Fatalf("expected retry-backoff-multiplier override, got %#v", overrides)
+	}
+	if overrides.ExplicitRuntime == nil || !overrides.ExplicitRuntime.IDE ||
+		!overrides.ExplicitRuntime.Model || !overrides.ExplicitRuntime.ReasoningEffort ||
+		!overrides.ExplicitRuntime.AccessMode {
+		t.Fatalf("expected explicit runtime markers, got %#v", overrides.ExplicitRuntime)
 	}
 	if overrides.TaskRuntimeRules == nil || len(*overrides.TaskRuntimeRules) != 1 {
 		t.Fatalf("expected task-runtime override, got %#v", overrides)

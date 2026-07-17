@@ -321,6 +321,14 @@ func loadConfigFile(
 	var cfg ProjectConfig
 	decoder := toml.NewDecoder(bytes.NewReader(content)).DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
+		if fields := strictMissingFields(err); len(fields) > 0 {
+			return ProjectConfig{}, true, fmt.Errorf(
+				"decode %s: unknown fields %s: %w",
+				scope,
+				strings.Join(fields, ", "),
+				err,
+			)
+		}
 		return ProjectConfig{}, true, fmt.Errorf("decode %s: %w", scope, err)
 	}
 
@@ -332,6 +340,21 @@ func loadConfigFile(
 		return ProjectConfig{}, true, err
 	}
 	return cfg, true, nil
+}
+
+func strictMissingFields(err error) []string {
+	var strictErr *toml.StrictMissingError
+	if !errors.As(err, &strictErr) {
+		return nil
+	}
+
+	fields := make([]string, 0, len(strictErr.Errors))
+	for i := range strictErr.Errors {
+		if field := strings.Join(strictErr.Errors[i].Key(), "."); field != "" {
+			fields = append(fields, field)
+		}
+	}
+	return fields
 }
 
 func rejectLegacyConfigSections(content []byte, scope string) error {

@@ -200,9 +200,11 @@ func TestWriteConfigRoundTripsDefaultsWithoutEmptySections(t *testing.T) {
 	accessMode := "default"
 	cfg := ProjectConfig{
 		Defaults: DefaultsConfig{
-			IDE:        &ide,
-			Model:      &modelName,
-			AccessMode: &accessMode,
+			RuntimeOverrides: RuntimeOverrides{
+				IDE:        &ide,
+				Model:      &modelName,
+				AccessMode: &accessMode,
+			},
 		},
 	}
 
@@ -1386,6 +1388,114 @@ reasoning_effort = "xhigh"
 	}
 }
 
+func TestLoadConfigMergesDefaultsByComplexityFieldByField(t *testing.T) {
+	t.Run("Should merge complexity defaults field by field", func(t *testing.T) {
+		homeDir := isolateWorkspaceConfigHome(t)
+		root := t.TempDir()
+		writeGlobalConfig(t, homeDir, `
+[defaults.by_complexity.low]
+ide = "claude"
+model = "haiku"
+reasoning_effort = "low"
+
+[defaults.by_complexity.high]
+ide = "codex"
+reasoning_effort = "high"
+`)
+		writeWorkspaceConfig(t, root, `
+[defaults.by_complexity.low]
+model = "sonnet"
+
+[defaults.by_complexity.high]
+model = "gpt-5.5"
+`)
+
+		cfg, _, err := LoadConfig(context.Background(), root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		assertOptionalString(
+			t,
+			"defaults.by_complexity.low.ide",
+			cfg.Defaults.ByComplexity.Low.IDE,
+			ptrString("claude"),
+		)
+		assertOptionalString(
+			t,
+			"defaults.by_complexity.low.model",
+			cfg.Defaults.ByComplexity.Low.Model,
+			ptrString("sonnet"),
+		)
+		assertOptionalString(
+			t,
+			"defaults.by_complexity.low.reasoning_effort",
+			cfg.Defaults.ByComplexity.Low.ReasoningEffort,
+			ptrString("low"),
+		)
+		assertOptionalString(
+			t,
+			"defaults.by_complexity.high.ide",
+			cfg.Defaults.ByComplexity.High.IDE,
+			ptrString("codex"),
+		)
+		assertOptionalString(
+			t,
+			"defaults.by_complexity.high.model",
+			cfg.Defaults.ByComplexity.High.Model,
+			ptrString("gpt-5.5"),
+		)
+		assertOptionalString(
+			t,
+			"defaults.by_complexity.high.reasoning_effort",
+			cfg.Defaults.ByComplexity.High.ReasoningEffort,
+			ptrString("high"),
+		)
+		rules := cfg.Defaults.ComplexityRuntimeRules()
+		if len(rules) != 2 {
+			t.Fatalf("complexity runtime rules = %#v, want low and high", rules)
+		}
+		assertOptionalString(t, "low complexity rule selector", rules[0].Complexity, ptrString("low"))
+		assertOptionalString(t, "low complexity rule ide", rules[0].IDE, ptrString("claude"))
+		assertOptionalString(t, "low complexity rule model", rules[0].Model, ptrString("sonnet"))
+		assertOptionalString(t, "low complexity rule reasoning", rules[0].ReasoningEffort, ptrString("low"))
+		assertOptionalString(t, "high complexity rule selector", rules[1].Complexity, ptrString("high"))
+		assertOptionalString(t, "high complexity rule ide", rules[1].IDE, ptrString("codex"))
+		assertOptionalString(t, "high complexity rule model", rules[1].Model, ptrString("gpt-5.5"))
+		assertOptionalString(t, "high complexity rule reasoning", rules[1].ReasoningEffort, ptrString("high"))
+	})
+}
+
+func TestLoadConfigRejectsInvalidDefaultsByComplexity(t *testing.T) {
+	t.Run("Should reject an unsupported reasoning effort", func(t *testing.T) {
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[defaults.by_complexity.critical]
+reasoning_effort = "impossible"
+`)
+
+		_, _, err := loadConfigWithIsolatedHome(t, root)
+		if err == nil || !strings.Contains(
+			err.Error(),
+			"defaults.by_complexity.critical.reasoning_effort must be one of",
+		) {
+			t.Fatalf("invalid reasoning effort error = %v", err)
+		}
+	})
+
+	t.Run("Should reject an unsupported complexity key", func(t *testing.T) {
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[defaults.by_complexity.extreme]
+model = "expensive"
+`)
+
+		_, _, err := loadConfigWithIsolatedHome(t, root)
+		if err == nil || !strings.Contains(err.Error(), "defaults.by_complexity.extreme") {
+			t.Fatalf("unsupported complexity error = %v", err)
+		}
+	})
+}
+
 func TestLoadConfigMergesStartTaskRuntimeRulesByType(t *testing.T) {
 	homeDir := isolateWorkspaceConfigHome(t)
 	root := t.TempDir()
@@ -1463,6 +1573,29 @@ ide = "codex"
 	if !strings.Contains(err.Error(), "tasks.run.task_runtime_rules[0].workflow is not supported") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestLoadConfigRejectsUnsupportedStartTaskRuntimeRuleComplexity(t *testing.T) {
+	t.Run("Should reject complexity selectors in task runtime rules", func(t *testing.T) {
+		isolateWorkspaceConfigHome(t)
+
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run]
+[[tasks.run.task_runtime_rules]]
+type = "frontend"
+complexity = "high"
+ide = "codex"
+`)
+
+		_, _, err := LoadConfig(context.Background(), root)
+		if err == nil {
+			t.Fatal("expected unsupported tasks.run.task_runtime_rules complexity error")
+		}
+		if !strings.Contains(err.Error(), "tasks.run.task_runtime_rules[0].complexity is not supported") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestLoadConfigRejectsInvalidStartTaskRuntimeRuleReasoningEffort(t *testing.T) {
