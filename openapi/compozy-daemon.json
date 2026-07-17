@@ -655,6 +655,7 @@
                         "type": "object"
                     },
                     "package_id": {
+                        "pattern": "^WP-[0-9]{3}$",
                         "type": "string"
                     },
                     "presentation_mode": {
@@ -1606,6 +1607,7 @@
                         "$ref": "#/components/schemas/TaskExecutionDescriptor"
                     },
                     "package_id": {
+                        "pattern": "^WP-[0-9]{3}$",
                         "type": "string"
                     },
                     "presentation_mode": {
@@ -2355,6 +2357,7 @@
                         "type": "integer"
                     },
                     "package_id": {
+                        "pattern": "^WP-[0-9]{3}$",
                         "type": "string"
                     },
                     "poll_interval": {

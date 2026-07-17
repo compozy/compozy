@@ -363,6 +363,37 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	}
 }
 
+func TestBrowserOpenAPIContractConstrainsPackageIDBodySelectors(t *testing.T) {
+	t.Parallel()
+
+	spec := loadBrowserOpenAPISpec(t)
+	// Every request-body package_id routed through workpackages.ParsePackageRef must
+	// advertise the WP-NNN pattern; otherwise generated clients marshal selectors that
+	// satisfy the published schema yet fail runtime parsing with HTTP 422.
+	const wantPattern = `^WP-[0-9]{3}$`
+	for _, schemaName := range []string{
+		"TaskRunRequest",
+		"ReviewRunRequest",
+		"ReviewWatchRequest",
+	} {
+		schemaName := schemaName
+		t.Run("Should constrain "+schemaName+".package_id to the WP-NNN pattern", func(t *testing.T) {
+			t.Parallel()
+
+			schema := getSchema(t, spec, schemaName)
+			packageID := getMap(t, getMap(t, schema, "properties"), "package_id")
+			if pattern, _ := packageID["pattern"].(string); pattern != wantPattern {
+				t.Fatalf("%s.package_id pattern = %v, want %s", schemaName, packageID["pattern"], wantPattern)
+			}
+			// The selector stays optional so an omitted package_id still resolves the
+			// bare initiative; requiring it would reject the single-package run path.
+			if schemaRequires(schema, "package_id") {
+				t.Fatalf("%s.package_id must stay optional to preserve the no-package selection path", schemaName)
+			}
+		})
+	}
+}
+
 func loadBrowserOpenAPISpec(t *testing.T) map[string]any {
 	t.Helper()
 
