@@ -115,9 +115,15 @@ The log is only useful if it is committed and shared. What you need depends on y
 The middle line (`!.compozy/decisions/`) re-includes the directory itself, which git requires before
 either `!.compozy/decisions/**` or the index negation can take effect — git will not re-include a file
 whose parent directory is still excluded. Verify the result independently of whether the files are
-already tracked: `git check-ignore -v --no-index .compozy/DECISIONS.md` (and the same for
-`.compozy/decisions/AD-001.md`) prints the matching negation rule — e.g.
-`.gitignore:2:!.compozy/DECISIONS.md` — and exits 0, confirming the path is no longer ignored.
+already tracked:
+
+```bash
+git check-ignore -v --no-index .compozy/DECISIONS.md
+git check-ignore -v --no-index .compozy/decisions/AD-001.md
+```
+
+Each command prints the matching negation rule — e.g. `.gitignore:2:!.compozy/DECISIONS.md` — and
+exits 0, confirming the path is no longer ignored.
 `--no-index` makes git evaluate paths that are already tracked; without it, git intentionally omits
 them. Without `-v`, a re-included path also prints nothing and exits 1, so silence is not a positive
 verification signal.
