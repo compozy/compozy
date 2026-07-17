@@ -705,9 +705,18 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 				initiative.ArchiveEligible,
 			)
 		}
+		// WP-001 and WP-002 are the incomplete packages blocking archive, so both are
+		// named as the actionable reason. WP-003 carries a completed manifest checkbox,
+		// so the first partial sync honors it as lifecycle-complete rather than falsely
+		// projecting it pending; it therefore no longer inflates the pending-package
+		// archive reason even though its directory is still absent.
 		if !strings.Contains(initiative.ArchiveReason, "WP-001") ||
-			!strings.Contains(initiative.ArchiveReason, "WP-003") {
-			t.Fatalf("archive reason = %q, want missing WP-001 and independent WP-003", initiative.ArchiveReason)
+			!strings.Contains(initiative.ArchiveReason, "WP-002") {
+			t.Fatalf("archive reason = %q, want pending WP-001 and WP-002", initiative.ArchiveReason)
+		}
+		independent := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		if !independent.LifecycleComplete {
+			t.Fatalf("WP-003 lifecycle_complete = false, want the completed checkbox honored on a missing placeholder")
 		}
 		dependent := findWorkPackageSummary(t, initiative.WorkPackages, "WP-002")
 		if len(dependent.UnmetDependencies) != 1 || dependent.UnmetDependencies[0].PackageID != "WP-001" {

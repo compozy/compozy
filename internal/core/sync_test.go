@@ -1482,6 +1482,148 @@ func TestSyncWorkPackageInitiativeReportsMissingChildWithoutPruning(t *testing.T
 	}
 }
 
+func TestSyncWorkPackageInitiativeRepeatedPartialSyncRetainsChildHistory(t *testing.T) {
+	// Suite boundary
+	// IN: repeated root aggregate sync against filesystem and SQLite while a
+	// materialized package directory stays absent across consecutive scans
+	// OUT: daemon read-model projection, exercised by internal/daemon integration tests
+	// Invariant: every partial sync after a materialized child vanishes preserves the
+	// child identity, completion state, artifacts, tasks, reviews, and checkpoint via a
+	// metadata-only reconcile; the second consecutive partial sync must not erase the
+	// retained projection just because the durable row already reads missing=1.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "pending",
+		"WP-002": "completed",
+	})
+	// Give WP-002 a review round so the metadata-only reconcile has artifacts, tasks,
+	// reviews, and a checkpoint to retain across repeated partial syncs.
+	wp002Dir := filepath.Join(initiativeDir, "_packages", "WP-002")
+	writeSyncWorkflowFile(t, wp002Dir, filepath.Join("reviews-001", "_meta.md"), reviewRoundMetaBody("manual", "", 1))
+	writeSyncWorkflowFile(t, wp002Dir, filepath.Join("reviews-001", "issue_001.md"), reviewIssueBody("pending", "high"))
+
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(initial materialized): %v", err)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+
+	const wp002Slug = "initiative/WP-002"
+	baseline := readChildProjection(t, sqlDB, wp002Slug)
+	if baseline.missing {
+		t.Fatal("materialized WP-002 missing = true, want false before the directory is removed")
+	}
+	if !baseline.lifecycleCompleted {
+		t.Fatal("materialized WP-002 lifecycle_completed = false, want true for a completed package")
+	}
+	if baseline.artifacts == 0 || baseline.tasks == 0 || baseline.reviewRounds == 0 ||
+		baseline.reviewIssues == 0 || baseline.checkpointChecksum == "" {
+		t.Fatalf("materialized WP-002 baseline is incomplete: %#v", baseline)
+	}
+
+	// The directory vanishes and never returns: two consecutive partial syncs must
+	// both preserve the retained projection. The first sync flips missing=1 in the
+	// durable row; the second must not treat that flag as license to reseed empty
+	// projections and delete the retained history.
+	if err := os.RemoveAll(wp002Dir); err != nil {
+		t.Fatalf("remove WP-002: %v", err)
+	}
+	for _, pass := range []string{"first", "second"} {
+		result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+		if err != nil {
+			t.Fatalf("Sync(%s partial): %v", pass, err)
+		}
+		if !result.Partial || !reflect.DeepEqual(result.MissingWorkPackages, []string{"WP-002"}) {
+			t.Fatalf("%s partial sync result = %#v, want partial WP-002", pass, result)
+		}
+		got := readChildProjection(t, sqlDB, wp002Slug)
+		if got.id != baseline.id {
+			t.Fatalf("%s partial sync changed WP-002 id: got %q want %q", pass, got.id, baseline.id)
+		}
+		if !got.missing {
+			t.Fatalf("%s partial sync WP-002 missing = false, want true while the directory stays absent", pass)
+		}
+		if got.lifecycleCompleted != baseline.lifecycleCompleted {
+			t.Fatalf(
+				"%s partial sync WP-002 lifecycle_completed = %v, want %v",
+				pass,
+				got.lifecycleCompleted,
+				baseline.lifecycleCompleted,
+			)
+		}
+		if got.artifacts != baseline.artifacts {
+			t.Fatalf("%s partial sync WP-002 artifacts = %d, want %d retained", pass, got.artifacts, baseline.artifacts)
+		}
+		if got.tasks != baseline.tasks {
+			t.Fatalf("%s partial sync WP-002 tasks = %d, want %d retained", pass, got.tasks, baseline.tasks)
+		}
+		if got.reviewRounds != baseline.reviewRounds || got.reviewIssues != baseline.reviewIssues {
+			t.Fatalf(
+				"%s partial sync WP-002 reviews = %d rounds / %d issues, want %d / %d retained",
+				pass,
+				got.reviewRounds,
+				got.reviewIssues,
+				baseline.reviewRounds,
+				baseline.reviewIssues,
+			)
+		}
+		if got.checkpointChecksum != baseline.checkpointChecksum {
+			t.Fatalf(
+				"%s partial sync WP-002 checkpoint checksum = %q, want %q retained",
+				pass,
+				got.checkpointChecksum,
+				baseline.checkpointChecksum,
+			)
+		}
+	}
+}
+
+type childProjectionSnapshot struct {
+	id                 string
+	missing            bool
+	lifecycleCompleted bool
+	artifacts          int
+	tasks              int
+	reviewRounds       int
+	reviewIssues       int
+	checkpointChecksum string
+}
+
+func readChildProjection(t *testing.T, db *sql.DB, slug string) childProjectionSnapshot {
+	t.Helper()
+
+	var snap childProjectionSnapshot
+	if err := db.QueryRowContext(
+		context.Background(),
+		`SELECT id, missing, lifecycle_completed FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+		slug,
+	).Scan(&snap.id, &snap.missing, &snap.lifecycleCompleted); err != nil {
+		t.Fatalf("query workflow row %q: %v", slug, err)
+	}
+	snap.artifacts = queryCount(t, db, `SELECT COUNT(1) FROM artifact_snapshots WHERE workflow_id = ?`, snap.id)
+	snap.tasks = queryCount(t, db, `SELECT COUNT(1) FROM task_items WHERE workflow_id = ?`, snap.id)
+	snap.reviewRounds = queryCount(t, db, `SELECT COUNT(1) FROM review_rounds WHERE workflow_id = ?`, snap.id)
+	snap.reviewIssues = queryCount(
+		t,
+		db,
+		`SELECT COUNT(1) FROM review_issues WHERE round_id IN (SELECT id FROM review_rounds WHERE workflow_id = ?)`,
+		snap.id,
+	)
+	if err := db.QueryRowContext(
+		context.Background(),
+		`SELECT checksum FROM sync_checkpoints WHERE workflow_id = ?`,
+		snap.id,
+	).Scan(&snap.checkpointChecksum); err != nil {
+		t.Fatalf("query checkpoint for %q: %v", slug, err)
+	}
+	return snap
+}
+
 func TestSyncWorkPackageInitiativeFirstSyncSeedsMissingDependencyPlaceholder(t *testing.T) {
 	// Suite boundary
 	// IN: first-ever root aggregate sync against filesystem and SQLite
