@@ -580,7 +580,15 @@ func loadInitiativeArchiveState(
 	for packageIndex := range target.Plan.Packages {
 		pkg := &target.Plan.Packages[packageIndex]
 		child, exists := childByPackageID[pkg.ID]
-		if !exists {
+		// A durable child flagged Missing has no directory on disk: sync retains its
+		// completed task/review projection but marks the row missing (see
+		// appendMissingWorkPackagePlaceholders). Because refreshInitiativeArchiveState
+		// syncs before loading state, such a package always owns a row, so the !exists
+		// branch alone can never catch it. Treat Missing as a missing declared package
+		// so archive refuses before any normal or forced mutation, matching the daemon
+		// read model (transportWorkPackageSummary), which likewise makes a Missing row
+		// archive-ineligible.
+		if !exists || child.Missing {
 			state.MissingPackages = append(state.MissingPackages, pkg.ID)
 			continue
 		}

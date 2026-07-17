@@ -472,6 +472,84 @@ func TestArchiveWorkPackageInitiativeRejectsRetainedChildActiveRun(t *testing.T)
 	}
 }
 
+func TestArchiveWorkPackageInitiativeRejectsMissingCompletedPackage(t *testing.T) {
+	// Suite boundary
+	// IN: real initiative filesystem, aggregate sync that flags a vanished completed
+	//     package's directory Missing while retaining its projection, and the archive command
+	// OUT: HTTP transport and CLI confirmation rendering
+	// Invariant: a declared package whose directory disappeared after completion is treated as
+	// missing (matching the daemon read model's Missing archive-ineligibility), so both default
+	// and forced initiative archive refuse before any mutation, report the missing package, and
+	// preserve the active hierarchy on disk and in the durable store.
+	for _, force := range []bool{false, true} {
+		force := force
+		name := "Should reject archive when a completed package directory is missing"
+		if force {
+			name = "Should reject forced archive when a completed package directory is missing"
+		}
+		t.Run(name, func(t *testing.T) {
+			rootDir := archiveTestRoot(t)
+			initiativeDir := filepath.Join(rootDir, "initiative")
+			writeWorkPackageFixture(t, initiativeDir, map[string]string{
+				"WP-001": "completed",
+				"WP-002": "completed",
+			})
+			if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+				t.Fatalf("Sync(work package initiative): %v", err)
+			}
+
+			// Delete a completed package directory while leaving it declared in the plan.
+			if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-001")); err != nil {
+				t.Fatalf("remove completed package dir: %v", err)
+			}
+			// Re-sync: the durable row is flagged Missing but its completed task/review
+			// projection is deliberately retained, reproducing the state where the row still
+			// looks terminal even though the directory is gone.
+			syncResult, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+			if err != nil {
+				t.Fatalf("Sync(after package removal): %v", err)
+			}
+			if !equalStrings(syncResult.MissingWorkPackages, []string{"WP-001"}) {
+				t.Fatalf("sync missing packages = %#v, want WP-001", syncResult.MissingWorkPackages)
+			}
+
+			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: force})
+			if !errors.Is(err, ErrWorkflowForceRequired) {
+				t.Fatalf("Archive(force=%v) error = %v, want ErrWorkflowForceRequired", force, err)
+			}
+			var conflict WorkflowArchiveForceRequiredError
+			if !errors.As(err, &conflict) {
+				t.Fatalf("Archive(force=%v) error = %v, want WorkflowArchiveForceRequiredError", force, err)
+			}
+			if !strings.Contains(conflict.Reason, "WP-001") || !strings.Contains(conflict.Reason, "missing") {
+				t.Fatalf("conflict reason = %q, want it to report WP-001 missing", conflict.Reason)
+			}
+			if result == nil || result.Archived != 0 || result.Forced {
+				t.Fatalf("unexpected missing-package archive result: %#v", result)
+			}
+			// The active hierarchy stays on disk: the initiative root and the present sibling.
+			if _, statErr := os.Stat(initiativeDir); statErr != nil {
+				t.Fatalf("initiative root must remain active after blocked archive: %v", statErr)
+			}
+			if _, statErr := os.Stat(filepath.Join(initiativeDir, "_packages", "WP-002")); statErr != nil {
+				t.Fatalf("present sibling package must remain after blocked archive: %v", statErr)
+			}
+			// The parent workflow stays active (unarchived) in the durable store.
+			db, workspace := openArchiveWorkflowDB(t, rootDir)
+			defer func() {
+				_ = db.Close()
+			}()
+			parent, err := db.GetActiveWorkflowBySlug(context.Background(), workspace.ID, "initiative")
+			if err != nil {
+				t.Fatalf("GetActiveWorkflowBySlug(initiative) after blocked archive: %v", err)
+			}
+			if parent.ArchivedAt != nil {
+				t.Fatalf("initiative parent must remain active, got archived at %v", parent.ArchivedAt)
+			}
+		})
+	}
+}
+
 func TestArchiveTaskWorkflowForceArchivesAfterLocalReviewResolutionWithoutManualResync(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "gamma")
