@@ -4217,6 +4217,35 @@ func submitEvent(
 	}
 }
 
+const (
+	// waitForRunBudget bounds how long the run-lifecycle poll helpers wait for
+	// their predicate to hold. It is generous enough to absorb Git worktree and
+	// race-detector contention when the full daemon suite runs with
+	// -race -parallel (a fixed few-second budget proved flaky there), yet short
+	// enough to fail fast on a genuine regression.
+	waitForRunBudget = 60 * time.Second
+	// waitForRunDeadlineMargin keeps the poll deadline strictly inside the
+	// test's own deadline so an expiry surfaces a diagnostic Fatalf before the
+	// `go test` harness force-kills the binary with an opaque timeout panic.
+	waitForRunDeadlineMargin = 2 * time.Second
+)
+
+// waitDeadlineContext derives a poll context bounded by the smaller of a
+// generous fixed budget and the test's own deadline (minus a safety margin).
+// Tying the ceiling to t.Deadline() keeps the wait proportional to how long the
+// test is actually allowed to run instead of an arbitrary wall-clock guess that
+// is unrelated to suite load.
+func waitDeadlineContext(t *testing.T) (context.Context, context.CancelFunc) {
+	t.Helper()
+	deadline := time.Now().Add(waitForRunBudget)
+	if testDeadline, ok := t.Deadline(); ok {
+		if capped := testDeadline.Add(-waitForRunDeadlineMargin); capped.Before(deadline) {
+			deadline = capped
+		}
+	}
+	return context.WithDeadline(context.Background(), deadline)
+}
+
 func waitForRun(
 	t *testing.T,
 	db *globaldb.GlobalDB,
@@ -4225,20 +4254,36 @@ func waitForRun(
 ) globaldb.Run {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := waitDeadlineContext(t)
 	defer cancel()
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
+	var (
+		lastRow globaldb.Run
+		lastErr error
+		seen    bool
+	)
 	for {
 		row, err := db.GetRun(context.Background(), runID)
-		if err == nil && predicate(row) {
-			return row
+		if err == nil {
+			lastRow, seen = row, true
+			if predicate(row) {
+				return row
+			}
+		} else {
+			lastErr = err
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("timed out waiting for run %q: last err=%v", runID, err)
+			if seen {
+				t.Fatalf(
+					"timed out waiting for run %q: last status=%q error_text=%q last_read_err=%v",
+					runID, lastRow.Status, lastRow.ErrorText, lastErr,
+				)
+			}
+			t.Fatalf("timed out waiting for run %q: no row observed, last_read_err=%v", runID, lastErr)
 		case <-ticker.C:
 		}
 	}
@@ -4253,24 +4298,36 @@ func waitForRunCount(
 ) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := waitDeadlineContext(t)
 	defer cancel()
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
+	var (
+		lastCount int
+		lastErr   error
+	)
 	for {
 		runs, err := manager.List(context.Background(), apicore.RunListQuery{
 			Workspace: workspace,
 			Status:    status,
 			Limit:     10,
 		})
-		if err == nil && len(runs) == want {
-			return
+		if err == nil {
+			lastCount = len(runs)
+			if lastCount == want {
+				return
+			}
+		} else {
+			lastErr = err
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("timed out waiting for %d run(s) with status %q", want, status)
+			t.Fatalf(
+				"timed out waiting for %d run(s) with status %q: last observed count=%d last_list_err=%v",
+				want, status, lastCount, lastErr,
+			)
 		case <-ticker.C:
 		}
 	}
