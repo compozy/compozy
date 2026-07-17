@@ -892,6 +892,56 @@ func TestClientCreateSessionCompletesWithExplicitModelForNonBootstrapACP(t *test
 	}
 }
 
+func TestClientCreateSessionSkipsRuntimeModelUpdateForKiro(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep an explicit Kiro model pinned at bootstrap", func(t *testing.T) {
+		t.Parallel()
+
+		kiroSpec, err := lookupAgentSpec(model.IDEKiro)
+		if err != nil {
+			t.Fatalf("lookup Kiro spec: %v", err)
+		}
+		scenario := helperScenario{
+			ExpectedCWD:    t.TempDir(),
+			ExpectedPrompt: "use explicit Kiro model",
+			StopReason:     string(acp.StopReasonEndTurn),
+		}
+		client := newTestClientWithSpecConfig(
+			t,
+			scenario,
+			func(spec *Spec) {
+				spec.DisplayName = kiroSpec.DisplayName
+				spec.DefaultModel = kiroSpec.DefaultModel
+				spec.UsesBootstrapModel = kiroSpec.UsesBootstrapModel
+			},
+			func(cfg *ClientConfig) {
+				cfg.Model = "claude-sonnet-4.6"
+			},
+		)
+		t.Cleanup(func() {
+			if err := client.Close(); err != nil {
+				t.Errorf("close client: %v", err)
+			}
+		})
+
+		session, err := client.CreateSession(context.Background(), SessionRequest{
+			WorkingDir: scenario.ExpectedCWD,
+			Prompt:     []byte(scenario.ExpectedPrompt),
+		})
+		if err != nil {
+			t.Fatalf("create Kiro session: %v", err)
+		}
+		updates := collectSessionUpdates(t, session)
+		if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+			t.Fatalf("Kiro session updates = %#v, want one completed update", updates)
+		}
+		if session.Err() != nil {
+			t.Fatalf("Kiro session error: %v", session.Err())
+		}
+	})
+}
+
 func TestClientCreateSessionPassesExplicitModelThroughLaunchEnv(t *testing.T) {
 	t.Parallel()
 
