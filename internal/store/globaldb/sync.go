@@ -370,18 +370,16 @@ func (g *GlobalDB) reconcileWorkflowSyncTx(
 	input WorkflowSyncInput,
 	syncedAt time.Time,
 ) (WorkflowSyncResult, error) {
-	wasInitiative := false
-	existing, existingErr := getActiveWorkflowBySlugTx(ctx, tx, input.WorkspaceID, input.WorkflowSlug)
-	if existingErr == nil {
-		wasInitiative = existing.Kind == WorkflowKindInitiative
-	} else if !errors.Is(existingErr, ErrWorkflowNotFound) {
-		return WorkflowSyncResult{}, existingErr
-	}
 	workflow, err := g.reconcileWorkflowInputRowTx(ctx, tx, input, syncedAt)
 	if err != nil {
 		return WorkflowSyncResult{}, err
 	}
-	if wasInitiative && input.Kind == WorkflowKindOrdinary {
+	// Only initiatives own package children, so prune on every ordinary
+	// reconciliation, not just the initiative->ordinary transition. A demotion
+	// that skips an active child (kept because its run is still in flight) must be
+	// retried once the run ends; gating on the transition would strand that child
+	// permanently, since later syncs already observe the parent as ordinary.
+	if input.Kind == WorkflowKindOrdinary {
 		if _, _, pruneErr := g.pruneMissingChildRowsTx(ctx, tx, workflow.ID, map[string]struct{}{}); pruneErr != nil {
 			return WorkflowSyncResult{}, pruneErr
 		}
@@ -471,7 +469,25 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 		}
 	}()
 
-	result = WorkflowPruneResult{
+	result, err = pruneMissingActiveWorkflowRowsTx(ctx, tx, workflows, present)
+	if err != nil {
+		return WorkflowPruneResult{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return WorkflowPruneResult{}, fmt.Errorf("globaldb: commit workflow prune: %w", err)
+	}
+	committed = true
+	return result, nil
+}
+
+func pruneMissingActiveWorkflowRowsTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	workflows []Workflow,
+	present map[string]struct{},
+) (WorkflowPruneResult, error) {
+	result := WorkflowPruneResult{
 		PrunedSlugs: make([]string, 0),
 		Skipped:     make([]WorkflowPruneSkipped, 0),
 	}
@@ -510,11 +526,6 @@ func (g *GlobalDB) PruneMissingActiveWorkflows(
 			result.Skipped = append(result.Skipped, skipped)
 		}
 	}
-
-	if err := tx.Commit(); err != nil {
-		return WorkflowPruneResult{}, fmt.Errorf("globaldb: commit workflow prune: %w", err)
-	}
-	committed = true
 	return result, nil
 }
 

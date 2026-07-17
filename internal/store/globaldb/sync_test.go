@@ -399,6 +399,163 @@ func TestReconcileAggregateWorkflowSyncKeepsHierarchyAtomicAndStable(t *testing.
 	}
 }
 
+func TestReconcileWorkflowSyncRetriesDemotedChildPruneAfterRunCompletes(t *testing.T) {
+	// Suite boundary
+	// IN: standalone ordinary reconciliation of a formerly-initiative slug through real SQLite
+	// OUT: daemon child projection and later initiative recreation
+	// Invariant: an ordinary workflow never permanently strands a package child that was
+	// skipped by a demotion prune while its run was still active.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace := registerSyncTestWorkspace(t, db)
+	ctx := context.Background()
+	syncedAt := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+
+	const (
+		initiativeSlug = "demoted-initiative"
+		childSlug      = "demoted-initiative/WP-001"
+		packageID      = "WP-001"
+	)
+	initiative := func(at time.Time) WorkflowSyncInput {
+		return WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: initiativeSlug,
+			Kind:         WorkflowKindInitiative,
+			DisplayTitle: "Initiative",
+			SyncedAt:     at,
+		}
+	}
+	childInput := func(at time.Time) WorkflowSyncInput {
+		return WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: childSlug,
+			Kind:         WorkflowKindWorkPackage,
+			PackageID:    packageID,
+			DisplayTitle: "Package WP-001",
+			Outcome:      "Deliver WP-001",
+			SyncedAt:     at,
+		}
+	}
+	ordinary := func(at time.Time) WorkflowSyncInput {
+		return WorkflowSyncInput{
+			WorkspaceID:  workspace.ID,
+			WorkflowSlug: initiativeSlug,
+			Kind:         WorkflowKindOrdinary,
+			DisplayTitle: "Initiative",
+			SyncedAt:     at,
+		}
+	}
+
+	created, err := db.ReconcileAggregateWorkflowSync(ctx, AggregateWorkflowSyncInput{
+		Parent:   initiative(syncedAt),
+		Children: []WorkflowSyncInput{childInput(syncedAt)},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(create): %v", err)
+	}
+	parentID := created.Parent.Workflow.ID
+	childID := created.Children[0].Workflow.ID
+
+	// An in-flight run on the child keeps the demotion prune from removing it.
+	if _, err := db.PutRun(ctx, Run{
+		RunID:            "run-child-active",
+		WorkspaceID:      workspace.ID,
+		WorkflowID:       &childID,
+		Mode:             "task",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        syncedAt,
+	}); err != nil {
+		t.Fatalf("PutRun(active child): %v", err)
+	}
+
+	// Demote the initiative to ordinary while the child run is still active.
+	demoteAt := syncedAt.Add(time.Minute)
+	demoted, err := db.ReconcileWorkflowSync(ctx, ordinary(demoteAt))
+	if err != nil {
+		t.Fatalf("ReconcileWorkflowSync(demote): %v", err)
+	}
+	if demoted.Workflow.ID != parentID || demoted.Workflow.Kind != WorkflowKindOrdinary {
+		t.Fatalf("demoted workflow = %#v, want ordinary reuse of %q", demoted.Workflow, parentID)
+	}
+	retained, err := db.ListChildWorkflows(ctx, parentID, false)
+	if err != nil {
+		t.Fatalf("ListChildWorkflows(after demote): %v", err)
+	}
+	if len(retained) != 1 || retained[0].ID != childID {
+		t.Fatalf("children after demotion = %#v, want retained active child %q", retained, childID)
+	}
+
+	// Finish the run and reconcile the ordinary workflow again. The prune must
+	// retry now that the child is idle instead of stranding it forever.
+	endedAt := demoteAt.Add(time.Minute)
+	if _, err := db.UpdateRun(ctx, Run{
+		RunID:            "run-child-active",
+		WorkspaceID:      workspace.ID,
+		WorkflowID:       &childID,
+		Mode:             "task",
+		Status:           "completed",
+		PresentationMode: "stream",
+		StartedAt:        syncedAt,
+		EndedAt:          &endedAt,
+	}); err != nil {
+		t.Fatalf("UpdateRun(complete child): %v", err)
+	}
+	resyncAt := endedAt.Add(time.Minute)
+	if _, err := db.ReconcileWorkflowSync(ctx, ordinary(resyncAt)); err != nil {
+		t.Fatalf("ReconcileWorkflowSync(resync): %v", err)
+	}
+	drained, err := db.ListChildWorkflows(ctx, parentID, false)
+	if err != nil {
+		t.Fatalf("ListChildWorkflows(after resync): %v", err)
+	}
+	if len(drained) != 0 {
+		t.Fatalf("children after ordinary resync = %#v, want none", drained)
+	}
+	if got := queryTableRowCount(t, db, "workflows", "slug = ? AND archived_at IS NULL", childSlug); got != 0 {
+		t.Fatalf("active child rows for %q = %d, want 0", childSlug, got)
+	}
+
+	// The initiative hierarchy recreates cleanly: exactly one active child under
+	// the reused parent with correct parent/package metadata.
+	recreateAt := resyncAt.Add(time.Minute)
+	recreated, err := db.ReconcileAggregateWorkflowSync(ctx, AggregateWorkflowSyncInput{
+		Parent:   initiative(recreateAt),
+		Children: []WorkflowSyncInput{childInput(recreateAt)},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(recreate): %v", err)
+	}
+	if recreated.Parent.Workflow.ID != parentID || recreated.Parent.Workflow.Kind != WorkflowKindInitiative {
+		t.Fatalf("recreated parent = %#v, want promoted reuse of %q", recreated.Parent.Workflow, parentID)
+	}
+	if len(recreated.Children) != 1 {
+		t.Fatalf("recreated children = %#v, want exactly one", recreated.Children)
+	}
+	recreatedChild := recreated.Children[0].Workflow
+	if recreatedChild.ParentWorkflowID != parentID ||
+		recreatedChild.PackageID != packageID ||
+		recreatedChild.Kind != WorkflowKindWorkPackage {
+		t.Fatalf("recreated child = %#v, want work package under %q", recreatedChild, parentID)
+	}
+	finalChildren, err := db.ListChildWorkflows(ctx, parentID, false)
+	if err != nil {
+		t.Fatalf("ListChildWorkflows(after recreate): %v", err)
+	}
+	if len(finalChildren) != 1 || finalChildren[0].PackageID != packageID {
+		t.Fatalf("children after recreate = %#v, want single %q child", finalChildren, packageID)
+	}
+	if got := queryTableRowCount(
+		t, db, "workflows", "parent_workflow_id = ? AND archived_at IS NULL", parentID,
+	); got != 1 {
+		t.Fatalf("active child rows under %q = %d, want 1", parentID, got)
+	}
+}
+
 func TestReconcileAggregateWorkflowSyncCollapsesConcurrentRetries(t *testing.T) {
 	// Suite boundary
 	// IN: concurrent callers against the same real SQLite global catalog
