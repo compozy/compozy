@@ -1616,6 +1616,114 @@ func TestSyncWorkPackageInitiativeRepeatedPartialSyncRetainsChildHistory(t *test
 	}
 }
 
+func TestSyncWorkPackageInitiativePrunesRemovedChildDespiteMissingSibling(t *testing.T) {
+	// Suite boundary
+	// IN: root aggregate sync against filesystem and SQLite where one declared package
+	// directory is absent while another package is dropped from the plan in the same edit
+	// OUT: daemon read-model projection, exercised by internal/daemon integration tests
+	// Invariant: a full-initiative sync always emits a complete child set (real
+	// projections plus Missing placeholders), so it must prune children the plan no
+	// longer declares even while a declared sibling directory is absent. The missing
+	// sibling survives as a retained missing=1 placeholder; the plan-removed child is
+	// pruned unless it still owns an active run, in which case pruning is skipped and
+	// reported rather than silently stranding a ghost child.
+	t.Run("Should prune a removed child while retaining a missing declared sibling", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		setSyncTestHome(t)
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeInitiativeFixtureWithPackages(t, initiativeDir, []string{"WP-001", "WP-002", "WP-003"})
+		if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+			t.Fatalf("Sync(initial three-package plan): %v", err)
+		}
+
+		sqlDB := openSyncSQLite(t)
+		defer func() {
+			_ = sqlDB.Close()
+		}()
+		wp002ID := querySyncWorkflowID(t, sqlDB, "initiative/WP-002")
+
+		// WP-002's directory vanishes but the plan still declares it; the same edit
+		// drops WP-003 from the plan entirely.
+		if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-002")); err != nil {
+			t.Fatalf("remove WP-002 directory: %v", err)
+		}
+		writeInitiativePlanWithPackages(t, initiativeDir, []string{"WP-001", "WP-002"})
+
+		result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+		if err != nil {
+			t.Fatalf("Sync(missing sibling + removed child): %v", err)
+		}
+		if !result.Partial || !reflect.DeepEqual(result.MissingWorkPackages, []string{"WP-002"}) {
+			t.Fatalf("result = %#v, want partial with missing WP-002", result)
+		}
+		if result.WorkflowsPruned != 1 || !reflect.DeepEqual(result.PrunedWorkflows, []string{"WP-003"}) {
+			t.Fatalf("prune result = %d %#v, want 1 [WP-003]", result.WorkflowsPruned, result.PrunedWorkflows)
+		}
+		// The still-declared but absent sibling keeps its row identity and flips to
+		// missing=1 rather than being pruned alongside the removed child.
+		if preservedID := querySyncWorkflowID(t, sqlDB, "initiative/WP-002"); preservedID != wp002ID {
+			t.Fatalf("WP-002 child id changed: got %q want %q", preservedID, wp002ID)
+		}
+		if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, "initiative/WP-002"); got != 1 {
+			t.Fatalf("WP-002 missing = %d, want 1 to mark the absent directory", got)
+		}
+		// The plan-removed child is gone from the initiative entirely.
+		if got := queryCount(
+			t,
+			sqlDB,
+			`SELECT COUNT(1) FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+			"initiative/WP-003",
+		); got != 0 {
+			t.Fatalf("WP-003 row count = %d, want 0 after pruning", got)
+		}
+	})
+
+	t.Run("Should skip pruning a removed child that still owns an active run", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		setSyncTestHome(t)
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeInitiativeFixtureWithPackages(t, initiativeDir, []string{"WP-001", "WP-002", "WP-003"})
+		if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+			t.Fatalf("Sync(initial three-package plan): %v", err)
+		}
+		insertActiveArchiveRun(t, initiativeDir, "initiative/WP-003", "run-wp003-active")
+
+		sqlDB := openSyncSQLite(t)
+		defer func() {
+			_ = sqlDB.Close()
+		}()
+
+		if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-002")); err != nil {
+			t.Fatalf("remove WP-002 directory: %v", err)
+		}
+		writeInitiativePlanWithPackages(t, initiativeDir, []string{"WP-001", "WP-002"})
+
+		result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+		if err != nil {
+			t.Fatalf("Sync(active-run removed child): %v", err)
+		}
+		if result.WorkflowsPruned != 0 || len(result.PrunedWorkflows) != 0 {
+			t.Fatalf(
+				"prune result = %d %#v, want no prune while the run is active",
+				result.WorkflowsPruned,
+				result.PrunedWorkflows,
+			)
+		}
+		if !hasWarningContaining(result.Warnings, "skipped stale work package prune") {
+			t.Fatalf("warnings = %#v, want a skipped stale work package prune notice", result.Warnings)
+		}
+		// The retained child keeps its row so the in-flight run is never orphaned.
+		if got := queryCount(
+			t,
+			sqlDB,
+			`SELECT COUNT(1) FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+			"initiative/WP-003",
+		); got != 1 {
+			t.Fatalf("WP-003 row count = %d, want 1 retained for the active run", got)
+		}
+	})
+}
+
 type childProjectionSnapshot struct {
 	id                 string
 	missing            bool
@@ -1921,6 +2029,78 @@ func writeWorkPackageFixture(t *testing.T, initiativeDir string, states map[stri
 		writeSyncWorkflowFile(t, packageDir, "_tasks.md", canonicalTaskListBody())
 		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody(states[packageID], packageID+" task"))
 	}
+}
+
+// writeInitiativeFixtureWithPackages writes a valid initiative whose plan declares
+// the given packages, materializing a task projection for each so a first sync
+// projects every child as present.
+func writeInitiativeFixtureWithPackages(t *testing.T, initiativeDir string, packageIDs []string) {
+	t.Helper()
+
+	writeSyncWorkflowFile(t, initiativeDir, "_prd.md", "# Initiative\n")
+	writeSyncWorkflowFile(t, initiativeDir, "_techspec.md", "# Initiative Techspec\n")
+	writeSyncWorkflowFile(t, initiativeDir, "_tasks.md", canonicalTaskListBody())
+	writeInitiativePlanWithPackages(t, initiativeDir, packageIDs)
+	for _, packageID := range packageIDs {
+		packageDir := filepath.Join(initiativeDir, "_packages", packageID)
+		writeSyncWorkflowFile(t, packageDir, "_tasks.md", canonicalTaskListBody())
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", taskBody("pending", packageID+" task"))
+	}
+}
+
+// writeInitiativePlanWithPackages writes a dependency-free _work_packages.md that
+// declares exactly the given packages, so rewriting it with a subset simulates a
+// plan edit that drops a package.
+func writeInitiativePlanWithPackages(t *testing.T, initiativeDir string, packageIDs []string) {
+	t.Helper()
+
+	lines := []string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: initiative",
+		"graph:",
+		"  nodes:",
+	}
+	for _, packageID := range packageIDs {
+		lines = append(lines, "    - id: "+packageID, "      directory: _packages/"+packageID)
+	}
+	lines = append(lines, "  edges: []", "---", "", "# Initiative Work Packages", "")
+	for _, packageID := range packageIDs {
+		lines = append(lines,
+			"## [ ] "+packageID+" — "+packageID+" work",
+			"",
+			"- Reference: `initiative/"+packageID+"`",
+			"- Outcome: Deliver "+packageID+".",
+			"- Owns:",
+			"  - "+strings.ToLower(packageID),
+			"- Dependencies: None",
+			"",
+		)
+	}
+	writeSyncWorkflowFile(t, initiativeDir, "_work_packages.md", strings.Join(lines, "\n"))
+}
+
+func querySyncWorkflowID(t *testing.T, db *sql.DB, slug string) string {
+	t.Helper()
+
+	var id string
+	if err := db.QueryRowContext(
+		context.Background(),
+		`SELECT id FROM workflows WHERE slug = ? AND archived_at IS NULL`,
+		slug,
+	).Scan(&id); err != nil {
+		t.Fatalf("query workflow id %q: %v", slug, err)
+	}
+	return id
+}
+
+func hasWarningContaining(warnings []string, substr string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning, substr) {
+			return true
+		}
+	}
+	return false
 }
 
 func canonicalTaskGraphManifestBody(workflow string) string {

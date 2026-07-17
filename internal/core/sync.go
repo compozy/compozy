@@ -434,8 +434,17 @@ func syncWorkPackageInitiative(
 			CheckpointChecksum: parentChecksum,
 			ArtifactSnapshots:  parentSnapshots,
 		},
-		Children:                children,
-		PreserveMissingChildren: len(collection.missingPackageIDs) > 0,
+		Children: children,
+		// The child set is complete: appendMissingWorkPackagePlaceholders emits a
+		// Missing placeholder for every declared package whose directory is absent,
+		// so those package IDs stay in the reconcile's seen set. Full-initiative sync
+		// must therefore prune children the plan no longer declares (the pruner still
+		// skips and reports any child that owns an active run). Suppressing pruning
+		// here would strand a package dropped from the plan as a ghost child whenever
+		// a sibling directory happened to be absent. Only the deliberately scoped
+		// single-package sync (syncWorkPackageTarget), which collects one child
+		// without its siblings, sets PreserveMissingChildren=true.
+		PreserveMissingChildren: false,
 	})
 	if err != nil {
 		return fmt.Errorf("reconcile work package initiative %s: %w", target.Ref.Initiative, err)
