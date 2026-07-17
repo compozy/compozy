@@ -15,6 +15,17 @@ func TestReadmeDocumentsGitignoreNegations(t *testing.T) {
 			t.Fatalf("durability section is missing gitignore negation %q", negation)
 		}
 	}
+	t.Run("Should document complete index-independent verification commands", func(t *testing.T) {
+		t.Parallel()
+		for _, command := range []string{
+			"git check-ignore -v --no-index .compozy/DECISIONS.md",
+			"git check-ignore -v --no-index .compozy/decisions/AD-001.md",
+		} {
+			if !strings.Contains(section, command) {
+				t.Fatalf("durability section is missing verification command %q", command)
+			}
+		}
+	})
 }
 
 // UT-010: the README documents the @import consumption wiring and covers both
