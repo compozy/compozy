@@ -529,6 +529,192 @@ func TestReconcileAggregateWorkflowSyncMetadataOnlyPreservesChildProjection(t *t
 	}
 }
 
+func TestReconcileAggregateWorkflowSyncMetadataOnlyIfExistingPreservesRacedChildProjection(t *testing.T) {
+	// Suite boundary
+	// IN: aggregate reconciliation resolving MetadataOnlyIfExisting through real SQLite
+	// OUT: concurrent scoped and full-initiative sync callers of the same package
+	// Invariant: because existence is resolved inside the reconcile write transaction,
+	// an empty MetadataOnlyIfExisting placeholder for a package that a concurrent scoped
+	// sync already materialized and committed preserves that child's artifact, task,
+	// review, and checkpoint projections instead of reseeding them to empty; it only
+	// flips the row to missing. This pins the committed-first ordering deterministically
+	// rather than racing goroutines, which could silently miss the harmful interleaving.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
+
+	parent := WorkflowSyncInput{
+		WorkspaceID:  workspace.ID,
+		WorkflowSlug: "initiative",
+		Kind:         WorkflowKindInitiative,
+		DisplayTitle: "Initiative",
+		SyncedAt:     syncedAt,
+	}
+	materialized := WorkflowSyncInput{
+		WorkspaceID:        workspace.ID,
+		WorkflowSlug:       "initiative/WP-001",
+		Kind:               WorkflowKindWorkPackage,
+		PackageID:          "WP-001",
+		DisplayTitle:       "Package WP-001",
+		Outcome:            "Deliver WP-001",
+		SyncedAt:           syncedAt,
+		CheckpointScope:    "workflow",
+		CheckpointChecksum: "wp-001-checkpoint",
+		ArtifactSnapshots: []ArtifactSnapshotInput{{
+			ArtifactKind:    "task",
+			RelativePath:    "task_01.md",
+			Checksum:        "wp-001-artifact",
+			FrontmatterJSON: `{}`,
+			BodyText:        "# WP-001 task",
+			SourceMTime:     syncedAt,
+		}},
+		TaskItems: []TaskItemInput{{
+			TaskNumber: 1,
+			TaskID:     "WP-001-task",
+			Title:      "WP-001 task",
+			Status:     "pending",
+			Kind:       "backend",
+			SourcePath: "task_01.md",
+		}},
+		ReviewRounds: []ReviewRoundInput{{
+			RoundNumber:     1,
+			Provider:        "manual",
+			ResolvedCount:   0,
+			UnresolvedCount: 1,
+			Issues: []ReviewIssueInput{{
+				IssueNumber: 1,
+				Severity:    "medium",
+				Status:      "pending",
+				SourcePath:  "reviews-001/issue_001.md",
+			}},
+		}},
+	}
+
+	// The scoped sync wins the first commit and fully materializes the child.
+	first, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent:   parent,
+		Children: []WorkflowSyncInput{materialized},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(materialized): %v", err)
+	}
+	childID := first.Children[0].Workflow.ID
+	if first.Children[0].Workflow.Missing {
+		t.Fatal("materialized child missing = true, want false")
+	}
+	assertRowCountByWorkflow(t, db, "artifact_snapshots", childID, 1)
+	assertRowCountByWorkflow(t, db, "task_items", childID, 1)
+	assertRowCountByWorkflow(t, db, "review_rounds", childID, 1)
+
+	// The late full-initiative sync observed the directory as absent before the scoped
+	// sync committed, so it carries an empty MetadataOnlyIfExisting placeholder. The
+	// materialized row is now visible to this transaction's snapshot, so the placeholder
+	// must preserve the projection rather than delete it as empty inputs would.
+	parent.SyncedAt = syncedAt.Add(time.Minute)
+	placeholder := WorkflowSyncInput{
+		WorkspaceID:            workspace.ID,
+		WorkflowSlug:           "initiative/WP-001",
+		Kind:                   WorkflowKindWorkPackage,
+		PackageID:              "WP-001",
+		DisplayTitle:           "Package WP-001",
+		Outcome:                "Deliver WP-001",
+		Missing:                true,
+		MetadataOnlyIfExisting: true,
+		SyncedAt:               syncedAt.Add(time.Minute),
+		CheckpointScope:        "workflow",
+	}
+	second, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent:   parent,
+		Children: []WorkflowSyncInput{placeholder},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(placeholder): %v", err)
+	}
+	preserved := second.Children[0]
+	if preserved.Workflow.ID != childID || !preserved.Workflow.Missing {
+		t.Fatalf("placeholder child = %#v, want stable id %q and missing=true", preserved.Workflow, childID)
+	}
+	if touched := preserved.SnapshotsUpserted + preserved.TaskItemsUpserted +
+		preserved.ReviewRoundsUpserted + preserved.CheckpointsUpdated; touched != 0 {
+		t.Fatalf("placeholder reconcile touched projections: %#v", preserved)
+	}
+	assertRowCountByWorkflow(t, db, "artifact_snapshots", childID, 1)
+	assertRowCountByWorkflow(t, db, "task_items", childID, 1)
+	assertRowCountByWorkflow(t, db, "review_rounds", childID, 1)
+
+	var checkpointChecksum string
+	if err := db.db.QueryRowContext(
+		context.Background(),
+		`SELECT checksum FROM sync_checkpoints WHERE workflow_id = ? AND scope = ?`,
+		childID,
+		defaultSyncScope,
+	).Scan(&checkpointChecksum); err != nil {
+		t.Fatalf("query preserved sync checkpoint: %v", err)
+	}
+	if checkpointChecksum != "wp-001-checkpoint" {
+		t.Fatalf("preserved checkpoint checksum = %q, want wp-001-checkpoint", checkpointChecksum)
+	}
+}
+
+func TestReconcileAggregateWorkflowSyncMetadataOnlyIfExistingSeedsFreshWhenAbsent(t *testing.T) {
+	// Suite boundary
+	// IN: aggregate reconciliation resolving MetadataOnlyIfExisting through real SQLite
+	// OUT: daemon read models that reconstruct the plan graph from durable rows
+	// Invariant: with no durable row present, a MetadataOnlyIfExisting placeholder resolves
+	// to a full seed and creates a fresh missing node carrying declared identity but no
+	// fabricated artifact, task, or review projections, so a first-ever partial sync still
+	// yields a complete graph that blocks start and archive.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+	workspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 6, 2, 8, 0, 0, 0, time.UTC)
+
+	parent := WorkflowSyncInput{
+		WorkspaceID:  workspace.ID,
+		WorkflowSlug: "initiative",
+		Kind:         WorkflowKindInitiative,
+		DisplayTitle: "Initiative",
+		SyncedAt:     syncedAt,
+	}
+	placeholder := WorkflowSyncInput{
+		WorkspaceID:            workspace.ID,
+		WorkflowSlug:           "initiative/WP-001",
+		Kind:                   WorkflowKindWorkPackage,
+		PackageID:              "WP-001",
+		DisplayTitle:           "Package WP-001",
+		Outcome:                "Deliver WP-001",
+		LifecycleCompleted:     false,
+		Missing:                true,
+		MetadataOnlyIfExisting: true,
+		SyncedAt:               syncedAt,
+		CheckpointScope:        "workflow",
+	}
+	result, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent:   parent,
+		Children: []WorkflowSyncInput{placeholder},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(fresh placeholder): %v", err)
+	}
+	seeded := result.Children[0].Workflow
+	if !seeded.Missing {
+		t.Fatal("fresh placeholder missing = false, want true for an absent directory")
+	}
+	childID := seeded.ID
+	assertRowCountByWorkflow(t, db, "artifact_snapshots", childID, 0)
+	assertRowCountByWorkflow(t, db, "task_items", childID, 0)
+	assertRowCountByWorkflow(t, db, "review_rounds", childID, 0)
+}
+
 func TestReconcileWorkflowSyncRetriesDemotedChildPruneAfterRunCompletes(t *testing.T) {
 	// Suite boundary
 	// IN: standalone ordinary reconciliation of a formerly-initiative slug through real SQLite

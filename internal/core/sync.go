@@ -419,10 +419,7 @@ func syncWorkPackageInitiative(
 	if err != nil {
 		return err
 	}
-	children, err := appendMissingWorkPackagePlaceholders(ctx, db, workspace, target, &collection)
-	if err != nil {
-		return err
-	}
+	children := appendMissingWorkPackagePlaceholders(workspace, target, &collection)
 
 	aggregate, err := db.ReconcileAggregateWorkflowSync(ctx, globaldb.AggregateWorkflowSyncInput{
 		Parent: globaldb.WorkflowSyncInput{
@@ -584,25 +581,27 @@ func collectWorkPackageSyncChildren(
 // with no durable row yet is seeded fresh with the declared identity and
 // dependency edges but no artifacts, so read models keep a complete graph and
 // block start/archive with a clear reason. A package that already owns a durable
-// row -- whether it was materialized before its directory vanished or is a
-// placeholder written by an earlier partial sync -- keeps its retained snapshots,
-// tasks, reviews, and checkpoint via a metadata-only reconcile that only
-// refreshes identity columns (flipping Missing to true and tracking pkg.Completed
-// plus later plan edits); otherwise the preserved row would advertise an absent
-// directory as runnable or archive-eligible. Keying on row existence rather than
-// the row's current Missing flag is essential: a repeat partial sync already
-// reads Missing=true, and reseeding empty projections then would delete the
-// retained history. Missing clears automatically once the directory returns and a
-// full projection is collected.
+// row -- whether it was materialized before its directory vanished, is a
+// placeholder written by an earlier partial sync, or was materialized by a scoped
+// sync racing this one -- keeps its retained snapshots, tasks, reviews, and
+// checkpoint via a metadata-only reconcile that only refreshes identity columns
+// (flipping Missing to true and tracking pkg.Completed plus later plan edits);
+// otherwise the preserved row would advertise an absent directory as runnable or
+// archive-eligible. Each placeholder sets MetadataOnlyIfExisting so the reconcile
+// resolves "preserve vs seed" against the transaction's own snapshot: keying on
+// row existence rather than the row's current Missing flag is essential (a repeat
+// partial sync already reads Missing=true, and reseeding empty projections would
+// delete the retained history), and resolving it inside the write transaction
+// rather than via an out-of-transaction precheck closes a TOCTOU race where a
+// concurrent scoped sync commits real projections in the gap. Missing clears
+// automatically once the directory returns and a full projection is collected.
 func appendMissingWorkPackagePlaceholders(
-	ctx context.Context,
-	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
 	target workpackages.Target,
 	collection *workPackageSyncChildren,
-) ([]globaldb.WorkflowSyncInput, error) {
+) []globaldb.WorkflowSyncInput {
 	if len(collection.missingPackageIDs) == 0 {
-		return collection.children, nil
+		return collection.children
 	}
 	missing := make(map[string]struct{}, len(collection.missingPackageIDs))
 	for _, packageID := range collection.missingPackageIDs {
@@ -615,10 +614,6 @@ func appendMissingWorkPackagePlaceholders(
 			continue
 		}
 		slug := target.Ref.Initiative + "/" + pkg.ID
-		_, err := db.GetActiveWorkflowBySlug(ctx, workspace.ID, slug)
-		if err != nil && !errors.Is(err, globaldb.ErrWorkflowNotFound) {
-			return nil, fmt.Errorf("inspect durable work package %s: %w", pkg.ID, err)
-		}
 		placeholder := globaldb.WorkflowSyncInput{
 			WorkspaceID:  workspace.ID,
 			WorkflowSlug: slug,
@@ -633,23 +628,19 @@ func appendMissingWorkPackagePlaceholders(
 			Dependencies:       packageDependencies(pkg),
 			SyncedAt:           time.Now().UTC(),
 			CheckpointScope:    "workflow",
-		}
-		// Any package that already owns a durable row keeps its retained snapshots,
-		// tasks, reviews, and checkpoint via a metadata-only reconcile that only
-		// refreshes identity columns (flipping Missing to true and tracking plan
-		// edits); the row identity reconcile still runs first, so title, outcome, and
-		// dependency edges stay current. Keying on existence rather than the row's
-		// current Missing flag is essential: a repeat partial sync already reads
-		// Missing=true, so an existence-blind guard would reseed empty projections and
-		// delete the retained history. Only a genuinely absent row (ErrWorkflowNotFound)
-		// receives a full empty seed.
-		if err == nil {
-			placeholder.MetadataOnly = true
+			// Preserve any durable row for this package -- whether it was materialized
+			// before its directory vanished, written by an earlier partial sync, or
+			// created by a scoped sync racing this one -- via a metadata-only reconcile,
+			// and seed a fresh node only when no row exists. The reconcile resolves that
+			// existence inside its own write transaction, so a concurrent materialized
+			// sync that commits just before this one cannot be clobbered by a stale
+			// out-of-transaction precheck.
+			MetadataOnlyIfExisting: true,
 		}
 		children = append(children, placeholder)
 		collection.childPaths[pkg.ID] = filepath.Join(target.InitiativeDir, filepath.FromSlash(pkg.Directory))
 	}
-	return children, nil
+	return children
 }
 
 func collectWorkPackageSyncChild(

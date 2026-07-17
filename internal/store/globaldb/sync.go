@@ -102,14 +102,23 @@ type WorkflowSyncInput struct {
 	// untouched. It preserves the last-known projection of a declared package whose
 	// directory has disappeared while still refreshing durable identity columns such
 	// as Missing so read models reflect current source availability.
-	MetadataOnly       bool
-	Dependencies       []WorkflowDependency
-	SyncedAt           time.Time
-	CheckpointScope    string
-	CheckpointChecksum string
-	ArtifactSnapshots  []ArtifactSnapshotInput
-	TaskItems          []TaskItemInput
-	ReviewRounds       []ReviewRoundInput
+	MetadataOnly bool
+	// MetadataOnlyIfExisting resolves MetadataOnly transactionally: this reconcile
+	// preserves the retained projection only when a durable row already exists at the
+	// point this transaction reads it, and otherwise seeds the row fresh from the
+	// (empty) placeholder input. It lets a missing-directory placeholder sync decide
+	// "preserve vs seed" atomically inside the reconcile write transaction instead of
+	// relying on a pre-transaction existence check that a concurrent scoped sync can
+	// invalidate before this transaction holds the write lock. Ignored when
+	// MetadataOnly is already set.
+	MetadataOnlyIfExisting bool
+	Dependencies           []WorkflowDependency
+	SyncedAt               time.Time
+	CheckpointScope        string
+	CheckpointChecksum     string
+	ArtifactSnapshots      []ArtifactSnapshotInput
+	TaskItems              []TaskItemInput
+	ReviewRounds           []ReviewRoundInput
 }
 
 // WorkflowSyncResult reports the durable rows touched by one reconciliation.
@@ -380,6 +389,20 @@ func (g *GlobalDB) reconcileWorkflowSyncTx(
 	input WorkflowSyncInput,
 	syncedAt time.Time,
 ) (WorkflowSyncResult, error) {
+	// Resolve MetadataOnlyIfExisting against this transaction's own snapshot, before
+	// the row upsert inserts it (after which the row would always appear to exist).
+	// The write transaction already holds the immediate WAL lock, so a concurrent
+	// scoped sync that materialized this child either committed before this snapshot
+	// (row visible -> preserve its projection) or is blocked until this transaction
+	// finishes (row absent -> seed fresh). Deciding existence outside the transaction
+	// is a TOCTOU race that reseeds empty projections over the concurrent sync's data.
+	if input.MetadataOnlyIfExisting && !input.MetadataOnly {
+		exists, err := workflowSlugExistsTx(ctx, tx, input.WorkspaceID, input.WorkflowSlug)
+		if err != nil {
+			return WorkflowSyncResult{}, err
+		}
+		input.MetadataOnly = exists
+	}
 	workflow, err := g.reconcileWorkflowInputRowTx(ctx, tx, input, syncedAt)
 	if err != nil {
 		return WorkflowSyncResult{}, err
@@ -756,6 +779,19 @@ func (g *GlobalDB) reconcileWorkflowRowTx(
 		return Workflow{}, err
 	}
 	return g.reconcileWorkflowInputRowTx(ctx, tx, input, syncedAt)
+}
+
+// workflowSlugExistsTx reports whether an active workflow row for the slug is
+// visible to tx, mapping ErrWorkflowNotFound to a plain false so callers can
+// branch on presence without treating absence as an error.
+func workflowSlugExistsTx(ctx context.Context, tx *sql.Tx, workspaceID string, slug string) (bool, error) {
+	if _, err := getActiveWorkflowBySlugTx(ctx, tx, workspaceID, slug); err != nil {
+		if errors.Is(err, ErrWorkflowNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func getActiveWorkflowBySlugTx(
