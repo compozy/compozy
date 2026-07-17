@@ -477,19 +477,9 @@ func (g *GlobalDB) MarkWorkflowHierarchyArchived(
 
 	// Enforce the no-active-run invariant inside the transaction so a run that
 	// starts between the caller's pre-flight validation and this mutation cannot be
-	// archived mid-flight. The aggregate count spans the parent row and its direct
-	// children — the exact hierarchy the UPDATE below archives.
-	activeRuns, err := countActiveRunsForWorkflowAggregateTx(ctx, tx, parent.ID)
-	if err != nil {
+	// archived mid-flight.
+	if err := ensureNoActiveHierarchyRunsTx(ctx, tx, parent); err != nil {
 		return nil, err
-	}
-	if activeRuns > 0 {
-		return nil, WorkflowActiveRunsError{
-			WorkspaceID: parent.WorkspaceID,
-			WorkflowID:  parent.ID,
-			Slug:        parent.Slug,
-			ActiveRuns:  activeRuns,
-		}
 	}
 
 	result, err := tx.ExecContext(
@@ -532,6 +522,27 @@ func (g *GlobalDB) MarkWorkflowHierarchyArchived(
 	workflows = append(workflows, updatedParent)
 	workflows = append(workflows, children...)
 	return workflows, nil
+}
+
+// ensureNoActiveHierarchyRunsTx rejects archiving a hierarchy whose parent row or
+// any direct child still has an active run. The aggregate count spans the exact
+// rows the archive UPDATE touches (id = parent OR parent_workflow_id = parent), so
+// an ordinary workflow promoted in place with a live parent run and a pruning-
+// retained child with a live run are both caught.
+func ensureNoActiveHierarchyRunsTx(ctx context.Context, tx *sql.Tx, parent Workflow) error {
+	activeRuns, err := countActiveRunsForWorkflowAggregateTx(ctx, tx, parent.ID)
+	if err != nil {
+		return err
+	}
+	if activeRuns > 0 {
+		return WorkflowActiveRunsError{
+			WorkspaceID: parent.WorkspaceID,
+			WorkflowID:  parent.ID,
+			Slug:        parent.Slug,
+			ActiveRuns:  activeRuns,
+		}
+	}
+	return nil
 }
 
 // readArchivedHierarchySnapshot loads the archived initiative root and its
