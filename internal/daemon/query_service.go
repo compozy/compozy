@@ -618,7 +618,7 @@ func (s *queryService) resolveWorkflowReadTarget(
 	if err != nil {
 		return workflowReadTarget{}, err
 	}
-	rootDir, err := readableWorkflowRootDir(workspace.RootDir, workflow)
+	rootDir, err := s.readableArchivedWorkflowRootDir(ctx, workspace.RootDir, workflow)
 	if err != nil {
 		return workflowReadTarget{}, err
 	}
@@ -1125,6 +1125,61 @@ func workflowReadTargetUsesArchivedFS(target workflowReadTarget) bool {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// readableArchivedWorkflowRootDir resolves an archived workflow's on-disk root.
+// Archiving an initiative moves the whole hierarchy under one parent archive
+// directory, so an archived work package keeps its artifacts nested at
+// <parentArchiveRoot>/<packageDir> rather than gaining a top-level archive
+// directory derived from its own slug. Archived roots (initiatives and ordinary
+// workflows) keep the plain slug-based resolution.
+func (s *queryService) readableArchivedWorkflowRootDir(
+	ctx context.Context,
+	workspaceRoot string,
+	workflow globaldb.Workflow,
+) (string, error) {
+	if workflow.ParentWorkflowID == "" {
+		return readableWorkflowRootDir(workspaceRoot, workflow)
+	}
+	parent, err := s.globalDB.GetWorkflow(ctx, workflow.ParentWorkflowID)
+	if err != nil {
+		return "", fmt.Errorf(
+			"load archived initiative %q for package %q: %w",
+			workflow.ParentWorkflowID,
+			workflow.Slug,
+			err,
+		)
+	}
+	parentRoot, err := readableWorkflowRootDir(workspaceRoot, parent)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parentRoot, archivedPackageDirectory(parentRoot, parent.Slug, workflow)), nil
+}
+
+// archivedPackageDirectory returns the initiative-relative directory that holds
+// one archived package's artifacts. It prefers the directory declared by the
+// archived manifest and falls back to the canonical "_packages/<id>" layout when
+// the manifest is missing or unreadable.
+func archivedPackageDirectory(parentRoot string, initiativeSlug string, child globaldb.Workflow) string {
+	packageID := strings.TrimSpace(child.PackageID)
+	fallback := filepath.Join("_packages", packageID)
+	if packageID == "" {
+		return fallback
+	}
+	content, err := os.ReadFile(filepath.Join(parentRoot, workpackages.ManifestFileName))
+	if err != nil {
+		return fallback
+	}
+	plan, err := workpackages.ParsePlanForInitiative(string(content), strings.TrimSpace(initiativeSlug))
+	if err != nil {
+		return fallback
+	}
+	pkg, found := plan.Package(packageID)
+	if !found || strings.TrimSpace(pkg.Directory) == "" {
+		return fallback
+	}
+	return filepath.FromSlash(strings.TrimSpace(pkg.Directory))
 }
 
 func readableWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) (string, error) {

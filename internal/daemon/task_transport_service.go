@@ -178,7 +178,13 @@ func (s *transportTaskService) GetWorkflow(
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
-	if err := validatePackageTransportReference(ctx, workspaceRow.RootDir, workflowSlug); err != nil {
+	if err := validatePackageTransportReference(
+		ctx,
+		s.globalDB,
+		workspaceRow.ID,
+		workspaceRow.RootDir,
+		workflowSlug,
+	); err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
 	row, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, workflowSlug)
@@ -322,14 +328,23 @@ func (s *transportTaskService) validatePackageReference(
 	if err != nil {
 		return err
 	}
-	return validatePackageTransportReference(ctx, workspace.RootDir, workflowSlug)
+	return validatePackageTransportReference(ctx, s.globalDB, workspace.ID, workspace.RootDir, workflowSlug)
 }
 
 // validatePackageTransportReference resolves a package reference against the
 // current plan before query paths touch the durable workflow catalog. This
 // keeps public package failures typed even when the catalog has not yet been
-// synced for an unknown or stale selection.
-func validatePackageTransportReference(ctx context.Context, workspaceRoot string, workflowSlug string) error {
+// synced for an unknown or stale selection. Durable archived rows are read-only
+// history whose active plan no longer exists on disk, so once the catalog
+// confirms the selection was archived it bypasses active-plan resolution; live
+// selections keep typed validation against the on-disk plan.
+func validatePackageTransportReference(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	workspaceRoot string,
+	workflowSlug string,
+) error {
 	if !strings.Contains(strings.TrimSpace(workflowSlug), "/") {
 		return nil
 	}
@@ -337,8 +352,32 @@ func validatePackageTransportReference(ctx context.Context, workspaceRoot string
 	if err != nil {
 		return err
 	}
+	if archivedPackageSelection(ctx, db, workspaceID, ref.String()) {
+		return nil
+	}
 	_, err = (workpackages.TargetResolver{}).ResolvePackage(ctx, workspaceRoot, ref.String())
 	return err
+}
+
+// archivedPackageSelection reports whether the package slug resolves to a
+// durable archived workflow row rather than a live selection. A live row (or an
+// unresolved lookup) keeps the caller on active-plan validation.
+func archivedPackageSelection(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	slug string,
+) bool {
+	if db == nil || strings.TrimSpace(workspaceID) == "" {
+		return false
+	}
+	if _, err := db.GetActiveWorkflowBySlug(ctx, workspaceID, slug); err == nil {
+		return false
+	} else if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+		return false
+	}
+	_, err := db.GetLatestArchivedWorkflowBySlug(ctx, workspaceID, slug)
+	return err == nil
 }
 
 func (s *transportTaskService) Validate(

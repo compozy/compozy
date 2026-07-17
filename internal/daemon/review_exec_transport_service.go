@@ -269,7 +269,13 @@ func (s *transportReviewService) resolveReviewWorkflow(
 	if err != nil {
 		return globaldb.Workflow{}, err
 	}
-	if err := validatePackageTransportReference(ctx, workspaceRow.RootDir, workflowSlug); err != nil {
+	if err := validatePackageTransportReference(
+		ctx,
+		s.globalDB,
+		workspaceRow.ID,
+		workspaceRow.RootDir,
+		workflowSlug,
+	); err != nil {
 		return globaldb.Workflow{}, err
 	}
 	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, workflowSlug)
@@ -299,7 +305,13 @@ func (s *transportReviewService) ReviewDetail(
 	if err != nil {
 		return apicore.ReviewDetailPayload{}, err
 	}
-	if err := validatePackageTransportReference(ctx, workspace.RootDir, workflowSlug); err != nil {
+	if err := validatePackageTransportReference(
+		ctx,
+		s.globalDB,
+		workspace.ID,
+		workspace.RootDir,
+		workflowSlug,
+	); err != nil {
 		return apicore.ReviewDetailPayload{}, err
 	}
 
