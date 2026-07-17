@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/workpackages"
 )
 
 // archiveDependentPackageInitiativeForTest builds a two-package initiative with
@@ -75,6 +77,45 @@ func archiveDependentPackageInitiativeForTest(
 		t.Fatalf("ArchiveWithDB(%s) result = %#v, want one archived root", initiative, result)
 	}
 	return result
+}
+
+// recreateInitiativeWithoutFoundationForTest writes a fresh single-package plan
+// for an already-archived initiative that drops WP-001, then re-syncs it so a new
+// active generation exists whose current plan no longer contains the foundation
+// package. The archived WP-001 row remains in the durable catalog.
+func recreateInitiativeWithoutFoundationForTest(
+	t *testing.T,
+	env *runManagerTestEnv,
+	initiative string,
+) {
+	t.Helper()
+
+	plan, err := workpackages.RenderPlan(workpackages.Plan{
+		SchemaVersion: workpackages.SchemaVersion,
+		Initiative:    initiative,
+		Packages: []workpackages.Package{
+			{
+				ID:         "WP-002",
+				Title:      "Delivery",
+				Outcome:    "Deliver the recreated scope",
+				Directory:  "_packages/WP-002",
+				OwnedScope: []string{"delivery"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Recreated PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Recreated TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_work_packages.md", string(plan))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_packages", "WP-002", "task_01.md"),
+		daemonTaskBody("pending", "Recreated delivery task"),
+	)
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
 }
 
 func taskBoardContainsTitle(lanes []apicore.TaskLane, title string) bool {
@@ -207,5 +248,79 @@ func TestResolveWorkflowReadTargetArchivedPackageResolvesNestedRoot(t *testing.T
 	}
 	if doc.Title != "Foundation child task" {
 		t.Fatalf("archived package task document title = %q, want Foundation child task", doc.Title)
+	}
+}
+
+func TestTransportGateRejectsArchivedPackageDroppedByRecreatedParent(t *testing.T) {
+	// INVARIANT: once an initiative is archived and recreated with a plan that drops a
+	// child package, public reads of that child resolve relative to the current parent
+	// generation and return a typed package-not-found instead of shadowing the stale
+	// archived generation's tasks, spec, reviews, and memory.
+	// OWNING_LAYER: service-integration. CONTRACT: nested-workflows/reviews-003/issue_002.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	archiveDependentPackageInitiativeForTest(t, env, initiative)
+	recreateInitiativeWithoutFoundationForTest(t, env, initiative)
+
+	query := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
+	taskService := newTransportTaskService(env.globalDB, env.manager, query)
+	reviewService := newTransportReviewService(env.globalDB, env.manager, query)
+	ctx := context.Background()
+	droppedRef := initiative + "/WP-001"
+
+	surfaces := []struct {
+		name string
+		read func() error
+	}{
+		{"WorkflowOverview", func() error {
+			_, err := taskService.WorkflowOverview(ctx, env.workspaceRoot, droppedRef)
+			return err
+		}},
+		{"TaskBoard", func() error {
+			_, err := taskService.TaskBoard(ctx, env.workspaceRoot, droppedRef)
+			return err
+		}},
+		{"TaskDetail", func() error {
+			_, err := taskService.TaskDetail(ctx, env.workspaceRoot, droppedRef, "task_01")
+			return err
+		}},
+		{"WorkflowSpec", func() error {
+			_, err := taskService.WorkflowSpec(ctx, env.workspaceRoot, droppedRef)
+			return err
+		}},
+		{"WorkflowMemoryIndex", func() error {
+			_, err := taskService.WorkflowMemoryIndex(ctx, env.workspaceRoot, droppedRef)
+			return err
+		}},
+		{"ReviewGetLatest", func() error {
+			_, err := reviewService.GetLatest(ctx, env.workspaceRoot, droppedRef)
+			return err
+		}},
+		{"ReviewListIssues", func() error {
+			_, err := reviewService.ListIssues(ctx, env.workspaceRoot, droppedRef, 1)
+			return err
+		}},
+	}
+	for _, surface := range surfaces {
+		t.Run(surface.name, func(t *testing.T) {
+			err := surface.read()
+			if !errors.Is(err, workpackages.ErrPackageNotFound) {
+				t.Fatalf("%s(%s) error = %v, want ErrPackageNotFound", surface.name, droppedRef, err)
+			}
+		})
+	}
+
+	// Sanity: the package the recreated plan still contains reads the current
+	// generation rather than being over-blocked, and does not return archived data.
+	survivingRef := initiative + "/WP-002"
+	board, err := taskService.TaskBoard(ctx, env.workspaceRoot, survivingRef)
+	if err != nil {
+		t.Fatalf("TaskBoard(%s) error = %v", survivingRef, err)
+	}
+	if !taskBoardContainsTitle(board.Lanes, "Recreated delivery task") {
+		t.Fatalf("TaskBoard(%s) missing recreated task: %#v", survivingRef, board.Lanes)
+	}
+	if taskBoardContainsTitle(board.Lanes, "Delivery child task") {
+		t.Fatalf("TaskBoard(%s) served stale archived task: %#v", survivingRef, board.Lanes)
 	}
 }

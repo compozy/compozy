@@ -352,32 +352,58 @@ func validatePackageTransportReference(
 	if err != nil {
 		return err
 	}
-	if archivedPackageSelection(ctx, db, workspaceID, ref.String()) {
+	if archivedPackageSelection(ctx, db, workspaceID, ref) {
 		return nil
 	}
 	_, err = (workpackages.TargetResolver{}).ResolvePackage(ctx, workspaceRoot, ref.String())
 	return err
 }
 
-// archivedPackageSelection reports whether the package slug resolves to a
-// durable archived workflow row rather than a live selection. A live row (or an
-// unresolved lookup) keeps the caller on active-plan validation.
+// archivedPackageSelection reports whether the reference resolves to a durable
+// archived workflow row whose owning generation is fully archived, rather than a
+// live selection or a child dropped from a recreated parent generation.
+//
+// A package reference has no stable global identity; it is only meaningful
+// relative to a parent generation. When an active parent initiative still
+// exists, only that generation's plan is authoritative, so archived children of
+// prior generations must not shadow it. In that case the caller stays on
+// active-plan validation and a child absent from the recreated plan yields a
+// typed package-not-found instead of stale archived history. Archived fallback
+// is allowed only when no active parent generation exists (the whole initiative
+// has been archived); a live row or unresolved lookup likewise keeps the caller
+// on active-plan validation.
 func archivedPackageSelection(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspaceID string,
-	slug string,
+	ref workpackages.Ref,
 ) bool {
 	if db == nil || strings.TrimSpace(workspaceID) == "" {
 		return false
 	}
-	if _, err := db.GetActiveWorkflowBySlug(ctx, workspaceID, slug); err == nil {
-		return false
-	} else if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+	if !activeWorkflowMissing(ctx, db, workspaceID, ref.String()) {
 		return false
 	}
-	_, err := db.GetLatestArchivedWorkflowBySlug(ctx, workspaceID, slug)
+	// A package selection is bound to its parent generation. If that parent is
+	// still active, its current plan is authoritative and archived children of
+	// prior generations must not shadow a package the new plan dropped.
+	if ref.IsPackage() && !activeWorkflowMissing(ctx, db, workspaceID, ref.Initiative) {
+		return false
+	}
+	_, err := db.GetLatestArchivedWorkflowBySlug(ctx, workspaceID, ref.String())
 	return err == nil
+}
+
+// activeWorkflowMissing reports whether no active workflow row exists for the
+// slug. Any lookup error other than ErrWorkflowNotFound is treated as "present"
+// so callers conservatively stay on active-plan validation rather than serving
+// durable archived history on an uncertain catalog state.
+func activeWorkflowMissing(ctx context.Context, db *globaldb.GlobalDB, workspaceID, slug string) bool {
+	_, err := db.GetActiveWorkflowBySlug(ctx, workspaceID, slug)
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, globaldb.ErrWorkflowNotFound)
 }
 
 func (s *transportTaskService) Validate(
