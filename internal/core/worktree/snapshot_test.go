@@ -229,8 +229,9 @@ func TestBuildScope(t *testing.T) {
 
 		root := initScopeGitRepo(t)
 		outside := t.TempDir()
-		if _, err := CaptureExcluding(context.Background(), root, outside); err == nil {
-			t.Fatal("CaptureExcluding outside path error = nil, want error")
+		if _, err := CaptureExcluding(context.Background(), root, outside); err == nil ||
+			!strings.Contains(err.Error(), "must be inside") {
+			t.Fatalf("CaptureExcluding outside path error = %v, want inside-workspace context", err)
 		}
 	})
 
