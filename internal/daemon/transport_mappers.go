@@ -303,9 +303,23 @@ func initiativeArchiveAction(
 	if len(children) == 0 {
 		return false, "no work packages present", nil
 	}
-	eligibilityByID, err := db.WorkflowArchiveEligibilityByIDs(ctx, children)
+	// Resolve eligibility for the parent row alongside every direct child. An ordinary
+	// workflow promoted to an initiative in place keeps its active runs on the parent
+	// workflow ID, which lives outside the child rows. The core archive path
+	// (activeInitiativeRunConflict) rejects that hierarchy with ErrWorkflowHasActiveRuns,
+	// so the read model must include the parent to agree instead of advertising an
+	// archive the mutation would refuse.
+	scope := make([]globaldb.Workflow, 0, len(children)+1)
+	scope = append(scope, parent)
+	scope = append(scope, children...)
+	eligibilityByID, err := db.WorkflowArchiveEligibilityByIDs(ctx, scope)
 	if err != nil {
 		return false, "", err
+	}
+	// A live run on the promoted parent blocks archive before child completion is even
+	// evaluated, mirroring activeInitiativeRunConflict's parent check.
+	if parentEligibility := eligibilityByID[parent.ID]; parentEligibility.ActiveRuns > 0 {
+		return false, parentEligibility.SkipReason(), nil
 	}
 	pendingPackages := make([]string, 0)
 	blockedChildren := make([]string, 0)

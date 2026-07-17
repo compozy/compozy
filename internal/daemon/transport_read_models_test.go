@@ -861,6 +861,107 @@ func TestTaskTransportServiceProjectsWorkPackageReviewIntoReadModels(t *testing.
 	})
 }
 
+func TestTaskTransportServiceBlocksArchiveForInitiativeWithActiveParentRun(t *testing.T) {
+	// An ordinary workflow promoted to an initiative in place keeps its active run on the
+	// parent workflow ID, a row that lives outside the plan-declared child workflows. The
+	// core archive path (activeInitiativeRunConflict) refuses that hierarchy with
+	// ErrWorkflowHasActiveRuns even when every package child is complete, so both read
+	// models must report the initiative as archive-ineligible with an active-run reason
+	// instead of advertising a Completed workflow whose archive action always fails.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			return nil
+		},
+	})
+	const slug = "wp-initiative"
+	writeDaemonMaterializedWorkPackageInitiative(t, env, slug)
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		TasksDir: env.workflowDir(slug),
+	}); err != nil {
+		t.Fatalf("SyncWithDB(materialized) error = %v", err)
+	}
+
+	query := NewQueryService(QueryServiceConfig{
+		GlobalDB:   env.globalDB,
+		RunManager: env.manager,
+		Daemon: stubDaemonStatusReader{
+			status: apicore.DaemonStatus{PID: 7, WorkspaceCount: 1},
+			health: apicore.DaemonHealth{Ready: true},
+		},
+	})
+	service := newTransportTaskService(env.globalDB, env.manager, query)
+
+	t.Run("Should report the completed initiative as archive eligible before any run", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		if initiative.ArchiveEligible == nil || !*initiative.ArchiveEligible {
+			t.Fatalf(
+				"baseline initiative archive eligible = %v, want true with every package completed",
+				initiative.ArchiveEligible,
+			)
+		}
+	})
+
+	// Seed an active run on the parent (initiative) workflow ID -- the exact row an
+	// in-place promotion retains, which never appears among the plan-declared child rows.
+	parentWorkflow, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, slug)
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug(%q) error = %v", slug, err)
+	}
+	if _, err := env.globalDB.PutRun(context.Background(), globaldb.Run{
+		RunID:            "run-initiative-parent-active",
+		WorkspaceID:      workspace.ID,
+		WorkflowID:       &parentWorkflow.ID,
+		Mode:             runModeTask,
+		Status:           runStatusRunning,
+		PresentationMode: defaultPresentationMode,
+		StartedAt:        time.Date(2026, 7, 17, 22, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("PutRun(active parent) error = %v", err)
+	}
+
+	assertBlockedByActiveRun := func(t *testing.T, eligible *bool, reason string) {
+		t.Helper()
+		if eligible == nil || *eligible {
+			t.Fatalf("initiative archive eligible = %v, want false while the parent run is active", eligible)
+		}
+		// The reason must match the core refusal's active-run cause (SkipReason ->
+		// "workflow has active runs") so the inventory shows why archive is blocked.
+		if !strings.Contains(reason, "active run") {
+			t.Fatalf("archive reason = %q, want an active-run reason", reason)
+		}
+	}
+
+	t.Run("Should block archive in the workflow list while the parent run is active", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		assertBlockedByActiveRun(t, initiative.ArchiveEligible, initiative.ArchiveReason)
+	})
+
+	t.Run("Should block archive in the dashboard while the parent run is active", func(t *testing.T) {
+		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("Dashboard() error = %v", err)
+		}
+		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
+		assertBlockedByActiveRun(t, card.Workflow.ArchiveEligible, card.Workflow.ArchiveReason)
+	})
+}
+
 func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *testing.T) {
 	// A previously materialized package whose directory later disappears must be
 	// re-projected as missing across the read models: start is blocked with the
