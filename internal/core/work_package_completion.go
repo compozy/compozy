@@ -117,23 +117,27 @@ func validateCompletionEvidence(
 	ctx context.Context,
 	request WorkPackageCompletionRequest,
 ) (workpackages.OperationalPaths, bool, error) {
-	paths, evidence, err := completionEvidence(ctx, request.WorkspaceRoot, request.Reference)
-	// ReviewClean reports only the final-verification and review outcome; terminal-task
-	// readiness is an independent completion precondition enforced below and must not
-	// corrupt a genuinely clean review result.
-	reviewClean := request.VerificationPassed && err == nil && evidence.reviewsResolved
+	paths, review, err := reviewCompletionEvidence(ctx, request.WorkspaceRoot, request.Reference)
+	// ReviewClean is derived only from final verification and the independent review
+	// scan. A task-inspection failure below is a separate completion blocker and must
+	// never flip a genuinely clean, fully resolved review result.
+	reviewClean := request.VerificationPassed && err == nil && review.reviewsResolved
 	if err != nil {
-		return paths, reviewClean, fmt.Errorf("inspect work package completion evidence: %w", err)
+		return paths, reviewClean, fmt.Errorf("inspect work package review evidence: %w", err)
+	}
+	tasksTerminal, err := taskCompletionEvidence(paths.PackageDir)
+	if err != nil {
+		return paths, reviewClean, fmt.Errorf("inspect work package task evidence: %w", err)
 	}
 	eligibility := workpackages.CanRecordCompletion(workpackages.CompletionPreconditions{
 		VerificationPassed: request.VerificationPassed,
 		ReviewInterrupted:  false,
 		NewIssues:          false,
-		PriorIssueStatuses: evidence.issueStatuses,
+		PriorIssueStatuses: review.issueStatuses,
 		HeadingExists:      true,
 	})
-	if !eligibility.Eligible || !evidence.tasksTerminal {
-		return paths, reviewClean, completionBlockedError(eligibility, evidence.tasksTerminal)
+	if !eligibility.Eligible || !tasksTerminal {
+		return paths, reviewClean, completionBlockedError(eligibility, tasksTerminal)
 	}
 	return paths, reviewClean, nil
 }
@@ -154,52 +158,62 @@ func usableWorkPackageCompletionService(service *WorkPackageCompletionService) *
 	return service
 }
 
-type completionReviewEvidence struct {
-	tasksTerminal   bool
+// reviewCompletionOutcome captures the review-scan result that drives ReviewClean.
+// It is deliberately independent of task-terminal state so a task-inspection
+// failure cannot corrupt the review outcome.
+type reviewCompletionOutcome struct {
 	reviewsResolved bool
 	issueStatuses   []string
 }
 
-func completionEvidence(
+// reviewCompletionEvidence resolves the package directory and scans every review
+// round. It never inspects task metadata, so its error surface is limited to the
+// operational-path and review-scan failures that genuinely make the review state
+// unknowable.
+func reviewCompletionEvidence(
 	ctx context.Context,
 	workspaceRoot string,
 	reference string,
-) (workpackages.OperationalPaths, completionReviewEvidence, error) {
+) (workpackages.OperationalPaths, reviewCompletionOutcome, error) {
 	paths, err := workpackages.ResolveOperationalPaths(ctx, workspaceRoot, reference)
 	if err != nil {
-		return workpackages.OperationalPaths{}, completionReviewEvidence{}, err
+		return workpackages.OperationalPaths{}, reviewCompletionOutcome{}, err
 	}
-	taskMeta, err := tasks.SnapshotTaskMeta(paths.PackageDir)
-	if err != nil {
-		return workpackages.OperationalPaths{}, completionReviewEvidence{}, err
-	}
-	evidence := completionReviewEvidence{
-		tasksTerminal:   taskMeta.Total > 0 && taskMeta.Pending == 0,
-		reviewsResolved: true,
-	}
+	outcome := reviewCompletionOutcome{reviewsResolved: true}
 	rounds, err := reviews.DiscoverRounds(paths.PackageDir)
 	if err != nil {
-		return workpackages.OperationalPaths{}, completionReviewEvidence{}, err
+		return paths, reviewCompletionOutcome{}, err
 	}
 	for _, round := range rounds {
 		entries, readErr := reviews.ReadReviewEntries(reviews.ReviewDirectory(paths.PackageDir, round))
 		if readErr != nil {
-			return workpackages.OperationalPaths{}, completionReviewEvidence{}, readErr
+			return paths, reviewCompletionOutcome{}, readErr
 		}
 		for _, entry := range entries {
 			resolved, parseErr := reviews.IsReviewResolved(entry.Content)
 			if parseErr != nil {
-				return workpackages.OperationalPaths{}, completionReviewEvidence{}, parseErr
+				return paths, reviewCompletionOutcome{}, parseErr
 			}
 			if resolved {
-				evidence.issueStatuses = append(evidence.issueStatuses, "resolved")
+				outcome.issueStatuses = append(outcome.issueStatuses, "resolved")
 				continue
 			}
-			evidence.issueStatuses = append(evidence.issueStatuses, "pending")
-			evidence.reviewsResolved = false
+			outcome.issueStatuses = append(outcome.issueStatuses, "pending")
+			outcome.reviewsResolved = false
 		}
 	}
-	return paths, evidence, nil
+	return paths, outcome, nil
+}
+
+// taskCompletionEvidence reports whether every package task is terminal. Its
+// failures are completion blockers that the caller keeps separate from the
+// review outcome.
+func taskCompletionEvidence(packageDir string) (bool, error) {
+	taskMeta, err := tasks.SnapshotTaskMeta(packageDir)
+	if err != nil {
+		return false, err
+	}
+	return taskMeta.Total > 0 && taskMeta.Pending == 0, nil
 }
 
 func sameCompletionOperationalPaths(paths workpackages.OperationalPaths, scope model.ExecutionScope) bool {

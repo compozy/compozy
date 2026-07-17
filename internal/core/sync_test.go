@@ -1320,6 +1320,45 @@ func TestWorkPackageCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *test
 			t.Fatal("nonterminal-task completion changed plan bytes")
 		}
 	})
+
+	t.Run("preserves a clean resolved review when task evidence fails to parse", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeWorkPackageFixture(t, initiativeDir, map[string]string{"WP-001": "pending", "WP-002": "pending"})
+		packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
+		// A malformed task file makes tasks.SnapshotTaskMeta fail. The review scan must
+		// still run independently so a fully resolved review history is not erased.
+		writeSyncWorkflowFile(t, packageDir, "task_01.md", "---\nstatus: [unterminated\n---\n# broken\n")
+		writeSyncWorkflowFile(
+			t,
+			packageDir,
+			filepath.Join("reviews-001", "issue_001.md"),
+			reviewIssueBody("resolved", "high"),
+		)
+		before := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName))
+
+		result, err := NewWorkPackageCompletionService().Complete(context.Background(), WorkPackageCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/WP-001", VerificationPassed: true,
+		})
+		if err == nil {
+			t.Fatal("task evidence parse failure must block completion")
+		}
+		// The task read failure blocks the checkbox mutation, but verification passed and
+		// every review is resolved, so review_clean must remain accurate.
+		if !result.ReviewClean {
+			t.Fatalf("task-evidence error erased a clean resolved review: %#v", result)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("task-evidence failure recorded completion: %#v", result)
+		}
+		// The blocker must name task evidence, not the review scan, so it stays actionable.
+		if !strings.Contains(err.Error(), "task evidence") {
+			t.Fatalf("completion error = %v, want an actionable task-evidence error", err)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, workpackages.ManifestFileName)); got != before {
+			t.Fatal("task-evidence failure changed plan bytes")
+		}
+	})
 }
 
 func TestSyncWorkPackageInitiativeFailsClosedAndPreservesChildren(t *testing.T) {
