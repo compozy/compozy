@@ -105,6 +105,7 @@ These are not `execute_hook` events but they are part of the public author surfa
 - `{}` and `{"patch": {}}` are both treated as no-op responses.
 - Arrays are replaced wholesale, not merged.
 - Returning a patch from an observe-only hook is allowed for forward compatibility but ignored by the host.
+- The `task` object sent to `plan.pre_resolve_task_runtime` includes `id`, `safe_name`, `title`, `type`, and `complexity`.
 - `plan.pre_resolve_task_runtime` is the only supported seam for extension-driven task runtime selection. Do not change runtime in `plan.post_prepare_jobs` or `job.pre_execute`.
 - In workflow runs, `run.pre_start` is late in the pipeline. It can still tune output/runtime behavior such as timeout, retries, or sound settings, but it cannot rewrite fields already consumed by planning.
 - Review-watch hooks cannot declare a PR clean or skip provider-current detection. The daemon waits for provider-current status before `review.watch_pre_round`, and immutable provider/head/status fields are rejected if a hook tries to mutate them.

@@ -59,6 +59,7 @@ type Snapshot struct {
 	porcelain         []byte
 	entries           []StatusEntry
 	trackedSymlinks   map[string]string
+	excludedPaths     []string
 	unsupportedReason UnsupportedReason
 	gitAvailable      bool
 	gitRepo           bool
@@ -145,9 +146,20 @@ func (s Scope) Unchanged() bool {
 
 // Capture fingerprints the workspace at root using git.
 func Capture(ctx context.Context, root string) (Snapshot, error) {
+	return CaptureExcluding(ctx, root)
+}
+
+// CaptureExcluding fingerprints the workspace while omitting paths owned by
+// the runtime rather than the agent. Exclusions are scoped to this snapshot and
+// do not mutate repository ignore configuration.
+func CaptureExcluding(ctx context.Context, root string, excludedPaths ...string) (Snapshot, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		return Snapshot{gitAvailable: gitAvailable(), unsupportedReason: UnsupportedReasonBlankRoot}, nil
+	}
+	normalizedExclusions, err := normalizeCaptureExcludedPaths(root, excludedPaths)
+	if err != nil {
+		return Snapshot{}, err
 	}
 	snapshot := Snapshot{gitAvailable: gitAvailable()}
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
@@ -185,7 +197,7 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 		return snapshot, fmt.Errorf("worktree: git branch in %s: %w", root, err)
 	}
 	snapshot.branch = string(bytes.TrimSpace(branch))
-	porcelain, entries, err := captureStatusEntries(ctx, root)
+	porcelain, entries, err := captureStatusEntries(ctx, root, normalizedExclusions)
 	if err != nil {
 		if isExecLookupError(err) {
 			snapshot.gitAvailable = false
@@ -198,11 +210,27 @@ func Capture(ctx context.Context, root string) (Snapshot, error) {
 	if err != nil {
 		return snapshot, fmt.Errorf("worktree: capture tracked symlinks in %s: %w", root, err)
 	}
-	return buildSupportedSnapshot(root, snapshot.head, snapshot.branch, porcelain, entries, trackedSymlinks), nil
+	trackedSymlinks = filterExcludedTrackedSymlinks(trackedSymlinks, normalizedExclusions)
+	return buildSupportedSnapshot(
+		root,
+		snapshot.head,
+		snapshot.branch,
+		porcelain,
+		entries,
+		trackedSymlinks,
+		normalizedExclusions,
+	), nil
 }
 
-func captureStatusEntries(ctx context.Context, root string) ([]byte, []StatusEntry, error) {
-	porcelain, err := runGit(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+func captureStatusEntries(ctx context.Context, root string, excludedPaths []string) ([]byte, []StatusEntry, error) {
+	args := []string{"status", "--porcelain=v1", "-z", "--untracked-files=all"}
+	if len(excludedPaths) > 0 {
+		args = append(args, "--")
+		for _, path := range excludedPaths {
+			args = append(args, ":(top,exclude,literal)"+path)
+		}
+	}
+	porcelain, err := runGit(ctx, root, args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("worktree: git status in %s: %w", root, err)
 	}
@@ -222,7 +250,7 @@ func captureStatusEntries(ctx context.Context, root string) ([]byte, []StatusEnt
 
 // BuildScope captures the final workspace state and compares it to baseline.
 func BuildScope(ctx context.Context, root string, baseline Snapshot) (Scope, error) {
-	final, err := Capture(ctx, root)
+	final, err := CaptureExcluding(ctx, root, baseline.excludedPaths...)
 	scope := CompareSnapshots(baseline, final)
 	if err != nil {
 		scope.Supported = false
@@ -347,6 +375,7 @@ func buildSupportedSnapshot(
 	porcelain []byte,
 	entries []StatusEntry,
 	trackedSymlinks map[string]string,
+	excludedPaths []string,
 ) Snapshot {
 	h := sha256.New()
 	h.Write([]byte(captureSchemaVersion))
@@ -354,6 +383,11 @@ func buildSupportedSnapshot(
 	h.Write([]byte(head))
 	h.Write([]byte{0})
 	h.Write(porcelain)
+	for _, path := range excludedPaths {
+		h.Write([]byte{0})
+		h.Write([]byte("exclude:"))
+		h.Write([]byte(path))
+	}
 	for _, entry := range entries {
 		h.Write([]byte{0})
 		h.Write([]byte(entry.Path))
@@ -368,11 +402,65 @@ func buildSupportedSnapshot(
 		porcelain:       append([]byte(nil), porcelain...),
 		entries:         append([]StatusEntry(nil), entries...),
 		trackedSymlinks: copyStringMap(trackedSymlinks),
+		excludedPaths:   append([]string(nil), excludedPaths...),
 		gitAvailable:    true,
 		gitRepo:         true,
 		hasCommits:      true,
 		supported:       true,
 	}
+}
+
+func normalizeCaptureExcludedPaths(root string, paths []string) ([]string, error) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("worktree: resolve snapshot root %s: %w", root, err)
+	}
+	normalized := make([]string, 0, len(paths))
+	for _, path := range paths {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
+			continue
+		}
+		if !filepath.IsAbs(trimmed) {
+			trimmed = filepath.Join(absRoot, trimmed)
+		}
+		absPath, err := filepath.Abs(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("worktree: resolve snapshot exclusion %s: %w", path, err)
+		}
+		rel, err := filepath.Rel(absRoot, absPath)
+		if err != nil {
+			return nil, fmt.Errorf("worktree: relativize snapshot exclusion %s: %w", path, err)
+		}
+		if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("worktree: snapshot exclusion %s must be inside %s", path, root)
+		}
+		normalized = append(normalized, filepath.ToSlash(filepath.Clean(rel)))
+	}
+	return uniqueSorted(normalized), nil
+}
+
+func filterExcludedTrackedSymlinks(links map[string]string, excludedPaths []string) map[string]string {
+	if len(links) == 0 || len(excludedPaths) == 0 {
+		return links
+	}
+	filtered := make(map[string]string, len(links))
+	for path, target := range links {
+		if !capturePathExcluded(path, excludedPaths) {
+			filtered[path] = target
+		}
+	}
+	return filtered
+}
+
+func capturePathExcluded(path string, excludedPaths []string) bool {
+	normalized := filepath.ToSlash(filepath.Clean(path))
+	for _, excluded := range excludedPaths {
+		if normalized == excluded || strings.HasPrefix(normalized, excluded+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func captureTrackedSymlinks(ctx context.Context, root string) (map[string]string, error) {

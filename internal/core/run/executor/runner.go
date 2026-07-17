@@ -170,7 +170,19 @@ func (r *jobRunner) captureWorkspaceSnapshot(ctx context.Context) worktree.Snaps
 	if r.execCtx.cfg.Mode != model.ExecutionModePRDTasks && !r.canAttemptCleanReset() {
 		return worktree.Snapshot{}
 	}
-	snap, err := worktree.Capture(ctx, r.execCtx.cfg.WorkspaceRoot)
+	var (
+		snap worktree.Snapshot
+		err  error
+	)
+	if r.execCtx.cfg.Mode == model.ExecutionModePRDTasks {
+		snap, err = worktree.CaptureExcluding(
+			ctx,
+			r.execCtx.cfg.WorkspaceRoot,
+			r.execCtx.cfg.TasksDir,
+		)
+	} else {
+		snap, err = worktree.Capture(ctx, r.execCtx.cfg.WorkspaceRoot)
+	}
 	if err != nil {
 		r.execCtx.runtimeLogger().Warn(
 			"failed to capture pre-run workspace snapshot; falling back to legacy completion behavior",

@@ -178,6 +178,13 @@ auto_commit = false
 max_retries = 2
 retry_backoff_multiplier = 1.5
 
+[defaults.by_complexity.low]
+model = "haiku"
+reasoning_effort = "low"
+
+[defaults.by_complexity.high]
+reasoning_effort = "high"
+
 [tasks]
 types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
 
@@ -220,6 +227,7 @@ nitpicks = false
 Supported sections:
 
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[defaults.by_complexity.low|medium|high|critical]` for per-task `ide`, `model`, and `reasoning_effort` defaults used by PRD task runs
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
@@ -235,6 +243,7 @@ Notes:
 - `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
 - Unknown keys and invalid value types are rejected during config loading.
 - Relative `add_dirs` are resolved against the owning config scope: the user home directory for `~/.compozy/config.toml` and the workspace root for `.compozy/config.toml`.
+- Complexity defaults merge field by field from global to workspace config. A missing field falls back to `[defaults]`; matching task-type and task-id runtime rules remain more specific, and explicit `--ide`, `--model`, or `--reasoning-effort` flags override complexity defaults for that invocation.
 - `[tasks.run] run_multiple_mode` controls `tasks run --multiple` scheduling. Valid values are `"enqueued"` and `"parallel"`; when unset, the built-in default is `"enqueued"`.
 - `run_multiple_mode = "parallel"` runs the batch concurrently, with each child in its own isolated git worktree. The CLI `--parallel` flag overrides this config value for a single invocation.
 - `[tasks.run] run_multiple_parallel_limit` caps how many children run at once in parallel mode. It must be a positive integer and defaults to `2`. The CLI `--parallel-limit <n>` flag overrides it for a single invocation. The limit has no effect in enqueued mode, which always runs one child at a time.

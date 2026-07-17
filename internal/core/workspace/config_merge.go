@@ -29,7 +29,30 @@ func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig 
 }
 
 func mergeDefaultsConfig(base, overlay DefaultsConfig) DefaultsConfig {
-	return DefaultsConfig(mergeRuntimeOverrides(RuntimeOverrides(base), RuntimeOverrides(overlay)))
+	return DefaultsConfig{
+		RuntimeOverrides: mergeRuntimeOverrides(base.RuntimeOverrides, overlay.RuntimeOverrides),
+		ByComplexity:     mergeTaskRuntimeByComplexity(base.ByComplexity, overlay.ByComplexity),
+	}
+}
+
+func mergeTaskRuntimeByComplexity(
+	base TaskRuntimeByComplexityConfig,
+	overlay TaskRuntimeByComplexityConfig,
+) TaskRuntimeByComplexityConfig {
+	return TaskRuntimeByComplexityConfig{
+		Low:      mergeTaskRuntimeOverrides(base.Low, overlay.Low),
+		Medium:   mergeTaskRuntimeOverrides(base.Medium, overlay.Medium),
+		High:     mergeTaskRuntimeOverrides(base.High, overlay.High),
+		Critical: mergeTaskRuntimeOverrides(base.Critical, overlay.Critical),
+	}
+}
+
+func mergeTaskRuntimeOverrides(base, overlay TaskRuntimeOverrides) TaskRuntimeOverrides {
+	return TaskRuntimeOverrides{
+		IDE:             cloneOptionalValue(preferOverlay(base.IDE, overlay.IDE)),
+		Model:           cloneOptionalValue(preferOverlay(base.Model, overlay.Model)),
+		ReasoningEffort: cloneOptionalValue(preferOverlay(base.ReasoningEffort, overlay.ReasoningEffort)),
+	}
 }
 
 func buildEffectiveTasksConfig(

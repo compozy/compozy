@@ -1585,6 +1585,10 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 		}
 		overrides.TaskRuntimeRules = &rules
 	})
+	if explicit := explicitRuntimeOverridesPayload(s.explicitRuntime); explicit != nil {
+		overrides.ExplicitRuntime = explicit
+		hasOverrides = true
+	}
 	recovery, err := s.recoveryFlagOverrides(cmd)
 	if err != nil {
 		return nil, err

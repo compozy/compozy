@@ -178,9 +178,9 @@ func (s *commandState) applyTasksRunConfig(cmd *cobra.Command, cfg workspace.Pro
 	applyConfig(cmd, "format", cfg.Tasks.Run.OutputFormat, func(val string) { s.outputFormat = val })
 	applyConfig(cmd, "tui", cfg.Tasks.Run.TUI, func(val bool) { s.tui = val })
 	s.applyParallelTasksConfig(cmd, cfg.Tasks.Run.Parallel)
-	s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
-		derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules),
-	)
+	rules := cfg.Defaults.ComplexityRuntimeRules()
+	rules = append(rules, derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules)...)
+	s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(rules)
 	applyConfig(
 		cmd,
 		"include-completed",

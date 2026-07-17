@@ -540,6 +540,12 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 			ReasoningEffort: "medium",
 			TaskRuntimeRules: []model.TaskRuntimeRule{
 				{
+					Complexity:      testStringPointer("low"),
+					IDE:             testStringPointer(model.IDEGemini),
+					Model:           testStringPointer("flash"),
+					ReasoningEffort: testStringPointer("low"),
+				},
+				{
 					Type:            testStringPointer("frontend"),
 					IDE:             testStringPointer(model.IDEClaude),
 					Model:           testStringPointer("sonnet"),
@@ -554,21 +560,53 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 			},
 		}
 
-		frontendOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_01", Type: "frontend"})
+		frontendOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{
+			ID: "task_01", Type: "frontend", Complexity: "low",
+		})
 		if frontendOnly.IDE != model.IDEClaude || frontendOnly.Model != "sonnet" ||
 			frontendOnly.ReasoningEffort != "high" {
 			t.Fatalf("unexpected type-resolved runtime: %#v", frontendOnly)
 		}
 
-		idOverride := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_02", Type: "frontend"})
+		idOverride := cfg.RuntimeForTask(model.TaskRuntimeTarget{
+			ID: "task_02", Type: "frontend", Complexity: "low",
+		})
 		if idOverride.IDE != model.IDECursor || idOverride.Model != "cursor-model" ||
 			idOverride.ReasoningEffort != "xhigh" {
 			t.Fatalf("unexpected id-resolved runtime: %#v", idOverride)
 		}
 
-		baseOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_03", Type: "backend"})
+		baseOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{
+			ID: "task_03", Type: "backend", Complexity: "medium",
+		})
 		if baseOnly.IDE != model.IDECodex || baseOnly.Model != "gpt-5.5" || baseOnly.ReasoningEffort != "medium" {
 			t.Fatalf("unexpected base runtime: %#v", baseOnly)
+		}
+	})
+
+	t.Run("Should apply complexity defaults without overriding explicit runtime fields", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "explicit-model",
+			ReasoningEffort: "medium",
+			ExplicitRuntime: model.ExplicitRuntimeFlags{Model: true},
+			TaskRuntimeRules: []model.TaskRuntimeRule{{
+				Complexity:      testStringPointer("low"),
+				IDE:             testStringPointer(model.IDEClaude),
+				Model:           testStringPointer("haiku"),
+				ReasoningEffort: testStringPointer("low"),
+			}},
+		}
+
+		resolved := cfg.RuntimeForTask(model.TaskRuntimeTarget{Complexity: "low"})
+		if resolved.IDE != model.IDEClaude || resolved.Model != "explicit-model" ||
+			resolved.ReasoningEffort != "low" {
+			t.Fatalf("unexpected complexity-resolved runtime: %#v", resolved)
+		}
+		if cfg.IDE != model.IDECodex || cfg.Model != "explicit-model" || cfg.ReasoningEffort != "medium" {
+			t.Fatalf("complexity resolution mutated base runtime: %#v", cfg)
 		}
 	})
 

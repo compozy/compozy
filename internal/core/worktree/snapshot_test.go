@@ -184,6 +184,56 @@ func TestBuildScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should exclude mirrored task artifacts without hiding agent output", func(t *testing.T) {
+		t.Parallel()
+		requireScopeGit(t)
+
+		primary := initScopeGitRepo(t)
+		linked := filepath.Join(t.TempDir(), "linked")
+		mustScopeGit(t, primary, "worktree", "add", "-q", "-b", "feature-task-artifacts", linked)
+		tasksDir := filepath.Join(linked, ".compozy", "tasks", "demo")
+		if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir task artifacts: %v", err)
+		}
+		taskPath := filepath.Join(tasksDir, "task_01.md")
+		if err := os.WriteFile(taskPath, []byte("status: pending\n"), 0o600); err != nil {
+			t.Fatalf("write mirrored task artifact: %v", err)
+		}
+
+		baseline, err := CaptureExcluding(context.Background(), linked, tasksDir)
+		if err != nil {
+			t.Fatalf("CaptureExcluding baseline: %v", err)
+		}
+		if err := os.WriteFile(taskPath, []byte("status: completed\n"), 0o600); err != nil {
+			t.Fatalf("update mirrored task artifact: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(linked, "produced.go"), []byte("package produced\n"), 0o600); err != nil {
+			t.Fatalf("write agent output: %v", err)
+		}
+
+		scope, err := BuildScope(context.Background(), linked, baseline)
+		if err != nil {
+			t.Fatalf("BuildScope: %v", err)
+		}
+		if got, want := strings.Join(scope.ProducedPaths, ","), "produced.go"; got != want {
+			t.Fatalf("produced paths = %q, want %q", got, want)
+		}
+		if len(scope.PreExistingPaths) != 0 || len(scope.PreExistingChangedPaths) != 0 {
+			t.Fatalf("task artifacts leaked into scope: %#v", scope)
+		}
+	})
+
+	t.Run("Should reject snapshot exclusions outside the workspace", func(t *testing.T) {
+		t.Parallel()
+		requireScopeGit(t)
+
+		root := initScopeGitRepo(t)
+		outside := t.TempDir()
+		if _, err := CaptureExcluding(context.Background(), root, outside); err == nil {
+			t.Fatal("CaptureExcluding outside path error = nil, want error")
+		}
+	})
+
 	t.Run("Should fingerprint dirty submodules from gitlink state", func(t *testing.T) {
 		t.Parallel()
 		requireScopeGit(t)

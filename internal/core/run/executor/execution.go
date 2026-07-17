@@ -431,6 +431,7 @@ func equalTaskRuntimeRules(left []model.TaskRuntimeRule, right []model.TaskRunti
 	for idx := range left {
 		if !equalOptionalString(left[idx].ID, right[idx].ID) ||
 			!equalOptionalString(left[idx].Type, right[idx].Type) ||
+			!equalOptionalString(left[idx].Complexity, right[idx].Complexity) ||
 			!equalOptionalString(left[idx].IDE, right[idx].IDE) ||
 			!equalOptionalString(left[idx].Model, right[idx].Model) ||
 			!equalOptionalString(left[idx].ReasoningEffort, right[idx].ReasoningEffort) {

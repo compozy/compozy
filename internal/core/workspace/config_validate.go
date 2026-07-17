@@ -83,11 +83,41 @@ func validateSoundField(field string, value *string) error {
 }
 
 func validateDefaults(scope string, cfg DefaultsConfig) error {
-	overrides := RuntimeOverrides(cfg)
+	overrides := cfg.RuntimeOverrides
 	if err := validateRuntimeOverrides(scope, "defaults", overrides); err != nil {
 		return err
 	}
-	return validateRuntimeAddDirs(scope, "defaults", overrides, nil)
+	if err := validateRuntimeAddDirs(scope, "defaults", overrides, nil); err != nil {
+		return err
+	}
+	return validateTaskRuntimeByComplexity(scope, cfg.ByComplexity)
+}
+
+func validateTaskRuntimeByComplexity(scope string, cfg TaskRuntimeByComplexityConfig) error {
+	entries := []struct {
+		complexity string
+		overrides  TaskRuntimeOverrides
+	}{
+		{complexity: "low", overrides: cfg.Low},
+		{complexity: "medium", overrides: cfg.Medium},
+		{complexity: "high", overrides: cfg.High},
+		{complexity: "critical", overrides: cfg.Critical},
+	}
+	for _, entry := range entries {
+		prefix := configFieldName(scope, "defaults.by_complexity."+entry.complexity)
+		rule := model.TaskRuntimeRule{
+			IDE:             entry.overrides.IDE,
+			Model:           entry.overrides.Model,
+			ReasoningEffort: entry.overrides.ReasoningEffort,
+		}
+		if !rule.HasOverride() {
+			continue
+		}
+		if err := validateTaskRuntimeRuleRuntime(prefix, rule); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateTaskRun(scope string, defaults DefaultsConfig, cfg TaskRunConfig) error {
@@ -657,6 +687,12 @@ func validateTaskRunRuntimeRules(scope string, rules *[]model.TaskRuntimeRule) e
 		}
 		if rule.ID != nil {
 			return fmt.Errorf("%s.id is not supported; use CLI --task-runtime for per-task ids", fieldPrefix)
+		}
+		if rule.Complexity != nil {
+			return fmt.Errorf(
+				"%s.complexity is not supported; use defaults.by_complexity for complexity defaults",
+				fieldPrefix,
+			)
 		}
 		if rule.Type == nil || strings.TrimSpace(*rule.Type) == "" {
 			return fmt.Errorf("%s.type is required", fieldPrefix)

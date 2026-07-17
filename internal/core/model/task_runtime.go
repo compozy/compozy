@@ -9,6 +9,7 @@ type TaskRuntimeRule struct {
 	Workflow        *string `toml:"workflow"         json:"workflow,omitempty"`
 	ID              *string `toml:"id"               json:"id,omitempty"`
 	Type            *string `toml:"type"             json:"type,omitempty"`
+	Complexity      *string `toml:"complexity"       json:"complexity,omitempty"`
 	IDE             *string `toml:"ide"              json:"ide,omitempty"`
 	Model           *string `toml:"model"            json:"model,omitempty"`
 	ReasoningEffort *string `toml:"reasoning_effort" json:"reasoning_effort,omitempty"`
@@ -16,9 +17,10 @@ type TaskRuntimeRule struct {
 
 // TaskRuntimeTarget identifies the task being resolved against runtime rules.
 type TaskRuntimeTarget struct {
-	Workflow string
-	ID       string
-	Type     string
+	Workflow   string
+	ID         string
+	Type       string
+	Complexity string
 }
 
 // TaskRuntime describes the effective runtime fields that may vary per task.
@@ -30,10 +32,11 @@ type TaskRuntime struct {
 
 // TaskRuntimeTask identifies the PRD task whose runtime is being resolved.
 type TaskRuntimeTask struct {
-	ID       string `json:"id,omitempty"`
-	SafeName string `json:"safe_name,omitempty"`
-	Title    string `json:"title,omitempty"`
-	Type     string `json:"type,omitempty"`
+	ID         string `json:"id,omitempty"`
+	SafeName   string `json:"safe_name,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
 }
 
 // CloneTaskRuntimeRules returns a deep copy of runtime rules so callers can
@@ -55,6 +58,7 @@ func (r TaskRuntimeRule) clone() TaskRuntimeRule {
 		Workflow:        cloneTrimmedOptionalString(r.Workflow),
 		ID:              cloneTrimmedOptionalString(r.ID),
 		Type:            cloneTrimmedOptionalString(r.Type),
+		Complexity:      cloneTrimmedOptionalString(r.Complexity),
 		IDE:             cloneTrimmedOptionalString(r.IDE),
 		Model:           cloneTrimmedOptionalString(r.Model),
 		ReasoningEffort: cloneTrimmedOptionalString(r.ReasoningEffort),
@@ -62,7 +66,7 @@ func (r TaskRuntimeRule) clone() TaskRuntimeRule {
 }
 
 func (r TaskRuntimeRule) HasSelector() bool {
-	return r.ID != nil || r.Type != nil
+	return r.ID != nil || r.Type != nil || r.Complexity != nil
 }
 
 func (r TaskRuntimeRule) HasOverride() bool {
@@ -77,6 +81,10 @@ func (r TaskRuntimeRule) IsTypeRule() bool {
 	return r.Type != nil
 }
 
+func (r TaskRuntimeRule) IsComplexityRule() bool {
+	return r.Complexity != nil
+}
+
 func (r TaskRuntimeRule) Matches(target TaskRuntimeTarget) bool {
 	if r.Workflow != nil {
 		workflow := strings.TrimSpace(*r.Workflow)
@@ -89,6 +97,9 @@ func (r TaskRuntimeRule) Matches(target TaskRuntimeTarget) bool {
 		return strings.TrimSpace(target.ID) != "" && strings.TrimSpace(*r.ID) == strings.TrimSpace(target.ID)
 	case r.Type != nil:
 		return strings.TrimSpace(target.Type) != "" && strings.TrimSpace(*r.Type) == strings.TrimSpace(target.Type)
+	case r.Complexity != nil:
+		return strings.TrimSpace(target.Complexity) != "" &&
+			strings.TrimSpace(*r.Complexity) == strings.TrimSpace(target.Complexity)
 	default:
 		return false
 	}
@@ -118,14 +129,21 @@ func (cfg *RuntimeConfig) Clone() *RuntimeConfig {
 	return &cloned
 }
 
-// RuntimeForTask resolves the effective runtime for one task. Type selectors
-// apply before id selectors, and later rules win within the same specificity.
+// RuntimeForTask resolves the effective runtime for one task. Complexity
+// defaults apply before type and id selectors, and later rules win within the
+// same specificity.
 func (cfg *RuntimeConfig) RuntimeForTask(target TaskRuntimeTarget) *RuntimeConfig {
 	cloned := cfg.Clone()
 	if cloned == nil {
 		return nil
 	}
 
+	for _, rule := range cloned.TaskRuntimeRules {
+		if !rule.IsComplexityRule() || !rule.Matches(target) {
+			continue
+		}
+		applyTaskComplexityRuntimeRule(cloned, rule)
+	}
 	for _, rule := range cloned.TaskRuntimeRules {
 		if !rule.IsTypeRule() || !rule.Matches(target) {
 			continue
@@ -140,6 +158,21 @@ func (cfg *RuntimeConfig) RuntimeForTask(target TaskRuntimeTarget) *RuntimeConfi
 	}
 	cloned.TaskRuntimeRules = nil
 	return cloned
+}
+
+func applyTaskComplexityRuntimeRule(cfg *RuntimeConfig, rule TaskRuntimeRule) {
+	if cfg == nil {
+		return
+	}
+	if rule.IDE != nil && !cfg.ExplicitRuntime.IDE {
+		cfg.IDE = strings.TrimSpace(*rule.IDE)
+	}
+	if rule.Model != nil && !cfg.ExplicitRuntime.Model {
+		cfg.Model = strings.TrimSpace(*rule.Model)
+	}
+	if rule.ReasoningEffort != nil && !cfg.ExplicitRuntime.ReasoningEffort {
+		cfg.ReasoningEffort = strings.TrimSpace(*rule.ReasoningEffort)
+	}
 }
 
 func applyTaskRuntimeRule(cfg *RuntimeConfig, rule TaskRuntimeRule) {

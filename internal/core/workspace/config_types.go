@@ -73,7 +73,55 @@ type StallOverrides struct {
 	Retries                *int    `toml:"retries,omitempty"                  json:"retries,omitempty"`
 }
 
-type DefaultsConfig RuntimeOverrides
+// TaskRuntimeOverrides are the runtime fields that may vary with task
+// complexity. Execution-wide fields stay in RuntimeOverrides.
+type TaskRuntimeOverrides struct {
+	IDE             *string `toml:"ide,omitempty"`
+	Model           *string `toml:"model,omitempty"`
+	ReasoningEffort *string `toml:"reasoning_effort,omitempty"`
+}
+
+// TaskRuntimeByComplexityConfig declares optional runtime defaults for the four
+// task complexities accepted by the v2 task schema.
+type TaskRuntimeByComplexityConfig struct {
+	Low      TaskRuntimeOverrides `toml:"low,omitempty"`
+	Medium   TaskRuntimeOverrides `toml:"medium,omitempty"`
+	High     TaskRuntimeOverrides `toml:"high,omitempty"`
+	Critical TaskRuntimeOverrides `toml:"critical,omitempty"`
+}
+
+type DefaultsConfig struct {
+	RuntimeOverrides
+	ByComplexity TaskRuntimeByComplexityConfig `toml:"by_complexity,omitempty"`
+}
+
+// ComplexityRuntimeRules converts defaults into the shared task-runtime rule
+// representation used by planning. The stable order is the task schema order.
+func (cfg DefaultsConfig) ComplexityRuntimeRules() []model.TaskRuntimeRule {
+	entries := []struct {
+		complexity string
+		overrides  TaskRuntimeOverrides
+	}{
+		{complexity: "low", overrides: cfg.ByComplexity.Low},
+		{complexity: "medium", overrides: cfg.ByComplexity.Medium},
+		{complexity: "high", overrides: cfg.ByComplexity.High},
+		{complexity: "critical", overrides: cfg.ByComplexity.Critical},
+	}
+	rules := make([]model.TaskRuntimeRule, 0, len(entries))
+	for _, entry := range entries {
+		complexity := entry.complexity
+		rule := model.TaskRuntimeRule{
+			Complexity:      &complexity,
+			IDE:             entry.overrides.IDE,
+			Model:           entry.overrides.Model,
+			ReasoningEffort: entry.overrides.ReasoningEffort,
+		}
+		if rule.HasOverride() {
+			rules = append(rules, rule)
+		}
+	}
+	return model.CloneTaskRuntimeRules(rules)
+}
 
 type TaskRunConfig struct {
 	IncludeCompleted         *bool                    `toml:"include_completed"`

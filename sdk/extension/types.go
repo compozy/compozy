@@ -492,16 +492,18 @@ type TaskRuntime struct {
 
 // TaskRuntimeTask mirrors the PRD task whose runtime is being resolved.
 type TaskRuntimeTask struct {
-	ID       string `json:"id,omitempty"`
-	SafeName string `json:"safe_name,omitempty"`
-	Title    string `json:"title,omitempty"`
-	Type     string `json:"type,omitempty"`
+	ID         string `json:"id,omitempty"`
+	SafeName   string `json:"safe_name,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
 }
 
 // TaskRuntimeRule mirrors one task-scoped runtime override rule.
 type TaskRuntimeRule struct {
 	ID              *string `json:"id,omitempty"`
 	Type            *string `json:"type,omitempty"`
+	Complexity      *string `json:"complexity,omitempty"`
 	IDE             *string `json:"ide,omitempty"`
 	Model           *string `json:"model,omitempty"`
 	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
