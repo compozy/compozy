@@ -65,6 +65,7 @@ const workflowSelectColumns = `
 	display_title,
 	outcome,
 	lifecycle_completed,
+	missing,
 	dependencies_json,
 	archived_at,
 	last_synced_at,
@@ -123,11 +124,14 @@ type Workflow struct {
 	DisplayTitle       string
 	Outcome            string
 	LifecycleCompleted bool
-	Dependencies       []WorkflowDependency
-	ArchivedAt         *time.Time
-	LastSyncedAt       *time.Time
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	// Missing marks a placeholder row seeded for a declared package whose
+	// directory is absent on disk. Present, materialized rows leave it false.
+	Missing      bool
+	Dependencies []WorkflowDependency
+	ArchivedAt   *time.Time
+	LastSyncedAt *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // ListWorkflowsOptions controls workflow listing behavior.
@@ -1052,9 +1056,9 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 		ctx,
 		`INSERT INTO workflows (
 			id, workspace_id, slug, kind, parent_workflow_id, package_id,
-			display_title, outcome, lifecycle_completed, dependencies_json,
+			display_title, outcome, lifecycle_completed, missing, dependencies_json,
 			archived_at, last_synced_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workflow.ID,
 		workflow.WorkspaceID,
 		workflow.Slug,
@@ -1064,6 +1068,7 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 		workflow.DisplayTitle,
 		workflow.Outcome,
 		workflow.LifecycleCompleted,
+		workflow.Missing,
 		dependenciesJSON,
 		nullableTimestamp(workflow.ArchivedAt),
 		nullableTimestamp(workflow.LastSyncedAt),
@@ -1102,7 +1107,7 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 		ctx,
 		`UPDATE workflows
 		 SET workspace_id = ?, slug = ?, kind = ?, parent_workflow_id = ?, package_id = ?,
-		     display_title = ?, outcome = ?, lifecycle_completed = ?, dependencies_json = ?,
+		     display_title = ?, outcome = ?, lifecycle_completed = ?, missing = ?, dependencies_json = ?,
 		     archived_at = ?, last_synced_at = ?, updated_at = ?
 		 WHERE id = ?`,
 		workflow.WorkspaceID,
@@ -1113,6 +1118,7 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 		workflow.DisplayTitle,
 		workflow.Outcome,
 		workflow.LifecycleCompleted,
+		workflow.Missing,
 		dependenciesJSON,
 		nullableTimestamp(workflow.ArchivedAt),
 		nullableTimestamp(workflow.LastSyncedAt),
@@ -1143,6 +1149,7 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 		kind                string
 		parentWorkflowIDRaw sql.NullString
 		lifecycleCompleted  int
+		missing             int
 		dependenciesJSON    string
 		archivedAtRaw       sql.NullString
 		lastSyncedAtRaw     sql.NullString
@@ -1159,6 +1166,7 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 		&workflow.DisplayTitle,
 		&workflow.Outcome,
 		&lifecycleCompleted,
+		&missing,
 		&dependenciesJSON,
 		&archivedAtRaw,
 		&lastSyncedAtRaw,
@@ -1173,6 +1181,7 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
 	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
 	workflow.LifecycleCompleted = lifecycleCompleted != 0
+	workflow.Missing = missing != 0
 	if err := json.Unmarshal([]byte(dependenciesJSON), &workflow.Dependencies); err != nil {
 		return Workflow{}, fmt.Errorf("globaldb: decode workflow dependencies: %w", err)
 	}

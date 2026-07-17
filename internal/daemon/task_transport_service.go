@@ -151,6 +151,10 @@ func workflowListSummary(
 		child := children[childIndex]
 		childCounts := taskCountsByWorkflowID[child.ID]
 		childEligibility := archiveEligibilityByWorkflowID[child.ID]
+		childReview, reviewErr := latestPackageReviewSummary(ctx, db, *child)
+		if reviewErr != nil {
+			return apicore.WorkflowSummary{}, reviewErr
+		}
 		summary.WorkPackages = append(summary.WorkPackages, transportWorkPackageSummary(
 			*child,
 			WorkflowTaskCounts{
@@ -160,9 +164,29 @@ func workflowListSummary(
 			},
 			childEligibility,
 			readinessByPackageID[child.PackageID],
+			childReview,
 		))
 	}
 	return summary, nil
+}
+
+// latestPackageReviewSummary projects a work package's most recent review round
+// into the read model so inventory cards can link to it. A package without any
+// review round contributes no identity (nil), not an error.
+func latestPackageReviewSummary(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	child globaldb.Workflow,
+) (*apicore.ReviewSummary, error) {
+	round, err := db.GetLatestReviewRound(ctx, child.ID)
+	if err != nil {
+		if errors.Is(err, globaldb.ErrReviewRoundNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	summary := transportReviewSummary(child.Slug, round)
+	return &summary, nil
 }
 
 func (s *transportTaskService) GetWorkflow(

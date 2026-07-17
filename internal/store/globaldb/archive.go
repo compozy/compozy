@@ -475,6 +475,23 @@ func (g *GlobalDB) MarkWorkflowHierarchyArchived(
 		}
 	}()
 
+	// Enforce the no-active-run invariant inside the transaction so a run that
+	// starts between the caller's pre-flight validation and this mutation cannot be
+	// archived mid-flight. The aggregate count spans the parent row and its direct
+	// children — the exact hierarchy the UPDATE below archives.
+	activeRuns, err := countActiveRunsForWorkflowAggregateTx(ctx, tx, parent.ID)
+	if err != nil {
+		return nil, err
+	}
+	if activeRuns > 0 {
+		return nil, WorkflowActiveRunsError{
+			WorkspaceID: parent.WorkspaceID,
+			WorkflowID:  parent.ID,
+			Slug:        parent.Slug,
+			ActiveRuns:  activeRuns,
+		}
+	}
+
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE workflows

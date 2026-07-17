@@ -14,6 +14,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -712,6 +713,11 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 		if len(dependent.UnmetDependencies) != 1 || dependent.UnmetDependencies[0].PackageID != "WP-001" {
 			t.Fatalf("WP-002 unmet dependencies = %#v, want single edge to WP-001", dependent.UnmetDependencies)
 		}
+		// Both missing placeholders (dependency-blocked WP-001 and independent
+		// WP-003) must be reported as not runnable with a missing-directory reason
+		// so the inventory never enables a start that would fail on re-resolution.
+		assertMissingPlaceholderBlocked(t, initiative.WorkPackages, "WP-001")
+		assertMissingPlaceholderBlocked(t, initiative.WorkPackages, "WP-003")
 	})
 
 	t.Run("Should project the same complete graph into the dashboard", func(t *testing.T) {
@@ -723,7 +729,288 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 		if len(card.Workflow.WorkPackages) != 3 {
 			t.Fatalf("dashboard initiative work packages = %d, want 3", len(card.Workflow.WorkPackages))
 		}
+		assertMissingPlaceholderBlocked(t, card.Workflow.WorkPackages, "WP-001")
+		assertMissingPlaceholderBlocked(t, card.Workflow.WorkPackages, "WP-003")
 	})
+
+	t.Run("Should refuse to really start a missing independent package", func(t *testing.T) {
+		_, startErr := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			slug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				PackageID:        "WP-003",
+			},
+		)
+		if !errors.Is(startErr, workpackages.ErrPackageNotFound) {
+			t.Fatalf("StartTaskRun(missing WP-003) error = %v, want ErrPackageNotFound", startErr)
+		}
+	})
+}
+
+func TestTaskTransportServiceProjectsWorkPackageReviewIntoReadModels(t *testing.T) {
+	// A work package's latest review round must survive projection into both read
+	// models (workflow list and dashboard) so the UI can navigate to it, and the
+	// dashboard pending-review total must include package unresolved counts that the
+	// parent card cannot see on its own review rounds.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			return nil
+		},
+	})
+	const slug = "wp-initiative"
+	writeDaemonMaterializedWorkPackageInitiative(t, env, slug)
+	// Seed a local review round carrying one unresolved issue under two packages.
+	for _, packageID := range []string{"WP-001", "WP-002"} {
+		env.writeWorkflowFile(
+			t,
+			slug,
+			filepath.Join("_packages", packageID, "reviews-001", "_meta.md"),
+			daemonReviewRoundMetaBody("coderabbit", "123", 1),
+		)
+		env.writeWorkflowFile(
+			t,
+			slug,
+			filepath.Join("_packages", packageID, "reviews-001", "issue_001.md"),
+			daemonReviewIssueBody("pending", "medium"),
+		)
+	}
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		TasksDir: env.workflowDir(slug),
+	}); err != nil {
+		t.Fatalf("SyncWithDB() error = %v", err)
+	}
+
+	query := NewQueryService(QueryServiceConfig{
+		GlobalDB:   env.globalDB,
+		RunManager: env.manager,
+		Daemon: stubDaemonStatusReader{
+			status: apicore.DaemonStatus{PID: 7, WorkspaceCount: 1},
+			health: apicore.DaemonHealth{Ready: true},
+		},
+	})
+	service := newTransportTaskService(env.globalDB, env.manager, query)
+
+	assertPackageLatestReview := func(t *testing.T, pkg apicore.WorkPackageSummary) {
+		t.Helper()
+		if pkg.LatestReview == nil {
+			t.Fatalf("work package %q latest review = nil, want projected round", pkg.PackageID)
+		}
+		if pkg.LatestReview.RoundNumber != 1 {
+			t.Fatalf(
+				"work package %q latest review round = %d, want 1",
+				pkg.PackageID,
+				pkg.LatestReview.RoundNumber,
+			)
+		}
+		if pkg.LatestReview.UnresolvedCount != 1 {
+			t.Fatalf(
+				"work package %q latest review unresolved = %d, want 1",
+				pkg.PackageID,
+				pkg.LatestReview.UnresolvedCount,
+			)
+		}
+	}
+
+	t.Run("Should project package latest review into the workflow list", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		assertPackageLatestReview(t, findWorkPackageSummary(t, initiative.WorkPackages, "WP-001"))
+		assertPackageLatestReview(t, findWorkPackageSummary(t, initiative.WorkPackages, "WP-002"))
+		if pkg := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003"); pkg.LatestReview != nil {
+			t.Fatalf("work package WP-003 latest review = %#v, want nil (no round)", pkg.LatestReview)
+		}
+	})
+
+	t.Run("Should project package latest review and aggregate unresolved into the dashboard", func(t *testing.T) {
+		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("Dashboard() error = %v", err)
+		}
+		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
+		assertPackageLatestReview(t, findWorkPackageSummary(t, card.Workflow.WorkPackages, "WP-001"))
+		assertPackageLatestReview(t, findWorkPackageSummary(t, card.Workflow.WorkPackages, "WP-002"))
+		// The initiative card has no review round of its own, so the whole pending
+		// total must come from the two package rounds — proving package unresolved
+		// counts are no longer omitted from the aggregate.
+		if dashboard.PendingReviews != 2 {
+			t.Fatalf("dashboard pending reviews = %d, want 2 from package rounds", dashboard.PendingReviews)
+		}
+	})
+}
+
+func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *testing.T) {
+	// A previously materialized package whose directory later disappears must be
+	// re-projected as missing across the read models: start is blocked with the
+	// missing-directory reason, a real start fails on re-resolution, and a completed
+	// package that vanished stops reporting archive-eligible so the read model no
+	// longer disagrees with the filesystem.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			return nil
+		},
+	})
+	const slug = "wp-initiative"
+	writeDaemonMaterializedWorkPackageInitiative(t, env, slug)
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		TasksDir: env.workflowDir(slug),
+	}); err != nil {
+		t.Fatalf("SyncWithDB(materialized) error = %v", err)
+	}
+
+	query := NewQueryService(QueryServiceConfig{
+		GlobalDB:   env.globalDB,
+		RunManager: env.manager,
+		Daemon: stubDaemonStatusReader{
+			status: apicore.DaemonStatus{PID: 7, WorkspaceCount: 1},
+			health: apicore.DaemonHealth{Ready: true},
+		},
+	})
+	service := newTransportTaskService(env.globalDB, env.manager, query)
+
+	t.Run("Should report the completed package as archive eligible while present", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		completed := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		if completed.ArchiveEligible == nil || !*completed.ArchiveEligible {
+			t.Fatalf("present completed WP-003 archive eligible = %v, want true baseline", completed.ArchiveEligible)
+		}
+	})
+
+	if err := os.RemoveAll(filepath.Join(env.workflowDir(slug), "_packages", "WP-003")); err != nil {
+		t.Fatalf("remove WP-003: %v", err)
+	}
+	result, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+		TasksDir: env.workflowDir(slug),
+	})
+	if err != nil {
+		t.Fatalf("SyncWithDB(removed) error = %v", err)
+	}
+	if !result.Partial {
+		t.Fatalf("removal sync not flagged partial: %#v", result)
+	}
+
+	t.Run("Should block start and archive for the removed completed package", func(t *testing.T) {
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		if len(initiative.WorkPackages) != 3 {
+			t.Fatalf("initiative work packages = %d, want complete declared graph of 3", len(initiative.WorkPackages))
+		}
+		// The completed package that vanished must stop advertising as runnable and
+		// stop reporting archive-eligible even though its retained projection looks
+		// complete; otherwise the read model disagrees with the filesystem.
+		assertMissingPlaceholderBlocked(t, initiative.WorkPackages, "WP-003")
+		removed := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		if removed.ArchiveEligible == nil || *removed.ArchiveEligible {
+			t.Fatalf("removed completed WP-003 archive eligible = %v, want false", removed.ArchiveEligible)
+		}
+		if initiative.ArchiveEligible == nil || *initiative.ArchiveEligible {
+			t.Fatalf("initiative archive eligible = %v, want blocked by missing package", initiative.ArchiveEligible)
+		}
+		if !strings.Contains(initiative.ArchiveReason, "WP-003") {
+			t.Fatalf("archive reason = %q, want the missing WP-003 surfaced", initiative.ArchiveReason)
+		}
+	})
+
+	t.Run("Should project the removed package as blocked in the dashboard", func(t *testing.T) {
+		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("Dashboard() error = %v", err)
+		}
+		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
+		assertMissingPlaceholderBlocked(t, card.Workflow.WorkPackages, "WP-003")
+	})
+
+	t.Run("Should refuse to really start the removed package", func(t *testing.T) {
+		_, startErr := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			slug,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				PackageID:        "WP-003",
+			},
+		)
+		if !errors.Is(startErr, workpackages.ErrPackageNotFound) {
+			t.Fatalf("StartTaskRun(removed WP-003) error = %v, want ErrPackageNotFound", startErr)
+		}
+	})
+
+	t.Run("Should clear the missing state when the directory returns", func(t *testing.T) {
+		env.writeWorkflowFile(
+			t,
+			slug,
+			filepath.Join("_packages", "WP-003", "task_01.md"),
+			daemonTaskBody("completed", "WP-003 task"),
+		)
+		if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
+			TasksDir: env.workflowDir(slug),
+		}); err != nil {
+			t.Fatalf("SyncWithDB(rematerialized) error = %v", err)
+		}
+		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ListWorkflows() error = %v", err)
+		}
+		initiative := findInitiativeSummary(t, workflows, slug)
+		restored := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		if restored.StartBlockReason == workflowStartReasonMissing {
+			t.Fatalf("rematerialized WP-003 still blocked missing: %q", restored.StartBlockReason)
+		}
+		if restored.ArchiveEligible == nil || !*restored.ArchiveEligible {
+			t.Fatalf("rematerialized completed WP-003 archive eligible = %v, want true", restored.ArchiveEligible)
+		}
+	})
+}
+
+// assertMissingPlaceholderBlocked verifies a missing-directory work-package
+// placeholder is projected as not runnable with the missing-directory reason.
+func assertMissingPlaceholderBlocked(
+	t *testing.T,
+	packages []apicore.WorkPackageSummary,
+	packageID string,
+) {
+	t.Helper()
+	placeholder := findWorkPackageSummary(t, packages, packageID)
+	if placeholder.CanStartRun == nil || *placeholder.CanStartRun {
+		t.Fatalf("%s can start run = %v, want blocked missing placeholder", packageID, placeholder.CanStartRun)
+	}
+	if placeholder.StartBlockReason != workflowStartReasonMissing {
+		t.Fatalf(
+			"%s start block reason = %q, want %q",
+			packageID,
+			placeholder.StartBlockReason,
+			workflowStartReasonMissing,
+		)
+	}
 }
 
 func writeDaemonPartialWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
@@ -784,6 +1071,69 @@ func writeDaemonPartialWorkPackageInitiative(t *testing.T, env *runManagerTestEn
 		filepath.Join("_packages", "WP-002", "task_01.md"),
 		daemonTaskBody("pending", "WP-002 task"),
 	)
+}
+
+func writeDaemonMaterializedWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
+	t.Helper()
+	env.writeWorkflowFile(t, slug, "_prd.md", "# Initiative\n")
+	env.writeWorkflowFile(t, slug, "_techspec.md", "# Initiative Techspec\n")
+	env.writeWorkflowFile(t, slug, "_work_packages.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: " + slug,
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"    - id: WP-002",
+		"      directory: _packages/WP-002",
+		"    - id: WP-003",
+		"      directory: _packages/WP-003",
+		"  edges:",
+		"    - from: WP-001",
+		"      to: WP-002",
+		"      rationale: WP-002 consumes the WP-001 contract.",
+		"---",
+		"",
+		"# Initiative Work Packages",
+		"",
+		"## [x] WP-001 — Persistence",
+		"",
+		"- Reference: `" + slug + "/WP-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+		"## [x] WP-002 — Archive",
+		"",
+		"- Reference: `" + slug + "/WP-002`",
+		"- Outcome: Archive the aggregate workflow.",
+		"- Owns:",
+		"  - archive",
+		"- Dependencies:",
+		"  - `WP-001` — WP-002 consumes the WP-001 contract.",
+		"",
+		"## [x] WP-003 — Reporting",
+		"",
+		"- Reference: `" + slug + "/WP-003`",
+		"- Outcome: Report aggregate status.",
+		"- Owns:",
+		"  - reporting",
+		"- Dependencies: None",
+		"",
+	}, "\n"))
+	// Every declared package is materialized and completed here so removing WP-003
+	// later isolates the completed-then-vanished archive-eligibility path: the only
+	// remaining archive blocker is the missing directory.
+	for _, packageID := range []string{"WP-001", "WP-002", "WP-003"} {
+		env.writeWorkflowFile(
+			t,
+			slug,
+			filepath.Join("_packages", packageID, "task_01.md"),
+			daemonTaskBody("completed", packageID+" task"),
+		)
+	}
 }
 
 func findInitiativeSummary(

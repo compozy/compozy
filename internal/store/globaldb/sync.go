@@ -93,6 +93,16 @@ type WorkflowSyncInput struct {
 	DisplayTitle       string
 	Outcome            string
 	LifecycleCompleted bool
+	// Missing seeds a placeholder row for a declared package whose directory is
+	// absent on disk. Materialized children leave it false so the read model can
+	// tell a real, taskless package apart from an unavailable placeholder.
+	Missing bool
+	// MetadataOnly restricts reconciliation to the workflow row itself, leaving the
+	// existing artifact snapshots, task items, review rounds, and sync checkpoint
+	// untouched. It preserves the last-known projection of a declared package whose
+	// directory has disappeared while still refreshing durable identity columns such
+	// as Missing so read models reflect current source availability.
+	MetadataOnly       bool
 	Dependencies       []WorkflowDependency
 	SyncedAt           time.Time
 	CheckpointScope    string
@@ -385,6 +395,14 @@ func (g *GlobalDB) reconcileWorkflowSyncTx(
 		}
 	}
 	result := WorkflowSyncResult{Workflow: workflow}
+	if input.MetadataOnly {
+		// A metadata-only reconcile refreshes durable identity columns (for example
+		// flipping Missing to true) without touching the retained artifact, task,
+		// review, and checkpoint projections of a package whose directory is
+		// currently absent. The projections are re-collected only when the directory
+		// returns and a full reconcile runs.
+		return result, nil
+	}
 	if result.SnapshotsUpserted, err = g.reconcileArtifactSnapshotsTx(
 		ctx,
 		tx,
@@ -623,6 +641,7 @@ func (g *GlobalDB) reconcileWorkflowInputRowTx(
 		DisplayTitle:       input.DisplayTitle,
 		Outcome:            input.Outcome,
 		LifecycleCompleted: input.LifecycleCompleted,
+		Missing:            input.Missing,
 		Dependencies:       input.Dependencies,
 		CreatedAt:          syncedAt,
 		UpdatedAt:          syncedAt,
@@ -655,6 +674,7 @@ func updateWorkflowSyncRowTx(
 	existing.DisplayTitle = workflow.DisplayTitle
 	existing.Outcome = workflow.Outcome
 	existing.LifecycleCompleted = workflow.LifecycleCompleted
+	existing.Missing = workflow.Missing
 	existing.Dependencies = workflow.Dependencies
 	existing.LastSyncedAt = &syncedAt
 	existing.UpdatedAt = syncedAt
@@ -662,7 +682,7 @@ func updateWorkflowSyncRowTx(
 		ctx,
 		`UPDATE workflows
 		 SET kind = ?, parent_workflow_id = ?, package_id = ?, display_title = ?, outcome = ?,
-		     lifecycle_completed = ?, dependencies_json = ?, last_synced_at = ?, updated_at = ?
+		     lifecycle_completed = ?, missing = ?, dependencies_json = ?, last_synced_at = ?, updated_at = ?
 		 WHERE id = ?`,
 		existing.Kind,
 		store.NullableString(existing.ParentWorkflowID),
@@ -670,6 +690,7 @@ func updateWorkflowSyncRowTx(
 		existing.DisplayTitle,
 		existing.Outcome,
 		existing.LifecycleCompleted,
+		existing.Missing,
 		dependenciesJSON,
 		store.FormatTimestamp(syncedAt),
 		store.FormatTimestamp(syncedAt),
@@ -692,9 +713,9 @@ func (g *GlobalDB) insertWorkflowSyncRowTx(
 		ctx,
 		`INSERT INTO workflows (
 			id, workspace_id, slug, kind, parent_workflow_id, package_id,
-			display_title, outcome, lifecycle_completed, dependencies_json,
+			display_title, outcome, lifecycle_completed, missing, dependencies_json,
 			archived_at, last_synced_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workflow.ID,
 		workflow.WorkspaceID,
 		workflow.Slug,
@@ -704,6 +725,7 @@ func (g *GlobalDB) insertWorkflowSyncRowTx(
 		workflow.DisplayTitle,
 		workflow.Outcome,
 		workflow.LifecycleCompleted,
+		workflow.Missing,
 		dependenciesJSON,
 		nil,
 		store.FormatTimestamp(syncedAt),

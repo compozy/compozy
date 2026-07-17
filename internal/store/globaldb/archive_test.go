@@ -528,6 +528,66 @@ func TestMarkWorkflowHierarchyArchivedRollsBackWhenSnapshotReadFails(t *testing.
 	assertHierarchyArchived(t, db, parentID, childIDs, false)
 }
 
+func TestMarkWorkflowHierarchyArchivedRejectsActiveHierarchyRuns(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		runOnChild bool
+	}{
+		{name: "Should reject when the initiative parent has an active run", runOnChild: false},
+		{name: "Should reject when a direct child has an active run", runOnChild: true},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := openTestGlobalDB(t)
+			defer func() {
+				_ = db.Close()
+			}()
+
+			parentID, childIDs := mustArchivableHierarchy(t, db)
+			runTarget := parentID
+			if tc.runOnChild {
+				runTarget = childIDs[0]
+			}
+			insertActiveHierarchyRun(t, db, runTarget, "run-"+runTarget)
+
+			archivedAt := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+			_, err := db.MarkWorkflowHierarchyArchived(context.Background(), parentID, archivedAt)
+			if !errors.Is(err, ErrWorkflowHasActiveRuns) {
+				t.Fatalf("MarkWorkflowHierarchyArchived() error = %v, want ErrWorkflowHasActiveRuns", err)
+			}
+			// The transactional guard must abort before touching any row so the
+			// filesystem root the caller keeps can never diverge from the catalog:
+			// no parent or child may be marked archived while a run is active.
+			assertHierarchyArchived(t, db, parentID, childIDs, false)
+		})
+	}
+}
+
+func insertActiveHierarchyRun(t *testing.T, db *GlobalDB, workflowID string, runID string) {
+	t.Helper()
+
+	workflow, err := db.GetWorkflow(context.Background(), workflowID)
+	if err != nil {
+		t.Fatalf("GetWorkflow(%q): %v", workflowID, err)
+	}
+	if _, err := db.PutRun(context.Background(), Run{
+		RunID:            runID,
+		WorkspaceID:      workflow.WorkspaceID,
+		WorkflowID:       &workflow.ID,
+		Mode:             "task",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        time.Date(2026, 4, 18, 9, 30, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("PutRun(%q): %v", runID, err)
+	}
+}
+
 func mustArchivableHierarchy(t *testing.T, db *GlobalDB) (parentID string, childIDs []string) {
 	t.Helper()
 

@@ -565,18 +565,21 @@ func collectWorkPackageSyncChildren(
 	return result, nil
 }
 
-// appendMissingWorkPackagePlaceholders seeds a durable placeholder child for
-// every declared package whose directory is absent and has no prior durable row.
-// A first-ever partial sync would otherwise omit the node entirely, so any
-// dependent package keeps a graph edge to a nonexistent node: DB-only read
-// models that reconstruct the plan (workpackages.EvaluateReadiness) then reject
-// the whole initiative and fail workflow listing, dashboard projection, and
-// archive eligibility. The placeholder carries the declared identity and
-// dependency edges but no artifacts and an incomplete lifecycle, so read models
-// keep a complete graph and block start/archive with a clear reason instead of
-// erroring or reporting a false archive-eligible state. Packages that already
-// own a durable row are left untouched so PreserveMissingChildren keeps their
-// prior projection intact rather than overwriting it with an empty placeholder.
+// appendMissingWorkPackagePlaceholders reconciles the durable child row for
+// every declared package whose directory is absent so Missing always tracks
+// current source availability. A first-ever partial sync would otherwise omit
+// the node entirely, so any dependent package keeps a graph edge to a
+// nonexistent node: DB-only read models that reconstruct the plan
+// (workpackages.EvaluateReadiness) then reject the whole initiative and fail
+// workflow listing, dashboard projection, and archive eligibility. A package
+// with no prior row (or a prior placeholder) is seeded fresh with the declared
+// identity and dependency edges but no artifacts, so read models keep a complete
+// graph and block start/archive with a clear reason. A package that already owns
+// a materialized row keeps its retained snapshots, tasks, and reviews via a
+// metadata-only reconcile that flips Missing to true; otherwise the preserved row
+// would advertise an absent directory as runnable or archive-eligible. Missing
+// clears automatically once the directory returns and a full projection is
+// collected.
 func appendMissingWorkPackagePlaceholders(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
@@ -598,12 +601,11 @@ func appendMissingWorkPackagePlaceholders(
 			continue
 		}
 		slug := target.Ref.Initiative + "/" + pkg.ID
-		if _, err := db.GetActiveWorkflowBySlug(ctx, workspace.ID, slug); err == nil {
-			continue
-		} else if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+		existing, err := db.GetActiveWorkflowBySlug(ctx, workspace.ID, slug)
+		if err != nil && !errors.Is(err, globaldb.ErrWorkflowNotFound) {
 			return nil, fmt.Errorf("inspect durable work package %s: %w", pkg.ID, err)
 		}
-		children = append(children, globaldb.WorkflowSyncInput{
+		placeholder := globaldb.WorkflowSyncInput{
 			WorkspaceID:        workspace.ID,
 			WorkflowSlug:       slug,
 			Kind:               globaldb.WorkflowKindWorkPackage,
@@ -611,10 +613,23 @@ func appendMissingWorkPackagePlaceholders(
 			DisplayTitle:       pkg.Title,
 			Outcome:            pkg.Outcome,
 			LifecycleCompleted: false,
+			Missing:            true,
 			Dependencies:       packageDependencies(pkg),
 			SyncedAt:           time.Now().UTC(),
 			CheckpointScope:    "workflow",
-		})
+		}
+		// A previously materialized package whose directory vanished keeps its
+		// retained snapshots, tasks, and reviews via a metadata-only reconcile that
+		// only flips Missing to true; without it the preserved row would advertise
+		// the absent directory as runnable or archive-eligible. LifecycleCompleted
+		// tracks the manifest (pkg.Completed), the same source a present child uses.
+		// A prior placeholder or a package with no row yet is seeded fresh so its
+		// title, outcome, and dependency edges track later plan edits.
+		if err == nil && !existing.Missing {
+			placeholder.LifecycleCompleted = pkg.Completed
+			placeholder.MetadataOnly = true
+		}
+		children = append(children, placeholder)
 		collection.childPaths[pkg.ID] = filepath.Join(target.InitiativeDir, filepath.FromSlash(pkg.Directory))
 	}
 	return children, nil

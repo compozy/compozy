@@ -20,6 +20,11 @@ import (
 
 const workflowArchiveReasonArchived = "workflow archived"
 
+// workflowStartReasonMissing blocks starting a work package whose directory is
+// absent on disk. Such rows exist only as placeholders that keep the dependency
+// graph whole; a real start would immediately fail to resolve the directory.
+const workflowStartReasonMissing = "package directory missing"
+
 func transportWorkspace(row globaldb.Workspace) apicore.Workspace {
 	return apicore.Workspace{
 		ID:              row.ID,
@@ -59,15 +64,27 @@ func transportWorkPackageSummary(
 	counts WorkflowTaskCounts,
 	eligibility globaldb.WorkflowArchiveEligibility,
 	readiness workPackageReadinessProjection,
+	latestReview *apicore.ReviewSummary,
 ) apicore.WorkPackageSummary {
 	apiCounts := transportWorkflowTaskCounts(counts)
 	archiveEligible := eligibility.Archivable()
 	if row.ArchivedAt != nil {
 		archiveEligible = false
 	}
+	// A declared package whose directory is absent is never archive-eligible in the
+	// read model: its retained projection can otherwise look complete while a real
+	// archive would disagree with the filesystem.
+	if row.Missing {
+		archiveEligible = false
+	}
 	canStart, startBlockReason := workflowStartAction(row, counts)
 	unmetDependencyCount := len(readiness.unmetDependencies) + len(readiness.unmetDependencyPaths)
 	requiresStartConfirmation := canStart && unmetDependencyCount > 0
+	var latestReviewCopy *apicore.ReviewSummary
+	if latestReview != nil {
+		copyValue := *latestReview
+		latestReviewCopy = &copyValue
+	}
 	return apicore.WorkPackageSummary{
 		WorkflowID:                row.ID,
 		PackageID:                 row.PackageID,
@@ -80,6 +97,7 @@ func transportWorkPackageSummary(
 		UnmetDependencyPaths:      transportWorkPackageDependencyPaths(readiness.unmetDependencyPaths),
 		TaskCounts:                &apiCounts,
 		UnresolvedReviews:         eligibility.UnresolvedReviewIssues,
+		LatestReview:              latestReviewCopy,
 		UnmetDependencyCount:      unmetDependencyCount,
 		IndependentlyEligible:     readiness.independentlyEligible,
 		ActiveRuns:                eligibility.ActiveRuns,
@@ -289,6 +307,12 @@ func initiativeArchiveAction(
 		if !child.LifecycleCompleted {
 			pendingPackages = append(pendingPackages, child.PackageID)
 		}
+		// A missing directory blocks initiative archive with a clear reason even when
+		// the retained projection would otherwise report the child as archivable.
+		if child.Missing {
+			blockedChildren = append(blockedChildren, child.PackageID+": "+workflowStartReasonMissing)
+			continue
+		}
 		if reason := eligibilityByID[child.ID].SkipReason(); reason != "" {
 			blockedChildren = append(blockedChildren, child.PackageID+": "+reason)
 		}
@@ -310,6 +334,9 @@ func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool
 	}
 	if row.Kind == globaldb.WorkflowKindInitiative {
 		return false, "select a work package"
+	}
+	if row.Missing {
+		return false, workflowStartReasonMissing
 	}
 	if counts.Total > 0 && counts.Pending == 0 {
 		return false, "no pending tasks"

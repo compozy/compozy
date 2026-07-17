@@ -108,6 +108,14 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 		if card.LatestReview != nil {
 			pendingReviews += card.LatestReview.UnresolvedCount
 		}
+		// Package rounds are separate workflows, so their unresolved counts are
+		// invisible to the parent card. Add each package's latest-round unresolved
+		// count to keep the dashboard total consistent with per-package review state.
+		for pkgIndex := range card.Workflow.WorkPackages {
+			if pkgReview := card.Workflow.WorkPackages[pkgIndex].LatestReview; pkgReview != nil {
+				pendingReviews += pkgReview.UnresolvedCount
+			}
+		}
 		cards = append(cards, card)
 	}
 
@@ -177,6 +185,7 @@ func (s *queryService) attachDashboardWorkPackages(
 			},
 			childEligibility,
 			readinessByPackageID[child.PackageID],
+			childCard.LatestReview,
 		))
 	}
 	return nil

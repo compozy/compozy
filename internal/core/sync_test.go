@@ -1368,7 +1368,10 @@ func TestSyncWorkPackageInitiativeReportsMissingChildWithoutPruning(t *testing.T
 	// Suite boundary
 	// IN: root aggregate sync against filesystem and SQLite
 	// OUT: watcher event delivery, owned by daemon watcher tests
-	// Invariant: one missing declared package preserves its prior child while readable siblings update.
+	// Invariant: a vanished declared package preserves its prior child row and its
+	// last-known task projection while flipping missing=1 so read models stop
+	// advertising it as runnable, and clears missing on re-materialization; readable
+	// siblings update normally.
 	workspaceRoot := t.TempDir()
 	setSyncTestHome(t)
 	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
@@ -1425,6 +1428,58 @@ func TestSyncWorkPackageInitiativeReportsMissingChildWithoutPruning(t *testing.T
 	if wp001Status != "completed" {
 		t.Fatalf("WP-001 task status = %q, want completed", wp001Status)
 	}
+	// The vanished directory must flip the durable row to missing so read models
+	// stop advertising it as runnable, while a metadata-only reconcile retains its
+	// last-known task projection rather than erasing it.
+	if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, "initiative/WP-002"); got != 1 {
+		t.Fatalf("removed WP-002 missing = %d, want 1 to mark the absent directory", got)
+	}
+	if got := queryCount(
+		t,
+		sqlDB,
+		`SELECT COUNT(1) FROM task_items WHERE workflow_id = (SELECT id FROM workflows WHERE slug = ?)`,
+		"initiative/WP-002",
+	); got != 1 {
+		t.Fatalf("removed WP-002 retained task count = %d, want 1 preserved projection", got)
+	}
+	var wp002TaskStatus string
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT status FROM task_items WHERE workflow_id = (SELECT id FROM workflows WHERE slug = ?)`,
+		"initiative/WP-002",
+	).Scan(&wp002TaskStatus); err != nil {
+		t.Fatalf("query retained WP-002 task: %v", err)
+	}
+	if wp002TaskStatus != "pending" {
+		t.Fatalf("removed WP-002 retained task status = %q, want pending last-known state", wp002TaskStatus)
+	}
+
+	// Re-materializing the directory clears the missing flag in place without
+	// changing the row identity, so the read model resumes treating it as runnable.
+	writeSyncWorkflowFile(
+		t,
+		filepath.Join(initiativeDir, "_packages", "WP-002"),
+		"task_01.md",
+		taskBody("pending", "WP-002 task"),
+	)
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(rematerialized child): %v", err)
+	}
+	var rematerializedID string
+	var rematerializedMissing bool
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT id, missing FROM workflows WHERE slug = ?`,
+		"initiative/WP-002",
+	).Scan(&rematerializedID, &rematerializedMissing); err != nil {
+		t.Fatalf("query rematerialized WP-002: %v", err)
+	}
+	if rematerializedID != wp002ID {
+		t.Fatalf("rematerialized WP-002 id changed: got %q want %q", rematerializedID, wp002ID)
+	}
+	if rematerializedMissing {
+		t.Fatal("rematerialized WP-002 missing = true, want cleared once the directory exists")
+	}
 }
 
 func TestSyncWorkPackageInitiativeFirstSyncSeedsMissingDependencyPlaceholder(t *testing.T) {
@@ -1475,6 +1530,15 @@ func TestSyncWorkPackageInitiativeFirstSyncSeedsMissingDependencyPlaceholder(t *
 	if lifecycleCompleted {
 		t.Fatal("placeholder lifecycle_completed = true, want false to block start and archive")
 	}
+	// The durable missing discriminator distinguishes an unavailable placeholder
+	// from a real, taskless package so the read model can block start with a
+	// clear reason rather than advertising the absent directory as runnable.
+	if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, "initiative/WP-001"); got != 1 {
+		t.Fatalf("placeholder missing = %d, want 1 to mark the absent directory", got)
+	}
+	if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, "initiative/WP-002"); got != 0 {
+		t.Fatalf("materialized WP-002 missing = %d, want 0", got)
+	}
 	if got := queryCount(
 		t,
 		sqlDB,
@@ -1516,6 +1580,36 @@ func TestSyncWorkPackageInitiativeFirstSyncSeedsMissingDependencyPlaceholder(t *
 	}
 	if secondID != firstID {
 		t.Fatalf("placeholder id changed after re-sync: got %q want %q", secondID, firstID)
+	}
+	if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, "initiative/WP-001"); got != 1 {
+		t.Fatalf("placeholder missing after re-sync = %d, want 1 while directory stays absent", got)
+	}
+
+	// Materializing the directory replaces the placeholder in place: the same row
+	// clears its missing flag so the read model stops blocking start.
+	writeSyncWorkflowFile(
+		t,
+		filepath.Join(initiativeDir, "_packages", "WP-001"),
+		"task_01.md",
+		taskBody("pending", "WP-001 task"),
+	)
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(materialized): %v", err)
+	}
+	var materializedID string
+	var materializedMissing bool
+	if err := sqlDB.QueryRowContext(
+		context.Background(),
+		`SELECT id, missing FROM workflows WHERE slug = ?`,
+		"initiative/WP-001",
+	).Scan(&materializedID, &materializedMissing); err != nil {
+		t.Fatalf("query materialized WP-001: %v", err)
+	}
+	if materializedID != firstID {
+		t.Fatalf("materialized WP-001 id changed: got %q want %q", materializedID, firstID)
+	}
+	if materializedMissing {
+		t.Fatal("materialized WP-001 missing = true, want cleared once the directory exists")
 	}
 }
 

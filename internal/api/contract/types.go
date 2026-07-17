@@ -291,6 +291,7 @@ type WorkPackageSummary struct {
 	UnmetDependencyPaths      []WorkPackageDependencyPath `json:"unmet_dependency_paths,omitempty"`
 	TaskCounts                *WorkflowTaskCounts         `json:"task_counts,omitempty"`
 	UnresolvedReviews         int                         `json:"unresolved_reviews,omitempty"`
+	LatestReview              *ReviewSummary              `json:"latest_review,omitempty"`
 	UnmetDependencyCount      int                         `json:"unmet_dependency_count,omitempty"`
 	IndependentlyEligible     bool                        `json:"independently_eligible,omitempty"`
 	ActiveRuns                int                         `json:"active_runs,omitempty"`

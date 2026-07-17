@@ -387,6 +387,91 @@ func TestArchiveWorkPackageInitiativeForceArchivesPendingPlanAsOneRoot(t *testin
 	}
 }
 
+func TestArchiveWorkPackageInitiativeRejectsActiveParentRun(t *testing.T) {
+	// Suite boundary
+	// IN: real initiative filesystem, aggregate sync, an active run on the initiative parent row
+	// OUT: HTTP transport and CLI confirmation rendering
+	// Invariant: an ordinary workflow promoted to an initiative in place keeps its own workflow ID
+	// and any run linked to the parent row; archiving must refuse while that parent run is active,
+	// and --force must not bypass it. The plan-declared packages carry no runs, so a plan-scoped
+	// guard would wrongly let the parent be archived mid-flight.
+	for _, force := range []bool{false, true} {
+		force := force
+		name := "Should reject archive when the initiative parent has an active run"
+		if force {
+			name = "Should reject forced archive when the initiative parent has an active run"
+		}
+		t.Run(name, func(t *testing.T) {
+			rootDir := archiveTestRoot(t)
+			initiativeDir := filepath.Join(rootDir, "initiative")
+			writeWorkPackageFixture(t, initiativeDir, map[string]string{
+				"WP-001": "completed",
+				"WP-002": "completed",
+			})
+			if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+				t.Fatalf("Sync(work package initiative): %v", err)
+			}
+			insertActiveArchiveRun(t, initiativeDir, "initiative", "run-initiative-parent-active")
+
+			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: force})
+			if !errors.Is(err, globaldb.ErrWorkflowHasActiveRuns) {
+				t.Fatalf("Archive(force=%v) error = %v, want ErrWorkflowHasActiveRuns", force, err)
+			}
+			if result == nil || result.Archived != 0 || result.Forced {
+				t.Fatalf("unexpected active parent-run archive result: %#v", result)
+			}
+			if _, statErr := os.Stat(initiativeDir); statErr != nil {
+				t.Fatalf("initiative root must remain active after blocked archive: %v", statErr)
+			}
+		})
+	}
+}
+
+func TestArchiveWorkPackageInitiativeRejectsRetainedChildActiveRun(t *testing.T) {
+	// Suite boundary
+	// IN: real initiative filesystem, aggregate sync, plan pruning that retains a child with a live run
+	// OUT: HTTP transport and CLI confirmation rendering
+	// Invariant: a child dropped from _work_packages.md but retained by pruning because its run is
+	// active remains a non-archived direct child while leaving target.Plan.Packages; archiving must
+	// refuse (default and --force) so the retained child is never archived mid-run.
+	for _, force := range []bool{false, true} {
+		force := force
+		name := "Should reject archive when a retained child has an active run"
+		if force {
+			name = "Should reject forced archive when a retained child has an active run"
+		}
+		t.Run(name, func(t *testing.T) {
+			rootDir := archiveTestRoot(t)
+			initiativeDir := filepath.Join(rootDir, "initiative")
+			writeWorkPackageFixture(t, initiativeDir, map[string]string{
+				"WP-001": "completed",
+				"WP-002": "completed",
+			})
+			if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+				t.Fatalf("Sync(work package initiative): %v", err)
+			}
+			insertActiveArchiveRun(t, initiativeDir, "initiative/WP-002", "run-wp002-active")
+
+			// Drop WP-002 from the plan while its run is active; pruning retains the child row.
+			writeSinglePackageInitiativePlan(t, initiativeDir)
+			if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-002")); err != nil {
+				t.Fatalf("remove pruned package dir: %v", err)
+			}
+
+			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: force})
+			if !errors.Is(err, globaldb.ErrWorkflowHasActiveRuns) {
+				t.Fatalf("Archive(force=%v) error = %v, want ErrWorkflowHasActiveRuns", force, err)
+			}
+			if result == nil || result.Archived != 0 || result.Forced {
+				t.Fatalf("unexpected retained-child active-run archive result: %#v", result)
+			}
+			if _, statErr := os.Stat(initiativeDir); statErr != nil {
+				t.Fatalf("initiative root must remain active after blocked archive: %v", statErr)
+			}
+		})
+	}
+}
+
 func TestArchiveTaskWorkflowForceArchivesAfterLocalReviewResolutionWithoutManualResync(t *testing.T) {
 	rootDir := archiveTestRoot(t)
 	workflowDir := filepath.Join(rootDir, "gamma")
@@ -806,6 +891,36 @@ func insertActiveArchiveRun(t *testing.T, target string, slug string, runID stri
 		StartedAt:        time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("PutRun(%s): %v", runID, err)
+	}
+}
+
+func writeSinglePackageInitiativePlan(t *testing.T, initiativeDir string) {
+	t.Helper()
+
+	body := strings.Join([]string{
+		"---",
+		"schema_version: compozy.work-packages/v1",
+		"initiative: initiative",
+		"graph:",
+		"  nodes:",
+		"    - id: WP-001",
+		"      directory: _packages/WP-001",
+		"  edges: []",
+		"---",
+		"",
+		"# Initiative Work Packages",
+		"",
+		"## [x] WP-001 — Persistence",
+		"",
+		"- Reference: `initiative/WP-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(initiativeDir, "_work_packages.md"), []byte(body), 0o600); err != nil {
+		t.Fatalf("rewrite initiative plan: %v", err)
 	}
 }
 

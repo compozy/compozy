@@ -412,8 +412,14 @@ func workspaceWorkflowRoot(workspaceRoot string, tasksDir string) (string, bool)
 }
 
 type initiativeArchiveState struct {
-	Parent          globaldb.Workflow
-	Children        map[string]globaldb.WorkflowArchiveEligibility
+	Parent            globaldb.Workflow
+	ParentEligibility globaldb.WorkflowArchiveEligibility
+	Children          map[string]globaldb.WorkflowArchiveEligibility
+	// DirectChildren holds every non-archived direct child of the initiative,
+	// including stale children retained by pruning while a run is active. It is a
+	// superset of Children (plan-declared packages) so the active-run guard covers
+	// the exact hierarchy the archive mutation touches.
+	DirectChildren  []globaldb.WorkflowArchiveEligibility
 	PendingPackages []string
 	MissingPackages []string
 }
@@ -545,15 +551,31 @@ func loadInitiativeArchiveState(
 	if err != nil {
 		return initiativeArchiveState{}, err
 	}
+	// Resolve eligibility for the parent row and every non-archived direct child so
+	// the active-run guard matches the archive mutation's exact scope
+	// (id = parent OR parent_workflow_id = parent), not just plan-declared packages.
+	// An ordinary workflow promoted to an initiative in place keeps its runs on the
+	// parent row, and pruning retains a removed child while its run is active; both
+	// live outside target.Plan.Packages.
+	scope := make([]globaldb.Workflow, 0, len(children)+1)
+	scope = append(scope, parent)
+	scope = append(scope, children...)
+	eligibilityByID, err := db.WorkflowArchiveEligibilityByIDs(ctx, scope)
+	if err != nil {
+		return initiativeArchiveState{}, err
+	}
 	childByPackageID := make(map[string]globaldb.Workflow, len(children))
+	directChildren := make([]globaldb.WorkflowArchiveEligibility, 0, len(children))
 	for childIndex := range children {
 		child := &children[childIndex]
 		childByPackageID[child.PackageID] = *child
+		directChildren = append(directChildren, eligibilityByID[child.ID])
 	}
-	declaredChildren := make([]globaldb.Workflow, 0, len(target.Plan.Packages))
 	state := initiativeArchiveState{
-		Parent:   parent,
-		Children: make(map[string]globaldb.WorkflowArchiveEligibility, len(target.Plan.Packages)),
+		Parent:            parent,
+		ParentEligibility: eligibilityByID[parent.ID],
+		Children:          make(map[string]globaldb.WorkflowArchiveEligibility, len(target.Plan.Packages)),
+		DirectChildren:    directChildren,
 	}
 	for packageIndex := range target.Plan.Packages {
 		pkg := &target.Plan.Packages[packageIndex]
@@ -562,20 +584,10 @@ func loadInitiativeArchiveState(
 			state.MissingPackages = append(state.MissingPackages, pkg.ID)
 			continue
 		}
-		declaredChildren = append(declaredChildren, child)
 		if !pkg.Completed {
 			state.PendingPackages = append(state.PendingPackages, pkg.ID)
 		}
-	}
-	if len(declaredChildren) > 0 {
-		eligibilityByID, eligibilityErr := db.WorkflowArchiveEligibilityByIDs(ctx, declaredChildren)
-		if eligibilityErr != nil {
-			return initiativeArchiveState{}, eligibilityErr
-		}
-		for childIndex := range declaredChildren {
-			child := &declaredChildren[childIndex]
-			state.Children[child.PackageID] = eligibilityByID[child.ID]
-		}
+		state.Children[child.PackageID] = eligibilityByID[child.ID]
 	}
 	sort.Strings(state.PendingPackages)
 	sort.Strings(state.MissingPackages)
@@ -583,15 +595,21 @@ func loadInitiativeArchiveState(
 }
 
 func activeInitiativeRunConflict(state initiativeArchiveState) error {
-	packageIDs := make([]string, 0, len(state.Children))
-	for packageID := range state.Children {
-		packageIDs = append(packageIDs, packageID)
+	// The archive mutation moves the filesystem root and marks the parent plus
+	// every non-archived direct child archived. Reject if any of those rows still
+	// has an active run, covering the parent (an ordinary workflow converted in
+	// place keeps its runs) and stale children retained by pruning — neither of
+	// which appears in the plan-declared state.Children map.
+	if state.ParentEligibility.ActiveRuns > 0 {
+		return state.ParentEligibility.ConflictError()
 	}
-	sort.Strings(packageIDs)
-	for _, packageID := range packageIDs {
-		eligibility := state.Children[packageID]
-		if eligibility.ActiveRuns > 0 {
-			return eligibility.ConflictError()
+	children := append([]globaldb.WorkflowArchiveEligibility(nil), state.DirectChildren...)
+	sort.Slice(children, func(i, j int) bool {
+		return children[i].Workflow.ID < children[j].Workflow.ID
+	})
+	for childIndex := range children {
+		if children[childIndex].ActiveRuns > 0 {
+			return children[childIndex].ConflictError()
 		}
 	}
 	return nil

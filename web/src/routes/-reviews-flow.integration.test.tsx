@@ -316,6 +316,76 @@ describe("reviews flow integration", () => {
     expect(stub.calls.some(call => call.url.includes("alpha/WP-002"))).toBe(false);
   });
 
+  it("Should reach a package review round from the reviews index without a deep link", async () => {
+    const dashboardWithPackage = {
+      dashboard: {
+        ...dashboardPayload.dashboard,
+        pending_reviews: 6,
+        workflows: [
+          {
+            workflow: {
+              ...workflowSummary,
+              kind: "initiative",
+              work_packages: [
+                {
+                  workflow_id: "wf-1-wp-002",
+                  package_id: "WP-002",
+                  reference: "alpha/WP-002",
+                  title: "Providers",
+                  outcome: "Ship providers",
+                  lifecycle_complete: false,
+                  latest_review: { ...latestReview, workflow_slug: "alpha/WP-002" },
+                },
+              ],
+            },
+            active_runs: 0,
+            task_total: 0,
+            task_completed: 0,
+            task_pending: 0,
+            review_round_count: 1,
+            latest_review: latestReview,
+          },
+        ],
+      },
+    };
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/ui/dashboard"),
+        status: 200,
+        body: dashboardWithPackage,
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2?package_id=WP-002"),
+        status: 200,
+        body: { round: { ...reviewRoundPayload.round, workflow_slug: "alpha/WP-002" } },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?package_id=WP-002"),
+        status: 200,
+        body: issuesPayload,
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/reviews");
+    await screen.findByTestId("reviews-index-view");
+    // The parent round and the package round are both discoverable in the index.
+    await screen.findByTestId("reviews-index-card-alpha");
+    const packageLink = await screen.findByTestId("reviews-index-round-link-alpha-WP-002");
+    expect((packageLink as HTMLAnchorElement).getAttribute("href")).toBe(
+      "/reviews/alpha/2?package_id=WP-002"
+    );
+    await userEvent.click(packageLink);
+    await screen.findByTestId("review-round-detail-view");
+    expect(
+      stub.calls.some(call => call.url.endsWith("/api/reviews/alpha/rounds/2?package_id=WP-002"))
+    ).toBe(true);
+  });
+
   it("Should return to workspace selection when the reviews index reports stale workspace context", async () => {
     const stub = installFetchStub([
       {

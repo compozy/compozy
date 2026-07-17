@@ -666,6 +666,17 @@ function WorkPackageRow({
               testId={`workflow-package-memory-${initiativeSlug}-${pkg.package_id}`}
               to="/memory/$slug"
             />
+            {pkg.latest_review ? (
+              <Link
+                className="inline-flex items-center justify-center rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
+                data-testid={`workflow-package-reviews-${initiativeSlug}-${pkg.package_id}`}
+                params={{ slug: initiativeSlug, round: String(pkg.latest_review.round_number) }}
+                search={{ package_id: pkg.package_id }}
+                to="/reviews/$slug/$round"
+              >
+                {`Reviews · round ${pkg.latest_review.round_number}`}
+              </Link>
+            ) : null}
             {canStart ? (
               <Button
                 data-testid={`workflow-package-start-${initiativeSlug}-${pkg.package_id}`}

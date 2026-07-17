@@ -213,6 +213,16 @@ var migrations = []migration{
 				CHECK (out_of_order_needed IN (0, 1));`,
 		},
 	},
+	{
+		version: 8,
+		name:    "workflow_missing_placeholder_state",
+		statements: []string{
+			// Existing rows default to present (0); only placeholder rows for absent
+			// package directories set it, letting the read model block their start.
+			`ALTER TABLE workflows ADD COLUMN missing INTEGER NOT NULL DEFAULT 0
+				CHECK (missing IN (0, 1));`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

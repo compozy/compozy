@@ -1187,6 +1187,7 @@ export interface components {
             can_start_run?: boolean;
             dependencies?: components["schemas"]["WorkPackageDependency"][];
             independently_eligible?: boolean;
+            latest_review?: components["schemas"]["ReviewSummary"];
             lifecycle_complete: boolean;
             outcome: string;
             package_id: string;

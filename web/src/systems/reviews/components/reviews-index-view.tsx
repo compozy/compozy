@@ -22,6 +22,11 @@ import type { ReviewSummary } from "../types";
 export interface ReviewRoundCard {
   slug: string;
   review: ReviewSummary;
+  packageId?: string;
+}
+
+function reviewCardKey(card: ReviewRoundCard): string {
+  return card.packageId ? `${card.slug}-${card.packageId}` : card.slug;
 }
 
 export interface ReviewsIndexViewProps {
@@ -68,7 +73,7 @@ export function ReviewsIndexView(props: ReviewsIndexViewProps): ReactElement {
       {cards.length > 0 ? (
         <div className="space-y-4" data-testid="reviews-index-cards">
           {cards.map(card => (
-            <ReviewRoundSection card={card} key={card.slug} />
+            <ReviewRoundSection card={card} key={reviewCardKey(card)} />
           ))}
         </div>
       ) : null}
@@ -83,23 +88,30 @@ export function ReviewsIndexView(props: ReviewsIndexViewProps): ReactElement {
 }
 
 function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
-  const { slug, review } = card;
+  const { slug, review, packageId } = card;
+  const cardKey = reviewCardKey(card);
+  const displayLabel = packageId ? `${slug} · ${packageId}` : slug;
+  const roundSearch = packageId ? { package_id: packageId } : {};
   const tone = resolveReviewTone(review);
   const roundLabel = String(review.round_number).padStart(3, "0");
   return (
-    <SurfaceCard data-interactive="true" data-testid={`reviews-index-card-${slug}`}>
+    <SurfaceCard data-interactive="true" data-testid={`reviews-index-card-${cardKey}`}>
       <SurfaceCardHeader>
         <div className="min-w-0">
-          <SurfaceCardEyebrow>round {roundLabel}</SurfaceCardEyebrow>
+          <SurfaceCardEyebrow>
+            round {roundLabel}
+            {packageId ? " · package" : ""}
+          </SurfaceCardEyebrow>
           <SurfaceCardTitle>
             <Link
               className="block truncate text-foreground hover:underline"
-              data-testid={`reviews-index-round-link-${slug}`}
+              data-testid={`reviews-index-round-link-${cardKey}`}
               params={{ slug, round: String(review.round_number) }}
-              title={slug}
+              search={roundSearch}
+              title={displayLabel}
               to="/reviews/$slug/$round"
             >
-              {slug}
+              {displayLabel}
             </Link>
           </SurfaceCardTitle>
           <SurfaceCardDescription>
@@ -107,7 +119,7 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
             {formatTimestamp(review.updated_at)}
           </SurfaceCardDescription>
         </div>
-        <StatusBadge data-testid={`reviews-index-card-tone-${slug}`} tone={tone}>
+        <StatusBadge data-testid={`reviews-index-card-tone-${cardKey}`} tone={tone}>
           {review.unresolved_count > 0 ? "open" : "clean"}
         </StatusBadge>
       </SurfaceCardHeader>
@@ -115,22 +127,22 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat
             label="Unresolved"
-            testId={`reviews-index-card-unresolved-${slug}`}
+            testId={`reviews-index-card-unresolved-${cardKey}`}
             value={review.unresolved_count}
           />
           <Stat
             label="Resolved"
-            testId={`reviews-index-card-resolved-${slug}`}
+            testId={`reviews-index-card-resolved-${cardKey}`}
             value={review.resolved_count}
           />
           <Stat
             label="Issues"
-            testId={`reviews-index-card-loaded-${slug}`}
+            testId={`reviews-index-card-loaded-${cardKey}`}
             value={review.resolved_count + review.unresolved_count}
           />
           <Stat
             label="Round"
-            testId={`reviews-index-card-round-${slug}`}
+            testId={`reviews-index-card-round-${cardKey}`}
             value={review.round_number}
           />
         </div>
@@ -139,7 +151,7 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
         {review.provider ? (
           <span
             className="text-xs text-muted-foreground"
-            data-testid={`reviews-index-card-provider-${slug}`}
+            data-testid={`reviews-index-card-provider-${cardKey}`}
           >
             via {review.provider}
           </span>
@@ -148,8 +160,9 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
         )}
         <Link
           className="text-xs font-semibold uppercase tracking-[0.12em] text-primary transition-colors hover:text-foreground"
-          data-testid={`reviews-index-card-open-${slug}`}
+          data-testid={`reviews-index-card-open-${cardKey}`}
           params={{ slug, round: String(review.round_number) }}
+          search={roundSearch}
           to="/reviews/$slug/$round"
         >
           Open round →

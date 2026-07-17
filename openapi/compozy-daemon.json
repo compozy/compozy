@@ -2081,6 +2081,9 @@
                     "independently_eligible": {
                         "type": "boolean"
                     },
+                    "latest_review": {
+                        "$ref": "#/components/schemas/ReviewSummary"
+                    },
                     "lifecycle_complete": {
                         "type": "boolean"
                     },
