@@ -1572,6 +1572,19 @@ func ensureCurrentPackageSpecifications(scope model.ExecutionScope) error {
 	for _, name := range []string{"_prd.md", "_techspec.md"} {
 		path := filepath.Join(scope.SpecDir, name)
 		if _, err := os.ReadFile(path); err != nil {
+			// A missing canonical spec is a client-actionable state (the package
+			// exists but its initiative is incomplete), not an internal fault, so
+			// emit a typed 422 with a stable code instead of leaking the absolute
+			// SpecDir path through the generic error mapping.
+			if errors.Is(err, os.ErrNotExist) {
+				return apicore.NewProblem(
+					http.StatusUnprocessableEntity,
+					"package_specification_missing",
+					fmt.Sprintf("canonical specification %s is missing for %s", name, scope.WorkflowRef),
+					map[string]any{"specification": name, "workflow": scope.WorkflowRef},
+					err,
+				)
+			}
 			return fmt.Errorf("read current canonical specification %s: %w", path, err)
 		}
 	}
