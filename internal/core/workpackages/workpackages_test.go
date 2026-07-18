@@ -355,6 +355,46 @@ func TestResolver(t *testing.T) {
 	})
 }
 
+func TestResolvePackageMissingPackagesRoot(t *testing.T) {
+	// INVARIANT: an absent _packages root is the aggregate form of a missing
+	// package directory, so it classifies as ErrPackageNotFound (which aggregate
+	// sync degrades to a Missing placeholder) rather than ErrContainment (a hard
+	// abort). A root that resolves outside the initiative still fails closed.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/core/workpackages/workpackages_test.go.
+	t.Parallel()
+	resolver := TargetResolver{}
+	newWorkspace := func(t *testing.T) string {
+		t.Helper()
+		workspace := t.TempDir()
+		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
+		planContent := strings.ReplaceAll(string(twoPackagePlan(t)), "demo", "customer-management")
+		writeTestFile(t, initiativeDir, ManifestFileName, planContent)
+		return workspace
+	}
+
+	t.Run("missing root degrades to package not found", func(t *testing.T) {
+		t.Parallel()
+		workspace := newWorkspace(t)
+		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-001")
+		assertDomainError(t, err, ErrPackageNotFound)
+	})
+
+	t.Run("root escaping the initiative still fails closed", func(t *testing.T) {
+		t.Parallel()
+		workspace := newWorkspace(t)
+		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
+		escaped := filepath.Join(t.TempDir(), "outside")
+		if err := os.MkdirAll(filepath.Join(escaped, "WP-001"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(escaped, filepath.Join(initiativeDir, "_packages")); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-001")
+		assertDomainError(t, err, ErrContainment)
+	})
+}
+
 func TestExecutionScope(t *testing.T) {
 	// INVARIANT: a package reference always separates root specifications from
 	// one contained package operational directory.

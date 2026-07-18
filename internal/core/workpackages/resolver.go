@@ -293,13 +293,22 @@ func resolvePackageDirectory(initiativeDir string, pkg Package) (string, error) 
 	packagesRoot := filepath.Join(initiativeDir, "_packages")
 	resolvedPackagesRoot, err := filepath.EvalSymlinks(packagesRoot)
 	if err != nil {
-		return "", newError(
-			ErrContainment,
-			"",
-			pkg.ID,
-			"",
-			[]Issue{{Path: packagesRoot, Field: "package_directory", Message: "package root is unavailable"}},
-		)
+		// A vanished root is the aggregate form of a missing package directory:
+		// classify it as ErrPackageNotFound so aggregate sync degrades every
+		// declared package to a Missing placeholder instead of hard-aborting.
+		// Any other resolution failure (symlink loop, permission) still fails
+		// closed via a wrapped error, and a root that resolves outside the
+		// initiative is caught by the containment check below.
+		if errors.Is(err, os.ErrNotExist) {
+			return "", newError(
+				ErrPackageNotFound,
+				"",
+				pkg.ID,
+				"",
+				[]Issue{{Path: packagesRoot, Field: "package_directory", Message: "package root does not exist"}},
+			)
+		}
+		return "", fmt.Errorf("resolve package root %q: %w", pkg.ID, err)
 	}
 	if err := requireContained(initiativeDir, resolvedPackagesRoot); err != nil {
 		return "", newError(

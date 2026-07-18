@@ -1666,6 +1666,71 @@ func TestSyncWorkPackageInitiativeReportsMissingChildWithoutPruning(t *testing.T
 	}
 }
 
+func TestSyncWorkPackageInitiativeReportsMissingRootWithoutAborting(t *testing.T) {
+	// Suite boundary
+	// IN: root aggregate sync against filesystem and SQLite
+	// OUT: watcher event delivery, owned by daemon watcher tests
+	// Invariant: an entirely absent _packages root degrades every declared package
+	// to a Missing placeholder so aggregate sync completes partially instead of
+	// hard-aborting (which also unblocks archive, whose refresh runs the same
+	// reconcile), and the root returning clears every placeholder in place.
+	workspaceRoot := t.TempDir()
+	setSyncTestHome(t)
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeWorkPackageFixture(t, initiativeDir, map[string]string{
+		"WP-001": "pending",
+		"WP-002": "pending",
+	})
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(initial): %v", err)
+	}
+
+	if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages")); err != nil {
+		t.Fatalf("remove _packages root: %v", err)
+	}
+
+	result, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
+	if err != nil {
+		t.Fatalf("Sync(missing root): %v", err)
+	}
+	if !result.Partial || !reflect.DeepEqual(result.MissingWorkPackages, []string{"WP-001", "WP-002"}) {
+		t.Fatalf("missing root result = %#v, want partial WP-001+WP-002", result)
+	}
+
+	sqlDB := openSyncSQLite(t)
+	defer func() {
+		_ = sqlDB.Close()
+	}()
+	for _, slug := range []string{"initiative/WP-001", "initiative/WP-002"} {
+		if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, slug); got != 1 {
+			t.Fatalf("%s missing = %d, want 1 with the root absent", slug, got)
+		}
+	}
+
+	// The root returning must clear every placeholder without a hard abort so read
+	// models resume treating the packages as runnable.
+	writeSyncWorkflowFile(
+		t,
+		filepath.Join(initiativeDir, "_packages", "WP-001"),
+		"task_01.md",
+		taskBody("pending", "WP-001 task"),
+	)
+	writeSyncWorkflowFile(
+		t,
+		filepath.Join(initiativeDir, "_packages", "WP-002"),
+		"task_01.md",
+		taskBody("pending", "WP-002 task"),
+	)
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(rematerialized root): %v", err)
+	}
+	for _, slug := range []string{"initiative/WP-001", "initiative/WP-002"} {
+		if got := queryCount(t, sqlDB, `SELECT missing FROM workflows WHERE slug = ?`, slug); got != 0 {
+			t.Fatalf("%s missing = %d, want 0 once the root returns", slug, got)
+		}
+	}
+}
+
 func TestSyncWorkPackageInitiativeRepeatedPartialSyncRetainsChildHistory(t *testing.T) {
 	// Suite boundary
 	// IN: repeated root aggregate sync against filesystem and SQLite while a
