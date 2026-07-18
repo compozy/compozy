@@ -700,8 +700,11 @@ func newShortCLITestHomeDir(t *testing.T) string {
 		t.Fatalf("MkdirTemp(home) error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.RemoveAll(homeDir)
+		if err := os.RemoveAll(homeDir); err != nil {
+			t.Errorf("RemoveAll(%s) error = %v", homeDir, err)
+		}
 	})
+	registerValidateTasksGuardianHome(t, homeDir)
 	return homeDir
 }
 

@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/daemon"
 )
 
 func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
@@ -19,6 +21,32 @@ func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
 	configureCLITestDaemonHTTPPort(t)
 
 	workspaceRoot := t.TempDir()
+	paths := mustCLITestHomePaths(t)
+	t.Cleanup(func() {
+		status, err := daemon.QueryStatus(context.Background(), paths, daemon.ProbeOptions{})
+		if err != nil {
+			t.Errorf("query archive test daemon status: %v", err)
+			return
+		}
+		if status.State == daemon.ReadyStateStopped {
+			return
+		}
+		stdout, stderr, exitCode := runCLICommand(
+			t,
+			workspaceRoot,
+			"daemon",
+			"stop",
+			"--force",
+			"--format",
+			"json",
+		)
+		if exitCode != 0 {
+			t.Errorf("stop archive test daemon: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+			return
+		}
+		waitForCLITestDaemonState(t, paths, daemon.ReadyStateStopped)
+	})
+
 	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
 	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
 		t.Fatalf("mkdir workflow dir: %v", err)
