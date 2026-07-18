@@ -9,10 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/tasks"
 )
@@ -21,7 +23,55 @@ var (
 	validateTasksBinaryOnce sync.Once
 	validateTasksBinaryPath string
 	validateTasksBinaryErr  error
+	// validateTasksBuildDir holds the os.MkdirTemp directory that stores the
+	// shared test binary. No single test owns it (the binary is built lazily
+	// under validateTasksBinaryOnce), so TestMain removes it after the whole
+	// package finishes. Without this teardown the directory and its compiled
+	// binary leaked on every package run.
+	validateTasksBuildDir string
 )
+
+// TestMain runs the package's tests and then reaps the artifacts the shared test
+// binary leaves behind: any detached daemon still running from it and the
+// os.MkdirTemp directory that holds it. These leaked on each package run because
+// the binary is built under a sync.Once into a directory no test owns, and
+// "daemon start" detaches into its own process group (see daemon.go and the
+// daemon integration tests) — so a test process that exits before its t.Cleanup
+// runs orphaned the daemon to PID 1, accumulating processes, localhost sockets,
+// and disk over time.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	cleanupValidateTasksArtifacts()
+	os.Exit(code)
+}
+
+// cleanupValidateTasksArtifacts reaps any daemon still running from the shared
+// test binary, then removes its build directory. Reaping must happen first: on
+// Unix, deleting the binary file does not stop an already-running process, so
+// removing the directory before killing would only hide the leak.
+func cleanupValidateTasksArtifacts() {
+	if validateTasksBuildDir == "" {
+		return
+	}
+	reapProcessesRunningBinary(validateTasksBinaryPath)
+	if err := os.RemoveAll(validateTasksBuildDir); err != nil {
+		fmt.Fprintf(os.Stderr, "cleanup validate-tasks build dir %q: %v\n", validateTasksBuildDir, err)
+	}
+}
+
+// reapProcessesRunningBinary force-kills any process launched from binaryPath.
+// The daemon starts detached in its own process group, so a test that exits
+// before its t.Cleanup runs would otherwise orphan it. Matching on the unique
+// temp binary path keeps the kill scoped strictly to this package's leaks.
+func reapProcessesRunningBinary(binaryPath string) {
+	if binaryPath == "" || runtime.GOOS == "windows" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	// pkill exits non-zero when nothing matches — the common, healthy case.
+	_ = exec.CommandContext(ctx, "pkill", "-KILL", "-f", binaryPath).Run()
+}
 
 func TestValidateTasksCommandJSONMixedFixture(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
@@ -283,6 +333,7 @@ func validateTasksBinary(t *testing.T) string {
 			validateTasksBinaryErr = err
 			return
 		}
+		validateTasksBuildDir = buildDir
 
 		validateTasksBinaryPath = filepath.Join(buildDir, "compozy")
 		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", validateTasksBinaryPath, "./cmd/compozy")
