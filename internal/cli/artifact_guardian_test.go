@@ -42,6 +42,11 @@ const (
 // only a backstop for a half-open endpoint.
 const guardianOwnershipProbeTimeout = 500 * time.Millisecond
 
+// guardianDrainGrace is the bounded window after the reap deadline during which
+// the loop keeps polling so a daemon first killed on the deadline pass is
+// observed exiting before its home is reported as still pending.
+const guardianDrainGrace = 2 * time.Second
+
 var (
 	validateTasksGuardianMu sync.Mutex
 	validateTasksGuardian   *exec.Cmd
@@ -325,13 +330,15 @@ func cleanupValidateTasksGuardianHomes(homeRoots map[string]struct{}, graceful b
 	killedPIDs := make(map[int]struct{})
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
-	timer := time.NewTimer(defaultDaemonStartupTimeout)
-	defer timer.Stop()
-	deadlineExpired := false
+	softDeadline := time.NewTimer(defaultDaemonStartupTimeout)
+	defer softDeadline.Stop()
+	hardDeadline := time.NewTimer(defaultDaemonStartupTimeout + guardianDrainGrace)
+	defer hardDeadline.Stop()
+	softExpired := false
 	var errs []error
 	for len(pending) > 0 {
 		for homeRoot := range pending {
-			done, err := cleanupValidateTasksGuardianHome(homeRoot, graceful || deadlineExpired, killedPIDs)
+			done, err := cleanupValidateTasksGuardianHome(homeRoot, graceful || softExpired, killedPIDs)
 			if err != nil {
 				// Record and drop this home so one damaged artifact cannot block
 				// reaping the rest; the joined error still surfaces to TestMain.
@@ -346,18 +353,20 @@ func cleanupValidateTasksGuardianHomes(homeRoots map[string]struct{}, graceful b
 		if len(pending) == 0 {
 			break
 		}
-		if deadlineExpired {
+
+		// After the soft deadline, allowMissingInfoCleanup is enabled so unverifiable
+		// homes resolve; the loop keeps polling through the drain grace so a daemon
+		// killed on that pass is observed exiting before the hard deadline expires.
+		select {
+		case <-ticker.C:
+		case <-softDeadline.C:
+			softExpired = true
+		case <-hardDeadline.C:
 			errs = append(errs, fmt.Errorf(
 				"guardian cleanup deadline expired for homes: %s",
 				joinGuardianHomeRoots(pending),
 			))
-			break
-		}
-
-		select {
-		case <-ticker.C:
-		case <-timer.C:
-			deadlineExpired = true
+			return errors.Join(errs...)
 		}
 	}
 	return errors.Join(errs...)
@@ -397,30 +406,52 @@ func cleanupValidateTasksGuardianHome(
 		// The recorded daemon has exited; its home is safe to remove.
 		return removeValidateTasksGuardianHomeDone(homeRoot)
 	}
-	if daemonEndpointReachable(info) {
-		// The pid is alive and still answering the daemon's own endpoint, so it
-		// is genuinely the process we recorded — a recycled pid would not be
-		// holding this socket. Force-kill it, then re-poll until it exits.
-		if _, killed := killedPIDs[info.PID]; !killed {
-			process, err := os.FindProcess(info.PID)
-			if err != nil {
-				return false, fmt.Errorf("find guardian daemon pid %d: %w", info.PID, err)
-			}
-			if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-				return false, fmt.Errorf("kill guardian daemon pid %d: %w", info.PID, err)
-			}
-			killedPIDs[info.PID] = struct{}{}
-		}
+	if _, killed := killedPIDs[info.PID]; killed {
+		// Already signaled this instance; keep polling until it exits.
 		return false, nil
 	}
-	// The pid is alive but no longer answering the daemon's endpoint: either the
-	// pid was recycled for an unrelated process, or a transient probe blip. Never
-	// SIGKILL a pid we cannot confirm is ours; keep polling and, once the cleanup
-	// deadline passes, treat our daemon as gone and drop the home.
+	killed, err := killGuardianDaemonInstance(info)
+	if err != nil {
+		return false, err
+	}
+	if killed {
+		killedPIDs[info.PID] = struct{}{}
+		return false, nil
+	}
+	if !daemon.ProcessAlive(info.PID) {
+		// The daemon exited while we confirmed ownership; nothing left to kill.
+		return removeValidateTasksGuardianHomeDone(homeRoot)
+	}
+	// The pid is alive but not confirmed as our daemon — a recycled pid or a hung
+	// endpoint. Never SIGKILL a pid we cannot confirm is ours. Keep polling; if it
+	// stays unverifiable past the deadline, surface an error and preserve the home
+	// rather than deleting metadata a later reap would need.
 	if !allowMissingInfoCleanup {
 		return false, nil
 	}
-	return removeValidateTasksGuardianHomeDone(homeRoot)
+	return false, fmt.Errorf(
+		"guardian daemon pid %d is alive but its endpoint cannot be verified",
+		info.PID,
+	)
+}
+
+// killGuardianDaemonByPID confirms ownership via the daemon's endpoint, then
+// signals info.PID directly. It is the portable fallback used where no pidfd
+// (or equivalent instance handle) is available, so ownership is verified as
+// tightly before the signal as the platform allows. Returns killed=false when
+// the endpoint cannot be reached, i.e. the process is not confirmed as ours.
+func killGuardianDaemonByPID(info daemon.Info) (bool, error) {
+	if !daemonEndpointReachable(info) {
+		return false, nil
+	}
+	process, err := os.FindProcess(info.PID)
+	if err != nil {
+		return false, fmt.Errorf("find guardian daemon pid %d: %w", info.PID, err)
+	}
+	if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return false, fmt.Errorf("kill guardian daemon pid %d: %w", info.PID, err)
+	}
+	return true, nil
 }
 
 // removeValidateTasksGuardianHomeDone removes a guarded home and reports it as
@@ -489,12 +520,15 @@ func removeValidateTasksGuardianRoot(root string, sentinel string) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("stat guardian cleanup root %q: %w", root, err)
 	}
 	if err := requireValidateTasksGuardianSentinel(root, sentinel); err != nil {
 		return err
 	}
-	return os.RemoveAll(root)
+	if err := os.RemoveAll(root); err != nil {
+		return fmt.Errorf("remove guardian cleanup root %q: %w", root, err)
+	}
+	return nil
 }
 
 func joinGuardianHomeRoots(homeRoots map[string]struct{}) string {
@@ -706,7 +740,11 @@ func writeDaemonHelperPort(path string, port string) error {
 		return fmt.Errorf("write daemon helper port file: %w", err)
 	}
 	if err := os.Rename(tmp, clean); err != nil {
-		return errors.Join(fmt.Errorf("rename daemon helper port file: %w", err), os.Remove(tmp))
+		removeErr := os.Remove(tmp)
+		if removeErr != nil {
+			removeErr = fmt.Errorf("remove temporary daemon helper port file %q: %w", tmp, removeErr)
+		}
+		return errors.Join(fmt.Errorf("rename daemon helper port file: %w", err), removeErr)
 	}
 	return nil
 }
