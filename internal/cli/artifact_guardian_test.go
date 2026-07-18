@@ -407,8 +407,15 @@ func cleanupValidateTasksGuardianHome(
 		return removeValidateTasksGuardianHomeDone(homeRoot)
 	}
 	if _, killed := killedPIDs[info.PID]; killed {
-		// Already signaled this instance; keep polling until it exits.
-		return false, nil
+		// We already signaled this instance. Re-verify ownership instead of
+		// trusting the PID: if the endpoint still answers, our daemon is still
+		// exiting, so keep polling; if it no longer answers, our daemon is gone
+		// (a recycled PID would not be holding our endpoint) and the home is safe
+		// to remove. This keeps the drain immune to PID reuse.
+		if daemonEndpointReachable(info) {
+			return false, nil
+		}
+		return removeValidateTasksGuardianHomeDone(homeRoot)
 	}
 	killed, err := killGuardianDaemonInstance(info)
 	if err != nil {
