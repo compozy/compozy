@@ -28,6 +28,7 @@ const (
 	validateTasksGuardianErrorPathEnv     = "COMPOZY_TEST_ARTIFACT_GUARDIAN_ERROR_PATH"
 	validateTasksGuardianOwnerHelperEnv   = "COMPOZY_TEST_ARTIFACT_GUARDIAN_OWNER_HELPER"
 	validateTasksGuardianDaemonHelperEnv  = "COMPOZY_TEST_ARTIFACT_GUARDIAN_DAEMON_HELPER"
+	validateTasksGuardianDaemonPortEnv    = "COMPOZY_TEST_ARTIFACT_GUARDIAN_DAEMON_PORT_PATH"
 	validateTasksGuardianHomeRootEnv      = "COMPOZY_TEST_ARTIFACT_GUARDIAN_HOME_ROOT"
 	validateTasksGuardianPIDPathEnv       = "COMPOZY_TEST_ARTIFACT_GUARDIAN_PID_PATH"
 	validateTasksGuardianBuildSentinel    = ".compozy-test-artifact-guardian"
@@ -35,6 +36,11 @@ const (
 	validateTasksGuardianRegisterHome     = "register_home"
 	validateTasksGuardianGracefulShutdown = "graceful_shutdown"
 )
+
+// guardianOwnershipProbeTimeout bounds each ownership probe (see
+// daemonEndpointReachable). Localhost dials resolve in microseconds, so this is
+// only a backstop for a half-open endpoint.
+const guardianOwnershipProbeTimeout = 500 * time.Millisecond
 
 var (
 	validateTasksGuardianMu sync.Mutex
@@ -297,13 +303,14 @@ func runValidateTasksArtifactGuardian(input io.Reader, buildDir string) error {
 		return fmt.Errorf("read guardian messages: %w", err)
 	}
 
-	if err := cleanupValidateTasksGuardianHomes(homeRoots, graceful); err != nil {
-		return err
-	}
+	// Reap homes and remove the build directory independently: a single damaged
+	// home must not strand the build directory (or the other homes) on disk.
+	homeErr := cleanupValidateTasksGuardianHomes(homeRoots, graceful)
+	var buildErr error
 	if err := removeValidateTasksGuardianRoot(cleanBuildDir, validateTasksGuardianBuildSentinel); err != nil {
-		return fmt.Errorf("remove guardian build directory: %w", err)
+		buildErr = fmt.Errorf("remove guardian build directory: %w", err)
 	}
-	return nil
+	return errors.Join(homeErr, buildErr)
 }
 
 func cleanupValidateTasksGuardianHomes(homeRoots map[string]struct{}, graceful bool) error {
@@ -321,21 +328,30 @@ func cleanupValidateTasksGuardianHomes(homeRoots map[string]struct{}, graceful b
 	timer := time.NewTimer(defaultDaemonStartupTimeout)
 	defer timer.Stop()
 	deadlineExpired := false
+	var errs []error
 	for len(pending) > 0 {
 		for homeRoot := range pending {
 			done, err := cleanupValidateTasksGuardianHome(homeRoot, graceful || deadlineExpired, killedPIDs)
 			if err != nil {
-				return err
+				// Record and drop this home so one damaged artifact cannot block
+				// reaping the rest; the joined error still surfaces to TestMain.
+				errs = append(errs, err)
+				delete(pending, homeRoot)
+				continue
 			}
 			if done {
 				delete(pending, homeRoot)
 			}
 		}
 		if len(pending) == 0 {
-			return nil
+			break
 		}
 		if deadlineExpired {
-			return fmt.Errorf("guardian cleanup deadline expired for homes: %s", joinGuardianHomeRoots(pending))
+			errs = append(errs, fmt.Errorf(
+				"guardian cleanup deadline expired for homes: %s",
+				joinGuardianHomeRoots(pending),
+			))
+			break
 		}
 
 		select {
@@ -344,7 +360,7 @@ func cleanupValidateTasksGuardianHomes(homeRoots map[string]struct{}, graceful b
 			deadlineExpired = true
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func cleanupValidateTasksGuardianHome(
@@ -372,15 +388,19 @@ func cleanupValidateTasksGuardianHome(
 			if !allowMissingInfoCleanup {
 				return false, nil
 			}
-			if err := removeValidateTasksGuardianRoot(homeRoot, validateTasksGuardianHomeSentinel); err != nil {
-				return false, fmt.Errorf("remove guardian home %q: %w", homeRoot, err)
-			}
-			return true, nil
+			return removeValidateTasksGuardianHomeDone(homeRoot)
 		}
 		return false, fmt.Errorf("read guardian daemon info for %q: %w", homeRoot, err)
 	}
 
-	if daemon.ProcessAlive(info.PID) {
+	if !daemon.ProcessAlive(info.PID) {
+		// The recorded daemon has exited; its home is safe to remove.
+		return removeValidateTasksGuardianHomeDone(homeRoot)
+	}
+	if daemonEndpointReachable(info) {
+		// The pid is alive and still answering the daemon's own endpoint, so it
+		// is genuinely the process we recorded — a recycled pid would not be
+		// holding this socket. Force-kill it, then re-poll until it exits.
 		if _, killed := killedPIDs[info.PID]; !killed {
 			process, err := os.FindProcess(info.PID)
 			if err != nil {
@@ -393,11 +413,52 @@ func cleanupValidateTasksGuardianHome(
 		}
 		return false, nil
 	}
+	// The pid is alive but no longer answering the daemon's endpoint: either the
+	// pid was recycled for an unrelated process, or a transient probe blip. Never
+	// SIGKILL a pid we cannot confirm is ours; keep polling and, once the cleanup
+	// deadline passes, treat our daemon as gone and drop the home.
+	if !allowMissingInfoCleanup {
+		return false, nil
+	}
+	return removeValidateTasksGuardianHomeDone(homeRoot)
+}
 
+// removeValidateTasksGuardianHomeDone removes a guarded home and reports it as
+// finished so the reap loop can stop tracking it.
+func removeValidateTasksGuardianHomeDone(homeRoot string) (bool, error) {
 	if err := removeValidateTasksGuardianRoot(homeRoot, validateTasksGuardianHomeSentinel); err != nil {
 		return false, fmt.Errorf("remove guardian home %q: %w", homeRoot, err)
 	}
 	return true, nil
+}
+
+// daemonEndpointReachable reports whether the daemon recorded in info still
+// answers on its own endpoint. It is the ownership gate for the guardian's
+// SIGKILL: a recycled pid will not be holding the recorded socket or port, so
+// an unreachable endpoint means the process at info.PID is not our daemon.
+// Mirrors daemon.ProbeReady's socket-based liveness check.
+func daemonEndpointReachable(info daemon.Info) bool {
+	if socketPath := strings.TrimSpace(info.SocketPath); socketPath != "" && dialProbe("unix", socketPath) {
+		return true
+	}
+	if info.HTTPPort > 0 && dialProbe("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(info.HTTPPort))) {
+		return true
+	}
+	return false
+}
+
+// dialProbe reports whether address accepts a connection within the ownership
+// probe timeout. Each probe gets its own deadline so one slow endpoint cannot
+// starve the next.
+func dialProbe(network, address string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), guardianOwnershipProbeTimeout)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(ctx, network, address)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 func validateTasksGuardianCleanupRoot(path string) (string, error) {
@@ -447,52 +508,72 @@ func joinGuardianHomeRoots(homeRoots map[string]struct{}) string {
 
 func TestValidateTasksArtifactGuardianReapsDaemonAfterOwnerExit(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reap the leaked daemon and artifacts after the owner exits abruptly", func(t *testing.T) {
+		root := t.TempDir()
+		buildDir := filepath.Join(root, "build")
+		homeRoot := filepath.Join(root, "home")
+		pidPath := filepath.Join(root, "daemon.pid")
+		errorPath := filepath.Join(root, "guardian.err")
 
-	root := t.TempDir()
-	buildDir := filepath.Join(root, "build")
-	homeRoot := filepath.Join(root, "home")
-	pidPath := filepath.Join(root, "daemon.pid")
-	errorPath := filepath.Join(root, "guardian.err")
+		cmd := exec.CommandContext(
+			context.Background(),
+			os.Args[0],
+			"-test.run=^TestValidateTasksGuardianOwnerHelper$",
+		)
+		cmd.Env = append(os.Environ(),
+			validateTasksGuardianOwnerHelperEnv+"=1",
+			validateTasksGuardianBuildDirEnv+"="+buildDir,
+			validateTasksGuardianErrorPathEnv+"="+errorPath,
+			validateTasksGuardianHomeRootEnv+"="+homeRoot,
+			validateTasksGuardianPIDPathEnv+"="+pidPath,
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("run abrupt-owner helper: %v\n%s", err, output)
+		}
 
-	cmd := exec.CommandContext(
-		context.Background(),
-		os.Args[0],
-		"-test.run=^TestValidateTasksGuardianOwnerHelper$",
-	)
-	cmd.Env = append(os.Environ(),
-		validateTasksGuardianOwnerHelperEnv+"=1",
-		validateTasksGuardianBuildDirEnv+"="+buildDir,
-		validateTasksGuardianErrorPathEnv+"="+errorPath,
-		validateTasksGuardianHomeRootEnv+"="+homeRoot,
-		validateTasksGuardianPIDPathEnv+"="+pidPath,
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run abrupt-owner helper: %v\n%s", err, output)
-	}
+		pidData, err := os.ReadFile(pidPath)
+		if err != nil {
+			t.Fatalf("read daemon helper pid: %v", err)
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(pidData)))
+		if err != nil {
+			t.Fatalf("parse daemon helper pid: %v", err)
+		}
 
-	pidData, err := os.ReadFile(pidPath)
-	if err != nil {
-		t.Fatalf("read daemon helper pid: %v", err)
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(pidData)))
-	if err != nil {
-		t.Fatalf("parse daemon helper pid: %v", err)
-	}
-
-	waitForValidateTasksGuardianCleanup(t, pid, buildDir, homeRoot, errorPath)
+		waitForValidateTasksGuardianCleanup(t, pid, buildDir, homeRoot, errorPath)
+	})
 }
 
 func TestRunValidateTasksArtifactGuardianRejectsInvalidControlMessage(t *testing.T) {
 	t.Parallel()
 
-	buildDir := t.TempDir()
-	err := runValidateTasksArtifactGuardian(strings.NewReader("{not-json}\n"), buildDir)
-	if err == nil || !strings.Contains(err.Error(), "decode guardian message") {
-		t.Fatalf("runValidateTasksArtifactGuardian() error = %v, want decode guardian message error", err)
+	cases := []struct {
+		name    string
+		input   string
+		wantErr string
+	}{
+		{
+			name:    "Should reject a malformed control message",
+			input:   "{not-json}\n",
+			wantErr: "decode guardian message",
+		},
+		{
+			name:    "Should reject an unknown control message kind",
+			input:   `{"kind":"bogus"}` + "\n",
+			wantErr: "unknown guardian message kind",
+		},
 	}
-	if _, statErr := os.Stat(buildDir); statErr != nil {
-		t.Fatalf("guardian removed build directory after invalid control message: %v", statErr)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			buildDir := t.TempDir()
+			err := runValidateTasksArtifactGuardian(strings.NewReader(tc.input), buildDir)
+			assertErrorContains(t, err, tc.wantErr)
+			if _, statErr := os.Stat(buildDir); statErr != nil {
+				t.Fatalf("guardian removed build directory after invalid control message: %v", statErr)
+			}
+		})
 	}
 }
 
@@ -529,12 +610,16 @@ func TestValidateTasksGuardianOwnerHelper(t *testing.T) {
 		t.Fatalf("register guardian home: %v", err)
 	}
 
+	daemonPortPath := pidPath + ".port"
 	daemonCommand := exec.CommandContext(
 		context.Background(),
 		os.Args[0],
 		"-test.run=^TestValidateTasksGuardianDaemonHelper$",
 	)
-	daemonCommand.Env = append(os.Environ(), validateTasksGuardianDaemonHelperEnv+"=1")
+	daemonCommand.Env = append(os.Environ(),
+		validateTasksGuardianDaemonHelperEnv+"=1",
+		validateTasksGuardianDaemonPortEnv+"="+daemonPortPath,
+	)
 	daemonCommand.SysProcAttr = daemonLaunchSysProcAttr()
 	if err := daemonCommand.Start(); err != nil {
 		t.Fatalf("start daemon helper: %v", err)
@@ -542,6 +627,13 @@ func TestValidateTasksGuardianOwnerHelper(t *testing.T) {
 	daemonPID := daemonCommand.Process.Pid
 	if err := daemonCommand.Process.Release(); err != nil {
 		t.Fatalf("release daemon helper: %v", err)
+	}
+
+	// The guardian's ownership probe dials this port, so record it in daemon.json
+	// before advertising the daemon as ready.
+	daemonPort, err := waitForDaemonHelperPort(daemonPortPath)
+	if err != nil {
+		t.Fatalf("resolve daemon helper port: %v", err)
 	}
 
 	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeRoot, compozyconfig.DirName))
@@ -553,6 +645,7 @@ func TestValidateTasksGuardianOwnerHelper(t *testing.T) {
 	}
 	if err := daemon.WriteInfo(paths.InfoPath, daemon.Info{
 		PID:       daemonPID,
+		HTTPPort:  daemonPort,
 		StartedAt: time.Now().UTC(),
 		State:     daemon.ReadyStateReady,
 	}); err != nil {
@@ -579,8 +672,76 @@ func TestValidateTasksGuardianDaemonHelper(t *testing.T) {
 			t.Errorf("close daemon helper listener: %v", err)
 		}
 	}()
-	if _, err := listener.Accept(); err != nil {
-		t.Fatalf("accept daemon helper connection: %v", err)
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatalf("resolve daemon helper address: %v", err)
+	}
+	if err := writeDaemonHelperPort(os.Getenv(validateTasksGuardianDaemonPortEnv), port); err != nil {
+		t.Fatalf("report daemon helper port: %v", err)
+	}
+
+	// Stay alive serving the guardian's ownership probes until it SIGKILLs us,
+	// exactly as a leaked real daemon keeps its socket open until reaped.
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		if err := conn.Close(); err != nil {
+			t.Errorf("close daemon helper probe connection: %v", err)
+		}
+	}
+}
+
+// writeDaemonHelperPort publishes the daemon helper's listening port atomically
+// (temp file + rename) so waitForDaemonHelperPort never observes a partial write.
+func writeDaemonHelperPort(path string, port string) error {
+	clean := strings.TrimSpace(path)
+	if clean == "" {
+		return errors.New("daemon helper port path is required")
+	}
+	tmp := clean + ".tmp"
+	if err := os.WriteFile(tmp, []byte(port+"\n"), 0o600); err != nil {
+		return fmt.Errorf("write daemon helper port file: %w", err)
+	}
+	if err := os.Rename(tmp, clean); err != nil {
+		return errors.Join(fmt.Errorf("rename daemon helper port file: %w", err), os.Remove(tmp))
+	}
+	return nil
+}
+
+// waitForDaemonHelperPort polls for the port file the daemon helper writes,
+// returning once it is readable or the startup deadline passes.
+func waitForDaemonHelperPort(path string) (int, error) {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(defaultDaemonStartupTimeout)
+	defer timer.Stop()
+	for {
+		data, err := os.ReadFile(path)
+		switch {
+		case err == nil:
+			text := strings.TrimSpace(string(data))
+			port, convErr := strconv.Atoi(text)
+			if convErr != nil {
+				return 0, fmt.Errorf("parse daemon helper port %q: %w", text, convErr)
+			}
+			if port <= 0 {
+				return 0, fmt.Errorf("daemon helper port must be positive: %d", port)
+			}
+			return port, nil
+		case errors.Is(err, os.ErrNotExist):
+			// The helper has not reported its port yet; keep polling below.
+		default:
+			return 0, fmt.Errorf("read daemon helper port: %w", err)
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			return 0, errors.New("daemon helper did not report its port before deadline")
+		}
 	}
 }
 
@@ -622,4 +783,22 @@ func waitForValidateTasksGuardianCleanup(
 func pathIsMissing(path string) bool {
 	_, err := os.Stat(path)
 	return errors.Is(err, os.ErrNotExist)
+}
+
+// reapValidateTasksGuardianHome runs the guardian's daemon-aware cleanup for a
+// single registered home synchronously: it stops any daemon still running there
+// before removing the home, so a per-test cleanup never deletes the daemon.json
+// the package guardian would otherwise need to reap a still-live daemon.
+func reapValidateTasksGuardianHome(homeRoot string) error {
+	return cleanupValidateTasksGuardianHomes(map[string]struct{}{homeRoot: {}}, true)
+}
+
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("error = nil, want substring %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want substring %q", err, want)
+	}
 }
