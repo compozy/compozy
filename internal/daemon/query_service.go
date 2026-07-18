@@ -604,7 +604,7 @@ func (s *queryService) resolveWorkflowReadTarget(
 
 	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, slug)
 	if err == nil {
-		rootDir, rootErr := readableWorkflowRootDir(workspace.RootDir, workflow)
+		rootDir, rootErr := s.readablePackageAwareWorkflowRootDir(ctx, workspace.RootDir, workflow)
 		if rootErr != nil {
 			return workflowReadTarget{}, rootErr
 		}
@@ -627,7 +627,7 @@ func (s *queryService) resolveWorkflowReadTarget(
 	if err != nil {
 		return workflowReadTarget{}, err
 	}
-	rootDir, err := s.readableArchivedWorkflowRootDir(ctx, workspace.RootDir, workflow)
+	rootDir, err := s.readablePackageAwareWorkflowRootDir(ctx, workspace.RootDir, workflow)
 	if err != nil {
 		return workflowReadTarget{}, err
 	}
@@ -1136,13 +1136,14 @@ func workflowReadTargetUsesArchivedFS(target workflowReadTarget) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
-// readableArchivedWorkflowRootDir resolves an archived workflow's on-disk root.
-// Archiving an initiative moves the whole hierarchy under one parent archive
-// directory, so an archived work package keeps its artifacts nested at
-// <parentArchiveRoot>/<packageDir> rather than gaining a top-level archive
-// directory derived from its own slug. Archived roots (initiatives and ordinary
-// workflows) keep the plain slug-based resolution.
-func (s *queryService) readableArchivedWorkflowRootDir(
+// readablePackageAwareWorkflowRootDir resolves a workflow's on-disk root while
+// honoring work-package nesting for both active and archived generations. A work
+// package (ParentWorkflowID set) keeps its artifacts nested at
+// <parentRoot>/<packageDir>, so resolving by slug alone would point reads at
+// .compozy/tasks/<initiative>/<packageID> instead of the real
+// .compozy/tasks/<initiative>/_packages/<packageID>. Ordinary workflows and
+// initiatives (no parent) keep the plain slug-based resolution.
+func (s *queryService) readablePackageAwareWorkflowRootDir(
 	ctx context.Context,
 	workspaceRoot string,
 	workflow globaldb.Workflow,
@@ -1153,7 +1154,7 @@ func (s *queryService) readableArchivedWorkflowRootDir(
 	parent, err := s.globalDB.GetWorkflow(ctx, workflow.ParentWorkflowID)
 	if err != nil {
 		return "", fmt.Errorf(
-			"load archived initiative %q for package %q: %w",
+			"load initiative %q for package %q: %w",
 			workflow.ParentWorkflowID,
 			workflow.Slug,
 			err,
