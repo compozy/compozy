@@ -121,18 +121,28 @@ function invalidateWorkflowQueries(
     return;
   }
 
-  void queryClient.invalidateQueries({ queryKey: workflowKeys.board(workspaceId, workflowSlug) });
-  void queryClient.invalidateQueries({ queryKey: workflowKeys.tasks(workspaceId, workflowSlug) });
+  // Invalidate at the package-agnostic prefix that stops before the trailing
+  // `packageId ?? null` slot the key builders carry. TanStack matches by partial key,
+  // so filtering on that slot (e.g. `board(ws, slug)` -> `[…, null, "board"]`) would
+  // only ever hit the initiative variant and leave every package-scoped (`WP-NNN`)
+  // view a stale sibling. These prefixes match the initiative and all package scopes.
+  void queryClient.invalidateQueries({
+    queryKey: [...workflowKeys.workflows(), workspaceId, workflowSlug],
+  });
 
   if (options.allArtifacts || shouldInvalidateSpec(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: specKeys.workflow(workspaceId, workflowSlug) });
+    void queryClient.invalidateQueries({ queryKey: [...specKeys.all, workspaceId, workflowSlug] });
   }
   if (options.allArtifacts || shouldInvalidateMemory(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: memoryKeys.index(workspaceId, workflowSlug) });
+    void queryClient.invalidateQueries({
+      queryKey: [...memoryKeys.indexes(), workspaceId, workflowSlug],
+    });
     void queryClient.invalidateQueries({ queryKey: memoryKeys.files() });
   }
   if (options.allArtifacts || shouldInvalidateReviews(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: reviewKeys.summary(workspaceId, workflowSlug) });
+    void queryClient.invalidateQueries({
+      queryKey: [...reviewKeys.summaries(), workspaceId, workflowSlug],
+    });
     void queryClient.invalidateQueries({ queryKey: reviewKeys.rounds() });
   }
 }

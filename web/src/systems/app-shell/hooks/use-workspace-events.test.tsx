@@ -138,6 +138,43 @@ describe("useWorkspaceEvents", () => {
     });
   });
 
+  it("Should invalidate package-scoped workflow views from workflow events", async () => {
+    const queryClient = createTestQueryClient();
+    const packageId = "WP-002";
+    const boardKey = workflowKeys.board("workspace-1", "demo", packageId);
+    const tasksKey = workflowKeys.tasks("workspace-1", "demo", packageId);
+    const specKey = specKeys.workflow("workspace-1", "demo", packageId);
+    const memoryIndexKey = memoryKeys.index("workspace-1", "demo", packageId);
+    const reviewSummaryKey = reviewKeys.summary("workspace-1", "demo", packageId);
+    // Initiative-scoped siblings must still invalidate alongside the package views.
+    const initiativeBoardKey = workflowKeys.board("workspace-1", "demo");
+    for (const key of [
+      boardKey,
+      tasksKey,
+      specKey,
+      memoryIndexKey,
+      reviewSummaryKey,
+      initiativeBoardKey,
+    ]) {
+      queryClient.setQueryData(key, { ok: true });
+    }
+
+    invalidateWorkspaceEvent(
+      queryClient,
+      "workspace-1",
+      workspaceEvent({ kind: "workflow.sync_completed" })
+    );
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(boardKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(tasksKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(specKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(memoryIndexKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(reviewSummaryKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(initiativeBoardKey)?.isInvalidated).toBe(true);
+    });
+  });
+
   it("Should invalidate the full workspace scope after overflow", async () => {
     const queryClient = createTestQueryClient();
     const dashboardKey = dashboardKeys.byWorkspace("workspace-1");
