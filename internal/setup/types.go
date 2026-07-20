@@ -2,7 +2,9 @@ package setup
 
 import (
 	"io/fs"
+	"os"
 	"slices"
+	"strings"
 )
 
 // InstallMode determines how bundled skills are materialized for agents.
@@ -90,6 +92,34 @@ type ResolverOptions struct {
 	PIProfile        *string
 	PIConfigDir      string
 	PICodingAgentDir string
+}
+
+// ResolverOptionsFromEnvironment captures setup path inputs while preserving
+// whether profile variables are absent or explicitly empty.
+func ResolverOptionsFromEnvironment(cwd, homeDir string) ResolverOptions {
+	if strings.TrimSpace(homeDir) == "" {
+		if resolvedHome, err := os.UserHomeDir(); err == nil {
+			homeDir = resolvedHome
+		}
+	}
+	ompProfile, ompProfileSet := os.LookupEnv("OMP_PROFILE")
+	piProfile, piProfileSet := os.LookupEnv("PI_PROFILE")
+	options := ResolverOptions{
+		CWD:              strings.TrimSpace(cwd),
+		HomeDir:          strings.TrimSpace(homeDir),
+		XDGConfigHome:    strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")),
+		CodeXHome:        strings.TrimSpace(os.Getenv("CODEX_HOME")),
+		ClaudeConfigDir:  strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")),
+		PIConfigDir:      os.Getenv("PI_CONFIG_DIR"),
+		PICodingAgentDir: os.Getenv("PI_CODING_AGENT_DIR"),
+	}
+	if ompProfileSet {
+		options.OMPProfile = &ompProfile
+	}
+	if piProfileSet {
+		options.PIProfile = &piProfile
+	}
+	return options
 }
 
 // InstallConfig describes one bundled-skill installation run.

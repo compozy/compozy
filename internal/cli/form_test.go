@@ -794,6 +794,37 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 	}
 }
 
+func TestOMPFormGuidanceUsesAutoModelAndExistingMediumReasoning(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use auto model and existing medium reasoning for OMP guidance", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+
+		var selectedModel string
+		modelBuilder := newFormBuilder(cmd, state)
+		modelBuilder.addModelField(&selectedModel)
+		modelView := renderSingleFormFieldForTest(t, modelBuilder.fields, "model")
+		if !strings.Contains(modelView, "omp=auto") {
+			t.Fatalf("expected OMP auto model guidance, got %q", modelView)
+		}
+
+		selectedReasoning := model.DefaultReasoningEffort
+		reasoningBuilder := newFormBuilder(cmd, state)
+		reasoningBuilder.addReasoningEffortField(&selectedReasoning)
+		reasoningView := renderSingleFormFieldForTest(t, reasoningBuilder.fields, "reasoning-effort")
+		if !strings.Contains(reasoningView, "Oh My Pi") || !strings.Contains(reasoningView, "Medium") {
+			t.Fatalf("expected OMP medium reasoning guidance, got %q", reasoningView)
+		}
+		for _, forbidden := range []string{"Auto", "Off"} {
+			if strings.Contains(reasoningView, forbidden) {
+				t.Fatalf("reasoning domain unexpectedly includes %q: %q", forbidden, reasoningView)
+			}
+		}
+	})
+}
+
 func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
 	supportsAddDirs := true
 	restoreIDE, err := agent.ActivateOverlay([]agent.OverlayEntry{{

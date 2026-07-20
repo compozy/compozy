@@ -42,7 +42,7 @@ func (s *commandState) preflightBundledSkills(
 	if err != nil {
 		return err
 	}
-	if verifyState.HasBlockingMissing() {
+	if verifyState.HasBlockingMissing() && !s.commandIsInteractive() {
 		return buildMissingSkillError(cmd.CommandPath(), verifyState.AgentName, verifyState)
 	}
 	if !verifyState.HasRefreshableChanges() {
@@ -124,6 +124,9 @@ func (s *commandState) handleBundledSkillDrift(
 		return err
 	}
 	if !confirmed {
+		if verifyState.HasBlockingMissing() {
+			return buildMissingSkillError(cmd.CommandPath(), verifyState.AgentName, verifyState)
+		}
 		printBundledSkillDriftWarning(cmd, verifyState, "continuing with the installed skills")
 		return nil
 	}
@@ -177,7 +180,7 @@ func (s *commandState) refreshBundledSkills(verifyState requiredSkillState) erro
 	global := verifyState.Scope() == setup.InstallScopeGlobal
 	mode := verifyState.Mode()
 
-	resolver := preflightResolverOptions(verifyState.ResolverOptions, s.workspaceRoot)
+	resolver := verifyState.ResolverOptions
 
 	installResult, err := installBundledSkills(setup.InstallConfig{
 		ResolverOptions: resolver,
@@ -229,7 +232,7 @@ func ensureBundledSkillsCurrent(
 		verifyExtensionSkills = setup.VerifyExtensionSkillPacks
 	}
 
-	resolver := preflightResolverOptions(verifyState.ResolverOptions, "")
+	resolver := verifyState.ResolverOptions
 
 	reverifiedBundled, err := verifyBundledSkills(setup.VerifyConfig{
 		ResolverOptions: resolver,
@@ -290,6 +293,18 @@ func preflightResolverOptions(provided setup.ResolverOptions, workspaceRoot stri
 	}
 	if trimmed := strings.TrimSpace(provided.ClaudeConfigDir); trimmed != "" {
 		resolved.ClaudeConfigDir = trimmed
+	}
+	if provided.OMPProfile != nil {
+		resolved.OMPProfile = provided.OMPProfile
+	}
+	if provided.PIProfile != nil {
+		resolved.PIProfile = provided.PIProfile
+	}
+	if provided.PIConfigDir != "" {
+		resolved.PIConfigDir = provided.PIConfigDir
+	}
+	if provided.PICodingAgentDir != "" {
+		resolved.PICodingAgentDir = provided.PICodingAgentDir
 	}
 	return resolved
 }
@@ -446,6 +461,7 @@ func (s requiredSkillState) HasBlockingMissing() bool {
 
 func (s requiredSkillState) RefreshSkillNames() []string {
 	names := append([]string(nil), s.Bundled.DriftedSkillNames()...)
+	names = append(names, s.Bundled.MissingSkillNames()...)
 	names = append(names, s.Extensions.DriftedSkillNames()...)
 	names = append(names, s.Extensions.MissingSkillNames()...)
 	return uniqueSortedStrings(names)

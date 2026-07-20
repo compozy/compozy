@@ -142,7 +142,11 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if s.list {
-		printSetupAssets(cmd, catalog.Skills, catalog.ReusableAgents, catalog.Conflicts)
+		agents, err := s.listAgents(resolver)
+		if err != nil {
+			return err
+		}
+		printSetupAssets(cmd, catalog.Skills, catalog.ReusableAgents, agents, catalog.Conflicts)
 		return nil
 	}
 
@@ -219,12 +223,7 @@ func resolveSetupWorkspaceContext(ctx context.Context) (workspace.Context, error
 }
 
 func currentResolverOptions(cwd string) setup.ResolverOptions {
-	return setup.ResolverOptions{
-		CWD:             strings.TrimSpace(cwd),
-		CodeXHome:       strings.TrimSpace(os.Getenv("CODEX_HOME")),
-		ClaudeConfigDir: strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")),
-		XDGConfigHome:   strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")),
-	}
+	return setup.ResolverOptionsFromEnvironment(cwd, "")
 }
 
 func (s *setupCommandState) loadAgents(resolver setup.ResolverOptions) ([]setup.Agent, []setup.Agent, error) {
@@ -775,9 +774,10 @@ func printSetupAssets(
 	cmd *cobra.Command,
 	skills []setup.Skill,
 	reusableAgents []setup.ReusableAgent,
+	agents []setup.Agent,
 	conflicts []setup.CatalogConflict,
 ) {
-	if len(skills) == 0 && len(reusableAgents) == 0 {
+	if len(skills) == 0 && len(reusableAgents) == 0 && len(agents) == 0 {
 		printSetupWarnings(cmd, conflicts)
 		return
 	}
@@ -832,7 +832,25 @@ func printSetupAssets(
 		}
 	}
 
+	printSupportedAgents(cmd.OutOrStdout(), styles, agents, len(skills) > 0 || len(reusableAgents) > 0)
+
 	printSetupWarnings(cmd, conflicts)
+}
+
+func printSupportedAgents(w io.Writer, styles cliChromeStyles, agents []setup.Agent, needsSeparator bool) {
+	if len(agents) == 0 {
+		return
+	}
+	if needsSeparator {
+		fmt.Fprintln(w)
+	}
+	lipgloss.Fprintln(w, styles.sectionTitle.Render("Supported Agents"))
+	for i := range agents {
+		agent := &agents[i]
+		name := styles.agent.Render(agent.Name)
+		displayName := styles.path.Render(agent.DisplayName)
+		lipgloss.Fprintf(w, "  %s  %s\n", name, displayName)
+	}
 }
 
 func printSetupWarnings(cmd *cobra.Command, conflicts []setup.CatalogConflict) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strings"
 
@@ -254,13 +253,7 @@ func uniqueSortedStrings(values []string) []string {
 }
 
 func buildResolverOptions(env commandEnv) setup.ResolverOptions {
-	return setup.ResolverOptions{
-		CWD:             env.workspaceRoot,
-		HomeDir:         env.homeDir,
-		CodeXHome:       strings.TrimSpace(os.Getenv("CODEX_HOME")),
-		ClaudeConfigDir: strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")),
-		XDGConfigHome:   strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")),
-	}
+	return setup.ResolverOptionsFromEnvironment(env.workspaceRoot, env.homeDir)
 }
 
 func overrideInfos(records []extensions.OverrideRecord) []string {

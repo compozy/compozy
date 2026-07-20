@@ -265,6 +265,175 @@ func TestExecCommandOMPUnsupportedReasoningReportsAdvertisedChoices(t *testing.T
 	}
 }
 
+func TestSetupCommandOMPProjectCopyJourney(t *testing.T) {
+	homeDir := t.TempDir()
+	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv(compozyconfig.HomeEnvVar, filepath.Join(homeDir, ".compozy-home"))
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir workspace marker: %v", err)
+	}
+	piMarker := filepath.Join(workspaceRoot, ".pi", "keep.txt")
+	if err := os.MkdirAll(filepath.Dir(piMarker), 0o755); err != nil {
+		t.Fatalf("mkdir Pi marker directory: %v", err)
+	}
+	if err := os.WriteFile(piMarker, []byte("unchanged"), 0o600); err != nil {
+		t.Fatalf("write Pi marker: %v", err)
+	}
+	piBefore := snapshotDirectoryForCLI(t, filepath.Join(workspaceRoot, ".pi"))
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"setup",
+		"--agent", "omp",
+		"--copy",
+		"--yes",
+	)
+	if err != nil {
+		t.Fatalf("execute project OMP setup: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	assertBundledSkillsInstalledForCLI(t, filepath.Join(workspaceRoot, ".omp", "skills"))
+	piAfter := snapshotDirectoryForCLI(t, filepath.Join(workspaceRoot, ".pi"))
+	if !mapsEqual(piBefore, piAfter) {
+		t.Fatalf("project Pi tree changed: before=%#v after=%#v", piBefore, piAfter)
+	}
+
+	listStdout, listStderr, err := executeRootCommandCapturingProcessIO(t, nil, "setup", "--list")
+	if err != nil {
+		t.Fatalf("execute setup list: %v\nstdout:\n%s\nstderr:\n%s", err, listStdout, listStderr)
+	}
+	if !strings.Contains(listStdout, "Oh My Pi") {
+		t.Fatalf("setup list does not identify Oh My Pi:\n%s", listStdout)
+	}
+}
+
+func TestSetupCommandOMPNamedProfileGlobalCopyJourney(t *testing.T) {
+	homeDir := t.TempDir()
+	workspaceRoot := t.TempDir()
+	defaultAgentDir := filepath.Join(t.TempDir(), "default-agent")
+	t.Setenv("HOME", homeDir)
+	t.Setenv(compozyconfig.HomeEnvVar, filepath.Join(homeDir, ".compozy-home"))
+	t.Setenv("OMP_PROFILE", "work")
+	t.Setenv("PI_PROFILE", legacyOMPProfile)
+	t.Setenv("PI_CONFIG_DIR", ".custom-omp")
+	t.Setenv("PI_CODING_AGENT_DIR", defaultAgentDir)
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir workspace marker: %v", err)
+	}
+	homePiMarker := filepath.Join(homeDir, ".pi", "keep.txt")
+	if err := os.MkdirAll(filepath.Dir(homePiMarker), 0o755); err != nil {
+		t.Fatalf("mkdir home Pi marker directory: %v", err)
+	}
+	if err := os.WriteFile(homePiMarker, []byte("unchanged"), 0o600); err != nil {
+		t.Fatalf("write home Pi marker: %v", err)
+	}
+	homePiBefore := snapshotDirectoryForCLI(t, filepath.Join(homeDir, ".pi"))
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"setup",
+		"--agent", "omp",
+		"--global",
+		"--copy",
+		"--yes",
+	)
+	if err != nil {
+		t.Fatalf("execute global OMP setup: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	expectedRoot := filepath.Join(homeDir, ".custom-omp", "profiles", "work", "agent", "skills")
+	assertBundledSkillsInstalledForCLI(t, expectedRoot)
+	for _, unexpected := range []string{
+		filepath.Join(homeDir, ".custom-omp", "profiles", legacyOMPProfile),
+		defaultAgentDir,
+	} {
+		if _, statErr := os.Stat(unexpected); !os.IsNotExist(statErr) {
+			t.Fatalf("unexpected setup destination %s exists: %v", unexpected, statErr)
+		}
+	}
+	homePiAfter := snapshotDirectoryForCLI(t, filepath.Join(homeDir, ".pi"))
+	if !mapsEqual(homePiBefore, homePiAfter) {
+		t.Fatalf("global Pi tree changed: before=%#v after=%#v", homePiBefore, homePiAfter)
+	}
+
+	skills, err := setup.ListBundledSkills()
+	if err != nil {
+		t.Fatalf("list bundled skills: %v", err)
+	}
+	skillNames := make([]string, 0, len(skills))
+	for i := range skills {
+		skillNames = append(skillNames, skills[i].Name)
+	}
+	verified, err := setup.VerifyBundledSkills(setup.VerifyConfig{
+		ResolverOptions: currentResolverOptions(workspaceRoot),
+		AgentName:       "omp",
+		SkillNames:      skillNames,
+	})
+	if err != nil {
+		t.Fatalf("verify global OMP setup: %v", err)
+	}
+	if verified.Scope != setup.InstallScopeGlobal || verified.HasMissing() || verified.HasDrift() {
+		t.Fatalf("unexpected global OMP verification: %#v", verified)
+	}
+}
+
+func assertBundledSkillsInstalledForCLI(t *testing.T, root string) {
+	t.Helper()
+	skills, err := setup.ListBundledSkills()
+	if err != nil {
+		t.Fatalf("list bundled skills: %v", err)
+	}
+	for i := range skills {
+		path := filepath.Join(root, skills[i].Name, "SKILL.md")
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected bundled skill %s: %v", path, err)
+		}
+	}
+}
+
+func snapshotDirectoryForCLI(t *testing.T, root string) map[string]string {
+	t.Helper()
+	snapshot := make(map[string]string)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			snapshot[relativePath] = "dir"
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		snapshot[relativePath] = string(content)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("snapshot directory %s: %v", root, err)
+	}
+	return snapshot
+}
+
+func mapsEqual(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		if right[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
 func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
 	compozyHome := t.TempDir()
 	t.Setenv(compozyconfig.HomeEnvVar, compozyHome)

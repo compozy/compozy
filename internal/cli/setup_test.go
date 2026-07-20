@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const legacyOMPProfile = "legacy"
+
 func TestSetupHelpShowsSetupFlagsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -449,6 +451,68 @@ func TestSetupResolverOptionsUseDiscoveredWorkspaceRoot(t *testing.T) {
 	}
 }
 
+func TestCurrentResolverOptionsPreservesOMPEnvironmentPresence(t *testing.T) {
+	originalOMPProfile, hadOMPProfile := os.LookupEnv("OMP_PROFILE")
+	t.Cleanup(func() {
+		if hadOMPProfile {
+			if err := os.Setenv("OMP_PROFILE", originalOMPProfile); err != nil {
+				t.Fatalf("restore OMP_PROFILE: %v", err)
+			}
+			return
+		}
+		if err := os.Unsetenv("OMP_PROFILE"); err != nil {
+			t.Fatalf("unset OMP_PROFILE: %v", err)
+		}
+	})
+	t.Setenv("PI_PROFILE", legacyOMPProfile)
+	t.Setenv("PI_CONFIG_DIR", ".custom-omp")
+	t.Setenv("PI_CODING_AGENT_DIR", "/srv/omp-agent")
+
+	if err := os.Unsetenv("OMP_PROFILE"); err != nil {
+		t.Fatalf("unset OMP_PROFILE: %v", err)
+	}
+	absent := currentResolverOptions("/tmp/workspace")
+	if absent.OMPProfile != nil {
+		t.Fatalf("absent OMP_PROFILE = %#v, want nil", absent.OMPProfile)
+	}
+
+	if err := os.Setenv("OMP_PROFILE", ""); err != nil {
+		t.Fatalf("set empty OMP_PROFILE: %v", err)
+	}
+	explicitEmpty := currentResolverOptions("/tmp/workspace")
+	if explicitEmpty.OMPProfile == nil || *explicitEmpty.OMPProfile != "" {
+		t.Fatalf("explicitly empty OMP_PROFILE = %#v, want pointer to empty string", explicitEmpty.OMPProfile)
+	}
+	if explicitEmpty.PIProfile == nil || *explicitEmpty.PIProfile != legacyOMPProfile {
+		t.Fatalf("PI_PROFILE = %#v, want legacy", explicitEmpty.PIProfile)
+	}
+	if explicitEmpty.PIConfigDir != ".custom-omp" {
+		t.Fatalf("PI_CONFIG_DIR = %q, want .custom-omp", explicitEmpty.PIConfigDir)
+	}
+	if explicitEmpty.PICodingAgentDir != "/srv/omp-agent" {
+		t.Fatalf("PI_CODING_AGENT_DIR = %q, want /srv/omp-agent", explicitEmpty.PICodingAgentDir)
+	}
+}
+
+func TestOMPSetupRuntimeDefaultsRemainRegistryDriven(t *testing.T) {
+	t.Parallel()
+
+	defaults := workspace.DefaultsConfig{}
+	ide := preferredRuntimeIDE(defaults, []string{"omp"})
+	if ide != model.IDEOMP {
+		t.Fatalf("preferred runtime IDE = %q, want %q", ide, model.IDEOMP)
+	}
+	if got := preferredRuntimeModel(defaults, ide); got != model.DefaultOMPModel {
+		t.Fatalf("preferred OMP model = %q, want %q", got, model.DefaultOMPModel)
+	}
+	if got := preferredRuntimeReasoningEffort(defaults); got != model.DefaultReasoningEffort {
+		t.Fatalf("preferred reasoning effort = %q, want %q", got, model.DefaultReasoningEffort)
+	}
+	if got := preferredRuntimeIDE(workspace.DefaultsConfig{}, nil); got != model.IDECodex {
+		t.Fatalf("application default IDE = %q, want %q", got, model.IDECodex)
+	}
+}
+
 func TestDefaultModelForIDEResolvesRegistryDefault(t *testing.T) {
 	t.Parallel()
 
@@ -511,6 +575,67 @@ func TestPersistRuntimeDefaultsPreservesOtherConfigSections(t *testing.T) {
 	}
 	if loaded.FetchReviews.Provider == nil || *loaded.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", loaded.FetchReviews.Provider)
+	}
+}
+
+func TestOMPSetupDefaultsPersistAndReloadWithoutChangingCodexDefault(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".compozy", "config.toml")
+	provider := "coderabbit"
+	if err := workspace.WriteConfig(context.Background(), configPath, workspace.ProjectConfig{
+		FetchReviews: workspace.FetchReviewsConfig{Provider: &provider},
+	}); err != nil {
+		t.Fatalf("write initial config: %v", err)
+	}
+
+	state := newSetupCommandState()
+	state.promptRuntimeDefaults = func(string) (bool, error) { return true, nil }
+	state.editRuntimeDefaults = func(ide, modelName, reasoning, recommendedModel string) (workspace.DefaultsConfig, error) {
+		if ide != model.IDEOMP || modelName != model.DefaultOMPModel || recommendedModel != model.DefaultOMPModel {
+			t.Fatalf(
+				"unexpected inferred OMP defaults: ide=%q model=%q recommended=%q",
+				ide,
+				modelName,
+				recommendedModel,
+			)
+		}
+		if reasoning != model.DefaultReasoningEffort {
+			t.Fatalf("reasoning = %q, want %q", reasoning, model.DefaultReasoningEffort)
+		}
+		return workspace.DefaultsConfig{RuntimeOverrides: workspace.RuntimeOverrides{
+			IDE:             stringPtr(ide),
+			Model:           stringPtr(modelName),
+			ReasoningEffort: stringPtr(reasoning),
+		}}, nil
+	}
+
+	plan, err := state.resolveRuntimeDefaultsPlan(context.Background(), false, []string{"omp"}, configPath)
+	if err != nil {
+		t.Fatalf("resolve OMP runtime defaults plan: %v", err)
+	}
+	if err := state.persistRuntimeDefaults(context.Background(), plan); err != nil {
+		t.Fatalf("persist OMP runtime defaults: %v", err)
+	}
+
+	loaded, exists, err := workspace.LoadConfigFile(context.Background(), configPath)
+	if err != nil {
+		t.Fatalf("reload OMP runtime defaults: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected persisted workspace config")
+	}
+	if loaded.Defaults.IDE == nil || *loaded.Defaults.IDE != model.IDEOMP ||
+		loaded.Defaults.Model == nil || *loaded.Defaults.Model != model.DefaultOMPModel ||
+		loaded.Defaults.ReasoningEffort == nil || *loaded.Defaults.ReasoningEffort != model.DefaultReasoningEffort {
+		t.Fatalf("unexpected reloaded OMP defaults: %#v", loaded.Defaults.RuntimeOverrides)
+	}
+	if loaded.FetchReviews.Provider == nil || *loaded.FetchReviews.Provider != provider {
+		t.Fatalf("unrelated config changed: %#v", loaded.FetchReviews.Provider)
+	}
+	if got := preferredRuntimeIDE(workspace.DefaultsConfig{}, nil); got != model.IDECodex {
+		t.Fatalf("application default IDE = %q, want %q", got, model.IDECodex)
 	}
 }
 
