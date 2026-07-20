@@ -21,6 +21,7 @@ var (
 	validateTasksBinaryOnce sync.Once
 	validateTasksBinaryPath string
 	validateTasksBinaryErr  error
+	validateTasksBuildDir   string
 )
 
 func TestValidateTasksCommandJSONMixedFixture(t *testing.T) {
@@ -283,13 +284,25 @@ func validateTasksBinary(t *testing.T) string {
 			validateTasksBinaryErr = err
 			return
 		}
+		validateTasksBuildDir = buildDir
+
+		// Start the guardian before the interruptible `go build` so an abrupt
+		// exit during the build still gets buildDir reaped at TestMain, not just
+		// after the build succeeds.
+		if err := startValidateTasksArtifactGuardian(buildDir); err != nil {
+			removeErr := os.RemoveAll(buildDir)
+			validateTasksBuildDir = ""
+			validateTasksBinaryErr = errors.Join(err, removeErr)
+			return
+		}
 
 		validateTasksBinaryPath = filepath.Join(buildDir, "compozy")
 		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", validateTasksBinaryPath, "./cmd/compozy")
 		cmd.Dir = repoRoot
 		cmd.Env = buildCLITestCommandEnv()
-		output, err := cmd.CombinedOutput()
-		if err != nil {
+		if output, err := cmd.CombinedOutput(); err != nil {
+			// The guardian now owns buildDir cleanup at TestMain, so record the
+			// failure and let the reaper remove the directory.
 			validateTasksBinaryErr = fmt.Errorf("build compozy binary: %w\n%s", err, output)
 		}
 	})
