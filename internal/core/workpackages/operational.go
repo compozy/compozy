@@ -2,7 +2,11 @@ package workpackages
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 // OperationalPaths identifies a package-owned directory without trusting the
@@ -33,12 +37,52 @@ func ResolveOperationalPaths(ctx context.Context, workspaceRoot, reference strin
 	if err != nil {
 		return OperationalPaths{}, err
 	}
-	packageDir, err := resolvePackageDirectory(initiativeDir, Package{
-		ID:        ref.PackageID,
-		Directory: "_packages/" + ref.PackageID,
-	})
+	packageDir, err := resolveOperationalPackageDirectory(initiativeDir, ref.PackageID)
 	if err != nil {
 		return OperationalPaths{}, err
 	}
 	return OperationalPaths{Ref: ref, InitiativeDir: initiativeDir, PackageDir: packageDir}, nil
+}
+
+func resolveOperationalPackageDirectory(initiativeDir, packageID string) (string, error) {
+	packagesRoot := filepath.Join(initiativeDir, "_packages")
+	entries, err := os.ReadDir(packagesRoot)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("read work package directory: %w", err)
+		}
+		return resolvePackageDirectory(initiativeDir, Package{
+			ID:        packageID,
+			Directory: "_packages/" + packageID,
+		})
+	}
+
+	candidates := make([]string, 0, 1)
+	for _, entry := range entries {
+		directory := "_packages/" + entry.Name()
+		if validPackageDirectory(packageID, directory) {
+			candidates = append(candidates, directory)
+		}
+	}
+	switch len(candidates) {
+	case 0:
+		return resolvePackageDirectory(initiativeDir, Package{
+			ID:        packageID,
+			Directory: "_packages/" + packageID,
+		})
+	case 1:
+		return resolvePackageDirectory(initiativeDir, Package{ID: packageID, Directory: candidates[0]})
+	default:
+		return "", newError(
+			ErrInvalidPlan,
+			"",
+			packageID,
+			"",
+			[]Issue{{
+				Path:    packagesRoot,
+				Field:   "package_directory",
+				Message: "multiple directories match package " + packageID + ": " + strings.Join(candidates, ", "),
+			}},
+		)
+	}
 }

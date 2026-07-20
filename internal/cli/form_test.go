@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/spf13/cobra"
 )
 
@@ -398,7 +400,7 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 			ReasoningEffort: stringPointer("high"),
 		}}
 
-		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
+		form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{"demo"})
 		if err != nil {
 			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 		}
@@ -418,6 +420,62 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 			t.Fatalf("unexpected preseeded editor: %#v", editor)
 		}
 	})
+}
+
+func TestTaskRunRuntimeFormResolvesManifestDeclaredPackageDirectory(t *testing.T) {
+	// INVARIANT: a public initiative/WP-NNN reference resolves through the
+	// manifest and never becomes a literal tasks-directory suffix.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/cli/form_test.go.
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "food-registration"
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative)
+	packageDir := filepath.Join(initiativeDir, "_packages", "001-shared-foundation")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatalf("mkdir package directory: %v", err)
+	}
+	plan, err := workpackages.RenderPlan(workpackages.Plan{
+		SchemaVersion: workpackages.SchemaVersion,
+		Initiative:    initiative,
+		Packages: []workpackages.Package{{
+			ID:         "WP-001",
+			Title:      "Shared foundation",
+			Outcome:    "Provide shared navigation primitives",
+			Directory:  "_packages/001-shared-foundation",
+			OwnedScope: []string{"navigation"},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("render work package plan: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(initiativeDir, workpackages.ManifestFileName), plan, 0o600); err != nil {
+		t.Fatalf("write work package plan: %v", err)
+	}
+	writeFormTaskFile(t, packageDir, "task_01.md", "pending")
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{initiative + "/WP-001"})
+	if err != nil {
+		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
+	}
+	if form == nil || len(form.taskOptions) != 1 {
+		t.Fatalf("task options = %#v, want one manifest-resolved task", form)
+	}
+	if option := form.taskOptions[0]; option.Workflow != initiative+"/WP-001" || option.ID != "task_01" {
+		t.Fatalf("task option = %#v, want package-scoped task_01", option)
+	}
+
+	legacyDir := filepath.Join(initiativeDir, "WP-999")
+	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
+		t.Fatalf("mkdir legacy directory: %v", err)
+	}
+	writeFormTaskFile(t, legacyDir, "task_99.md", "pending")
+	_, err = newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{initiative + "/WP-999"})
+	if !errors.Is(err, workpackages.ErrPackageNotFound) {
+		t.Fatalf("unknown package error = %v, want ErrPackageNotFound", err)
+	}
 }
 
 func TestTaskRuntimeFormUsesRecursiveWalkerWhenEnabled(t *testing.T) {
@@ -445,7 +503,7 @@ func TestTaskRuntimeFormUsesRecursiveWalkerWhenEnabled(t *testing.T) {
 	state.name = "demo"
 	state.recursive = true
 
-	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
+	form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{"demo"})
 	if err != nil {
 		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
@@ -483,7 +541,7 @@ func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
 	state.name = "demo"
 	state.recursive = false
 
-	form, err := newTaskRunRuntimeFormForSlugs(state, []string{"demo"})
+	form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{"demo"})
 	if err != nil {
 		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
@@ -583,7 +641,7 @@ func TestTaskRunRuntimeFormScopesDuplicateTaskIDsByWorkflow(t *testing.T) {
 		state.ide = "codex"
 		state.reasoningEffort = "medium"
 
-		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"alpha", "beta"})
+		form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{"alpha", "beta"})
 		if err != nil {
 			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 		}
@@ -651,7 +709,7 @@ func TestTaskRunRuntimeFormPreservesSingleWorkflowScopedRules(t *testing.T) {
 			},
 		}
 
-		form, err := newTaskRunRuntimeFormForSlugs(state, []string{"alpha"})
+		form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{"alpha"})
 		if err != nil {
 			t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 		}

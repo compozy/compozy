@@ -203,6 +203,71 @@ func TestVerifyPrefersProjectScopeOverGlobalWhenProjectInstallIsPartial(t *testi
 	}
 }
 
+func TestVerifyScopeHintSelectsGlobalWhenProjectInstallIsPartial(t *testing.T) {
+	t.Parallel()
+
+	bundle := newTestBundle(t, map[string]string{
+		"cy-create-prd/SKILL.md":   "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+		"cy-final-verify/SKILL.md": "---\nname: cy-final-verify\ndescription: Verify completion\n---\n",
+	})
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	_, err := Install(InstallConfig{
+		Bundle: bundle,
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		SkillNames: []string{"cy-create-prd", "cy-final-verify"},
+		AgentNames: []string{"codex"},
+		Global:     true,
+		Mode:       InstallModeCopy,
+	})
+	if err != nil {
+		t.Fatalf("install global skills: %v", err)
+	}
+
+	_, err = Install(InstallConfig{
+		Bundle: bundle,
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		SkillNames: []string{"cy-create-prd"},
+		AgentNames: []string{"codex"},
+		Mode:       InstallModeCopy,
+	})
+	if err != nil {
+		t.Fatalf("install partial project skills: %v", err)
+	}
+
+	result, err := Verify(VerifyConfig{
+		Bundle: bundle,
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		AgentName:  "codex",
+		SkillNames: []string{"cy-create-prd", "cy-final-verify"},
+		ScopeHint:  InstallScopeGlobal,
+	})
+	if err != nil {
+		t.Fatalf("verify global skills: %v", err)
+	}
+
+	if result.Scope != InstallScopeGlobal {
+		t.Fatalf("expected global scope, got %q", result.Scope)
+	}
+	if result.HasMissing() || result.HasDrift() {
+		t.Fatalf(
+			"expected current global install, got missing=%#v drift=%#v",
+			result.MissingSkillNames(),
+			result.DriftedSkillNames(),
+		)
+	}
+}
+
 func TestVerifyReportsChangedFilesAsDrift(t *testing.T) {
 	t.Parallel()
 

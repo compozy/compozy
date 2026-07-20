@@ -119,6 +119,7 @@ type VerifyConfig struct {
 
 	AgentName  string
 	SkillNames []string
+	ScopeHint  InstallScope
 }
 
 // SkillDrift describes how an installed skill differs from the bundled version.

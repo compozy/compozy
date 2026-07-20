@@ -16,19 +16,20 @@ are context exclusions, not additional scope.
 ## Required Inputs
 
 - Feature name identifying the `.compozy/tasks/<name>/` directory, or an
-  `<initiative>/WP-NNN` reference selecting a single Work Package stored under
-  `.compozy/tasks/<initiative>/_packages/WP-NNN/`.
+  `<initiative>/WP-NNN` reference selecting a single Work Package. Its physical
+  directory comes from the matching `_work_packages.md` graph node, normally
+  `.compozy/tasks/<initiative>/_packages/NNN-<brief>/` for a new plan.
 - Optional: specific files or directories to scope the review.
 
 ## Workflow
 
 1. Resolve the review target, then its round directory.
    - Classify the feature name **before any directory existence check or round lookup**. A name of the form `<initiative>/WP-NNN` is a Work Package target; any other name is an ordinary workflow.
-   - For a Work Package target, set `SpecDir` to the initiative root `.compozy/tasks/<initiative>/` and set `OperationalDir` (which is also the `ReviewsDir`) to the package directory `.compozy/tasks/<initiative>/_packages/WP-NNN/`. Verify the initiative root carries a valid `_work_packages.md` marker and that `OperationalDir` exists; if either is missing, stop and report the missing path. A present but empty or malformed marker is an invalid opt-in, not an ordinary fallback — stop and report it rather than resolving to a root review.
+   - For a Work Package target, set `SpecDir` to the initiative root `.compozy/tasks/<initiative>/`. Validate `_work_packages.md`, find the graph node whose stable ID is `WP-NNN`, and resolve its contained `directory` as `OperationalDir` (which is also the `ReviewsDir`). New plans normally use `_packages/NNN-<brief>/`; legacy `_packages/WP-NNN/` remains valid. Verify `OperationalDir` exists; if the marker, node, or directory is missing, stop and report the exact path or stable ID. A present but empty or malformed marker is an invalid opt-in, not an ordinary fallback — stop and report it rather than resolving to a root review.
    - For an ordinary workflow, set both `SpecDir` and `ReviewsDir` to `.compozy/tasks/<name>/`. Verify `SpecDir` exists; if it does not, stop and report the missing directory.
-   - List existing `reviews-NNN/` subdirectories inside `ReviewsDir` to determine the next round number. If none exist, use round 1. For a Work Package this discovers only the selected package's prior rounds under `_packages/WP-NNN/`, never a sibling package's or the initiative root's rounds.
+   - List existing `reviews-NNN/` subdirectories inside `ReviewsDir` to determine the next round number. If none exist, use round 1. For a Work Package this discovers only the selected manifest-declared package directory's prior rounds, never a sibling package's or the initiative root's rounds.
    - If prior review rounds exist, read their issue files to build a list of already-known issues. The current round must only contain NEW issues not already tracked in prior rounds. Do not re-flag issues that are pending, valid, or resolved in earlier rounds.
-   - Determine the review round directory path: `<ReviewsDir>/reviews-NNN/` with the round number zero-padded to 3 digits (for a Work Package this is `.compozy/tasks/<initiative>/_packages/WP-NNN/reviews-NNN/`). Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
+   - Determine the review round directory path: `<ReviewsDir>/reviews-NNN/` with the round number zero-padded to 3 digits (for a Work Package this is `<OperationalDir>/reviews-NNN/`). Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
 
 2. Identify the review scope.
    - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from `SpecDir` (resolved in step 1) to understand what was implemented and why, plus the contract catalogs `_user_stories.md` and `_tests.md` when present. For a Work Package the `_tasks.md` manifest instead lives in `OperationalDir` — see the package rule below.
@@ -37,7 +38,7 @@ are context exclusions, not additional scope.
    - If the user provided specific files or directories, scope the review to those paths.
    - If no explicit scope was provided, run `git diff main...HEAD --name-only` to discover all files created or modified on the current branch. If the diff is empty or unhelpful, ask the user to specify files.
    - Spawn an Agent tool call to explore the identified files, their imports, and their dependencies to build a map of the implementation.
-   - Read mutable artifacts using the `SpecDir` and `OperationalDir` already resolved in step 1 (do not re-derive them here). For a package, read the canonical `_prd.md`, `_techspec.md`, `_user_stories.md`, `_tests.md`, ADRs, and root `_work_packages.md` from `SpecDir`; use only the selected `_packages/WP-NNN/` `_tasks.md`, task files, memory, and review rounds under `OperationalDir`. Do not read sibling package tasks, memory, or review issues as owned scope, and do not use copied package specifications.
+   - Read mutable artifacts using the `SpecDir` and `OperationalDir` already resolved in step 1 (do not re-derive them here). For a package, read the canonical `_prd.md`, `_techspec.md`, `_user_stories.md`, `_tests.md`, ADRs, and root `_work_packages.md` from `SpecDir`; use only the selected manifest-declared directory's `_tasks.md`, task files, memory, and review rounds under `OperationalDir`. Do not read sibling package tasks, memory, or review issues as owned scope, and do not use copied package specifications.
    - Review the branch diff against the selected package outcome, owned scope, dependency rationale, and task manifest. Report changes attributable only to a sibling package as a sibling-scope warning with affected paths; do not reset, discard, silently ignore, or reassign those changes.
    - An ordinary workflow without `_work_packages.md` follows the existing scope and artifact discovery unchanged. A present invalid marker is a plan error, not ordinary fallback.
 
@@ -115,7 +116,7 @@ are context exclusions, not additional scope.
    - Read back each generated issue file and verify the frontmatter parses correctly.
    - Verify every issue file in the round has matching `provider`, `pr`, `round`, and `round_created_at` values.
    - Confirm the review round directory follows the `reviews-NNN` naming convention.
-   - For a Work Package review, verify that step 1 classified the `<initiative>/WP-NNN` target, that round discovery listed only `.compozy/tasks/<initiative>/_packages/WP-NNN/reviews-NNN/`, and that the generated round directory was written inside that same package `OperationalDir` — never the initiative root or a sibling package. Then verify selected-root scope, sibling warning coverage, clean-review gates, hidden bridge invocation, idempotent already-checked behavior, and separate completion/sync fields before reporting the round complete.
+   - For a Work Package review, verify that step 1 classified the `<initiative>/WP-NNN` target, that round discovery used only the manifest-declared `<OperationalDir>/reviews-NNN/`, and that the generated round directory was written inside that same package `OperationalDir` — never the initiative root or a sibling package. Then verify selected-root scope, sibling warning coverage, clean-review gates, hidden bridge invocation, idempotent already-checked behavior, and separate completion/sync fields before reporting the round complete.
 
 ## Critical Rules
 
@@ -129,7 +130,7 @@ are context exclusions, not additional scope.
 
 ## Error Handling
 
-- If the resolved target directory does not exist, stop and report the missing path: for a Work Package that is the initiative root or its `_packages/WP-NNN/` operational directory; for an ordinary workflow it is `.compozy/tasks/<name>/`.
+- If the resolved target directory does not exist, stop and report the missing path: for a Work Package that is the initiative root or its manifest-declared operational directory; for an ordinary workflow it is `.compozy/tasks/<name>/`.
 - If no files can be identified for review and the user did not provide explicit paths, ask the user to specify files.
 - If both `_prd.md` and `_techspec.md` are missing, warn about the lack of requirements context but proceed with code-quality-only review.
 - If the review round directory cannot be created, stop and report the filesystem error.

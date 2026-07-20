@@ -1140,9 +1140,9 @@ func workflowReadTargetUsesArchivedFS(target workflowReadTarget) bool {
 // honoring work-package nesting for both active and archived generations. A work
 // package (ParentWorkflowID set) keeps its artifacts nested at
 // <parentRoot>/<packageDir>, so resolving by slug alone would point reads at
-// .compozy/tasks/<initiative>/<packageID> instead of the real
-// .compozy/tasks/<initiative>/_packages/<packageID>. Ordinary workflows and
-// initiatives (no parent) keep the plain slug-based resolution.
+// .compozy/tasks/<initiative>/<packageID> instead of the manifest-declared
+// package directory. Ordinary workflows and initiatives (no parent) keep the
+// plain slug-based resolution.
 func (s *queryService) readablePackageAwareWorkflowRootDir(
 	ctx context.Context,
 	workspaceRoot string,
@@ -1169,7 +1169,7 @@ func (s *queryService) readablePackageAwareWorkflowRootDir(
 
 // archivedPackageDirectory returns the initiative-relative directory that holds
 // one archived package's artifacts. It prefers the directory declared by the
-// archived manifest and falls back to the canonical "_packages/<id>" layout when
+// archived manifest and falls back to the legacy "_packages/<id>" layout when
 // the manifest is missing or unreadable.
 func archivedPackageDirectory(parentRoot string, initiativeSlug string, child globaldb.Workflow) string {
 	packageID := strings.TrimSpace(child.PackageID)

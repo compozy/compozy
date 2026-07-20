@@ -78,7 +78,9 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 When task belongs to opted-in Work Package, preserve this shape in package-local
 suite:
 
-- Store suite under `.compozy/tasks/<initiative>/_packages/WP-NNN/`.
+- Store a new suite under its manifest-declared readable directory,
+  `.compozy/tasks/<initiative>/_packages/NNN-<brief>/`. Preserve
+  `_packages/WP-NNN/` when editing a legacy plan.
 - Set `_tasks.md` frontmatter `workflow` to logical public reference
   `<initiative>/WP-NNN`; do not derive identity from `filepath.Base()`.
 - Keep local filenames (`task_01.md`, `task_02.md`) but qualify ownership audit

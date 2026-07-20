@@ -128,9 +128,10 @@ For target `<initiative>/WP-NNN`, compare implementation against this scope:
 
 - Shared root context: `_prd.md`, `_techspec.md`, `_user_stories.md`,
   `_tests.md`, ADRs, and root `_work_packages.md`.
-- Selected mutable context: `_packages/WP-NNN/_tasks.md`, selected task files,
-  selected memory, selected review rounds, and the selected package's run/diff
-  boundary.
+- Selected mutable context: the selected manifest-declared package directory's
+  `_tasks.md`, task files, memory, review rounds, and run/diff boundary. New
+  plans normally use `_packages/NNN-<brief>/`; legacy `_packages/WP-NNN/`
+  remains valid.
 - Excluded owned context: sibling package tasks, memory, review issues, and
   execution artifacts. Do not let identical local names such as `task_01.md` or
   `reviews-001/` collapse package identity.

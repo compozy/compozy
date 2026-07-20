@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,10 +12,112 @@ import (
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/workpackages"
 )
+
+func newTaskRunWizardModel(state *commandState, inputs taskRunFormInputs) *taskRunWizardModel {
+	return newTaskRunWizardModelWithContext(context.Background(), state, inputs)
+}
 
 func TestTaskRunWizardModel(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should expose Work Package children and select one exact package", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "general-task")
+		writeTaskRunWizardPlan(t, state, "general-task",
+			workpackages.Package{ID: "WP-001", Title: "Shared foundation"},
+			workpackages.Package{ID: "WP-002", Title: "Feature delivery"},
+		)
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+
+		view := wizard.View().Content
+		for _, want := range []string{"general-task", "WP-001", "Shared foundation", "WP-002", "Feature delivery"} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("workflow view missing %q:\n%s", want, view)
+			}
+		}
+		listLines := wizard.workflowListLines(wizard.filteredWorkflowOptions(), 64, 8)
+		if got := xansi.Strip(listLines[2]); !strings.HasPrefix(got, "    [ ] WP-001 — Shared foundation") {
+			t.Fatalf("first Work Package row = %q, want an indented child checkbox", got)
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "down")
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"general-task/WP-001"}) {
+			t.Fatalf(
+				"selected workflows = %#v, want exact Work Package reference",
+				wizard.inputs.selectedWorkflows,
+			)
+		}
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+		appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		if err := wizard.inputs.apply(cmd, appliedState); err != nil {
+			t.Fatalf("apply selected Work Package: %v", err)
+		}
+		if appliedState.name != "general-task/WP-001" || appliedState.multiple != "" {
+			t.Fatalf(
+				"applied selection name=%q multiple=%q, want one exact Work Package",
+				appliedState.name,
+				appliedState.multiple,
+			)
+		}
+	})
+
+	t.Run("Should reflect full and partial Work Package group selection", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "general-task")
+		writeTaskRunWizardPlan(t, state, "general-task",
+			workpackages.Package{ID: "WP-001", Title: "Shared foundation"},
+			workpackages.Package{ID: "WP-002", Title: "Feature delivery"},
+		)
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{
+			"general-task/WP-001",
+			"general-task/WP-002",
+		}) {
+			t.Fatalf("group selection = %#v, want both Work Packages", wizard.inputs.selectedWorkflows)
+		}
+		if view := xansi.Strip(wizard.View().Content); !strings.Contains(view, "[x] general-task") {
+			t.Fatalf("selected group view missing checked parent:\n%s", view)
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "down")
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"general-task/WP-002"}) {
+			t.Fatalf("partial group selection = %#v, want only WP-002", wizard.inputs.selectedWorkflows)
+		}
+		if view := xansi.Strip(wizard.View().Content); !strings.Contains(view, "[-] general-task") {
+			t.Fatalf("partial group view missing mixed parent:\n%s", view)
+		}
+	})
+
+	t.Run("Should not fabricate Work Package children from an invalid plan", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "general-task")
+		planPath := filepath.Join(
+			state.workspaceRoot,
+			".compozy",
+			"tasks",
+			"general-task",
+			workpackages.ManifestFileName,
+		)
+		if err := os.WriteFile(planPath, []byte("---\nschema_version: invalid\n---\n"), 0o644); err != nil {
+			t.Fatalf("write invalid Work Package plan: %v", err)
+		}
+
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+		view := wizard.View().Content
+		if strings.Contains(view, "WP-001") {
+			t.Fatalf("workflow view fabricated a package child from an invalid plan:\n%s", view)
+		}
+	})
 
 	t.Run("Should select multiple workflows and submit", func(t *testing.T) {
 		t.Parallel()
@@ -829,6 +932,38 @@ func newTaskRunWizardTestState(t *testing.T, slugs ...string) *commandState {
 	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.workspaceRoot = workspaceRoot
 	return state
+}
+
+func writeTaskRunWizardPlan(
+	t *testing.T,
+	state *commandState,
+	initiative string,
+	packages ...workpackages.Package,
+) {
+	t.Helper()
+
+	for i := range packages {
+		packages[i].Outcome = "Deliver " + packages[i].Title
+		packages[i].OwnedScope = []string{"scope/" + packages[i].ID}
+	}
+	content, err := workpackages.RenderPlan(workpackages.Plan{
+		SchemaVersion: workpackages.SchemaVersion,
+		Initiative:    initiative,
+		Packages:      packages,
+	})
+	if err != nil {
+		t.Fatalf("render Work Package plan: %v", err)
+	}
+	planPath := filepath.Join(
+		state.workspaceRoot,
+		".compozy",
+		"tasks",
+		initiative,
+		workpackages.ManifestFileName,
+	)
+	if err := os.WriteFile(planPath, content, 0o644); err != nil {
+		t.Fatalf("write Work Package plan: %v", err)
+	}
 }
 
 func updateTaskRunWizardTestModel(t *testing.T, wizard *taskRunWizardModel, key string) *taskRunWizardModel {

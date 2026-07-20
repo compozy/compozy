@@ -72,11 +72,13 @@ Compozy reads task files matching the regex `^task_\d+\.md$`. Files with the old
 ## Work Package identity and scope
 
 For an opted-in initiative, `_work_packages.md` at initiative root is marker and
-canonical plan. Package operational files live only under `_packages/WP-NNN/`;
-root remains shared `SpecDir` for `_prd.md`, `_techspec.md`, `_user_stories.md`,
-`_tests.md`, and ADRs. Package-local manifest is valid only when logical
-`workflow` equals full public reference `<initiative>/WP-NNN` and task paths
-remain inside that package directory.
+canonical plan. New package operational files live under the directory declared
+for their stable ID, normally `_packages/NNN-<brief>/`; legacy
+`_packages/WP-NNN/` directories remain valid. Root remains shared `SpecDir` for
+`_prd.md`, `_techspec.md`, `_user_stories.md`, `_tests.md`, and ADRs.
+Package-local manifest is valid only when logical `workflow` equals full public
+reference `<initiative>/WP-NNN` and task paths remain inside the
+manifest-declared package directory.
 
 Package ID is stable identity; title and outcome are display fields. Validate
 task ownership using qualified keys `<package-id>/<task-id>`, so repeated local

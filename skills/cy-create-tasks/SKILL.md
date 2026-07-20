@@ -50,21 +50,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - If both `_prd.md` and `_techspec.md` are missing, stop and ask the user to create at least one first.
    - Spawn an Agent tool call to explore the codebase for files to create or modify, test patterns, and coding conventions.
 
-3. Choose delivery shape before generating tasks.
-   - Require readable canonical `_prd.md` and `_techspec.md`. Missing or unreadable PRD/TechSpec stops Work Package readiness and names that canonical path; create no marker or package directory.
-   - Offer exactly two choices: continue ordinary task generation, or prepare an editable Work Package proposal. A declined proposal continues ordinary flow unchanged and needs no rationale.
-   - Recommend `ordinary` when the implementation map has no coherent separable outcome, including zero candidates or one inseparable component. Explain the recommendation; never render an empty executable Work Package marker.
-   - For Work Package mode, load an existing valid plan into edit mode rather than replacing it. Keep proposal edits, stable IDs, completion states, and source checksum in session memory until confirmation.
-   - Before confirmation, allow add/remove/split/combine/rename/reorder and dependency edits. Revalidate titles, outcomes, scopes, stable IDs, dependency targets, cycles, affected edges, and ownership after edits. Keep every item and rationale keyboard- and screen-reader-navigable, including proposals larger than one screen.
-   - On cancel, write nothing: a first proposal leaves no marker, package directory, task file, or temporary artifact; an existing plan retains its last confirmed bytes and package directories. A stale confirmation must fail rather than overwrite a newer confirmed plan.
-
-4. Generate a confirmed Work Package plan atomically.
-   - Use the artifact, path, and state rules in `references/work-package-planning.md`, `references/task-template.md`, and `references/task-context-schema.md`.
-   - Stage `_work_packages.md`, `_packages/WP-NNN/_tasks.md`, and each package task suite from the confirmed in-memory proposal. Publish them only as one validated generation boundary; a write, validation, or permission failure never reports success or leaves a new executable partial plan.
-   - Keep initiative PRD, TechSpec, stories, tests, and ADRs at root. Reference them from package tasks; never copy specification corpora into packages.
-   - Validate every generated package manifest and run the initiative-wide qualified ownership and exactly-once `_tests.md` assignment audit before reporting success. Repeated `task_01` names are valid only when qualified by different package IDs.
-
-5. Break down into tasks.
+3. Draft the task breakdown in memory.
    - Apply the Task Sizing doctrine above: slice the TechSpec's Build Order into the smallest number of robust tasks the real boundaries allow.
    - **Each task MUST be independently implementable when all dependencies declared in `_tasks.md` graph edges are met.** No task may require undeclared work from another task. If two tasks share a tight coupling, merge them — or extract the shared piece into a dependency task only when a real boundary separates it.
    - **No circular dependencies.** If task A depends on task B, task B must NOT depend on task A (directly or transitively).
@@ -77,17 +63,39 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - When a task directly implements or is constrained by a specific ADR, include the ADR reference in the task's "Related ADRs" section under Implementation Details.
    - Tests live inside the task that implements the behavior they verify; never create tasks dedicated solely to testing.
    - Follow the structure defined in `references/task-template.md` and the metadata definitions in `references/task-context-schema.md`.
+   - Keep the draft in session memory. Do not create `_tasks.md`, task files, `_work_packages.md`, package directories, or temporary planning artifacts before the user sees the breakdown and chooses a delivery shape.
 
-6. Assign the test contract.
+4. Assign the test contract.
    - Assign every `UT-`, `IT-`, and `E2E-` ID from `_tests.md` to exactly one task — the task that implements the behavior the case verifies. Integration and E2E cases go to the task that completes the flow they exercise.
    - Done when every ID in `_tests.md` appears in exactly one task's planned `## Tests` section: no orphan IDs, no duplicates.
    - If `_tests.md` is missing: warn the user, then write concrete inline cases per task instead — each naming the exact input, condition, and expected result (e.g., "POST /job/done with unknown job ID returns 404"), never a vague "test the happy path".
 
-7. Present the task breakdown for interactive approval.
-   - Show every task with: title, type, complexity, a one-line scope summary, dependency chains, and assigned test-ID counts.
-   - Wait for user feedback before proceeding; revise and present again until the user explicitly approves.
+5. Present the task breakdown before choosing the delivery shape.
+   - Lead with `Proposed task breakdown — N tasks`, where `N` is the complete draft task count.
+   - Show every task in one table with provisional `task_NN` ID, title, type, complexity, one-line scope, dependencies, and exact assigned test IDs. When `_tests.md` is absent, show each concrete inline case instead. Counts without task rows or exact assignments are not decision-ready.
+   - Accept task edits before asking for a delivery choice. After every edit, revalidate dependencies and exactly-once test assignment, then render the complete table and updated task count again.
+   - Only after the complete breakdown is visible, offer exactly two delivery choices:
+     - `ordinary`: approve the displayed breakdown as one general workflow and generate root task files.
+     - `work_packages`: reorganize the displayed scope into an editable Work Package proposal.
+   - Never ask the user to choose Work Packages before showing how many tasks exist and what each task owns.
+   - Treat the first task count as decision context, not an immutable partition. Work Package boundaries may require merging or splitting tasks; disclose every changed task and the revised total in the package proposal before its separate approval.
 
-8. Generate task files.
+6. Prepare and confirm the Work Package proposal when selected.
+   - Require readable canonical `_prd.md` and `_techspec.md`. Missing or unreadable PRD/TechSpec stops Work Package readiness and names that canonical path; create no marker or package directory.
+   - Recommend `ordinary` when the displayed implementation map has no coherent separable outcome, including zero candidates or one inseparable component. Explain the recommendation; never render an empty executable Work Package marker.
+   - Load an existing valid plan into edit mode rather than replacing it. Keep proposal edits, stable IDs, physical directories, completion states, package-local task graphs, exact test assignments, and source checksum in session memory until confirmation.
+   - Present every proposed package using the approval format in `references/work-package-planning.md`. Each package MUST include its complete task table with qualified task ID, title, type, complexity, one-line scope, task dependencies, and exact assigned test IDs. Package-level counts without task rows are not approval-ready.
+   - Before confirmation, allow add/remove/split/combine/rename/reorder, package dependency, and task-breakdown edits. Revalidate titles, outcomes, scopes, stable IDs, dependency targets, cycles, affected edges, task ownership, and test assignment after edits, then render the complete proposal and revised total task count again. Keep every package, task row, and rationale keyboard- and screen-reader-navigable, including proposals larger than one screen.
+   - On cancel, write nothing: a first proposal leaves no marker, package directory, task file, or temporary artifact; an existing plan retains its last confirmed bytes and package directories. A stale confirmation must fail rather than overwrite a newer confirmed plan.
+
+7. Generate the approved task artifacts.
+   - In `ordinary` mode, write the approved tasks at the initiative root and create no Work Package marker or package directory.
+   - In Work Package mode, use the artifact, path, and state rules in `references/work-package-planning.md`, `references/task-template.md`, and `references/task-context-schema.md`.
+   - For new Work Package plans, derive each physical directory as `_packages/NNN-<brief>/`, where `NNN` matches the stable `WP-NNN` ID and `<brief>` is a lowercase kebab-case summary of the approved title. Keep public references as `<initiative>/WP-NNN`. Preserve a persisted directory during later edits, including legacy `_packages/WP-NNN/` directories.
+   - Stage `_work_packages.md`, each manifest-declared package directory and `_tasks.md`, and every package task suite from the confirmed in-memory proposal. Publish them only as one validated generation boundary; a write, validation, or permission failure never reports success or leaves a new executable partial plan.
+   - Keep initiative PRD, TechSpec, stories, tests, and ADRs at root. Reference them from package tasks; never copy specification corpora into packages.
+   - Validate every generated package manifest and run the initiative-wide qualified ownership and exactly-once `_tests.md` assignment audit before reporting success. Repeated `task_01` names are valid only when qualified by different package IDs.
+
    - Write `_tasks.md` as the canonical task graph manifest. It MUST start with this YAML frontmatter shape:
      ```markdown
      ---
@@ -111,7 +119,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - Each file must start with YAML frontmatter containing only task-owned metadata: `status`, `title`, `type`, and `complexity`. Dependency information lives only in `_tasks.md`.
    - Task numbering must be sequential and consistent between `_tasks.md` and individual files.
 
-9. Enrich each task file.
+8. Enrich each task file.
    - For each task file, check whether it already has `## Overview`, `## Deliverables`, and `## Tests` sections. If all three exist, skip enrichment for that file.
    - Map the task to PRD requirements, user stories, and TechSpec guidance.
    - Spawn an Agent tool call to discover relevant files, dependent files, integration points, and project rules for this specific task.
@@ -131,12 +139,12 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.
 
-10. Validate.
+9. Validate.
    - Run `compozy tasks validate --name <feature>`. If it exits non-zero, fix the reported issues and re-run; do not finish until it exits 0.
    - Audit the test assignment: every ID in `_tests.md` appears in exactly one task file's `## Tests` section. Fix any orphan or duplicate and re-audit.
    - In Work Package mode, execute every scenario in `references/work-package-planning.md` and record its observable result. A green parser check alone does not prove cancellation, stale-write safety, atomic generation, ownership, or accessible large-proposal behavior.
 
-11. Preserve explicit lifecycle boundaries.
+10. Preserve explicit lifecycle boundaries.
    - Task creation ends after generation and validation. It does not execute a package, select a branch, run review, invoke completion, or advance to another package.
    - Package execution uses the user's current branch/worktree and existing explicit commands. Independent packages are informationally eligible, never auto-started; ordinary workflows retain their current paths and behavior.
 
@@ -144,6 +152,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 
 - If both `_prd.md` and `_techspec.md` are missing, stop and ask the user to create at least one first.
 - If the user rejects the task breakdown, incorporate all feedback before presenting again.
+- If the user cancels before choosing or confirming a delivery shape, discard the in-memory draft and write nothing.
 - If codebase exploration reveals task boundaries that do not match the TechSpec, note the discrepancy and ask the user how to proceed.
 - If a test case in `_tests.md` fits no task, the breakdown is missing a slice — fix the breakdown rather than dropping the case.
 - If the target directory does not exist, create it.

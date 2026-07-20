@@ -153,6 +153,67 @@ func TestValidatePlan(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts readable package directories without changing stable IDs", func(t *testing.T) {
+		t.Parallel()
+		content := strings.ReplaceAll(
+			string(twoPackagePlan(t)),
+			"_packages/WP-001",
+			"_packages/001-persistence-foundation",
+		)
+		content = strings.ReplaceAll(content, "_packages/WP-002", "_packages/002-interface-delivery")
+
+		plan := mustParsePlan(t, []byte(content))
+		first, found := plan.Package("WP-001")
+		if !found || first.Directory != "_packages/001-persistence-foundation" {
+			t.Fatalf("WP-001 = %#v", first)
+		}
+	})
+
+	t.Run("rejects unsafe or mismatched readable package directories", func(t *testing.T) {
+		t.Parallel()
+		for name, directory := range map[string]string{
+			"mismatched ordinal": "_packages/002-persistence",
+			"nested brief":       "_packages/001/persistence",
+			"uppercase brief":    "_packages/001-Persistence",
+			"missing brief":      "_packages/001-",
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				content := strings.Replace(
+					string(twoPackagePlan(t)),
+					"directory: _packages/WP-001",
+					"directory: "+directory,
+					1,
+				)
+				_, err := ValidatePlan(content)
+				assertDomainError(t, err, ErrInvalidPlan)
+				assertIssueContains(t, err, "graph.nodes[0].directory")
+			})
+		}
+	})
+
+	t.Run("renders readable directories for packages without a persisted path", func(t *testing.T) {
+		t.Parallel()
+		plan := mustParsePlan(t, twoPackagePlan(t))
+		for index := range plan.Packages {
+			plan.Packages[index].Directory = ""
+		}
+
+		rendered, err := RenderPlan(plan)
+		if err != nil {
+			t.Fatalf("RenderPlan() error = %v", err)
+		}
+		for _, expected := range []string{
+			"directory: _packages/001-persistence",
+			"directory: _packages/002-interface",
+		} {
+			if !strings.Contains(string(rendered), expected) {
+				t.Fatalf("RenderPlan() = %q, want %q", rendered, expected)
+			}
+		}
+		mustParsePlan(t, rendered)
+	})
+
 	t.Run("UT-039 renders and reparses normalized state", func(t *testing.T) {
 		t.Parallel()
 		original := mustParsePlan(t, twoPackagePlan(t))
@@ -312,6 +373,38 @@ func TestResolver(t *testing.T) {
 		}
 	})
 
+	t.Run("resolves a stable ID to its readable package directory", func(t *testing.T) {
+		t.Parallel()
+		readableWorkspace := t.TempDir()
+		readableInitiativeDir := filepath.Join(
+			readableWorkspace,
+			".compozy",
+			"tasks",
+			"customer-management",
+		)
+		content := strings.ReplaceAll(planContent, "_packages/WP-001", "_packages/001-persistence-foundation")
+		content = strings.ReplaceAll(content, "_packages/WP-002", "_packages/002-interface-delivery")
+		writeTestFile(t, readableInitiativeDir, ManifestFileName, content)
+		writeTestFile(
+			t,
+			readableInitiativeDir,
+			"_packages/001-persistence-foundation/task_01.md",
+			"---\nstatus: pending\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
+		)
+
+		target, err := resolver.Resolve(
+			context.Background(),
+			readableWorkspace,
+			"customer-management/WP-001",
+		)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if filepath.Base(target.PackageDir) != "001-persistence-foundation" {
+			t.Fatalf("PackageDir = %q", target.PackageDir)
+		}
+	})
+
 	t.Run("UT-030 preserves ordinary workflows without marker", func(t *testing.T) {
 		ordinaryDir := filepath.Join(workspace, ".compozy", "tasks", "ordinary")
 		writeTestFile(t, ordinaryDir, "WP-001/task_01.md", "content")
@@ -392,6 +485,50 @@ func TestResolvePackageMissingPackagesRoot(t *testing.T) {
 		}
 		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-001")
 		assertDomainError(t, err, ErrContainment)
+	})
+}
+
+func TestResolveOperationalPathsReadableDirectory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("finds a readable directory without trusting the current plan", func(t *testing.T) {
+		t.Parallel()
+		workspace := t.TempDir()
+		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
+		writeTestFile(t, initiativeDir, ManifestFileName, "---\ninvalid")
+		writeTestFile(
+			t,
+			initiativeDir,
+			"_packages/001-persistence-foundation/task_01.md",
+			"---\nstatus: completed\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
+		)
+
+		paths, err := ResolveOperationalPaths(
+			context.Background(),
+			workspace,
+			"customer-management/WP-001",
+		)
+		if err != nil {
+			t.Fatalf("ResolveOperationalPaths() error = %v", err)
+		}
+		if filepath.Base(paths.PackageDir) != "001-persistence-foundation" {
+			t.Fatalf("PackageDir = %q", paths.PackageDir)
+		}
+	})
+
+	t.Run("rejects ambiguous readable directories", func(t *testing.T) {
+		t.Parallel()
+		workspace := t.TempDir()
+		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
+		writeTestFile(t, initiativeDir, "_packages/001-one/task_01.md", "content")
+		writeTestFile(t, initiativeDir, "_packages/001-two/task_01.md", "content")
+
+		_, err := ResolveOperationalPaths(
+			context.Background(),
+			workspace,
+			"customer-management/WP-001",
+		)
+		assertDomainError(t, err, ErrInvalidPlan)
 	})
 }
 

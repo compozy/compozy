@@ -13,9 +13,11 @@ import (
 )
 
 var (
-	packageIDPattern       = regexp.MustCompile(`^WP-[0-9]{3}$`)
-	packageHeadingPattern  = regexp.MustCompile(`^## \[([ x])\] ([^ ]+) —[ \t]*(.*?)[\r\n]*$`)
-	markdownDependencyLine = regexp.MustCompile("^  - `?(WP-[0-9]{3})`? —[ \\t]*(.*?)[\\r\\n]*$")
+	packageIDPattern                 = regexp.MustCompile(`^WP-[0-9]{3}$`)
+	packageDirectoryBriefPattern     = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	packageDirectorySeparatorPattern = regexp.MustCompile(`[^a-z0-9]+`)
+	packageHeadingPattern            = regexp.MustCompile(`^## \[([ x])\] ([^ ]+) —[ \t]*(.*?)[\r\n]*$`)
+	markdownDependencyLine           = regexp.MustCompile("^  - `?(WP-[0-9]{3})`? —[ \\t]*(.*?)[\\r\\n]*$")
 )
 
 type manifest struct {
@@ -184,14 +186,50 @@ func validateManifestNodes(nodesInput []manifestNode, path string) (map[string]s
 		} else {
 			nodes[node.ID] = struct{}{}
 		}
-		if node.Directory != "_packages/"+node.ID {
+		if !validPackageDirectory(node.ID, node.Directory) {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: prefix + ".directory", Message: fmt.Sprintf("must be _packages/%s", node.ID)},
+				Issue{
+					Path:  path,
+					Field: prefix + ".directory",
+					Message: fmt.Sprintf(
+						"must be _packages/%s or _packages/%s-<brief>",
+						node.ID,
+						packageOrdinal(node.ID),
+					),
+				},
 			)
 		}
 	}
 	return nodes, issues
+}
+
+func validPackageDirectory(packageID, directory string) bool {
+	if !packageIDPattern.MatchString(packageID) {
+		return false
+	}
+	if directory == "_packages/"+packageID {
+		return true
+	}
+	prefix := "_packages/" + packageOrdinal(packageID) + "-"
+	if !strings.HasPrefix(directory, prefix) {
+		return false
+	}
+	return packageDirectoryBriefPattern.MatchString(strings.TrimPrefix(directory, prefix))
+}
+
+func packageOrdinal(packageID string) string {
+	return strings.TrimPrefix(packageID, "WP-")
+}
+
+func readablePackageDirectory(packageID, title string) string {
+	brief := strings.ToLower(strings.TrimSpace(title))
+	brief = packageDirectorySeparatorPattern.ReplaceAllString(brief, "-")
+	brief = strings.Trim(brief, "-")
+	if brief == "" {
+		brief = "work-package"
+	}
+	return "_packages/" + packageOrdinal(packageID) + "-" + brief
 }
 
 func validateManifestEdges(edges []manifestEdge, nodes map[string]struct{}, path string) []Issue {
@@ -607,6 +645,7 @@ func renderablePackages(plan Plan) ([]Package, error) {
 
 func renderablePackage(pkg Package) bool {
 	return packageIDPattern.MatchString(pkg.ID) &&
+		(pkg.Directory == "" || validPackageDirectory(pkg.ID, pkg.Directory)) &&
 		strings.TrimSpace(pkg.Title) != "" &&
 		strings.TrimSpace(pkg.Outcome) != "" &&
 		len(pkg.OwnedScope) > 0
@@ -616,7 +655,11 @@ func renderManifest(plan Plan, packages []Package) manifest {
 	raw := manifest{SchemaVersion: SchemaVersion, Initiative: plan.Initiative}
 	for index := range packages {
 		pkg := &packages[index]
-		raw.Graph.Nodes = append(raw.Graph.Nodes, manifestNode{ID: pkg.ID, Directory: "_packages/" + pkg.ID})
+		directory := pkg.Directory
+		if directory == "" {
+			directory = readablePackageDirectory(pkg.ID, pkg.Title)
+		}
+		raw.Graph.Nodes = append(raw.Graph.Nodes, manifestNode{ID: pkg.ID, Directory: directory})
 	}
 	for _, edge := range plan.Edges {
 		raw.Graph.Edges = append(raw.Graph.Edges, manifestEdge(edge))
