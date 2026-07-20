@@ -31,6 +31,195 @@ var captureExecuteStreamsMu sync.Mutex
 
 const runACPHelperDefaultTimeout = 10 * time.Second
 
+func TestExecuteJobWithTimeoutOMPRoutesCriticalToolUpdates(t *testing.T) {
+	tmpDir := t.TempDir()
+	inProgress := acp.ToolCallStatusInProgress
+	installACPHelperCommandOnPath(t, "omp", []runACPHelperScenario{{
+		ExpectedCommandArgs:    []string{"acp"},
+		ExpectedPromptContains: "finish the task",
+		ConfigOptions:          runACPHelperOMPConfigOptions(),
+		Updates: []acp.SessionUpdate{
+			acp.StartToolCall(
+				acp.ToolCallId("omp-tool-1"),
+				"read_file",
+				acp.WithStartKind(acp.ToolKindRead),
+				acp.WithStartRawInput(map[string]any{"path": "README.md"}),
+			),
+			{
+				ToolCallUpdate: &acp.SessionToolCallUpdate{
+					ToolCallId: acp.ToolCallId("omp-tool-1"),
+					Status:     &inProgress,
+				},
+			},
+			acp.UpdateToolCall(
+				acp.ToolCallId("omp-tool-1"),
+				acp.WithUpdateStatus(acp.ToolCallStatusCompleted),
+				acp.WithUpdateContent([]acp.ToolCallContent{
+					acp.ToolContent(acp.TextBlock("OMP tool result")),
+				}),
+			),
+			acp.UpdateAgentMessageText("OMP_OK"),
+		},
+	}})
+
+	job := newTestACPJob(tmpDir)
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	var activeClients atomic.Int32
+	var tracked atomic.Bool
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			IDE:                    model.IDEOMP,
+			Model:                  model.DefaultOMPModel,
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+			RunArtifacts:           model.RunArtifacts{RunID: runID},
+		},
+		&job,
+		tmpDir,
+		false,
+		0,
+		runACPHelperDefaultTimeout,
+		runJournal,
+		nil,
+		nil,
+		func(agent.Client) func() {
+			tracked.Store(true)
+			activeClients.Add(1)
+			return func() { activeClients.Add(-1) }
+		},
+	)
+	if result.Status != attemptStatusSuccess {
+		t.Fatalf("OMP job status = %s (%v), want success", result.Status, result.Failure)
+	}
+	if !tracked.Load() || activeClients.Load() != 0 {
+		t.Fatalf("OMP client tracking: tracked=%v active=%d", tracked.Load(), activeClients.Load())
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 7)
+	var updates []kinds.SessionUpdate
+	for _, event := range events {
+		if event.Kind != eventspkg.EventKindSessionUpdate {
+			continue
+		}
+		var payload kinds.SessionUpdatePayload
+		decodeRuntimeEventPayload(t, event, &payload)
+		updates = append(updates, payload.Update)
+	}
+	if len(updates) != 5 {
+		t.Fatalf("OMP session updates = %#v, want four streamed updates and completion", updates)
+	}
+	wantKinds := []kinds.SessionUpdateKind{
+		kinds.UpdateKindToolCallStarted,
+		kinds.UpdateKindToolCallUpdated,
+		kinds.UpdateKindToolCallUpdated,
+		kinds.UpdateKindAgentMessageChunk,
+	}
+	wantStates := []kinds.ToolCallState{
+		kinds.ToolCallStatePending,
+		kinds.ToolCallStateInProgress,
+		kinds.ToolCallStateCompleted,
+		kinds.ToolCallStateUnknown,
+	}
+	for i := range wantKinds {
+		if updates[i].Kind != wantKinds[i] || updates[i].ToolCallState != wantStates[i] {
+			t.Fatalf(
+				"OMP update %d = kind %q state %q, want kind %q state %q",
+				i,
+				updates[i].Kind,
+				updates[i].ToolCallState,
+				wantKinds[i],
+				wantStates[i],
+			)
+		}
+		if i < 3 && updates[i].ToolCallID != "omp-tool-1" {
+			t.Fatalf("OMP update %d tool ID = %q", i, updates[i].ToolCallID)
+		}
+	}
+	if updates[4].Status != kinds.StatusCompleted {
+		t.Fatalf("OMP terminal update status = %q, want completed", updates[4].Status)
+	}
+	if len(updates[0].Blocks) != 1 {
+		t.Fatalf("OMP tool start blocks = %#v", updates[0].Blocks)
+	}
+	toolUse, err := updates[0].Blocks[0].AsToolUse()
+	if err != nil {
+		t.Fatalf("decode OMP tool use: %v", err)
+	}
+	if toolUse.Name != "Read" {
+		t.Fatalf("OMP normalized tool name = %q, want Read", toolUse.Name)
+	}
+	if len(updates[2].Blocks) != 1 || updates[2].Blocks[0].Type != kinds.BlockToolResult {
+		t.Fatalf("OMP completion blocks = %#v, want tool result", updates[2].Blocks)
+	}
+
+	outLog, err := os.ReadFile(job.OutLog)
+	if err != nil {
+		t.Fatalf("read OMP out log: %v", err)
+	}
+	if !strings.Contains(string(outLog), "OMP tool result") || !strings.Contains(string(outLog), "OMP_OK") {
+		t.Fatalf("OMP out log = %q", string(outLog))
+	}
+}
+
+func TestExecuteJobWithTimeoutOMPUnsupportedReasoningClosesBeforePrompt(t *testing.T) {
+	tmpDir := t.TempDir()
+	installACPHelperCommandOnPath(t, "omp", []runACPHelperScenario{{
+		ExpectedCommandArgs: []string{"acp"},
+		ConfigOptions:       runACPHelperOMPUnsupportedReasoningOptions(),
+		PromptError: &runACPHelperRequestError{
+			Code:    4999,
+			Message: "prompt must not run after OMP setup failure",
+		},
+	}})
+
+	job := newTestACPJob(tmpDir)
+	var activeClients atomic.Int32
+	var tracked atomic.Bool
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			IDE:                    model.IDEOMP,
+			Model:                  model.DefaultOMPModel,
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		0,
+		runACPHelperDefaultTimeout,
+		nil,
+		nil,
+		nil,
+		func(agent.Client) func() {
+			tracked.Store(true)
+			activeClients.Add(1)
+			return func() { activeClients.Add(-1) }
+		},
+	)
+	if result.Status != attemptStatusSetupFailed || result.Failure == nil {
+		t.Fatalf("unsupported OMP result = %#v, want setup failure", result)
+	}
+	var setupErr *agent.SessionSetupError
+	if !errors.As(result.Failure.Err, &setupErr) || setupErr.Stage != agent.SessionSetupStageSetReasoning {
+		t.Fatalf("unsupported OMP error = %v, want set_reasoning setup error", result.Failure.Err)
+	}
+	for _, want := range []string{`reasoning effort "medium" is not available`, "off (off)", "auto (auto)"} {
+		if !strings.Contains(result.Failure.Err.Error(), want) {
+			t.Fatalf("unsupported OMP error = %q, want %q", result.Failure.Err, want)
+		}
+	}
+	if strings.Contains(result.Failure.Err.Error(), "prompt must not run") {
+		t.Fatalf("OMP prompt was dispatched after setup failure: %v", result.Failure.Err)
+	}
+	if !tracked.Load() || activeClients.Load() != 0 {
+		t.Fatalf("unsupported OMP client tracking: tracked=%v active=%d", tracked.Load(), activeClients.Load())
+	}
+}
+
 func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 	installACPHelperOnPath(t, []runACPHelperScenario{{
@@ -1220,6 +1409,17 @@ func TestRunACPHelperProcess(_ *testing.T) {
 		fmt.Fprintf(os.Stderr, "load helper scenario: %v\n", err)
 		os.Exit(2)
 	}
+	if scenario.ExpectedCommandArgs != nil {
+		separator := slices.Index(os.Args, "--")
+		var got []string
+		if separator >= 0 {
+			got = os.Args[separator+1:]
+		}
+		if !slices.Equal(got, scenario.ExpectedCommandArgs) {
+			fmt.Fprintf(os.Stderr, "helper command args = %#v, want %#v\n", got, scenario.ExpectedCommandArgs)
+			os.Exit(2)
+		}
+	}
 
 	agent := &runACPHelperAgent{
 		scenario:  scenario,
@@ -1234,12 +1434,15 @@ func TestRunACPHelperProcess(_ *testing.T) {
 
 type runACPHelperScenario struct {
 	SessionID               string                    `json:"session_id,omitempty"`
+	ExpectedCommandArgs     []string                  `json:"expected_command_args,omitempty"`
 	ExpectedLoadSessionID   string                    `json:"expected_load_session_id,omitempty"`
 	ExpectedPromptContains  string                    `json:"expected_prompt_contains,omitempty"`
 	SupportsLoadSession     bool                      `json:"supports_load_session,omitempty"`
 	InitializeDelayMillis   int                       `json:"initialize_delay_millis,omitempty"`
 	ReplayUpdatesOnLoad     []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
 	SessionMeta             map[string]any            `json:"session_meta,omitempty"`
+	ConfigOptions           []acp.SessionConfigOption `json:"config_options,omitempty"`
+	SessionModes            *acp.SessionModeState     `json:"session_modes,omitempty"`
 	Updates                 []acp.SessionUpdate       `json:"updates,omitempty"`
 	StopReason              string                    `json:"stop_reason,omitempty"`
 	BlockUntilCancel        bool                      `json:"block_until_cancel,omitempty"`
@@ -1285,8 +1488,8 @@ func (a *runACPHelperAgent) NewSession(_ context.Context, _ acp.NewSessionReques
 	return acp.NewSessionResponse{
 		SessionId:     acp.SessionId(a.sessionID),
 		Meta:          a.scenario.SessionMeta,
-		ConfigOptions: runACPHelperConfigOptions(),
-		Modes:         runACPHelperModes(),
+		ConfigOptions: a.configOptions(),
+		Modes:         a.sessionModes(),
 	}, nil
 }
 
@@ -1310,8 +1513,8 @@ func (a *runACPHelperAgent) LoadSession(
 	}
 	return acp.LoadSessionResponse{
 		Meta:          a.scenario.SessionMeta,
-		ConfigOptions: runACPHelperConfigOptions(),
-		Modes:         runACPHelperModes(),
+		ConfigOptions: a.configOptions(),
+		Modes:         a.sessionModes(),
 	}, nil
 }
 
@@ -1379,11 +1582,11 @@ func (*runACPHelperAgent) ResumeSession(context.Context, acp.ResumeSessionReques
 	return acp.ResumeSessionResponse{}, nil
 }
 
-func (*runACPHelperAgent) SetSessionConfigOption(
+func (a *runACPHelperAgent) SetSessionConfigOption(
 	context.Context,
 	acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{ConfigOptions: runACPHelperConfigOptions()}, nil
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions()}, nil
 }
 
 func (a *runACPHelperAgent) SetSessionMode(
@@ -1417,6 +1620,54 @@ func runACPHelperConfigOptions() []acp.SessionConfigOption {
 			[]string{"low", "medium", "high", "xhigh", "max", "ultra", "workspace-reasoning"},
 		),
 	}
+}
+
+func runACPHelperOMPConfigOptions() []acp.SessionConfigOption {
+	return []acp.SessionConfigOption{
+		runACPHelperSelectOption(
+			"model",
+			acp.SessionConfigOptionCategoryModel,
+			"anthropic/claude-opus-4-6",
+			[]string{"anthropic/claude-opus-4-6", "openai/gpt-5.6-sol"},
+		),
+		runACPHelperSelectOption(
+			"thinking",
+			acp.SessionConfigOptionCategoryThoughtLevel,
+			"auto",
+			[]string{"off", "medium", "auto"},
+		),
+	}
+}
+
+func runACPHelperOMPUnsupportedReasoningOptions() []acp.SessionConfigOption {
+	return []acp.SessionConfigOption{
+		runACPHelperSelectOption(
+			"model",
+			acp.SessionConfigOptionCategoryModel,
+			"anthropic/claude-opus-4-6",
+			[]string{"anthropic/claude-opus-4-6"},
+		),
+		runACPHelperSelectOption(
+			"thinking",
+			acp.SessionConfigOptionCategoryThoughtLevel,
+			"auto",
+			[]string{"off", "auto"},
+		),
+	}
+}
+
+func (a *runACPHelperAgent) configOptions() []acp.SessionConfigOption {
+	if a.scenario.ConfigOptions != nil {
+		return a.scenario.ConfigOptions
+	}
+	return runACPHelperConfigOptions()
+}
+
+func (a *runACPHelperAgent) sessionModes() *acp.SessionModeState {
+	if a.scenario.SessionModes != nil {
+		return a.scenario.SessionModes
+	}
+	return runACPHelperModes()
 }
 
 func runACPHelperSelectOption(

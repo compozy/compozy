@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -8,6 +10,378 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 )
+
+func TestConfigureSessionRetainsOMPRuntimeModelForAuto(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"anthropic/claude-opus-4-6",
+		[]acp.SessionConfigSelectOption{
+			{Value: "anthropic/claude-opus-4-6", Name: "Claude Opus 4.6"},
+			{Value: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol"},
+		},
+	)
+	thinkingOption := testSessionSelectOption(
+		"thinking",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"auto",
+		[]acp.SessionConfigSelectOption{
+			{Value: "off", Name: "Off"},
+			{Value: "medium", Name: "Medium"},
+			{Value: "auto", Name: "Auto"},
+		},
+	)
+	options := []acp.SessionConfigOption{{Select: modelOption}, {Select: thinkingOption}}
+	for _, test := range []struct {
+		name       string
+		modelInput string
+	}{
+		{name: "Should retain runtime model for empty model", modelInput: ""},
+		{name: "Should retain runtime model for explicit auto", modelInput: " AUTO "},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			scenario := helperScenario{
+				ExpectedCWD:             t.TempDir(),
+				ExpectedPrompt:          "retain active model",
+				NewSessionConfigOptions: options,
+				ExpectedSessionConfig: []helperExpectedSessionConfig{
+					{ConfigID: "thinking", Value: "medium"},
+				},
+				SessionConfigResponses: [][]acp.SessionConfigOption{options},
+				ExpectedConfigurationOrder: []string{
+					"config:thinking=medium",
+				},
+				StopReason: string(acp.StopReasonEndTurn),
+			}
+			client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+				cfg.Model = test.modelInput
+			})
+
+			session, err := client.CreateSession(context.Background(), SessionRequest{
+				WorkingDir: scenario.ExpectedCWD,
+				Prompt:     []byte(scenario.ExpectedPrompt),
+			})
+			if err != nil {
+				t.Fatalf("create OMP session: %v", err)
+			}
+			updates := collectSessionUpdates(t, session)
+			if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+				t.Fatalf("OMP session updates = %#v, want one completed update", updates)
+			}
+		})
+	}
+}
+
+func TestConfigureSessionUsesAuthoritativeOptionsAfterModelSelection(t *testing.T) {
+	t.Parallel()
+
+	modelA := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"provider/model-a",
+		[]acp.SessionConfigSelectOption{
+			{Value: "provider/model-a", Name: "Model A"},
+			{Value: "provider/model-b", Name: "Model B"},
+		},
+	)
+	thinkingA := testSessionSelectOption(
+		"thinking-a",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{{Value: "medium", Name: "Medium A"}},
+	)
+	modelB := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"provider/model-b",
+		[]acp.SessionConfigSelectOption{
+			{Value: "provider/model-a", Name: "Model A"},
+			{Value: "provider/model-b", Name: "Model B"},
+		},
+	)
+	thinkingB := testSessionSelectOption(
+		"thinking-b",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{{Value: "medium", Name: "Medium B"}},
+	)
+	refreshedOptions := []acp.SessionConfigOption{{Select: modelB}, {Select: thinkingB}}
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "use model B",
+		NewSessionConfigOptions: []acp.SessionConfigOption{
+			{Select: modelA},
+			{Select: thinkingA},
+		},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "provider/model-b"},
+			{ConfigID: "thinking-b", Value: "medium"},
+		},
+		SessionConfigResponses: [][]acp.SessionConfigOption{refreshedOptions, refreshedOptions},
+		ExpectedConfigurationOrder: []string{
+			"config:model=provider/model-b",
+			"config:thinking-b=medium",
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.DefaultModel = model.DefaultOMPModel
+			spec.UsesBootstrapModel = false
+		},
+		func(cfg *ClientConfig) {
+			cfg.Model = "provider/model-b"
+			cfg.ReasoningEffort = "medium"
+		},
+	)
+	client.(*clientImpl).spec.ID = model.IDEOMP
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create OMP session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("OMP session updates = %#v, want one completed update", updates)
+	}
+}
+
+func TestConfigureSessionRejectsUnsupportedOMPReasoningFromRefreshedOptions(t *testing.T) {
+	t.Parallel()
+
+	modelA := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"provider/model-a",
+		[]acp.SessionConfigSelectOption{
+			{Value: "provider/model-a", Name: "Model A"},
+			{Value: "provider/model-b", Name: "Model B"},
+		},
+	)
+	thinkingA := testSessionSelectOption(
+		"thinking",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{{Value: "medium", Name: "Medium"}},
+	)
+	modelB := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"provider/model-b",
+		[]acp.SessionConfigSelectOption{
+			{Value: "provider/model-a", Name: "Model A"},
+			{Value: "provider/model-b", Name: "Model B"},
+		},
+	)
+	thinkingB := testSessionSelectOption(
+		"thinking",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"auto",
+		[]acp.SessionConfigSelectOption{
+			{Value: "off", Name: "Off"},
+			{Value: "auto", Name: "Auto"},
+		},
+	)
+	refreshedOptions := []acp.SessionConfigOption{{Select: modelB}, {Select: thinkingB}}
+	scenario := helperScenario{
+		ExpectedCWD: t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{
+			{Select: modelA},
+			{Select: thinkingA},
+		},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "provider/model-b"},
+		},
+		SessionConfigResponses: [][]acp.SessionConfigOption{refreshedOptions},
+	}
+	client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "provider/model-b"
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected unsupported OMP reasoning error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("error = %T, want SessionSetupError", err)
+	}
+	if setupErr.Stage != SessionSetupStageSetReasoning {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageSetReasoning)
+	}
+	for _, want := range []string{
+		`reasoning effort "medium" is not available`,
+		"Off (off)",
+		"Auto (auto)",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("unsupported reasoning error = %q, want %q", err, want)
+		}
+	}
+}
+
+func TestConfigureSessionRejectsOMPWithoutReasoningOption(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"anthropic/claude-opus-4-6",
+		[]acp.SessionConfigSelectOption{{Value: "anthropic/claude-opus-4-6", Name: "Claude Opus 4.6"}},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+	}
+	client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = model.DefaultOMPModel
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected missing OMP reasoning option error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) || setupErr.Stage != SessionSetupStageSetReasoning {
+		t.Fatalf("missing OMP reasoning error = %v, want set_reasoning", err)
+	}
+	if !strings.Contains(
+		err.Error(),
+		`did not advertise an ACP reasoning option; cannot apply reasoning effort "medium"`,
+	) {
+		t.Fatalf("missing OMP reasoning error = %q", err)
+	}
+}
+
+func TestConfigureSessionRejectsUnadvertisedOMPModelWithoutRequest(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"anthropic/claude-opus-4-6",
+		[]acp.SessionConfigSelectOption{
+			{Value: "anthropic/claude-opus-4-6", Name: "Claude Opus 4.6"},
+			{Value: "openai/gpt-5.6-sol", Name: "GPT-5.6 Sol"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+	}
+	client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "openai/missing"
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected unavailable OMP model error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("error = %T, want SessionSetupError", err)
+	}
+	if setupErr.Stage != SessionSetupStageSetModel {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageSetModel)
+	}
+	for _, want := range []string{
+		`model "openai/missing" is not available`,
+		"Claude Opus 4.6 (anthropic/claude-opus-4-6)",
+		"GPT-5.6 Sol (openai/gpt-5.6-sol)",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("unavailable model error = %q, want %q", err, want)
+		}
+	}
+}
+
+func TestConfigureSessionDoesNotMapOMPAccessToWorkflowMode(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"anthropic/claude-opus-4-6",
+		[]acp.SessionConfigSelectOption{{Value: "anthropic/claude-opus-4-6", Name: "Claude Opus 4.6"}},
+	)
+	thinkingOption := testSessionSelectOption(
+		"thinking",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"auto",
+		[]acp.SessionConfigSelectOption{{Value: "medium", Name: "Medium"}},
+	)
+	options := []acp.SessionConfigOption{{Select: modelOption}, {Select: thinkingOption}}
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		ExpectedPrompt:          "use standard permissions",
+		NewSessionConfigOptions: options,
+		SessionModes: &acp.SessionModeState{
+			CurrentModeId: "default",
+			AvailableModes: []acp.SessionMode{
+				{Id: "default", Name: "Default"},
+				{Id: "plan", Name: "Plan"},
+			},
+		},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "thinking", Value: "medium"},
+		},
+		SessionConfigResponses:     [][]acp.SessionConfigOption{options},
+		ExpectedConfigurationOrder: []string{"config:thinking=medium"},
+		StopReason:                 string(acp.StopReasonEndTurn),
+	}
+	client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = model.DefaultOMPModel
+		cfg.AccessMode = model.AccessModeFull
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create OMP session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("OMP session updates = %#v, want one completed update", updates)
+	}
+}
+
+func newOMPTestClient(t *testing.T, scenario helperScenario, configure func(*ClientConfig)) Client {
+	t.Helper()
+
+	client := newTestClientWithSpecConfig(
+		t,
+		scenario,
+		func(spec *Spec) {
+			spec.DefaultModel = model.DefaultOMPModel
+			spec.UsesBootstrapModel = false
+			spec.FullAccessModeID = ""
+		},
+		configure,
+	)
+	client.(*clientImpl).spec.ID = model.IDEOMP
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+	return client
+}
 
 func TestResolveSessionSelectValue(t *testing.T) {
 	t.Parallel()

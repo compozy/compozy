@@ -798,6 +798,134 @@ func TestClientCreateSessionRejectsCodexReasoningWithoutAdvertisedOption(t *test
 	}
 }
 
+func TestClientOMPActiveModelAppliesReasoningAndAllowsGatedWork(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"anthropic/claude-opus-4-6",
+		[]acp.SessionConfigSelectOption{{Value: "anthropic/claude-opus-4-6", Name: "Claude Opus 4.6"}},
+	)
+	thinkingOption := testSessionSelectOption(
+		"thinking",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"auto",
+		[]acp.SessionConfigSelectOption{
+			{Value: "off", Name: "Off"},
+			{Value: "medium", Name: "Medium"},
+			{Value: "auto", Name: "Auto"},
+		},
+	)
+	options := []acp.SessionConfigOption{{Select: modelOption}, {Select: thinkingOption}}
+	scenario := helperScenario{
+		SessionID:               "omp-session",
+		ExpectedCWD:             t.TempDir(),
+		ExpectedPrompt:          "Return OMP_OK",
+		SupportsLoadSession:     true,
+		NewSessionConfigOptions: options,
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "thinking", Value: "medium"},
+		},
+		SessionConfigResponses:     [][]acp.SessionConfigOption{options},
+		ExpectedConfigurationOrder: []string{"config:thinking=medium"},
+		PermissionOptions: []acp.PermissionOption{
+			{OptionId: "allow-once", Name: "Allow once", Kind: acp.PermissionOptionKindAllowOnce},
+			{OptionId: "allow-always", Name: "Allow always", Kind: acp.PermissionOptionKindAllowAlways},
+			{OptionId: "reject-once", Name: "Reject once", Kind: acp.PermissionOptionKindRejectOnce},
+			{OptionId: "reject-always", Name: "Reject always", Kind: acp.PermissionOptionKindRejectAlways},
+		},
+		ExpectedPermissionID: "allow-once",
+		Updates:              []acp.SessionUpdate{acp.UpdateAgentMessageText("OMP_OK")},
+		StopReason:           string(acp.StopReasonEndTurn),
+	}
+	client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = model.DefaultOMPModel
+		cfg.ReasoningEffort = "medium"
+		cfg.AccessMode = model.AccessModeFull
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create OMP session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("OMP session updates = %#v, want text and completion", updates)
+	}
+	if got := mustFirstTextBlock(t, updates[0].Blocks).Text; got != "OMP_OK" {
+		t.Fatalf("OMP text = %q, want OMP_OK", got)
+	}
+	if !client.SupportsLoadSession() {
+		t.Fatal("OMP client did not retain advertised load-session support")
+	}
+}
+
+func TestClientOMPResumeLoadsStoredSessionInSameWorkspace(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"anthropic/claude-opus-4-6",
+		[]acp.SessionConfigSelectOption{{Value: "anthropic/claude-opus-4-6", Name: "Claude Opus 4.6"}},
+	)
+	thinkingOption := testSessionSelectOption(
+		"thinking",
+		acp.SessionConfigOptionCategoryThoughtLevel,
+		"medium",
+		[]acp.SessionConfigSelectOption{{Value: "medium", Name: "Medium"}},
+	)
+	options := []acp.SessionConfigOption{{Select: modelOption}, {Select: thinkingOption}}
+	workspace := t.TempDir()
+	scenario := helperScenario{
+		SessionID:                "omp-stored-session",
+		ExpectedCWD:              workspace,
+		ExpectedLoadSessionID:    "omp-stored-session",
+		ExpectedPrompt:           "Return OMP_RESUMED",
+		SupportsLoadSession:      true,
+		LoadSessionConfigOptions: options,
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "thinking", Value: "medium"},
+		},
+		SessionConfigResponses:     [][]acp.SessionConfigOption{options},
+		ExpectedConfigurationOrder: []string{"config:thinking=medium"},
+		ReplayUpdatesOnLoad:        []acp.SessionUpdate{acp.UpdateAgentMessageText("REPLAYED")},
+		Updates:                    []acp.SessionUpdate{acp.UpdateAgentMessageText("OMP_RESUMED")},
+		StopReason:                 string(acp.StopReasonEndTurn),
+		NewSessionError: &helperRequestError{
+			Code:    4090,
+			Message: "session/new must not run during resume",
+		},
+	}
+	client := newOMPTestClient(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = model.DefaultOMPModel
+		cfg.ReasoningEffort = "medium"
+	})
+
+	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		WorkingDir: workspace,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("resume OMP session: %v", err)
+	}
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("OMP resumed updates = %#v, want fresh text and completion", updates)
+	}
+	if got := mustFirstTextBlock(t, updates[0].Blocks).Text; got != "OMP_RESUMED" {
+		t.Fatalf("OMP resumed text = %q, want OMP_RESUMED", got)
+	}
+	if !session.Identity().Resumed || session.Identity().ACPSessionID != scenario.SessionID {
+		t.Fatalf("OMP resumed identity = %#v", session.Identity())
+	}
+}
+
 func TestClientCreateSessionTreatsAutoModelAsRuntimeDefaultForNonBootstrapACP(t *testing.T) {
 	t.Parallel()
 
@@ -1913,7 +2041,10 @@ func TestClientHelperMethods(t *testing.T) {
 	}
 
 	permResp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
-		Options: []acp.PermissionOption{{OptionId: "allow"}},
+		Options: []acp.PermissionOption{{
+			OptionId: "allow",
+			Kind:     acp.PermissionOptionKindAllowOnce,
+		}},
 	})
 	if err != nil {
 		t.Fatalf("request permission: %v", err)
@@ -1928,6 +2059,64 @@ func TestClientHelperMethods(t *testing.T) {
 	}
 	if !outcomeHasVariant(cancelledResp.Outcome, "Cancel"+"led") {
 		t.Fatalf("expected canceled permission outcome: %#v", cancelledResp.Outcome)
+	}
+}
+
+func TestClientRequestPermissionSelectsAllowOnceByKind(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		options       []acp.PermissionOption
+		wantSelected  acp.PermissionOptionId
+		wantCancelled bool
+	}{
+		{
+			name: "allow once is not first",
+			options: []acp.PermissionOption{
+				{OptionId: "reject-once", Kind: acp.PermissionOptionKindRejectOnce},
+				{OptionId: "allow-always", Kind: acp.PermissionOptionKindAllowAlways},
+				{OptionId: "allow-once", Kind: acp.PermissionOptionKindAllowOnce},
+			},
+			wantSelected: "allow-once",
+		},
+		{
+			name: "allow once is unavailable",
+			options: []acp.PermissionOption{
+				{OptionId: "allow-always", Kind: acp.PermissionOptionKindAllowAlways},
+				{OptionId: "reject-once", Kind: acp.PermissionOptionKindRejectOnce},
+			},
+			wantCancelled: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &clientImpl{}
+			response, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+				Options: tc.options,
+			})
+			if err != nil {
+				t.Fatalf("request permission: %v", err)
+			}
+			if tc.wantCancelled {
+				if !outcomeHasVariant(response.Outcome, "Cancel"+"led") {
+					t.Fatalf("permission outcome = %#v, want canceled", response.Outcome)
+				}
+				return
+			}
+			if response.Outcome.Selected == nil ||
+				response.Outcome.Selected.OptionId != tc.wantSelected {
+				t.Fatalf(
+					"permission outcome = %#v, want selected option %q",
+					response.Outcome,
+					tc.wantSelected,
+				)
+			}
+		})
 	}
 }
 
@@ -2788,27 +2977,30 @@ type helperScenario struct {
 	LoadSessionConfigOptions      []acp.SessionConfigOption     `json:"load_session_config_options,omitempty"`
 	SessionModes                  *acp.SessionModeState         `json:"session_modes,omitempty"`
 	ExpectedSessionConfig         []helperExpectedSessionConfig `json:"expected_session_config,omitempty"`
+	SessionConfigResponses        [][]acp.SessionConfigOption   `json:"session_config_responses,omitempty"`
 	ExpectedConfigurationOrder    []string                      `json:"expected_configuration_order,omitempty"`
 	// ExpectedEnvVars asserts process environment values at helper startup.
 	// An empty value means the variable must be unset or empty.
-	ExpectedEnvVars         map[string]string   `json:"expected_env_vars,omitempty"`
-	UpdateIntervalMillis    int                 `json:"update_interval_millis,omitempty"`
-	SupportsLoadSession     bool                `json:"supports_load_session,omitempty"`
-	SessionMeta             map[string]any      `json:"session_meta,omitempty"`
-	NewSessionUpdates       []acp.SessionUpdate `json:"new_session_updates,omitempty"`
-	ReplayUpdatesOnLoad     []acp.SessionUpdate `json:"replay_updates_on_load,omitempty"`
-	Updates                 []acp.SessionUpdate `json:"updates,omitempty"`
-	StopReason              string              `json:"stop_reason,omitempty"`
-	BlockUntilCancel        bool                `json:"block_until_cancel,omitempty"`
-	NewSessionError         *helperRequestError `json:"new_session_error,omitempty"`
-	PromptError             *helperRequestError `json:"prompt_error,omitempty"`
-	PromptErrorAfterUpdates bool                `json:"prompt_error_after_updates,omitempty"`
-	TerminalCommand         string              `json:"terminal_command,omitempty"`
-	TerminalArgs            []string            `json:"terminal_args,omitempty"`
-	TerminalEnv             []acp.EnvVariable   `json:"terminal_env,omitempty"`
-	TerminalWantOutput      string              `json:"terminal_want_output,omitempty"`
-	TerminalWantExitCode    *int                `json:"terminal_want_exit_code,omitempty"`
-	PromptUsage             *acp.Usage          `json:"prompt_usage,omitempty"`
+	ExpectedEnvVars         map[string]string      `json:"expected_env_vars,omitempty"`
+	UpdateIntervalMillis    int                    `json:"update_interval_millis,omitempty"`
+	SupportsLoadSession     bool                   `json:"supports_load_session,omitempty"`
+	SessionMeta             map[string]any         `json:"session_meta,omitempty"`
+	NewSessionUpdates       []acp.SessionUpdate    `json:"new_session_updates,omitempty"`
+	ReplayUpdatesOnLoad     []acp.SessionUpdate    `json:"replay_updates_on_load,omitempty"`
+	Updates                 []acp.SessionUpdate    `json:"updates,omitempty"`
+	StopReason              string                 `json:"stop_reason,omitempty"`
+	BlockUntilCancel        bool                   `json:"block_until_cancel,omitempty"`
+	NewSessionError         *helperRequestError    `json:"new_session_error,omitempty"`
+	PromptError             *helperRequestError    `json:"prompt_error,omitempty"`
+	PromptErrorAfterUpdates bool                   `json:"prompt_error_after_updates,omitempty"`
+	PermissionOptions       []acp.PermissionOption `json:"permission_options,omitempty"`
+	ExpectedPermissionID    string                 `json:"expected_permission_id,omitempty"`
+	TerminalCommand         string                 `json:"terminal_command,omitempty"`
+	TerminalArgs            []string               `json:"terminal_args,omitempty"`
+	TerminalEnv             []acp.EnvVariable      `json:"terminal_env,omitempty"`
+	TerminalWantOutput      string                 `json:"terminal_want_output,omitempty"`
+	TerminalWantExitCode    *int                   `json:"terminal_want_exit_code,omitempty"`
+	PromptUsage             *acp.Usage             `json:"prompt_usage,omitempty"`
 }
 
 type helperExpectedSessionConfig struct {
@@ -2939,6 +3131,23 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 
 	if a.scenario.PromptError != nil && !a.scenario.PromptErrorAfterUpdates {
 		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
+	}
+	if len(a.scenario.PermissionOptions) > 0 {
+		permission, err := a.connection().RequestPermission(ctx, acp.RequestPermissionRequest{
+			SessionId: req.SessionId,
+			ToolCall:  acp.ToolCallUpdate{ToolCallId: "permission-tool"},
+			Options:   a.scenario.PermissionOptions,
+		})
+		if err != nil {
+			return acp.PromptResponse{}, fmt.Errorf("request helper permission: %w", err)
+		}
+		if permission.Outcome.Selected == nil ||
+			string(permission.Outcome.Selected.OptionId) != a.scenario.ExpectedPermissionID {
+			return acp.PromptResponse{}, &acp.RequestError{
+				Code:    4008,
+				Message: fmt.Sprintf("unexpected permission outcome %#v", permission.Outcome),
+			}
+		}
 	}
 
 	if err := a.emitUpdates(ctx, a.scenario.Updates); err != nil {
@@ -3082,7 +3291,16 @@ func (a *helperAgent) SetSessionConfigOption(
 		a.configurationOrder,
 		fmt.Sprintf("config:%s=%s", configured.ConfigID, configured.Value),
 	)
-	return acp.SetSessionConfigOptionResponse{ConfigOptions: []acp.SessionConfigOption{}}, nil
+	var options []acp.SessionConfigOption
+	switch {
+	case index < len(a.scenario.SessionConfigResponses):
+		options = a.scenario.SessionConfigResponses[index]
+	case len(a.scenario.NewSessionConfigOptions) > 0:
+		options = a.scenario.NewSessionConfigOptions
+	default:
+		options = a.scenario.LoadSessionConfigOptions
+	}
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: options}, nil
 }
 
 func (a *helperAgent) SetSessionMode(

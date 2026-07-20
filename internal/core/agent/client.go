@@ -692,7 +692,7 @@ func (c *clientImpl) WriteTextFile(
 	})
 }
 
-// RequestPermission auto-approves the first offered option to match the current non-interactive runtime.
+// RequestPermission approves a temporary permission when offered.
 func (c *clientImpl) RequestPermission(
 	ctx context.Context,
 	params acp.RequestPermissionRequest,
@@ -707,16 +707,18 @@ func (c *clientImpl) RequestPermission(
 	)
 }
 
-// defaultPermissionOutcome auto-approves the first offered option, or cancels
-// when the agent offered no options.
+// defaultPermissionOutcome selects the first allow-once option, or cancels
+// when the agent does not offer a temporary permission.
 func defaultPermissionOutcome(params acp.RequestPermissionRequest) acp.RequestPermissionResponse {
-	if len(params.Options) == 0 {
-		return acp.RequestPermissionResponse{
-			Outcome: acp.NewRequestPermissionOutcomeCancelled(),
+	for _, option := range params.Options {
+		if option.Kind == acp.PermissionOptionKindAllowOnce {
+			return acp.RequestPermissionResponse{
+				Outcome: acp.NewRequestPermissionOutcomeSelected(option.OptionId),
+			}
 		}
 	}
 	return acp.RequestPermissionResponse{
-		Outcome: acp.NewRequestPermissionOutcomeSelected(params.Options[0].OptionId),
+		Outcome: acp.NewRequestPermissionOutcomeCancelled(),
 	}
 }
 

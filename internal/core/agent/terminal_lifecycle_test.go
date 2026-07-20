@@ -296,7 +296,10 @@ func TestClientRequestPermissionReturnsWithinDeadline(t *testing.T) {
 	t.Run("Should select the offered option and cancel within the deadline when none is offered", func(t *testing.T) {
 		client := &clientImpl{handlerDeadline: time.Second}
 		resp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
-			Options: []acp.PermissionOption{{OptionId: "allow"}},
+			Options: []acp.PermissionOption{{
+				OptionId: "allow",
+				Kind:     acp.PermissionOptionKindAllowOnce,
+			}},
 		})
 		if err != nil {
 			t.Fatalf("request permission: %v", err)

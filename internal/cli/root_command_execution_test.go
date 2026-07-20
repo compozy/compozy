@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	acp "github.com/coder/acp-go-sdk"
+
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -133,6 +135,134 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 		t.Fatalf("expected no stderr for dry-run exec, got %q", stderr)
 	}
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func TestExecCommandOMPCompletesThroughPublicDaemonPath(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+	installInProcessCLIDaemonBootstrap(t)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("resolve OMP workspace: %v", err)
+	}
+	options := cliOMPConfigOptions([]string{"off", "medium", "auto"})
+	installCLIOMPACPHelper(t, cliOMPACPScenario{
+		SessionID:               "omp-public-session",
+		ExpectedCWD:             resolvedWorkspaceRoot,
+		ExpectedProcessCWD:      resolvedWorkspaceRoot,
+		ExpectedPrompt:          "Return OMP_OK",
+		NewSessionConfigOptions: options,
+		ExpectedSessionConfig: []cliOMPExpectedSessionConfig{
+			{ConfigID: "thinking", Value: "medium"},
+		},
+		SessionConfigResponses:     [][]acp.SessionConfigOption{options},
+		ExpectedConfigurationOrder: []string{"config:thinking=medium"},
+		PermissionOptions: []acp.PermissionOption{
+			{OptionId: "allow-once", Name: "Allow once", Kind: acp.PermissionOptionKindAllowOnce},
+			{OptionId: "allow-always", Name: "Allow always", Kind: acp.PermissionOptionKindAllowAlways},
+			{OptionId: "reject-once", Name: "Reject once", Kind: acp.PermissionOptionKindRejectOnce},
+			{OptionId: "reject-always", Name: "Reject always", Kind: acp.PermissionOptionKindRejectAlways},
+		},
+		ExpectedPermissionID: "allow-once",
+		Updates: []acp.SessionUpdate{
+			acp.StartToolCall(
+				"omp-public-tool",
+				"read_file",
+				acp.WithStartKind(acp.ToolKindRead),
+				acp.WithStartRawInput(map[string]any{"path": "README.md"}),
+			),
+			acp.UpdateToolCall(
+				"omp-public-tool",
+				acp.WithUpdateStatus(acp.ToolCallStatusCompleted),
+				acp.WithUpdateContent([]acp.ToolCallContent{
+					acp.ToolContent(acp.TextBlock("permission-gated work complete")),
+				}),
+			),
+			acp.UpdateAgentMessageText("OMP_OK"),
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	})
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--ide", model.IDEOMP,
+		"--model", model.DefaultOMPModel,
+		"--reasoning-effort", "medium",
+		"Return OMP_OK",
+	)
+	if err != nil {
+		t.Fatalf("execute public OMP command: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "OMP_OK") || stderr != "" {
+		t.Fatalf("public OMP output: stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestExecCommandOMPMissingRuntimeReportsNativeInstallGuidance(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+	installInProcessCLIDaemonBootstrap(t)
+	t.Setenv("PATH", t.TempDir())
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--ide", model.IDEOMP,
+		"Return OMP_OK",
+	)
+	if err == nil {
+		t.Fatalf("expected missing OMP failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	diagnostic := stderr + "\n" + err.Error()
+	for _, want := range []string{"omp acp", "brew install can1357/tap/omp"} {
+		if !strings.Contains(diagnostic, want) {
+			t.Fatalf("missing OMP diagnostic %q in stderr/error: %q", want, diagnostic)
+		}
+	}
+}
+
+func TestExecCommandOMPUnsupportedReasoningReportsAdvertisedChoices(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+	installInProcessCLIDaemonBootstrap(t)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("resolve OMP workspace: %v", err)
+	}
+	installCLIOMPACPHelper(t, cliOMPACPScenario{
+		SessionID:               "omp-unsupported-session",
+		ExpectedCWD:             resolvedWorkspaceRoot,
+		ExpectedProcessCWD:      resolvedWorkspaceRoot,
+		ExpectedPrompt:          "PROMPT_MUST_NOT_RUN",
+		NewSessionConfigOptions: cliOMPConfigOptions([]string{"off", "auto"}),
+	})
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--ide", model.IDEOMP,
+		"--model", model.DefaultOMPModel,
+		"--reasoning-effort", "medium",
+		"Return OMP_OK",
+	)
+	if err == nil {
+		t.Fatalf("expected unsupported OMP reasoning failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	for _, want := range []string{"set_reasoning", "medium", "Off (off)", "Auto (auto)"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("unsupported OMP stderr %q missing from %q", want, stderr)
+		}
+	}
+	if strings.Contains(stderr, "PROMPT_MUST_NOT_RUN") {
+		t.Fatalf("unsupported OMP run reached prompt dispatch: %q", stderr)
+	}
 }
 
 func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
@@ -4152,6 +4282,112 @@ func writeReusableAgentFixtureForCLI(t *testing.T, agentDir, agentMarkdown, mcpC
 			t.Fatalf("write mcp.json: %v", err)
 		}
 	}
+}
+
+type cliOMPACPScenario struct {
+	SessionID                  string                        `json:"session_id,omitempty"`
+	ExpectedCWD                string                        `json:"expected_cwd,omitempty"`
+	ExpectedProcessCWD         string                        `json:"expected_process_cwd,omitempty"`
+	ExpectedPrompt             string                        `json:"expected_prompt,omitempty"`
+	NewSessionConfigOptions    []acp.SessionConfigOption     `json:"new_session_config_options,omitempty"`
+	ExpectedSessionConfig      []cliOMPExpectedSessionConfig `json:"expected_session_config,omitempty"`
+	SessionConfigResponses     [][]acp.SessionConfigOption   `json:"session_config_responses,omitempty"`
+	ExpectedConfigurationOrder []string                      `json:"expected_configuration_order,omitempty"`
+	PermissionOptions          []acp.PermissionOption        `json:"permission_options,omitempty"`
+	ExpectedPermissionID       string                        `json:"expected_permission_id,omitempty"`
+	Updates                    []acp.SessionUpdate           `json:"updates,omitempty"`
+	StopReason                 string                        `json:"stop_reason,omitempty"`
+}
+
+type cliOMPExpectedSessionConfig struct {
+	ConfigID string `json:"config_id"`
+	Value    string `json:"value"`
+}
+
+func installCLIOMPACPHelper(t *testing.T, scenario cliOMPACPScenario) {
+	t.Helper()
+
+	binDir := t.TempDir()
+	helperBinary := filepath.Join(binDir, "agent-helper.test")
+	buildCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	build := exec.CommandContext(buildCtx, "go", "test", "-c", "-o", helperBinary, "./internal/core/agent")
+	build.Dir = mustCLIRepoRootPath(t)
+	build.Env = make([]string, 0, len(os.Environ()))
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "HOME=") {
+			build.Env = append(build.Env, entry)
+		}
+	}
+	build.Env = append(build.Env, "HOME="+originalCLIHome)
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build existing ACP helper: %v\n%s", err, output)
+	}
+
+	commandPath := filepath.Join(binDir, "omp")
+	script := fmt.Sprintf(`#!/bin/sh
+if [ "$#" -eq 2 ] && [ "$1" = "acp" ] && [ "$2" = "--help" ]; then
+  exit 0
+fi
+if [ "$#" -ne 1 ] || [ "$1" != "acp" ]; then
+  echo "unexpected omp arguments: $*" >&2
+  exit 64
+fi
+exec %q -test.run=^TestACPHelperProcess$ --
+`, helperBinary)
+	if err := os.WriteFile(commandPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write OMP ACP helper: %v", err)
+	}
+	scenarioJSON, err := json.Marshal(scenario)
+	if err != nil {
+		t.Fatalf("marshal OMP ACP scenario: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GO_WANT_ACP_HELPER_PROCESS", "1")
+	t.Setenv("GO_ACP_SCENARIO", string(scenarioJSON))
+}
+
+func cliOMPConfigOptions(thinkingValues []string) []acp.SessionConfigOption {
+	return []acp.SessionConfigOption{
+		cliOMPSelectOption(
+			"model",
+			acp.SessionConfigOptionCategoryModel,
+			"anthropic/claude-opus-4-6",
+			[]string{"anthropic/claude-opus-4-6", "openai/gpt-5.6-sol"},
+		),
+		cliOMPSelectOption(
+			"thinking",
+			acp.SessionConfigOptionCategoryThoughtLevel,
+			"auto",
+			thinkingValues,
+		),
+	}
+}
+
+func cliOMPSelectOption(
+	id string,
+	category acp.SessionConfigOptionCategory,
+	current string,
+	values []string,
+) acp.SessionConfigOption {
+	selectValues := make(acp.SessionConfigSelectOptionsUngrouped, 0, len(values))
+	for _, value := range values {
+		selectValues = append(
+			selectValues,
+			acp.SessionConfigSelectOption{
+				Value: acp.SessionConfigValueId(value),
+				Name:  strings.ToUpper(value[:1]) + value[1:],
+			},
+		)
+	}
+	return acp.SessionConfigOption{Select: &acp.SessionConfigOptionSelect{
+		Id:           acp.SessionConfigId(id),
+		Name:         id,
+		Category:     &category,
+		CurrentValue: acp.SessionConfigValueId(current),
+		Type:         "select",
+		Options:      acp.SessionConfigSelectOptions{Ungrouped: &selectValues},
+	}}
 }
 
 type cliCapturingACPClient struct {
