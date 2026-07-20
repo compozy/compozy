@@ -53,6 +53,45 @@ func TestTasksRunFormHidesSequentialOnlyFields(t *testing.T) {
 	})
 }
 
+func TestIDECatalogOptionsExposeOneOrderedOMPEntry(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose one ordered OMP entry", func(t *testing.T) {
+		t.Parallel()
+
+		options := ideCatalogOptions()
+		wantOrder := []string{
+			model.IDEClaude,
+			model.IDECodex,
+			model.IDEDroid,
+			model.IDECursor,
+			model.IDEOpenCode,
+			model.IDEPi,
+			model.IDEGemini,
+			model.IDECopilot,
+			model.IDEKiro,
+			model.IDEDevin,
+			model.IDEOMP,
+		}
+		gotOrder := make([]string, 0, len(options))
+		ompCount := 0
+		for _, option := range options {
+			gotOrder = append(gotOrder, option.Value)
+			if option.Value == model.IDEOMP {
+				ompCount++
+				if option.Key != "Oh My Pi" {
+					t.Fatalf("OMP option label = %q, want %q", option.Key, "Oh My Pi")
+				}
+			}
+		}
+		if ompCount != 1 {
+			t.Fatalf("ideCatalogOptions() contains %d OMP options, want 1", ompCount)
+		}
+		if !slices.Equal(gotOrder, wantOrder) {
+			t.Fatalf("IDE option order = %v, want %v", gotOrder, wantOrder)
+		}
+	})
+}
+
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	t.Parallel()
 

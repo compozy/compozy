@@ -8,9 +8,30 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy"
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
+
+func TestOMPIdentifiersExposePublicAPI(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose OMP identifiers through the public API", func(t *testing.T) {
+		t.Parallel()
+
+		if model.IDEOMP != "omp" {
+			t.Fatalf("model.IDEOMP = %q, want %q", model.IDEOMP, "omp")
+		}
+		if model.DefaultOMPModel != "auto" {
+			t.Fatalf("model.DefaultOMPModel = %q, want %q", model.DefaultOMPModel, "auto")
+		}
+		if core.IDEOMP != core.IDE("omp") {
+			t.Fatalf("core.IDEOMP = %q, want %q", core.IDEOMP, "omp")
+		}
+		if compozy.IDEOMP != compozy.IDE("omp") {
+			t.Fatalf("compozy.IDEOMP = %q, want %q", compozy.IDEOMP, "omp")
+		}
+	})
+}
 
 func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 	t.Parallel()

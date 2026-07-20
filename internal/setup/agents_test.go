@@ -127,6 +127,13 @@ func TestSupportedAgentsUseDeclarativePaths(t *testing.T) {
 		GlobalRootDir:  filepath.Join(homeDir, ".trae-cn", "skills"),
 		Detected:       true,
 	})
+
+	assertAgent(t, byName["pi"], Agent{
+		Name:           "pi",
+		DisplayName:    "Pi",
+		ProjectRootDir: ".pi/skills",
+		GlobalRootDir:  filepath.Join(homeDir, ".pi", "agent", "skills"),
+	})
 }
 
 func skillNames(skills []Skill) []string {
