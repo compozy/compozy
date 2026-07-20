@@ -76,15 +76,20 @@ type Agent struct {
 	GlobalRootDir  string
 	Universal      bool
 	Detected       bool
+	resolutionErr  error
 }
 
 // ResolverOptions configures environment-sensitive path resolution.
 type ResolverOptions struct {
-	CWD             string
-	HomeDir         string
-	XDGConfigHome   string
-	CodeXHome       string
-	ClaudeConfigDir string
+	CWD              string
+	HomeDir          string
+	XDGConfigHome    string
+	CodeXHome        string
+	ClaudeConfigDir  string
+	OMPProfile       *string
+	PIProfile        *string
+	PIConfigDir      string
+	PICodingAgentDir string
 }
 
 // InstallConfig describes one bundled-skill installation run.

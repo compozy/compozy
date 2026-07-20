@@ -13,6 +13,7 @@ var runtimeIDEAgentNames = map[string]string{
 	"droid":        "droid",
 	"gemini":       "gemini-cli",
 	"opencode":     "opencode",
+	"omp":          "omp",
 	"pi":           "pi",
 	"kiro":         "kiro-cli",
 	"devin":        "devin",

@@ -4,15 +4,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
+var (
+	ompProfileNamePattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+	ompReservedProfilePattern = regexp.MustCompile(`(?i)^(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\..*)?$`)
+)
+
 type resolvedEnvironment struct {
-	cwd             string
-	homeDir         string
-	xdgConfigHome   string
-	codeXHome       string
-	claudeConfigDir string
+	cwd              string
+	homeDir          string
+	xdgConfigHome    string
+	codeXHome        string
+	claudeConfigDir  string
+	ompConfigRoot    string
+	ompAgentDir      string
+	ompResolutionErr error
 }
 
 type envRoot uint8
@@ -23,6 +32,8 @@ const (
 	envRootXDGConfig
 	envRootCodeX
 	envRootClaudeConfig
+	envRootOMPConfig
+	envRootOMPAgent
 	envRootAbsolute
 )
 
@@ -78,7 +89,7 @@ func DetectInstalledAgents(options ResolverOptions) ([]Agent, error) {
 }
 
 func SelectAgents(all []Agent, names []string) ([]Agent, error) {
-	return selectByName(all, names, selectByNameConfig[Agent]{
+	selected, err := selectByName(all, names, selectByNameConfig[Agent]{
 		subject:      "setup agents",
 		emptyLabel:   "agents",
 		invalidLabel: "agent(s)",
@@ -86,6 +97,15 @@ func SelectAgents(all []Agent, names []string) ([]Agent, error) {
 		normalize:    normalizeAgentName,
 		less:         func(left, right Agent) int { return strings.Compare(left.DisplayName, right.DisplayName) },
 	})
+	if err != nil {
+		return nil, err
+	}
+	for _, agent := range selected {
+		if agent.resolutionErr != nil {
+			return nil, agent.resolutionErr
+		}
+	}
+	return selected, nil
 }
 
 func normalizeAgentName(name string) string {
@@ -132,16 +152,99 @@ func resolveEnvironment(options ResolverOptions) (resolvedEnvironment, error) {
 		claudeConfigDir = filepath.Join(homeDir, ".claude")
 	}
 
+	ompConfigRoot := filepath.Join(homeDir, ".omp")
+	ompAgentDir := filepath.Join(ompConfigRoot, "agent")
+	resolvedOMPConfigRoot, resolvedOMPAgentDir, ompResolutionErr := resolveOMPDirectories(options, cwd, homeDir)
+	if ompResolutionErr == nil {
+		ompConfigRoot = resolvedOMPConfigRoot
+		ompAgentDir = resolvedOMPAgentDir
+	} else {
+		ompResolutionErr = fmt.Errorf("resolve setup environment: %w", ompResolutionErr)
+	}
+
 	return resolvedEnvironment{
-		cwd:             cwd,
-		homeDir:         homeDir,
-		xdgConfigHome:   filepath.Clean(xdgConfigHome),
-		codeXHome:       filepath.Clean(codeXHome),
-		claudeConfigDir: filepath.Clean(claudeConfigDir),
+		cwd:              cwd,
+		homeDir:          homeDir,
+		xdgConfigHome:    filepath.Clean(xdgConfigHome),
+		codeXHome:        filepath.Clean(codeXHome),
+		claudeConfigDir:  filepath.Clean(claudeConfigDir),
+		ompConfigRoot:    ompConfigRoot,
+		ompAgentDir:      ompAgentDir,
+		ompResolutionErr: ompResolutionErr,
 	}, nil
 }
 
+func resolveOMPDirectories(options ResolverOptions, cwd, homeDir string) (string, string, error) {
+	profile, err := resolveOMPProfile(options.OMPProfile, options.PIProfile)
+	if err != nil {
+		return "", "", err
+	}
+
+	configDir := strings.TrimSpace(options.PIConfigDir)
+	if configDir == "" {
+		configDir = ".omp"
+	}
+	if filepath.IsAbs(configDir) {
+		return "", "", fmt.Errorf("resolve OMP config root: PI_CONFIG_DIR must be relative to home")
+	}
+
+	baseConfigRoot := filepath.Clean(filepath.Join(homeDir, configDir))
+	if !isPathSafe(homeDir, baseConfigRoot) {
+		return "", "", fmt.Errorf("resolve OMP config root: PI_CONFIG_DIR escaped home directory")
+	}
+
+	configRoot := baseConfigRoot
+	if profile != "" {
+		configRoot = filepath.Clean(filepath.Join(baseConfigRoot, "profiles", profile))
+		if !isPathSafe(baseConfigRoot, configRoot) {
+			return "", "", fmt.Errorf("resolve OMP profile root: profile escaped config directory")
+		}
+	}
+
+	agentDir := filepath.Clean(filepath.Join(configRoot, "agent"))
+	agentDirOverridden := false
+	if profile == "" {
+		override := strings.TrimSpace(options.PICodingAgentDir)
+		if override != "" {
+			if !filepath.IsAbs(override) {
+				override = filepath.Join(cwd, override)
+			}
+			agentDir = filepath.Clean(override)
+			agentDirOverridden = true
+		}
+	}
+	if !agentDirOverridden && !isPathSafe(configRoot, agentDir) {
+		return "", "", fmt.Errorf("resolve OMP agent directory: path escaped active config root")
+	}
+
+	return configRoot, agentDir, nil
+}
+
+func resolveOMPProfile(ompProfile, piProfile *string) (string, error) {
+	selected := piProfile
+	if ompProfile != nil {
+		selected = ompProfile
+	}
+	if selected == nil {
+		return "", nil
+	}
+
+	profile := strings.TrimSpace(*selected)
+	if profile == "" || profile == "default" {
+		return "", nil
+	}
+	if profile == "." || profile == ".." || strings.HasSuffix(profile, ".") ||
+		!ompProfileNamePattern.MatchString(profile) || ompReservedProfilePattern.MatchString(profile) {
+		return "", fmt.Errorf("invalid OMP profile %q", *selected)
+	}
+	return profile, nil
+}
+
 func (spec agentSpec) agent(env resolvedEnvironment) Agent {
+	var resolutionErr error
+	if spec.name == "omp" {
+		resolutionErr = env.ompResolutionErr
+	}
 	return Agent{
 		Name:           spec.name,
 		DisplayName:    spec.displayName,
@@ -149,6 +252,7 @@ func (spec agentSpec) agent(env resolvedEnvironment) Agent {
 		GlobalRootDir:  spec.resolveGlobalDir(env),
 		Universal:      spec.projectDir == ".agents/skills",
 		Detected:       spec.detected(env),
+		resolutionErr:  resolutionErr,
 	}
 }
 
@@ -167,6 +271,9 @@ func (spec agentSpec) resolveGlobalDir(env resolvedEnvironment) string {
 }
 
 func (spec agentSpec) detected(env resolvedEnvironment) bool {
+	if spec.name == "omp" && env.ompResolutionErr != nil {
+		return false
+	}
 	for _, detectPath := range spec.detectPaths {
 		if pathExists(detectPath.resolve(env)) {
 			return true
@@ -192,6 +299,10 @@ func (spec pathSpec) resolve(env resolvedEnvironment) string {
 		base = env.codeXHome
 	case envRootClaudeConfig:
 		base = env.claudeConfigDir
+	case envRootOMPConfig:
+		base = env.ompConfigRoot
+	case envRootOMPAgent:
+		base = env.ompAgentDir
 	default:
 		return ""
 	}
@@ -222,6 +333,14 @@ func codexPath(path string) pathSpec {
 
 func claudeConfigPath(path string) pathSpec {
 	return pathSpec{root: envRootClaudeConfig, path: path}
+}
+
+func ompConfigPath(path string) pathSpec {
+	return pathSpec{root: envRootOMPConfig, path: path}
+}
+
+func ompAgentPath(path string) pathSpec {
+	return pathSpec{root: envRootOMPAgent, path: path}
 }
 
 func absolutePath(path string) pathSpec {
@@ -315,6 +434,14 @@ var agentSpecs = []agentSpec{
 	),
 	specificAgent("mux", "Mux", ".mux/skills", homePath(".mux/skills"), homePath(".mux")),
 	universalAgent("opencode", "OpenCode", xdgPath("opencode/skills"), xdgPath("opencode")),
+	specificAgent(
+		"omp",
+		"Oh My Pi",
+		".omp/skills",
+		ompAgentPath("skills"),
+		cwdPath(".omp"),
+		ompConfigPath(""),
+	),
 	specificAgent("openhands", "OpenHands", ".openhands/skills", homePath(".openhands/skills"), homePath(".openhands")),
 	specificAgent("pi", "Pi", ".pi/skills", homePath(".pi/agent/skills"), homePath(".pi/agent")),
 	specificAgent("qoder", "Qoder", ".qoder/skills", homePath(".qoder/skills"), homePath(".qoder")),

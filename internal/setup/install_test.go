@@ -107,6 +107,82 @@ func TestInstallSymlinkModeUsesCanonicalDirForUniversalProjectAgent(t *testing.T
 	assertFileExists(t, filepath.Join(skillDir, "references", "template.md"))
 }
 
+func TestInstallOMPProjectCopyVerifiesCurrentWithoutPiWrites(t *testing.T) {
+	t.Parallel()
+
+	bundle := newTestBundle(t, map[string]string{
+		"cy-create-prd/SKILL.md":               "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+		"cy-create-prd/references/template.md": "# Template\n",
+	})
+	projectDir := t.TempDir()
+	options := ResolverOptions{CWD: projectDir, HomeDir: t.TempDir()}
+
+	result, err := Install(InstallConfig{
+		Bundle:          bundle,
+		ResolverOptions: options,
+		SkillNames:      []string{"cy-create-prd"},
+		AgentNames:      []string{"omp"},
+		Mode:            InstallModeCopy,
+	})
+	if err != nil {
+		t.Fatalf("install OMP project skill in copy mode: %v", err)
+	}
+	if len(result.Failed) != 0 || len(result.Successful) != 1 {
+		t.Fatalf("unexpected OMP copy result: %#v", result)
+	}
+
+	target := filepath.Join(projectDir, ".omp", "skills", "cy-create-prd")
+	assertFileExists(t, filepath.Join(target, "SKILL.md"))
+	assertFileExists(t, filepath.Join(target, "references", "template.md"))
+	assertPathDoesNotExist(t, filepath.Join(projectDir, ".pi"))
+	assertOMPVerifyCurrent(t, bundle, options, InstallScopeProject, InstallModeCopy)
+}
+
+func TestInstallOMPProjectSymlinkVerifiesCurrentWithoutPiWrites(t *testing.T) {
+	t.Parallel()
+
+	bundle := newTestBundle(t, map[string]string{
+		"cy-create-prd/SKILL.md": "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+	})
+	projectDir := t.TempDir()
+	options := ResolverOptions{CWD: projectDir, HomeDir: t.TempDir()}
+
+	result, err := Install(InstallConfig{
+		Bundle:          bundle,
+		ResolverOptions: options,
+		SkillNames:      []string{"cy-create-prd"},
+		AgentNames:      []string{"omp"},
+		Mode:            InstallModeSymlink,
+	})
+	if err != nil {
+		t.Fatalf("install OMP project skill in symlink mode: %v", err)
+	}
+	if len(result.Failed) != 0 || len(result.Successful) != 1 {
+		t.Fatalf("unexpected OMP symlink result: %#v", result)
+	}
+
+	canonical := filepath.Join(projectDir, ".agents", "skills", "cy-create-prd")
+	target := filepath.Join(projectDir, ".omp", "skills", "cy-create-prd")
+	resolvedTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatalf("resolve OMP project skill symlink: %v", err)
+	}
+	resolvedInfo, err := os.Stat(resolvedTarget)
+	if err != nil {
+		t.Fatalf("stat resolved OMP project skill symlink: %v", err)
+	}
+	canonicalInfo, err := os.Stat(canonical)
+	if err != nil {
+		t.Fatalf("stat canonical OMP project skill: %v", err)
+	}
+	if !os.SameFile(resolvedInfo, canonicalInfo) {
+		t.Fatalf("unexpected OMP symlink target\nwant: %s\ngot:  %s", canonical, resolvedTarget)
+	}
+	assertFileExists(t, filepath.Join(canonical, "SKILL.md"))
+	assertPathDoesNotExist(t, filepath.Join(projectDir, ".pi"))
+	assertOMPVerifyCurrent(t, bundle, options, InstallScopeProject, InstallModeSymlink)
+}
+
 func TestPreviewGlobalUniversalAgentUsesCanonicalHomeAgentsDir(t *testing.T) {
 	t.Parallel()
 
@@ -404,5 +480,36 @@ func assertFileExists(t *testing.T, path string) {
 
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected %s to exist: %v", path, err)
+	}
+}
+
+func assertPathDoesNotExist(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected path not to exist: %s (err=%v)", path, err)
+	}
+}
+
+func assertOMPVerifyCurrent(
+	t *testing.T,
+	bundle fs.FS,
+	options ResolverOptions,
+	wantScope InstallScope,
+	wantMode InstallMode,
+) {
+	t.Helper()
+
+	result, err := Verify(VerifyConfig{
+		Bundle:          bundle,
+		ResolverOptions: options,
+		AgentName:       "omp",
+		SkillNames:      []string{"cy-create-prd"},
+	})
+	if err != nil {
+		t.Fatalf("verify OMP skill: %v", err)
+	}
+	if result.Scope != wantScope || result.Mode != wantMode || result.HasMissing() || result.HasDrift() {
+		t.Fatalf("unexpected OMP verification result: %#v", result)
 	}
 }
