@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/internal/charmtheme"
@@ -97,11 +99,17 @@ func darkHuhTheme() huh.Theme {
 	})
 }
 
-func workPackagePickerHuhTheme() huh.Theme {
+func reviewWorkPackagePickerHuhTheme() huh.Theme {
 	return huh.ThemeFunc(func(bool) *huh.Styles {
 		styles := newDarkHuhStyles()
-		styles.Focused.SelectedOption = styles.Focused.SelectedOption.Transform(workPackagePickerSelectedLabel)
-		styles.Blurred.SelectedOption = styles.Blurred.SelectedOption.Transform(workPackagePickerSelectedLabel)
+		selectedLabel := func(label string) string {
+			if strings.Contains(label, workPackagePickerBlockedMarker) {
+				return label
+			}
+			return workPackagePickerSelectedLabel(label)
+		}
+		styles.Focused.SelectedOption = styles.Focused.SelectedOption.Transform(selectedLabel)
+		styles.Blurred.SelectedOption = styles.Blurred.SelectedOption.Transform(selectedLabel)
 		return styles
 	})
 }

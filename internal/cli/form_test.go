@@ -102,8 +102,10 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 			Label: "[ ] auth/WP-003 — Web — Review round 1 — 3 issues pending",
 		},
 		{
-			Value: "auth/WP-004",
-			Label: "[!] auth/WP-004 — Rollout — No review round — No issues pending",
+			Value:                  "auth/WP-004",
+			Label:                  "[⊘] auth/WP-004 — Rollout — No review round — No issues pending",
+			SelectionBlocked:       true,
+			SelectionBlockedReason: reviewImplementationBlockedReason,
 		},
 	}
 	inputs := newFormInputs()
@@ -126,11 +128,11 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 	}
 	rendered := xansi.Strip(field.View())
 	for _, want := range []string{
-		"[!] means no implementation tasks are complete.",
+		"[⊘] means no implementation tasks are complete and review is blocked.",
 		"[✓] auth/WP-001",
 		"[x] auth/WP-002",
 		"[ ] auth/WP-003",
-		"[!] auth/WP-004",
+		"[⊘] auth/WP-004",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("review target view missing %q:\n%s", want, rendered)
@@ -144,13 +146,16 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 		t.Fatalf("blurred review target view loses selected marker:\n%s", blurred)
 	}
 	var output bytes.Buffer
-	if err := field.RunAccessible(&output, strings.NewReader("2\n")); err != nil {
+	if err := field.RunAccessible(&output, strings.NewReader("4\n2\n")); err != nil {
 		t.Fatalf("run accessible review target field: %v", err)
 	}
 	if inputs.name != "auth/WP-002" {
 		t.Fatalf("selected review target = %q, want exact Work Package reference", inputs.name)
 	}
 	accessibleOutput := xansi.Strip(output.String())
+	if !strings.Contains(accessibleOutput, reviewImplementationBlockedReason) {
+		t.Fatalf("review target output missing blocked-selection guidance:\n%s", output.String())
+	}
 	for _, want := range []string{"auth/WP-001", "No issues pending", "auth/WP-002", "1 issue pending", "auth/WP-004"} {
 		if !strings.Contains(accessibleOutput, want) {
 			t.Fatalf("review target output missing %q:\n%s", want, output.String())

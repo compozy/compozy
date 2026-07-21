@@ -22,6 +22,7 @@ const (
 	workPackagePickerNotStartedMarker = "[!]"
 	workPackagePickerBlockedMarker    = "[⊘]"
 	workPackagePickerCompletedMarker  = "[✓]"
+	reviewImplementationBlockedReason = "review is blocked until at least one implementation task is complete"
 )
 
 type workPackagePickerInput struct {
@@ -33,9 +34,11 @@ type workPackagePickerInput struct {
 }
 
 type workPackagePickerOption struct {
-	Value     string
-	Label     string
-	Completed bool
+	Value                  string
+	Label                  string
+	Completed              bool
+	SelectionBlocked       bool
+	SelectionBlockedReason string
 }
 
 type reviewRoundPickerSummary struct {
@@ -82,21 +85,18 @@ func defaultPickWorkPackage(cmd *cobra.Command, input workPackagePickerInput) (s
 	}
 
 	huhOptions := make([]huh.Option[string], 0, len(options))
-	selected := ""
 	allowCompleted := !input.LockCompleted || input.IncludeCompleted
 	for index := range options {
 		option := &options[index]
 		huhOptions = append(huhOptions, huh.NewOption(workPackagePickerOptionLabel(*option), option.Value))
-		if selected == "" && (!option.Completed || allowCompleted) {
-			selected = option.Value
-		}
 	}
+	selected := defaultWorkPackagePickerSelection(options, allowCompleted)
 
 	description := "Each row includes completion, live run status, dependency readiness, and task progress. " +
 		"[⊘] means dependency blocked; [!] means no tasks are complete."
 	if input.RunMode == daemonRunModeReview {
 		description = "Rows show the latest review round and pending issues. " +
-			"[!] means no implementation tasks are complete."
+			"[⊘] means no implementation tasks are complete and review is blocked."
 	} else if !allowCompleted {
 		description = "Completed packages stay visible with a check but stay locked. " +
 			"Rows include status and task progress; [⊘] means dependency blocked; [!] means no tasks are complete."
@@ -118,6 +118,17 @@ func defaultPickWorkPackage(cmd *cobra.Command, input workPackagePickerInput) (s
 		return "", err
 	}
 	return strings.TrimSpace(selected), nil
+}
+
+func defaultWorkPackagePickerSelection(options []workPackagePickerOption, allowCompleted bool) string {
+	for index := range options {
+		option := &options[index]
+		if option.SelectionBlocked || (option.Completed && !allowCompleted) {
+			continue
+		}
+		return option.Value
+	}
+	return ""
 }
 
 func loadReviewFixTargetPickerOptions(
@@ -240,9 +251,16 @@ func buildWorkPackagePickerOption(
 			return workPackagePickerOption{}, err
 		}
 		completed := workflowOption.Completed && summary.PendingIssueCount == 0
-		mark := workPackagePickerMarker(completed, false, taskRunWizardWorkflowNotStarted(workflowOption))
+		reviewBlocked := taskRunWizardWorkflowNotStarted(workflowOption)
+		mark := workPackagePickerMarker(completed, reviewBlocked, false)
 		label := mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(summary)
-		return workPackagePickerOption{Value: value, Label: label, Completed: completed}, nil
+		return workPackagePickerOption{
+			Value:                  value,
+			Label:                  label,
+			Completed:              completed,
+			SelectionBlocked:       reviewBlocked,
+			SelectionBlockedReason: reviewImplementationBlockedReason,
+		}, nil
 	}
 	mark := workPackagePickerMarker(
 		workflowOption.Completed,
@@ -265,9 +283,12 @@ func buildOrdinaryReviewFixTargetPickerOption(
 		return workPackagePickerOption{}, err
 	}
 	completed := workflowOption.Completed && summary.PendingIssueCount == 0
-	mark := workPackagePickerMarker(completed, false, taskRunWizardWorkflowNotStarted(workflowOption))
+	reviewBlocked := taskRunWizardWorkflowNotStarted(workflowOption)
+	mark := workPackagePickerMarker(completed, reviewBlocked, false)
 	return workPackagePickerOption{
-		Value: slug,
+		Value:                  slug,
+		SelectionBlocked:       reviewBlocked,
+		SelectionBlockedReason: reviewImplementationBlockedReason,
 		Label: mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(
 			summary,
 		),
@@ -361,6 +382,13 @@ func validateWorkPackagePickerSelection(
 		option := &options[index]
 		if option.Value != selected {
 			continue
+		}
+		if option.SelectionBlocked {
+			reason := strings.TrimSpace(option.SelectionBlockedReason)
+			if reason == "" {
+				reason = "selection is blocked"
+			}
+			return fmt.Errorf("%s: %s", selected, reason)
 		}
 		if option.Completed && !allowCompleted {
 			return fmt.Errorf("%s: completed Work Package is locked", selected)

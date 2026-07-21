@@ -219,7 +219,7 @@ func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
 func (fb *formBuilder) build() *huh.Form {
 	theme := darkHuhTheme()
 	if len(fb.reviewFixTargetOptions) > 0 {
-		theme = workPackagePickerHuhTheme()
+		theme = reviewWorkPackagePickerHuhTheme()
 	}
 	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(theme)
 }
@@ -271,6 +271,15 @@ func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
 		if fb.state.kind == commandKindFixReviews && len(fb.reviewFixTargetOptions) > 0 {
 			fb.nameFromDirList = true
+			if strings.TrimSpace(*target) == "" {
+				for index := range fb.reviewFixTargetOptions {
+					option := &fb.reviewFixTargetOptions[index]
+					if !option.SelectionBlocked {
+						*target = option.Value
+						break
+					}
+				}
+			}
 			options := make([]huh.Option[string], 0, len(fb.reviewFixTargetOptions))
 			for index := range fb.reviewFixTargetOptions {
 				option := &fb.reviewFixTargetOptions[index]
@@ -282,10 +291,13 @@ func (fb *formBuilder) addNameField(target *string) {
 				Description(
 					"Select a workflow or Work Package. " +
 						"Rows show review round and pending issues; " +
-						"[!] means no implementation tasks are complete.",
+						"[⊘] means no implementation tasks are complete and review is blocked.",
 				).
 				Options(options...).
 				Filtering(true).
+				Validate(func(value string) error {
+					return validateWorkPackagePickerSelection(fb.reviewFixTargetOptions, value, true)
+				}).
 				Value(target)
 		}
 		title, description, dirs := fb.nameFieldOptions()

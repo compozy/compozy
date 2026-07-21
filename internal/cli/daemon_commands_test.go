@@ -3556,7 +3556,7 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	}
 	wants := map[string]string{
 		initiative + "/WP-001": "[ ] auth/WP-001 — Foundation — Review round 3 — 1 issue pending",
-		initiative + "/WP-002": "[!] auth/WP-002 — Delivery — No review round — No issues pending",
+		initiative + "/WP-002": "[⊘] auth/WP-002 — Delivery — No review round — No issues pending",
 		"clean":                "[✓] clean — No review round — No issues pending",
 	}
 	if len(options) != len(wants) {
@@ -3589,18 +3589,18 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	if !strings.Contains(completedLabel, "\x1b[9m") {
 		t.Fatalf("clean completed review target label = %q, want strikethrough", completedLabel)
 	}
-	notStartedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
+	blockedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
 		return option.Value == initiative+"/WP-002"
 	})
-	if notStartedIndex < 0 {
-		t.Fatal("not-started review target is missing")
+	if blockedIndex < 0 {
+		t.Fatal("review-blocked target is missing")
 	}
-	if got := workPackagePickerOptionLabel(options[notStartedIndex]); got != wants[initiative+"/WP-002"] {
-		t.Fatalf("not-started review target label = %q, want no strikethrough", got)
+	if got := workPackagePickerOptionLabel(options[blockedIndex]); got != wants[initiative+"/WP-002"] {
+		t.Fatalf("review-blocked target label = %q, want blocked marker", got)
 	}
-	if got := workPackagePickerSelectedLabel(options[notStartedIndex].Label); got !=
-		"[x] auth/WP-002 — Delivery — No review round — No issues pending" {
-		t.Fatalf("selected not-started review target label = %q, want [x] marker", got)
+	if err := validateWorkPackagePickerSelection(options, initiative+"/WP-002", true); err == nil ||
+		!strings.Contains(err.Error(), "review is blocked until at least one implementation task is complete") {
+		t.Fatalf("review-blocked selection error = %v, want implementation guidance", err)
 	}
 }
 
