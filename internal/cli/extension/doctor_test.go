@@ -7,8 +7,60 @@ import (
 	"testing"
 
 	extensions "github.com/compozy/compozy/internal/core/extension"
+	"github.com/compozy/compozy/internal/setup"
 	"github.com/compozy/compozy/internal/version"
 )
+
+func TestDoctorResolverMatchesSetupForOMPEnvironment(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("OMP_PROFILE", "work")
+	t.Setenv("PI_PROFILE", "legacy")
+	t.Setenv("PI_CONFIG_DIR", ".custom-omp")
+	defaultAgentDir := filepath.Join(t.TempDir(), "default-agent")
+	t.Setenv("PI_CODING_AGENT_DIR", defaultAgentDir)
+
+	doctorResolver := buildResolverOptions(commandEnv{workspaceRoot: workspaceRoot, homeDir: homeDir})
+	ompProfile := "work"
+	piProfile := "legacy"
+	setupResolver := setup.ResolverOptions{
+		CWD:              workspaceRoot,
+		HomeDir:          homeDir,
+		OMPProfile:       &ompProfile,
+		PIProfile:        &piProfile,
+		PIConfigDir:      ".custom-omp",
+		PICodingAgentDir: defaultAgentDir,
+	}
+	doctorAgents, err := setup.SupportedAgents(doctorResolver)
+	if err != nil {
+		t.Fatalf("resolve doctor setup agents: %v", err)
+	}
+	setupAgents, err := setup.SupportedAgents(setupResolver)
+	if err != nil {
+		t.Fatalf("resolve setup agents: %v", err)
+	}
+
+	doctorOMP := findSetupAgent(t, doctorAgents, "omp")
+	setupOMP := findSetupAgent(t, setupAgents, "omp")
+	if doctorOMP.ProjectRootDir != setupOMP.ProjectRootDir || doctorOMP.GlobalRootDir != setupOMP.GlobalRootDir {
+		t.Fatalf("doctor/setup OMP destinations differ: doctor=%#v setup=%#v", doctorOMP, setupOMP)
+	}
+	wantGlobal := filepath.Join(homeDir, ".custom-omp", "profiles", "work", "agent", "skills")
+	if doctorOMP.ProjectRootDir != ".omp/skills" || doctorOMP.GlobalRootDir != wantGlobal {
+		t.Fatalf("unexpected doctor OMP destinations: %#v", doctorOMP)
+	}
+}
+
+func findSetupAgent(t *testing.T, agents []setup.Agent, name string) setup.Agent {
+	t.Helper()
+	for i := range agents {
+		if agents[i].Name == name {
+			return agents[i]
+		}
+	}
+	t.Fatalf("setup agent %q not found", name)
+	return setup.Agent{}
+}
 
 func TestDoctorWarnsOnPriorityTie(t *testing.T) {
 	deps := newTestDeps(t)

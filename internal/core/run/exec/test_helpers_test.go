@@ -28,6 +28,17 @@ func TestRunACPHelperProcess(_ *testing.T) {
 		fmt.Fprintf(os.Stderr, "load helper scenario: %v\n", err)
 		os.Exit(2)
 	}
+	if scenario.ExpectedCommandArgs != nil {
+		separator := slices.Index(os.Args, "--")
+		var got []string
+		if separator >= 0 {
+			got = os.Args[separator+1:]
+		}
+		if !slices.Equal(got, scenario.ExpectedCommandArgs) {
+			fmt.Fprintf(os.Stderr, "helper command args = %#v, want %#v\n", got, scenario.ExpectedCommandArgs)
+			os.Exit(2)
+		}
+	}
 
 	agent := &runACPHelperAgent{
 		scenario:  scenario,
@@ -42,6 +53,8 @@ func TestRunACPHelperProcess(_ *testing.T) {
 
 type runACPHelperScenario struct {
 	SessionID                         string                    `json:"session_id,omitempty"`
+	ExpectedCommandArgs               []string                  `json:"expected_command_args,omitempty"`
+	ExpectedCWD                       string                    `json:"expected_cwd,omitempty"`
 	ExpectedLoadSessionID             string                    `json:"expected_load_session_id,omitempty"`
 	ExpectedPromptContains            string                    `json:"expected_prompt_contains,omitempty"`
 	ExpectedNewSessionMCPServerNames  []string                  `json:"expected_new_session_mcp_server_names,omitempty"`
@@ -49,6 +62,7 @@ type runACPHelperScenario struct {
 	SupportsLoadSession               bool                      `json:"supports_load_session,omitempty"`
 	ReplayUpdatesOnLoad               []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
 	SessionMeta                       map[string]any            `json:"session_meta,omitempty"`
+	ConfigOptions                     []acp.SessionConfigOption `json:"config_options,omitempty"`
 	Updates                           []acp.SessionUpdate       `json:"updates,omitempty"`
 	StopReason                        string                    `json:"stop_reason,omitempty"`
 	BlockUntilCancel                  bool                      `json:"block_until_cancel,omitempty"`
@@ -82,6 +96,12 @@ func (a *runACPHelperAgent) NewSession(_ context.Context, req acp.NewSessionRequ
 	if a.scenario.NewSessionError != nil {
 		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
 	}
+	if a.scenario.ExpectedCWD != "" && req.Cwd != a.scenario.ExpectedCWD {
+		return acp.NewSessionResponse{}, &acp.RequestError{
+			Code:    4004,
+			Message: fmt.Sprintf("unexpected new-session cwd %q", req.Cwd),
+		}
+	}
 	if want := a.scenario.ExpectedNewSessionMCPServerNames; len(want) > 0 {
 		if got := helperMCPServerNames(req.McpServers); !slices.Equal(got, want) {
 			return acp.NewSessionResponse{}, &acp.RequestError{
@@ -93,7 +113,7 @@ func (a *runACPHelperAgent) NewSession(_ context.Context, req acp.NewSessionRequ
 	return acp.NewSessionResponse{
 		SessionId:     acp.SessionId(a.sessionID),
 		Meta:          a.scenario.SessionMeta,
-		ConfigOptions: runACPHelperConfigOptions(),
+		ConfigOptions: a.configOptions(),
 		Modes:         runACPHelperModes(),
 	}, nil
 }
@@ -106,6 +126,12 @@ func (a *runACPHelperAgent) LoadSession(
 		return acp.LoadSessionResponse{}, &acp.RequestError{
 			Code:    4002,
 			Message: fmt.Sprintf("unexpected load session id %q", req.SessionId),
+		}
+	}
+	if a.scenario.ExpectedCWD != "" && req.Cwd != a.scenario.ExpectedCWD {
+		return acp.LoadSessionResponse{}, &acp.RequestError{
+			Code:    4004,
+			Message: fmt.Sprintf("unexpected load-session cwd %q", req.Cwd),
 		}
 	}
 	if want := a.scenario.ExpectedLoadSessionMCPServerNames; len(want) > 0 {
@@ -126,7 +152,7 @@ func (a *runACPHelperAgent) LoadSession(
 	}
 	return acp.LoadSessionResponse{
 		Meta:          a.scenario.SessionMeta,
-		ConfigOptions: runACPHelperConfigOptions(),
+		ConfigOptions: a.configOptions(),
 		Modes:         runACPHelperModes(),
 	}, nil
 }
@@ -195,11 +221,11 @@ func (*runACPHelperAgent) ResumeSession(context.Context, acp.ResumeSessionReques
 	return acp.ResumeSessionResponse{}, nil
 }
 
-func (*runACPHelperAgent) SetSessionConfigOption(
+func (a *runACPHelperAgent) SetSessionConfigOption(
 	context.Context,
 	acp.SetSessionConfigOptionRequest,
 ) (acp.SetSessionConfigOptionResponse, error) {
-	return acp.SetSessionConfigOptionResponse{ConfigOptions: runACPHelperConfigOptions()}, nil
+	return acp.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions()}, nil
 }
 
 func (a *runACPHelperAgent) SetSessionMode(
@@ -231,6 +257,30 @@ func runACPHelperConfigOptions() []acp.SessionConfigOption {
 			reasoningCategory,
 			"medium",
 			[]string{"low", "medium", "high", "xhigh", "max", "ultra", "workspace-reasoning"},
+		),
+	}
+}
+
+func (a *runACPHelperAgent) configOptions() []acp.SessionConfigOption {
+	if a.scenario.ConfigOptions != nil {
+		return a.scenario.ConfigOptions
+	}
+	return runACPHelperConfigOptions()
+}
+
+func runACPHelperOMPConfigOptions() []acp.SessionConfigOption {
+	return []acp.SessionConfigOption{
+		runACPHelperSelectOption(
+			"model",
+			acp.SessionConfigOptionCategoryModel,
+			"anthropic/claude-opus-4-6",
+			[]string{"anthropic/claude-opus-4-6", "openai/gpt-5.6-sol"},
+		),
+		runACPHelperSelectOption(
+			"thinking",
+			acp.SessionConfigOptionCategoryThoughtLevel,
+			"auto",
+			[]string{"off", "medium", "auto"},
 		),
 	}
 }

@@ -53,6 +53,45 @@ func TestTasksRunFormHidesSequentialOnlyFields(t *testing.T) {
 	})
 }
 
+func TestIDECatalogOptionsExposeOneOrderedOMPEntry(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose one ordered OMP entry", func(t *testing.T) {
+		t.Parallel()
+
+		options := ideCatalogOptions()
+		wantOrder := []string{
+			model.IDEClaude,
+			model.IDECodex,
+			model.IDEDroid,
+			model.IDECursor,
+			model.IDEOpenCode,
+			model.IDEPi,
+			model.IDEGemini,
+			model.IDECopilot,
+			model.IDEKiro,
+			model.IDEDevin,
+			model.IDEOMP,
+		}
+		gotOrder := make([]string, 0, len(options))
+		ompCount := 0
+		for _, option := range options {
+			gotOrder = append(gotOrder, option.Value)
+			if option.Value == model.IDEOMP {
+				ompCount++
+				if option.Key != "Oh My Pi" {
+					t.Fatalf("OMP option label = %q, want %q", option.Key, "Oh My Pi")
+				}
+			}
+		}
+		if ompCount != 1 {
+			t.Fatalf("ideCatalogOptions() contains %d OMP options, want 1", ompCount)
+		}
+		if !slices.Equal(gotOrder, wantOrder) {
+			t.Fatalf("IDE option order = %v, want %v", gotOrder, wantOrder)
+		}
+	})
+}
+
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	t.Parallel()
 
@@ -753,6 +792,37 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 			assertFieldViewContains(t, field, tc.label)
 		})
 	}
+}
+
+func TestOMPFormGuidanceUsesAutoModelAndExistingMediumReasoning(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use auto model and existing medium reasoning for OMP guidance", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+
+		var selectedModel string
+		modelBuilder := newFormBuilder(cmd, state)
+		modelBuilder.addModelField(&selectedModel)
+		modelView := renderSingleFormFieldForTest(t, modelBuilder.fields, "model")
+		if !strings.Contains(modelView, "omp=auto") {
+			t.Fatalf("expected OMP auto model guidance, got %q", modelView)
+		}
+
+		selectedReasoning := model.DefaultReasoningEffort
+		reasoningBuilder := newFormBuilder(cmd, state)
+		reasoningBuilder.addReasoningEffortField(&selectedReasoning)
+		reasoningView := renderSingleFormFieldForTest(t, reasoningBuilder.fields, "reasoning-effort")
+		if !strings.Contains(reasoningView, "Oh My Pi") || !strings.Contains(reasoningView, "Medium") {
+			t.Fatalf("expected OMP medium reasoning guidance, got %q", reasoningView)
+		}
+		for _, forbidden := range []string{"Auto", "Off"} {
+			if strings.Contains(reasoningView, forbidden) {
+				t.Fatalf("reasoning domain unexpectedly includes %q: %q", forbidden, reasoningView)
+			}
+		}
+	})
 }
 
 func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {

@@ -18,6 +18,7 @@ func TestAgentNameForIDE(t *testing.T) {
 		"droid":        "droid",
 		"gemini":       "gemini-cli",
 		"opencode":     "opencode",
+		"omp":          "omp",
 		"pi":           "pi",
 		"kiro":         "kiro-cli",
 		"devin":        "devin",
@@ -141,6 +142,81 @@ func TestVerifyFallsBackToGlobalScopeWhenProjectSkillsAreAbsent(t *testing.T) {
 			result.DriftedSkillNames(),
 		)
 	}
+}
+
+func TestInstallOMPDefaultProfileGloballyVerifiesCurrent(t *testing.T) {
+	t.Parallel()
+
+	bundle := newTestBundle(t, map[string]string{
+		"cy-create-prd/SKILL.md": "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+	})
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	options := ResolverOptions{CWD: projectDir, HomeDir: homeDir}
+
+	result, err := Install(InstallConfig{
+		Bundle:          bundle,
+		ResolverOptions: options,
+		SkillNames:      []string{"cy-create-prd"},
+		AgentNames:      []string{"omp"},
+		Global:          true,
+		Mode:            InstallModeCopy,
+	})
+	if err != nil {
+		t.Fatalf("install default-profile OMP skill globally: %v", err)
+	}
+	if len(result.Failed) != 0 || len(result.Successful) != 1 {
+		t.Fatalf("unexpected default-profile OMP install result: %#v", result)
+	}
+
+	target := filepath.Join(homeDir, ".omp", "agent", "skills", "cy-create-prd")
+	assertFileExists(t, filepath.Join(target, "SKILL.md"))
+	assertPathDoesNotExist(t, filepath.Join(projectDir, ".omp"))
+	assertPathDoesNotExist(t, filepath.Join(homeDir, ".pi"))
+	assertOMPVerifyCurrent(t, bundle, options, InstallScopeGlobal, InstallModeCopy)
+}
+
+func TestInstallOMPNamedProfileGloballyUsesCanonicalProfilePrecedence(t *testing.T) {
+	t.Parallel()
+
+	bundle := newTestBundle(t, map[string]string{
+		"cy-create-prd/SKILL.md": "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+	})
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	workProfile := "work"
+	legacyProfile := "legacy"
+	agentOverride := filepath.Join(homeDir, "overridden-agent")
+	options := ResolverOptions{
+		CWD:              projectDir,
+		HomeDir:          homeDir,
+		OMPProfile:       &workProfile,
+		PIProfile:        &legacyProfile,
+		PICodingAgentDir: agentOverride,
+	}
+
+	result, err := Install(InstallConfig{
+		Bundle:          bundle,
+		ResolverOptions: options,
+		SkillNames:      []string{"cy-create-prd"},
+		AgentNames:      []string{"omp"},
+		Global:          true,
+		Mode:            InstallModeCopy,
+	})
+	if err != nil {
+		t.Fatalf("install named-profile OMP skill globally: %v", err)
+	}
+	if len(result.Failed) != 0 || len(result.Successful) != 1 {
+		t.Fatalf("unexpected named-profile OMP install result: %#v", result)
+	}
+
+	target := filepath.Join(homeDir, ".omp", "profiles", "work", "agent", "skills", "cy-create-prd")
+	assertFileExists(t, filepath.Join(target, "SKILL.md"))
+	assertPathDoesNotExist(t, filepath.Join(homeDir, ".omp", "profiles", "legacy"))
+	assertPathDoesNotExist(t, filepath.Join(homeDir, ".omp", "agent"))
+	assertPathDoesNotExist(t, agentOverride)
+	assertPathDoesNotExist(t, filepath.Join(homeDir, ".pi"))
+	assertOMPVerifyCurrent(t, bundle, options, InstallScopeGlobal, InstallModeCopy)
 }
 
 func TestVerifyPrefersProjectScopeOverGlobalWhenProjectInstallIsPartial(t *testing.T) {

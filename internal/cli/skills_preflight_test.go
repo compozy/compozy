@@ -1,11 +1,17 @@
 package cli
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/setup"
+	"github.com/spf13/cobra"
 )
 
 func TestRequiredSkillStateHelpers(t *testing.T) {
@@ -69,7 +75,10 @@ func TestRequiredSkillStateHelpers(t *testing.T) {
 	if !state.HasBlockingMissing() {
 		t.Fatal("expected blocking missing skills")
 	}
-	if got := strings.Join(state.RefreshSkillNames(), ","); got != "cy-final-verify,ext-drift,ext-missing" {
+	if got := strings.Join(
+		state.RefreshSkillNames(),
+		",",
+	); got != "cy-execute-task,cy-final-verify,ext-drift,ext-missing" {
 		t.Fatalf("unexpected refresh skill names: %q", got)
 	}
 	if !state.HasRefreshableChanges() {
@@ -123,6 +132,39 @@ func TestBuildMissingSkillErrorUsesScopeSpecificGuidance(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %v", tc.wantSnippet, err)
 			}
 		})
+	}
+}
+
+func TestInteractivePreflightBlocksWhenMissingSkillRefreshIsDeclined(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.isInteractive = func() bool { return true }
+	state.confirmSkillRefresh = func(*cobra.Command, skillRefreshPrompt) (bool, error) {
+		return false, nil
+	}
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{{Name: "cy-execute-task"}}, nil
+	}
+	state.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+			Scope: setup.InstallScopeProject,
+			Skills: []setup.VerifiedSkill{{
+				Skill: setup.Skill{Name: "cy-execute-task"},
+				State: setup.VerifyStateMissing,
+			}},
+		}, nil
+	}
+	state.verifyExtensionSkills = func(setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error) {
+		return setup.ExtensionVerifyResult{}, nil
+	}
+
+	cmd := &cobra.Command{Use: "tasks run"}
+	cmd.SetOut(&bytes.Buffer{})
+	err := state.preflightBundledSkills(cmd, core.Config{IDE: core.IDECodex}, nil)
+	if err == nil || !strings.Contains(err.Error(), "missing: cy-execute-task") {
+		t.Fatalf("preflight error = %v, want blocking missing-skill error", err)
 	}
 }
 
@@ -265,6 +307,7 @@ func TestRefreshBundledSkillsInstallsBundledAndExtensionSkills(t *testing.T) {
 	}
 
 	err := state.refreshBundledSkills(requiredSkillState{
+		ResolverOptions:   setup.ResolverOptions{CWD: state.workspaceRoot},
 		AgentName:         "codex",
 		BundledSkillNames: []string{"cy-execute-task", "cy-final-verify"},
 		ExtensionPacks:    []setup.SkillPackSource{{ExtensionName: "ext", ManifestPath: "/tmp/ext.json"}},
@@ -284,6 +327,201 @@ func TestRefreshBundledSkillsInstallsBundledAndExtensionSkills(t *testing.T) {
 	}
 	if !extensionCalled {
 		t.Fatal("expected extension install to run")
+	}
+}
+
+func TestPreflightResolverOptionsPreservesEveryOMPInput(t *testing.T) {
+	t.Setenv("OMP_PROFILE", "ambient")
+	t.Setenv("PI_PROFILE", "ambient-legacy")
+	t.Setenv("PI_CONFIG_DIR", ".ambient-omp")
+	t.Setenv("PI_CODING_AGENT_DIR", "/ambient/agent")
+
+	explicitEmpty := ""
+	legacy := legacyOMPProfile
+	provided := setup.ResolverOptions{
+		CWD:              "/provided/workspace",
+		HomeDir:          "/provided/home",
+		XDGConfigHome:    "/provided/xdg",
+		CodeXHome:        "/provided/codex",
+		ClaudeConfigDir:  "/provided/claude",
+		OMPProfile:       &explicitEmpty,
+		PIProfile:        &legacy,
+		PIConfigDir:      ".provided-omp",
+		PICodingAgentDir: "/provided/agent",
+	}
+
+	got := preflightResolverOptions(provided, "/ambient/workspace")
+	if got.CWD != provided.CWD || got.HomeDir != provided.HomeDir ||
+		got.XDGConfigHome != provided.XDGConfigHome || got.CodeXHome != provided.CodeXHome ||
+		got.ClaudeConfigDir != provided.ClaudeConfigDir || got.PIConfigDir != provided.PIConfigDir ||
+		got.PICodingAgentDir != provided.PICodingAgentDir {
+		t.Fatalf("preflight resolver lost supplied string options: got=%#v want=%#v", got, provided)
+	}
+	if got.OMPProfile == nil || *got.OMPProfile != "" {
+		t.Fatalf("OMP profile = %#v, want explicit empty pointer", got.OMPProfile)
+	}
+	if got.PIProfile == nil || *got.PIProfile != legacy {
+		t.Fatalf("PI profile = %#v, want %q", got.PIProfile, legacy)
+	}
+
+	provided.PIConfigDir = "   "
+	provided.PICodingAgentDir = "\t"
+	got = preflightResolverOptions(provided, "/ambient/workspace")
+	if got.PIConfigDir != provided.PIConfigDir || got.PICodingAgentDir != provided.PICodingAgentDir {
+		t.Fatalf("preflight resolver normalized supplied compatibility paths: got=%#v want=%#v", got, provided)
+	}
+}
+
+func TestOMPRequiredSkillPreflightRefreshesNamedProfileAtVerifiedScope(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("OMP_PROFILE", "work")
+	t.Setenv("PI_PROFILE", legacyOMPProfile)
+	t.Setenv("PI_CODING_AGENT_DIR", filepath.Join(t.TempDir(), "default-agent"))
+
+	skills, err := setup.ListBundledSkills()
+	if err != nil {
+		t.Fatalf("list bundled skills: %v", err)
+	}
+	if len(skills) < 2 {
+		t.Fatalf("expected at least two bundled skills, got %d", len(skills))
+	}
+	skillNames := make([]string, 0, len(skills))
+	for i := range skills {
+		skillNames = append(skillNames, skills[i].Name)
+	}
+	resolver := currentResolverOptions(workspaceRoot)
+	installed, err := setup.InstallBundledSkills(setup.InstallConfig{
+		ResolverOptions: resolver,
+		SkillNames:      skillNames,
+		AgentNames:      []string{"omp"},
+		Global:          true,
+		Mode:            setup.InstallModeCopy,
+	})
+	if err != nil {
+		t.Fatalf("install OMP preflight fixture: %v", err)
+	}
+	if len(installed.Failed) != 0 {
+		t.Fatalf("install OMP preflight fixture failures: %#v", installed.Failed)
+	}
+
+	missingPath := filepath.Join(homeDir, ".omp", "profiles", "work", "agent", "skills", skillNames[0])
+	if err := os.RemoveAll(missingPath); err != nil {
+		t.Fatalf("remove one installed skill: %v", err)
+	}
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	state.isInteractive = func() bool { return true }
+	state.confirmSkillRefresh = func(_ *cobra.Command, prompt skillRefreshPrompt) (bool, error) {
+		if prompt.AgentName != "omp" || prompt.Scope != setup.InstallScopeGlobal {
+			t.Fatalf("unexpected OMP refresh prompt: %#v", prompt)
+		}
+		return true, nil
+	}
+	cmd := &cobra.Command{Use: "tasks run"}
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+
+	if err := state.preflightBundledSkills(cmd, core.Config{IDE: core.IDE(model.IDEOMP)}, nil); err != nil {
+		t.Fatalf("run OMP required-skill preflight: %v", err)
+	}
+	verified, err := setup.VerifyBundledSkills(setup.VerifyConfig{
+		ResolverOptions: currentResolverOptions(workspaceRoot),
+		AgentName:       "omp",
+		SkillNames:      skillNames,
+	})
+	if err != nil {
+		t.Fatalf("verify refreshed OMP skills: %v", err)
+	}
+	if verified.Scope != setup.InstallScopeGlobal || verified.HasMissing() || verified.HasDrift() {
+		t.Fatalf("unexpected refreshed OMP verification: %#v", verified)
+	}
+	if _, err := os.Stat(filepath.Join(homeDir, ".omp", "profiles", legacyOMPProfile)); !os.IsNotExist(err) {
+		t.Fatalf("legacy profile unexpectedly modified: %v", err)
+	}
+}
+
+func TestOMPPreflightReusesResolverSnapshotWhenAmbientEnvironmentChanges(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("OMP_PROFILE", "work")
+	t.Setenv("PI_PROFILE", legacyOMPProfile)
+	t.Setenv("PI_CONFIG_DIR", ".custom-omp")
+	t.Setenv("PI_CODING_AGENT_DIR", "/initial/default-agent")
+
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	state.isInteractive = func() bool { return true }
+	state.confirmSkillRefresh = func(*cobra.Command, skillRefreshPrompt) (bool, error) { return true, nil }
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{{Name: "cy-execute-task"}}, nil
+	}
+
+	var resolverSnapshot setup.ResolverOptions
+	verifyCalls := 0
+	state.verifyBundledSkills = func(cfg setup.VerifyConfig) (setup.VerifyResult, error) {
+		verifyCalls++
+		if verifyCalls == 1 {
+			resolverSnapshot = cfg.ResolverOptions
+			t.Setenv("OMP_PROFILE", "changed")
+			t.Setenv("PI_PROFILE", "changed-legacy")
+			t.Setenv("PI_CONFIG_DIR", ".changed-omp")
+			t.Setenv("PI_CODING_AGENT_DIR", "/changed/default-agent")
+			return setup.VerifyResult{
+				Agent: setup.Agent{Name: "omp", DisplayName: "Oh My Pi"},
+				Scope: setup.InstallScopeGlobal,
+				Mode:  setup.InstallModeCopy,
+				Skills: []setup.VerifiedSkill{{
+					Skill: setup.Skill{Name: "cy-execute-task"},
+					State: setup.VerifyStateMissing,
+				}},
+			}, nil
+		}
+		if !reflect.DeepEqual(cfg.ResolverOptions, resolverSnapshot) {
+			t.Fatalf("reverify resolver changed: got=%#v want=%#v", cfg.ResolverOptions, resolverSnapshot)
+		}
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "omp", DisplayName: "Oh My Pi"},
+			Scope: setup.InstallScopeGlobal,
+			Mode:  setup.InstallModeCopy,
+			Skills: []setup.VerifiedSkill{{
+				Skill: setup.Skill{Name: "cy-execute-task"},
+				State: setup.VerifyStateCurrent,
+			}},
+		}, nil
+	}
+	state.verifyExtensionSkills = func(cfg setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error) {
+		if !reflect.DeepEqual(cfg.ResolverOptions, resolverSnapshot) {
+			t.Fatalf("extension verify resolver changed: got=%#v want=%#v", cfg.ResolverOptions, resolverSnapshot)
+		}
+		return setup.ExtensionVerifyResult{
+			Agent: setup.Agent{Name: "omp", DisplayName: "Oh My Pi"},
+			Scope: setup.InstallScopeGlobal,
+			Mode:  setup.InstallModeCopy,
+		}, nil
+	}
+	state.installBundledSkills = func(cfg setup.InstallConfig) (*setup.Result, error) {
+		if !reflect.DeepEqual(cfg.ResolverOptions, resolverSnapshot) {
+			t.Fatalf("refresh resolver changed: got=%#v want=%#v", cfg.ResolverOptions, resolverSnapshot)
+		}
+		return &setup.Result{}, nil
+	}
+
+	cmd := &cobra.Command{Use: "tasks run"}
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := state.preflightBundledSkills(cmd, core.Config{IDE: core.IDEOMP}, nil); err != nil {
+		t.Fatalf("run OMP preflight: %v", err)
+	}
+	if verifyCalls != 2 {
+		t.Fatalf("bundled verify calls = %d, want 2", verifyCalls)
+	}
+	if resolverSnapshot.HomeDir != homeDir || resolverSnapshot.OMPProfile == nil ||
+		*resolverSnapshot.OMPProfile != "work" {
+		t.Fatalf("initial resolver snapshot incomplete: %#v", resolverSnapshot)
 	}
 }
 

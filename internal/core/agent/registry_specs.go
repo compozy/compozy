@@ -88,6 +88,7 @@ var supportedRegistryIDEOrder = []string{
 	model.IDECopilot,
 	model.IDEKiro,
 	model.IDEDevin,
+	model.IDEOMP,
 }
 
 var (
@@ -215,6 +216,18 @@ var (
 			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
+		},
+		model.IDEOMP: {
+			ID:             model.IDEOMP,
+			DisplayName:    "Oh My Pi",
+			SetupAgentName: "omp",
+			DefaultModel:   model.DefaultOMPModel,
+			Command:        "omp",
+			FixedArgs:      []string{"acp"},
+			ProbeArgs:      []string{"acp", "--help"},
+			DocsURL:        "https://github.com/can1357/oh-my-pi",
+			InstallHint: "Install Oh My Pi with `brew install can1357/tap/omp` or " +
+				"`bun install -g @oh-my-pi/pi-coding-agent`, then expose `omp` on PATH.",
 		},
 		model.IDEGemini: {
 			ID:             model.IDEGemini,

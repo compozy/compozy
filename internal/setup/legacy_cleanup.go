@@ -96,6 +96,9 @@ func legacyTransferredAssetRemovals(
 		name := legacyTransferredSkillNames[i]
 		skill := Skill{Name: name}
 		for j := range agents {
+			if agents[j].resolutionErr != nil {
+				continue
+			}
 			canonicalPath, targetPath, err := resolveInstallPaths(skill, agents[j], env, global)
 			if err != nil {
 				if errors.Is(err, errUnsupportedScope) {

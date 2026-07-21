@@ -93,6 +93,15 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe:           []string{"pi-acp", "--help"},
 		},
 		{
+			name:                "Should expose Oh My Pi ACP commands",
+			ide:                 model.IDEOMP,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"omp", "acp"},
+			wantProbe:           []string{"omp", "acp", "--help"},
+		},
+		{
 			name:                "Should expose Gemini ACP commands",
 			ide:                 model.IDEGemini,
 			reasoning:           "medium",
@@ -179,6 +188,36 @@ func TestValidateRuntimeConfigRejectsAddDirsForUnsupportedIDE(t *testing.T) {
 	if !strings.Contains(err.Error(), "--add-dir") || !strings.Contains(err.Error(), model.IDECursor) {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestOMPValidationAcceptsNormalConfigAndRejectsAddDirs(t *testing.T) {
+	t.Parallel()
+	t.Run("Should accept normal OMP config and reject add directories", func(t *testing.T) {
+		t.Parallel()
+
+		base := model.RuntimeConfig{
+			Mode:                   model.ExecutionModePRReview,
+			IDE:                    model.IDEOMP,
+			Model:                  model.DefaultOMPModel,
+			OutputFormat:           model.OutputFormatText,
+			BatchSize:              1,
+			MaxRetries:             1,
+			RetryBackoffMultiplier: 1.5,
+		}
+		if err := ValidateRuntimeConfig(&base); err != nil {
+			t.Fatalf("ValidateRuntimeConfig() error = %v", err)
+		}
+
+		withAddDir := base
+		withAddDir.AddDirs = []string{"../shared"}
+		err := ValidateRuntimeConfig(&withAddDir)
+		if err == nil {
+			t.Fatal("expected unsupported add-directory error")
+		}
+		if !strings.Contains(err.Error(), "--add-dir") || !strings.Contains(err.Error(), model.IDEOMP) {
+			t.Fatalf("ValidateRuntimeConfig() error = %q, want add-dir and omp details", err)
+		}
+	})
 }
 
 func TestValidateRuntimeConfigAcceptsAddDirsForSupportedIDE(t *testing.T) {
@@ -372,6 +411,23 @@ func TestResolveRuntimeModelTreatsAutoAsRuntimeDefault(t *testing.T) {
 			input: " composer-2 ",
 			want:  "composer-2",
 		},
+		{
+			name: "Should resolve OMP empty model",
+			ide:  model.IDEOMP,
+			want: model.DefaultOMPModel,
+		},
+		{
+			name:  "Should resolve OMP trimmed upper-case auto",
+			ide:   model.IDEOMP,
+			input: " AUTO ",
+			want:  model.DefaultOMPModel,
+		},
+		{
+			name:  "Should preserve OMP explicit qualified model",
+			ide:   model.IDEOMP,
+			input: " openai/gpt-5.6-sol ",
+			want:  "openai/gpt-5.6-sol",
+		},
 	}
 
 	for _, tc := range cases {
@@ -385,6 +441,22 @@ func TestResolveRuntimeModelTreatsAutoAsRuntimeDefault(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildShellCommandStringUsesPlainOMPCommandForBothAccessModes(t *testing.T) {
+	t.Parallel()
+
+	for _, accessMode := range []string{model.AccessModeDefault, model.AccessModeFull} {
+		accessMode := accessMode
+		t.Run("Should use plain OMP command for "+accessMode+" access mode", func(t *testing.T) {
+			t.Parallel()
+
+			got := BuildShellCommandString(model.IDEOMP, "auto", nil, "medium", accessMode)
+			if got != "omp acp" {
+				t.Fatalf("BuildShellCommandString() = %q, want %q", got, "omp acp")
 			}
 		})
 	}
@@ -855,6 +927,7 @@ func TestValidateRuntimeConfigAcceptsSupportedIDEs(t *testing.T) {
 		model.IDECursor,
 		model.IDEOpenCode,
 		model.IDEPi,
+		model.IDEOMP,
 		model.IDEGemini,
 		model.IDECopilot,
 		model.IDEKiro,
@@ -1126,6 +1199,40 @@ func TestEnsureAvailableReturnsTypedErrorWhenCommandMissing(t *testing.T) {
 	}
 }
 
+func TestEnsureAvailableReturnsOMPInstallErrorWhenCommandMissing(t *testing.T) {
+	t.Run("Should return OMP install error when command is missing", func(t *testing.T) {
+		t.Setenv("PATH", t.TempDir())
+
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{IDE: model.IDEOMP})
+		if err == nil {
+			t.Fatal("expected EnsureAvailable error")
+		}
+
+		var availabilityErr *AvailabilityError
+		if !errors.As(err, &availabilityErr) {
+			t.Fatalf("EnsureAvailable() error = %T, want *AvailabilityError", err)
+		}
+		if availabilityErr.IDE != model.IDEOMP {
+			t.Fatalf("AvailabilityError.IDE = %q, want %q", availabilityErr.IDE, model.IDEOMP)
+		}
+		if availabilityErr.DisplayName != "Oh My Pi" {
+			t.Fatalf("AvailabilityError.DisplayName = %q, want %q", availabilityErr.DisplayName, "Oh My Pi")
+		}
+		if !slices.Equal(availabilityErr.Command, []string{"omp", "acp"}) {
+			t.Fatalf("AvailabilityError.Command = %v, want %v", availabilityErr.Command, []string{"omp", "acp"})
+		}
+		if availabilityErr.Cause == nil || !strings.Contains(availabilityErr.Cause.Error(), "not found on PATH") {
+			t.Fatalf("AvailabilityError.Cause = %v, want command-not-found cause", availabilityErr.Cause)
+		}
+		if availabilityErr.DocsURL != "https://github.com/can1357/oh-my-pi" {
+			t.Fatalf("AvailabilityError.DocsURL = %q, want official OMP repository", availabilityErr.DocsURL)
+		}
+		if !strings.Contains(availabilityErr.InstallHint, "brew install can1357/tap/omp") {
+			t.Fatalf("AvailabilityError.InstallHint = %q, want documented install command", availabilityErr.InstallHint)
+		}
+	})
+}
+
 func TestEnsureAvailableReturnsProbeOutputWhenCommandIsBroken(t *testing.T) {
 	tmpDir := t.TempDir()
 	scriptPath := filepath.Join(tmpDir, "broken-acp")
@@ -1299,6 +1406,7 @@ func TestDisplayNameReturnsCorrectDisplayNames(t *testing.T) {
 		model.IDECursor:   "Cursor",
 		model.IDEOpenCode: "OpenCode",
 		model.IDEPi:       "Pi",
+		model.IDEOMP:      "Oh My Pi",
 		model.IDEGemini:   "Gemini",
 	}
 
@@ -1434,6 +1542,13 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 			wantSupportsAddDirs: false,
 		},
 		{
+			ide:                 model.IDEOMP,
+			wantCommand:         []string{"omp", "acp"},
+			wantProbe:           []string{"omp", "acp", "--help"},
+			wantFallbackCount:   0,
+			wantSupportsAddDirs: false,
+		},
+		{
 			ide:                 model.IDEGemini,
 			wantCommand:         []string{"gemini", "--acp"},
 			wantProbe:           []string{"gemini", "--acp", "--help"},
@@ -1501,6 +1616,63 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 			)
 		}
 	}
+}
+
+func TestOMPAndPiCatalogContractsRemainDistinct(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep OMP and Pi catalog contracts distinct", func(t *testing.T) {
+		t.Parallel()
+
+		entries := DriverCatalog()
+		ompCount := 0
+		for _, entry := range entries {
+			if entry.IDE == model.IDEOMP {
+				ompCount++
+			}
+		}
+		if ompCount != 1 {
+			t.Fatalf("DriverCatalog() contains %d OMP entries, want 1", ompCount)
+		}
+
+		omp, err := DriverCatalogEntryForIDE(model.IDEOMP)
+		if err != nil {
+			t.Fatalf("lookup OMP catalog entry: %v", err)
+		}
+		if omp.DisplayName != "Oh My Pi" {
+			t.Fatalf("OMP display name = %q, want %q", omp.DisplayName, "Oh My Pi")
+		}
+		if !slices.Equal(omp.CanonicalCommand, []string{"omp", "acp"}) ||
+			!slices.Equal(omp.CanonicalProbe, []string{"omp", "acp", "--help"}) {
+			t.Fatalf("unexpected OMP command metadata: %#v", omp)
+		}
+		if len(omp.FallbackLaunchers) != 0 || omp.SupportsAddDirs || omp.UsesBootstrapModel {
+			t.Fatalf("unexpected OMP catalog capabilities: %#v", omp)
+		}
+		if got := DefaultModel(model.IDEOMP); got != model.DefaultOMPModel {
+			t.Fatalf("DefaultModel(omp) = %q, want %q", got, model.DefaultOMPModel)
+		}
+		if got, err := SetupAgentName(model.IDEOMP); err != nil || got != "omp" {
+			t.Fatalf("SetupAgentName(omp) = %q, err = %v, want %q", got, err, "omp")
+		}
+
+		pi, err := DriverCatalogEntryForIDE(model.IDEPi)
+		if err != nil {
+			t.Fatalf("lookup Pi catalog entry: %v", err)
+		}
+		if model.IDEPi != "pi" || !slices.Equal(pi.CanonicalCommand, []string{"pi-acp"}) {
+			t.Fatalf("unexpected Pi identity/command metadata: %#v", pi)
+		}
+		if len(pi.FallbackLaunchers) != 1 ||
+			!slices.Equal(pi.FallbackLaunchers[0].Command, []string{"npx", "--yes", "pi-acp"}) {
+			t.Fatalf("unexpected Pi fallback: %#v", pi.FallbackLaunchers)
+		}
+		if got := DefaultModel(model.IDEPi); got != model.DefaultPiModel {
+			t.Fatalf("DefaultModel(pi) = %q, want %q", got, model.DefaultPiModel)
+		}
+		if got, err := SetupAgentName(model.IDEPi); err != nil || got != "pi" {
+			t.Fatalf("SetupAgentName(pi) = %q, err = %v, want %q", got, err, "pi")
+		}
+	})
 }
 
 func TestDriverCatalogCanonicalCommandExcludesDynamicBootstrapArgs(t *testing.T) {

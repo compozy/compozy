@@ -423,7 +423,7 @@ func (fb *formBuilder) addModelField(target *string) {
 			Title("Model (optional)").
 			Placeholder("auto").
 			Description("Model override (defaults: codex/droid=gpt-5.6-sol, " +
-				"claude=opus, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)").
+				"claude=opus, omp=auto, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)").
 			Value(target)
 	})
 }
@@ -446,7 +446,8 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 		return huh.NewSelect[string]().
 			Key("reasoning-effort").
 			Title("Reasoning Effort").
-			Description("Model reasoning effort level (applies to Codex, Claude, Droid, OpenCode, and Pi)").
+			Description("Model reasoning effort level (defaults to medium; applies to Codex, Claude, Droid, "+
+				"OpenCode, Pi, and Oh My Pi)").
 			Options(
 				huh.NewOption("Low", "low"),
 				huh.NewOption("Medium", "medium"),

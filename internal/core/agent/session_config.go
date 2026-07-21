@@ -29,11 +29,11 @@ func (c *clientImpl) configureSession(
 	options []acp.SessionConfigOption,
 	modes *acp.SessionModeState,
 ) error {
-	effectiveModel, err := c.configureSessionModel(ctx, sessionID, requestedModel, options)
+	effectiveModel, currentOptions, err := c.configureSessionModel(ctx, sessionID, requestedModel, options)
 	if err != nil {
 		return err
 	}
-	if err := c.configureSessionReasoning(ctx, sessionID, options); err != nil {
+	if err := c.configureSessionReasoning(ctx, sessionID, currentOptions); err != nil {
 		return err
 	}
 	return c.configureSessionMode(ctx, sessionID, effectiveModel, modes)
@@ -44,10 +44,12 @@ func (c *clientImpl) configureSessionModel(
 	sessionID acp.SessionId,
 	requestedModel string,
 	options []acp.SessionConfigOption,
-) (string, error) {
+) (string, []acp.SessionConfigOption, error) {
 	modelInput := firstNonEmpty(requestedModel, c.cfg.Model)
 	effectiveModel := resolveModel(c.spec, modelInput)
-	leaveModelToRuntime := strings.EqualFold(strings.TrimSpace(modelInput), "auto")
+	normalizedModelInput := strings.TrimSpace(modelInput)
+	leaveModelToRuntime := strings.EqualFold(normalizedModelInput, "auto") ||
+		(normalizedModelInput == "" && strings.EqualFold(strings.TrimSpace(effectiveModel), "auto"))
 
 	modelOption := findSessionSelectOption(
 		options,
@@ -61,13 +63,14 @@ func (c *clientImpl) configureSessionModel(
 			modelOption,
 			effectiveModel,
 			leaveModelToRuntime,
+			options,
 		)
 	}
 	if leaveModelToRuntime || strings.TrimSpace(effectiveModel) == "" {
-		return effectiveModel, nil
+		return effectiveModel, options, nil
 	}
 	if requiresAdvertisedSessionModel(c.spec) && !c.usesLegacyCodexACP() {
-		return "", wrapSessionSetupError(
+		return "", nil, wrapSessionSetupError(
 			SessionSetupStageSetModel,
 			fmt.Errorf(
 				"%s did not advertise an ACP model option; cannot resolve requested model %q",
@@ -77,19 +80,20 @@ func (c *clientImpl) configureSessionModel(
 		)
 	}
 	if c.spec.UsesBootstrapModel {
-		return effectiveModel, nil
+		return effectiveModel, options, nil
 	}
-	if err := c.setSessionConfigValue(
+	currentOptions, err := c.setSessionConfigValue(
 		ctx,
 		sessionID,
 		acp.SessionConfigId(sessionConfigModelID),
 		effectiveModel,
 		SessionSetupStageSetModel,
 		"set ACP session model",
-	); err != nil {
-		return "", err
+	)
+	if err != nil {
+		return "", nil, err
 	}
-	return effectiveModel, nil
+	return effectiveModel, currentOptions, nil
 }
 
 func (c *clientImpl) configureAdvertisedSessionModel(
@@ -98,9 +102,10 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 	modelOption *acp.SessionConfigOptionSelect,
 	effectiveModel string,
 	leaveModelToRuntime bool,
-) (string, error) {
+	options []acp.SessionConfigOption,
+) (string, []acp.SessionConfigOption, error) {
 	if leaveModelToRuntime {
-		return string(modelOption.CurrentValue), nil
+		return string(modelOption.CurrentValue), options, nil
 	}
 	resolvedModel, err := resolveSessionSelectValue(modelOption, effectiveModel, "model")
 	if err != nil {
@@ -111,19 +116,20 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 				err,
 			)
 		}
-		return "", wrapSessionSetupError(SessionSetupStageSetModel, err)
+		return "", nil, wrapSessionSetupError(SessionSetupStageSetModel, err)
 	}
-	if err := c.setSessionConfigValue(
+	currentOptions, err := c.setSessionConfigValue(
 		ctx,
 		sessionID,
 		modelOption.Id,
 		resolvedModel,
 		SessionSetupStageSetModel,
 		"set ACP session model",
-	); err != nil {
-		return "", err
+	)
+	if err != nil {
+		return "", nil, err
 	}
-	return resolvedModel, nil
+	return resolvedModel, currentOptions, nil
 }
 
 func (c *clientImpl) configureSessionReasoning(
@@ -142,7 +148,9 @@ func (c *clientImpl) configureSessionReasoning(
 		sessionConfigEffortID,
 	)
 	if reasoningOption == nil {
-		if c.spec.ID != model.IDECodex || c.usesLegacyCodexACP() {
+		requiresReasoningOption := c.spec.ID == model.IDEOMP ||
+			(c.spec.ID == model.IDECodex && !c.usesLegacyCodexACP())
+		if !requiresReasoningOption {
 			return nil
 		}
 		return wrapSessionSetupError(
@@ -158,7 +166,7 @@ func (c *clientImpl) configureSessionReasoning(
 	if err != nil {
 		return wrapSessionSetupError(SessionSetupStageSetReasoning, err)
 	}
-	return c.setSessionConfigValue(
+	_, err = c.setSessionConfigValue(
 		ctx,
 		sessionID,
 		reasoningOption.Id,
@@ -166,6 +174,7 @@ func (c *clientImpl) configureSessionReasoning(
 		SessionSetupStageSetReasoning,
 		"set ACP session reasoning effort",
 	)
+	return err
 }
 
 func (c *clientImpl) configureSessionMode(
@@ -254,8 +263,8 @@ func (c *clientImpl) setSessionConfigValue(
 	value string,
 	stage SessionSetupStage,
 	operation string,
-) error {
-	_, err := c.conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
+) ([]acp.SessionConfigOption, error) {
+	response, err := c.conn.SetSessionConfigOption(ctx, acp.SetSessionConfigOptionRequest{
 		ValueId: &acp.SetSessionConfigOptionValueId{
 			SessionId: sessionID,
 			ConfigId:  configID,
@@ -263,9 +272,9 @@ func (c *clientImpl) setSessionConfigValue(
 		},
 	})
 	if err != nil {
-		return c.wrapACPSetupErrorWithDiagnostics(ctx, stage, operation, err)
+		return nil, c.wrapACPSetupErrorWithDiagnostics(ctx, stage, operation, err)
 	}
-	return nil
+	return response.ConfigOptions, nil
 }
 
 func findSessionSelectOption(

@@ -208,7 +208,13 @@ func driverToolTitleAlias(driverID string, token string) (string, bool) {
 		case "image_query":
 			return toolNameImageSearch, true
 		}
-	case model.IDEClaude, model.IDECursor, model.IDEDroid, model.IDEOpenCode, model.IDEPi, model.IDEGemini:
+	case model.IDEClaude,
+		model.IDECursor,
+		model.IDEDroid,
+		model.IDEOpenCode,
+		model.IDEPi,
+		model.IDEOMP,
+		model.IDEGemini:
 		// Use common aliases only.
 	}
 	return "", false

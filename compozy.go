@@ -45,6 +45,8 @@ const (
 	IDEOpenCode = core.IDEOpenCode
 	// IDEPi runs Pi jobs.
 	IDEPi = core.IDEPi
+	// IDEOMP runs Oh My Pi jobs.
+	IDEOMP = core.IDEOMP
 	// IDEGemini runs Gemini jobs.
 	IDEGemini = core.IDEGemini
 	// IDECopilot runs GitHub Copilot CLI jobs.

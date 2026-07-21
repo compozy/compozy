@@ -242,6 +242,94 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 	}
 }
 
+func TestExecuteExecOMPPersistedRunLoadsSameSessionAndWorkspace(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	absoluteWorkspaceRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		t.Fatalf("resolve absolute OMP workspace: %v", err)
+	}
+	ompOptions := runACPHelperOMPConfigOptions()
+	installACPHelperCommandOnPath(
+		t,
+		"omp",
+		[]runACPHelperScenario{{ExpectedCommandArgs: []string{"acp", "--help"}}},
+		[]runACPHelperScenario{{
+			SessionID:              "omp-persisted-session",
+			ExpectedCommandArgs:    []string{"acp"},
+			ExpectedCWD:            absoluteWorkspaceRoot,
+			ExpectedPromptContains: "first OMP turn",
+			SupportsLoadSession:    true,
+			ConfigOptions:          ompOptions,
+			SessionMeta:            map[string]any{"agentSessionId": "omp-agent-session"},
+			Updates:                []acp.SessionUpdate{acp.UpdateAgentMessageText("OMP_FIRST")},
+		}},
+		[]runACPHelperScenario{{ExpectedCommandArgs: []string{"acp", "--help"}}},
+		[]runACPHelperScenario{{
+			SessionID:              "omp-persisted-session",
+			ExpectedCommandArgs:    []string{"acp"},
+			ExpectedCWD:            absoluteWorkspaceRoot,
+			ExpectedLoadSessionID:  "omp-persisted-session",
+			ExpectedPromptContains: "second OMP turn",
+			SupportsLoadSession:    true,
+			ConfigOptions:          ompOptions,
+			SessionMeta:            map[string]any{"agentSessionId": "omp-agent-session"},
+			ReplayUpdatesOnLoad:    []acp.SessionUpdate{acp.UpdateAgentMessageText("OMP_FIRST")},
+			Updates:                []acp.SessionUpdate{acp.UpdateAgentMessageText("OMP_RESUMED")},
+			NewSessionError: &runACPHelperRequestError{
+				Code:    4090,
+				Message: "session/new must not replace a resumed OMP session",
+			},
+		}},
+	)
+
+	if err := ExecuteExec(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot:          workspaceRoot,
+		IDE:                    model.IDEOMP,
+		Model:                  model.DefaultOMPModel,
+		Mode:                   model.ExecutionModeExec,
+		OutputFormat:           model.OutputFormatText,
+		PromptText:             "first OMP turn",
+		ReasoningEffort:        "medium",
+		RetryBackoffMultiplier: 1.5,
+		Persist:                true,
+	}, nil); err != nil {
+		t.Fatalf("execute first OMP turn: %v", err)
+	}
+
+	runID := latestPersistedExecRunID(t, workspaceRoot)
+	if err := ExecuteExec(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot:          workspaceRoot,
+		IDE:                    model.IDEOMP,
+		Model:                  model.DefaultOMPModel,
+		Mode:                   model.ExecutionModeExec,
+		OutputFormat:           model.OutputFormatText,
+		PromptText:             "second OMP turn",
+		ReasoningEffort:        "medium",
+		RetryBackoffMultiplier: 1.5,
+		Persist:                true,
+		RunID:                  runID,
+	}, nil); err != nil {
+		t.Fatalf("execute resumed OMP turn: %v", err)
+	}
+
+	runRecord, err := LoadPersistedExecRun(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("load persisted OMP run: %v", err)
+	}
+	if runRecord.TurnCount != 2 || runRecord.ACPSessionID != "omp-persisted-session" ||
+		runRecord.AgentSessionID != "omp-agent-session" {
+		t.Fatalf("persisted OMP run = %#v", runRecord)
+	}
+	response, err := os.ReadFile(filepath.Join(runRecord.TurnsDir, "0002", "response.txt"))
+	if err != nil {
+		t.Fatalf("read resumed OMP response: %v", err)
+	}
+	if strings.TrimSpace(string(response)) != "OMP_RESUMED" {
+		t.Fatalf("resumed OMP response = %q", response)
+	}
+}
+
 func TestExecuteExecJSONModeEmitsLeanJSONLAndPersistsRawEvents(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", t.TempDir())

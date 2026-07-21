@@ -13,7 +13,7 @@ Compozy is a Go CLI that orchestrates the full lifecycle of AI-assisted developm
 
 Key characteristics:
 
-- **Agent-agnostic.** Supports claude, codex, copilot, cursor-agent, droid, gemini, opencode, and pi as ACP runtimes.
+- **Agent-agnostic.** Supports claude, codex, copilot, cursor-agent, droid, gemini, omp (Oh My Pi), opencode, and pi as distinct ACP runtimes.
 - **Skills-based.** Bundled skills (installed via `compozy setup`) teach agents how to execute each workflow phase.
 - **Artifact-driven.** Planning and review artifacts live as markdown under `.compozy/tasks/<slug>/`, versioned alongside the codebase.
 - **Daemon-backed runtime.** A home-scoped daemon owns run state, workspace registration, snapshots, streams, and the synced `global.db` catalog under `~/.compozy/`.

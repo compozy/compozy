@@ -8,8 +8,8 @@ These flags are shared by `tasks run`, `exec`, and `reviews fix`:
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
-| `--ide` | string | `codex` | ACP runtime: claude, codex, copilot, cursor-agent, droid, gemini, opencode, pi |
-| `--model` | string | per-IDE | Model override (codex/droid=gpt-5.6-sol, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
+| `--ide` | string | `codex` | ACP runtime: claude, codex, copilot, cursor-agent, droid, gemini, omp (Oh My Pi), opencode, pi |
+| `--model` | string | per-IDE | Model override (omp=auto; codex/droid=gpt-5.6-sol, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
 | `--reasoning-effort` | string | | Reasoning effort: low, medium, high, xhigh, max, ultra; applied only when the ACP runtime advertises the value |
 | `--add-dir` | string[] | | Additional directories for ACP runtimes (claude and codex only; repeatable or comma-separated) |
 | `--auto-commit` | bool | false | Include automatic commit instructions at task/batch completion |
@@ -39,6 +39,7 @@ compozy setup --list
 compozy setup --agent codex --agent claude --skill cy-create-prd --yes
 compozy setup --all
 compozy setup --agent cursor --global --copy --yes
+compozy setup --agent omp --copy --yes
 ```
 
 ### `compozy upgrade`

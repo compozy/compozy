@@ -28,10 +28,10 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 
 ## ✨ Highlights
 
-- **One command, 40+ agents.** Install core workflow skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`, plus any setup assets shipped by enabled extensions.
+- **One command, 40+ agents.** Install core workflow skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Oh My Pi, Gemini, and 40+ other agents and editors with `compozy setup`, plus any setup assets shipped by enabled extensions.
 - **Idea to code in a structured pipeline.** Optional Idea → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an idea for full research and debate, or jump straight to PRD if you already have a clear scope.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
-- **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
+- **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Oh My Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
 - **Reusable agents.** Package a prompt, runtime defaults, and optional agent-local MCP servers under `.compozy/agents/<name>/`, then run it from `compozy exec --agent <name>` or through nested `run_agent` calls.
 - **Workflow memory between runs.** Agents inherit context from every previous task — decisions, learnings, errors, and handoffs. Two-tier markdown memory with automatic compaction keeps context fresh without manual bookkeeping.
 - **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
@@ -97,6 +97,7 @@ Execution runtimes are separate from skill installation. To run `compozy exec`, 
 | Droid              | `droid`        | `droid exec --output-format acp` |
 | OpenCode           | `opencode`     | `opencode acp`                   |
 | pi ACP             | `pi`           | `pi-acp`                         |
+| Oh My Pi           | `omp`          | `omp acp`                        |
 | Gemini CLI         | `gemini`       | `gemini --acp`                   |
 | Kiro CLI           | `kiro`         | `kiro-cli acp`                   |
 
@@ -105,6 +106,7 @@ When the direct ACP command is not installed, Compozy can fall back to supported
 Compozy negotiates each runtime from the model, reasoning, and mode options advertised by ACP `session/new` or `session/load`, and applies the resolved configuration before sending the first prompt:
 
 - Codex supports `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` when the installed adapter advertises them. The built-in default is `gpt-5.6-sol` with `medium` reasoning.
+- Oh My Pi is the distinct `omp` runtime; Pi remains `pi` and continues to launch `pi-acp`. OMP launches plain `omp acp` for both access modes. Its model default is `auto`: omitting `--model` or passing `--model auto` leaves selection to the active OMP profile, while an explicit model overrides it. Compozy still requests `medium` reasoning and stops with the structured valid-choice error if the selected model does not advertise it; it never substitutes another value. Permission requests use standard ACP handling and select OMP's first `allow_once` choice, without yolo or auto-approval bootstrap flags. OMP rejects `--add-dir`, and unattended OMP runs do not advertise ACP form elicitation.
 - Cursor model names resolve against its ACP catalog. For example, `--model grok-4.5` resolves to the advertised `grok-4.5[effort=high,fast=true]`; the exact ID is also accepted when shell-quoted. Cursor does not receive a separate reasoning option when its ACP session does not advertise one.
 - Claude Fable 5 accepts `--model fable`, `--model fable-5`, or `--model claude-fable-5`. Compozy always selects Claude's `auto` permission mode for Fable, even when `--access-mode full` was requested, so it never sends `bypassPermissions` for that model.
 - Claude's `max` reasoning is an advertised ACP effort value, not a system-prompt instruction. `ultracode` is an interactive Claude Code workflow rather than an ACP reasoning value, so Compozy does not emulate it with a parameter or prompt. If a requested effort such as `ultra` is not advertised by Claude, Compozy stops before the prompt and lists the valid choices.
@@ -548,9 +550,10 @@ The `cy-workflow-memory` skill handles all of this automatically when referenced
 | Droid          | `droid`        |
 | OpenCode       | `opencode`     |
 | Pi             | `pi`           |
+| Oh My Pi       | `omp`          |
 | Gemini         | `gemini`       |
 
-**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Devin CLI, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` installs core workflow skills plus any setup assets shipped by enabled extensions. Run `compozy setup` to see all detected agents on your system.
+**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Devin CLI, Droid, OpenCode, Pi, Oh My Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` installs core workflow skills plus any setup assets shipped by enabled extensions. Run `compozy setup` to see all detected agents on your system.
 
 When installing to multiple agents, Compozy offers two modes:
 
@@ -807,32 +810,32 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 
 `compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `~/.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
-| Flag                         | Default       | Description                                                                                |
-| ---------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `--ide`                      | `codex`       | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_   | Model override                                                                             |
-| `--agent`                    |               | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
-| `--prompt-file`              |               | Read prompt text from a file                                                               |
-| `--format`                   | `text`        | Output contract: `text`, `json`, or `raw-json`                                             |
-| `--reasoning-effort`         | `medium`      | `low`, `medium`, `high`, `xhigh`, `max`, `ultra`                                           |
-| `--access-mode`              | `full`        | `default` or `full` runtime access policy                                                  |
-| `--timeout`                  | `10m`         | Activity timeout per job                                                                   |
-| `--recovery`                 | `false`       | Enable agentic recovery for failed exec runs                                               |
-| `--no-recovery`              | `false`       | Disable agentic recovery for this invocation                                               |
-| `--recovery-ide`             | `codex`       | Runtime used by the recovery agent                                                         |
-| `--recovery-model`           | `gpt-5.6-sol` | Model used by the recovery agent                                                           |
-| `--recovery-reasoning`       | `medium`      | Recovery agent reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`, or `ultra`       |
-| `--recovery-max-attempts`    | `1`           | Recovery remediation plus restart cycles; must be between `1` and `3`                      |
-| `--max-retries`              | `2`           | Retry execution-stage ACP failures or timeouts N times                                     |
-| `--retry-backoff-multiplier` | `1.5`         | Multiplier applied to the next timeout after each retry                                    |
-| `--tail-lines`               | `0`           | Maximum log lines retained per job in UI (`0` = full history)                              |
-| `--add-dir`                  |               | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
-| `--auto-commit`              | `false`       | Include automatic commit instructions when the prompt asks for code changes                |
-| `--verbose`                  | `false`       | Emit operational runtime logs to stderr during exec                                        |
-| `--tui`                      | `false`       | Open the interactive TUI instead of headless stdout output                                 |
-| `--persist`                  | `false`       | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
-| `--run-id`                   |               | Resume a previously persisted exec session by run id                                       |
-| `--dry-run`                  | `false`       | Preview prompts without executing                                                          |
+| Flag                         | Default       | Description                                                                                       |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| `--ide`                      | `codex`       | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `omp`, `opencode`, `pi` |
+| `--model`                    | _(per IDE)_   | Model override                                                                                    |
+| `--agent`                    |               | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                         |
+| `--prompt-file`              |               | Read prompt text from a file                                                                      |
+| `--format`                   | `text`        | Output contract: `text`, `json`, or `raw-json`                                                    |
+| `--reasoning-effort`         | `medium`      | `low`, `medium`, `high`, `xhigh`, `max`, `ultra`                                                  |
+| `--access-mode`              | `full`        | `default` or `full` runtime access policy                                                         |
+| `--timeout`                  | `10m`         | Activity timeout per job                                                                          |
+| `--recovery`                 | `false`       | Enable agentic recovery for failed exec runs                                                      |
+| `--no-recovery`              | `false`       | Disable agentic recovery for this invocation                                                      |
+| `--recovery-ide`             | `codex`       | Runtime used by the recovery agent                                                                |
+| `--recovery-model`           | `gpt-5.6-sol` | Model used by the recovery agent                                                                  |
+| `--recovery-reasoning`       | `medium`      | Recovery agent reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`, or `ultra`              |
+| `--recovery-max-attempts`    | `1`           | Recovery remediation plus restart cycles; must be between `1` and `3`                             |
+| `--max-retries`              | `2`           | Retry execution-stage ACP failures or timeouts N times                                            |
+| `--retry-backoff-multiplier` | `1.5`         | Multiplier applied to the next timeout after each retry                                           |
+| `--tail-lines`               | `0`           | Maximum log lines retained per job in UI (`0` = full history)                                     |
+| `--add-dir`                  |               | Additional directories to allow (repeatable; currently `claude` and `codex` only)                 |
+| `--auto-commit`              | `false`       | Include automatic commit instructions when the prompt asks for code changes                       |
+| `--verbose`                  | `false`       | Emit operational runtime logs to stderr during exec                                               |
+| `--tui`                      | `false`       | Open the interactive TUI instead of headless stdout output                                        |
+| `--persist`                  | `false`       | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                          |
+| `--run-id`                   |               | Resume a previously persisted exec session by run id                                              |
+| `--dry-run`                  | `false`       | Preview prompts without executing                                                                 |
 
 </details>
 
