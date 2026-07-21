@@ -124,7 +124,7 @@ function WorkflowsRoute(): ReactElement {
     setActionError(null);
     setStartedRun(null);
     setArchiveConfirmation(null);
-    const reference = request?.packageId ? `${slug}/${request.packageId}` : slug;
+    const reference = request?.taskGroupId ? `${slug}/${request.taskGroupId}` : slug;
     setPendingStartSlug(reference);
     try {
       const run = await startRun.mutateAsync({
@@ -132,7 +132,7 @@ function WorkflowsRoute(): ReactElement {
         slug,
         body: {
           presentation_mode: "detach",
-          ...(request?.packageId ? { package_id: request.packageId } : {}),
+          ...(request?.taskGroupId ? { task_group_id: request.taskGroupId } : {}),
           ...(request?.allowOutOfOrder ? { allow_out_of_order: true } : {}),
         },
       });

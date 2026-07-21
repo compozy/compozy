@@ -12,13 +12,13 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
-// TestEnsureCurrentPackageSpecifications guards the lifecycle-resolution contract
+// TestEnsureCurrentTaskGroupSpecifications guards the lifecycle-resolution contract
 // for missing canonical specs.
-// CONTRACT: nested-workflows/reviews-007/issue_005. A package whose initiative is
+// CONTRACT: nested-workflows/reviews-007/issue_005. A task group whose initiative is
 // missing a canonical spec must surface a typed, client-actionable 422 problem
 // (not a generic error that leaks the absolute SpecDir), while a genuine read
 // fault stays an untyped internal error so the transport still maps it to 500.
-func TestEnsureCurrentPackageSpecifications(t *testing.T) {
+func TestEnsureCurrentTaskGroupSpecifications(t *testing.T) {
 	t.Parallel()
 
 	writeSpec := func(t *testing.T, dir, name string) {
@@ -34,9 +34,9 @@ func TestEnsureCurrentPackageSpecifications(t *testing.T) {
 		writeSpec(t, specDir, "_prd.md")
 		writeSpec(t, specDir, "_techspec.md")
 
-		scope := model.ExecutionScope{SpecDir: specDir, WorkflowRef: "customer-management/WP-001"}
-		if err := ensureCurrentPackageSpecifications(scope); err != nil {
-			t.Fatalf("ensureCurrentPackageSpecifications(complete) error = %v, want nil", err)
+		scope := model.ExecutionScope{SpecDir: specDir, WorkflowRef: "customer-management/TG-001"}
+		if err := ensureCurrentTaskGroupSpecifications(scope); err != nil {
+			t.Fatalf("ensureCurrentTaskGroupSpecifications(complete) error = %v, want nil", err)
 		}
 	})
 
@@ -45,19 +45,19 @@ func TestEnsureCurrentPackageSpecifications(t *testing.T) {
 		specDir := t.TempDir()
 		writeSpec(t, specDir, "_prd.md") // PRD present, techspec absent: the reported scenario.
 
-		ref := "customer-management/WP-001"
+		ref := "customer-management/TG-001"
 		scope := model.ExecutionScope{SpecDir: specDir, WorkflowRef: ref}
-		err := ensureCurrentPackageSpecifications(scope)
+		err := ensureCurrentTaskGroupSpecifications(scope)
 
 		var problem *apicore.Problem
 		if !errors.As(err, &problem) {
-			t.Fatalf("ensureCurrentPackageSpecifications(missing techspec) error = %v, want *apicore.Problem", err)
+			t.Fatalf("ensureCurrentTaskGroupSpecifications(missing techspec) error = %v, want *apicore.Problem", err)
 		}
 		if problem.Status != http.StatusUnprocessableEntity {
 			t.Fatalf("problem.Status = %d, want %d", problem.Status, http.StatusUnprocessableEntity)
 		}
-		if problem.Code != "package_specification_missing" {
-			t.Fatalf("problem.Code = %q, want package_specification_missing", problem.Code)
+		if problem.Code != "task_group_specification_missing" {
+			t.Fatalf("problem.Code = %q, want task_group_specification_missing", problem.Code)
 		}
 		if got := problem.Details["specification"]; got != "_techspec.md" {
 			t.Fatalf("problem.Details[specification] = %#v, want _techspec.md", got)
@@ -86,10 +86,10 @@ func TestEnsureCurrentPackageSpecifications(t *testing.T) {
 			t.Fatalf("write specfile: %v", err)
 		}
 
-		scope := model.ExecutionScope{SpecDir: notADir, WorkflowRef: "customer-management/WP-001"}
-		err := ensureCurrentPackageSpecifications(scope)
+		scope := model.ExecutionScope{SpecDir: notADir, WorkflowRef: "customer-management/TG-001"}
+		err := ensureCurrentTaskGroupSpecifications(scope)
 		if err == nil {
-			t.Fatal("ensureCurrentPackageSpecifications(non-dir SpecDir) error = nil, want error")
+			t.Fatal("ensureCurrentTaskGroupSpecifications(non-dir SpecDir) error = nil, want error")
 		}
 		var problem *apicore.Problem
 		if errors.As(err, &problem) {

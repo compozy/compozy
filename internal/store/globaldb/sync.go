@@ -89,17 +89,17 @@ type WorkflowSyncInput struct {
 	WorkflowSlug       string
 	Kind               WorkflowKind
 	ParentWorkflowID   string
-	PackageID          string
+	TaskGroupID        string
 	DisplayTitle       string
 	Outcome            string
 	LifecycleCompleted bool
-	// Missing seeds a placeholder row for a declared package whose directory is
+	// Missing seeds a placeholder row for a declared task group whose directory is
 	// absent on disk. Materialized children leave it false so the read model can
-	// tell a real, taskless package apart from an unavailable placeholder.
+	// tell a real, taskless task group apart from an unavailable placeholder.
 	Missing bool
 	// MetadataOnly restricts reconciliation to the workflow row itself, leaving the
 	// existing artifact snapshots, task items, review rounds, and sync checkpoint
-	// untouched. It preserves the last-known projection of a declared package whose
+	// untouched. It preserves the last-known projection of a declared task group whose
 	// directory has disappeared while still refreshing durable identity columns such
 	// as Missing so read models reflect current source availability.
 	MetadataOnly bool
@@ -132,7 +132,7 @@ type WorkflowSyncResult struct {
 }
 
 // AggregateWorkflowSyncInput reconciles an opted-in initiative and each
-// readable Work Package child in one database transaction.
+// readable Task Group child in one database transaction.
 type AggregateWorkflowSyncInput struct {
 	Parent                  WorkflowSyncInput
 	Children                []WorkflowSyncInput
@@ -141,10 +141,10 @@ type AggregateWorkflowSyncInput struct {
 
 // AggregateWorkflowSyncResult reports all rows touched by aggregate sync.
 type AggregateWorkflowSyncResult struct {
-	Parent                WorkflowSyncResult
-	Children              []WorkflowSyncResult
-	PrunedChildPackageIDs []string
-	SkippedChildPrunes    []WorkflowPruneSkipped
+	Parent                  WorkflowSyncResult
+	Children                []WorkflowSyncResult
+	PrunedChildTaskGroupIDs []string
+	SkippedChildPrunes      []WorkflowPruneSkipped
 }
 
 // WorkflowPruneSkipped reports a stale active workflow row that pruning kept
@@ -217,7 +217,7 @@ func normalizeWorkflowSyncInput(input WorkflowSyncInput) (WorkflowSyncInput, err
 	input.WorkflowSlug = strings.TrimSpace(input.WorkflowSlug)
 	input.Kind = WorkflowKind(strings.TrimSpace(string(input.Kind)))
 	input.ParentWorkflowID = strings.TrimSpace(input.ParentWorkflowID)
-	input.PackageID = strings.TrimSpace(input.PackageID)
+	input.TaskGroupID = strings.TrimSpace(input.TaskGroupID)
 	input.DisplayTitle = strings.TrimSpace(input.DisplayTitle)
 	input.Outcome = strings.TrimSpace(input.Outcome)
 	if input.Kind == "" {
@@ -230,16 +230,16 @@ func normalizeWorkflowSyncInput(input WorkflowSyncInput) (WorkflowSyncInput, err
 		return WorkflowSyncInput{}, newWorkflowSyncValidationError("globaldb: workflow sync slug is required")
 	}
 	if input.Kind != WorkflowKindOrdinary && input.Kind != WorkflowKindInitiative &&
-		input.Kind != WorkflowKindWorkPackage {
+		input.Kind != WorkflowKindTaskGroup {
 		return WorkflowSyncInput{}, newWorkflowSyncValidationError(
 			"globaldb: invalid workflow sync kind %q",
 			input.Kind,
 		)
 	}
-	if input.Kind == WorkflowKindWorkPackage {
-		if input.PackageID == "" {
+	if input.Kind == WorkflowKindTaskGroup {
+		if input.TaskGroupID == "" {
 			return WorkflowSyncInput{}, newWorkflowSyncValidationError(
-				"globaldb: child workflow package id is required",
+				"globaldb: child workflow task group id is required",
 			)
 		}
 		if input.ParentWorkflowID != "" {
@@ -247,18 +247,18 @@ func normalizeWorkflowSyncInput(input WorkflowSyncInput) (WorkflowSyncInput, err
 				"globaldb: child workflow parent id is assigned by aggregate sync",
 			)
 		}
-	} else if input.ParentWorkflowID != "" || input.PackageID != "" {
+	} else if input.ParentWorkflowID != "" || input.TaskGroupID != "" {
 		return WorkflowSyncInput{}, newWorkflowSyncValidationError(
-			"globaldb: only child workflow sync may include package identity",
+			"globaldb: only child workflow sync may include task group identity",
 		)
 	}
 	dependencies := make([]WorkflowDependency, 0, len(input.Dependencies))
 	for _, dependency := range input.Dependencies {
-		dependency.PackageID = strings.TrimSpace(dependency.PackageID)
+		dependency.TaskGroupID = strings.TrimSpace(dependency.TaskGroupID)
 		dependency.Rationale = strings.TrimSpace(dependency.Rationale)
-		if dependency.PackageID == "" || dependency.Rationale == "" {
+		if dependency.TaskGroupID == "" || dependency.Rationale == "" {
 			return WorkflowSyncInput{}, newWorkflowSyncValidationError(
-				"globaldb: workflow dependency package id and rationale are required",
+				"globaldb: workflow dependency task group id and rationale are required",
 			)
 		}
 		dependencies = append(dependencies, dependency)
@@ -273,7 +273,7 @@ func validateWorkflowSyncInput(input WorkflowSyncInput) error {
 }
 
 // ReconcileAggregateWorkflowSync upserts one initiative and its readable
-// package children atomically. A missing child directory is represented by an
+// task group children atomically. A missing child directory is represented by an
 // omitted child plus PreserveMissingChildren, which intentionally suppresses
 // stale-child pruning for that transaction.
 func (g *GlobalDB) ReconcileAggregateWorkflowSync(
@@ -283,7 +283,7 @@ func (g *GlobalDB) ReconcileAggregateWorkflowSync(
 	if err := g.requireContext(ctx, "reconcile aggregate workflow sync"); err != nil {
 		return AggregateWorkflowSyncResult{}, err
 	}
-	parent, children, seenPackageIDs, err := normalizeAggregateWorkflowSyncInput(input)
+	parent, children, seenTaskGroupIDs, err := normalizeAggregateWorkflowSyncInput(input)
 	if err != nil {
 		return AggregateWorkflowSyncResult{}, err
 	}
@@ -318,11 +318,11 @@ func (g *GlobalDB) ReconcileAggregateWorkflowSync(
 		result.Children = append(result.Children, childResult)
 	}
 	if !input.PreserveMissingChildren {
-		pruned, skipped, pruneErr := g.pruneMissingChildRowsTx(ctx, tx, result.Parent.Workflow.ID, seenPackageIDs)
+		pruned, skipped, pruneErr := g.pruneMissingChildRowsTx(ctx, tx, result.Parent.Workflow.ID, seenTaskGroupIDs)
 		if pruneErr != nil {
 			return AggregateWorkflowSyncResult{}, pruneErr
 		}
-		result.PrunedChildPackageIDs = pruned
+		result.PrunedChildTaskGroupIDs = pruned
 		result.SkippedChildPrunes = skipped
 	}
 	if err := tx.Commit(); err != nil {
@@ -345,39 +345,39 @@ func normalizeAggregateWorkflowSyncInput(
 		)
 	}
 	children := make([]WorkflowSyncInput, 0, len(input.Children))
-	seenPackageIDs := make(map[string]struct{}, len(input.Children))
+	seenTaskGroupIDs := make(map[string]struct{}, len(input.Children))
 	for childIndex := range input.Children {
 		child, err := normalizeWorkflowSyncInput(input.Children[childIndex])
 		if err != nil {
 			return WorkflowSyncInput{}, nil, nil, err
 		}
-		if err := validateAggregateWorkflowChild(parent, child, seenPackageIDs); err != nil {
+		if err := validateAggregateWorkflowChild(parent, child, seenTaskGroupIDs); err != nil {
 			return WorkflowSyncInput{}, nil, nil, err
 		}
-		seenPackageIDs[child.PackageID] = struct{}{}
+		seenTaskGroupIDs[child.TaskGroupID] = struct{}{}
 		children = append(children, child)
 	}
-	return parent, children, seenPackageIDs, nil
+	return parent, children, seenTaskGroupIDs, nil
 }
 
 func validateAggregateWorkflowChild(
 	parent WorkflowSyncInput,
 	child WorkflowSyncInput,
-	seenPackageIDs map[string]struct{},
+	seenTaskGroupIDs map[string]struct{},
 ) error {
-	if child.Kind != WorkflowKindWorkPackage {
+	if child.Kind != WorkflowKindTaskGroup {
 		return newWorkflowSyncValidationError(
-			"globaldb: aggregate child kind must be %q", WorkflowKindWorkPackage,
+			"globaldb: aggregate child kind must be %q", WorkflowKindTaskGroup,
 		)
 	}
 	if child.WorkspaceID != parent.WorkspaceID {
 		return newWorkflowSyncValidationError(
-			"globaldb: aggregate child %q has a different workspace", child.PackageID,
+			"globaldb: aggregate child %q has a different workspace", child.TaskGroupID,
 		)
 	}
-	if _, exists := seenPackageIDs[child.PackageID]; exists {
+	if _, exists := seenTaskGroupIDs[child.TaskGroupID]; exists {
 		return newWorkflowSyncValidationError(
-			"globaldb: duplicate aggregate child package %q", child.PackageID,
+			"globaldb: duplicate aggregate child task group %q", child.TaskGroupID,
 		)
 	}
 	return nil
@@ -407,7 +407,7 @@ func (g *GlobalDB) reconcileWorkflowSyncTx(
 	if err != nil {
 		return WorkflowSyncResult{}, err
 	}
-	// Only initiatives own package children, so prune on every ordinary
+	// Only initiatives own task group children, so prune on every ordinary
 	// reconciliation, not just the initiative->ordinary transition. A demotion
 	// that skips an active child (kept because its run is still in flight) must be
 	// retried once the run ends; gating on the transition would strand that child
@@ -421,7 +421,7 @@ func (g *GlobalDB) reconcileWorkflowSyncTx(
 	if input.MetadataOnly {
 		// A metadata-only reconcile refreshes durable identity columns (for example
 		// flipping Missing to true) without touching the retained artifact, task,
-		// review, and checkpoint projections of a package whose directory is
+		// review, and checkpoint projections of a task group whose directory is
 		// currently absent. The projections are re-collected only when the directory
 		// returns and a full reconcile runs.
 		return result, nil
@@ -660,7 +660,7 @@ func (g *GlobalDB) reconcileWorkflowInputRowTx(
 		Slug:               input.WorkflowSlug,
 		Kind:               input.Kind,
 		ParentWorkflowID:   input.ParentWorkflowID,
-		PackageID:          input.PackageID,
+		TaskGroupID:        input.TaskGroupID,
 		DisplayTitle:       input.DisplayTitle,
 		Outcome:            input.Outcome,
 		LifecycleCompleted: input.LifecycleCompleted,
@@ -693,7 +693,7 @@ func updateWorkflowSyncRowTx(
 ) (Workflow, error) {
 	existing.Kind = workflow.Kind
 	existing.ParentWorkflowID = workflow.ParentWorkflowID
-	existing.PackageID = workflow.PackageID
+	existing.TaskGroupID = workflow.TaskGroupID
 	existing.DisplayTitle = workflow.DisplayTitle
 	existing.Outcome = workflow.Outcome
 	existing.LifecycleCompleted = workflow.LifecycleCompleted
@@ -704,12 +704,12 @@ func updateWorkflowSyncRowTx(
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE workflows
-		 SET kind = ?, parent_workflow_id = ?, package_id = ?, display_title = ?, outcome = ?,
+		 SET kind = ?, parent_workflow_id = ?, task_group_id = ?, display_title = ?, outcome = ?,
 		     lifecycle_completed = ?, missing = ?, dependencies_json = ?, last_synced_at = ?, updated_at = ?
 		 WHERE id = ?`,
 		existing.Kind,
 		store.NullableString(existing.ParentWorkflowID),
-		existing.PackageID,
+		existing.TaskGroupID,
 		existing.DisplayTitle,
 		existing.Outcome,
 		existing.LifecycleCompleted,
@@ -735,7 +735,7 @@ func (g *GlobalDB) insertWorkflowSyncRowTx(
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO workflows (
-			id, workspace_id, slug, kind, parent_workflow_id, package_id,
+			id, workspace_id, slug, kind, parent_workflow_id, task_group_id,
 			display_title, outcome, lifecycle_completed, missing, dependencies_json,
 			archived_at, last_synced_at, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -744,7 +744,7 @@ func (g *GlobalDB) insertWorkflowSyncRowTx(
 		workflow.Slug,
 		workflow.Kind,
 		store.NullableString(workflow.ParentWorkflowID),
-		workflow.PackageID,
+		workflow.TaskGroupID,
 		workflow.DisplayTitle,
 		workflow.Outcome,
 		workflow.LifecycleCompleted,
@@ -822,14 +822,14 @@ func (g *GlobalDB) pruneMissingChildRowsTx(
 	ctx context.Context,
 	tx *sql.Tx,
 	parentWorkflowID string,
-	presentPackageIDs map[string]struct{},
+	presentTaskGroupIDs map[string]struct{},
 ) ([]string, []WorkflowPruneSkipped, error) {
 	rows, err := tx.QueryContext(
 		ctx,
-		`SELECT id, package_id, slug
+		`SELECT id, task_group_id, slug
 		 FROM workflows
 		 WHERE parent_workflow_id = ? AND archived_at IS NULL
-		 ORDER BY package_id ASC, id ASC`,
+		 ORDER BY task_group_id ASC, id ASC`,
 		strings.TrimSpace(parentWorkflowID),
 	)
 	if err != nil {
@@ -842,11 +842,11 @@ func (g *GlobalDB) pruneMissingChildRowsTx(
 	pruned := make([]string, 0)
 	skipped := make([]WorkflowPruneSkipped, 0)
 	for rows.Next() {
-		var childID, packageID, slug string
-		if err := rows.Scan(&childID, &packageID, &slug); err != nil {
+		var childID, taskGroupID, slug string
+		if err := rows.Scan(&childID, &taskGroupID, &slug); err != nil {
 			return nil, nil, fmt.Errorf("globaldb: scan stale child workflow: %w", err)
 		}
-		if _, present := presentPackageIDs[packageID]; present {
+		if _, present := presentTaskGroupIDs[taskGroupID]; present {
 			continue
 		}
 		activeRuns, countErr := countActiveRunsForWorkflowTx(ctx, tx, childID)
@@ -868,9 +868,9 @@ func (g *GlobalDB) pruneMissingChildRowsTx(
 			   )`,
 			childID,
 		); deleteErr != nil {
-			return nil, nil, fmt.Errorf("globaldb: prune stale child workflow %q: %w", packageID, deleteErr)
+			return nil, nil, fmt.Errorf("globaldb: prune stale child workflow %q: %w", taskGroupID, deleteErr)
 		}
-		pruned = append(pruned, packageID)
+		pruned = append(pruned, taskGroupID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, fmt.Errorf("globaldb: iterate stale child workflows: %w", err)

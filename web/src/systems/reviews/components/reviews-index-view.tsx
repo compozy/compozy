@@ -22,11 +22,11 @@ import type { ReviewSummary } from "../types";
 export interface ReviewRoundCard {
   slug: string;
   review: ReviewSummary;
-  packageId?: string;
+  taskGroupId?: string;
 }
 
 function reviewCardKey(card: ReviewRoundCard): string {
-  return card.packageId ? `${card.slug}-${card.packageId}` : card.slug;
+  return card.taskGroupId ? `${card.slug}-${card.taskGroupId}` : card.slug;
 }
 
 export interface ReviewsIndexViewProps {
@@ -88,10 +88,10 @@ export function ReviewsIndexView(props: ReviewsIndexViewProps): ReactElement {
 }
 
 function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
-  const { slug, review, packageId } = card;
+  const { slug, review, taskGroupId } = card;
   const cardKey = reviewCardKey(card);
-  const displayLabel = packageId ? `${slug} · ${packageId}` : slug;
-  const roundSearch = packageId ? { package_id: packageId } : {};
+  const displayLabel = taskGroupId ? `${slug} · ${taskGroupId}` : slug;
+  const roundSearch = taskGroupId ? { task_group_id: taskGroupId } : {};
   const tone = resolveReviewTone(review);
   const roundLabel = String(review.round_number).padStart(3, "0");
   return (
@@ -100,7 +100,7 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
         <div className="min-w-0">
           <SurfaceCardEyebrow>
             round {roundLabel}
-            {packageId ? " · package" : ""}
+            {taskGroupId ? " · task group" : ""}
           </SurfaceCardEyebrow>
           <SurfaceCardTitle>
             <Link

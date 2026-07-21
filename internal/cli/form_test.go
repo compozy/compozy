@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,8 +18,8 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/spf13/cobra"
 )
 
@@ -87,23 +88,33 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 	cmd := newReviewsFixCommandWithDefaults(defaultCommandStateDefaults())
 	state := newCommandState(commandKindFixReviews, core.ModePRReview)
 	builder := newFormBuilder(cmd, state)
-	builder.reviewFixTargetOptions = []workPackagePickerOption{
+	builder.reviewFixTargetOptions = []taskGroupPickerOption{
 		{
-			Value:     "auth/WP-001",
-			Label:     "[✓] auth/WP-001 — Data model — Review round 3 — No issues pending",
-			Completed: true,
+			Value: "auth",
+			Label: "[ ] auth",
 		},
 		{
-			Value: "auth/WP-002",
-			Label: "[ ] auth/WP-002 — API — Review round 2 — 1 issue pending",
+			Value:                  "auth/TG-001",
+			Label:                  "[✓] TG-001 — Data model — Review round 3 — No issues pending",
+			Depth:                  1,
+			Completed:              true,
+			SelectionBlocked:       true,
+			SelectionBlockedReason: reviewNoPendingIssuesReason,
 		},
 		{
-			Value: "auth/WP-003",
-			Label: "[ ] auth/WP-003 — Web — Review round 1 — 3 issues pending",
+			Value: "auth/TG-002",
+			Label: "[ ] TG-002 — API — Review round 2 — 1 issue pending",
+			Depth: 1,
 		},
 		{
-			Value:                  "auth/WP-004",
-			Label:                  "[⊘] auth/WP-004 — Rollout — No review round — No issues pending",
+			Value: "auth/TG-003",
+			Label: "[ ] TG-003 — Web — Review round 1 — 3 issues pending",
+			Depth: 1,
+		},
+		{
+			Value:                  "auth/TG-004",
+			Label:                  "[⊘] TG-004 — Rollout — No review round — No issues pending",
+			Depth:                  1,
 			SelectionBlocked:       true,
 			SelectionBlockedReason: reviewImplementationBlockedReason,
 		},
@@ -117,46 +128,73 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 	}
 	field, ok := builder.fields[0].(*huh.Select[string])
 	if !ok {
-		t.Fatalf("first review field = %T, want Work Package select", builder.fields[0])
+		t.Fatalf("first review field = %T, want Task Group select", builder.fields[0])
 	}
 	field = field.WithWidth(160).WithHeight(10).(*huh.Select[string])
 	_ = field.Focus()
-	updated, _ := field.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	if field.GetFiltering() {
+		t.Fatal("review target picker starts in filter mode; want list navigation until / is pressed")
+	}
+	updated, _ := field.Update(tea.KeyPressMsg(tea.Key{Code: '/'}))
 	field, ok = updated.(*huh.Select[string])
 	if !ok {
-		t.Fatalf("updated review field = %T, want Work Package select", updated)
+		t.Fatalf("filtering review field = %T, want Task Group select", updated)
+	}
+	if !field.GetFiltering() {
+		t.Fatal("review target picker did not enter filter mode after /")
+	}
+	updated, _ = field.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	field, ok = updated.(*huh.Select[string])
+	if !ok {
+		t.Fatalf("cleared review field = %T, want Task Group select", updated)
+	}
+	updated, _ = field.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	field, ok = updated.(*huh.Select[string])
+	if !ok {
+		t.Fatalf("updated review field = %T, want Task Group select", updated)
+	}
+	updated, _ = field.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	field, ok = updated.(*huh.Select[string])
+	if !ok {
+		t.Fatalf("updated review field = %T, want Task Group select", updated)
 	}
 	rendered := xansi.Strip(field.View())
 	for _, want := range []string{
-		"[⊘] means no implementation tasks are complete and review is blocked.",
-		"[✓] auth/WP-001",
-		"[x] auth/WP-002",
-		"[ ] auth/WP-003",
-		"[⊘] auth/WP-004",
+		"Rows without pending issues stay visible but stay locked;",
+		"[⊘] means no implementation tasks are complete",
+		"[ ] auth",
+		"  [✓] TG-001",
+		"  [x] TG-002",
+		"  [ ] TG-003",
+		"  [⊘] TG-004",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("review target view missing %q:\n%s", want, rendered)
 		}
 	}
-	if strings.Contains(rendered, "[x] auth/WP-001") || strings.Contains(rendered, "[x] auth/WP-003") {
+	if strings.Contains(rendered, "[x] TG-001") || strings.Contains(rendered, "[x] TG-003") {
 		t.Fatalf("review target view marks a non-active target as selected:\n%s", rendered)
 	}
 	_ = field.Blur()
-	if blurred := xansi.Strip(field.View()); !strings.Contains(blurred, "[x] auth/WP-002") {
+	if blurred := xansi.Strip(field.View()); !strings.Contains(blurred, "[x] TG-002") {
 		t.Fatalf("blurred review target view loses selected marker:\n%s", blurred)
 	}
 	var output bytes.Buffer
-	if err := field.RunAccessible(&output, strings.NewReader("4\n2\n")); err != nil {
+	input := iotest.OneByteReader(strings.NewReader("2\n5\n3\n"))
+	if err := field.RunAccessible(&output, input); err != nil {
 		t.Fatalf("run accessible review target field: %v", err)
 	}
-	if inputs.name != "auth/WP-002" {
-		t.Fatalf("selected review target = %q, want exact Work Package reference", inputs.name)
+	if inputs.name != "auth/TG-002" {
+		t.Fatalf("selected review target = %q, want exact Task Group reference", inputs.name)
 	}
 	accessibleOutput := xansi.Strip(output.String())
 	if !strings.Contains(accessibleOutput, reviewImplementationBlockedReason) {
 		t.Fatalf("review target output missing blocked-selection guidance:\n%s", output.String())
 	}
-	for _, want := range []string{"auth/WP-001", "No issues pending", "auth/WP-002", "1 issue pending", "auth/WP-004"} {
+	if !strings.Contains(accessibleOutput, reviewNoPendingIssuesReason) {
+		t.Fatalf("review target output missing no-pending guidance:\n%s", output.String())
+	}
+	for _, want := range []string{"auth", "TG-001", "No issues pending", "TG-002", "1 issue pending", "TG-004"} {
 		if !strings.Contains(accessibleOutput, want) {
 			t.Fatalf("review target output missing %q:\n%s", want, output.String())
 		}
@@ -513,8 +551,8 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 	})
 }
 
-func TestTaskRunRuntimeFormResolvesManifestDeclaredPackageDirectory(t *testing.T) {
-	// INVARIANT: a public initiative/WP-NNN reference resolves through the
+func TestTaskRunRuntimeFormResolvesManifestDeclaredTaskGroupDirectory(t *testing.T) {
+	// INVARIANT: a public initiative/TG-NNN reference resolves through the
 	// manifest and never becomes a literal tasks-directory suffix.
 	// OWNING_LAYER: unit. EXISTING_SUITE: internal/cli/form_test.go.
 	t.Parallel()
@@ -522,50 +560,50 @@ func TestTaskRunRuntimeFormResolvesManifestDeclaredPackageDirectory(t *testing.T
 	workspaceRoot := t.TempDir()
 	initiative := "food-registration"
 	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative)
-	packageDir := filepath.Join(initiativeDir, "_packages", "001-shared-foundation")
-	if err := os.MkdirAll(packageDir, 0o755); err != nil {
-		t.Fatalf("mkdir package directory: %v", err)
+	taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "001-shared-foundation")
+	if err := os.MkdirAll(taskGroupDir, 0o755); err != nil {
+		t.Fatalf("mkdir task group directory: %v", err)
 	}
-	plan, err := workpackages.RenderPlan(workpackages.Plan{
-		SchemaVersion: workpackages.SchemaVersion,
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
 		Initiative:    initiative,
-		Packages: []workpackages.Package{{
-			ID:         "WP-001",
+		TaskGroups: []taskgroups.TaskGroup{{
+			ID:         "TG-001",
 			Title:      "Shared foundation",
 			Outcome:    "Provide shared navigation primitives",
-			Directory:  "_packages/001-shared-foundation",
+			Directory:  "_task_groups/001-shared-foundation",
 			OwnedScope: []string{"navigation"},
 		}},
 	})
 	if err != nil {
-		t.Fatalf("render work package plan: %v", err)
+		t.Fatalf("render task group plan: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(initiativeDir, workpackages.ManifestFileName), plan, 0o600); err != nil {
-		t.Fatalf("write work package plan: %v", err)
+	if err := os.WriteFile(filepath.Join(initiativeDir, taskgroups.ManifestFileName), plan, 0o600); err != nil {
+		t.Fatalf("write task group plan: %v", err)
 	}
-	writeFormTaskFile(t, packageDir, "task_01.md", "pending")
+	writeFormTaskFile(t, taskGroupDir, "task_01.md", "pending")
 
 	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.workspaceRoot = workspaceRoot
-	form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{initiative + "/WP-001"})
+	form, err := newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{initiative + "/TG-001"})
 	if err != nil {
 		t.Fatalf("newTaskRunRuntimeFormForSlugs() error = %v", err)
 	}
 	if form == nil || len(form.taskOptions) != 1 {
 		t.Fatalf("task options = %#v, want one manifest-resolved task", form)
 	}
-	if option := form.taskOptions[0]; option.Workflow != initiative+"/WP-001" || option.ID != "task_01" {
-		t.Fatalf("task option = %#v, want package-scoped task_01", option)
+	if option := form.taskOptions[0]; option.Workflow != initiative+"/TG-001" || option.ID != "task_01" {
+		t.Fatalf("task option = %#v, want task-group-scoped task_01", option)
 	}
 
-	legacyDir := filepath.Join(initiativeDir, "WP-999")
+	legacyDir := filepath.Join(initiativeDir, "TG-999")
 	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
 		t.Fatalf("mkdir legacy directory: %v", err)
 	}
 	writeFormTaskFile(t, legacyDir, "task_99.md", "pending")
-	_, err = newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{initiative + "/WP-999"})
-	if !errors.Is(err, workpackages.ErrPackageNotFound) {
-		t.Fatalf("unknown package error = %v, want ErrPackageNotFound", err)
+	_, err = newTaskRunRuntimeFormForSlugs(t.Context(), state, []string{initiative + "/TG-999"})
+	if !errors.Is(err, taskgroups.ErrTaskGroupNotFound) {
+		t.Fatalf("unknown task group error = %v, want ErrTaskGroupNotFound", err)
 	}
 }
 

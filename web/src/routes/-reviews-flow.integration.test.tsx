@@ -260,7 +260,7 @@ describe("reviews flow integration", () => {
     await screen.findByTestId("reviews-index-empty");
   });
 
-  it("Should preserve package scope through review round, issue, and fix-run paths", async () => {
+  it("Should preserve task group scope through review round, issue, and fix-run paths", async () => {
     // CONTRACT: IT-063, IT-064.
     const stub = installFetchStub([
       {
@@ -269,24 +269,24 @@ describe("reviews flow integration", () => {
         body: { workspaces: [workspaceOne] },
       },
       {
-        matcher: matchPath("/api/reviews/alpha/rounds/2?package_id=WP-002"),
+        matcher: matchPath("/api/reviews/alpha/rounds/2?task_group_id=TG-002"),
         status: 200,
         body: {
-          round: { ...reviewRoundPayload.round, workflow_slug: "alpha/WP-002" },
+          round: { ...reviewRoundPayload.round, workflow_slug: "alpha/TG-002" },
         },
       },
       {
-        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?package_id=WP-002"),
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?task_group_id=TG-002"),
         status: 200,
         body: issuesPayload,
       },
       {
-        matcher: matchPath("/api/reviews/alpha/rounds/2/issues/issue_004?package_id=WP-002"),
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues/issue_004?task_group_id=TG-002"),
         status: 200,
         body: {
           review: {
             ...reviewDetailPayload.review,
-            workflow: { ...workflowSummary, slug: "alpha/WP-002", package_id: "WP-002" },
+            workflow: { ...workflowSummary, slug: "alpha/TG-002", task_group_id: "TG-002" },
           },
         },
       },
@@ -297,11 +297,11 @@ describe("reviews flow integration", () => {
       },
     ]);
     restore = stub.restore;
-    await renderApp("/reviews/alpha/2?package_id=WP-002");
+    await renderApp("/reviews/alpha/2?task_group_id=TG-002");
 
     const issueLink = await screen.findByTestId("review-round-issue-link-alpha-issue_004");
     expect((issueLink as HTMLAnchorElement).getAttribute("href")).toBe(
-      "/reviews/alpha/2/issue_004?package_id=WP-002"
+      "/reviews/alpha/2/issue_004?task_group_id=TG-002"
     );
     await userEvent.click(issueLink);
     await screen.findByTestId("review-detail-view");
@@ -311,13 +311,13 @@ describe("reviews flow integration", () => {
     const postedCall = stub.calls.find(call => call.method === "POST");
     expect(JSON.parse(postedCall?.body ?? "{}")).toMatchObject({
       workspace: "ws-1",
-      package_id: "WP-002",
+      task_group_id: "TG-002",
     });
-    expect(stub.calls.some(call => call.url.includes("alpha/WP-002"))).toBe(false);
+    expect(stub.calls.some(call => call.url.includes("alpha/TG-002"))).toBe(false);
   });
 
-  it("Should reach a package review round from the reviews index without a deep link", async () => {
-    const dashboardWithPackage = {
+  it("Should reach a task group review round from the reviews index without a deep link", async () => {
+    const dashboardWithTaskGroup = {
       dashboard: {
         ...dashboardPayload.dashboard,
         pending_reviews: 6,
@@ -326,15 +326,15 @@ describe("reviews flow integration", () => {
             workflow: {
               ...workflowSummary,
               kind: "initiative",
-              work_packages: [
+              task_groups: [
                 {
-                  workflow_id: "wf-1-wp-002",
-                  package_id: "WP-002",
-                  reference: "alpha/WP-002",
+                  workflow_id: "wf-1-tg-002",
+                  task_group_id: "TG-002",
+                  reference: "alpha/TG-002",
                   title: "Providers",
                   outcome: "Ship providers",
                   lifecycle_complete: false,
-                  latest_review: { ...latestReview, workflow_slug: "alpha/WP-002" },
+                  latest_review: { ...latestReview, workflow_slug: "alpha/TG-002" },
                 },
               ],
             },
@@ -357,15 +357,15 @@ describe("reviews flow integration", () => {
       {
         matcher: matchUrl("/api/ui/dashboard"),
         status: 200,
-        body: dashboardWithPackage,
+        body: dashboardWithTaskGroup,
       },
       {
-        matcher: matchPath("/api/reviews/alpha/rounds/2?package_id=WP-002"),
+        matcher: matchPath("/api/reviews/alpha/rounds/2?task_group_id=TG-002"),
         status: 200,
-        body: { round: { ...reviewRoundPayload.round, workflow_slug: "alpha/WP-002" } },
+        body: { round: { ...reviewRoundPayload.round, workflow_slug: "alpha/TG-002" } },
       },
       {
-        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?package_id=WP-002"),
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?task_group_id=TG-002"),
         status: 200,
         body: issuesPayload,
       },
@@ -373,16 +373,16 @@ describe("reviews flow integration", () => {
     restore = stub.restore;
     await renderApp("/reviews");
     await screen.findByTestId("reviews-index-view");
-    // The parent round and the package round are both discoverable in the index.
+    // The parent round and the task group round are both discoverable in the index.
     await screen.findByTestId("reviews-index-card-alpha");
-    const packageLink = await screen.findByTestId("reviews-index-round-link-alpha-WP-002");
-    expect((packageLink as HTMLAnchorElement).getAttribute("href")).toBe(
-      "/reviews/alpha/2?package_id=WP-002"
+    const taskGroupLink = await screen.findByTestId("reviews-index-round-link-alpha-TG-002");
+    expect((taskGroupLink as HTMLAnchorElement).getAttribute("href")).toBe(
+      "/reviews/alpha/2?task_group_id=TG-002"
     );
-    await userEvent.click(packageLink);
+    await userEvent.click(taskGroupLink);
     await screen.findByTestId("review-round-detail-view");
     expect(
-      stub.calls.some(call => call.url.endsWith("/api/reviews/alpha/rounds/2?package_id=WP-002"))
+      stub.calls.some(call => call.url.endsWith("/api/reviews/alpha/rounds/2?task_group_id=TG-002"))
     ).toBe(true);
   });
 

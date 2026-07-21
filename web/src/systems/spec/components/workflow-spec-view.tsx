@@ -22,7 +22,7 @@ export interface WorkflowSpecViewProps {
   isRefreshing: boolean;
 }
 
-type SpecTabKey = "package" | "prd" | "techspec" | "adrs";
+type SpecTabKey = "task-group" | "prd" | "techspec" | "adrs";
 
 interface SpecTab {
   key: SpecTabKey;
@@ -109,16 +109,16 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
           <DocumentCard document={prd} kind="PRD" testId="workflow-spec-prd" />
         </div>
       ) : null}
-      {active === "package" ? (
+      {active === "task-group" ? (
         <div
-          aria-labelledby="workflow-spec-tab-package"
-          id="workflow-spec-panel-package"
+          aria-labelledby="workflow-spec-tab-task-group"
+          id="workflow-spec-panel-task-group"
           role="tabpanel"
         >
           <DocumentCard
             document={planExcerpt}
-            kind="Selected Work Package"
-            testId="workflow-spec-package"
+            kind="Selected Task Group"
+            testId="workflow-spec-task-group"
           />
         </div>
       ) : null}
@@ -246,9 +246,9 @@ function buildTabs(spec: WorkflowSpecDocument): SpecTab[] {
     ...(spec.plan_excerpt
       ? [
           {
-            key: "package" as const,
-            label: "Work Package",
-            testId: "workflow-spec-tab-package",
+            key: "task-group" as const,
+            label: "Task Group",
+            testId: "workflow-spec-tab-task-group",
             present: true,
           },
         ]

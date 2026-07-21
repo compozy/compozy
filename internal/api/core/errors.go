@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -55,22 +55,22 @@ func statusForKnownClientError(err error) (int, bool) {
 		errors.Is(err, globaldb.ErrWorkflowNotFound),
 		errors.Is(err, globaldb.ErrRunNotFound),
 		errors.Is(err, model.ErrJobControlNotFound),
-		errors.Is(err, workpackages.ErrPackageNotFound),
-		errors.Is(err, workpackages.ErrInitiativeNotFound):
+		errors.Is(err, taskgroups.ErrTaskGroupNotFound),
+		errors.Is(err, taskgroups.ErrInitiativeNotFound):
 		return http.StatusNotFound, true
 	case errors.Is(err, model.ErrJobControlMessageRequired):
 		return http.StatusBadRequest, true
 	case errors.Is(err, model.ErrJobControlMessageTooLarge):
 		return http.StatusRequestEntityTooLarge, true
-	case errors.Is(err, workpackages.ErrPlanReadOnly):
+	case errors.Is(err, taskgroups.ErrPlanReadOnly):
 		return http.StatusForbidden, true
-	case errors.Is(err, workpackages.ErrDependenciesUnmet),
-		errors.Is(err, workpackages.ErrCompletionConflict):
+	case errors.Is(err, taskgroups.ErrDependenciesUnmet),
+		errors.Is(err, taskgroups.ErrCompletionConflict):
 		return http.StatusConflict, true
-	case errors.Is(err, workpackages.ErrInvalidPlan),
-		errors.Is(err, workpackages.ErrSelectionRequired),
-		errors.Is(err, workpackages.ErrInvalidReference),
-		errors.Is(err, workpackages.ErrContainment),
+	case errors.Is(err, taskgroups.ErrInvalidPlan),
+		errors.Is(err, taskgroups.ErrSelectionRequired),
+		errors.Is(err, taskgroups.ErrInvalidReference),
+		errors.Is(err, taskgroups.ErrContainment),
 		errors.Is(err, tasks.ErrLegacyTaskMetadata),
 		errors.Is(err, tasks.ErrV1TaskMetadata),
 		errors.Is(err, reviews.ErrLegacyReviewMetadata):
@@ -122,21 +122,21 @@ func codeForError(status int, err error) string {
 	switch {
 	case errors.Is(err, globaldb.ErrSchemaTooNew), errors.Is(err, rundb.ErrSchemaTooNew):
 		return string(contract.CodeSchemaTooNew)
-	case errors.Is(err, workpackages.ErrPackageNotFound),
-		errors.Is(err, workpackages.ErrInitiativeNotFound):
-		return "work_package_not_found"
-	case errors.Is(err, workpackages.ErrDependenciesUnmet):
-		return "work_package_dependencies_unmet"
-	case errors.Is(err, workpackages.ErrCompletionConflict):
-		return "work_package_completion_conflict"
-	case errors.Is(err, workpackages.ErrInvalidPlan):
-		return "work_package_plan_invalid"
-	case errors.Is(err, workpackages.ErrSelectionRequired):
-		return "work_package_selection_required"
-	case errors.Is(err, workpackages.ErrPlanReadOnly):
-		return "work_package_plan_read_only"
-	case errors.Is(err, workpackages.ErrInvalidReference), errors.Is(err, workpackages.ErrContainment):
-		return "work_package_invalid_reference"
+	case errors.Is(err, taskgroups.ErrTaskGroupNotFound),
+		errors.Is(err, taskgroups.ErrInitiativeNotFound):
+		return "task_group_not_found"
+	case errors.Is(err, taskgroups.ErrDependenciesUnmet):
+		return "task_group_dependencies_unmet"
+	case errors.Is(err, taskgroups.ErrCompletionConflict):
+		return "task_group_completion_conflict"
+	case errors.Is(err, taskgroups.ErrInvalidPlan):
+		return "task_group_plan_invalid"
+	case errors.Is(err, taskgroups.ErrSelectionRequired):
+		return "task_group_selection_required"
+	case errors.Is(err, taskgroups.ErrPlanReadOnly):
+		return "task_group_plan_read_only"
+	case errors.Is(err, taskgroups.ErrInvalidReference), errors.Is(err, taskgroups.ErrContainment):
+		return "task_group_invalid_reference"
 	default:
 		return defaultCodeForStatus(status)
 	}
@@ -168,21 +168,21 @@ func detailsForError(err error) map[string]any {
 		}
 	}
 
-	var packageErr *workpackages.Error
-	if errors.As(err, &packageErr) && packageErr != nil {
+	var taskGroupErr *taskgroups.Error
+	if errors.As(err, &taskGroupErr) && taskGroupErr != nil {
 		details := make(map[string]any)
-		if initiative := strings.TrimSpace(packageErr.Initiative); initiative != "" {
+		if initiative := strings.TrimSpace(taskGroupErr.Initiative); initiative != "" {
 			details["initiative_slug"] = initiative
 		}
-		if packageID := strings.TrimSpace(packageErr.PackageID); packageID != "" {
-			details["package_id"] = packageID
+		if taskGroupID := strings.TrimSpace(taskGroupErr.TaskGroupID); taskGroupID != "" {
+			details["task_group_id"] = taskGroupID
 		}
-		if len(packageErr.ValidPackageIDs) > 0 {
-			details["valid_package_ids"] = append([]string(nil), packageErr.ValidPackageIDs...)
+		if len(taskGroupErr.ValidTaskGroupIDs) > 0 {
+			details["valid_task_group_ids"] = append([]string(nil), taskGroupErr.ValidTaskGroupIDs...)
 		}
-		if len(packageErr.Issues) > 0 {
-			issues := make([]map[string]string, 0, len(packageErr.Issues))
-			for _, issue := range packageErr.Issues {
+		if len(taskGroupErr.Issues) > 0 {
+			issues := make([]map[string]string, 0, len(taskGroupErr.Issues))
+			for _, issue := range taskGroupErr.Issues {
 				issues = append(issues, map[string]string{
 					"field":   strings.TrimSpace(issue.Field),
 					"message": strings.TrimSpace(issue.Message),
@@ -190,8 +190,8 @@ func detailsForError(err error) map[string]any {
 			}
 			details["issues"] = issues
 		}
-		if packageErr.PlanPath != "" {
-			details["plan"] = workpackages.ManifestFileName
+		if taskGroupErr.PlanPath != "" {
+			details["plan"] = taskgroups.ManifestFileName
 		}
 		if len(details) > 0 {
 			return details

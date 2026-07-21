@@ -209,7 +209,7 @@ func buildTaskFilesSection(taskAbsPath, tasksFile, specDir, operationalDir strin
 	sb.WriteString("## Task Files\n\n")
 	fmt.Fprintf(&sb, "- Initiative specification directory: `%s`\n", specDir)
 	if operationalDir != specDir {
-		fmt.Fprintf(&sb, "- Package operational directory: `%s`\n", operationalDir)
+		fmt.Fprintf(&sb, "- Task Group operational directory: `%s`\n", operationalDir)
 	}
 	fmt.Fprintf(&sb, "- Task file: `%s`\n", taskAbsPath)
 	fmt.Fprintf(&sb, "- Master tasks file: `%s`\n", tasksFile)

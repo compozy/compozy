@@ -1,4 +1,4 @@
-package workpackages
+package taskgroups
 
 import (
 	"crypto/sha256"
@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	packageIDPattern                 = regexp.MustCompile(`^WP-[0-9]{3}$`)
-	packageDirectoryBriefPattern     = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	packageDirectorySeparatorPattern = regexp.MustCompile(`[^a-z0-9]+`)
-	packageHeadingPattern            = regexp.MustCompile(`^## \[([ x])\] ([^ ]+) —[ \t]*(.*?)[\r\n]*$`)
-	markdownDependencyLine           = regexp.MustCompile("^  - `?(WP-[0-9]{3})`? —[ \\t]*(.*?)[\\r\\n]*$")
+	taskGroupIDPattern                 = regexp.MustCompile(`^TG-[0-9]{3}$`)
+	taskGroupDirectoryBriefPattern     = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	taskGroupDirectorySeparatorPattern = regexp.MustCompile(`[^a-z0-9]+`)
+	taskGroupHeadingPattern            = regexp.MustCompile(`^## \[([ x])\] ([^ ]+) —[ \t]*(.*?)[\r\n]*$`)
+	markdownDependencyLine             = regexp.MustCompile("^  - `?(TG-[0-9]{3})`? —[ \\t]*(.*?)[\\r\\n]*$")
 )
 
 type manifest struct {
@@ -42,7 +42,7 @@ type manifestEdge struct {
 	Rationale string `yaml:"rationale"`
 }
 
-type markdownPackage struct {
+type markdownTaskGroup struct {
 	ID           string
 	Title        string
 	Completed    bool
@@ -52,12 +52,12 @@ type markdownPackage struct {
 	Dependencies []Dependency
 }
 
-// ParsePlan parses and validates a canonical Work Package manifest.
+// ParsePlan parses and validates a canonical Task Group manifest.
 func ParsePlan(content string) (Plan, error) {
 	return parsePlan(content, "", "")
 }
 
-// ValidatePlan parses and validates a canonical Work Package manifest.
+// ValidatePlan parses and validates a canonical Task Group manifest.
 func ValidatePlan(content string) (Plan, error) {
 	return ParsePlan(content)
 }
@@ -78,35 +78,35 @@ func parsePlan(content, expectedInitiative, path string) (Plan, error) {
 
 	normalizeManifest(&raw)
 	issues := validateManifest(raw, expectedInitiative, path)
-	bodyPackages, bodyIssues := parseMarkdownPackages(body, path)
+	bodyTaskGroups, bodyIssues := parseMarkdownTaskGroups(body, path)
 	issues = append(issues, bodyIssues...)
-	issues = append(issues, validatePlanSurfaces(raw, bodyPackages, path)...)
+	issues = append(issues, validatePlanSurfaces(raw, bodyTaskGroups, path)...)
 	if len(issues) > 0 {
 		return Plan{}, newError(ErrInvalidPlan, raw.Initiative, "", path, issues)
 	}
 
-	packages := make([]Package, 0, len(raw.Graph.Nodes))
+	taskGroups := make([]TaskGroup, 0, len(raw.Graph.Nodes))
 	incoming := incomingDependencies(raw.Graph.Edges)
 	for _, node := range raw.Graph.Nodes {
-		bodyPackage := bodyPackages[node.ID]
-		packages = append(packages, Package{
+		bodyTaskGroup := bodyTaskGroups[node.ID]
+		taskGroups = append(taskGroups, TaskGroup{
 			ID:           node.ID,
-			Title:        bodyPackage.Title,
-			Outcome:      bodyPackage.Outcome,
-			Reference:    bodyPackage.Reference,
+			Title:        bodyTaskGroup.Title,
+			Outcome:      bodyTaskGroup.Outcome,
+			Reference:    bodyTaskGroup.Reference,
 			Directory:    node.Directory,
-			Completed:    bodyPackage.Completed,
+			Completed:    bodyTaskGroup.Completed,
 			Dependencies: slices.Clone(incoming[node.ID]),
-			OwnedScope:   slices.Clone(bodyPackage.OwnedScope),
+			OwnedScope:   slices.Clone(bodyTaskGroup.OwnedScope),
 		})
 	}
-	slices.SortFunc(packages, func(left, right Package) int { return strings.Compare(left.ID, right.ID) })
+	slices.SortFunc(taskGroups, func(left, right TaskGroup) int { return strings.Compare(left.ID, right.ID) })
 	edges := allDependencies(raw.Graph.Edges)
 	checksum := sha256.Sum256([]byte(content))
 	return Plan{
 		SchemaVersion: raw.SchemaVersion,
 		Initiative:    raw.Initiative,
-		Packages:      packages,
+		TaskGroups:    taskGroups,
 		Edges:         edges,
 		Path:          path,
 		Checksum:      hex.EncodeToString(checksum[:]),
@@ -166,7 +166,10 @@ func validateManifestHeader(raw manifest, expectedInitiative, path string) []Iss
 		)
 	}
 	if len(raw.Graph.Nodes) == 0 {
-		issues = append(issues, Issue{Path: path, Field: "graph.nodes", Message: "must contain at least one package"})
+		issues = append(
+			issues,
+			Issue{Path: path, Field: "graph.nodes", Message: "must contain at least one task group"},
+		)
 	}
 	return issues
 }
@@ -176,26 +179,26 @@ func validateManifestNodes(nodesInput []manifestNode, path string) (map[string]s
 	issues := make([]Issue, 0)
 	for index, node := range nodesInput {
 		prefix := fmt.Sprintf("graph.nodes[%d]", index)
-		if !packageIDPattern.MatchString(node.ID) {
-			issues = append(issues, Issue{Path: path, Field: prefix + ".id", Message: "must match WP-NNN"})
+		if !taskGroupIDPattern.MatchString(node.ID) {
+			issues = append(issues, Issue{Path: path, Field: prefix + ".id", Message: "must match TG-NNN"})
 		} else if _, exists := nodes[node.ID]; exists {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: prefix + ".id", Message: fmt.Sprintf("duplicate package ID %q", node.ID)},
+				Issue{Path: path, Field: prefix + ".id", Message: fmt.Sprintf("duplicate task group ID %q", node.ID)},
 			)
 		} else {
 			nodes[node.ID] = struct{}{}
 		}
-		if !validPackageDirectory(node.ID, node.Directory) {
+		if !validTaskGroupDirectory(node.ID, node.Directory) {
 			issues = append(
 				issues,
 				Issue{
 					Path:  path,
 					Field: prefix + ".directory",
 					Message: fmt.Sprintf(
-						"must be _packages/%s or _packages/%s-<brief>",
+						"must be _task_groups/%s or _task_groups/%s-<brief>",
 						node.ID,
-						packageOrdinal(node.ID),
+						taskGroupOrdinal(node.ID),
 					),
 				},
 			)
@@ -204,32 +207,32 @@ func validateManifestNodes(nodesInput []manifestNode, path string) (map[string]s
 	return nodes, issues
 }
 
-func validPackageDirectory(packageID, directory string) bool {
-	if !packageIDPattern.MatchString(packageID) {
+func validTaskGroupDirectory(taskGroupID, directory string) bool {
+	if !taskGroupIDPattern.MatchString(taskGroupID) {
 		return false
 	}
-	if directory == "_packages/"+packageID {
+	if directory == "_task_groups/"+taskGroupID {
 		return true
 	}
-	prefix := "_packages/" + packageOrdinal(packageID) + "-"
+	prefix := "_task_groups/" + taskGroupOrdinal(taskGroupID) + "-"
 	if !strings.HasPrefix(directory, prefix) {
 		return false
 	}
-	return packageDirectoryBriefPattern.MatchString(strings.TrimPrefix(directory, prefix))
+	return taskGroupDirectoryBriefPattern.MatchString(strings.TrimPrefix(directory, prefix))
 }
 
-func packageOrdinal(packageID string) string {
-	return strings.TrimPrefix(packageID, "WP-")
+func taskGroupOrdinal(taskGroupID string) string {
+	return strings.TrimPrefix(taskGroupID, "TG-")
 }
 
-func readablePackageDirectory(packageID, title string) string {
+func readableTaskGroupDirectory(taskGroupID, title string) string {
 	brief := strings.ToLower(strings.TrimSpace(title))
-	brief = packageDirectorySeparatorPattern.ReplaceAllString(brief, "-")
+	brief = taskGroupDirectorySeparatorPattern.ReplaceAllString(brief, "-")
 	brief = strings.Trim(brief, "-")
 	if brief == "" {
-		brief = "work-package"
+		brief = "task-group"
 	}
-	return "_packages/" + packageOrdinal(packageID) + "-" + brief
+	return "_task_groups/" + taskGroupOrdinal(taskGroupID) + "-" + brief
 }
 
 func validateManifestEdges(edges []manifestEdge, nodes map[string]struct{}, path string) []Issue {
@@ -250,13 +253,13 @@ func validateManifestEdges(edges []manifestEdge, nodes map[string]struct{}, path
 		if _, exists := nodes[edge.From]; !exists {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: prefix + ".from", Message: fmt.Sprintf("unknown package %q", edge.From)},
+				Issue{Path: path, Field: prefix + ".from", Message: fmt.Sprintf("unknown task group %q", edge.From)},
 			)
 		}
 		if _, exists := nodes[edge.To]; !exists {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: prefix + ".to", Message: fmt.Sprintf("unknown package %q", edge.To)},
+				Issue{Path: path, Field: prefix + ".to", Message: fmt.Sprintf("unknown task group %q", edge.To)},
 			)
 		}
 		if edge.Rationale == "" {
@@ -287,40 +290,40 @@ func validateManifestCycle(raw manifest, path string) []Issue {
 	return []Issue{{Path: path, Field: "graph.edges", Message: "graph contains cycle: " + strings.Join(cycle, " -> ")}}
 }
 
-func parseMarkdownPackages(body, path string) (map[string]markdownPackage, []Issue) {
+func parseMarkdownTaskGroups(body, path string) (map[string]markdownTaskGroup, []Issue) {
 	lines := strings.SplitAfter(body, "\n")
-	packages := make(map[string]markdownPackage)
+	taskGroups := make(map[string]markdownTaskGroup)
 	issues := make([]Issue, 0)
 	for index := 0; index < len(lines); {
-		match := packageHeadingPattern.FindStringSubmatch(lines[index])
+		match := taskGroupHeadingPattern.FindStringSubmatch(lines[index])
 		if match == nil {
 			index++
 			continue
 		}
-		pkg, next, packageIssues := parseMarkdownPackage(lines, index, match, path)
-		issues = append(issues, packageIssues...)
-		if _, exists := packages[pkg.ID]; exists {
+		taskGroup, next, taskGroupIssues := parseMarkdownTaskGroup(lines, index, match, path)
+		issues = append(issues, taskGroupIssues...)
+		if _, exists := taskGroups[taskGroup.ID]; exists {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: "body." + pkg.ID, Message: "duplicate Markdown package heading"},
+				Issue{Path: path, Field: "body." + taskGroup.ID, Message: "duplicate Markdown task group heading"},
 			)
 		} else {
-			packages[pkg.ID] = pkg
+			taskGroups[taskGroup.ID] = taskGroup
 		}
 		index = next
 	}
-	return packages, issues
+	return taskGroups, issues
 }
 
-func parseMarkdownPackage(lines []string, start int, match []string, path string) (markdownPackage, int, []Issue) {
-	pkg := markdownPackage{
+func parseMarkdownTaskGroup(lines []string, start int, match []string, path string) (markdownTaskGroup, int, []Issue) {
+	taskGroup := markdownTaskGroup{
 		ID:        strings.TrimSpace(match[2]),
 		Title:     strings.TrimSpace(match[3]),
 		Completed: match[1] == "x",
 	}
 	next := nextMarkdownHeading(lines, start+1)
-	parseMarkdownPackageFields(&pkg, lines[start+1:next])
-	return pkg, next, validateMarkdownPackage(pkg, path)
+	parseMarkdownTaskGroupFields(&taskGroup, lines[start+1:next])
+	return taskGroup, next, validateMarkdownTaskGroup(taskGroup, path)
 }
 
 func nextMarkdownHeading(lines []string, start int) int {
@@ -332,18 +335,18 @@ func nextMarkdownHeading(lines []string, start int) int {
 	return len(lines)
 }
 
-func parseMarkdownPackageFields(pkg *markdownPackage, lines []string) {
+func parseMarkdownTaskGroupFields(taskGroup *markdownTaskGroup, lines []string) {
 	for index, rawLine := range lines {
 		line := strings.TrimRight(rawLine, "\r\n")
 		switch {
 		case strings.HasPrefix(line, "- Reference:"):
-			pkg.Reference = strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "- Reference:")), "`")
+			taskGroup.Reference = strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "- Reference:")), "`")
 		case strings.HasPrefix(line, "- Outcome:"):
-			pkg.Outcome = strings.TrimSpace(strings.TrimPrefix(line, "- Outcome:"))
+			taskGroup.Outcome = strings.TrimSpace(strings.TrimPrefix(line, "- Outcome:"))
 		case strings.HasPrefix(line, "- Owns:"):
-			pkg.OwnedScope = markdownListItems(lines[index+1:])
+			taskGroup.OwnedScope = markdownListItems(lines[index+1:])
 		case strings.HasPrefix(line, "- Dependencies:"):
-			pkg.Dependencies = markdownDependencies(pkg.ID, line, lines[index+1:])
+			taskGroup.Dependencies = markdownDependencies(taskGroup.ID, line, lines[index+1:])
 		}
 	}
 }
@@ -364,7 +367,7 @@ func markdownListItems(lines []string) []string {
 	return items
 }
 
-func markdownDependencies(packageID, heading string, lines []string) []Dependency {
+func markdownDependencies(taskGroupID, heading string, lines []string) []Dependency {
 	if strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(heading, "- Dependencies:")), "none") {
 		return nil
 	}
@@ -380,7 +383,7 @@ func markdownDependencies(packageID, heading string, lines []string) []Dependenc
 				dependencies,
 				Dependency{
 					From:      match[1],
-					To:        packageID,
+					To:        taskGroupID,
 					Rationale: strings.TrimSpace(match[2]),
 				},
 			)
@@ -393,47 +396,47 @@ func isMarkdownSectionBoundary(line string) bool {
 	return strings.HasPrefix(line, "## ") || (strings.HasPrefix(line, "- ") && !strings.HasPrefix(line, "  - "))
 }
 
-func validateMarkdownPackage(pkg markdownPackage, path string) []Issue {
+func validateMarkdownTaskGroup(taskGroup markdownTaskGroup, path string) []Issue {
 	issues := make([]Issue, 0)
-	if !packageIDPattern.MatchString(pkg.ID) {
+	if !taskGroupIDPattern.MatchString(taskGroup.ID) {
 		issues = append(
 			issues,
-			Issue{Path: path, Field: "body.id", Message: fmt.Sprintf("invalid package ID %q", pkg.ID)},
+			Issue{Path: path, Field: "body.id", Message: fmt.Sprintf("invalid task group ID %q", taskGroup.ID)},
 		)
 	}
-	if pkg.Title == "" {
-		issues = append(issues, Issue{Path: path, Field: "body." + pkg.ID + ".title", Message: "is required"})
+	if taskGroup.Title == "" {
+		issues = append(issues, Issue{Path: path, Field: "body." + taskGroup.ID + ".title", Message: "is required"})
 	}
-	if pkg.Reference == "" {
-		issues = append(issues, Issue{Path: path, Field: "body." + pkg.ID + ".reference", Message: "is required"})
+	if taskGroup.Reference == "" {
+		issues = append(issues, Issue{Path: path, Field: "body." + taskGroup.ID + ".reference", Message: "is required"})
 	}
-	if pkg.Outcome == "" {
-		issues = append(issues, Issue{Path: path, Field: "body." + pkg.ID + ".outcome", Message: "is required"})
+	if taskGroup.Outcome == "" {
+		issues = append(issues, Issue{Path: path, Field: "body." + taskGroup.ID + ".outcome", Message: "is required"})
 	}
-	if len(pkg.OwnedScope) == 0 {
+	if len(taskGroup.OwnedScope) == 0 {
 		issues = append(
 			issues,
-			Issue{Path: path, Field: "body." + pkg.ID + ".owns", Message: "must contain owned scope"},
+			Issue{Path: path, Field: "body." + taskGroup.ID + ".owns", Message: "must contain owned scope"},
 		)
 	}
 	return issues
 }
 
-func validatePlanSurfaces(raw manifest, body map[string]markdownPackage, path string) []Issue {
+func validatePlanSurfaces(raw manifest, body map[string]markdownTaskGroup, path string) []Issue {
 	issues := make([]Issue, 0)
 	nodes := make(map[string]manifestNode, len(raw.Graph.Nodes))
 	for _, node := range raw.Graph.Nodes {
 		nodes[node.ID] = node
 	}
-	for id, bodyPackage := range body {
+	for id, bodyTaskGroup := range body {
 		if _, exists := nodes[id]; !exists {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: "body." + id, Message: "Markdown package has no YAML graph node"},
+				Issue{Path: path, Field: "body." + id, Message: "Markdown task group has no YAML graph node"},
 			)
 			continue
 		}
-		if bodyPackage.Reference != raw.Initiative+"/"+id {
+		if bodyTaskGroup.Reference != raw.Initiative+"/"+id {
 			issues = append(
 				issues,
 				Issue{
@@ -448,14 +451,14 @@ func validatePlanSurfaces(raw manifest, body map[string]markdownPackage, path st
 		if _, exists := body[id]; !exists {
 			issues = append(
 				issues,
-				Issue{Path: path, Field: "graph.nodes." + id, Message: "YAML package has no Markdown heading"},
+				Issue{Path: path, Field: "graph.nodes." + id, Message: "YAML task group has no Markdown heading"},
 			)
 		}
 	}
 
 	graphIncoming := incomingDependencies(raw.Graph.Edges)
-	for id, bodyPackage := range body {
-		if !sameDependencies(graphIncoming[id], bodyPackage.Dependencies) {
+	for id, bodyTaskGroup := range body {
+		if !sameDependencies(graphIncoming[id], bodyTaskGroup.Dependencies) {
 			issues = append(
 				issues,
 				Issue{
@@ -575,30 +578,30 @@ func graphCycle(nodes []manifestNode, edges []manifestEdge) []string {
 
 // RenderPlan renders a normalized plan into the canonical hybrid Markdown form.
 func RenderPlan(plan Plan) ([]byte, error) {
-	packages, err := renderablePackages(plan)
+	taskGroups, err := renderableTaskGroups(plan)
 	if err != nil {
 		return nil, err
 	}
-	raw := renderManifest(plan, packages)
+	raw := renderManifest(plan, taskGroups)
 	header, err := yaml.Marshal(raw)
 	if err != nil {
-		return nil, fmt.Errorf("marshal work package plan: %w", err)
+		return nil, fmt.Errorf("marshal task group plan: %w", err)
 	}
-	return []byte("---\n" + string(header) + "---\n\n" + renderPlanBody(plan, packages)), nil
+	return []byte("---\n" + string(header) + "---\n\n" + renderPlanBody(plan, taskGroups)), nil
 }
 
-// RenderPackageExcerpt renders one validated package as a standalone Markdown excerpt.
-func RenderPackageExcerpt(plan Plan, packageID string) ([]byte, error) {
-	pkg, found := plan.Package(strings.TrimSpace(packageID))
+// RenderTaskGroupExcerpt renders one validated task group as a standalone Markdown excerpt.
+func RenderTaskGroupExcerpt(plan Plan, taskGroupID string) ([]byte, error) {
+	taskGroup, found := plan.TaskGroup(strings.TrimSpace(taskGroupID))
 	if !found {
-		return nil, packageNotFound(Ref{Initiative: plan.Initiative, PackageID: packageID}, plan)
+		return nil, taskGroupNotFound(Ref{Initiative: plan.Initiative, TaskGroupID: taskGroupID}, plan)
 	}
 	var body strings.Builder
-	renderPackageBody(&body, plan, pkg)
+	renderTaskGroupBody(&body, plan, taskGroup)
 	return []byte(body.String()), nil
 }
 
-func renderablePackages(plan Plan) ([]Package, error) {
+func renderableTaskGroups(plan Plan) ([]TaskGroup, error) {
 	if plan.SchemaVersion == "" {
 		plan.SchemaVersion = SchemaVersion
 	}
@@ -624,42 +627,42 @@ func renderablePackages(plan Plan) ([]Package, error) {
 			}},
 		)
 	}
-	packages := slices.Clone(plan.Packages)
-	slices.SortFunc(packages, func(left, right Package) int { return strings.Compare(left.ID, right.ID) })
-	for index := range packages {
-		pkg := &packages[index]
-		if !renderablePackage(*pkg) {
+	taskGroups := slices.Clone(plan.TaskGroups)
+	slices.SortFunc(taskGroups, func(left, right TaskGroup) int { return strings.Compare(left.ID, right.ID) })
+	for index := range taskGroups {
+		taskGroup := &taskGroups[index]
+		if !renderableTaskGroup(*taskGroup) {
 			return nil, newError(
 				ErrInvalidPlan,
 				plan.Initiative,
-				pkg.ID,
+				taskGroup.ID,
 				plan.Path,
 				[]Issue{{
-					Field: "package", Message: "cannot render incomplete package",
+					Field: "task group", Message: "cannot render incomplete task group",
 				}},
 			)
 		}
 	}
-	return packages, nil
+	return taskGroups, nil
 }
 
-func renderablePackage(pkg Package) bool {
-	return packageIDPattern.MatchString(pkg.ID) &&
-		(pkg.Directory == "" || validPackageDirectory(pkg.ID, pkg.Directory)) &&
-		strings.TrimSpace(pkg.Title) != "" &&
-		strings.TrimSpace(pkg.Outcome) != "" &&
-		len(pkg.OwnedScope) > 0
+func renderableTaskGroup(taskGroup TaskGroup) bool {
+	return taskGroupIDPattern.MatchString(taskGroup.ID) &&
+		(taskGroup.Directory == "" || validTaskGroupDirectory(taskGroup.ID, taskGroup.Directory)) &&
+		strings.TrimSpace(taskGroup.Title) != "" &&
+		strings.TrimSpace(taskGroup.Outcome) != "" &&
+		len(taskGroup.OwnedScope) > 0
 }
 
-func renderManifest(plan Plan, packages []Package) manifest {
+func renderManifest(plan Plan, taskGroups []TaskGroup) manifest {
 	raw := manifest{SchemaVersion: SchemaVersion, Initiative: plan.Initiative}
-	for index := range packages {
-		pkg := &packages[index]
-		directory := pkg.Directory
+	for index := range taskGroups {
+		taskGroup := &taskGroups[index]
+		directory := taskGroup.Directory
 		if directory == "" {
-			directory = readablePackageDirectory(pkg.ID, pkg.Title)
+			directory = readableTaskGroupDirectory(taskGroup.ID, taskGroup.Title)
 		}
-		raw.Graph.Nodes = append(raw.Graph.Nodes, manifestNode{ID: pkg.ID, Directory: directory})
+		raw.Graph.Nodes = append(raw.Graph.Nodes, manifestNode{ID: taskGroup.ID, Directory: directory})
 	}
 	for _, edge := range plan.Edges {
 		raw.Graph.Edges = append(raw.Graph.Edges, manifestEdge(edge))
@@ -670,30 +673,30 @@ func renderManifest(plan Plan, packages []Package) manifest {
 	return raw
 }
 
-func renderPlanBody(plan Plan, packages []Package) string {
+func renderPlanBody(plan Plan, taskGroups []TaskGroup) string {
 	var body strings.Builder
 	body.WriteString("# ")
 	body.WriteString(plan.Initiative)
-	body.WriteString(" Work Packages\n\n")
-	for index := range packages {
-		renderPackageBody(&body, plan, packages[index])
+	body.WriteString(" Task Groups\n\n")
+	for index := range taskGroups {
+		renderTaskGroupBody(&body, plan, taskGroups[index])
 	}
 	return body.String()
 }
 
-func renderPackageBody(body *strings.Builder, plan Plan, pkg Package) {
+func renderTaskGroupBody(body *strings.Builder, plan Plan, taskGroup TaskGroup) {
 	checkbox := " "
-	if pkg.Completed {
+	if taskGroup.Completed {
 		checkbox = "x"
 	}
-	fmt.Fprintf(body, "## [%s] %s — %s\n\n", checkbox, pkg.ID, pkg.Title)
-	fmt.Fprintf(body, "- Reference: `%s/%s`\n", plan.Initiative, pkg.ID)
-	fmt.Fprintf(body, "- Outcome: %s\n", pkg.Outcome)
+	fmt.Fprintf(body, "## [%s] %s — %s\n\n", checkbox, taskGroup.ID, taskGroup.Title)
+	fmt.Fprintf(body, "- Reference: `%s/%s`\n", plan.Initiative, taskGroup.ID)
+	fmt.Fprintf(body, "- Outcome: %s\n", taskGroup.Outcome)
 	body.WriteString("- Owns:\n")
-	for _, scope := range pkg.OwnedScope {
+	for _, scope := range taskGroup.OwnedScope {
 		fmt.Fprintf(body, "  - %s\n", scope)
 	}
-	dependencies := incomingForPackage(plan.Edges, pkg.ID)
+	dependencies := incomingForTaskGroup(plan.Edges, taskGroup.ID)
 	if len(dependencies) == 0 {
 		body.WriteString("- Dependencies: None\n")
 	} else {
@@ -705,7 +708,7 @@ func renderPackageBody(body *strings.Builder, plan Plan, pkg Package) {
 	body.WriteByte('\n')
 }
 
-func incomingForPackage(edges []Dependency, id string) []Dependency {
+func incomingForTaskGroup(edges []Dependency, id string) []Dependency {
 	result := make([]Dependency, 0)
 	for _, edge := range edges {
 		if edge.To == id {
@@ -716,15 +719,15 @@ func incomingForPackage(edges []Dependency, id string) []Dependency {
 	return result
 }
 
-// ValidatePackageRemoval reports packages whose dependencies would be broken by removal.
-func ValidatePackageRemoval(plan Plan, packageID string) []Issue {
+// ValidateTaskGroupRemoval reports task groups whose dependencies would be broken by removal.
+func ValidateTaskGroupRemoval(plan Plan, taskGroupID string) []Issue {
 	issues := make([]Issue, 0)
 	for _, edge := range plan.Edges {
-		if edge.From == packageID || edge.To == packageID {
+		if edge.From == taskGroupID || edge.To == taskGroupID {
 			issues = append(issues, Issue{
 				Path:    plan.Path,
 				Field:   "graph.edges",
-				Message: fmt.Sprintf("package %q affects dependency %s -> %s", packageID, edge.From, edge.To),
+				Message: fmt.Sprintf("task group %q affects dependency %s -> %s", taskGroupID, edge.From, edge.To),
 			})
 		}
 	}

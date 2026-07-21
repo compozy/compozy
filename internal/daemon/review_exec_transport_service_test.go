@@ -123,47 +123,47 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 	}
 }
 
-func TestTransportReviewServicePackageMutationsUseChildReviewsAndParentSpecs(t *testing.T) {
-	// INVARIANT: package fetch/fix mutations write child review state while lifecycle scope retains parent specs.
+func TestTransportReviewServiceTaskGroupMutationsUseChildReviewsAndParentSpecs(t *testing.T) {
+	// INVARIANT: task group fetch/fix mutations write child review state while lifecycle scope retains parent specs.
 	// OWNING_LAYER: service-integration. CONTRACT: IT-064.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-001"
+	taskGroupRef := initiative + "/TG-001"
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("pending", "Package task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
 	)
 	syncNamedWorkflowForDaemonTest(t, env, initiative)
-	recordPath := filepath.Join(t.TempDir(), "sdk-review-package-records.jsonl")
+	recordPath := filepath.Join(t.TempDir(), "sdk-review-task-group-records.jsonl")
 	installSDKReviewProviderExtension(t, env.homeDir, env.workspaceRoot, recordPath)
 
 	service := newTransportReviewService(env.globalDB, env.manager)
 	fetched, err := service.Fetch(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
-		apicore.ReviewFetchRequest{Provider: "sdk-review", PRRef: "package-1"},
+		taskGroupRef,
+		apicore.ReviewFetchRequest{Provider: "sdk-review", PRRef: "task-group-1"},
 	)
 	if err != nil {
-		t.Fatalf("Fetch(package) error = %v", err)
+		t.Fatalf("Fetch(task group) error = %v", err)
 	}
-	if fetched.Summary.WorkflowSlug != packageRef || fetched.Summary.RoundNumber != 1 {
-		t.Fatalf("Fetch(package) summary = %#v", fetched.Summary)
+	if fetched.Summary.WorkflowSlug != taskGroupRef || fetched.Summary.RoundNumber != 1 {
+		t.Fatalf("Fetch(task group) summary = %#v", fetched.Summary)
 	}
 	childIssue := filepath.Join(
 		env.workflowDir(initiative),
-		"_packages",
-		"WP-001",
+		"_task_groups",
+		"TG-001",
 		"reviews-001",
 		"issue_001.md",
 	)
 	if _, err := os.Stat(childIssue); err != nil {
-		t.Fatalf("package review issue stat error = %v", err)
+		t.Fatalf("task group review issue stat error = %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(env.workflowDir(initiative), "reviews-001")); !os.IsNotExist(err) {
 		t.Fatalf("initiative review directory stat = %v, want not exist", err)
@@ -172,21 +172,21 @@ func TestTransportReviewServicePackageMutationsUseChildReviewsAndParentSpecs(t *
 	run, err := service.StartRun(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		1,
 		apicore.ReviewRunRequest{
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"review-package-fix","dry_run":true}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"review-task-group-fix","dry_run":true}`),
 		},
 	)
 	if err != nil {
-		t.Fatalf("StartRun(package) error = %v", err)
+		t.Fatalf("StartRun(task group) error = %v", err)
 	}
 	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
 		return isTerminalRunStatus(row.Status)
 	})
-	if run.WorkflowSlug != packageRef || row.Mode != runModeReview {
-		t.Fatalf("package review-fix run = %#v / %#v", run, row)
+	if run.WorkflowSlug != taskGroupRef || row.Mode != runModeReview {
+		t.Fatalf("task group review-fix run = %#v / %#v", run, row)
 	}
 }
 

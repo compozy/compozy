@@ -7,10 +7,10 @@ import type { MarkdownDocument, WorkflowMemoryIndex } from "../types";
 export function useWorkflowMemoryIndex(
   workspaceId: string | null,
   slug: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<WorkflowMemoryIndex>({
-    queryKey: memoryKeys.index(workspaceId ?? "none", slug ?? "none", packageId) as QueryKey,
+    queryKey: memoryKeys.index(workspaceId ?? "none", slug ?? "none", taskGroupId) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load memory index");
@@ -18,7 +18,7 @@ export function useWorkflowMemoryIndex(
       if (!slug) {
         throw new Error("workflow slug is required to load memory index");
       }
-      return getWorkflowMemoryIndex({ workspaceId, slug, packageId });
+      return getWorkflowMemoryIndex({ workspaceId, slug, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });
@@ -28,14 +28,14 @@ export function useWorkflowMemoryFile(
   workspaceId: string | null,
   slug: string | null,
   fileId: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<MarkdownDocument>({
     queryKey: memoryKeys.file(
       workspaceId ?? "none",
       slug ?? "none",
       fileId ?? "none",
-      packageId
+      taskGroupId
     ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
@@ -47,7 +47,7 @@ export function useWorkflowMemoryFile(
       if (!fileId) {
         throw new Error("file id is required to load a memory file");
       }
-      return getWorkflowMemoryFile({ workspaceId, slug, fileId, packageId });
+      return getWorkflowMemoryFile({ workspaceId, slug, fileId, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && Boolean(fileId),
   });

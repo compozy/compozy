@@ -94,7 +94,7 @@ export function useStartWorkflowRun() {
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.byWorkspace(variables.workspaceId),
       });
-      // Refresh the workflow inventory. Its per-workflow/per-package projection
+      // Refresh the workflow inventory. Its per-workflow/per-task-group projection
       // (active_runs, readiness badge, can_start_run) gates the Start button and
       // is not covered by the run-list or dashboard keys. Without this, the
       // button re-enables against the pre-run projection and the user can

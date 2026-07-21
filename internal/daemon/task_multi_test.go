@@ -121,8 +121,8 @@ func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
 	})
 }
 
-func TestRunManagerTaskRunMultipleUsesStructuredWorkPackageTarget(t *testing.T) {
-	// E2E-017: a multi-run package target is structured at the API boundary and
+func TestRunManagerTaskRunMultipleUsesStructuredTaskGroupTarget(t *testing.T) {
+	// E2E-017: a multi-run task group target is structured at the API boundary and
 	// executes the daemon-resolved child workflow, never a slash route value.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
 		buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
@@ -132,27 +132,27 @@ func TestRunManagerTaskRunMultipleUsesStructuredWorkPackageTarget(t *testing.T) 
 			if runID := strings.TrimSpace(cfg.RunID); runID != "" {
 				return runID, nil
 			}
-			return "child-package-target", nil
+			return "child-task-group-target", nil
 		},
 		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
 			return &model.SolvePreparation{}, nil
 		},
 	})
 	initiative := "watcher"
-	writeDaemonDependentPackageFixture(t, env, initiative, true)
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
 
 	parent, err := env.manager.StartTaskRunMultiple(
 		context.Background(),
 		env.workspaceRoot,
 		apicore.TaskRunMultipleRequest{
 			Workspace:        env.workspaceRoot,
-			Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, PackageID: "WP-002"}},
+			Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-package-target"}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-task-group-target"}`),
 		},
 	)
 	if err != nil {
-		t.Fatalf("StartTaskRunMultiple(package target) error = %v", err)
+		t.Fatalf("StartTaskRunMultiple(task group target) error = %v", err)
 	}
 	_ = waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
 		return row.Status == runStatusCompleted
@@ -163,21 +163,21 @@ func TestRunManagerTaskRunMultipleUsesStructuredWorkPackageTarget(t *testing.T) 
 		t.Fatalf("RunMultipleSnapshot() error = %v", err)
 	}
 	assertTaskMultiItems(t, snapshot.Items, []apicore.TaskRunMultipleItem{{
-		Slug:   "watcher/WP-002",
+		Slug:   "watcher/TG-002",
 		Status: taskMultiItemStatusCompleted,
-		RunID:  "child-package-target",
+		RunID:  "child-task-group-target",
 	}})
 }
 
-// INVARIANT: an incomplete package starts through a multi-run only when the
+// INVARIANT: an incomplete task group starts through a multi-run only when the
 // caller explicitly authorizes out-of-order execution, and its child run
 // records both the requested authorization and why it was needed.
 // OWNING_LAYER: service-integration. CONTRACT: IT-036.
-func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderPackage(t *testing.T) {
+func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderTaskGroup(t *testing.T) {
 	const (
 		initiative  = "watcher"
-		parentRunID = "multi-package-override"
-		childRunID  = "child-package-override"
+		parentRunID = "multi-task-group-override"
+		childRunID  = "child-task-group-override"
 	)
 
 	newEnv := func(t *testing.T) *runManagerTestEnv {
@@ -196,11 +196,11 @@ func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderPackage(t *testin
 				return &model.SolvePreparation{}, nil
 			},
 		})
-		writeDaemonDependentPackageFixture(t, env, initiative, false)
+		writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
 		return env
 	}
 
-	t.Run("Should reject an incomplete package without authorization", func(t *testing.T) {
+	t.Run("Should reject an incomplete task group without authorization", func(t *testing.T) {
 		env := newEnv(t)
 
 		_, err := env.manager.StartTaskRunMultiple(
@@ -208,13 +208,13 @@ func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderPackage(t *testin
 			env.workspaceRoot,
 			apicore.TaskRunMultipleRequest{
 				Workspace:        env.workspaceRoot,
-				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, PackageID: "WP-002"}},
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
 				PresentationMode: defaultPresentationMode,
 				RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
 			},
 		)
 		var problem *apicore.Problem
-		if !errors.As(err, &problem) || problem.Code != "work_package_dependencies_unmet" {
+		if !errors.As(err, &problem) || problem.Code != "task_group_dependencies_unmet" {
 			t.Fatalf("StartTaskRunMultiple() error = %#v (%v), want dependency problem", problem, err)
 		}
 		if _, err := env.globalDB.GetRun(context.Background(), parentRunID); !errors.Is(err, globaldb.ErrRunNotFound) {
@@ -222,7 +222,7 @@ func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderPackage(t *testin
 		}
 	})
 
-	t.Run("Should start an incomplete package with authorization and persist metadata", func(t *testing.T) {
+	t.Run("Should start an incomplete task group with authorization and persist metadata", func(t *testing.T) {
 		env := newEnv(t)
 
 		parent, err := env.manager.StartTaskRunMultiple(
@@ -230,7 +230,7 @@ func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderPackage(t *testin
 			env.workspaceRoot,
 			apicore.TaskRunMultipleRequest{
 				Workspace:        env.workspaceRoot,
-				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, PackageID: "WP-002"}},
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
 				AllowOutOfOrder:  true,
 				PresentationMode: defaultPresentationMode,
 				RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),

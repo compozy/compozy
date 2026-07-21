@@ -229,26 +229,26 @@ complexity: medium
 }
 
 func TestBuildScopedPromptsUseCurrentInitiativeSpecificationsAndExcludeSiblingArtifacts(t *testing.T) {
-	// INVARIANT: a package prompt contains fresh root specifications and the
-	// selected package context, never sibling mutable artifacts.
+	// INVARIANT: a task group prompt contains fresh root specifications and the
+	// selected task group context, never sibling mutable artifacts.
 	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/prompt/prompt_test.go.
 	root := t.TempDir()
-	packageDir := filepath.Join(root, "_packages", "WP-001")
-	siblingDir := filepath.Join(root, "_packages", "WP-002")
+	taskGroupDir := filepath.Join(root, "_task_groups", "TG-001")
+	siblingDir := filepath.Join(root, "_task_groups", "TG-002")
 	for path, content := range map[string]string{
-		filepath.Join(root, "_prd.md"):           "# Canonical PRD\ncurrent requirement\n",
-		filepath.Join(root, "_techspec.md"):      "# Canonical TechSpec\ncurrent protocol\n",
-		filepath.Join(root, "_work_packages.md"): "# Package Plan\nWP-001 owns this work\n",
-		filepath.Join(packageDir, "task_01.md"): `---
+		filepath.Join(root, "_prd.md"):         "# Canonical PRD\ncurrent requirement\n",
+		filepath.Join(root, "_techspec.md"):    "# Canonical TechSpec\ncurrent protocol\n",
+		filepath.Join(root, "_task_groups.md"): "# Task Group Plan\nTG-001 owns this work\n",
+		filepath.Join(taskGroupDir, "task_01.md"): `---
 status: pending
-title: Package task
+title: Task Group task
 type: backend
 complexity: low
 ---
 
-# Selected package task
+# Selected task group task
 `,
-		filepath.Join(packageDir, "memory", "MEMORY.md"):         "selected package memory\n",
+		filepath.Join(taskGroupDir, "memory", "MEMORY.md"):       "selected task group memory\n",
 		filepath.Join(siblingDir, "task_01.md"):                  "SIBLING TASK SECRET\n",
 		filepath.Join(siblingDir, "memory", "MEMORY.md"):         "SIBLING MEMORY SECRET\n",
 		filepath.Join(siblingDir, "reviews-001", "issue_001.md"): "SIBLING REVIEW SECRET\n",
@@ -260,21 +260,21 @@ complexity: low
 			t.Fatalf("write %s: %v", path, err)
 		}
 	}
-	taskPath := filepath.Join(packageDir, "task_01.md")
+	taskPath := filepath.Join(taskGroupDir, "task_01.md")
 	taskContent, err := os.ReadFile(taskPath)
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
 	scope := &model.ExecutionScope{
 		SpecDir:        root,
-		OperationalDir: packageDir,
-		WorkflowRef:    "initiative/WP-001",
-		TasksDir:       packageDir,
-		ReviewsDir:     packageDir,
-		MemoryDir:      filepath.Join(packageDir, "memory"),
+		OperationalDir: taskGroupDir,
+		WorkflowRef:    "initiative/TG-001",
+		TasksDir:       taskGroupDir,
+		ReviewsDir:     taskGroupDir,
+		MemoryDir:      filepath.Join(taskGroupDir, "memory"),
 	}
 	promptText, err := Build(BatchParams{
-		Name:  "initiative/WP-001",
+		Name:  "initiative/TG-001",
 		Mode:  model.ExecutionModePRDTasks,
 		Scope: scope,
 		BatchGroups: map[string][]model.IssueEntry{
@@ -284,7 +284,7 @@ complexity: low
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
-	for _, want := range []string{"current requirement", "current protocol", "WP-001 owns this work", "Selected package task"} {
+	for _, want := range []string{"current requirement", "current protocol", "TG-001 owns this work", "Selected task group task"} {
 		if !strings.Contains(promptText, want) {
 			t.Fatalf("IT-023/IT-037 prompt missing %q", want)
 		}
@@ -299,7 +299,7 @@ complexity: low
 		t.Fatalf("remove canonical techspec: %v", err)
 	}
 	if _, err := Build(BatchParams{
-		Name: "initiative/WP-001", Mode: model.ExecutionModePRDTasks, Scope: scope,
+		Name: "initiative/TG-001", Mode: model.ExecutionModePRDTasks, Scope: scope,
 		BatchGroups: map[string][]model.IssueEntry{
 			"task_01.md": {{Name: "task_01.md", AbsPath: taskPath, Content: string(taskContent)}},
 		},

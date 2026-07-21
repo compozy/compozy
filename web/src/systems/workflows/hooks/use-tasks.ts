@@ -7,10 +7,10 @@ import type { TaskBoardPayload, TaskDetailPayload } from "../types";
 export function useWorkflowBoard(
   workspaceId: string | null,
   slug: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<TaskBoardPayload>({
-    queryKey: workflowKeys.board(workspaceId ?? "none", slug ?? "none", packageId),
+    queryKey: workflowKeys.board(workspaceId ?? "none", slug ?? "none", taskGroupId),
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load the task board");
@@ -18,7 +18,7 @@ export function useWorkflowBoard(
       if (!slug) {
         throw new Error("workflow slug is required to load the task board");
       }
-      return getWorkflowBoard({ workspaceId, slug, packageId });
+      return getWorkflowBoard({ workspaceId, slug, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });
@@ -28,10 +28,15 @@ export function useWorkflowTask(
   workspaceId: string | null,
   slug: string | null,
   taskId: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<TaskDetailPayload>({
-    queryKey: workflowKeys.task(workspaceId ?? "none", slug ?? "none", taskId ?? "none", packageId),
+    queryKey: workflowKeys.task(
+      workspaceId ?? "none",
+      slug ?? "none",
+      taskId ?? "none",
+      taskGroupId
+    ),
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load a task");
@@ -42,7 +47,7 @@ export function useWorkflowTask(
       if (!taskId) {
         throw new Error("task id is required to load a task");
       }
-      return getWorkflowTask({ workspaceId, slug, taskId, packageId });
+      return getWorkflowTask({ workspaceId, slug, taskId, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && Boolean(taskId),
   });

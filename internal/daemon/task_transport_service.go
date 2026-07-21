@@ -11,8 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -143,7 +143,7 @@ func workflowListSummary(
 	if row.Kind != globaldb.WorkflowKindInitiative {
 		return summary, nil
 	}
-	readinessByPackageID, err := projectWorkPackageReadiness(children)
+	readinessByTaskGroupID, err := projectTaskGroupReadiness(children)
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
@@ -151,11 +151,11 @@ func workflowListSummary(
 		child := children[childIndex]
 		childCounts := taskCountsByWorkflowID[child.ID]
 		childEligibility := archiveEligibilityByWorkflowID[child.ID]
-		childReview, reviewErr := latestPackageReviewSummary(ctx, db, *child)
+		childReview, reviewErr := latestTaskGroupReviewSummary(ctx, db, *child)
 		if reviewErr != nil {
 			return apicore.WorkflowSummary{}, reviewErr
 		}
-		summary.WorkPackages = append(summary.WorkPackages, transportWorkPackageSummary(
+		summary.TaskGroups = append(summary.TaskGroups, transportTaskGroupSummary(
 			*child,
 			WorkflowTaskCounts{
 				Total:     childCounts.Total,
@@ -163,17 +163,17 @@ func workflowListSummary(
 				Pending:   childCounts.Pending,
 			},
 			childEligibility,
-			readinessByPackageID[child.PackageID],
+			readinessByTaskGroupID[child.TaskGroupID],
 			childReview,
 		))
 	}
 	return summary, nil
 }
 
-// latestPackageReviewSummary projects a work package's most recent review round
-// into the read model so inventory cards can link to it. A package without any
+// latestTaskGroupReviewSummary projects a task group's most recent review round
+// into the read model so inventory cards can link to it. A task group without any
 // review round contributes no identity (nil), not an error.
-func latestPackageReviewSummary(
+func latestTaskGroupReviewSummary(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	child globaldb.Workflow,
@@ -202,7 +202,7 @@ func (s *transportTaskService) GetWorkflow(
 	if err != nil {
 		return apicore.WorkflowSummary{}, err
 	}
-	if err := validatePackageTransportReference(
+	if err := validateTaskGroupTransportReference(
 		ctx,
 		s.globalDB,
 		workspaceRow.ID,
@@ -234,7 +234,7 @@ func (s *transportTaskService) WorkflowOverview(
 	if s == nil || s.query == nil {
 		return apicore.WorkflowOverviewPayload{}, taskTransportUnavailable("workflow overview")
 	}
-	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+	if err := s.validateTaskGroupReference(ctx, workspaceRef, workflowSlug); err != nil {
 		return apicore.WorkflowOverviewPayload{}, err
 	}
 	payload, err := s.query.WorkflowOverview(ctx, workspaceRef, workflowSlug)
@@ -256,7 +256,7 @@ func (s *transportTaskService) TaskBoard(
 	if s == nil || s.query == nil {
 		return apicore.TaskBoardPayload{}, taskTransportUnavailable("task board")
 	}
-	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+	if err := s.validateTaskGroupReference(ctx, workspaceRef, workflowSlug); err != nil {
 		return apicore.TaskBoardPayload{}, err
 	}
 	payload, err := s.query.TaskBoard(ctx, workspaceRef, workflowSlug)
@@ -274,7 +274,7 @@ func (s *transportTaskService) WorkflowSpec(
 	if s == nil || s.query == nil {
 		return apicore.WorkflowSpecDocument{}, taskTransportUnavailable("workflow spec")
 	}
-	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+	if err := s.validateTaskGroupReference(ctx, workspaceRef, workflowSlug); err != nil {
 		return apicore.WorkflowSpecDocument{}, err
 	}
 	payload, err := s.query.WorkflowSpec(ctx, workspaceRef, workflowSlug)
@@ -292,7 +292,7 @@ func (s *transportTaskService) WorkflowMemoryIndex(
 	if s == nil || s.query == nil {
 		return apicore.WorkflowMemoryIndex{}, taskTransportUnavailable("workflow memory index")
 	}
-	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+	if err := s.validateTaskGroupReference(ctx, workspaceRef, workflowSlug); err != nil {
 		return apicore.WorkflowMemoryIndex{}, err
 	}
 	payload, err := s.query.WorkflowMemoryIndex(ctx, workspaceRef, workflowSlug)
@@ -311,7 +311,7 @@ func (s *transportTaskService) WorkflowMemoryFile(
 	if s == nil || s.query == nil {
 		return apicore.MarkdownDocument{}, taskTransportUnavailable("workflow memory file")
 	}
-	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+	if err := s.validateTaskGroupReference(ctx, workspaceRef, workflowSlug); err != nil {
 		return apicore.MarkdownDocument{}, err
 	}
 	payload, err := s.query.WorkflowMemoryFile(ctx, workspaceRef, workflowSlug, fileID)
@@ -330,7 +330,7 @@ func (s *transportTaskService) TaskDetail(
 	if s == nil || s.query == nil {
 		return apicore.TaskDetailPayload{}, taskTransportUnavailable("task detail")
 	}
-	if err := s.validatePackageReference(ctx, workspaceRef, workflowSlug); err != nil {
+	if err := s.validateTaskGroupReference(ctx, workspaceRef, workflowSlug); err != nil {
 		return apicore.TaskDetailPayload{}, err
 	}
 	payload, err := s.query.TaskDetail(ctx, workspaceRef, workflowSlug, taskID)
@@ -340,29 +340,29 @@ func (s *transportTaskService) TaskDetail(
 	return transportTaskDetail(payload), nil
 }
 
-func (s *transportTaskService) validatePackageReference(
+func (s *transportTaskService) validateTaskGroupReference(
 	ctx context.Context,
 	workspaceRef string,
 	workflowSlug string,
 ) error {
 	if s == nil || s.globalDB == nil {
-		return taskTransportUnavailable("work package selection")
+		return taskTransportUnavailable("task group selection")
 	}
 	workspace, err := resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
 	if err != nil {
 		return err
 	}
-	return validatePackageTransportReference(ctx, s.globalDB, workspace.ID, workspace.RootDir, workflowSlug)
+	return validateTaskGroupTransportReference(ctx, s.globalDB, workspace.ID, workspace.RootDir, workflowSlug)
 }
 
-// validatePackageTransportReference resolves a package reference against the
+// validateTaskGroupTransportReference resolves a task group reference against the
 // current plan before query paths touch the durable workflow catalog. This
-// keeps public package failures typed even when the catalog has not yet been
+// keeps public task group failures typed even when the catalog has not yet been
 // synced for an unknown or stale selection. Durable archived rows are read-only
 // history whose active plan no longer exists on disk, so once the catalog
 // confirms the selection was archived it bypasses active-plan resolution; live
 // selections keep typed validation against the on-disk plan.
-func validatePackageTransportReference(
+func validateTaskGroupTransportReference(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspaceID string,
@@ -372,35 +372,35 @@ func validatePackageTransportReference(
 	if !strings.Contains(strings.TrimSpace(workflowSlug), "/") {
 		return nil
 	}
-	ref, err := workpackages.ParsePackageRef(strings.TrimSpace(workflowSlug))
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(workflowSlug))
 	if err != nil {
 		return err
 	}
-	if archivedPackageSelection(ctx, db, workspaceID, ref) {
+	if archivedTaskGroupSelection(ctx, db, workspaceID, ref) {
 		return nil
 	}
-	_, err = (workpackages.TargetResolver{}).ResolvePackage(ctx, workspaceRoot, ref.String())
+	_, err = (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspaceRoot, ref.String())
 	return err
 }
 
-// archivedPackageSelection reports whether the reference resolves to a durable
+// archivedTaskGroupSelection reports whether the reference resolves to a durable
 // archived workflow row whose owning generation is fully archived, rather than a
 // live selection or a child dropped from a recreated parent generation.
 //
-// A package reference has no stable global identity; it is only meaningful
+// A task group reference has no stable global identity; it is only meaningful
 // relative to a parent generation. When an active parent initiative still
 // exists, only that generation's plan is authoritative, so archived children of
 // prior generations must not shadow it. In that case the caller stays on
 // active-plan validation and a child absent from the recreated plan yields a
-// typed package-not-found instead of stale archived history. Archived fallback
+// typed task-group-not-found instead of stale archived history. Archived fallback
 // is allowed only when no active parent generation exists (the whole initiative
 // has been archived); a live row or unresolved lookup likewise keeps the caller
 // on active-plan validation.
-func archivedPackageSelection(
+func archivedTaskGroupSelection(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspaceID string,
-	ref workpackages.Ref,
+	ref taskgroups.Ref,
 ) bool {
 	if db == nil || strings.TrimSpace(workspaceID) == "" {
 		return false
@@ -408,10 +408,10 @@ func archivedPackageSelection(
 	if !activeWorkflowMissing(ctx, db, workspaceID, ref.String()) {
 		return false
 	}
-	// A package selection is bound to its parent generation. If that parent is
+	// A task group selection is bound to its parent generation. If that parent is
 	// still active, its current plan is authoritative and archived children of
-	// prior generations must not shadow a package the new plan dropped.
-	if ref.IsPackage() && !activeWorkflowMissing(ctx, db, workspaceID, ref.Initiative) {
+	// prior generations must not shadow a task group the new plan dropped.
+	if ref.IsTaskGroup() && !activeWorkflowMissing(ctx, db, workspaceID, ref.Initiative) {
 		return false
 	}
 	_, err := db.GetLatestArchivedWorkflowBySlug(ctx, workspaceID, ref.String())

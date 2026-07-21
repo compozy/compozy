@@ -69,7 +69,7 @@ func TestApplyMigrationsUpgradesExistingCatalogWithWorkflowHierarchy(t *testing.
 	// Suite boundary
 	// IN: a real v5 SQLite catalog upgraded through the registered migration chain
 	// OUT: workflow reconciliation behavior, covered by sync tests
-	// Invariant: hierarchy metadata is additive and active sibling package identity is unique.
+	// Invariant: hierarchy metadata is additive and active sibling task group identity is unique.
 	t.Parallel()
 
 	sqlDB, err := store.OpenSQLiteDatabase(
@@ -125,7 +125,7 @@ func TestApplyMigrationsUpgradesExistingCatalogWithWorkflowHierarchy(t *testing.
 	for _, name := range []string{
 		"kind",
 		"parent_workflow_id",
-		"package_id",
+		"task_group_id",
 		"display_title",
 		"outcome",
 		"lifecycle_completed",
@@ -140,11 +140,11 @@ func TestApplyMigrationsUpgradesExistingCatalogWithWorkflowHierarchy(t *testing.
 	if err := sqlDB.QueryRowContext(
 		context.Background(),
 		`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
-		"uq_workflows_active_child_package",
+		"uq_workflows_active_child_task_group",
 	).Scan(&indexSQL); err != nil {
 		t.Fatalf("query active child uniqueness index: %v", err)
 	}
-	if !strings.Contains(indexSQL, "parent_workflow_id, package_id") ||
+	if !strings.Contains(indexSQL, "parent_workflow_id, task_group_id") ||
 		!strings.Contains(indexSQL, "archived_at IS NULL") {
 		t.Fatalf("active child uniqueness index = %q", indexSQL)
 	}

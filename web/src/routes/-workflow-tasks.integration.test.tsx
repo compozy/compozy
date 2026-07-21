@@ -19,25 +19,25 @@ const workspaceOne = {
 
 const workflow = { id: "wf-1", slug: "alpha", workspace_id: "ws-1" };
 
-const initiativeWithBlockedPackage = {
+const initiativeWithBlockedTaskGroup = {
   id: "wf-initiative",
   kind: "initiative",
   slug: "customer-management",
   workspace_id: "ws-1",
   can_start_run: false,
-  start_block_reason: "select a work package",
-  work_packages: [
+  start_block_reason: "select a task group",
+  task_groups: [
     {
-      workflow_id: "wf-package-2",
-      package_id: "WP-002",
-      reference: "customer-management/WP-002",
+      workflow_id: "wf-task-group-2",
+      task_group_id: "TG-002",
+      reference: "customer-management/TG-002",
       title: "Interface",
       outcome: "Render customer records.",
       lifecycle_complete: false,
       unmet_dependency_count: 1,
       unmet_dependencies: [
         {
-          package_id: "WP-001",
+          task_group_id: "TG-001",
           title: "Persistence",
           rationale: "API contract first",
         },
@@ -239,9 +239,9 @@ describe("workflow tasks integration", () => {
     await screen.findByTestId("task-board-empty");
   });
 
-  it("Should isolate package board and detail reads with query state", async () => {
+  it("Should isolate task group board and detail reads with query state", async () => {
     // CONTRACT: IT-058.
-    const packageWorkflow = { ...workflow, slug: "alpha/WP-002", package_id: "WP-002" };
+    const taskGroupWorkflow = { ...workflow, slug: "alpha/TG-002", task_group_id: "TG-002" };
     const stub = installFetchStub([
       {
         matcher: matchUrl("/api/workspaces"),
@@ -249,44 +249,46 @@ describe("workflow tasks integration", () => {
         body: { workspaces: [workspaceOne] },
       },
       {
-        matcher: matchUrl("/api/tasks/alpha/board?package_id=WP-002"),
+        matcher: matchUrl("/api/tasks/alpha/board?task_group_id=TG-002"),
         status: 200,
         body: {
           board: {
             ...boardPayload.board,
-            workflow: packageWorkflow,
+            workflow: taskGroupWorkflow,
             lanes: [
               {
                 ...boardPayload.board.lanes[0],
-                items: [{ ...boardPayload.board.lanes[0]!.items[0]!, title: "WP-002 task" }],
+                items: [{ ...boardPayload.board.lanes[0]!.items[0]!, title: "TG-002 task" }],
               },
             ],
           },
         },
       },
       {
-        matcher: matchUrl("/api/tasks/alpha/items/task_01?package_id=WP-002"),
+        matcher: matchUrl("/api/tasks/alpha/items/task_01?task_group_id=TG-002"),
         status: 200,
         body: {
           task: {
             ...taskDetailPayload.task,
-            workflow: packageWorkflow,
-            task: { ...taskDetailPayload.task.task, title: "WP-002 task" },
+            workflow: taskGroupWorkflow,
+            task: { ...taskDetailPayload.task.task, title: "TG-002 task" },
             related_runs: [],
           },
         },
       },
     ]);
     restore = stub.restore;
-    await renderApp("/workflows/alpha/tasks?package_id=WP-002");
+    await renderApp("/workflows/alpha/tasks?task_group_id=TG-002");
 
-    expect(await screen.findByTestId("task-board-view")).toHaveTextContent("alpha/WP-002");
+    expect(await screen.findByTestId("task-board-view")).toHaveTextContent("alpha/TG-002");
     const taskLink = (await screen.findByTestId("task-board-link-task_01")) as HTMLAnchorElement;
-    expect(taskLink.getAttribute("href")).toBe("/workflows/alpha/tasks/task_01?package_id=WP-002");
+    expect(taskLink.getAttribute("href")).toBe(
+      "/workflows/alpha/tasks/task_01?task_group_id=TG-002"
+    );
     await userEvent.click(taskLink);
-    expect(await screen.findByTestId("task-detail-view")).toHaveTextContent("WP-002 task");
-    expect(stub.calls.some(call => call.url.includes("package_id=WP-002"))).toBe(true);
-    expect(stub.calls.some(call => call.url.includes("/tasks/alpha/WP-002"))).toBe(false);
+    expect(await screen.findByTestId("task-detail-view")).toHaveTextContent("TG-002 task");
+    expect(stub.calls.some(call => call.url.includes("task_group_id=TG-002"))).toBe(true);
+    expect(stub.calls.some(call => call.url.includes("/tasks/alpha/TG-002"))).toBe(false);
   });
 
   it("Should render the board error state when the daemon returns not-found", async () => {
@@ -432,7 +434,7 @@ describe("workflow tasks integration", () => {
     expect(runLink.getAttribute("href")).toBe("/runs/run-new");
   });
 
-  it("Should authorize one out-of-order package run only after dependency confirmation", async () => {
+  it("Should authorize one out-of-order task group run only after dependency confirmation", async () => {
     const stub = installFetchStub([
       {
         matcher: matchUrl("/api/workspaces"),
@@ -442,20 +444,20 @@ describe("workflow tasks integration", () => {
       {
         matcher: matchUrl("/api/tasks", "GET"),
         status: 200,
-        body: { workflows: [initiativeWithBlockedPackage] },
+        body: { workflows: [initiativeWithBlockedTaskGroup] },
       },
       {
         matcher: matchUrl("/api/tasks/customer-management/runs", "POST"),
         status: 201,
         body: {
           run: {
-            run_id: "run-package",
+            run_id: "run-task-group",
             mode: "task",
             presentation_mode: "text",
             workspace_id: "ws-1",
             started_at: "2026-01-01T00:00:00Z",
             status: "queued",
-            workflow_slug: "customer-management/WP-002",
+            workflow_slug: "customer-management/TG-002",
           },
         },
       },
@@ -463,21 +465,21 @@ describe("workflow tasks integration", () => {
     restore = stub.restore;
     await renderApp("/workflows");
     const startButton = await screen.findByTestId(
-      "workflow-package-start-customer-management-WP-002"
+      "workflow-task-group-start-customer-management-TG-002"
     );
 
     await userEvent.click(startButton);
     expect(
-      screen.getByTestId("workflow-package-dependency-confirmation-customer-management-WP-002")
+      screen.getByTestId("workflow-task-group-dependency-confirmation-customer-management-TG-002")
     ).toHaveTextContent("Persistence");
     expect(
       screen.getByTestId(
-        "workflow-package-dependency-confirmation-dependencies-customer-management-WP-002"
+        "workflow-task-group-dependency-confirmation-dependencies-customer-management-TG-002"
       )
     ).toHaveTextContent("API contract first");
     await userEvent.click(
       screen.getByTestId(
-        "workflow-package-dependency-confirmation-cancel-customer-management-WP-002"
+        "workflow-task-group-dependency-confirmation-cancel-customer-management-TG-002"
       )
     );
     expect(
@@ -489,7 +491,7 @@ describe("workflow tasks integration", () => {
     await userEvent.click(startButton);
     await userEvent.click(
       screen.getByTestId(
-        "workflow-package-dependency-confirmation-confirm-customer-management-WP-002"
+        "workflow-task-group-dependency-confirmation-confirm-customer-management-TG-002"
       )
     );
     await screen.findByTestId("workflow-inventory-start-success");
@@ -499,11 +501,11 @@ describe("workflow tasks integration", () => {
     expect(startCalls).toHaveLength(1);
     expect(JSON.parse(startCalls[0]?.body ?? "{}")).toMatchObject({
       workspace: "ws-1",
-      package_id: "WP-002",
+      task_group_id: "TG-002",
       allow_out_of_order: true,
       presentation_mode: "detach",
     });
-    expect(screen.getByTestId("workflow-package-readiness-WP-002")).toHaveTextContent(
+    expect(screen.getByTestId("workflow-task-group-readiness-TG-002")).toHaveTextContent(
       "1 unmet dependency"
     );
   });

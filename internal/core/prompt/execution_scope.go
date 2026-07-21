@@ -35,11 +35,11 @@ func buildExecutionScopeSection(scope *model.ExecutionScope) (string, error) {
 	sb.WriteString("<execution_scope>\n")
 	fmt.Fprintf(&sb, "- Workflow reference: `%s`\n", scope.WorkflowRef)
 	fmt.Fprintf(&sb, "- Canonical specification directory: `%s`\n", NormalizeForPrompt(scope.SpecDir))
-	fmt.Fprintf(&sb, "- Selected package operational directory: `%s`\n", NormalizeForPrompt(scope.OperationalDir))
-	fmt.Fprintf(&sb, "- Selected package task directory: `%s`\n", NormalizeForPrompt(scope.TasksDir))
-	fmt.Fprintf(&sb, "- Selected package review directory: `%s`\n", NormalizeForPrompt(scope.ReviewsDir))
-	fmt.Fprintf(&sb, "- Selected package memory directory: `%s`\n", NormalizeForPrompt(scope.MemoryDir))
-	sb.WriteString("- Do not read or write sibling package tasks, reviews, memory, journals, or run artifacts.\n")
+	fmt.Fprintf(&sb, "- Selected task group operational directory: `%s`\n", NormalizeForPrompt(scope.OperationalDir))
+	fmt.Fprintf(&sb, "- Selected task group task directory: `%s`\n", NormalizeForPrompt(scope.TasksDir))
+	fmt.Fprintf(&sb, "- Selected task group review directory: `%s`\n", NormalizeForPrompt(scope.ReviewsDir))
+	fmt.Fprintf(&sb, "- Selected task group memory directory: `%s`\n", NormalizeForPrompt(scope.MemoryDir))
+	sb.WriteString("- Do not read or write sibling task group tasks, reviews, memory, journals, or run artifacts.\n")
 	sb.WriteString("</execution_scope>\n\n")
 	sb.WriteString("<initiative_specifications>\n")
 	for _, specification := range specifications {
@@ -51,7 +51,7 @@ func buildExecutionScopeSection(scope *model.ExecutionScope) (string, error) {
 
 func loadScopedSpecifications(specDir string) ([]scopedSpecification, error) {
 	required := []string{"_prd.md", "_techspec.md"}
-	optional := []string{"_user_stories.md", "_tests.md", "_work_packages.md"}
+	optional := []string{"_user_stories.md", "_tests.md", "_task_groups.md"}
 	documents := make([]scopedSpecification, 0, len(required)+len(optional))
 	for _, name := range required {
 		document, err := readScopedSpecification(filepath.Join(specDir, name), true)

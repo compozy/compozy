@@ -100,7 +100,7 @@ func TestClientUsesCanonicalTimeoutClassesByRoute(t *testing.T) {
 func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should post structured work package targets without route child references", func(t *testing.T) {
+	t.Run("Should post structured task group targets without route child references", func(t *testing.T) {
 		t.Parallel()
 
 		client := &Client{
@@ -119,8 +119,8 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 						t.Fatalf("legacy slugs = %#v, want omitted", body.Slugs)
 					}
 					want := []contract.TaskRunTarget{
-						{InitiativeSlug: "customer-management", PackageID: "WP-001"},
-						{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+						{InitiativeSlug: "customer-management", TaskGroupID: "TG-001"},
+						{InitiativeSlug: "customer-management", TaskGroupID: "TG-002"},
 					}
 					if !reflect.DeepEqual(body.Targets, want) {
 						t.Fatalf("targets = %#v, want %#v", body.Targets, want)
@@ -133,8 +133,8 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 		_, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
 			Workspace: "/tmp/workspace",
 			Targets: []apicore.TaskRunTarget{
-				{InitiativeSlug: " customer-management ", PackageID: " WP-001 "},
-				{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+				{InitiativeSlug: " customer-management ", TaskGroupID: " TG-001 "},
+				{InitiativeSlug: "customer-management", TaskGroupID: "TG-002"},
 			},
 		})
 		if err != nil {
@@ -147,14 +147,14 @@ func TestClientStartTaskRunMultiplePostsOrderedSlugs(t *testing.T) {
 
 		client := &Client{}
 		if _, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
-			Slugs: []string{"customer-management/WP-001"},
+			Slugs: []string{"customer-management/TG-001"},
 		}); !errors.Is(err, ErrWorkflowRouteSegmentInvalid) {
 			t.Fatalf("legacy error = %v, want route segment error", err)
 		}
 		if _, err := client.StartTaskRunMultiple(context.Background(), apicore.TaskRunMultipleRequest{
 			Targets: []apicore.TaskRunTarget{{
-				InitiativeSlug: "customer-management/WP-001",
-				PackageID:      "WP-001",
+				InitiativeSlug: "customer-management/TG-001",
+				TaskGroupID:    "TG-001",
 			}},
 		}); !errors.Is(err, ErrWorkflowRouteSegmentInvalid) {
 			t.Fatalf("target error = %v, want route segment error", err)

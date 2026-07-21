@@ -38,19 +38,19 @@ type WorkspaceResolveRequest struct {
 }
 
 type WorkflowRefRequest struct {
-	Workspace string `json:"workspace"`
-	PackageID string `json:"package_id,omitempty"`
+	Workspace   string `json:"workspace"`
+	TaskGroupID string `json:"task_group_id,omitempty"`
 }
 
 type WorkflowArchiveRequest struct {
-	Workspace string `json:"workspace"`
-	PackageID string `json:"package_id,omitempty"`
-	Force     bool   `json:"force,omitempty"`
+	Workspace   string `json:"workspace"`
+	TaskGroupID string `json:"task_group_id,omitempty"`
+	Force       bool   `json:"force,omitempty"`
 }
 
 type TaskRunRequest struct {
 	Workspace        string                   `json:"workspace"`
-	PackageID        string                   `json:"package_id,omitempty"`
+	TaskGroupID      string                   `json:"task_group_id,omitempty"`
 	AllowOutOfOrder  bool                     `json:"allow_out_of_order,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
@@ -80,10 +80,10 @@ type TaskRunMultipleRequest struct {
 // workflow route segment with a child reference.
 type TaskRunTarget struct {
 	InitiativeSlug string `json:"initiative_slug"`
-	// PackageID is always required: runtime normalization rejects a blank value
-	// with work_package_selection_required, so it is not tagged omitempty and the
-	// transport schema marks it required with a WP-NNN pattern.
-	PackageID string `json:"package_id"`
+	// TaskGroupID is always required: runtime normalization rejects a blank value
+	// with task_group_selection_required, so it is not tagged omitempty and the
+	// transport schema marks it required with a TG-NNN pattern.
+	TaskGroupID string `json:"task_group_id"`
 }
 
 type TaskRunMultipleItem struct {
@@ -110,16 +110,16 @@ type TaskRunMultipleSnapshot struct {
 }
 
 type ReviewFetchRequest struct {
-	Workspace string `json:"workspace"`
-	PackageID string `json:"package_id,omitempty"`
-	Provider  string `json:"provider,omitempty"`
-	PRRef     string `json:"pr_ref,omitempty"`
-	Round     *int   `json:"round,omitempty"`
+	Workspace   string `json:"workspace"`
+	TaskGroupID string `json:"task_group_id,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	PRRef       string `json:"pr_ref,omitempty"`
+	Round       *int   `json:"round,omitempty"`
 }
 
 type ReviewRunRequest struct {
 	Workspace        string          `json:"workspace"`
-	PackageID        string          `json:"package_id,omitempty"`
+	TaskGroupID      string          `json:"task_group_id,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
 	Batching         json.RawMessage `json:"batching,omitempty"`
@@ -127,7 +127,7 @@ type ReviewRunRequest struct {
 
 type ReviewWatchRequest struct {
 	Workspace        string          `json:"workspace"`
-	PackageID        string          `json:"package_id,omitempty"`
+	TaskGroupID      string          `json:"task_group_id,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	Provider         string          `json:"provider,omitempty"`
 	PRRef            string          `json:"pr_ref"`
@@ -259,60 +259,60 @@ type WorkspaceSyncResult struct {
 }
 
 type WorkflowSummary struct {
-	ID                string               `json:"id"`
-	WorkspaceID       string               `json:"workspace_id"`
-	Slug              string               `json:"slug"`
-	ArchivedAt        *time.Time           `json:"archived_at,omitempty"`
-	LastSyncedAt      *time.Time           `json:"last_synced_at,omitempty"`
-	TaskCounts        *WorkflowTaskCounts  `json:"task_counts,omitempty"`
-	CanStartRun       *bool                `json:"can_start_run,omitempty"`
-	StartBlockReason  string               `json:"start_block_reason,omitempty"`
-	ArchiveEligible   *bool                `json:"archive_eligible,omitempty"`
-	ArchiveReason     string               `json:"archive_reason,omitempty"`
-	Kind              string               `json:"kind,omitempty"`
-	ParentWorkflowID  string               `json:"parent_workflow_id,omitempty"`
-	PackageID         string               `json:"package_id,omitempty"`
-	DisplayTitle      string               `json:"display_title,omitempty"`
-	Outcome           string               `json:"outcome,omitempty"`
-	LifecycleComplete bool                 `json:"lifecycle_complete,omitempty"`
-	WorkPackages      []WorkPackageSummary `json:"work_packages,omitempty"`
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id"`
+	Slug              string              `json:"slug"`
+	ArchivedAt        *time.Time          `json:"archived_at,omitempty"`
+	LastSyncedAt      *time.Time          `json:"last_synced_at,omitempty"`
+	TaskCounts        *WorkflowTaskCounts `json:"task_counts,omitempty"`
+	CanStartRun       *bool               `json:"can_start_run,omitempty"`
+	StartBlockReason  string              `json:"start_block_reason,omitempty"`
+	ArchiveEligible   *bool               `json:"archive_eligible,omitempty"`
+	ArchiveReason     string              `json:"archive_reason,omitempty"`
+	Kind              string              `json:"kind,omitempty"`
+	ParentWorkflowID  string              `json:"parent_workflow_id,omitempty"`
+	TaskGroupID       string              `json:"task_group_id,omitempty"`
+	DisplayTitle      string              `json:"display_title,omitempty"`
+	Outcome           string              `json:"outcome,omitempty"`
+	LifecycleComplete bool                `json:"lifecycle_complete,omitempty"`
+	TaskGroups        []TaskGroupSummary  `json:"task_groups,omitempty"`
 }
 
-// WorkPackageSummary is the nested read projection for one hidden child workflow.
-type WorkPackageSummary struct {
-	WorkflowID                string                      `json:"workflow_id"`
-	PackageID                 string                      `json:"package_id"`
-	Reference                 string                      `json:"reference"`
-	Title                     string                      `json:"title"`
-	Outcome                   string                      `json:"outcome"`
-	LifecycleComplete         bool                        `json:"lifecycle_complete"`
-	Dependencies              []WorkPackageDependency     `json:"dependencies,omitempty"`
-	UnmetDependencies         []WorkPackageDependency     `json:"unmet_dependencies,omitempty"`
-	UnmetDependencyPaths      []WorkPackageDependencyPath `json:"unmet_dependency_paths,omitempty"`
-	TaskCounts                *WorkflowTaskCounts         `json:"task_counts,omitempty"`
-	UnresolvedReviews         int                         `json:"unresolved_reviews,omitempty"`
-	LatestReview              *ReviewSummary              `json:"latest_review,omitempty"`
-	UnmetDependencyCount      int                         `json:"unmet_dependency_count,omitempty"`
-	IndependentlyEligible     bool                        `json:"independently_eligible,omitempty"`
-	ActiveRuns                int                         `json:"active_runs,omitempty"`
-	CanStartRun               *bool                       `json:"can_start_run,omitempty"`
-	RequiresStartConfirmation bool                        `json:"requires_start_confirmation,omitempty"`
-	StartBlockReason          string                      `json:"start_block_reason,omitempty"`
-	ArchiveEligible           *bool                       `json:"archive_eligible,omitempty"`
-	ArchiveReason             string                      `json:"archive_reason,omitempty"`
+// TaskGroupSummary is the nested read projection for one hidden child workflow.
+type TaskGroupSummary struct {
+	WorkflowID                string                    `json:"workflow_id"`
+	TaskGroupID               string                    `json:"task_group_id"`
+	Reference                 string                    `json:"reference"`
+	Title                     string                    `json:"title"`
+	Outcome                   string                    `json:"outcome"`
+	LifecycleComplete         bool                      `json:"lifecycle_complete"`
+	Dependencies              []TaskGroupDependency     `json:"dependencies,omitempty"`
+	UnmetDependencies         []TaskGroupDependency     `json:"unmet_dependencies,omitempty"`
+	UnmetDependencyPaths      []TaskGroupDependencyPath `json:"unmet_dependency_paths,omitempty"`
+	TaskCounts                *WorkflowTaskCounts       `json:"task_counts,omitempty"`
+	UnresolvedReviews         int                       `json:"unresolved_reviews,omitempty"`
+	LatestReview              *ReviewSummary            `json:"latest_review,omitempty"`
+	UnmetDependencyCount      int                       `json:"unmet_dependency_count,omitempty"`
+	IndependentlyEligible     bool                      `json:"independently_eligible,omitempty"`
+	ActiveRuns                int                       `json:"active_runs,omitempty"`
+	CanStartRun               *bool                     `json:"can_start_run,omitempty"`
+	RequiresStartConfirmation bool                      `json:"requires_start_confirmation,omitempty"`
+	StartBlockReason          string                    `json:"start_block_reason,omitempty"`
+	ArchiveEligible           *bool                     `json:"archive_eligible,omitempty"`
+	ArchiveReason             string                    `json:"archive_reason,omitempty"`
 }
 
-// WorkPackageDependency identifies one declared prerequisite and its rationale.
-type WorkPackageDependency struct {
-	PackageID string `json:"package_id"`
-	Title     string `json:"title"`
-	Rationale string `json:"rationale"`
+// TaskGroupDependency identifies one declared prerequisite and its rationale.
+type TaskGroupDependency struct {
+	TaskGroupID string `json:"task_group_id"`
+	Title       string `json:"title"`
+	Rationale   string `json:"rationale"`
 }
 
-// WorkPackageDependencyPath explains an unmet prerequisite that is transitive.
-type WorkPackageDependencyPath struct {
-	PackageIDs   []string                `json:"package_ids"`
-	Dependencies []WorkPackageDependency `json:"dependencies"`
+// TaskGroupDependencyPath explains an unmet prerequisite that is transitive.
+type TaskGroupDependencyPath struct {
+	TaskGroupIDs []string              `json:"task_group_ids"`
+	Dependencies []TaskGroupDependency `json:"dependencies"`
 }
 
 type WorkflowTaskCounts struct {
@@ -344,8 +344,8 @@ type ArchiveResult struct {
 	Forced               bool       `json:"forced,omitempty"`
 	CompletedTasks       int        `json:"completed_tasks,omitempty"`
 	ResolvedReviewIssues int        `json:"resolved_review_issues,omitempty"`
-	WorkPackageChildIDs  []string   `json:"work_package_child_ids,omitempty"`
-	PendingWorkPackages  []string   `json:"pending_work_packages,omitempty"`
+	TaskGroupChildIDs    []string   `json:"task_group_child_ids,omitempty"`
+	PendingTaskGroups    []string   `json:"pending_task_groups,omitempty"`
 }
 
 type ReviewFetchResult struct {
@@ -642,8 +642,8 @@ type SyncResult struct {
 	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
 	SyncedPaths            []string   `json:"synced_paths,omitempty"`
 	PrunedWorkflows        []string   `json:"pruned_workflows,omitempty"`
-	WorkPackageChildIDs    []string   `json:"work_package_child_ids,omitempty"`
-	MissingWorkPackages    []string   `json:"missing_work_packages,omitempty"`
+	TaskGroupChildIDs      []string   `json:"task_group_child_ids,omitempty"`
+	MissingTaskGroups      []string   `json:"missing_task_groups,omitempty"`
 	Partial                bool       `json:"partial,omitempty"`
 	Warnings               []string   `json:"warnings,omitempty"`
 }

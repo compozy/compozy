@@ -9,22 +9,22 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
-// WorkPackageCompletionRequest contains only evidence the hidden final-review
+// TaskGroupCompletionRequest contains only evidence the hidden final-review
 // bridge can provide after its clean-review and verification gates.
-type WorkPackageCompletionRequest struct {
+type TaskGroupCompletionRequest struct {
 	WorkspaceRoot      string
 	Reference          string
 	VerificationPassed bool
 }
 
-// WorkPackageCompletionResult keeps review success separate from durable plan
+// TaskGroupCompletionResult keeps review success separate from durable plan
 // mutation and subsequent catalog synchronization.
-type WorkPackageCompletionResult struct {
+type TaskGroupCompletionResult struct {
 	Reference          string `json:"reference"`
 	ReviewClean        bool   `json:"review_clean"`
 	CompletionRecorded bool   `json:"completion_recorded"`
@@ -32,49 +32,49 @@ type WorkPackageCompletionResult struct {
 	SyncPending        bool   `json:"sync_pending"`
 }
 
-type workPackageCompletionStore interface {
-	MarkComplete(context.Context, string, string) (workpackages.CompletionResult, error)
+type taskGroupCompletionStore interface {
+	MarkComplete(context.Context, string, string) (taskgroups.CompletionResult, error)
 }
 
-type packageTargetResolver interface {
-	ResolvePackage(context.Context, string, string) (workpackages.Target, error)
+type taskGroupTargetResolver interface {
+	ResolveTaskGroup(context.Context, string, string) (taskgroups.Target, error)
 }
 
-// WorkPackageCompletionService owns the hidden final-review completion bridge.
+// TaskGroupCompletionService owns the hidden final-review completion bridge.
 // It deliberately has no Git dependency.
-type WorkPackageCompletionService struct {
-	resolver packageTargetResolver
-	store    workPackageCompletionStore
+type TaskGroupCompletionService struct {
+	resolver taskGroupTargetResolver
+	store    taskGroupCompletionStore
 	sync     func(context.Context, string, model.ExecutionScope) error
 }
 
-// NewWorkPackageCompletionService constructs the production completion bridge.
-func NewWorkPackageCompletionService() *WorkPackageCompletionService {
-	return &WorkPackageCompletionService{
-		resolver: workpackages.TargetResolver{},
-		store:    workpackages.NewStore(),
-		sync:     syncCompletedWorkPackageInitiative,
+// NewTaskGroupCompletionService constructs the production completion bridge.
+func NewTaskGroupCompletionService() *TaskGroupCompletionService {
+	return &TaskGroupCompletionService{
+		resolver: taskgroups.TargetResolver{},
+		store:    taskgroups.NewStore(),
+		sync:     syncCompletedTaskGroupInitiative,
 	}
 }
 
-// completionGate is the fully re-derived evidence required to record one package.
+// completionGate is the fully re-derived evidence required to record one task group.
 type completionGate struct {
-	target      workpackages.Target
+	target      taskgroups.Target
 	scope       model.ExecutionScope
 	reviewClean bool
 }
 
-// Complete records one package checkbox only after package-local task and
+// Complete records one task group checkbox only after task-group-local task and
 // review evidence plus final verification satisfy the completion gate.
-func (s *WorkPackageCompletionService) Complete(
+func (s *TaskGroupCompletionService) Complete(
 	ctx context.Context,
-	request WorkPackageCompletionRequest,
-) (WorkPackageCompletionResult, error) {
+	request TaskGroupCompletionRequest,
+) (TaskGroupCompletionResult, error) {
 	if err := context.Cause(ctx); err != nil {
-		return WorkPackageCompletionResult{}, err
+		return TaskGroupCompletionResult{}, err
 	}
-	service := usableWorkPackageCompletionService(s)
-	result := WorkPackageCompletionResult{Reference: strings.TrimSpace(request.Reference)}
+	service := usableTaskGroupCompletionService(s)
+	result := TaskGroupCompletionResult{Reference: strings.TrimSpace(request.Reference)}
 
 	gate, err := service.evaluateCompletionGate(ctx, request, result.Reference)
 	result.ReviewClean = gate.reviewClean
@@ -83,10 +83,10 @@ func (s *WorkPackageCompletionService) Complete(
 	}
 
 	// Re-derive current task, review, path, and dependency evidence immediately
-	// before the checkbox write. Store.MarkComplete locks only _work_packages.md,
+	// before the checkbox write. Store.MarkComplete locks only _task_groups.md,
 	// so a concurrent task, review, or plan writer could invalidate the gate above
 	// between the check and the record below. Recording completion from stale
-	// evidence would violate the bridge invariant that a package is completed only
+	// evidence would violate the bridge invariant that a task group is completed only
 	// from current terminal-task, resolved-review, dependency, and verification
 	// evidence; this compare-and-swap refuses to record when any of it has changed.
 	gate, err = service.evaluateCompletionGate(ctx, request, result.Reference)
@@ -95,18 +95,18 @@ func (s *WorkPackageCompletionService) Complete(
 		return result, err
 	}
 
-	completed, err := service.store.MarkComplete(ctx, gate.target.InitiativeDir, gate.target.Package.ID)
+	completed, err := service.store.MarkComplete(ctx, gate.target.InitiativeDir, gate.target.TaskGroup.ID)
 	if err != nil {
 		return result, err
 	}
 	result.CompletionRecorded = completed.CompletionRecorded
 	result.AlreadyCompleted = completed.AlreadyCompleted
 	if !result.CompletionRecorded && !result.AlreadyCompleted {
-		return result, errors.New("work package completion was not recorded")
+		return result, errors.New("task group completion was not recorded")
 	}
 	if err := service.sync(ctx, request.WorkspaceRoot, gate.scope); err != nil {
 		result.SyncPending = true
-		return result, fmt.Errorf("sync completed work package %s: %w", result.Reference, err)
+		return result, fmt.Errorf("sync completed task group %s: %w", result.Reference, err)
 	}
 	return result, nil
 }
@@ -115,9 +115,9 @@ func (s *WorkPackageCompletionService) Complete(
 // path, and dependency evidence and only succeeds when a completion may be
 // recorded from that current evidence. reviewClean reports the review/verification
 // outcome even when a later completion precondition blocks the checkbox.
-func (s *WorkPackageCompletionService) evaluateCompletionGate(
+func (s *TaskGroupCompletionService) evaluateCompletionGate(
 	ctx context.Context,
-	request WorkPackageCompletionRequest,
+	request TaskGroupCompletionRequest,
 	reference string,
 ) (completionGate, error) {
 	paths, reviewClean, err := validateCompletionEvidence(ctx, request)
@@ -125,12 +125,12 @@ func (s *WorkPackageCompletionService) evaluateCompletionGate(
 	if err != nil {
 		return gate, err
 	}
-	target, err := s.resolver.ResolvePackage(ctx, request.WorkspaceRoot, reference)
+	target, err := s.resolver.ResolveTaskGroup(ctx, request.WorkspaceRoot, reference)
 	if err != nil {
-		return gate, fmt.Errorf("resolve current work package plan: %w", err)
+		return gate, fmt.Errorf("resolve current task group plan: %w", err)
 	}
 	gate.target = target
-	scope, err := workpackages.BuildExecutionScope(target)
+	scope, err := taskgroups.BuildExecutionScope(target)
 	if err != nil {
 		return gate, err
 	}
@@ -139,35 +139,35 @@ func (s *WorkPackageCompletionService) evaluateCompletionGate(
 		return gate, err
 	}
 	if !sameCompletionOperationalPaths(paths, scope) {
-		return gate, fmt.Errorf("work package operational paths changed while completing %s", reference)
+		return gate, fmt.Errorf("task group operational paths changed while completing %s", reference)
 	}
-	readiness, err := workpackages.EvaluateReadiness(target.Plan, target.Package.ID)
+	readiness, err := taskgroups.EvaluateReadiness(target.Plan, target.TaskGroup.ID)
 	if err != nil {
 		return gate, err
 	}
 	if !readiness.Eligible {
-		return gate, completionDependencyError(target.Package.ID, readiness)
+		return gate, completionDependencyError(target.TaskGroup.ID, readiness)
 	}
 	return gate, nil
 }
 
 func validateCompletionEvidence(
 	ctx context.Context,
-	request WorkPackageCompletionRequest,
-) (workpackages.OperationalPaths, bool, error) {
+	request TaskGroupCompletionRequest,
+) (taskgroups.OperationalPaths, bool, error) {
 	paths, review, err := reviewCompletionEvidence(ctx, request.WorkspaceRoot, request.Reference)
 	// ReviewClean is derived only from final verification and the independent review
 	// scan. A task-inspection failure below is a separate completion blocker and must
 	// never flip a genuinely clean, fully resolved review result.
 	reviewClean := request.VerificationPassed && err == nil && review.reviewsResolved
 	if err != nil {
-		return paths, reviewClean, fmt.Errorf("inspect work package review evidence: %w", err)
+		return paths, reviewClean, fmt.Errorf("inspect task group review evidence: %w", err)
 	}
-	tasksTerminal, err := taskCompletionEvidence(paths.PackageDir)
+	tasksTerminal, err := taskCompletionEvidence(paths.TaskGroupDir)
 	if err != nil {
-		return paths, reviewClean, fmt.Errorf("inspect work package task evidence: %w", err)
+		return paths, reviewClean, fmt.Errorf("inspect task group task evidence: %w", err)
 	}
-	eligibility := workpackages.CanRecordCompletion(workpackages.CompletionPreconditions{
+	eligibility := taskgroups.CanRecordCompletion(taskgroups.CompletionPreconditions{
 		VerificationPassed: request.VerificationPassed,
 		ReviewInterrupted:  false,
 		NewIssues:          false,
@@ -180,18 +180,18 @@ func validateCompletionEvidence(
 	return paths, reviewClean, nil
 }
 
-func usableWorkPackageCompletionService(service *WorkPackageCompletionService) *WorkPackageCompletionService {
+func usableTaskGroupCompletionService(service *TaskGroupCompletionService) *TaskGroupCompletionService {
 	if service == nil {
-		return NewWorkPackageCompletionService()
+		return NewTaskGroupCompletionService()
 	}
 	if service.resolver == nil {
-		service.resolver = workpackages.TargetResolver{}
+		service.resolver = taskgroups.TargetResolver{}
 	}
 	if service.store == nil {
-		service.store = workpackages.NewStore()
+		service.store = taskgroups.NewStore()
 	}
 	if service.sync == nil {
-		service.sync = syncCompletedWorkPackageInitiative
+		service.sync = syncCompletedTaskGroupInitiative
 	}
 	return service
 }
@@ -204,7 +204,7 @@ type reviewCompletionOutcome struct {
 	issueStatuses   []string
 }
 
-// reviewCompletionEvidence resolves the package directory and scans every review
+// reviewCompletionEvidence resolves the task group directory and scans every review
 // round. It never inspects task metadata, so its error surface is limited to the
 // operational-path and review-scan failures that genuinely make the review state
 // unknowable.
@@ -212,18 +212,18 @@ func reviewCompletionEvidence(
 	ctx context.Context,
 	workspaceRoot string,
 	reference string,
-) (workpackages.OperationalPaths, reviewCompletionOutcome, error) {
-	paths, err := workpackages.ResolveOperationalPaths(ctx, workspaceRoot, reference)
+) (taskgroups.OperationalPaths, reviewCompletionOutcome, error) {
+	paths, err := taskgroups.ResolveOperationalPaths(ctx, workspaceRoot, reference)
 	if err != nil {
-		return workpackages.OperationalPaths{}, reviewCompletionOutcome{}, err
+		return taskgroups.OperationalPaths{}, reviewCompletionOutcome{}, err
 	}
 	outcome := reviewCompletionOutcome{reviewsResolved: true}
-	rounds, err := reviews.DiscoverRounds(paths.PackageDir)
+	rounds, err := reviews.DiscoverRounds(paths.TaskGroupDir)
 	if err != nil {
 		return paths, reviewCompletionOutcome{}, err
 	}
 	for _, round := range rounds {
-		entries, readErr := reviews.ReadReviewEntries(reviews.ReviewDirectory(paths.PackageDir, round))
+		entries, readErr := reviews.ReadReviewEntries(reviews.ReviewDirectory(paths.TaskGroupDir, round))
 		if readErr != nil {
 			return paths, reviewCompletionOutcome{}, readErr
 		}
@@ -243,54 +243,54 @@ func reviewCompletionEvidence(
 	return paths, outcome, nil
 }
 
-// taskCompletionEvidence reports whether every package task is terminal. Its
+// taskCompletionEvidence reports whether every task group task is terminal. Its
 // failures are completion blockers that the caller keeps separate from the
 // review outcome.
-func taskCompletionEvidence(packageDir string) (bool, error) {
-	taskMeta, err := tasks.SnapshotTaskMeta(packageDir)
+func taskCompletionEvidence(taskGroupDir string) (bool, error) {
+	taskMeta, err := tasks.SnapshotTaskMeta(taskGroupDir)
 	if err != nil {
 		return false, err
 	}
 	return taskMeta.Total > 0 && taskMeta.Pending == 0, nil
 }
 
-func sameCompletionOperationalPaths(paths workpackages.OperationalPaths, scope model.ExecutionScope) bool {
+func sameCompletionOperationalPaths(paths taskgroups.OperationalPaths, scope model.ExecutionScope) bool {
 	return strings.TrimSpace(paths.InitiativeDir) == strings.TrimSpace(scope.SpecDir) &&
-		strings.TrimSpace(paths.PackageDir) == strings.TrimSpace(scope.OperationalDir)
+		strings.TrimSpace(paths.TaskGroupDir) == strings.TrimSpace(scope.OperationalDir)
 }
 
 func completionBlockedError(
-	eligibility workpackages.CompletionEligibility,
+	eligibility taskgroups.CompletionEligibility,
 	tasksTerminal bool,
 ) error {
 	if !tasksTerminal {
-		return errors.New("work package completion requires all package tasks to be terminal")
+		return errors.New("task group completion requires all task group tasks to be terminal")
 	}
 	if eligibility.Reason == "" {
-		return errors.New("work package completion is not eligible")
+		return errors.New("task group completion is not eligible")
 	}
-	return fmt.Errorf("work package completion blocked: %s", eligibility.Reason)
+	return fmt.Errorf("task group completion blocked: %s", eligibility.Reason)
 }
 
-func completionDependencyError(packageID string, readiness workpackages.Readiness) error {
+func completionDependencyError(taskGroupID string, readiness taskgroups.Readiness) error {
 	blockers := make([]string, 0, len(readiness.DirectUnmet))
 	for _, dependency := range readiness.DirectUnmet {
 		blockers = append(blockers, dependency.From)
 	}
 	if len(blockers) == 0 {
 		for _, path := range readiness.TransitiveUnmet {
-			blockers = append(blockers, strings.Join(path.PackageIDs, " -> "))
+			blockers = append(blockers, strings.Join(path.TaskGroupIDs, " -> "))
 		}
 	}
 	return fmt.Errorf(
 		"%w: %s requires %s",
-		workpackages.ErrDependenciesUnmet,
-		packageID,
+		taskgroups.ErrDependenciesUnmet,
+		taskGroupID,
 		strings.Join(blockers, ", "),
 	)
 }
 
-func syncCompletedWorkPackageInitiative(
+func syncCompletedTaskGroupInitiative(
 	ctx context.Context,
 	workspaceRoot string,
 	scope model.ExecutionScope,
@@ -319,10 +319,10 @@ func syncCompletedWorkPackageInitiative(
 	return nil
 }
 
-// CompleteWorkPackage invokes the production hidden completion bridge.
-func CompleteWorkPackage(
+// CompleteTaskGroup invokes the production hidden completion bridge.
+func CompleteTaskGroup(
 	ctx context.Context,
-	request WorkPackageCompletionRequest,
-) (WorkPackageCompletionResult, error) {
-	return NewWorkPackageCompletionService().Complete(ctx, request)
+	request TaskGroupCompletionRequest,
+) (TaskGroupCompletionResult, error) {
+	return NewTaskGroupCompletionService().Complete(ctx, request)
 }

@@ -275,42 +275,45 @@ func TestArchiveTaskWorkflowForceDoesNotBypassActiveRunConflict(t *testing.T) {
 	}
 }
 
-func TestArchiveWorkPackageInitiativeMovesOnlyRootAndArchivesChildren(t *testing.T) {
+func TestArchiveTaskGroupInitiativeMovesOnlyRootAndArchivesChildren(t *testing.T) {
 	// Suite boundary
 	// IN: real initiative filesystem, aggregate sync, archive move, and SQLite hierarchy rows
 	// OUT: HTTP transport and CLI confirmation rendering
-	// Invariant: archiving a Work Package initiative moves one root and archives its children as one durable unit.
+	// Invariant: archiving a Task Group initiative moves one root and archives its children as one durable unit.
 	rootDir := archiveTestRoot(t)
 	initiativeDir := filepath.Join(rootDir, "initiative")
-	writeWorkPackageFixture(t, initiativeDir, map[string]string{
-		"WP-001": "completed",
-		"WP-002": "completed",
+	writeTaskGroupFixture(t, initiativeDir, map[string]string{
+		"TG-001": "completed",
+		"TG-002": "completed",
 	})
 
 	syncResult, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
 	if err != nil {
-		t.Fatalf("Sync(work package initiative): %v", err)
+		t.Fatalf("Sync(task group initiative): %v", err)
 	}
 	if syncResult.WorkflowsScanned != 3 {
 		t.Fatalf("Sync workflows scanned = %d, want parent plus two children", syncResult.WorkflowsScanned)
 	}
-	_, err = Archive(context.Background(), ArchiveConfig{TasksDir: filepath.Join(initiativeDir, "_packages", "WP-001")})
-	if !errors.Is(err, ErrWorkPackageRootOnly) {
-		t.Fatalf("Archive(package target) error = %v, want ErrWorkPackageRootOnly", err)
+	_, err = Archive(
+		context.Background(),
+		ArchiveConfig{TasksDir: filepath.Join(initiativeDir, "_task_groups", "TG-001")},
+	)
+	if !errors.Is(err, ErrTaskGroupRootOnly) {
+		t.Fatalf("Archive(task group target) error = %v, want ErrTaskGroupRootOnly", err)
 	}
 
 	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir})
 	if err != nil {
-		t.Fatalf("Archive(work package initiative): %v", err)
+		t.Fatalf("Archive(task group initiative): %v", err)
 	}
-	if result.Archived != 1 || result.WorkflowsScanned != 1 || len(result.WorkPackageChildIDs) != 2 {
-		t.Fatalf("Archive(work package initiative) result = %#v, want one root and two archived children", result)
+	if result.Archived != 1 || result.WorkflowsScanned != 1 || len(result.TaskGroupChildIDs) != 2 {
+		t.Fatalf("Archive(task group initiative) result = %#v, want one root and two archived children", result)
 	}
 	if len(result.ArchivedPaths) != 1 {
 		t.Fatalf("ArchivedPaths = %#v, want one root move", result.ArchivedPaths)
 	}
-	if _, statErr := os.Stat(filepath.Join(result.ArchivedPaths[0], "_packages", "WP-001")); statErr != nil {
-		t.Fatalf("archived root did not retain WP-001 directory: %v", statErr)
+	if _, statErr := os.Stat(filepath.Join(result.ArchivedPaths[0], "_task_groups", "TG-001")); statErr != nil {
+		t.Fatalf("archived root did not retain TG-001 directory: %v", statErr)
 	}
 	if _, statErr := os.Stat(initiativeDir); !os.IsNotExist(statErr) {
 		t.Fatalf("initiative root remains active after archive: %v", statErr)
@@ -336,10 +339,10 @@ func TestArchiveWorkPackageInitiativeMovesOnlyRootAndArchivesChildren(t *testing
 		if row.Kind == globaldb.WorkflowKindInitiative {
 			parent = row
 		}
-		if row.Kind == globaldb.WorkflowKindWorkPackage {
+		if row.Kind == globaldb.WorkflowKindTaskGroup {
 			children++
 			if row.ArchivedAt == nil {
-				t.Fatalf("child %q was not marked archived", row.PackageID)
+				t.Fatalf("child %q was not marked archived", row.TaskGroupID)
 			}
 		}
 	}
@@ -353,47 +356,47 @@ func TestArchiveWorkPackageInitiativeMovesOnlyRootAndArchivesChildren(t *testing
 	}
 }
 
-func TestArchiveWorkPackageInitiativeForceArchivesPendingPlanAsOneRoot(t *testing.T) {
+func TestArchiveTaskGroupInitiativeForceArchivesPendingPlanAsOneRoot(t *testing.T) {
 	// Suite boundary
 	// IN: aggregate archive eligibility, task completion, and root archive move
 	// OUT: interactive force confirmation rendering
-	// Invariant: force archive completes child mutable state but never moves a package independently.
+	// Invariant: force archive completes child mutable state but never moves a task group independently.
 	rootDir := archiveTestRoot(t)
 	initiativeDir := filepath.Join(rootDir, "initiative")
-	writeWorkPackageFixture(t, initiativeDir, map[string]string{
-		"WP-001": "completed",
-		"WP-002": "pending",
+	writeTaskGroupFixture(t, initiativeDir, map[string]string{
+		"TG-001": "completed",
+		"TG-002": "pending",
 	})
 
 	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir})
 	if !errors.Is(err, ErrWorkflowForceRequired) {
-		t.Fatalf("Archive(pending package) error = %v, want force required", err)
+		t.Fatalf("Archive(pending task group) error = %v, want force required", err)
 	}
-	if result == nil || !equalStrings(result.PendingWorkPackages, []string{"WP-002"}) {
-		t.Fatalf("pending package archive result = %#v, want WP-002", result)
+	if result == nil || !equalStrings(result.PendingTaskGroups, []string{"TG-002"}) {
+		t.Fatalf("pending task group archive result = %#v, want TG-002", result)
 	}
 
 	result, err = Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: true})
 	if err != nil {
-		t.Fatalf("Archive(force pending package): %v", err)
+		t.Fatalf("Archive(force pending task group): %v", err)
 	}
 	if !result.Forced || result.Archived != 1 || result.CompletedTasks != 1 || len(result.ArchivedPaths) != 1 {
 		t.Fatalf("forced initiative archive result = %#v", result)
 	}
 	if _, statErr := os.Stat(
-		filepath.Join(result.ArchivedPaths[0], "_packages", "WP-002", "task_01.md"),
+		filepath.Join(result.ArchivedPaths[0], "_task_groups", "TG-002", "task_01.md"),
 	); statErr != nil {
 		t.Fatalf("forced archive did not preserve child artifact: %v", statErr)
 	}
 }
 
-func TestArchiveWorkPackageInitiativeRejectsActiveParentRun(t *testing.T) {
+func TestArchiveTaskGroupInitiativeRejectsActiveParentRun(t *testing.T) {
 	// Suite boundary
 	// IN: real initiative filesystem, aggregate sync, an active run on the initiative parent row
 	// OUT: HTTP transport and CLI confirmation rendering
 	// Invariant: an ordinary workflow promoted to an initiative in place keeps its own workflow ID
 	// and any run linked to the parent row; archiving must refuse while that parent run is active,
-	// and --force must not bypass it. The plan-declared packages carry no runs, so a plan-scoped
+	// and --force must not bypass it. The plan-declared task groups carry no runs, so a plan-scoped
 	// guard would wrongly let the parent be archived mid-flight.
 	for _, force := range []bool{false, true} {
 		force := force
@@ -404,12 +407,12 @@ func TestArchiveWorkPackageInitiativeRejectsActiveParentRun(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rootDir := archiveTestRoot(t)
 			initiativeDir := filepath.Join(rootDir, "initiative")
-			writeWorkPackageFixture(t, initiativeDir, map[string]string{
-				"WP-001": "completed",
-				"WP-002": "completed",
+			writeTaskGroupFixture(t, initiativeDir, map[string]string{
+				"TG-001": "completed",
+				"TG-002": "completed",
 			})
 			if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
-				t.Fatalf("Sync(work package initiative): %v", err)
+				t.Fatalf("Sync(task group initiative): %v", err)
 			}
 			insertActiveArchiveRun(t, initiativeDir, "initiative", "run-initiative-parent-active")
 
@@ -427,12 +430,12 @@ func TestArchiveWorkPackageInitiativeRejectsActiveParentRun(t *testing.T) {
 	}
 }
 
-func TestArchiveWorkPackageInitiativeRejectsRetainedChildActiveRun(t *testing.T) {
+func TestArchiveTaskGroupInitiativeRejectsRetainedChildActiveRun(t *testing.T) {
 	// Suite boundary
 	// IN: real initiative filesystem, aggregate sync, plan pruning that retains a child with a live run
 	// OUT: HTTP transport and CLI confirmation rendering
-	// Invariant: a child dropped from _work_packages.md but retained by pruning because its run is
-	// active remains a non-archived direct child while leaving target.Plan.Packages; archiving must
+	// Invariant: a child dropped from _task_groups.md but retained by pruning because its run is
+	// active remains a non-archived direct child while leaving target.Plan.TaskGroups; archiving must
 	// refuse (default and --force) so the retained child is never archived mid-run.
 	for _, force := range []bool{false, true} {
 		force := force
@@ -443,19 +446,19 @@ func TestArchiveWorkPackageInitiativeRejectsRetainedChildActiveRun(t *testing.T)
 		t.Run(name, func(t *testing.T) {
 			rootDir := archiveTestRoot(t)
 			initiativeDir := filepath.Join(rootDir, "initiative")
-			writeWorkPackageFixture(t, initiativeDir, map[string]string{
-				"WP-001": "completed",
-				"WP-002": "completed",
+			writeTaskGroupFixture(t, initiativeDir, map[string]string{
+				"TG-001": "completed",
+				"TG-002": "completed",
 			})
 			if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
-				t.Fatalf("Sync(work package initiative): %v", err)
+				t.Fatalf("Sync(task group initiative): %v", err)
 			}
-			insertActiveArchiveRun(t, initiativeDir, "initiative/WP-002", "run-wp002-active")
+			insertActiveArchiveRun(t, initiativeDir, "initiative/TG-002", "run-task-group-002-active")
 
-			// Drop WP-002 from the plan while its run is active; pruning retains the child row.
-			writeSinglePackageInitiativePlan(t, initiativeDir)
-			if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-002")); err != nil {
-				t.Fatalf("remove pruned package dir: %v", err)
+			// Drop TG-002 from the plan while its run is active; pruning retains the child row.
+			writeSingleTaskGroupInitiativePlan(t, initiativeDir)
+			if err := os.RemoveAll(filepath.Join(initiativeDir, "_task_groups", "TG-002")); err != nil {
+				t.Fatalf("remove pruned task group dir: %v", err)
 			}
 
 			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: force})
@@ -472,45 +475,45 @@ func TestArchiveWorkPackageInitiativeRejectsRetainedChildActiveRun(t *testing.T)
 	}
 }
 
-func TestArchiveWorkPackageInitiativeRejectsMissingCompletedPackage(t *testing.T) {
+func TestArchiveTaskGroupInitiativeRejectsMissingCompletedTaskGroup(t *testing.T) {
 	// Suite boundary
 	// IN: real initiative filesystem, aggregate sync that flags a vanished completed
-	//     package's directory Missing while retaining its projection, and the archive command
+	//     task group's directory Missing while retaining its projection, and the archive command
 	// OUT: HTTP transport and CLI confirmation rendering
-	// Invariant: a declared package whose directory disappeared after completion is treated as
+	// Invariant: a declared task group whose directory disappeared after completion is treated as
 	// missing (matching the daemon read model's Missing archive-ineligibility), so both default
-	// and forced initiative archive refuse before any mutation, report the missing package, and
+	// and forced initiative archive refuse before any mutation, report the missing task group, and
 	// preserve the active hierarchy on disk and in the durable store.
 	for _, force := range []bool{false, true} {
 		force := force
-		name := "Should reject archive when a completed package directory is missing"
+		name := "Should reject archive when a completed task group directory is missing"
 		if force {
-			name = "Should reject forced archive when a completed package directory is missing"
+			name = "Should reject forced archive when a completed task group directory is missing"
 		}
 		t.Run(name, func(t *testing.T) {
 			rootDir := archiveTestRoot(t)
 			initiativeDir := filepath.Join(rootDir, "initiative")
-			writeWorkPackageFixture(t, initiativeDir, map[string]string{
-				"WP-001": "completed",
-				"WP-002": "completed",
+			writeTaskGroupFixture(t, initiativeDir, map[string]string{
+				"TG-001": "completed",
+				"TG-002": "completed",
 			})
 			if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
-				t.Fatalf("Sync(work package initiative): %v", err)
+				t.Fatalf("Sync(task group initiative): %v", err)
 			}
 
-			// Delete a completed package directory while leaving it declared in the plan.
-			if err := os.RemoveAll(filepath.Join(initiativeDir, "_packages", "WP-001")); err != nil {
-				t.Fatalf("remove completed package dir: %v", err)
+			// Delete a completed task group directory while leaving it declared in the plan.
+			if err := os.RemoveAll(filepath.Join(initiativeDir, "_task_groups", "TG-001")); err != nil {
+				t.Fatalf("remove completed task group dir: %v", err)
 			}
 			// Re-sync: the durable row is flagged Missing but its completed task/review
 			// projection is deliberately retained, reproducing the state where the row still
 			// looks terminal even though the directory is gone.
 			syncResult, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir})
 			if err != nil {
-				t.Fatalf("Sync(after package removal): %v", err)
+				t.Fatalf("Sync(after task group removal): %v", err)
 			}
-			if !equalStrings(syncResult.MissingWorkPackages, []string{"WP-001"}) {
-				t.Fatalf("sync missing packages = %#v, want WP-001", syncResult.MissingWorkPackages)
+			if !equalStrings(syncResult.MissingTaskGroups, []string{"TG-001"}) {
+				t.Fatalf("sync missing task groups = %#v, want TG-001", syncResult.MissingTaskGroups)
 			}
 
 			result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: force})
@@ -521,18 +524,18 @@ func TestArchiveWorkPackageInitiativeRejectsMissingCompletedPackage(t *testing.T
 			if !errors.As(err, &conflict) {
 				t.Fatalf("Archive(force=%v) error = %v, want WorkflowArchiveForceRequiredError", force, err)
 			}
-			if !strings.Contains(conflict.Reason, "WP-001") || !strings.Contains(conflict.Reason, "missing") {
-				t.Fatalf("conflict reason = %q, want it to report WP-001 missing", conflict.Reason)
+			if !strings.Contains(conflict.Reason, "TG-001") || !strings.Contains(conflict.Reason, "missing") {
+				t.Fatalf("conflict reason = %q, want it to report TG-001 missing", conflict.Reason)
 			}
 			if result == nil || result.Archived != 0 || result.Forced {
-				t.Fatalf("unexpected missing-package archive result: %#v", result)
+				t.Fatalf("unexpected missing-task-group archive result: %#v", result)
 			}
 			// The active hierarchy stays on disk: the initiative root and the present sibling.
 			if _, statErr := os.Stat(initiativeDir); statErr != nil {
 				t.Fatalf("initiative root must remain active after blocked archive: %v", statErr)
 			}
-			if _, statErr := os.Stat(filepath.Join(initiativeDir, "_packages", "WP-002")); statErr != nil {
-				t.Fatalf("present sibling package must remain after blocked archive: %v", statErr)
+			if _, statErr := os.Stat(filepath.Join(initiativeDir, "_task_groups", "TG-002")); statErr != nil {
+				t.Fatalf("present sibling task group must remain after blocked archive: %v", statErr)
 			}
 			// The parent workflow stays active (unarchived) in the durable store.
 			db, workspace := openArchiveWorkflowDB(t, rootDir)
@@ -972,32 +975,32 @@ func insertActiveArchiveRun(t *testing.T, target string, slug string, runID stri
 	}
 }
 
-func writeSinglePackageInitiativePlan(t *testing.T, initiativeDir string) {
+func writeSingleTaskGroupInitiativePlan(t *testing.T, initiativeDir string) {
 	t.Helper()
 
 	body := strings.Join([]string{
 		"---",
-		"schema_version: compozy.work-packages/v1",
+		"schema_version: compozy.task-groups/v1",
 		"initiative: initiative",
 		"graph:",
 		"  nodes:",
-		"    - id: WP-001",
-		"      directory: _packages/WP-001",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
 		"  edges: []",
 		"---",
 		"",
-		"# Initiative Work Packages",
+		"# Initiative Task Groups",
 		"",
-		"## [x] WP-001 — Persistence",
+		"## [x] TG-001 — Persistence",
 		"",
-		"- Reference: `initiative/WP-001`",
+		"- Reference: `initiative/TG-001`",
 		"- Outcome: Persist the parent workflow.",
 		"- Owns:",
 		"  - persistence",
 		"- Dependencies: None",
 		"",
 	}, "\n")
-	if err := os.WriteFile(filepath.Join(initiativeDir, "_work_packages.md"), []byte(body), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(initiativeDir, "_task_groups.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("rewrite initiative plan: %v", err)
 	}
 }

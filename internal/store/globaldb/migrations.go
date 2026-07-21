@@ -185,9 +185,9 @@ var migrations = []migration{
 		name:    "workflow_hierarchy",
 		statements: []string{
 			`ALTER TABLE workflows ADD COLUMN kind TEXT NOT NULL DEFAULT 'ordinary'
-				CHECK (kind IN ('ordinary', 'initiative', 'work_package'));`,
+				CHECK (kind IN ('ordinary', 'initiative', 'task_group'));`,
 			`ALTER TABLE workflows ADD COLUMN parent_workflow_id TEXT REFERENCES workflows(id);`,
-			`ALTER TABLE workflows ADD COLUMN package_id TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workflows ADD COLUMN task_group_id TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE workflows ADD COLUMN display_title TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE workflows ADD COLUMN outcome TEXT NOT NULL DEFAULT '';`,
 			`ALTER TABLE workflows ADD COLUMN lifecycle_completed INTEGER NOT NULL DEFAULT 0
@@ -196,11 +196,11 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_workflows_parent_workflow_id
 				ON workflows(parent_workflow_id)
 				WHERE parent_workflow_id IS NOT NULL;`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS uq_workflows_active_child_package
-				ON workflows(parent_workflow_id, package_id)
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_workflows_active_child_task_group
+				ON workflows(parent_workflow_id, task_group_id)
 				WHERE archived_at IS NULL
 				  AND parent_workflow_id IS NOT NULL
-				  AND package_id <> '';`,
+				  AND task_group_id <> '';`,
 		},
 	},
 	{
@@ -218,7 +218,7 @@ var migrations = []migration{
 		name:    "workflow_missing_placeholder_state",
 		statements: []string{
 			// Existing rows default to present (0); only placeholder rows for absent
-			// package directories set it, letting the read model block their start.
+			// task group directories set it, letting the read model block their start.
 			`ALTER TABLE workflows ADD COLUMN missing INTEGER NOT NULL DEFAULT 0
 				CHECK (missing IN (0, 1));`,
 		},

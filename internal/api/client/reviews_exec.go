@@ -30,11 +30,11 @@ func (c *Client) FetchReview(
 	var response contract.ReviewFetchResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/fetch"
 	statusCode, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewFetchRequest{
-		Workspace: strings.TrimSpace(workspace),
-		PackageID: strings.TrimSpace(req.PackageID),
-		Provider:  strings.TrimSpace(req.Provider),
-		PRRef:     strings.TrimSpace(req.PRRef),
-		Round:     req.Round,
+		Workspace:   strings.TrimSpace(workspace),
+		TaskGroupID: strings.TrimSpace(req.TaskGroupID),
+		Provider:    strings.TrimSpace(req.Provider),
+		PRRef:       strings.TrimSpace(req.PRRef),
+		Round:       req.Round,
 	}, &response)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
@@ -47,15 +47,15 @@ func (c *Client) FetchReview(
 
 // GetLatestReview loads the latest review summary for one workflow.
 func (c *Client) GetLatestReview(ctx context.Context, workspace string, slug string) (apicore.ReviewSummary, error) {
-	return c.GetLatestReviewForPackage(ctx, workspace, slug, "")
+	return c.GetLatestReviewForTaskGroup(ctx, workspace, slug, "")
 }
 
-// GetLatestReviewForPackage loads the latest review summary scoped by an optional package ID.
-func (c *Client) GetLatestReviewForPackage(
+// GetLatestReviewForTaskGroup loads the latest review summary scoped by an optional task group ID.
+func (c *Client) GetLatestReviewForTaskGroup(
 	ctx context.Context,
 	workspace string,
 	slug string,
-	packageID string,
+	taskGroupID string,
 ) (apicore.ReviewSummary, error) {
 	if c == nil {
 		return apicore.ReviewSummary{}, ErrDaemonClientRequired
@@ -68,8 +68,8 @@ func (c *Client) GetLatestReviewForPackage(
 
 	var response contract.ReviewSummaryResponse
 	values := url.Values{"workspace": []string{strings.TrimSpace(workspace)}}
-	if selectedPackage := strings.TrimSpace(packageID); selectedPackage != "" {
-		values.Set("package_id", selectedPackage)
+	if selectedTaskGroup := strings.TrimSpace(taskGroupID); selectedTaskGroup != "" {
+		values.Set("task_group_id", selectedTaskGroup)
 	}
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "?" + values.Encode()
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
@@ -85,16 +85,16 @@ func (c *Client) GetReviewRound(
 	slug string,
 	round int,
 ) (apicore.ReviewRound, error) {
-	return c.GetReviewRoundForPackage(ctx, workspace, slug, round, "")
+	return c.GetReviewRoundForTaskGroup(ctx, workspace, slug, round, "")
 }
 
-// GetReviewRoundForPackage loads a review round scoped by an optional package ID.
-func (c *Client) GetReviewRoundForPackage(
+// GetReviewRoundForTaskGroup loads a review round scoped by an optional task group ID.
+func (c *Client) GetReviewRoundForTaskGroup(
 	ctx context.Context,
 	workspace string,
 	slug string,
 	round int,
-	packageID string,
+	taskGroupID string,
 ) (apicore.ReviewRound, error) {
 	if c == nil {
 		return apicore.ReviewRound{}, ErrDaemonClientRequired
@@ -107,8 +107,8 @@ func (c *Client) GetReviewRoundForPackage(
 
 	var response contract.ReviewRoundResponse
 	values := url.Values{"workspace": []string{strings.TrimSpace(workspace)}}
-	if selectedPackage := strings.TrimSpace(packageID); selectedPackage != "" {
-		values.Set("package_id", selectedPackage)
+	if selectedTaskGroup := strings.TrimSpace(taskGroupID); selectedTaskGroup != "" {
+		values.Set("task_group_id", selectedTaskGroup)
 	}
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) + "?" + values.Encode()
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
@@ -124,16 +124,16 @@ func (c *Client) ListReviewIssues(
 	slug string,
 	round int,
 ) ([]apicore.ReviewIssue, error) {
-	return c.ListReviewIssuesForPackage(ctx, workspace, slug, round, "")
+	return c.ListReviewIssuesForTaskGroup(ctx, workspace, slug, round, "")
 }
 
-// ListReviewIssuesForPackage loads review issues scoped by an optional package ID.
-func (c *Client) ListReviewIssuesForPackage(
+// ListReviewIssuesForTaskGroup loads review issues scoped by an optional task group ID.
+func (c *Client) ListReviewIssuesForTaskGroup(
 	ctx context.Context,
 	workspace string,
 	slug string,
 	round int,
-	packageID string,
+	taskGroupID string,
 ) ([]apicore.ReviewIssue, error) {
 	if c == nil {
 		return nil, ErrDaemonClientRequired
@@ -146,8 +146,8 @@ func (c *Client) ListReviewIssuesForPackage(
 
 	var response contract.ReviewIssuesResponse
 	values := url.Values{"workspace": []string{strings.TrimSpace(workspace)}}
-	if selectedPackage := strings.TrimSpace(packageID); selectedPackage != "" {
-		values.Set("package_id", selectedPackage)
+	if selectedTaskGroup := strings.TrimSpace(taskGroupID); selectedTaskGroup != "" {
+		values.Set("task_group_id", selectedTaskGroup)
 	}
 	path := "/api/reviews/" + url.PathEscape(
 		trimmedSlug,
@@ -181,7 +181,7 @@ func (c *Client) StartReviewRun(
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) + "/runs"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewRunRequest{
 		Workspace:        strings.TrimSpace(workspace),
-		PackageID:        strings.TrimSpace(req.PackageID),
+		TaskGroupID:      strings.TrimSpace(req.TaskGroupID),
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
 		Batching:         req.Batching,
@@ -211,7 +211,7 @@ func (c *Client) StartReviewWatch(
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/watch"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewWatchRequest{
 		Workspace:        strings.TrimSpace(workspace),
-		PackageID:        strings.TrimSpace(req.PackageID),
+		TaskGroupID:      strings.TrimSpace(req.TaskGroupID),
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		Provider:         strings.TrimSpace(req.Provider),
 		PRRef:            strings.TrimSpace(req.PRRef),

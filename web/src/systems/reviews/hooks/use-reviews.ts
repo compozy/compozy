@@ -16,10 +16,10 @@ import type { ReviewDetailPayload, ReviewIssue, ReviewRound, ReviewSummary, Run 
 export function useLatestReview(
   workspaceId: string | null,
   slug: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<ReviewSummary>({
-    queryKey: reviewKeys.summary(workspaceId ?? "none", slug ?? "none", packageId) as QueryKey,
+    queryKey: reviewKeys.summary(workspaceId ?? "none", slug ?? "none", taskGroupId) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load the latest review");
@@ -27,7 +27,7 @@ export function useLatestReview(
       if (!slug) {
         throw new Error("workflow slug is required to load the latest review");
       }
-      return getLatestReview({ workspaceId, slug, packageId });
+      return getLatestReview({ workspaceId, slug, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });
@@ -37,14 +37,14 @@ export function useReviewRound(
   workspaceId: string | null,
   slug: string | null,
   round: number | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<ReviewRound>({
     queryKey: reviewKeys.round(
       workspaceId ?? "none",
       slug ?? "none",
       round ?? -1,
-      packageId
+      taskGroupId
     ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
@@ -56,7 +56,7 @@ export function useReviewRound(
       if (round == null || round <= 0) {
         throw new Error("review round is required to load a review round");
       }
-      return getReviewRound({ workspaceId, slug, round, packageId });
+      return getReviewRound({ workspaceId, slug, round, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
@@ -66,14 +66,14 @@ export function useReviewIssues(
   workspaceId: string | null,
   slug: string | null,
   round: number | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<ReviewIssue[]>({
     queryKey: reviewKeys.issues(
       workspaceId ?? "none",
       slug ?? "none",
       round ?? -1,
-      packageId
+      taskGroupId
     ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
@@ -85,7 +85,7 @@ export function useReviewIssues(
       if (round == null || round <= 0) {
         throw new Error("review round is required to load review issues");
       }
-      return listReviewIssues({ workspaceId, slug, round, packageId });
+      return listReviewIssues({ workspaceId, slug, round, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug) && round != null && round > 0,
   });
@@ -96,7 +96,7 @@ export function useReviewIssue(
   slug: string | null,
   round: number | null,
   issueId: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<ReviewDetailPayload>({
     queryKey: reviewKeys.issue(
@@ -104,7 +104,7 @@ export function useReviewIssue(
       slug ?? "none",
       round ?? -1,
       issueId ?? "none",
-      packageId
+      taskGroupId
     ) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
@@ -119,7 +119,7 @@ export function useReviewIssue(
       if (!issueId) {
         throw new Error("issue id is required to load a review issue");
       }
-      return getReviewIssue({ workspaceId, slug, round, issueId, packageId });
+      return getReviewIssue({ workspaceId, slug, round, issueId, taskGroupId });
     },
     enabled:
       Boolean(workspaceId) && Boolean(slug) && round != null && round > 0 && Boolean(issueId),
@@ -136,7 +136,7 @@ export function useStartReviewRun() {
           variables.workspaceId,
           variables.slug,
           variables.round,
-          variables.packageId
+          variables.taskGroupId
         ) as QueryKey,
       });
       void queryClient.invalidateQueries({
@@ -144,14 +144,14 @@ export function useStartReviewRun() {
           variables.workspaceId,
           variables.slug,
           variables.round,
-          variables.packageId
+          variables.taskGroupId
         ) as QueryKey,
       });
       void queryClient.invalidateQueries({
         queryKey: reviewKeys.summary(
           variables.workspaceId,
           variables.slug,
-          variables.packageId
+          variables.taskGroupId
         ) as QueryKey,
       });
       void queryClient.invalidateQueries({ queryKey: runKeys.lists() as QueryKey });

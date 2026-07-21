@@ -26,7 +26,7 @@ import { Link } from "@tanstack/react-router";
 
 import type { Run } from "@/systems/runs";
 
-import type { WorkflowSummary, WorkPackageSummary } from "../types";
+import type { WorkflowSummary, TaskGroupSummary } from "../types";
 
 function isWorkflowCompleted(workflow: WorkflowSummary): boolean {
   if (workflow.archived_at) return false;
@@ -42,7 +42,7 @@ export interface ArchiveConfirmationState {
 }
 
 export interface WorkflowRunRequest {
-  packageId?: string;
+  taskGroupId?: string;
   allowOutOfOrder?: boolean;
 }
 
@@ -263,7 +263,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
-                onStartPackage={request => onStartRun(workflow.slug, request)}
+                onStartTaskGroup={request => onStartRun(workflow.slug, request)}
                 onSync={() => onSyncOne(workflow.slug)}
                 readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
@@ -286,7 +286,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
                 onStartRun={() => onStartRun(workflow.slug)}
-                onStartPackage={request => onStartRun(workflow.slug, request)}
+                onStartTaskGroup={request => onStartRun(workflow.slug, request)}
                 onSync={() => onSyncOne(workflow.slug)}
                 readOnly={isReadOnly}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
@@ -324,7 +324,7 @@ function WorkflowRow({
   workflow,
   onSync,
   onStartRun,
-  onStartPackage,
+  onStartTaskGroup,
   onArchive,
   pendingSync,
   pendingStart,
@@ -335,7 +335,7 @@ function WorkflowRow({
   workflow: WorkflowSummary;
   onSync: () => void;
   onStartRun: () => void;
-  onStartPackage: (request: WorkflowRunRequest) => void | Promise<void>;
+  onStartTaskGroup: (request: WorkflowRunRequest) => void | Promise<void>;
   onArchive: () => void;
   pendingSync: boolean;
   pendingStart: boolean;
@@ -444,11 +444,11 @@ function WorkflowRow({
           </Button>
         </SurfaceCardBody>
       </SurfaceCard>
-      {(workflow.work_packages?.length ?? 0) > 0 ? (
-        <WorkPackageList
+      {(workflow.task_groups?.length ?? 0) > 0 ? (
+        <TaskGroupList
           initiativeSlug={workflow.slug}
-          onStartPackage={onStartPackage}
-          packages={workflow.work_packages ?? []}
+          onStartTaskGroup={onStartTaskGroup}
+          taskGroups={workflow.task_groups ?? []}
           pendingStartReference={pendingStartReference}
           readOnly={readOnly}
         />
@@ -457,48 +457,48 @@ function WorkflowRow({
   );
 }
 
-function WorkPackageList({
+function TaskGroupList({
   initiativeSlug,
-  onStartPackage,
-  packages,
+  onStartTaskGroup,
+  taskGroups,
   pendingStartReference,
   readOnly,
 }: {
   initiativeSlug: string;
-  onStartPackage: (request: WorkflowRunRequest) => void | Promise<void>;
-  packages: WorkPackageSummary[];
+  onStartTaskGroup: (request: WorkflowRunRequest) => void | Promise<void>;
+  taskGroups: TaskGroupSummary[];
   pendingStartReference: string | null;
   readOnly: boolean;
 }): ReactElement {
   const inputId = useId();
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visiblePackages = normalizedQuery
-    ? packages.filter(pkg =>
-        [pkg.package_id, pkg.title, pkg.outcome, pkg.reference].some(value =>
-          value.toLocaleLowerCase().includes(normalizedQuery)
+  const visibleTaskGroups = normalizedQuery
+    ? taskGroups.filter(taskGroup =>
+        [taskGroup.task_group_id, taskGroup.title, taskGroup.outcome, taskGroup.reference].some(
+          value => value.toLocaleLowerCase().includes(normalizedQuery)
         )
       )
-    : packages;
+    : taskGroups;
 
   return (
     <section
-      aria-label={`Work Packages for ${initiativeSlug}`}
+      aria-label={`Task Groups for ${initiativeSlug}`}
       className="ml-3 border-l border-border pl-4 pt-3 sm:ml-6 sm:pl-6"
-      data-testid={`workflow-packages-${initiativeSlug}`}
+      data-testid={`workflow-task-groups-${initiativeSlug}`}
     >
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="eyebrow text-muted-foreground">Work Packages · {packages.length}</p>
+          <p className="eyebrow text-muted-foreground">Task Groups · {taskGroups.length}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Child execution scopes for this initiative.
           </p>
         </div>
         <label className="grid gap-1 text-xs text-muted-foreground" htmlFor={inputId}>
-          Filter packages
+          Filter Task Groups
           <input
             className="h-9 w-full rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-[color:var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring)] sm:w-64"
-            data-testid={`workflow-packages-filter-${initiativeSlug}`}
+            data-testid={`workflow-task-groups-filter-${initiativeSlug}`}
             id={inputId}
             onChange={event => setQuery(event.currentTarget.value)}
             placeholder="ID, title, outcome"
@@ -507,15 +507,15 @@ function WorkPackageList({
           />
         </label>
       </div>
-      {visiblePackages.length > 0 ? (
-        <ul className="grid gap-2" data-testid={`workflow-packages-list-${initiativeSlug}`}>
-          {visiblePackages.map(pkg => (
-            <WorkPackageRow
+      {visibleTaskGroups.length > 0 ? (
+        <ul className="grid gap-2" data-testid={`workflow-task-groups-list-${initiativeSlug}`}>
+          {visibleTaskGroups.map(taskGroup => (
+            <TaskGroupRow
               initiativeSlug={initiativeSlug}
-              key={pkg.workflow_id}
-              onStart={request => onStartPackage(request)}
-              pendingStart={pendingStartReference === pkg.reference}
-              pkg={pkg}
+              key={taskGroup.workflow_id}
+              onStart={request => onStartTaskGroup(request)}
+              pendingStart={pendingStartReference === taskGroup.reference}
+              taskGroup={taskGroup}
               readOnly={readOnly}
             />
           ))}
@@ -523,53 +523,54 @@ function WorkPackageList({
       ) : (
         <p
           className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-4 text-sm text-muted-foreground"
-          data-testid={`workflow-packages-filter-empty-${initiativeSlug}`}
+          data-testid={`workflow-task-groups-filter-empty-${initiativeSlug}`}
         >
-          No Work Packages match “{query}”.
+          No Task Groups match “{query}”.
         </p>
       )}
     </section>
   );
 }
 
-function WorkPackageRow({
+function TaskGroupRow({
   initiativeSlug,
   onStart,
   pendingStart,
-  pkg,
+  taskGroup,
   readOnly,
 }: {
   initiativeSlug: string;
   onStart: (request: WorkflowRunRequest) => void | Promise<void>;
   pendingStart: boolean;
-  pkg: WorkPackageSummary;
+  taskGroup: TaskGroupSummary;
   readOnly: boolean;
 }): ReactElement {
-  const unmetCount = pkg.unmet_dependency_count ?? 0;
-  const unmetDependencies = pkg.unmet_dependencies ?? [];
-  const unmetDependencyPaths = pkg.unmet_dependency_paths ?? [];
-  const requiresStartConfirmation = pkg.requires_start_confirmation === true || unmetCount > 0;
+  const unmetCount = taskGroup.unmet_dependency_count ?? 0;
+  const unmetDependencies = taskGroup.unmet_dependencies ?? [];
+  const unmetDependencyPaths = taskGroup.unmet_dependency_paths ?? [];
+  const requiresStartConfirmation =
+    taskGroup.requires_start_confirmation === true || unmetCount > 0;
   const [dependencyConfirmationOpen, setDependencyConfirmationOpen] = useState(false);
   const [dependencyConfirmationPending, setDependencyConfirmationPending] = useState(false);
-  const completionText = pkg.lifecycle_complete
+  const completionText = taskGroup.lifecycle_complete
     ? "Compozy lifecycle complete; Git integration is not tracked"
     : "Compozy lifecycle incomplete";
-  const selectionLabel = `${pkg.package_id}, ${pkg.title}. ${completionText}. ${unmetCount} unmet ${unmetCount === 1 ? "dependency" : "dependencies"}.`;
+  const selectionLabel = `${taskGroup.task_group_id}, ${taskGroup.title}. ${completionText}. ${unmetCount} unmet ${unmetCount === 1 ? "dependency" : "dependencies"}.`;
   const canStart =
-    !pkg.lifecycle_complete &&
-    pkg.can_start_run !== false &&
+    !taskGroup.lifecycle_complete &&
+    taskGroup.can_start_run !== false &&
     (!requiresStartConfirmation || unmetDependencies.length > 0 || unmetDependencyPaths.length > 0);
   const startBlockReason =
     requiresStartConfirmation && unmetDependencies.length === 0 && unmetDependencyPaths.length === 0
       ? "dependency details unavailable"
-      : pkg.start_block_reason || "not startable";
-  const taskCounts = pkg.task_counts;
+      : taskGroup.start_block_reason || "not startable";
+  const taskCounts = taskGroup.task_counts;
 
   async function handleConfirmDependencyOverride() {
     if (dependencyConfirmationPending) return;
     setDependencyConfirmationPending(true);
     try {
-      await onStart({ packageId: pkg.package_id, allowOutOfOrder: true });
+      await onStart({ taskGroupId: taskGroup.task_group_id, allowOutOfOrder: true });
       setDependencyConfirmationOpen(false);
     } finally {
       setDependencyConfirmationPending(false);
@@ -578,28 +579,28 @@ function WorkPackageRow({
 
   return (
     <li>
-      <SurfaceCard data-testid={`workflow-package-${initiativeSlug}-${pkg.package_id}`}>
+      <SurfaceCard data-testid={`workflow-task-group-${initiativeSlug}-${taskGroup.task_group_id}`}>
         <SurfaceCardHeader>
           <div className="min-w-0">
-            <SurfaceCardEyebrow>{pkg.package_id}</SurfaceCardEyebrow>
+            <SurfaceCardEyebrow>{taskGroup.task_group_id}</SurfaceCardEyebrow>
             <SurfaceCardTitle>
               <Link
                 aria-label={selectionLabel}
                 className="block text-foreground hover:underline"
-                data-testid={`workflow-package-open-${initiativeSlug}-${pkg.package_id}`}
+                data-testid={`workflow-task-group-open-${initiativeSlug}-${taskGroup.task_group_id}`}
                 params={{ slug: initiativeSlug }}
-                search={{ package_id: pkg.package_id }}
+                search={{ task_group_id: taskGroup.task_group_id }}
                 to="/workflows/$slug/tasks"
               >
-                {pkg.title}
+                {taskGroup.title}
               </Link>
             </SurfaceCardTitle>
-            <SurfaceCardDescription>{pkg.outcome}</SurfaceCardDescription>
+            <SurfaceCardDescription>{taskGroup.outcome}</SurfaceCardDescription>
           </div>
           <StatusBadge
-            tone={pkg.lifecycle_complete ? "success" : unmetCount > 0 ? "warning" : "info"}
+            tone={taskGroup.lifecycle_complete ? "success" : unmetCount > 0 ? "warning" : "info"}
           >
-            {pkg.lifecycle_complete
+            {taskGroup.lifecycle_complete
               ? "lifecycle complete"
               : unmetCount > 0
                 ? "dependencies unmet"
@@ -608,14 +609,16 @@ function WorkPackageRow({
         </SurfaceCardHeader>
         <SurfaceCardBody className="space-y-3">
           <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
-            <p data-testid={`workflow-package-lifecycle-${pkg.package_id}`}>{completionText}.</p>
-            <p data-testid={`workflow-package-readiness-${pkg.package_id}`}>
+            <p data-testid={`workflow-task-group-lifecycle-${taskGroup.task_group_id}`}>
+              {completionText}.
+            </p>
+            <p data-testid={`workflow-task-group-readiness-${taskGroup.task_group_id}`}>
               {unmetCount > 0
                 ? `${pluralize(unmetCount, "unmet dependency")}.`
                 : "All declared dependencies are complete."}
             </p>
             <p>
-              {pkg.independently_eligible
+              {taskGroup.independently_eligible
                 ? "May be developed independently of an eligible peer."
                 : "Follows the declared dependency order."}
             </p>
@@ -623,63 +626,66 @@ function WorkPackageRow({
               {taskCounts
                 ? `${taskCounts.completed}/${taskCounts.total} tasks complete`
                 : "Task counts unavailable"}
-              {` · ${pluralize(pkg.unresolved_reviews ?? 0, "unresolved review")}`}
-              {` · ${pluralize(pkg.active_runs ?? 0, "active run")}`}
+              {` · ${pluralize(taskGroup.unresolved_reviews ?? 0, "unresolved review")}`}
+              {` · ${pluralize(taskGroup.active_runs ?? 0, "active run")}`}
             </p>
           </div>
-          {(pkg.dependencies?.length ?? 0) > 0 ? (
+          {(taskGroup.dependencies?.length ?? 0) > 0 ? (
             <ul
-              aria-label={`Dependencies for ${pkg.package_id}`}
+              aria-label={`Dependencies for ${taskGroup.task_group_id}`}
               className="flex flex-wrap gap-2"
-              data-testid={`workflow-package-dependencies-${pkg.package_id}`}
+              data-testid={`workflow-task-group-dependencies-${taskGroup.task_group_id}`}
             >
-              {pkg.dependencies?.map(dependency => (
+              {taskGroup.dependencies?.map(dependency => (
                 <li
                   className="rounded-[var(--radius-sm)] border border-border-subtle bg-[color:var(--surface-inset)] px-2 py-1 text-xs text-muted-foreground"
-                  key={`${dependency.package_id}-${dependency.rationale}`}
+                  key={`${dependency.task_group_id}-${dependency.rationale}`}
                 >
-                  <span className="font-mono text-foreground">{dependency.package_id}</span>
+                  <span className="font-mono text-foreground">{dependency.task_group_id}</span>
                   {` — ${dependency.rationale}`}
                 </li>
               ))}
             </ul>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <PackageLink
+            <TaskGroupLink
               label="Task board"
-              packageId={pkg.package_id}
+              taskGroupId={taskGroup.task_group_id}
               slug={initiativeSlug}
-              testId={`workflow-package-tasks-${initiativeSlug}-${pkg.package_id}`}
+              testId={`workflow-task-group-tasks-${initiativeSlug}-${taskGroup.task_group_id}`}
               to="/workflows/$slug/tasks"
             />
-            <PackageLink
+            <TaskGroupLink
               label="Spec + plan"
-              packageId={pkg.package_id}
+              taskGroupId={taskGroup.task_group_id}
               slug={initiativeSlug}
-              testId={`workflow-package-spec-${initiativeSlug}-${pkg.package_id}`}
+              testId={`workflow-task-group-spec-${initiativeSlug}-${taskGroup.task_group_id}`}
               to="/workflows/$slug/spec"
             />
-            <PackageLink
+            <TaskGroupLink
               label="Memory"
-              packageId={pkg.package_id}
+              taskGroupId={taskGroup.task_group_id}
               slug={initiativeSlug}
-              testId={`workflow-package-memory-${initiativeSlug}-${pkg.package_id}`}
+              testId={`workflow-task-group-memory-${initiativeSlug}-${taskGroup.task_group_id}`}
               to="/memory/$slug"
             />
-            {pkg.latest_review ? (
+            {taskGroup.latest_review ? (
               <Link
                 className="inline-flex items-center justify-center rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
-                data-testid={`workflow-package-reviews-${initiativeSlug}-${pkg.package_id}`}
-                params={{ slug: initiativeSlug, round: String(pkg.latest_review.round_number) }}
-                search={{ package_id: pkg.package_id }}
+                data-testid={`workflow-task-group-reviews-${initiativeSlug}-${taskGroup.task_group_id}`}
+                params={{
+                  slug: initiativeSlug,
+                  round: String(taskGroup.latest_review.round_number),
+                }}
+                search={{ task_group_id: taskGroup.task_group_id }}
                 to="/reviews/$slug/$round"
               >
-                {`Reviews · round ${pkg.latest_review.round_number}`}
+                {`Reviews · round ${taskGroup.latest_review.round_number}`}
               </Link>
             ) : null}
             {canStart ? (
               <Button
-                data-testid={`workflow-package-start-${initiativeSlug}-${pkg.package_id}`}
+                data-testid={`workflow-task-group-start-${initiativeSlug}-${taskGroup.task_group_id}`}
                 disabled={pendingStart || readOnly}
                 icon={<Play className="size-4" />}
                 loading={pendingStart}
@@ -688,13 +694,13 @@ function WorkPackageRow({
                     setDependencyConfirmationOpen(true);
                     return;
                   }
-                  void onStart({ packageId: pkg.package_id });
+                  void onStart({ taskGroupId: taskGroup.task_group_id });
                 }}
                 size="sm"
               >
-                Start package run
+                Start task group run
               </Button>
-            ) : pkg.lifecycle_complete ? null : (
+            ) : taskGroup.lifecycle_complete ? null : (
               <StatusBadge tone="warning">{startBlockReason}</StatusBadge>
             )}
           </div>
@@ -702,13 +708,13 @@ function WorkPackageRow({
       </SurfaceCard>
       <AlertDialog open={dependencyConfirmationOpen}>
         <AlertDialogContent
-          data-testid={`workflow-package-dependency-confirmation-${initiativeSlug}-${pkg.package_id}`}
+          data-testid={`workflow-task-group-dependency-confirmation-${initiativeSlug}-${taskGroup.task_group_id}`}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Start {pkg.reference} out of order?</AlertDialogTitle>
+            <AlertDialogTitle>Start {taskGroup.reference} out of order?</AlertDialogTitle>
             <AlertDialogDescription>
-              This run has unmet dependencies. Continuing authorizes only this package run and does
-              not change the work package plan.
+              This run has unmet dependencies. Continuing authorizes only this task group run and
+              does not change the task group plan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 px-6 pb-6">
@@ -720,23 +726,25 @@ function WorkPackageRow({
               Review each prerequisite before authorizing this one out-of-order run.
             </Alert>
             <ul
-              aria-label={`Unmet dependency details for ${pkg.package_id}`}
+              aria-label={`Unmet dependency details for ${taskGroup.task_group_id}`}
               className="space-y-2 rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-4 py-3 text-sm text-muted-foreground"
-              data-testid={`workflow-package-dependency-confirmation-dependencies-${initiativeSlug}-${pkg.package_id}`}
+              data-testid={`workflow-task-group-dependency-confirmation-dependencies-${initiativeSlug}-${taskGroup.task_group_id}`}
             >
               {unmetDependencies.map(dependency => (
-                <li key={`${dependency.package_id}-${dependency.rationale}`}>
-                  <span className="font-mono text-foreground">{dependency.package_id}</span>
+                <li key={`${dependency.task_group_id}-${dependency.rationale}`}>
+                  <span className="font-mono text-foreground">{dependency.task_group_id}</span>
                   {` — ${dependency.title}: ${dependency.rationale}`}
                 </li>
               ))}
               {unmetDependencyPaths.map(path => (
-                <li key={path.package_ids.join("/")}>
-                  <p>Transitive path: {path.package_ids.join(" → ")}</p>
+                <li key={path.task_group_ids.join("/")}>
+                  <p>Transitive path: {path.task_group_ids.join(" → ")}</p>
                   <ul className="mt-1 space-y-1">
                     {path.dependencies.map(dependency => (
-                      <li key={`${dependency.package_id}-${dependency.rationale}`}>
-                        <span className="font-mono text-foreground">{dependency.package_id}</span>
+                      <li key={`${dependency.task_group_id}-${dependency.rationale}`}>
+                        <span className="font-mono text-foreground">
+                          {dependency.task_group_id}
+                        </span>
                         {` — ${dependency.title}: ${dependency.rationale}`}
                       </li>
                     ))}
@@ -747,7 +755,7 @@ function WorkPackageRow({
           </div>
           <AlertDialogFooter>
             <Button
-              data-testid={`workflow-package-dependency-confirmation-cancel-${initiativeSlug}-${pkg.package_id}`}
+              data-testid={`workflow-task-group-dependency-confirmation-cancel-${initiativeSlug}-${taskGroup.task_group_id}`}
               disabled={dependencyConfirmationPending}
               onClick={() => setDependencyConfirmationOpen(false)}
               variant="secondary"
@@ -755,7 +763,7 @@ function WorkPackageRow({
               Cancel
             </Button>
             <Button
-              data-testid={`workflow-package-dependency-confirmation-confirm-${initiativeSlug}-${pkg.package_id}`}
+              data-testid={`workflow-task-group-dependency-confirmation-confirm-${initiativeSlug}-${taskGroup.task_group_id}`}
               loading={dependencyConfirmationPending}
               onClick={() => void handleConfirmDependencyOverride()}
             >
@@ -768,15 +776,15 @@ function WorkPackageRow({
   );
 }
 
-function PackageLink({
+function TaskGroupLink({
   label,
-  packageId,
+  taskGroupId,
   slug,
   testId,
   to,
 }: {
   label: string;
-  packageId: string;
+  taskGroupId: string;
   slug: string;
   testId: string;
   to: "/memory/$slug" | "/workflows/$slug/spec" | "/workflows/$slug/tasks";
@@ -786,7 +794,7 @@ function PackageLink({
       className="inline-flex items-center justify-center rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={testId}
       params={{ slug }}
-      search={{ package_id: packageId }}
+      search={{ task_group_id: taskGroupId }}
       to={to}
     >
       {label}
@@ -811,20 +819,20 @@ function ArchivedRow({ workflow }: { workflow: WorkflowSummary }): ReactElement 
           <StatusBadge tone="neutral">archived</StatusBadge>
         </SurfaceCardHeader>
       </SurfaceCard>
-      {(workflow.work_packages?.length ?? 0) > 0 ? (
+      {(workflow.task_groups?.length ?? 0) > 0 ? (
         <ul
-          aria-label={`Archived Work Packages for ${workflow.slug}`}
+          aria-label={`Archived Task Groups for ${workflow.slug}`}
           className="ml-3 grid gap-2 border-l border-border pl-4 pt-3 sm:ml-6 sm:pl-6"
         >
-          {workflow.work_packages?.map(pkg => (
+          {workflow.task_groups?.map(taskGroup => (
             <li
               className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
-              key={pkg.workflow_id}
+              key={taskGroup.workflow_id}
             >
-              <p className="font-mono text-xs text-muted-foreground">{pkg.package_id}</p>
-              <p className="mt-1 text-sm font-medium text-foreground">{pkg.title}</p>
+              <p className="font-mono text-xs text-muted-foreground">{taskGroup.task_group_id}</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{taskGroup.title}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {pkg.lifecycle_complete
+                {taskGroup.lifecycle_complete
                   ? "Compozy lifecycle complete; Git integration is not tracked."
                   : "Compozy lifecycle incomplete."}
               </p>

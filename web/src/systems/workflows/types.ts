@@ -1,7 +1,7 @@
 import type { components } from "@/generated/compozy-openapi";
 
 export type WorkflowSummary = components["schemas"]["WorkflowSummary"];
-export type WorkPackageSummary = components["schemas"]["WorkPackageSummary"];
+export type TaskGroupSummary = components["schemas"]["TaskGroupSummary"];
 export type SyncResult = components["schemas"]["SyncResult"];
 export type ArchiveResult = components["schemas"]["ArchiveResult"];
 export type TaskBoardPayload = components["schemas"]["TaskBoardPayload"];

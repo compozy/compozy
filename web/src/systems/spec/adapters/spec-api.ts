@@ -3,14 +3,14 @@ import { ACTIVE_WORKSPACE_HEADER } from "@/systems/app-shell";
 
 import type { WorkflowSpecDocument } from "../types";
 
-function packageQuery(packageId: string | undefined) {
-  return packageId ? { query: { package_id: packageId } } : {};
+function taskGroupQuery(taskGroupId: string | undefined) {
+  return taskGroupId ? { query: { task_group_id: taskGroupId } } : {};
 }
 
 export interface WorkflowSpecParams {
   workspaceId: string;
   slug: string;
-  packageId?: string;
+  taskGroupId?: string;
 }
 
 export async function getWorkflowSpec(params: WorkflowSpecParams): Promise<WorkflowSpecDocument> {
@@ -18,7 +18,7 @@ export async function getWorkflowSpec(params: WorkflowSpecParams): Promise<Workf
     params: {
       path: { slug: params.slug },
       header: { [ACTIVE_WORKSPACE_HEADER]: params.workspaceId },
-      ...packageQuery(params.packageId),
+      ...taskGroupQuery(params.taskGroupId),
     },
   });
   const payload = requireData(

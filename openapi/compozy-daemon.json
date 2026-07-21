@@ -38,12 +38,12 @@
                     "type": "integer"
                 }
             },
-            "PackageIDQuery": {
-                "description": "Optional stable Work Package ID selected beneath the initiative route slug.",
+            "TaskGroupIDQuery": {
+                "description": "Optional stable Task Group ID selected beneath the initiative route slug.",
                 "in": "query",
-                "name": "package_id",
+                "name": "task_group_id",
                 "schema": {
-                    "pattern": "^WP-[0-9]{3}$",
+                    "pattern": "^TG-[0-9]{3}$",
                     "type": "string"
                 }
             },
@@ -654,8 +654,8 @@
                         "additionalProperties": true,
                         "type": "object"
                     },
-                    "package_id": {
-                        "pattern": "^WP-[0-9]{3}$",
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
                         "type": "string"
                     },
                     "presentation_mode": {
@@ -1606,8 +1606,8 @@
                     "execution": {
                         "$ref": "#/components/schemas/TaskExecutionDescriptor"
                     },
-                    "package_id": {
-                        "pattern": "^WP-[0-9]{3}$",
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
                         "type": "string"
                     },
                     "presentation_mode": {
@@ -1628,12 +1628,12 @@
                     "initiative_slug": {
                         "type": "string"
                     },
-                    "package_id": {
-                        "pattern": "^WP-[0-9]{3}$",
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
                         "type": "string"
                     }
                 },
-                "required": ["initiative_slug", "package_id"],
+                "required": ["initiative_slug", "task_group_id"],
                 "type": "object"
             },
             "TaskRunMultipleItem": {
@@ -1939,7 +1939,7 @@
             },
             "WorkflowRefRequest": {
                 "properties": {
-                    "package_id": {
+                    "task_group_id": {
                         "type": "string"
                     },
                     "workspace": {
@@ -1953,7 +1953,7 @@
                     "force": {
                         "type": "boolean"
                     },
-                    "package_id": {
+                    "task_group_id": {
                         "type": "string"
                     },
                     "workspace": {
@@ -2032,7 +2032,7 @@
                     "outcome": {
                         "type": "string"
                     },
-                    "package_id": {
+                    "task_group_id": {
                         "type": "string"
                     },
                     "parent_workflow_id": {
@@ -2047,9 +2047,9 @@
                     "task_counts": {
                         "$ref": "#/components/schemas/WorkflowTaskCounts"
                     },
-                    "work_packages": {
+                    "task_groups": {
                         "items": {
-                            "$ref": "#/components/schemas/WorkPackageSummary"
+                            "$ref": "#/components/schemas/TaskGroupSummary"
                         },
                         "type": "array"
                     },
@@ -2060,7 +2060,7 @@
                 "required": ["id", "slug", "workspace_id"],
                 "type": "object"
             },
-            "WorkPackageSummary": {
+            "TaskGroupSummary": {
                 "properties": {
                     "active_runs": {
                         "type": "integer"
@@ -2076,7 +2076,7 @@
                     },
                     "dependencies": {
                         "items": {
-                            "$ref": "#/components/schemas/WorkPackageDependency"
+                            "$ref": "#/components/schemas/TaskGroupDependency"
                         },
                         "type": "array"
                     },
@@ -2092,7 +2092,7 @@
                     "outcome": {
                         "type": "string"
                     },
-                    "package_id": {
+                    "task_group_id": {
                         "type": "string"
                     },
                     "reference": {
@@ -2115,13 +2115,13 @@
                     },
                     "unmet_dependencies": {
                         "items": {
-                            "$ref": "#/components/schemas/WorkPackageDependency"
+                            "$ref": "#/components/schemas/TaskGroupDependency"
                         },
                         "type": "array"
                     },
                     "unmet_dependency_paths": {
                         "items": {
-                            "$ref": "#/components/schemas/WorkPackageDependencyPath"
+                            "$ref": "#/components/schemas/TaskGroupDependencyPath"
                         },
                         "type": "array"
                     },
@@ -2135,16 +2135,16 @@
                 "required": [
                     "lifecycle_complete",
                     "outcome",
-                    "package_id",
+                    "task_group_id",
                     "reference",
                     "title",
                     "workflow_id"
                 ],
                 "type": "object"
             },
-            "WorkPackageDependency": {
+            "TaskGroupDependency": {
                 "properties": {
-                    "package_id": {
+                    "task_group_id": {
                         "type": "string"
                     },
                     "rationale": {
@@ -2154,25 +2154,25 @@
                         "type": "string"
                     }
                 },
-                "required": ["package_id", "rationale", "title"],
+                "required": ["task_group_id", "rationale", "title"],
                 "type": "object"
             },
-            "WorkPackageDependencyPath": {
+            "TaskGroupDependencyPath": {
                 "properties": {
                     "dependencies": {
                         "items": {
-                            "$ref": "#/components/schemas/WorkPackageDependency"
+                            "$ref": "#/components/schemas/TaskGroupDependency"
                         },
                         "type": "array"
                     },
-                    "package_ids": {
+                    "task_group_ids": {
                         "items": {
                             "type": "string"
                         },
                         "type": "array"
                     }
                 },
-                "required": ["dependencies", "package_ids"],
+                "required": ["dependencies", "task_group_ids"],
                 "type": "object"
             },
             "WorkflowTaskCounts": {
@@ -2356,8 +2356,8 @@
                     "max_rounds": {
                         "type": "integer"
                     },
-                    "package_id": {
-                        "pattern": "^WP-[0-9]{3}$",
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
                         "type": "string"
                     },
                     "poll_interval": {
@@ -2490,7 +2490,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -2597,7 +2597,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/Round"
@@ -2642,7 +2642,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/Round"
@@ -2687,7 +2687,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/Round"
@@ -3258,7 +3258,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -3352,7 +3352,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -3391,7 +3391,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/TaskID"
@@ -3433,7 +3433,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -3472,7 +3472,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/FileID"
@@ -3569,7 +3569,7 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
-                        "$ref": "#/components/parameters/PackageIDQuery"
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {

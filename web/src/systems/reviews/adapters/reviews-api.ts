@@ -14,21 +14,21 @@ function workspaceHeader(workspaceId: string) {
   return { header: { [ACTIVE_WORKSPACE_HEADER]: workspaceId } } as const;
 }
 
-function packageQuery(packageId: string | undefined) {
-  return packageId ? { query: { package_id: packageId } } : {};
+function taskGroupQuery(taskGroupId: string | undefined) {
+  return taskGroupId ? { query: { task_group_id: taskGroupId } } : {};
 }
 
 export interface ReviewSummaryParams {
   workspaceId: string;
   slug: string;
-  packageId?: string;
+  taskGroupId?: string;
 }
 
 export async function getLatestReview(params: ReviewSummaryParams): Promise<ReviewSummary> {
   const { data, error, response } = await daemonApiClient.GET("/api/reviews/{slug}", {
     params: {
       path: { slug: params.slug },
-      ...packageQuery(params.packageId),
+      ...taskGroupQuery(params.taskGroupId),
       ...workspaceHeader(params.workspaceId),
     },
   });
@@ -45,7 +45,7 @@ export interface ReviewRoundParams {
   workspaceId: string;
   slug: string;
   round: number;
-  packageId?: string;
+  taskGroupId?: string;
 }
 
 export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewRound> {
@@ -54,7 +54,7 @@ export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewR
     {
       params: {
         path: { slug: params.slug, round: params.round },
-        ...packageQuery(params.packageId),
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -72,7 +72,7 @@ export interface ReviewIssuesParams {
   workspaceId: string;
   slug: string;
   round: number;
-  packageId?: string;
+  taskGroupId?: string;
 }
 
 export async function listReviewIssues(params: ReviewIssuesParams): Promise<ReviewIssue[]> {
@@ -81,7 +81,7 @@ export async function listReviewIssues(params: ReviewIssuesParams): Promise<Revi
     {
       params: {
         path: { slug: params.slug, round: params.round },
-        ...packageQuery(params.packageId),
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -100,7 +100,7 @@ export interface ReviewIssueParams {
   slug: string;
   round: number;
   issueId: string;
-  packageId?: string;
+  taskGroupId?: string;
 }
 
 export async function getReviewIssue(params: ReviewIssueParams): Promise<ReviewDetailPayload> {
@@ -109,7 +109,7 @@ export async function getReviewIssue(params: ReviewIssueParams): Promise<ReviewD
     {
       params: {
         path: { slug: params.slug, round: params.round, issue_id: params.issueId },
-        ...packageQuery(params.packageId),
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -127,7 +127,7 @@ export interface StartReviewRunParams {
   workspaceId: string;
   slug: string;
   round: number;
-  packageId?: string;
+  taskGroupId?: string;
   body?: ReviewRunRequest;
 }
 
@@ -141,7 +141,7 @@ export async function startReviewRun(params: StartReviewRunParams): Promise<Run>
       },
       body: {
         ...params.body,
-        ...(params.packageId ? { package_id: params.packageId } : {}),
+        ...(params.taskGroupId ? { task_group_id: params.taskGroupId } : {}),
         workspace: params.workspaceId,
       },
     }

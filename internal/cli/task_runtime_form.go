@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 )
 
 type taskRuntimeEditor struct {
@@ -87,19 +87,19 @@ func newTaskRunRuntimeFormForSlugs(
 }
 
 func resolveTaskRuntimeFormTasksDir(ctx context.Context, state *commandState, workflow string) (string, error) {
-	target, err := (workpackages.TargetResolver{}).Resolve(ctx, state.workspaceRoot, workflow)
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, state.workspaceRoot, workflow)
 	if err != nil {
 		return "", err
 	}
 	switch target.Mode {
-	case workpackages.TargetModeOrdinary:
+	case taskgroups.TargetModeOrdinary:
 		return resolveTaskWorkflowDir(state.workspaceRoot, target.Ref.Initiative, state.tasksDir)
-	case workpackages.TargetModePackage:
+	case taskgroups.TargetModeTaskGroup:
 		return target.TasksDir, nil
-	case workpackages.TargetModeInitiative:
-		return "", workPackageSelectionRequiredError(target)
+	case taskgroups.TargetModeInitiative:
+		return "", taskGroupSelectionRequiredError(target)
 	default:
-		return "", fmt.Errorf("unsupported work package target mode %q", target.Mode)
+		return "", fmt.Errorf("unsupported task group target mode %q", target.Mode)
 	}
 }
 

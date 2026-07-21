@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 )
 
 type taskRunWizardWorkflowStatus int
@@ -46,10 +46,10 @@ func loadTaskRunWizardLatestRunStatuses(
 	client daemonCommandClient,
 	workspaceRoot string,
 ) (map[string]string, error) {
-	return loadWorkPackagePickerLatestRunStatuses(ctx, client, workspaceRoot, daemonRunModeTask)
+	return loadTaskGroupPickerLatestRunStatuses(ctx, client, workspaceRoot, daemonRunModeTask)
 }
 
-func loadWorkPackagePickerLatestRunStatuses(
+func loadTaskGroupPickerLatestRunStatuses(
 	ctx context.Context,
 	client daemonCommandClient,
 	workspaceRoot string,
@@ -104,16 +104,16 @@ func buildTaskRunWizardWorkflowOptions(
 	options := make([]taskRunWizardWorkflowOption, 0, len(slugs))
 	for _, slug := range slugs {
 		plan, ok := readTaskRunWizardPlan(baseDir, slug)
-		if !ok || len(plan.Packages) == 0 {
+		if !ok || len(plan.TaskGroups) == 0 {
 			options = append(options, taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatuses[slug]))
 			continue
 		}
 
-		children := make([]taskRunWizardWorkflowOption, 0, len(plan.Packages))
-		for index := range plan.Packages {
+		children := make([]taskRunWizardWorkflowOption, 0, len(plan.TaskGroups))
+		for index := range plan.TaskGroups {
 			children = append(
 				children,
-				taskRunWizardPackageOption(baseDir, slug, plan, plan.Packages[index], latestRunStatuses),
+				taskRunWizardTaskGroupOption(baseDir, slug, plan, plan.TaskGroups[index], latestRunStatuses),
 			)
 		}
 		options = append(options, taskRunWizardGroupOption(slug, children))
@@ -124,7 +124,7 @@ func buildTaskRunWizardWorkflowOptions(
 
 func taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus string) taskRunWizardWorkflowOption {
 	completedTasks, totalTasks, progressKnown := taskRunWizardTaskProgress(filepath.Join(baseDir, slug))
-	completed := progressKnown && totalTasks > 0 && completedTasks == totalTasks
+	completed := taskRunWizardTaskProgressCompleted(completedTasks, totalTasks, progressKnown)
 	return taskRunWizardWorkflowOption{
 		Value:             slug,
 		Label:             slug,
@@ -137,32 +137,37 @@ func taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus string) taskRunW
 	}
 }
 
-func taskRunWizardPackageOption(
+func taskRunWizardTaskGroupOption(
 	baseDir string,
 	initiative string,
-	plan workpackages.Plan,
-	pkg workpackages.Package,
+	plan taskgroups.Plan,
+	taskGroup taskgroups.TaskGroup,
 	latestRunStatuses map[string]string,
 ) taskRunWizardWorkflowOption {
-	reference := initiative + "/" + pkg.ID
+	reference := initiative + "/" + taskGroup.ID
 	completedTasks, totalTasks, progressKnown := taskRunWizardTaskProgress(
-		filepath.Join(baseDir, initiative, filepath.FromSlash(pkg.Directory)),
+		filepath.Join(baseDir, initiative, filepath.FromSlash(taskGroup.Directory)),
 	)
-	readiness, err := workpackages.EvaluateReadiness(plan, pkg.ID)
+	readiness, err := taskgroups.EvaluateReadiness(plan, taskGroup.ID)
 	blocked := err == nil && !readiness.Eligible
 	blockedBy := taskRunWizardBlockedBy(readiness)
+	completed := taskGroup.Completed || taskRunWizardTaskProgressCompleted(completedTasks, totalTasks, progressKnown)
 	return taskRunWizardWorkflowOption{
 		Value:             reference,
-		Label:             pkg.ID + " — " + pkg.Title,
+		Label:             taskGroup.ID + " — " + taskGroup.Title,
 		Initiative:        initiative,
 		Depth:             1,
-		Status:            taskRunWizardStatus(pkg.Completed, blocked, latestRunStatuses[reference]),
-		Completed:         pkg.Completed,
+		Status:            taskRunWizardStatus(completed, blocked, latestRunStatuses[reference]),
+		Completed:         completed,
 		CompletedTasks:    completedTasks,
 		TotalTasks:        totalTasks,
 		TaskProgressKnown: progressKnown,
 		BlockedBy:         blockedBy,
 	}
+}
+
+func taskRunWizardTaskProgressCompleted(completed int, total int, known bool) bool {
+	return known && total > 0 && completed == total
 }
 
 func taskRunWizardGroupOption(
@@ -175,7 +180,7 @@ func taskRunWizardGroupOption(
 		Initiative:        initiative,
 		Group:             true,
 		TaskProgressKnown: true,
-		TotalWorkPackages: len(children),
+		TotalTaskGroups:   len(children),
 	}
 	for index := range children {
 		child := &children[index]
@@ -183,10 +188,10 @@ func taskRunWizardGroupOption(
 		group.TotalTasks += child.TotalTasks
 		group.TaskProgressKnown = group.TaskProgressKnown && child.TaskProgressKnown
 		if child.Completed {
-			group.CompletedWorkPackages++
+			group.CompletedTaskGroups++
 		}
 	}
-	group.Completed = len(children) > 0 && group.CompletedWorkPackages == len(children)
+	group.Completed = len(children) > 0 && group.CompletedTaskGroups == len(children)
 	group.Status = taskRunWizardGroupStatus(children, group.Completed)
 	return group
 }
@@ -259,7 +264,7 @@ func taskRunWizardTaskProgress(tasksDir string) (completed int, total int, known
 	return meta.Completed, meta.Total, true
 }
 
-func taskRunWizardBlockedBy(readiness workpackages.Readiness) []string {
+func taskRunWizardBlockedBy(readiness taskgroups.Readiness) []string {
 	blockedBy := make([]string, 0, len(readiness.DirectUnmet)+len(readiness.TransitiveUnmet))
 	for _, dependency := range readiness.DirectUnmet {
 		if !slices.Contains(blockedBy, dependency.From) {
@@ -267,9 +272,9 @@ func taskRunWizardBlockedBy(readiness workpackages.Readiness) []string {
 		}
 	}
 	for _, path := range readiness.TransitiveUnmet {
-		for _, packageID := range path.PackageIDs {
-			if !slices.Contains(blockedBy, packageID) {
-				blockedBy = append(blockedBy, packageID)
+		for _, taskGroupID := range path.TaskGroupIDs {
+			if !slices.Contains(blockedBy, taskGroupID) {
+				blockedBy = append(blockedBy, taskGroupID)
 			}
 		}
 	}
@@ -281,9 +286,9 @@ func taskRunWizardWorkflowOptionLabel(option taskRunWizardWorkflowOption) string
 	parts := []string{option.Label, option.Status.label()}
 	if option.Group {
 		parts = append(parts, fmt.Sprintf(
-			"%d/%d Work Packages completed",
-			option.CompletedWorkPackages,
-			option.TotalWorkPackages,
+			"%d/%d Task Groups completed",
+			option.CompletedTaskGroups,
+			option.TotalTaskGroups,
 		))
 	}
 	if option.TaskProgressKnown {

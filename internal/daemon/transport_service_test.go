@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -266,65 +266,65 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 		}
 	})
 
-	t.Run("Should validate a work package against its logical reference", func(t *testing.T) {
+	t.Run("Should validate a task group against its logical reference", func(t *testing.T) {
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})
 		initiative := "watcher"
-		writeDaemonDependentPackageFixture(t, env, initiative, true)
+		writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join("_packages", "WP-002", "_tasks.md"),
-			packageTaskGraphManifest("watcher/WP-002"),
+			filepath.Join("_task_groups", "TG-002", "_tasks.md"),
+			taskGroupTaskGraphManifest("watcher/TG-002"),
 		)
 
 		service := newTransportTaskService(env.globalDB, env.manager)
-		result, err := service.Validate(context.Background(), env.workspaceRoot, "watcher/WP-002")
+		result, err := service.Validate(context.Background(), env.workspaceRoot, "watcher/TG-002")
 		if err != nil {
-			t.Fatalf("Validate(package) error = %v", err)
+			t.Fatalf("Validate(task group) error = %v", err)
 		}
 		if !result.Valid {
-			t.Fatalf("Validate(package) result = %#v, want valid", result)
+			t.Fatalf("Validate(task group) result = %#v, want valid", result)
 		}
 
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join("_packages", "WP-002", "_tasks.md"),
-			packageTaskGraphManifest("watcher/WP-001"),
+			filepath.Join("_task_groups", "TG-002", "_tasks.md"),
+			taskGroupTaskGraphManifest("watcher/TG-001"),
 		)
-		_, err = service.Validate(context.Background(), env.workspaceRoot, "watcher/WP-002")
+		_, err = service.Validate(context.Background(), env.workspaceRoot, "watcher/TG-002")
 		var problem *apicore.Problem
 		if !errors.As(err, &problem) {
-			t.Fatalf("Validate(wrong package manifest) error = %v, want transport problem", err)
+			t.Fatalf("Validate(wrong task group manifest) error = %v, want transport problem", err)
 		}
 		if problem.Status != 422 || problem.Code != "task_validation_failed" {
-			t.Fatalf("Validate(wrong package manifest) problem = %#v", problem)
+			t.Fatalf("Validate(wrong task group manifest) problem = %#v", problem)
 		}
 
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join("_packages", "WP-001", "task_01.md"),
-			daemonTaskBody("pending", "Sibling package task"),
+			filepath.Join("_task_groups", "TG-001", "task_01.md"),
+			daemonTaskBody("pending", "Sibling task group task"),
 		)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join("_packages", "WP-002", "_tasks.md"),
+			filepath.Join("_task_groups", "TG-002", "_tasks.md"),
 			strings.Replace(
-				packageTaskGraphManifest("watcher/WP-002"),
+				taskGroupTaskGraphManifest("watcher/TG-002"),
 				"file: task_01.md",
-				"file: ../WP-001/task_01.md",
+				"file: ../TG-001/task_01.md",
 				1,
 			),
 		)
-		_, err = service.Validate(context.Background(), env.workspaceRoot, "watcher/WP-002")
-		var packageErr *workpackages.Error
-		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrInvalidPlan) {
-			t.Fatalf("Validate(escaped package manifest) error = %v, want invalid package manifest", err)
+		_, err = service.Validate(context.Background(), env.workspaceRoot, "watcher/TG-002")
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(err, &taskGroupErr) || !errors.Is(err, taskgroups.ErrInvalidPlan) {
+			t.Fatalf("Validate(escaped task group manifest) error = %v, want invalid task group manifest", err)
 		}
-		if len(packageErr.Issues) != 1 || !strings.Contains(packageErr.Issues[0].Message, "sibling-ownership") {
-			t.Fatalf("Validate(escaped package manifest) issues = %#v", packageErr.Issues)
+		if len(taskGroupErr.Issues) != 1 || !strings.Contains(taskGroupErr.Issues[0].Message, "sibling-ownership") {
+			t.Fatalf("Validate(escaped task group manifest) issues = %#v", taskGroupErr.Issues)
 		}
 	})
 
@@ -508,21 +508,21 @@ func TestTaskTransportService_ShouldHandleWorkflowReadsAndUnavailableBranches(t 
 	})
 }
 
-func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoots(t *testing.T) {
+func TestTaskTransportService_ShouldProjectAndArchiveTaskGroupInitiativesAsRoots(t *testing.T) {
 	// Suite boundary
 	// IN: sync and archive transport calls backed by the real global catalog
-	// OUT: package execution and picker behavior
-	// Invariant: API reads nest hidden children, and package-only archive targets are rejected.
+	// OUT: task group execution and picker behavior
+	// Invariant: API reads nest hidden children, and task-group-only archive targets are rejected.
 	// CONTRACT: IT-055.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	t.Setenv("HOME", env.homeDir)
 	initiative := "watcher"
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan("x"))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan("x"))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("completed", "package task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("completed", "task group task"),
 	)
 
 	syncService := newTransportSyncService(env.globalDB)
@@ -533,15 +533,15 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 	if err != nil {
 		t.Fatalf("Sync(initiative): %v", err)
 	}
-	if syncResult.WorkflowsScanned != 2 || len(syncResult.WorkPackageChildIDs) != 1 || syncResult.Partial {
+	if syncResult.WorkflowsScanned != 2 || len(syncResult.TaskGroupChildIDs) != 1 || syncResult.Partial {
 		t.Fatalf("Sync(initiative) result = %#v, want root plus one complete child", syncResult)
 	}
 	_, err = syncService.Sync(context.Background(), apicore.SyncRequest{
 		Workspace:    env.workspaceRoot,
-		WorkflowSlug: "watcher/WP-001",
+		WorkflowSlug: "watcher/TG-001",
 	})
-	if !errors.Is(err, corepkg.ErrWorkPackageRootOnly) {
-		t.Fatalf("Sync(package target) error = %v, want root-only error", err)
+	if !errors.Is(err, corepkg.ErrTaskGroupRootOnly) {
+		t.Fatalf("Sync(task group target) error = %v, want root-only error", err)
 	}
 
 	service := newTransportTaskService(env.globalDB, env.manager)
@@ -553,30 +553,30 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 		t.Fatalf("initiative workflow list = %#v", workflows)
 	}
 	if workflows[0].CanStartRun == nil || *workflows[0].CanStartRun ||
-		workflows[0].StartBlockReason != "select a work package" {
-		t.Fatalf("initiative start action = %#v, want package selection required", workflows[0])
+		workflows[0].StartBlockReason != "select a task group" {
+		t.Fatalf("initiative start action = %#v, want task group selection required", workflows[0])
 	}
 	if workflows[0].ArchiveEligible == nil || !*workflows[0].ArchiveEligible || workflows[0].ArchiveReason != "" {
 		t.Fatalf("initiative aggregate archive action = %#v, want eligible", workflows[0])
 	}
-	if len(workflows[0].WorkPackages) != 1 {
-		t.Fatalf("initiative package summary = %#v, want one hidden child", workflows[0].WorkPackages)
+	if len(workflows[0].TaskGroups) != 1 {
+		t.Fatalf("initiative task group summary = %#v, want one hidden child", workflows[0].TaskGroups)
 	}
-	child := workflows[0].WorkPackages[0]
-	if child.PackageID != "WP-001" || child.Reference != "watcher/WP-001" || !child.LifecycleComplete ||
+	child := workflows[0].TaskGroups[0]
+	if child.TaskGroupID != "TG-001" || child.Reference != "watcher/TG-001" || !child.LifecycleComplete ||
 		child.TaskCounts == nil || child.TaskCounts.Completed != 1 || child.UnmetDependencyCount != 0 ||
 		child.IndependentlyEligible || child.CanStartRun == nil || *child.CanStartRun {
-		t.Fatalf("nested package summary = %#v", child)
+		t.Fatalf("nested task group summary = %#v", child)
 	}
 
 	_, err = service.Archive(
 		context.Background(),
 		env.workspaceRoot,
-		"watcher/WP-001",
+		"watcher/TG-001",
 		apicore.ArchiveRequest{},
 	)
-	if !errors.Is(err, corepkg.ErrWorkPackageRootOnly) {
-		t.Fatalf("Archive(package target) error = %v, want root-only error", err)
+	if !errors.Is(err, corepkg.ErrTaskGroupRootOnly) {
+		t.Fatalf("Archive(task group target) error = %v, want root-only error", err)
 	}
 	archiveResult, err := service.Archive(
 		context.Background(),
@@ -587,7 +587,7 @@ func TestTaskTransportService_ShouldProjectAndArchiveWorkPackageInitiativesAsRoo
 	if err != nil {
 		t.Fatalf("Archive(initiative): %v", err)
 	}
-	if !archiveResult.Archived || len(archiveResult.WorkPackageChildIDs) != 1 {
+	if !archiveResult.Archived || len(archiveResult.TaskGroupChildIDs) != 1 {
 		t.Fatalf("Archive(initiative) result = %#v, want one root archive and one child id", archiveResult)
 	}
 }
@@ -596,41 +596,41 @@ func TestTaskTransportService_ShouldRequireConfirmationForTransitiveDependencyAf
 	// Suite boundary
 	// IN: workflow sync, global catalog, and nested transport projection
 	// OUT: execution authorization, which owns detailed override handling
-	// Invariant: a package with an unmet transitive prerequisite requires explicit authorization.
+	// Invariant: a task group with an unmet transitive prerequisite requires explicit authorization.
 	// CONTRACT: IT-055.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	t.Setenv("HOME", env.homeDir)
 	initiative := "reopened-dependencies"
-	plan, err := workpackages.RenderPlan(workpackages.Plan{
-		SchemaVersion: workpackages.SchemaVersion,
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
 		Initiative:    initiative,
-		Packages: []workpackages.Package{
+		TaskGroups: []taskgroups.TaskGroup{
 			{
-				ID:         "WP-001",
+				ID:         "TG-001",
 				Title:      "Foundation",
 				Outcome:    "Provide the prerequisite",
-				Directory:  "_packages/WP-001",
+				Directory:  "_task_groups/TG-001",
 				OwnedScope: []string{"foundation"},
 			},
 			{
-				ID:         "WP-002",
+				ID:         "TG-002",
 				Title:      "Delivery",
 				Outcome:    "Use the prerequisite",
-				Directory:  "_packages/WP-002",
+				Directory:  "_task_groups/TG-002",
 				Completed:  true,
 				OwnedScope: []string{"delivery"},
 			},
 			{
-				ID:         "WP-003",
+				ID:         "TG-003",
 				Title:      "Notifications",
 				Outcome:    "Use the completed direct prerequisite",
-				Directory:  "_packages/WP-003",
+				Directory:  "_task_groups/TG-003",
 				OwnedScope: []string{"notifications"},
 			},
 		},
-		Edges: []workpackages.Dependency{
-			{From: "WP-001", To: "WP-002", Rationale: "Foundation must be complete first"},
-			{From: "WP-002", To: "WP-003", Rationale: "Delivery must be complete first"},
+		Edges: []taskgroups.Dependency{
+			{From: "TG-001", To: "TG-002", Rationale: "Foundation must be complete first"},
+			{From: "TG-002", To: "TG-003", Rationale: "Delivery must be complete first"},
 		},
 	})
 	if err != nil {
@@ -638,24 +638,24 @@ func TestTaskTransportService_ShouldRequireConfirmationForTransitiveDependencyAf
 	}
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", string(plan))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", string(plan))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("pending", "Package foundation task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group foundation task"),
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-002", "task_01.md"),
-		daemonTaskBody("completed", "Package delivery task"),
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
+		daemonTaskBody("completed", "Task Group delivery task"),
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-003", "task_01.md"),
-		daemonTaskBody("pending", "Package notification task"),
+		filepath.Join("_task_groups", "TG-003", "task_01.md"),
+		daemonTaskBody("pending", "Task Group notification task"),
 	)
 	syncNamedWorkflowForDaemonTest(t, env, initiative)
 
@@ -666,30 +666,30 @@ func TestTaskTransportService_ShouldRequireConfirmationForTransitiveDependencyAf
 	if err != nil {
 		t.Fatalf("ListWorkflows() error = %v", err)
 	}
-	if len(workflows) != 1 || len(workflows[0].WorkPackages) != 3 {
-		t.Fatalf("ListWorkflows() = %#v, want one initiative with three packages", workflows)
+	if len(workflows) != 1 || len(workflows[0].TaskGroups) != 3 {
+		t.Fatalf("ListWorkflows() = %#v, want one initiative with three task groups", workflows)
 	}
 
-	var notification apicore.WorkPackageSummary
-	for _, pkg := range workflows[0].WorkPackages {
-		if pkg.PackageID == "WP-003" {
-			notification = pkg
+	var notification apicore.TaskGroupSummary
+	for _, taskGroup := range workflows[0].TaskGroups {
+		if taskGroup.TaskGroupID == "TG-003" {
+			notification = taskGroup
 			break
 		}
 	}
-	if notification.PackageID == "" {
-		t.Fatalf("WP-003 summary missing from %#v", workflows[0].WorkPackages)
+	if notification.TaskGroupID == "" {
+		t.Fatalf("TG-003 summary missing from %#v", workflows[0].TaskGroups)
 	}
 	if notification.UnmetDependencyCount != 1 || notification.CanStartRun == nil ||
 		!*notification.CanStartRun || !notification.RequiresStartConfirmation ||
 		notification.StartBlockReason != "" || len(notification.UnmetDependencies) != 0 ||
 		len(notification.UnmetDependencyPaths) != 1 ||
-		!slices.Equal(notification.UnmetDependencyPaths[0].PackageIDs, []string{"WP-001", "WP-002"}) ||
+		!slices.Equal(notification.UnmetDependencyPaths[0].TaskGroupIDs, []string{"TG-001", "TG-002"}) ||
 		len(notification.UnmetDependencyPaths[0].Dependencies) != 1 ||
-		notification.UnmetDependencyPaths[0].Dependencies[0].PackageID != "WP-001" ||
+		notification.UnmetDependencyPaths[0].Dependencies[0].TaskGroupID != "TG-001" ||
 		notification.UnmetDependencyPaths[0].Dependencies[0].Title != "Foundation" ||
 		notification.UnmetDependencyPaths[0].Dependencies[0].Rationale != "Foundation must be complete first" {
-		t.Fatalf("WP-003 readiness = %#v, want one transitive blocker and start confirmation", notification)
+		t.Fatalf("TG-003 readiness = %#v, want one transitive blocker and start confirmation", notification)
 	}
 }
 
@@ -699,7 +699,7 @@ func syncWorkflowForDaemonTest(t *testing.T, env *runManagerTestEnv) {
 	syncNamedWorkflowForDaemonTest(t, env, env.workflowSlug)
 }
 
-func packageTaskGraphManifest(workflow string) string {
+func taskGroupTaskGraphManifest(workflow string) string {
 	return strings.Join([]string{
 		"---",
 		"schema_version: \"compozy.tasks/v2\"",

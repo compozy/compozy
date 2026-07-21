@@ -43,10 +43,10 @@ describe("reviews api adapter", () => {
     expect(stub.calls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
   });
 
-  it("Should encode a selected package on review reads", async () => {
+  it("Should encode a selected task group on review reads", async () => {
     const stub = installFetchStub([
       {
-        matcher: matchPath("/api/reviews/alpha?package_id=WP-002"),
+        matcher: matchPath("/api/reviews/alpha?task_group_id=TG-002"),
         status: 200,
         body: {
           review: {
@@ -60,8 +60,8 @@ describe("reviews api adapter", () => {
       },
     ]);
     restore = stub.restore;
-    await getLatestReview({ workspaceId: "ws-1", slug: "alpha", packageId: "WP-002" });
-    expect(stub.calls[0]?.url).toContain("package_id=WP-002");
+    await getLatestReview({ workspaceId: "ws-1", slug: "alpha", taskGroupId: "TG-002" });
+    expect(stub.calls[0]?.url).toContain("task_group_id=TG-002");
   });
 
   it("Should GET one review round with the workspace header", async () => {

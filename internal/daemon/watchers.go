@@ -417,11 +417,11 @@ func watchEventTargetsDirectory(path string, watchedDirs map[string]struct{}, ev
 
 func isRelevantWorkflowArtifact(relativePath string) bool {
 	clean := filepath.ToSlash(strings.TrimSpace(relativePath))
-	if clean == "_work_packages.md" {
+	if clean == "_task_groups.md" {
 		return true
 	}
-	if packageArtifactPath, ok := workPackageArtifactPath(clean); ok {
-		return isRelevantWorkflowArtifact(packageArtifactPath)
+	if taskGroupArtifactPath, ok := taskGroupArtifactPath(clean); ok {
+		return isRelevantWorkflowArtifact(taskGroupArtifactPath)
 	}
 	base := filepath.Base(clean)
 	if !strings.HasSuffix(strings.ToLower(base), ".md") {
@@ -453,9 +453,9 @@ func isRelevantWorkflowArtifact(relativePath string) bool {
 	}
 }
 
-func workPackageArtifactPath(path string) (string, bool) {
+func taskGroupArtifactPath(path string) (string, bool) {
 	parts := strings.Split(filepath.ToSlash(strings.TrimSpace(path)), "/")
-	if len(parts) < 3 || parts[0] != "_packages" || parts[1] == "" {
+	if len(parts) < 3 || parts[0] != "_task_groups" || parts[1] == "" {
 		return "", false
 	}
 	return strings.Join(parts[2:], "/"), true

@@ -205,7 +205,7 @@ type formBuilder struct {
 	fields                 []huh.Field
 	nameFromDirList        bool
 	tasksBaseDir           string
-	reviewFixTargetOptions []workPackagePickerOption
+	reviewFixTargetOptions []taskGroupPickerOption
 }
 
 func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
@@ -219,7 +219,7 @@ func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
 func (fb *formBuilder) build() *huh.Form {
 	theme := darkHuhTheme()
 	if len(fb.reviewFixTargetOptions) > 0 {
-		theme = reviewWorkPackagePickerHuhTheme()
+		theme = reviewTaskGroupPickerHuhTheme()
 	}
 	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(theme)
 }
@@ -283,20 +283,19 @@ func (fb *formBuilder) addNameField(target *string) {
 			options := make([]huh.Option[string], 0, len(fb.reviewFixTargetOptions))
 			for index := range fb.reviewFixTargetOptions {
 				option := &fb.reviewFixTargetOptions[index]
-				options = append(options, huh.NewOption(workPackagePickerOptionLabel(*option), option.Value))
+				options = append(options, huh.NewOption(taskGroupPickerOptionLabel(*option), option.Value))
 			}
 			return huh.NewSelect[string]().
 				Key("name").
 				Title("Review Target").
 				Description(
-					"Select a workflow or Work Package. " +
-						"Rows show review round and pending issues; " +
+					"Select a workflow or Task Group. " +
+						"Rows without pending issues stay visible but stay locked; " +
 						"[⊘] means no implementation tasks are complete and review is blocked.",
 				).
 				Options(options...).
-				Filtering(true).
 				Validate(func(value string) error {
-					return validateWorkPackagePickerSelection(fb.reviewFixTargetOptions, value, true)
+					return validateTaskGroupPickerSelection(fb.reviewFixTargetOptions, value, true)
 				}).
 				Value(target)
 		}

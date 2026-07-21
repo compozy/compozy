@@ -32,7 +32,7 @@ const RunTranscriptPanel = lazy(() =>
 
 export interface TaskDetailViewProps {
   payload: TaskDetailPayload;
-  packageId?: string;
+  taskGroupId?: string;
   workflowSlug?: string;
   isRefreshing: boolean;
   runTranscript?: RunTranscript;
@@ -45,7 +45,7 @@ export interface TaskDetailViewProps {
 export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
   const {
     payload,
-    packageId,
+    taskGroupId,
     workflowSlug,
     isRefreshing,
     runTranscript,
@@ -70,10 +70,10 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
               className="underline-offset-4 hover:underline"
               data-testid="task-detail-back-to-board"
               params={{ slug: routeSlug }}
-              search={packageId ? { package_id: packageId } : {}}
+              search={taskGroupId ? { task_group_id: taskGroupId } : {}}
               to="/workflows/$slug/tasks"
             >
-              Back to {packageId ? `${routeSlug}/${packageId}` : routeSlug} board
+              Back to {taskGroupId ? `${routeSlug}/${taskGroupId}` : routeSlug} board
             </Link>
             {" · "}
             {task.type} · updated {formatTimestamp(task.updated_at)}
@@ -109,7 +109,7 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
               />
             </Suspense>
           ) : null}
-          <MemoryCard entries={memory} packageId={packageId} slug={routeSlug} />
+          <MemoryCard entries={memory} taskGroupId={taskGroupId} slug={routeSlug} />
         </aside>
       </div>
 
@@ -269,11 +269,11 @@ function RelatedRunRow({ run }: { run: TaskRelatedRun }): ReactElement {
 
 function MemoryCard({
   entries,
-  packageId,
+  taskGroupId,
   slug,
 }: {
   entries: WorkflowMemoryEntry[];
-  packageId?: string;
+  taskGroupId?: string;
   slug: string;
 }): ReactElement {
   return (
@@ -307,7 +307,7 @@ function MemoryCard({
                 <Link
                   className="mt-1 block truncate text-sm text-foreground hover:underline"
                   params={{ slug }}
-                  search={packageId ? { package_id: packageId } : {}}
+                  search={taskGroupId ? { task_group_id: taskGroupId } : {}}
                   title={entry.display_path}
                   to="/memory/$slug"
                 >

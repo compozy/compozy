@@ -10,12 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 )
 
-// UT-038: Package failures retain their typed public contract and do not leak
+// UT-038: Task Group failures retain their typed public contract and do not leak
 // plan or issue filesystem paths.
-func TestWorkPackageErrorsUseTypedSafeTransportProblems(t *testing.T) {
+func TestTaskGroupErrorsUseTypedSafeTransportProblems(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -26,71 +26,71 @@ func TestWorkPackageErrorsUseTypedSafeTransportProblems(t *testing.T) {
 		wantCode   string
 	}{
 		{
-			name: "missing package",
-			err: &workpackages.Error{
-				Cause:           workpackages.ErrPackageNotFound,
-				Initiative:      "customer-management",
-				PackageID:       "WP-999",
-				ValidPackageIDs: []string{"WP-001", "WP-002"},
+			name: "missing task group",
+			err: &taskgroups.Error{
+				Cause:             taskgroups.ErrTaskGroupNotFound,
+				Initiative:        "customer-management",
+				TaskGroupID:       "TG-999",
+				ValidTaskGroupIDs: []string{"TG-001", "TG-002"},
 			},
 			wantStatus: http.StatusNotFound,
-			wantCode:   "work_package_not_found",
+			wantCode:   "task_group_not_found",
 		},
 		{
 			name: "dependencies unmet",
-			err: &workpackages.Error{
-				Cause:      workpackages.ErrDependenciesUnmet,
-				Initiative: "customer-management",
-				PackageID:  "WP-002",
-				PlanPath:   "/private/workspace/.compozy/tasks/customer-management/_work_packages.md",
-				Issues: []workpackages.Issue{{
-					Path:    "/private/workspace/.compozy/tasks/customer-management/_work_packages.md",
+			err: &taskgroups.Error{
+				Cause:       taskgroups.ErrDependenciesUnmet,
+				Initiative:  "customer-management",
+				TaskGroupID: "TG-002",
+				PlanPath:    "/private/workspace/.compozy/tasks/customer-management/_task_groups.md",
+				Issues: []taskgroups.Issue{{
+					Path:    "/private/workspace/.compozy/tasks/customer-management/_task_groups.md",
 					Field:   "depends_on",
-					Message: "WP-001 is incomplete",
+					Message: "TG-001 is incomplete",
 				}},
 			},
 			wantStatus: http.StatusConflict,
-			wantCode:   "work_package_dependencies_unmet",
+			wantCode:   "task_group_dependencies_unmet",
 		},
 		{
 			name: "completion conflict",
-			err: &workpackages.Error{
-				Cause:      workpackages.ErrCompletionConflict,
-				Initiative: "customer-management",
-				PackageID:  "WP-002",
+			err: &taskgroups.Error{
+				Cause:       taskgroups.ErrCompletionConflict,
+				Initiative:  "customer-management",
+				TaskGroupID: "TG-002",
 			},
 			wantStatus: http.StatusConflict,
-			wantCode:   "work_package_completion_conflict",
+			wantCode:   "task_group_completion_conflict",
 		},
 		{
 			name: "invalid plan",
-			err: &workpackages.Error{
-				Cause:      workpackages.ErrInvalidPlan,
-				Initiative: "customer-management",
-				PackageID:  "WP-002",
+			err: &taskgroups.Error{
+				Cause:       taskgroups.ErrInvalidPlan,
+				Initiative:  "customer-management",
+				TaskGroupID: "TG-002",
 			},
 			wantStatus: http.StatusUnprocessableEntity,
-			wantCode:   "work_package_plan_invalid",
+			wantCode:   "task_group_plan_invalid",
 		},
 		{
 			name: "selection required",
-			err: &workpackages.Error{
-				Cause:           workpackages.ErrSelectionRequired,
-				Initiative:      "customer-management",
-				ValidPackageIDs: []string{"WP-001"},
+			err: &taskgroups.Error{
+				Cause:             taskgroups.ErrSelectionRequired,
+				Initiative:        "customer-management",
+				ValidTaskGroupIDs: []string{"TG-001"},
 			},
 			wantStatus: http.StatusUnprocessableEntity,
-			wantCode:   "work_package_selection_required",
+			wantCode:   "task_group_selection_required",
 		},
 		{
 			name: "plan read only",
-			err: &workpackages.Error{
-				Cause:      workpackages.ErrPlanReadOnly,
-				Initiative: "customer-management",
-				PackageID:  "WP-002",
+			err: &taskgroups.Error{
+				Cause:       taskgroups.ErrPlanReadOnly,
+				Initiative:  "customer-management",
+				TaskGroupID: "TG-002",
 			},
 			wantStatus: http.StatusForbidden,
-			wantCode:   "work_package_plan_read_only",
+			wantCode:   "task_group_plan_read_only",
 		},
 	}
 
@@ -99,7 +99,7 @@ func TestWorkPackageErrorsUseTypedSafeTransportProblems(t *testing.T) {
 			t.Parallel()
 			engine := newCanonicalHandlersEngine(core.NewHandlers(&core.HandlerConfig{
 				TransportName: "test",
-				Tasks: &packageErrorTaskService{
+				Tasks: &taskGroupErrorTaskService{
 					smokeTaskService: &smokeTaskService{},
 					err:              tc.err,
 				},
@@ -108,7 +108,7 @@ func TestWorkPackageErrorsUseTypedSafeTransportProblems(t *testing.T) {
 				context.Background(),
 				http.MethodPost,
 				"/api/tasks/customer-management/runs",
-				strings.NewReader(`{"workspace":"ws-1","package_id":"WP-002"}`),
+				strings.NewReader(`{"workspace":"ws-1","task_group_id":"TG-002"}`),
 			)
 			request.Header.Set("Content-Type", "application/json")
 			response := httptest.NewRecorder()
@@ -134,7 +134,7 @@ func TestWorkPackageErrorsUseTypedSafeTransportProblems(t *testing.T) {
 
 // IT-060, IT-061, IT-062 and IT-070: child identity is structured transport
 // data, while the public task route retains a one-segment initiative slug.
-func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
+func TestTaskRunRoutesUseStructuredTaskGroupIdentity(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -149,12 +149,12 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 		Tasks:         tasks,
 	}))
 
-	t.Run("single package body", func(t *testing.T) {
+	t.Run("single task group body", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodPost,
 			"/api/tasks/customer-management/runs",
-			strings.NewReader(`{"workspace":"ws-1","package_id":"WP-002","allow_out_of_order":true}`),
+			strings.NewReader(`{"workspace":"ws-1","task_group_id":"TG-002","allow_out_of_order":true}`),
 		)
 		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
@@ -162,21 +162,21 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 		if response.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusCreated, response.Body.String())
 		}
-		if tasks.runWorkflow != "customer-management/WP-002" {
-			t.Fatalf("workflow = %q, want package reference", tasks.runWorkflow)
+		if tasks.runWorkflow != "customer-management/TG-002" {
+			t.Fatalf("workflow = %q, want task group reference", tasks.runWorkflow)
 		}
-		if tasks.runRequest.PackageID != "WP-002" || !tasks.runRequest.AllowOutOfOrder {
-			t.Fatalf("run request = %#v, want package id and override", tasks.runRequest)
+		if tasks.runRequest.TaskGroupID != "TG-002" || !tasks.runRequest.AllowOutOfOrder {
+			t.Fatalf("run request = %#v, want task group id and override", tasks.runRequest)
 		}
 	})
 
-	t.Run("multiple package targets", func(t *testing.T) {
+	t.Run("multiple task group targets", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodPost,
 			"/api/task-runs/multiple",
 			strings.NewReader(
-				`{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"WP-001"},{"initiative_slug":"customer-management","package_id":"WP-002"}],"allow_out_of_order":true}`,
+				`{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","task_group_id":"TG-001"},{"initiative_slug":"customer-management","task_group_id":"TG-002"}],"allow_out_of_order":true}`,
 			),
 		)
 		request.Header.Set("Content-Type", "application/json")
@@ -197,7 +197,7 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodPost,
-			"/api/tasks/customer-management/WP-002/runs",
+			"/api/tasks/customer-management/TG-002/runs",
 			http.NoBody,
 		)
 		response := httptest.NewRecorder()
@@ -208,11 +208,11 @@ func TestTaskRunRoutesUseStructuredWorkPackageIdentity(t *testing.T) {
 	})
 }
 
-// UT-038 companion: the published TaskRunTarget schema marks package_id required
-// with a WP-NNN pattern, so runtime normalization must reject any structured
-// target that would satisfy an "optional package_id" contract. This keeps the
+// UT-038 companion: the published TaskRunTarget schema marks task_group_id required
+// with a TG-NNN pattern, so runtime normalization must reject any structured
+// target that would satisfy an "optional task_group_id" contract. This keeps the
 // generated schema's required fields honest against actual handler acceptance.
-func TestStructuredTaskTargetsRejectInvalidPackageID(t *testing.T) {
+func TestStructuredTaskTargetsRejectInvalidTaskGroupID(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -227,19 +227,19 @@ func TestStructuredTaskTargetsRejectInvalidPackageID(t *testing.T) {
 		wantCode string
 	}{
 		{
-			name:     "missing package id",
+			name:     "missing task group id",
 			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management"}]}`,
-			wantCode: "work_package_selection_required",
+			wantCode: "task_group_selection_required",
 		},
 		{
-			name:     "blank package id",
-			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"   "}]}`,
-			wantCode: "work_package_selection_required",
+			name:     "blank task group id",
+			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","task_group_id":"   "}]}`,
+			wantCode: "task_group_selection_required",
 		},
 		{
-			name:     "malformed package id",
-			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","package_id":"WP-1"}]}`,
-			wantCode: "work_package_invalid_reference",
+			name:     "malformed task group id",
+			body:     `{"workspace":"ws-1","targets":[{"initiative_slug":"customer-management","task_group_id":"TG-1"}]}`,
+			wantCode: "task_group_invalid_reference",
 		},
 	}
 
@@ -273,12 +273,12 @@ func TestStructuredTaskTargetsRejectInvalidPackageID(t *testing.T) {
 	}
 }
 
-type packageErrorTaskService struct {
+type taskGroupErrorTaskService struct {
 	*smokeTaskService
 	err error
 }
 
-func (s *packageErrorTaskService) StartRun(context.Context, string, string, core.TaskRunRequest) (core.Run, error) {
+func (s *taskGroupErrorTaskService) StartRun(context.Context, string, string, core.TaskRunRequest) (core.Run, error) {
 	return core.Run{}, s.err
 }
 

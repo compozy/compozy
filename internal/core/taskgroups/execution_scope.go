@@ -1,4 +1,4 @@
-package workpackages
+package taskgroups
 
 import (
 	"fmt"
@@ -10,11 +10,11 @@ import (
 // BuildExecutionScope converts one resolved target into paths safe for an
 // existing task or review lifecycle.
 func BuildExecutionScope(target Target) (model.ExecutionScope, error) {
-	if target.Mode != TargetModePackage {
+	if target.Mode != TargetModeTaskGroup {
 		return model.ExecutionScope{}, newError(
 			ErrSelectionRequired,
 			target.Ref.Initiative,
-			target.Ref.PackageID,
+			target.Ref.TaskGroupID,
 			target.InitiativeDir,
 			[]Issue{{Field: "reference", Message: "a complete workflow target is required"}},
 		)
@@ -22,7 +22,7 @@ func BuildExecutionScope(target Target) (model.ExecutionScope, error) {
 
 	scope := model.ExecutionScope{
 		SpecDir:        strings.TrimSpace(target.SpecDir),
-		OperationalDir: strings.TrimSpace(target.PackageDir),
+		OperationalDir: strings.TrimSpace(target.TaskGroupDir),
 		WorkflowRef:    strings.TrimSpace(target.DisplayRef),
 		TasksDir:       strings.TrimSpace(target.TasksDir),
 		ReviewsDir:     strings.TrimSpace(target.ReviewsDir),

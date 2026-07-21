@@ -182,7 +182,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		t.Fatal("TaskRunRequest must expose execution descriptor")
 	}
 	taskRunProperties := getMap(t, taskRunSchema, "properties")
-	for _, field := range []string{"package_id", "allow_out_of_order"} {
+	for _, field := range []string{"task_group_id", "allow_out_of_order"} {
 		if _, ok := taskRunProperties[field]; !ok {
 			t.Fatalf("TaskRunRequest must expose %s", field)
 		}
@@ -219,14 +219,14 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		t.Fatalf("TaskRunMultipleRequest.targets items ref = %v, want TaskRunTarget", targetItems["$ref"])
 	}
 	taskRunTargetSchema := getSchema(t, spec, "TaskRunTarget")
-	for _, field := range []string{"initiative_slug", "package_id"} {
+	for _, field := range []string{"initiative_slug", "task_group_id"} {
 		if !schemaRequires(taskRunTargetSchema, field) {
 			t.Fatalf("TaskRunTarget must require %s to match runtime normalization", field)
 		}
 	}
-	packageIDSchema := getMap(t, getMap(t, taskRunTargetSchema, "properties"), "package_id")
-	if pattern, _ := packageIDSchema["pattern"].(string); pattern != `^WP-[0-9]{3}$` {
-		t.Fatalf("TaskRunTarget.package_id pattern = %v, want ^WP-[0-9]{3}$", packageIDSchema["pattern"])
+	taskGroupIDSchema := getMap(t, getMap(t, taskRunTargetSchema, "properties"), "task_group_id")
+	if pattern, _ := taskGroupIDSchema["pattern"].(string); pattern != `^TG-[0-9]{3}$` {
+		t.Fatalf("TaskRunTarget.task_group_id pattern = %v, want ^TG-[0-9]{3}$", taskGroupIDSchema["pattern"])
 	}
 	multiRunSnapshot := getSchema(t, spec, "TaskRunMultipleSnapshotResponse")
 	if !schemaRequires(multiRunSnapshot, "run") {
@@ -279,14 +279,14 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		t.Fatal("WorkflowArchiveRequest must expose force")
 	}
 	workflowSummaryProperties := getMap(t, getSchema(t, spec, "WorkflowSummary"), "properties")
-	for _, field := range []string{"kind", "package_id", "lifecycle_complete", "work_packages"} {
+	for _, field := range []string{"kind", "task_group_id", "lifecycle_complete", "task_groups"} {
 		if _, ok := workflowSummaryProperties[field]; !ok {
 			t.Fatalf("WorkflowSummary must expose %s", field)
 		}
 	}
-	workPackageProperties := getMap(t, getSchema(t, spec, "WorkPackageSummary"), "properties")
+	taskGroupProperties := getMap(t, getSchema(t, spec, "TaskGroupSummary"), "properties")
 	for _, field := range []string{
-		"package_id",
+		"task_group_id",
 		"reference",
 		"title",
 		"outcome",
@@ -305,8 +305,8 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"archive_eligible",
 		"archive_reason",
 	} {
-		if _, ok := workPackageProperties[field]; !ok {
-			t.Fatalf("WorkPackageSummary must expose %s", field)
+		if _, ok := taskGroupProperties[field]; !ok {
+			t.Fatalf("TaskGroupSummary must expose %s", field)
 		}
 	}
 	workflowSpecProperties := getMap(t, getSchema(t, spec, "WorkflowSpecDocument"), "properties")
@@ -363,32 +363,32 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	}
 }
 
-func TestBrowserOpenAPIContractConstrainsPackageIDBodySelectors(t *testing.T) {
+func TestBrowserOpenAPIContractConstrainsTaskGroupIDBodySelectors(t *testing.T) {
 	t.Parallel()
 
 	spec := loadBrowserOpenAPISpec(t)
-	// Every request-body package_id routed through workpackages.ParsePackageRef must
-	// advertise the WP-NNN pattern; otherwise generated clients marshal selectors that
+	// Every request-body task_group_id routed through taskgroups.ParseTaskGroupRef must
+	// advertise the TG-NNN pattern; otherwise generated clients marshal selectors that
 	// satisfy the published schema yet fail runtime parsing with HTTP 422.
-	const wantPattern = `^WP-[0-9]{3}$`
+	const wantPattern = `^TG-[0-9]{3}$`
 	for _, schemaName := range []string{
 		"TaskRunRequest",
 		"ReviewRunRequest",
 		"ReviewWatchRequest",
 	} {
 		schemaName := schemaName
-		t.Run("Should constrain "+schemaName+".package_id to the WP-NNN pattern", func(t *testing.T) {
+		t.Run("Should constrain "+schemaName+".task_group_id to the TG-NNN pattern", func(t *testing.T) {
 			t.Parallel()
 
 			schema := getSchema(t, spec, schemaName)
-			packageID := getMap(t, getMap(t, schema, "properties"), "package_id")
-			if pattern, _ := packageID["pattern"].(string); pattern != wantPattern {
-				t.Fatalf("%s.package_id pattern = %v, want %s", schemaName, packageID["pattern"], wantPattern)
+			taskGroupID := getMap(t, getMap(t, schema, "properties"), "task_group_id")
+			if pattern, _ := taskGroupID["pattern"].(string); pattern != wantPattern {
+				t.Fatalf("%s.task_group_id pattern = %v, want %s", schemaName, taskGroupID["pattern"], wantPattern)
 			}
-			// The selector stays optional so an omitted package_id still resolves the
-			// bare initiative; requiring it would reject the single-package run path.
-			if schemaRequires(schema, "package_id") {
-				t.Fatalf("%s.package_id must stay optional to preserve the no-package selection path", schemaName)
+			// The selector stays optional so an omitted task_group_id still resolves the
+			// bare initiative; requiring it would reject the single-task-group run path.
+			if schemaRequires(schema, "task_group_id") {
+				t.Fatalf("%s.task_group_id must stay optional to preserve the no-task-group selection path", schemaName)
 			}
 		})
 	}

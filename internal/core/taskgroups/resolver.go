@@ -1,4 +1,4 @@
-package workpackages
+package taskgroups
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
-// Resolver resolves public Work Package references without exposing storage paths.
+// Resolver resolves public Task Group references without exposing storage paths.
 type Resolver interface {
 	Resolve(ctx context.Context, workspaceRoot, reference string) (Target, error)
 }
@@ -31,10 +31,10 @@ func (TargetResolver) ClassifyTarget(ctx context.Context, workspaceRoot, initiat
 	return "", err
 }
 
-// Resolve resolves an ordinary initiative or exact initiative/package reference.
+// Resolve resolves an ordinary initiative or exact initiative/task-group reference.
 func (TargetResolver) Resolve(ctx context.Context, workspaceRoot, reference string) (Target, error) {
 	if err := context.Cause(ctx); err != nil {
-		return Target{}, fmt.Errorf("resolve work package target: %w", err)
+		return Target{}, fmt.Errorf("resolve task group target: %w", err)
 	}
 	ref, err := ParseRef(reference)
 	if err != nil {
@@ -43,20 +43,20 @@ func (TargetResolver) Resolve(ctx context.Context, workspaceRoot, reference stri
 	return resolveRef(workspaceRoot, ref)
 }
 
-// ResolvePackage resolves a reference that must name a package.
-func (TargetResolver) ResolvePackage(ctx context.Context, workspaceRoot, reference string) (Target, error) {
+// ResolveTaskGroup resolves a reference that must name a task group.
+func (TargetResolver) ResolveTaskGroup(ctx context.Context, workspaceRoot, reference string) (Target, error) {
 	if err := context.Cause(ctx); err != nil {
-		return Target{}, fmt.Errorf("resolve work package target: %w", err)
+		return Target{}, fmt.Errorf("resolve task group target: %w", err)
 	}
-	ref, err := ParsePackageRef(reference)
+	ref, err := ParseTaskGroupRef(reference)
 	if err != nil {
 		return Target{}, err
 	}
 	return resolveRef(workspaceRoot, ref)
 }
 
-// ParseRef parses either an initiative or an exact package reference.
-func ParseRef(reference string, requirePackage ...bool) (Ref, error) {
+// ParseRef parses either an initiative or an exact task group reference.
+func ParseRef(reference string, requireTaskGroup ...bool) (Ref, error) {
 	if reference == "" || strings.TrimSpace(reference) != reference {
 		return Ref{}, newError(
 			ErrInvalidReference,
@@ -73,7 +73,7 @@ func ParseRef(reference string, requirePackage ...bool) (Ref, error) {
 			"",
 			"",
 			"",
-			[]Issue{{Field: "reference", Message: "must contain an initiative or initiative/WP-NNN"}},
+			[]Issue{{Field: "reference", Message: "must contain an initiative or initiative/TG-NNN"}},
 		)
 	}
 	if !safeInitiative(segments[0]) {
@@ -87,31 +87,31 @@ func ParseRef(reference string, requirePackage ...bool) (Ref, error) {
 	}
 	ref := Ref{Initiative: segments[0]}
 	if len(segments) == 2 {
-		if !packageIDPattern.MatchString(segments[1]) {
+		if !taskGroupIDPattern.MatchString(segments[1]) {
 			return Ref{}, newError(
 				ErrInvalidReference,
 				ref.Initiative,
 				segments[1],
 				"",
-				[]Issue{{Field: "package_id", Message: "must match WP-NNN"}},
+				[]Issue{{Field: "task_group_id", Message: "must match TG-NNN"}},
 			)
 		}
-		ref.PackageID = segments[1]
+		ref.TaskGroupID = segments[1]
 	}
-	if len(requirePackage) > 0 && requirePackage[0] && !ref.IsPackage() {
+	if len(requireTaskGroup) > 0 && requireTaskGroup[0] && !ref.IsTaskGroup() {
 		return Ref{}, newError(
 			ErrSelectionRequired,
 			ref.Initiative,
 			"",
 			"",
-			[]Issue{{Field: "package_id", Message: "a complete initiative/WP-NNN reference is required"}},
+			[]Issue{{Field: "task_group_id", Message: "a complete initiative/TG-NNN reference is required"}},
 		)
 	}
 	return ref, nil
 }
 
-// ParsePackageRef parses one exact initiative/package reference.
-func ParsePackageRef(reference string) (Ref, error) {
+// ParseTaskGroupRef parses one exact initiative/task-group reference.
+func ParseTaskGroupRef(reference string) (Ref, error) {
 	return ParseRef(reference, true)
 }
 
@@ -130,8 +130,8 @@ func resolveRef(workspaceRoot string, ref Ref) (Target, error) {
 		return Target{}, err
 	}
 	if !marker.present {
-		if ref.IsPackage() {
-			return Target{}, newError(ErrPackageNotFound, ref.Initiative, ref.PackageID, planPath, nil)
+		if ref.IsTaskGroup() {
+			return Target{}, newError(ErrTaskGroupNotFound, ref.Initiative, ref.TaskGroupID, planPath, nil)
 		}
 		return ordinaryTarget(ref, initiativeDir), nil
 	}
@@ -140,7 +140,7 @@ func resolveRef(workspaceRoot string, ref Ref) (Target, error) {
 		return Target{}, newError(
 			ErrInvalidPlan,
 			ref.Initiative,
-			ref.PackageID,
+			ref.TaskGroupID,
 			marker.path,
 			[]Issue{{Path: marker.path, Field: "marker", Message: err.Error()}},
 		)
@@ -158,7 +158,7 @@ func resolveRef(workspaceRoot string, ref Ref) (Target, error) {
 		return Target{}, err
 	}
 	plan.Path = marker.path
-	if !ref.IsPackage() {
+	if !ref.IsTaskGroup() {
 		return Target{
 			Mode:          TargetModeInitiative,
 			Ref:           ref,
@@ -168,26 +168,26 @@ func resolveRef(workspaceRoot string, ref Ref) (Target, error) {
 			Plan:          plan,
 		}, nil
 	}
-	pkg, found := plan.Package(ref.PackageID)
+	taskGroup, found := plan.TaskGroup(ref.TaskGroupID)
 	if !found {
-		return Target{}, packageNotFound(ref, plan)
+		return Target{}, taskGroupNotFound(ref, plan)
 	}
-	packageDir, err := resolvePackageDirectory(initiativeDir, pkg)
+	taskGroupDir, err := resolveTaskGroupDirectory(initiativeDir, taskGroup)
 	if err != nil {
 		return Target{}, err
 	}
 	return Target{
-		Mode:          TargetModePackage,
+		Mode:          TargetModeTaskGroup,
 		Ref:           ref,
 		DisplayRef:    ref.String(),
 		InitiativeDir: initiativeDir,
 		SpecDir:       initiativeDir,
-		PackageDir:    packageDir,
-		TasksDir:      packageDir,
-		ReviewsDir:    packageDir,
-		MemoryDir:     filepath.Join(packageDir, "memory"),
+		TaskGroupDir:  taskGroupDir,
+		TasksDir:      taskGroupDir,
+		ReviewsDir:    taskGroupDir,
+		MemoryDir:     filepath.Join(taskGroupDir, "memory"),
 		Plan:          plan,
-		Package:       pkg,
+		TaskGroup:     taskGroup,
 	}, nil
 }
 
@@ -198,7 +198,7 @@ func ordinaryTarget(ref Ref, initiativeDir string) Target {
 		DisplayRef:    ref.String(),
 		InitiativeDir: initiativeDir,
 		SpecDir:       initiativeDir,
-		PackageDir:    initiativeDir,
+		TaskGroupDir:  initiativeDir,
 		TasksDir:      initiativeDir,
 		ReviewsDir:    initiativeDir,
 		MemoryDir:     filepath.Join(initiativeDir, "memory"),
@@ -271,11 +271,11 @@ func resolveMarker(initiativeDir, path string) (markerResolution, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return markerResolution{}, nil
 		}
-		return markerResolution{}, fmt.Errorf("inspect work package marker: %w", err)
+		return markerResolution{}, fmt.Errorf("inspect task group marker: %w", err)
 	}
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return markerResolution{}, fmt.Errorf("resolve work package marker: %w", err)
+		return markerResolution{}, fmt.Errorf("resolve task group marker: %w", err)
 	}
 	if err := requireContained(initiativeDir, resolved); err != nil {
 		return markerResolution{}, newError(
@@ -289,65 +289,67 @@ func resolveMarker(initiativeDir, path string) (markerResolution, error) {
 	return markerResolution{present: true, path: resolved}, nil
 }
 
-func resolvePackageDirectory(initiativeDir string, pkg Package) (string, error) {
-	packagesRoot := filepath.Join(initiativeDir, "_packages")
-	resolvedPackagesRoot, err := filepath.EvalSymlinks(packagesRoot)
+func resolveTaskGroupDirectory(initiativeDir string, taskGroup TaskGroup) (string, error) {
+	taskGroupsRoot := filepath.Join(initiativeDir, "_task_groups")
+	resolvedTaskGroupsRoot, err := filepath.EvalSymlinks(taskGroupsRoot)
 	if err != nil {
-		// A vanished root is the aggregate form of a missing package directory:
-		// classify it as ErrPackageNotFound so aggregate sync degrades every
-		// declared package to a Missing placeholder instead of hard-aborting.
+		// A vanished root is the aggregate form of a missing task group directory:
+		// classify it as ErrTaskGroupNotFound so aggregate sync degrades every
+		// declared task group to a Missing placeholder instead of hard-aborting.
 		// Any other resolution failure (symlink loop, permission) still fails
 		// closed via a wrapped error, and a root that resolves outside the
 		// initiative is caught by the containment check below.
 		if errors.Is(err, os.ErrNotExist) {
 			return "", newError(
-				ErrPackageNotFound,
+				ErrTaskGroupNotFound,
 				"",
-				pkg.ID,
+				taskGroup.ID,
 				"",
-				[]Issue{{Path: packagesRoot, Field: "package_directory", Message: "package root does not exist"}},
+				[]Issue{
+					{Path: taskGroupsRoot, Field: "task_group_directory", Message: "task group root does not exist"},
+				},
 			)
 		}
-		return "", fmt.Errorf("resolve package root %q: %w", pkg.ID, err)
+		return "", fmt.Errorf("resolve task group root %q: %w", taskGroup.ID, err)
 	}
-	if err := requireContained(initiativeDir, resolvedPackagesRoot); err != nil {
+	if err := requireContained(initiativeDir, resolvedTaskGroupsRoot); err != nil {
 		return "", newError(
 			ErrContainment,
 			"",
-			pkg.ID,
+			taskGroup.ID,
 			"",
-			[]Issue{{Path: packagesRoot, Field: "package_directory", Message: err.Error()}},
+			[]Issue{{Path: taskGroupsRoot, Field: "task_group_directory", Message: err.Error()}},
 		)
 	}
-	candidate := filepath.Join(initiativeDir, filepath.FromSlash(pkg.Directory))
+	candidate := filepath.Join(initiativeDir, filepath.FromSlash(taskGroup.Directory))
 	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", newError(
-				ErrPackageNotFound,
+				ErrTaskGroupNotFound,
 				"",
-				pkg.ID,
+				taskGroup.ID,
 				"",
-				[]Issue{{Path: candidate, Field: "package_directory", Message: "does not exist"}},
+				[]Issue{{Path: candidate, Field: "task_group_directory", Message: "does not exist"}},
 			)
 		}
-		return "", fmt.Errorf("resolve package directory %q: %w", pkg.ID, err)
+		return "", fmt.Errorf("resolve task group directory %q: %w", taskGroup.ID, err)
 	}
-	if err := requireContained(resolvedPackagesRoot, resolved); err != nil {
+	if err := requireContained(resolvedTaskGroupsRoot, resolved); err != nil {
 		return "", newError(
 			ErrContainment,
 			"",
-			pkg.ID,
+			taskGroup.ID,
 			"",
-			[]Issue{{Path: candidate, Field: "package_directory", Message: err.Error()}},
+			[]Issue{{Path: candidate, Field: "task_group_directory", Message: err.Error()}},
 		)
 	}
 	info, err := os.Stat(resolved)
 	if err != nil {
-		return "", fmt.Errorf("stat package directory %q: %w", pkg.ID, err)
+		return "", fmt.Errorf("stat task group directory %q: %w", taskGroup.ID, err)
 	}
 	if !info.IsDir() {
-		return "", newError(ErrPackageNotFound, "", pkg.ID, "", nil)
+		return "", newError(ErrTaskGroupNotFound, "", taskGroup.ID, "", nil)
 	}
 	return resolved, nil
 }
@@ -373,8 +375,8 @@ func safeInitiative(value string) bool {
 	return model.IsActiveWorkflowDirName(value)
 }
 
-func packageNotFound(ref Ref, plan Plan) error {
-	err := newError(ErrPackageNotFound, ref.Initiative, ref.PackageID, plan.Path, nil)
-	err.ValidPackageIDs = plan.PackageIDs()
+func taskGroupNotFound(ref Ref, plan Plan) error {
+	err := newError(ErrTaskGroupNotFound, ref.Initiative, ref.TaskGroupID, plan.Path, nil)
+	err.ValidTaskGroupIDs = plan.TaskGroupIDs()
 	return err
 }

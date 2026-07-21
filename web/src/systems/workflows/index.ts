@@ -36,6 +36,6 @@ export type {
   TaskRelatedRun,
   WorkflowMemoryEntry,
   WorkflowSummary,
-  WorkPackageSummary,
+  TaskGroupSummary,
   WorkflowTaskCounts,
 } from "./types";

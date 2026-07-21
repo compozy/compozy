@@ -1,4 +1,4 @@
-package workpackages
+package taskgroups
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/gofrs/flock"
 )
 
-var completionHeadingPattern = regexp.MustCompile(`(?m)^## \[([ x])\] (WP-[0-9]{3}) — [^\r\n]+`)
+var completionHeadingPattern = regexp.MustCompile(`(?m)^## \[([ x])\] (TG-[0-9]{3}) — [^\r\n]+`)
 
 // CompletionBlockReason identifies why completion cannot be recorded.
 type CompletionBlockReason string
@@ -31,7 +31,7 @@ const (
 	CompletionBlockNewIssues CompletionBlockReason = "new_issues"
 	// CompletionBlockPriorIssuesUnresolved means an earlier issue is not resolved.
 	CompletionBlockPriorIssuesUnresolved CompletionBlockReason = "prior_issues_unresolved"
-	// CompletionBlockHeadingMissing means the selected stable package heading is unavailable.
+	// CompletionBlockHeadingMissing means the selected stable task group heading is unavailable.
 	CompletionBlockHeadingMissing CompletionBlockReason = "heading_missing"
 )
 
@@ -72,18 +72,18 @@ func CanRecordCompletion(preconditions CompletionPreconditions) CompletionEligib
 	return CompletionEligibility{Eligible: true}
 }
 
-// LifecycleState is the Markdown-derived Work Package lifecycle projection.
+// LifecycleState is the Markdown-derived Task Group lifecycle projection.
 type LifecycleState struct {
 	LifecycleComplete bool
 }
 
 // ProjectLifecycleState projects only the canonical Markdown checkbox state.
-func ProjectLifecycleState(plan Plan, packageID string) (LifecycleState, error) {
-	pkg, exists := plan.Package(packageID)
+func ProjectLifecycleState(plan Plan, taskGroupID string) (LifecycleState, error) {
+	taskGroup, exists := plan.TaskGroup(taskGroupID)
 	if !exists {
-		return LifecycleState{}, packageNotFound(Ref{Initiative: plan.Initiative, PackageID: packageID}, plan)
+		return LifecycleState{}, taskGroupNotFound(Ref{Initiative: plan.Initiative, TaskGroupID: taskGroupID}, plan)
 	}
-	return LifecycleState{LifecycleComplete: pkg.Completed}, nil
+	return LifecycleState{LifecycleComplete: taskGroup.Completed}, nil
 }
 
 // RewriteResult is the result of an in-memory stable checkbox rewrite.
@@ -94,12 +94,12 @@ type RewriteResult struct {
 }
 
 // RewriteCompletion changes only the selected stable heading checkbox in content.
-func RewriteCompletion(content []byte, packageID string) (RewriteResult, error) {
+func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error) {
 	matches := completionHeadingPattern.FindAllSubmatchIndex(content, -1)
 	selected := make([][]int, 0, 1)
 	for _, match := range matches {
 		id := string(content[match[4]:match[5]])
-		if id == packageID {
+		if id == taskGroupID {
 			selected = append(selected, match)
 		}
 	}
@@ -107,9 +107,9 @@ func RewriteCompletion(content []byte, packageID string) (RewriteResult, error) 
 		return RewriteResult{}, newError(
 			ErrCompletionConflict,
 			"",
-			packageID,
+			taskGroupID,
 			"",
-			[]Issue{{Field: "body." + packageID, Message: "must contain exactly one compatible package heading"}},
+			[]Issue{{Field: "body." + taskGroupID, Message: "must contain exactly one compatible task group heading"}},
 		)
 	}
 	if _, err := ParsePlan(string(content)); err != nil {
@@ -148,7 +148,7 @@ func NewStore() *Store {
 // Load reads and validates the current plan from an initiative root.
 func (s *Store) Load(ctx context.Context, initiativeDir string) (Plan, error) {
 	if err := context.Cause(ctx); err != nil {
-		return Plan{}, fmt.Errorf("load work package plan: %w", err)
+		return Plan{}, fmt.Errorf("load task group plan: %w", err)
 	}
 	planPath := filepath.Join(initiativeDir, ManifestFileName)
 	content, err := os.ReadFile(planPath)
@@ -176,15 +176,15 @@ func (s *Store) Load(ctx context.Context, initiativeDir string) (Plan, error) {
 // MarkComplete locks, rereads, validates, and atomically records one checkbox.
 func (s *Store) MarkComplete(
 	ctx context.Context,
-	initiativeDir, packageID string,
+	initiativeDir, taskGroupID string,
 ) (CompletionResult, error) {
 	if err := context.Cause(ctx); err != nil {
-		return CompletionResult{}, fmt.Errorf("complete work package: %w", err)
+		return CompletionResult{}, fmt.Errorf("complete task group: %w", err)
 	}
 	s = usableStore(s)
 	planPath := filepath.Join(initiativeDir, ManifestFileName)
 	return s.withPlanLock(ctx, planPath, func() (CompletionResult, error) {
-		return s.markCompleteLocked(ctx, initiativeDir, planPath, packageID)
+		return s.markCompleteLocked(ctx, initiativeDir, planPath, taskGroupID)
 	})
 }
 
@@ -202,21 +202,21 @@ func (s *Store) withPlanLock(
 ) (result CompletionResult, err error) {
 	lock := s.newLock(planPath + ".lock")
 	if lock == nil {
-		return CompletionResult{}, errors.New("create work package completion lock")
+		return CompletionResult{}, errors.New("create task group completion lock")
 	}
 	locked, lockErr := lock.TryLockContext(ctx, 25*time.Millisecond)
 	if lockErr != nil {
-		return CompletionResult{}, fmt.Errorf("lock work package plan: %w", lockErr)
+		return CompletionResult{}, fmt.Errorf("lock task group plan: %w", lockErr)
 	}
 	if !locked {
-		return CompletionResult{}, fmt.Errorf("lock work package plan: %w", context.DeadlineExceeded)
+		return CompletionResult{}, fmt.Errorf("lock task group plan: %w", context.DeadlineExceeded)
 	}
 	defer func() {
 		if unlockErr := lock.Unlock(); unlockErr != nil {
-			err = errors.Join(err, fmt.Errorf("unlock work package plan: %w", unlockErr))
+			err = errors.Join(err, fmt.Errorf("unlock task group plan: %w", unlockErr))
 		}
 		if closeErr := lock.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close work package completion lock: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("close task group completion lock: %w", closeErr))
 		}
 	}()
 	return action()
@@ -224,14 +224,14 @@ func (s *Store) withPlanLock(
 
 func (s *Store) markCompleteLocked(
 	ctx context.Context,
-	initiativeDir, planPath, packageID string,
+	initiativeDir, planPath, taskGroupID string,
 ) (CompletionResult, error) {
 	content, readErr := os.ReadFile(planPath)
 	if readErr != nil {
 		return CompletionResult{}, newError(
 			ErrInvalidPlan,
 			filepath.Base(initiativeDir),
-			packageID,
+			taskGroupID,
 			planPath,
 			[]Issue{{Path: planPath, Field: "marker", Message: readErr.Error()}},
 		)
@@ -245,16 +245,16 @@ func (s *Store) markCompleteLocked(
 		return CompletionResult{}, parseErr
 	}
 	plan.Path = planPath
-	if _, exists := plan.Package(packageID); !exists {
+	if _, exists := plan.TaskGroup(taskGroupID); !exists {
 		return CompletionResult{}, newError(
 			ErrCompletionConflict,
 			plan.Initiative,
-			packageID,
+			taskGroupID,
 			planPath,
-			[]Issue{{Field: "body." + packageID, Message: "selected package does not exist"}},
+			[]Issue{{Field: "body." + taskGroupID, Message: "selected task group does not exist"}},
 		)
 	}
-	rewrite, rewriteErr := RewriteCompletion(content, packageID)
+	rewrite, rewriteErr := RewriteCompletion(content, taskGroupID)
 	if rewriteErr != nil {
 		return CompletionResult{}, rewriteErr
 	}
@@ -263,15 +263,15 @@ func (s *Store) markCompleteLocked(
 	}
 	info, statErr := os.Stat(planPath)
 	if statErr != nil {
-		return CompletionResult{}, fmt.Errorf("stat work package plan: %w", statErr)
+		return CompletionResult{}, fmt.Errorf("stat task group plan: %w", statErr)
 	}
 	if info.Mode().Perm()&0o222 == 0 {
 		return CompletionResult{}, newError(
 			ErrPlanReadOnly,
 			plan.Initiative,
-			packageID,
+			taskGroupID,
 			planPath,
-			[]Issue{{Path: planPath, Field: "write", Message: "work package plan has no write permission"}},
+			[]Issue{{Path: planPath, Field: "write", Message: "task group plan has no write permission"}},
 		)
 	}
 	if writeErr := s.ops.write(planPath, rewrite.Content, info.Mode().Perm()); writeErr != nil {
@@ -279,7 +279,7 @@ func (s *Store) markCompleteLocked(
 			return CompletionResult{}, newError(
 				ErrPlanReadOnly,
 				plan.Initiative,
-				packageID,
+				taskGroupID,
 				planPath,
 				[]Issue{{Path: planPath, Field: "write", Message: writeErr.Error()}},
 			)
@@ -288,23 +288,23 @@ func (s *Store) markCompleteLocked(
 	}
 	committed, committedErr := s.Load(ctx, initiativeDir)
 	if committedErr != nil {
-		return CompletionResult{}, fmt.Errorf("verify completed work package plan: %w", committedErr)
+		return CompletionResult{}, fmt.Errorf("verify completed task group plan: %w", committedErr)
 	}
-	if !committed.IsComplete(packageID) {
+	if !committed.IsComplete(taskGroupID) {
 		return CompletionResult{}, newError(
 			ErrCompletionConflict,
 			committed.Initiative,
-			packageID,
+			taskGroupID,
 			planPath,
-			[]Issue{{Field: "body." + packageID, Message: "completion checkbox was not recorded"}},
+			[]Issue{{Field: "body." + taskGroupID, Message: "completion checkbox was not recorded"}},
 		)
 	}
 	return CompletionResult{Plan: committed, CompletionRecorded: true}, nil
 }
 
 // MarkComplete records a checkbox through a default completion store.
-func MarkComplete(ctx context.Context, initiativeDir, packageID string) (CompletionResult, error) {
-	return NewStore().MarkComplete(ctx, initiativeDir, packageID)
+func MarkComplete(ctx context.Context, initiativeDir, taskGroupID string) (CompletionResult, error) {
+	return NewStore().MarkComplete(ctx, initiativeDir, taskGroupID)
 }
 
 type atomicTempFile interface {
@@ -349,7 +349,7 @@ func writePlanAtomically(ops atomicFileOps, path string, content []byte, mode fs
 	directory := filepath.Dir(path)
 	temporary, err := ops.createTemp(directory, filepath.Base(path)+".tmp-*")
 	if err != nil {
-		return fmt.Errorf("create work package temp file: %w", err)
+		return fmt.Errorf("create task group temp file: %w", err)
 	}
 	temporaryPath := temporary.Name()
 	closed := false
@@ -366,32 +366,32 @@ func writePlanAtomically(ops atomicFileOps, path string, content []byte, mode fs
 		return errors.Join(fmt.Errorf("%s: %w", operation, cause), cleanup())
 	}
 	if _, writeErr := temporary.Write(content); writeErr != nil {
-		return fail("write work package temp file", writeErr)
+		return fail("write task group temp file", writeErr)
 	}
 	if chmodErr := temporary.Chmod(mode); chmodErr != nil {
-		return fail("preserve work package plan permissions", chmodErr)
+		return fail("preserve task group plan permissions", chmodErr)
 	}
 	if syncErr := temporary.Sync(); syncErr != nil {
-		return fail("sync work package temp file", syncErr)
+		return fail("sync task group temp file", syncErr)
 	}
 	if closeErr := temporary.Close(); closeErr != nil {
 		closed = true
-		return errors.Join(fmt.Errorf("close work package temp file: %w", closeErr), ops.remove(temporaryPath))
+		return errors.Join(fmt.Errorf("close task group temp file: %w", closeErr), ops.remove(temporaryPath))
 	}
 	closed = true
 	if renameErr := ops.rename(temporaryPath, path); renameErr != nil {
-		return errors.Join(fmt.Errorf("replace work package plan: %w", renameErr), ops.remove(temporaryPath))
+		return errors.Join(fmt.Errorf("replace task group plan: %w", renameErr), ops.remove(temporaryPath))
 	}
 	directoryFile, openErr := ops.openDir(directory)
 	if openErr != nil {
-		return fmt.Errorf("open work package plan directory: %w", openErr)
+		return fmt.Errorf("open task group plan directory: %w", openErr)
 	}
 	if syncErr := directoryFile.Sync(); syncErr != nil {
 		closeErr := directoryFile.Close()
-		return errors.Join(fmt.Errorf("sync work package plan directory: %w", syncErr), closeErr)
+		return errors.Join(fmt.Errorf("sync task group plan directory: %w", syncErr), closeErr)
 	}
 	if closeErr := directoryFile.Close(); closeErr != nil {
-		return fmt.Errorf("close work package plan directory: %w", closeErr)
+		return fmt.Errorf("close task group plan directory: %w", closeErr)
 	}
 	return nil
 }

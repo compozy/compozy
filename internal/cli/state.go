@@ -13,22 +13,22 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
 
 type workflowIdentity struct {
-	pr         string
-	name       string
-	multiple   string
-	provider   string
-	round      int
-	nitpicks   bool
-	reviewsDir string
-	tasksDir   string
-	packageID  string
+	pr          string
+	name        string
+	multiple    string
+	provider    string
+	round       int
+	nitpicks    bool
+	reviewsDir  string
+	tasksDir    string
+	taskGroupID string
 }
 
 type runtimeConfig struct {
@@ -111,8 +111,8 @@ type commandStateCallbacks struct {
 	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
 	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
 	runWorkflow            func(context.Context, core.Config) error
-	pickWorkPackage        func(*cobra.Command, workPackagePickerInput) (string, error)
-	confirmPackageRun      func(*cobra.Command, workpackages.Target, workpackages.Readiness) (bool, error)
+	pickTaskGroup          func(*cobra.Command, taskGroupPickerInput) (string, error)
+	confirmTaskGroupRun    func(*cobra.Command, taskgroups.Target, taskgroups.Readiness) (bool, error)
 }
 
 type commandState struct {
@@ -147,8 +147,8 @@ func defaultCommandStateDefaults() commandStateDefaults {
 			confirmSkillRefresh:    confirmSkillRefreshPrompt,
 			fetchReviewsFn:         core.FetchReviews,
 			runWorkflow:            core.Run,
-			pickWorkPackage:        defaultPickWorkPackage,
-			confirmPackageRun:      defaultConfirmPackageRun,
+			pickTaskGroup:          defaultPickTaskGroup,
+			confirmTaskGroupRun:    defaultConfirmTaskGroupRun,
 		},
 	}
 }
@@ -186,11 +186,11 @@ func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	if result.runWorkflow == nil {
 		result.runWorkflow = builtin.runWorkflow
 	}
-	if result.pickWorkPackage == nil {
-		result.pickWorkPackage = builtin.pickWorkPackage
+	if result.pickTaskGroup == nil {
+		result.pickTaskGroup = builtin.pickTaskGroup
 	}
-	if result.confirmPackageRun == nil {
-		result.confirmPackageRun = builtin.confirmPackageRun
+	if result.confirmTaskGroupRun == nil {
+		result.confirmTaskGroupRun = builtin.confirmTaskGroupRun
 	}
 	return result
 }

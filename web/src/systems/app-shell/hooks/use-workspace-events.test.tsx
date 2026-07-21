@@ -138,15 +138,15 @@ describe("useWorkspaceEvents", () => {
     });
   });
 
-  it("Should invalidate package-scoped workflow views from workflow events", async () => {
+  it("Should invalidate task-group-scoped workflow views from workflow events", async () => {
     const queryClient = createTestQueryClient();
-    const packageId = "WP-002";
-    const boardKey = workflowKeys.board("workspace-1", "demo", packageId);
-    const tasksKey = workflowKeys.tasks("workspace-1", "demo", packageId);
-    const specKey = specKeys.workflow("workspace-1", "demo", packageId);
-    const memoryIndexKey = memoryKeys.index("workspace-1", "demo", packageId);
-    const reviewSummaryKey = reviewKeys.summary("workspace-1", "demo", packageId);
-    // Initiative-scoped siblings must still invalidate alongside the package views.
+    const taskGroupId = "TG-002";
+    const boardKey = workflowKeys.board("workspace-1", "demo", taskGroupId);
+    const tasksKey = workflowKeys.tasks("workspace-1", "demo", taskGroupId);
+    const specKey = specKeys.workflow("workspace-1", "demo", taskGroupId);
+    const memoryIndexKey = memoryKeys.index("workspace-1", "demo", taskGroupId);
+    const reviewSummaryKey = reviewKeys.summary("workspace-1", "demo", taskGroupId);
+    // Initiative-scoped siblings must still invalidate alongside the task group views.
     const initiativeBoardKey = workflowKeys.board("workspace-1", "demo");
     for (const key of [
       boardKey,

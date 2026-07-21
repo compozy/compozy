@@ -182,7 +182,7 @@ describe("spec + memory flow integration", () => {
     expect(alert).toHaveTextContent("spec missing");
   });
 
-  it("Should render canonical specs with only the selected package plan excerpt", async () => {
+  it("Should render canonical specs with only the selected task group plan excerpt", async () => {
     // CONTRACT: IT-057.
     const stub = installFetchStub([
       {
@@ -191,35 +191,35 @@ describe("spec + memory flow integration", () => {
         body: { workspaces: [workspaceOne] },
       },
       {
-        matcher: matchUrl("/api/tasks/alpha/spec?package_id=WP-001"),
+        matcher: matchUrl("/api/tasks/alpha/spec?task_group_id=TG-001"),
         status: 200,
         body: {
           spec: {
             ...specPayload.spec,
-            workflow: { ...workflow, slug: "alpha/WP-001", package_id: "WP-001" },
+            workflow: { ...workflow, slug: "alpha/TG-001", task_group_id: "TG-001" },
             plan_excerpt: {
-              id: "work-package-WP-001",
-              kind: "work_package",
-              title: "WP-001 — Persistence",
+              id: "task-group-TG-001",
+              kind: "task_group",
+              title: "TG-001 — Persistence",
               updated_at: "2026-01-03T00:00:00Z",
-              markdown: "## [ ] WP-001 — Persistence\n\nSelected package only.",
+              markdown: "## [ ] TG-001 — Persistence\n\nSelected task group only.",
             },
           },
         },
       },
     ]);
     restore = stub.restore;
-    await renderApp("/workflows/alpha/spec?package_id=WP-001");
+    await renderApp("/workflows/alpha/spec?task_group_id=TG-001");
 
     await screen.findByTestId("workflow-spec-view");
-    expect(screen.getByTestId("workflow-spec-package-body")).toHaveTextContent(
-      "WP-001 — Persistence"
+    expect(screen.getByTestId("workflow-spec-task-group-body")).toHaveTextContent(
+      "TG-001 — Persistence"
     );
     await userEvent.click(screen.getByTestId("workflow-spec-tab-prd"));
     expect(screen.getByTestId("workflow-spec-prd-body")).toHaveTextContent("PRD body");
     const call = stub.calls.find(call => call.url.includes("/api/tasks/alpha/spec"));
-    expect(call?.url).toContain("package_id=WP-001");
-    expect(call?.url).not.toContain("alpha/WP-001/spec");
+    expect(call?.url).toContain("task_group_id=TG-001");
+    expect(call?.url).not.toContain("alpha/TG-001/spec");
   });
 
   it("Should render the memory index from the workflows list", async () => {
@@ -311,7 +311,7 @@ describe("spec + memory flow integration", () => {
     expect(screen.queryByTestId("workflow-memory-load-error")).not.toBeInTheDocument();
   });
 
-  it("Should scope memory index and opaque file reads to the selected package", async () => {
+  it("Should scope memory index and opaque file reads to the selected task group", async () => {
     // CONTRACT: IT-059.
     const stub = installFetchStub([
       {
@@ -320,36 +320,36 @@ describe("spec + memory flow integration", () => {
         body: { workspaces: [workspaceOne] },
       },
       {
-        matcher: matchPath("/api/tasks/alpha/memory?package_id=WP-002"),
+        matcher: matchPath("/api/tasks/alpha/memory?task_group_id=TG-002"),
         status: 200,
         body: {
           memory: {
             ...memoryIndexPayload.memory,
-            workflow: { ...workflow, slug: "alpha/WP-002", package_id: "WP-002" },
+            workflow: { ...workflow, slug: "alpha/TG-002", task_group_id: "TG-002" },
             entries: [memoryIndexPayload.memory.entries[0]],
           },
         },
       },
       {
-        matcher: matchPath("/api/tasks/alpha/memory/files/file-shared?package_id=WP-002"),
+        matcher: matchPath("/api/tasks/alpha/memory/files/file-shared?task_group_id=TG-002"),
         status: 200,
         body: {
           document: {
             ...sharedMemoryFilePayload.document,
-            markdown: "## WP-002 private memory",
+            markdown: "## TG-002 private memory",
           },
         },
       },
     ]);
     restore = stub.restore;
-    await renderApp("/memory/alpha?package_id=WP-002");
+    await renderApp("/memory/alpha?task_group_id=TG-002");
 
     expect(await screen.findByTestId("workflow-memory-document-body")).toHaveTextContent(
-      "WP-002 private memory"
+      "TG-002 private memory"
     );
-    const packageCalls = stub.calls.filter(call => call.url.includes("package_id=WP-002"));
-    expect(packageCalls).toHaveLength(2);
-    expect(packageCalls.every(call => !call.url.includes("alpha/WP-002"))).toBe(true);
+    const taskGroupCalls = stub.calls.filter(call => call.url.includes("task_group_id=TG-002"));
+    expect(taskGroupCalls).toHaveLength(2);
+    expect(taskGroupCalls.every(call => !call.url.includes("alpha/TG-002"))).toBe(true);
   });
 
   it("Should recover when the selected memory file fails but the index is present", async () => {

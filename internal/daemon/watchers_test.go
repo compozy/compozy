@@ -87,28 +87,28 @@ func TestWorkflowWatcherDebouncesBurstyWritesAndPersistsCheckpoint(t *testing.T)
 	}
 }
 
-func TestWorkflowWatcherProjectsReopenedWorkPackageExactlyOnce(t *testing.T) {
+func TestWorkflowWatcherProjectsReopenedTaskGroupExactlyOnce(t *testing.T) {
 	// Suite boundary
 	// IN: fsnotify event, aggregate core sync, and durable child lifecycle projection
-	// OUT: transport presentation of package state
-	// Invariant: reopening a package checkbox causes one root sync and one child lifecycle update.
+	// OUT: transport presentation of task group state
+	// Invariant: reopening a task group checkbox causes one root sync and one child lifecycle update.
 	workspaceRoot := t.TempDir()
 	t.Setenv("HOME", t.TempDir())
 	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "watcher")
-	packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
-	if err := os.MkdirAll(packageDir, 0o755); err != nil {
-		t.Fatalf("mkdir package dir: %v", err)
+	taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+	if err := os.MkdirAll(taskGroupDir, 0o755); err != nil {
+		t.Fatalf("mkdir task group dir: %v", err)
 	}
-	planPath := filepath.Join(initiativeDir, "_work_packages.md")
-	if err := os.WriteFile(planPath, []byte(daemonWorkPackagePlan("x")), 0o600); err != nil {
+	planPath := filepath.Join(initiativeDir, "_task_groups.md")
+	if err := os.WriteFile(planPath, []byte(daemonTaskGroupPlan("x")), 0o600); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
 	if err := os.WriteFile(
-		filepath.Join(packageDir, "task_01.md"),
-		[]byte(daemonTaskBody("completed", "package task")),
+		filepath.Join(taskGroupDir, "task_01.md"),
+		[]byte(daemonTaskBody("completed", "task group task")),
 		0o600,
 	); err != nil {
-		t.Fatalf("write package task: %v", err)
+		t.Fatalf("write task group task: %v", err)
 	}
 	if _, err := corepkg.SyncDirect(context.Background(), corepkg.SyncConfig{TasksDir: initiativeDir}); err != nil {
 		t.Fatalf("SyncDirect(initial initiative): %v", err)
@@ -142,17 +142,17 @@ func TestWorkflowWatcherProjectsReopenedWorkPackageExactlyOnce(t *testing.T) {
 		}
 	}()
 
-	if err := os.WriteFile(planPath, []byte(daemonWorkPackagePlan(" ")), 0o600); err != nil {
-		t.Fatalf("reopen package plan: %v", err)
+	if err := os.WriteFile(planPath, []byte(daemonTaskGroupPlan(" ")), 0o600); err != nil {
+		t.Fatalf("reopen task group plan: %v", err)
 	}
-	waitForCondition(t, 5*time.Second, "reopened package watcher sync", func() bool {
+	waitForCondition(t, 5*time.Second, "reopened task group watcher sync", func() bool {
 		return syncCount.Load() == 1 &&
 			emitCount.Load() == 1 &&
-			!queryWorkflowLifecycleComplete(t, globalCatalogPath(t), "watcher/WP-001")
+			!queryWorkflowLifecycleComplete(t, globalCatalogPath(t), "watcher/TG-001")
 	})
 	event := <-emitted
-	if event.RelativePath != "_work_packages.md" {
-		t.Fatalf("watcher event path = %q, want _work_packages.md", event.RelativePath)
+	if event.RelativePath != "_task_groups.md" {
+		t.Fatalf("watcher event path = %q, want _task_groups.md", event.RelativePath)
 	}
 	quietWindow := time.NewTimer(3 * 40 * time.Millisecond)
 	defer quietWindow.Stop()
@@ -403,11 +403,11 @@ func TestWorkflowWatcherValidatesConfigAndClassifiesArtifacts(t *testing.T) {
 	}{
 		{path: "task_01.md", want: true},
 		{path: "_meta.md", want: true},
-		{path: "_work_packages.md", want: true},
-		{path: "_packages/WP-001/task_01.md", want: true},
-		{path: "_packages/WP-001/reviews-001/issue_001.md", want: true},
+		{path: "_task_groups.md", want: true},
+		{path: "_task_groups/TG-001/task_01.md", want: true},
+		{path: "_task_groups/TG-001/reviews-001/issue_001.md", want: true},
 		{path: "reviews-001/issue_001.md", want: true},
-		{path: "_packages/WP-001/notes.txt", want: false},
+		{path: "_task_groups/TG-001/notes.txt", want: false},
 		{path: "memory/MEMORY.md", want: true},
 		{path: "notes.txt", want: false},
 	} {
@@ -518,28 +518,28 @@ func queryWorkflowLifecycleComplete(t *testing.T, dbPath string, workflowSlug st
 		`SELECT lifecycle_completed FROM workflows WHERE slug = ? AND archived_at IS NULL`,
 		workflowSlug,
 	).Scan(&completed); err != nil {
-		t.Fatalf("query package lifecycle for %q: %v", workflowSlug, err)
+		t.Fatalf("query task group lifecycle for %q: %v", workflowSlug, err)
 	}
 	return completed
 }
 
-func daemonWorkPackagePlan(checkbox string) string {
+func daemonTaskGroupPlan(checkbox string) string {
 	return strings.Join([]string{
 		"---",
-		"schema_version: compozy.work-packages/v1",
+		"schema_version: compozy.task-groups/v1",
 		"initiative: watcher",
 		"graph:",
 		"  nodes:",
-		"    - id: WP-001",
-		"      directory: _packages/WP-001",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
 		"  edges: []",
 		"---",
 		"",
-		"# Work Packages",
+		"# Task Groups",
 		"",
-		"## [" + checkbox + "] WP-001 — Watch package",
+		"## [" + checkbox + "] TG-001 — Watch task group",
 		"",
-		"- Reference: `watcher/WP-001`",
+		"- Reference: `watcher/TG-001`",
 		"- Outcome: Project checkbox changes.",
 		"- Owns:",
 		"  - watcher projection",

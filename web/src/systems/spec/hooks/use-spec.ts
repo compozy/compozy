@@ -7,10 +7,10 @@ import type { WorkflowSpecDocument } from "../types";
 export function useWorkflowSpec(
   workspaceId: string | null,
   slug: string | null,
-  packageId?: string
+  taskGroupId?: string
 ) {
   return useQuery<WorkflowSpecDocument>({
-    queryKey: specKeys.workflow(workspaceId ?? "none", slug ?? "none", packageId) as QueryKey,
+    queryKey: specKeys.workflow(workspaceId ?? "none", slug ?? "none", taskGroupId) as QueryKey,
     queryFn: () => {
       if (!workspaceId) {
         throw new Error("active workspace is required to load workflow spec");
@@ -18,7 +18,7 @@ export function useWorkflowSpec(
       if (!slug) {
         throw new Error("workflow slug is required to load workflow spec");
       }
-      return getWorkflowSpec({ workspaceId, slug, packageId });
+      return getWorkflowSpec({ workspaceId, slug, taskGroupId });
     },
     enabled: Boolean(workspaceId) && Boolean(slug),
   });

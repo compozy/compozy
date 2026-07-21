@@ -15,7 +15,7 @@ provider_ref:
 
 ## Review Comment
 
-Task 05 marks E2E-001, E2E-002, and E2E-003 complete, but no executable test references or performs those journeys. Their only implementation-side occurrence is the static scenario table in `skills/cy-create-tasks/references/work-package-planning.md`. The Playwright suite exercises daemon web inventory flows and does not invoke `cy-create-tasks`, choose ordinary versus Work Packages, edit a proposal, or cancel the 100-package proposal.
+Task 05 marks E2E-001, E2E-002, and E2E-003 complete, but no executable test references or performs those journeys. Their only implementation-side occurrence is the static scenario table in `skills/cy-create-tasks/references/task-group-planning.md`. The Playwright suite exercises daemon web inventory flows and does not invoke `cy-create-tasks`, choose ordinary versus Task Groups, edit a proposal, or cancel the 100-task-group proposal.
 
 Therefore `make verify` cannot detect regressions in the feature's primary planning entry point even though the task and test contract claim those cases are implemented. Add an executable skill/CLI E2E harness that asserts the exact artifacts and cancellation behavior specified by E2E-001 through E2E-003, or leave the task cases unchecked until such coverage exists.
 
@@ -27,7 +27,7 @@ Therefore `make verify` cannot detect regressions in the feature's primary plann
   `cy-create-tasks` and asserts the three required journeys.
 - Evidence: The canonical `_tests.md` defines concrete planning journeys for
   those IDs. A repository-wide search finds the IDs only in the contract,
-  `work-package-planning.md`, Task 05, this review file, and generated skill
+  `task-group-planning.md`, Task 05, this review file, and generated skill
   copies—not in an executable test.
 - Fix approach: Keep the test contract unchanged and uncheck only the three
   falsely completed Task 05 cases. Adding the missing E2E harness would require

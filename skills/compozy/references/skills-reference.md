@@ -58,9 +58,9 @@ Translates PRD business requirements into a technical implementation design plus
 Decomposes PRDs and TechSpecs into robust, independently implementable task files with codebase-informed enrichment.
 
 - **Inputs:** Existing `_prd.md` and `_techspec.md`; `_user_stories.md` and `_tests.md` when present.
-- **Outputs:** Ordinary task files and `_tasks.md`, or optional `_work_packages.md` with package-local suites under readable `_packages/NNN-<brief>/` directories.
+- **Outputs:** Ordinary task files and `_tasks.md`, or optional `_task_groups.md` with task-group-local suites under readable `_task_groups/NNN-<brief>/` directories.
 - **Pipeline position:** After TechSpec. Feeds into `compozy tasks run`.
-- **Process:** Load PRD+TechSpec+catalog context -> draft and show the complete neutral task table and total count -> choose ordinary (one general workflow) or Work Packages -> if selected, show the complete task table and revised count for every proposed package -> assign every `_tests.md` case exactly once -> user approval -> generate task files -> enrich with codebase patterns -> validate with `compozy tasks validate`.
+- **Process:** Load PRD+TechSpec+catalog context -> draft and show the complete neutral task table and total count -> choose ordinary as drafted, revise into smaller ordinary tasks, organize Task Groups by outcome, or organize Task Groups by task type -> render the complete revised task table or Task Group proposal before approval -> assign every `_tests.md` case exactly once -> user approval -> generate task files -> enrich with codebase patterns -> validate with `compozy tasks validate`.
 - **Task metadata:** Each task has YAML frontmatter with `status` (pending/in_progress/completed), `title`, `type`, and `complexity`. Dependency relationships live only in `_tasks.md` under `graph.edges`.
 - **Use when:** A PRD and TechSpec exist and need to be broken into executable tasks.
 - **Do not use for:** Execution, review, or code implementation.

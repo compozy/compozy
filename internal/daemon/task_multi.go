@@ -18,8 +18,8 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -110,7 +110,7 @@ func (m *RunManager) StartTaskRunMultiple(
 	if mode == workspacecfg.TaskRunMultipleModeParallel {
 		for _, item := range prepared.items {
 			if item.runtimeCfg != nil && item.runtimeCfg.ExecutionScope != nil {
-				return apicore.Run{}, packageWorktreeExecutionProblem(item.runtimeCfg.ExecutionScope)
+				return apicore.Run{}, taskGroupWorktreeExecutionProblem(item.runtimeCfg.ExecutionScope)
 			}
 		}
 	}
@@ -145,7 +145,7 @@ func (m *RunManager) startParallelTaskRunIfEnabled(
 		return apicore.Run{}, false, nil
 	}
 	if runtimeCfg.ExecutionScope != nil {
-		return apicore.Run{}, true, packageWorktreeExecutionProblem(runtimeCfg.ExecutionScope)
+		return apicore.Run{}, true, taskGroupWorktreeExecutionProblem(runtimeCfg.ExecutionScope)
 	}
 	waves, taskSpecs, err := buildDaemonParallelTaskPlan(
 		ctx,
@@ -343,7 +343,7 @@ func (m *RunManager) prepareTaskMultiStart(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := m.preflightPackageTaskRun(ctx, workspaceRef, resolvedSlug, req.AllowOutOfOrder); err != nil {
+		if _, err := m.preflightTaskGroupTaskRun(ctx, workspaceRef, resolvedSlug, req.AllowOutOfOrder); err != nil {
 			return nil, err
 		}
 		if idx == 0 {
@@ -602,17 +602,17 @@ func normalizeTaskMultiRequest(req apicore.TaskRunMultipleRequest) ([]string, er
 	refs := make([]string, 0, len(req.Targets))
 	for index, target := range req.Targets {
 		initiative := strings.TrimSpace(target.InitiativeSlug)
-		packageID := strings.TrimSpace(target.PackageID)
-		if packageID == "" {
+		taskGroupID := strings.TrimSpace(target.TaskGroupID)
+		if taskGroupID == "" {
 			return nil, apicore.NewProblem(
 				http.StatusUnprocessableEntity,
-				"work_package_selection_required",
-				"structured task targets require package_id",
+				"task_group_selection_required",
+				"structured task targets require task_group_id",
 				map[string]any{"field": "targets", "index": index},
-				workpackages.ErrSelectionRequired,
+				taskgroups.ErrSelectionRequired,
 			)
 		}
-		ref, err := workpackages.ParsePackageRef(initiative + "/" + packageID)
+		ref, err := taskgroups.ParseTaskGroupRef(initiative + "/" + taskGroupID)
 		if err != nil {
 			return nil, err
 		}
@@ -1909,7 +1909,7 @@ func (m *RunManager) startTaskMultiChild(
 	index int,
 	total int,
 ) (apicore.Run, error) {
-	outOfOrderNeeded, err := m.preflightPackageTaskRun(
+	outOfOrderNeeded, err := m.preflightTaskGroupTaskRun(
 		detachContext(active.ctx),
 		prepared.workspace.RootDir,
 		item.slug,

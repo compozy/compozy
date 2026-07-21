@@ -180,60 +180,60 @@ async function createNestedWorkflow(fixtureRoot: string): Promise<void> {
   await mkdir(workflowDir, { recursive: true });
 
   const nodes: string[] = [];
-  const sections: string[] = ["# Nested Fixture Work Packages", ""];
+  const sections: string[] = ["# Nested Fixture Task Groups", ""];
   for (let index = 1; index <= 100; index += 1) {
-    const packageId = `WP-${String(index).padStart(3, "0")}`;
-    const packageDir = path.join(workflowDir, "_packages", packageId);
-    await mkdir(path.join(packageDir, "memory"), { recursive: true });
-    nodes.push(`    - id: ${packageId}`, `      directory: _packages/${packageId}`);
+    const taskGroupId = `TG-${String(index).padStart(3, "0")}`;
+    const taskGroupDir = path.join(workflowDir, "_task_groups", taskGroupId);
+    await mkdir(path.join(taskGroupDir, "memory"), { recursive: true });
+    nodes.push(`    - id: ${taskGroupId}`, `      directory: _task_groups/${taskGroupId}`);
     sections.push(
-      `## [ ] ${packageId} — Package ${String(index).padStart(3, "0")}`,
+      `## [ ] ${taskGroupId} — Task Group ${String(index).padStart(3, "0")}`,
       "",
-      `- Reference: \`${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/${packageId}\``,
+      `- Reference: \`${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/${taskGroupId}\``,
       `- Outcome: Deliver fixture scope ${index}.`,
       "- Owns:",
       `  - fixture scope ${index}`,
       ...(index === 2
-        ? ["- Dependencies:", "  - `WP-001` — Foundation must complete first"]
+        ? ["- Dependencies:", "  - `TG-001` — Foundation must complete first"]
         : ["- Dependencies: None"]),
       ""
     );
     await writeFile(
-      path.join(packageDir, "task_001.md"),
+      path.join(taskGroupDir, "task_001.md"),
       [
         "---",
         "status: pending",
-        `title: Shared child task ${packageId}`,
+        `title: Shared child task ${taskGroupId}`,
         "type: frontend",
         "complexity: low",
         "---",
         "",
-        `# Shared child task ${packageId}`,
+        `# Shared child task ${taskGroupId}`,
         "",
-        "Package-isolated fixture task.",
+        "Task Group-isolated fixture task.",
         "",
       ].join("\n"),
       "utf8"
     );
     await writeFile(
-      path.join(packageDir, "memory", "MEMORY.md"),
-      `# ${packageId} Memory\n\nPackage-isolated memory.\n`,
+      path.join(taskGroupDir, "memory", "MEMORY.md"),
+      `# ${taskGroupId} Memory\n\nTaskGroup-isolated memory.\n`,
       "utf8"
     );
   }
 
   await writeFile(
-    path.join(workflowDir, "_work_packages.md"),
+    path.join(workflowDir, "_task_groups.md"),
     [
       "---",
-      "schema_version: compozy.work-packages/v1",
+      "schema_version: compozy.task-groups/v1",
       `initiative: ${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`,
       "graph:",
       "  nodes:",
       ...nodes,
       "  edges:",
-      "    - from: WP-001",
-      "      to: WP-002",
+      "    - from: TG-001",
+      "      to: TG-002",
       "      rationale: Foundation must complete first",
       "---",
       "",

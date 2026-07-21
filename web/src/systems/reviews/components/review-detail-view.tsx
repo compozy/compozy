@@ -33,7 +33,7 @@ export interface ReviewDetailViewProps {
   isReadOnly?: boolean;
   dispatchError?: string | null;
   dispatchedRun?: Run | null;
-  packageId?: string;
+  taskGroupId?: string;
   workflowSlug?: string;
 }
 
@@ -46,7 +46,7 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
     isReadOnly = false,
     dispatchError,
     dispatchedRun,
-    packageId,
+    taskGroupId,
     workflowSlug,
   } = props;
   const { workflow, round, issue, document } = payload;
@@ -78,7 +78,7 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
               className="underline-offset-4 hover:underline"
               data-testid="review-detail-back"
               params={{ slug: routeSlug, round: String(round.round_number) }}
-              search={packageId ? { package_id: packageId } : {}}
+              search={taskGroupId ? { task_group_id: taskGroupId } : {}}
               to="/reviews/$slug/$round"
             >
               Back to round

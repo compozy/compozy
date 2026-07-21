@@ -1,4 +1,4 @@
-package workpackages
+package taskgroups
 
 import (
 	"context"
@@ -14,8 +14,8 @@ import (
 	"testing"
 )
 
-// Suite: Work Package domain
-// Invariant: A plan has one canonical, contained, deterministic package state.
+// Suite: Task Group domain
+// Invariant: A plan has one canonical, contained, deterministic task group state.
 // Boundary IN: Markdown manifests and workspace paths.
 // Boundary OUT: Persistence, lifecycle transport, planning UI, and Git state.
 
@@ -24,32 +24,32 @@ func TestValidatePlan(t *testing.T) {
 
 	t.Run("UT-003 rejects missing title and outcome", func(t *testing.T) {
 		t.Parallel()
-		content := string(twoPackagePlan(t))
-		content = strings.Replace(content, "## [ ] WP-001 — Persistence\n", "## [ ] WP-001 — \n", 1)
+		content := string(twoTaskGroupPlan(t))
+		content = strings.Replace(content, "## [ ] TG-001 — Persistence\n", "## [ ] TG-001 — \n", 1)
 		content = strings.Replace(content, "- Outcome: Persist customer data\n", "- Outcome: \n", 1)
 		_, err := ValidatePlan(content)
 		assertDomainError(t, err, ErrInvalidPlan)
-		assertIssueContains(t, err, "body.WP-001.title")
-		assertIssueContains(t, err, "body.WP-001.outcome")
+		assertIssueContains(t, err, "body.TG-001.title")
+		assertIssueContains(t, err, "body.TG-001.outcome")
 	})
 
-	t.Run("UT-005 identifies edges affected by package removal", func(t *testing.T) {
+	t.Run("UT-005 identifies edges affected by task group removal", func(t *testing.T) {
 		t.Parallel()
-		plan := mustParsePlan(t, twoPackagePlan(t))
-		issues := ValidatePackageRemoval(plan, "WP-001")
-		if len(issues) != 1 || !strings.Contains(issues[0].Message, "WP-002") {
-			t.Fatalf("removal issues = %#v, want WP-002 dependency diagnostic", issues)
+		plan := mustParsePlan(t, twoTaskGroupPlan(t))
+		issues := ValidateTaskGroupRemoval(plan, "TG-001")
+		if len(issues) != 1 || !strings.Contains(issues[0].Message, "TG-002") {
+			t.Fatalf("removal issues = %#v, want TG-002 dependency diagnostic", issues)
 		}
 	})
 
 	t.Run("UT-008 rejects self and unknown dependencies", func(t *testing.T) {
 		t.Parallel()
 		for name, replacement := range map[string]string{
-			"self":    "to: WP-001",
-			"unknown": "to: WP-999",
+			"self":    "to: TG-001",
+			"unknown": "to: TG-999",
 		} {
 			t.Run(name, func(t *testing.T) {
-				content := strings.Replace(string(twoPackagePlan(t)), "to: WP-002", replacement, 1)
+				content := strings.Replace(string(twoTaskGroupPlan(t)), "to: TG-002", replacement, 1)
 				_, err := ValidatePlan(content)
 				assertDomainError(t, err, ErrInvalidPlan)
 			})
@@ -58,27 +58,27 @@ func TestValidatePlan(t *testing.T) {
 
 	t.Run("UT-009 reports complete dependency cycle", func(t *testing.T) {
 		t.Parallel()
-		content := threePackagePlan(t, []Dependency{
-			{From: "WP-001", To: "WP-002", Rationale: "one"},
-			{From: "WP-002", To: "WP-003", Rationale: "two"},
-			{From: "WP-003", To: "WP-001", Rationale: "three"},
+		content := threeTaskGroupPlan(t, []Dependency{
+			{From: "TG-001", To: "TG-002", Rationale: "one"},
+			{From: "TG-002", To: "TG-003", Rationale: "two"},
+			{From: "TG-003", To: "TG-001", Rationale: "three"},
 		})
 		_, err := ValidatePlan(string(content))
 		assertDomainError(t, err, ErrInvalidPlan)
-		if !strings.Contains(err.Error(), "WP-001 -> WP-002 -> WP-003 -> WP-001") {
+		if !strings.Contains(err.Error(), "TG-001 -> TG-002 -> TG-003 -> TG-001") {
 			t.Fatalf("cycle error = %v", err)
 		}
 	})
 
 	t.Run("UT-011 is deterministic and non-mutating", func(t *testing.T) {
 		t.Parallel()
-		content := twoPackagePlan(t)
+		content := twoTaskGroupPlan(t)
 		first := mustParsePlan(t, content)
 		second := mustParsePlan(t, content)
-		if first.Checksum != second.Checksum || !slices.EqualFunc(first.Packages, second.Packages, equalPackage) {
+		if first.Checksum != second.Checksum || !slices.EqualFunc(first.TaskGroups, second.TaskGroups, equalTaskGroup) {
 			t.Fatalf("plans differ: %#v %#v", first, second)
 		}
-		if !slices.Equal(content, twoPackagePlan(t)) {
+		if !slices.Equal(content, twoTaskGroupPlan(t)) {
 			t.Fatal("validation changed source bytes")
 		}
 	})
@@ -87,13 +87,13 @@ func TestValidatePlan(t *testing.T) {
 		t.Parallel()
 		var body strings.Builder
 		body.WriteString("---\n")
-		body.WriteString("schema_version: compozy.work-packages/v1\ninitiative: demo\ngraph:\n  nodes:\n")
+		body.WriteString("schema_version: compozy.task-groups/v1\ninitiative: demo\ngraph:\n  nodes:\n")
 		for index := 0; index < 300; index++ {
-			fmt.Fprint(&body, "    - id: WP-001\n      directory: _packages/WP-001\n")
+			fmt.Fprint(&body, "    - id: TG-001\n      directory: _task_groups/TG-001\n")
 		}
-		body.WriteString("  edges:\n    - from: WP-001\n      to: WP-999\n      rationale: bad\n---\n\n")
+		body.WriteString("  edges:\n    - from: TG-001\n      to: TG-999\n      rationale: bad\n---\n\n")
 		body.WriteString(
-			"## [ ] WP-001 — One\n\n- Reference: `demo/WP-001`\n- Outcome: one\n- Owns:\n  - one\n- Dependencies: None\n",
+			"## [ ] TG-001 — One\n\n- Reference: `demo/TG-001`\n- Outcome: one\n- Owns:\n  - one\n- Dependencies: None\n",
 		)
 		_, err := ValidatePlan(body.String())
 		assertDomainError(t, err, ErrInvalidPlan)
@@ -107,21 +107,21 @@ func TestValidatePlan(t *testing.T) {
 		t.Parallel()
 		cases := map[string]func(string) string{
 			"yaml-only": func(content string) string {
-				return strings.Replace(content, "WP-002 — Interface", "Removed body package", 1)
+				return strings.Replace(content, "TG-002 — Interface", "Removed body task group", 1)
 			},
 			"markdown-only": func(content string) string {
-				return content + "\n## [ ] WP-003 — Extra\n\n- Reference: `demo/WP-003`\n- Outcome: extra\n- Owns:\n  - extra\n- Dependencies: None\n"
+				return content + "\n## [ ] TG-003 — Extra\n\n- Reference: `demo/TG-003`\n- Outcome: extra\n- Owns:\n  - extra\n- Dependencies: None\n"
 			},
 			"directory": func(content string) string {
-				return strings.Replace(content, "directory: _packages/WP-001", "directory: _packages/WP-002", 1)
+				return strings.Replace(content, "directory: _task_groups/TG-001", "directory: _task_groups/TG-002", 1)
 			},
 			"dependency": func(content string) string {
-				return strings.Replace(content, "`WP-001` — API contract", "`WP-001` — changed", 1)
+				return strings.Replace(content, "`TG-001` — API contract", "`TG-001` — changed", 1)
 			},
 		}
 		for name, mutate := range cases {
 			t.Run(name, func(t *testing.T) {
-				_, err := ValidatePlan(mutate(string(twoPackagePlan(t))))
+				_, err := ValidatePlan(mutate(string(twoTaskGroupPlan(t))))
 				assertDomainError(t, err, ErrInvalidPlan)
 			})
 		}
@@ -129,7 +129,7 @@ func TestValidatePlan(t *testing.T) {
 
 	t.Run("UT-028 rejects consumed empty producer outcomes", func(t *testing.T) {
 		t.Parallel()
-		content := strings.Replace(string(twoPackagePlan(t)), "- Outcome: Persist customer data", "- Outcome: ", 1)
+		content := strings.Replace(string(twoTaskGroupPlan(t)), "- Outcome: Persist customer data", "- Outcome: ", 1)
 		_, err := ValidatePlan(content)
 		assertDomainError(t, err, ErrInvalidPlan)
 		if !strings.Contains(err.Error(), "outcome") {
@@ -139,49 +139,49 @@ func TestValidatePlan(t *testing.T) {
 
 	t.Run("UT-032 parses canonical fields", func(t *testing.T) {
 		t.Parallel()
-		plan := mustParsePlan(t, twoPackagePlan(t))
-		first, found := plan.Package("WP-001")
-		if !found || first.Directory != "_packages/WP-001" || first.Title != "Persistence" ||
+		plan := mustParsePlan(t, twoTaskGroupPlan(t))
+		first, found := plan.TaskGroup("TG-001")
+		if !found || first.Directory != "_task_groups/TG-001" || first.Title != "Persistence" ||
 			first.Outcome != "Persist customer data" ||
 			first.Completed {
-			t.Fatalf("WP-001 = %#v", first)
+			t.Fatalf("TG-001 = %#v", first)
 		}
-		second, found := plan.Package("WP-002")
+		second, found := plan.TaskGroup("TG-002")
 		if !found || len(second.Dependencies) != 1 || second.Dependencies[0].Rationale != "API contract" ||
 			!second.Completed {
-			t.Fatalf("WP-002 = %#v", second)
+			t.Fatalf("TG-002 = %#v", second)
 		}
 	})
 
-	t.Run("accepts readable package directories without changing stable IDs", func(t *testing.T) {
+	t.Run("accepts readable task group directories without changing stable IDs", func(t *testing.T) {
 		t.Parallel()
 		content := strings.ReplaceAll(
-			string(twoPackagePlan(t)),
-			"_packages/WP-001",
-			"_packages/001-persistence-foundation",
+			string(twoTaskGroupPlan(t)),
+			"_task_groups/TG-001",
+			"_task_groups/001-persistence-foundation",
 		)
-		content = strings.ReplaceAll(content, "_packages/WP-002", "_packages/002-interface-delivery")
+		content = strings.ReplaceAll(content, "_task_groups/TG-002", "_task_groups/002-interface-delivery")
 
 		plan := mustParsePlan(t, []byte(content))
-		first, found := plan.Package("WP-001")
-		if !found || first.Directory != "_packages/001-persistence-foundation" {
-			t.Fatalf("WP-001 = %#v", first)
+		first, found := plan.TaskGroup("TG-001")
+		if !found || first.Directory != "_task_groups/001-persistence-foundation" {
+			t.Fatalf("TG-001 = %#v", first)
 		}
 	})
 
-	t.Run("rejects unsafe or mismatched readable package directories", func(t *testing.T) {
+	t.Run("rejects unsafe or mismatched readable task group directories", func(t *testing.T) {
 		t.Parallel()
 		for name, directory := range map[string]string{
-			"mismatched ordinal": "_packages/002-persistence",
-			"nested brief":       "_packages/001/persistence",
-			"uppercase brief":    "_packages/001-Persistence",
-			"missing brief":      "_packages/001-",
+			"mismatched ordinal": "_task_groups/002-persistence",
+			"nested brief":       "_task_groups/001/persistence",
+			"uppercase brief":    "_task_groups/001-Persistence",
+			"missing brief":      "_task_groups/001-",
 		} {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				content := strings.Replace(
-					string(twoPackagePlan(t)),
-					"directory: _packages/WP-001",
+					string(twoTaskGroupPlan(t)),
+					"directory: _task_groups/TG-001",
 					"directory: "+directory,
 					1,
 				)
@@ -192,11 +192,11 @@ func TestValidatePlan(t *testing.T) {
 		}
 	})
 
-	t.Run("renders readable directories for packages without a persisted path", func(t *testing.T) {
+	t.Run("renders readable directories for task groups without a persisted path", func(t *testing.T) {
 		t.Parallel()
-		plan := mustParsePlan(t, twoPackagePlan(t))
-		for index := range plan.Packages {
-			plan.Packages[index].Directory = ""
+		plan := mustParsePlan(t, twoTaskGroupPlan(t))
+		for index := range plan.TaskGroups {
+			plan.TaskGroups[index].Directory = ""
 		}
 
 		rendered, err := RenderPlan(plan)
@@ -204,8 +204,8 @@ func TestValidatePlan(t *testing.T) {
 			t.Fatalf("RenderPlan() error = %v", err)
 		}
 		for _, expected := range []string{
-			"directory: _packages/001-persistence",
-			"directory: _packages/002-interface",
+			"directory: _task_groups/001-persistence",
+			"directory: _task_groups/002-interface",
 		} {
 			if !strings.Contains(string(rendered), expected) {
 				t.Fatalf("RenderPlan() = %q, want %q", rendered, expected)
@@ -216,44 +216,44 @@ func TestValidatePlan(t *testing.T) {
 
 	t.Run("UT-039 renders and reparses normalized state", func(t *testing.T) {
 		t.Parallel()
-		original := mustParsePlan(t, twoPackagePlan(t))
+		original := mustParsePlan(t, twoTaskGroupPlan(t))
 		rendered, err := RenderPlan(original)
 		if err != nil {
 			t.Fatalf("RenderPlan() error = %v", err)
 		}
 		reparsed := mustParsePlan(t, rendered)
-		if !slices.EqualFunc(original.Packages, reparsed.Packages, equalPackage) ||
+		if !slices.EqualFunc(original.TaskGroups, reparsed.TaskGroups, equalTaskGroup) ||
 			!slices.EqualFunc(original.Edges, reparsed.Edges, equalDependency) {
 			t.Fatalf("render/reparse mismatch: %#v %#v", original, reparsed)
 		}
 	})
 
-	t.Run("renders only the selected package excerpt", func(t *testing.T) {
+	t.Run("renders only the selected task group excerpt", func(t *testing.T) {
 		t.Parallel()
-		plan := mustParsePlan(t, twoPackagePlan(t))
-		excerpt, err := RenderPackageExcerpt(plan, "WP-002")
+		plan := mustParsePlan(t, twoTaskGroupPlan(t))
+		excerpt, err := RenderTaskGroupExcerpt(plan, "TG-002")
 		if err != nil {
-			t.Fatalf("RenderPackageExcerpt() error = %v", err)
+			t.Fatalf("RenderTaskGroupExcerpt() error = %v", err)
 		}
 		markdown := string(excerpt)
-		if !strings.Contains(markdown, "WP-002 — Interface") || !strings.Contains(markdown, "API contract") {
-			t.Fatalf("RenderPackageExcerpt() = %q, want selected package and dependency rationale", markdown)
+		if !strings.Contains(markdown, "TG-002 — Interface") || !strings.Contains(markdown, "API contract") {
+			t.Fatalf("RenderTaskGroupExcerpt() = %q, want selected task group and dependency rationale", markdown)
 		}
-		if strings.Contains(markdown, "WP-001 — Persistence") {
-			t.Fatalf("RenderPackageExcerpt() leaked sibling package: %q", markdown)
+		if strings.Contains(markdown, "TG-001 — Persistence") {
+			t.Fatalf("RenderTaskGroupExcerpt() leaked sibling task group: %q", markdown)
 		}
 	})
 }
 
 func TestTaskOwnership(t *testing.T) {
 	t.Parallel()
-	plan := mustParsePlan(t, twoPackagePlan(t))
+	plan := mustParsePlan(t, twoTaskGroupPlan(t))
 
 	t.Run("UT-006 identifies unowned qualified task", func(t *testing.T) {
 		t.Parallel()
-		issues := AuditTaskOwnership(plan, []string{"WP-001/task_01", "WP-002/task_01"}, []PackageManifest{
-			{PackageID: "WP-001", TaskIDs: []string{"WP-001/task_02"}},
-			{PackageID: "WP-002", TaskIDs: []string{"WP-002/task_01"}},
+		issues := AuditTaskOwnership(plan, []string{"TG-001/task_01", "TG-002/task_01"}, []TaskGroupManifest{
+			{TaskGroupID: "TG-001", TaskIDs: []string{"TG-001/task_02"}},
+			{TaskGroupID: "TG-002", TaskIDs: []string{"TG-002/task_01"}},
 		})
 		if len(issues) != 1 || !strings.Contains(issues[0].Message, "unowned task") {
 			t.Fatalf("issues = %#v", issues)
@@ -262,59 +262,59 @@ func TestTaskOwnership(t *testing.T) {
 
 	t.Run("UT-007 identifies duplicate owners", func(t *testing.T) {
 		t.Parallel()
-		issues := AuditTaskOwnership(plan, []string{"WP-001/task_01"}, []PackageManifest{
-			{PackageID: "WP-001", TaskIDs: []string{"WP-001/task_01"}},
-			{PackageID: "WP-002", TaskIDs: []string{"WP-001/task_01"}},
+		issues := AuditTaskOwnership(plan, []string{"TG-001/task_01"}, []TaskGroupManifest{
+			{TaskGroupID: "TG-001", TaskIDs: []string{"TG-001/task_01"}},
+			{TaskGroupID: "TG-002", TaskIDs: []string{"TG-001/task_01"}},
 		})
-		if len(issues) == 0 || !strings.Contains(issues[0].Message, "WP-001, WP-002") {
+		if len(issues) == 0 || !strings.Contains(issues[0].Message, "TG-001, TG-002") {
 			t.Fatalf("issues = %#v", issues)
 		}
 	})
 
-	t.Run("UT-010 rejects packages with no executable tasks", func(t *testing.T) {
+	t.Run("UT-010 rejects task groups with no executable tasks", func(t *testing.T) {
 		t.Parallel()
-		issues := AuditTaskOwnership(plan, nil, []PackageManifest{{PackageID: "WP-001"}, {PackageID: "WP-002"}})
+		issues := AuditTaskOwnership(plan, nil, []TaskGroupManifest{{TaskGroupID: "TG-001"}, {TaskGroupID: "TG-002"}})
 		if len(issues) != 2 || !strings.Contains(issues[0].Message, "no executable tasks") {
 			t.Fatalf("issues = %#v", issues)
 		}
 	})
 
-	t.Run("UT-040 permits local repeated task names and rejects cross-package references", func(t *testing.T) {
+	t.Run("UT-040 permits local repeated task names and rejects cross-task-group references", func(t *testing.T) {
 		t.Parallel()
-		issues := AuditTaskOwnership(plan, []string{"WP-001/task_01", "WP-002/task_01"}, []PackageManifest{
-			{PackageID: "WP-001", TaskIDs: []string{"WP-001/task_01"}},
-			{PackageID: "WP-002", TaskIDs: []string{"WP-002/task_01"}},
+		issues := AuditTaskOwnership(plan, []string{"TG-001/task_01", "TG-002/task_01"}, []TaskGroupManifest{
+			{TaskGroupID: "TG-001", TaskIDs: []string{"TG-001/task_01"}},
+			{TaskGroupID: "TG-002", TaskIDs: []string{"TG-002/task_01"}},
 		})
 		if len(issues) != 0 {
 			t.Fatalf("local repeated task IDs issues = %#v", issues)
 		}
 		issues = AuditTaskOwnership(
 			plan,
-			[]string{"WP-002/task_01"},
-			[]PackageManifest{{PackageID: "WP-002", TaskIDs: []string{"WP-001/task_01"}}},
+			[]string{"TG-002/task_01"},
+			[]TaskGroupManifest{{TaskGroupID: "TG-002", TaskIDs: []string{"TG-001/task_01"}}},
 		)
-		if len(issues) == 0 || !strings.Contains(strings.Join(issueMessages(issues), " "), "cross-package") {
-			t.Fatalf("cross-package issues = %#v", issues)
+		if len(issues) == 0 || !strings.Contains(strings.Join(issueMessages(issues), " "), "cross-task-group") {
+			t.Fatalf("cross-task-group issues = %#v", issues)
 		}
 	})
 }
 
-func TestValidatePackageManifest(t *testing.T) {
+func TestValidateTaskGroupManifest(t *testing.T) {
 	t.Parallel()
 	tasksDir := t.TempDir()
 	writeTestFile(t, tasksDir, "_tasks.md", `---
 schema_version: compozy.tasks/v2
-workflow: demo/WP-002
+workflow: demo/TG-002
 graph:
   nodes:
     - id: task_01
-      file: ../WP-001/task_01.md
+      file: ../TG-001/task_01.md
   edges: []
 ---
 `)
-	_, issues, err := ValidatePackageManifest(context.Background(), tasksDir, "demo/WP-002", "WP-002")
+	_, issues, err := ValidateTaskGroupManifest(context.Background(), tasksDir, "demo/TG-002", "TG-002")
 	if err != nil {
-		t.Fatalf("ValidatePackageManifest() error = %v", err)
+		t.Fatalf("ValidateTaskGroupManifest() error = %v", err)
 	}
 	if len(issues) != 1 || !strings.Contains(issues[0].Message, "sibling-ownership") {
 		t.Fatalf("UT-017 issues = %#v", issues)
@@ -325,18 +325,18 @@ func TestResolver(t *testing.T) {
 	t.Parallel()
 	workspace := t.TempDir()
 	initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
-	planContent := strings.ReplaceAll(string(twoPackagePlan(t)), "demo", "customer-management")
+	planContent := strings.ReplaceAll(string(twoTaskGroupPlan(t)), "demo", "customer-management")
 	writeTestFile(t, initiativeDir, ManifestFileName, planContent)
 	writeTestFile(
 		t,
 		initiativeDir,
-		"_packages/WP-001/task_01.md",
+		"_task_groups/TG-001/task_01.md",
 		"---\nstatus: pending\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
 	)
 	writeTestFile(
 		t,
 		initiativeDir,
-		"_packages/WP-002/task_01.md",
+		"_task_groups/TG-002/task_01.md",
 		"---\nstatus: pending\ntitle: two\ntype: backend\ncomplexity: low\n---\n",
 	)
 	resolver := TargetResolver{}
@@ -346,34 +346,34 @@ func TestResolver(t *testing.T) {
 		assertDomainError(t, err, ErrInitiativeNotFound)
 	})
 
-	t.Run("UT-014 lists sorted stable IDs for unknown package", func(t *testing.T) {
-		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-999")
-		assertDomainError(t, err, ErrPackageNotFound)
+	t.Run("UT-014 lists sorted stable IDs for unknown task group", func(t *testing.T) {
+		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/TG-999")
+		assertDomainError(t, err, ErrTaskGroupNotFound)
 		var domainErr *Error
-		if !errors.As(err, &domainErr) || !slices.Equal(domainErr.ValidPackageIDs, []string{"WP-001", "WP-002"}) {
+		if !errors.As(err, &domainErr) || !slices.Equal(domainErr.ValidTaskGroupIDs, []string{"TG-001", "TG-002"}) {
 			t.Fatalf("not found error = %#v", domainErr)
 		}
 	})
 
-	t.Run("UT-025 rejects unsafe and package-required references", func(t *testing.T) {
-		for _, reference := range []string{"", "demo/WP-001/extra", "../WP-001", "demo/wp-001"} {
+	t.Run("UT-025 rejects unsafe and task-group-required references", func(t *testing.T) {
+		for _, reference := range []string{"", "demo/TG-001/extra", "../TG-001", "demo/tg-001"} {
 			_, err := ParseRef(reference)
 			assertDomainError(t, err, ErrInvalidReference)
 		}
-		_, err := ParsePackageRef("customer-management")
+		_, err := ParseTaskGroupRef("customer-management")
 		assertDomainError(t, err, ErrSelectionRequired)
 	})
 
 	t.Run("UT-027 resolves stable IDs not duplicate titles", func(t *testing.T) {
 		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/Persistence")
 		assertDomainError(t, err, ErrInvalidReference)
-		target, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-002")
-		if err != nil || target.Package.ID != "WP-002" {
+		target, err := resolver.Resolve(context.Background(), workspace, "customer-management/TG-002")
+		if err != nil || target.TaskGroup.ID != "TG-002" {
 			t.Fatalf("target = %#v, error = %v", target, err)
 		}
 	})
 
-	t.Run("resolves a stable ID to its readable package directory", func(t *testing.T) {
+	t.Run("resolves a stable ID to its readable task group directory", func(t *testing.T) {
 		t.Parallel()
 		readableWorkspace := t.TempDir()
 		readableInitiativeDir := filepath.Join(
@@ -382,32 +382,32 @@ func TestResolver(t *testing.T) {
 			"tasks",
 			"customer-management",
 		)
-		content := strings.ReplaceAll(planContent, "_packages/WP-001", "_packages/001-persistence-foundation")
-		content = strings.ReplaceAll(content, "_packages/WP-002", "_packages/002-interface-delivery")
+		content := strings.ReplaceAll(planContent, "_task_groups/TG-001", "_task_groups/001-persistence-foundation")
+		content = strings.ReplaceAll(content, "_task_groups/TG-002", "_task_groups/002-interface-delivery")
 		writeTestFile(t, readableInitiativeDir, ManifestFileName, content)
 		writeTestFile(
 			t,
 			readableInitiativeDir,
-			"_packages/001-persistence-foundation/task_01.md",
+			"_task_groups/001-persistence-foundation/task_01.md",
 			"---\nstatus: pending\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
 		)
 
 		target, err := resolver.Resolve(
 			context.Background(),
 			readableWorkspace,
-			"customer-management/WP-001",
+			"customer-management/TG-001",
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
-		if filepath.Base(target.PackageDir) != "001-persistence-foundation" {
-			t.Fatalf("PackageDir = %q", target.PackageDir)
+		if filepath.Base(target.TaskGroupDir) != "001-persistence-foundation" {
+			t.Fatalf("TaskGroupDir = %q", target.TaskGroupDir)
 		}
 	})
 
 	t.Run("UT-030 preserves ordinary workflows without marker", func(t *testing.T) {
 		ordinaryDir := filepath.Join(workspace, ".compozy", "tasks", "ordinary")
-		writeTestFile(t, ordinaryDir, "WP-001/task_01.md", "content")
+		writeTestFile(t, ordinaryDir, "TG-001/task_01.md", "content")
 		mode, err := resolver.ClassifyTarget(context.Background(), workspace, "ordinary")
 		if err != nil || mode != TargetModeOrdinary {
 			t.Fatalf("mode = %q, error = %v", mode, err)
@@ -427,8 +427,8 @@ func TestResolver(t *testing.T) {
 		}
 	})
 
-	t.Run("UT-033 rejects escape paths before package task access", func(t *testing.T) {
-		for _, reference := range []string{"/tmp/demo", "../customer-management", "customer-management/WP-001/more"} {
+	t.Run("UT-033 rejects escape paths before task group task access", func(t *testing.T) {
+		for _, reference := range []string{"/tmp/demo", "../customer-management", "customer-management/TG-001/more"} {
 			_, err := resolver.Resolve(context.Background(), workspace, reference)
 			assertDomainError(t, err, ErrInvalidReference)
 		}
@@ -436,40 +436,40 @@ func TestResolver(t *testing.T) {
 		if err := os.MkdirAll(escaped, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		link := filepath.Join(initiativeDir, "_packages", "WP-001")
+		link := filepath.Join(initiativeDir, "_task_groups", "TG-001")
 		if err := os.RemoveAll(link); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.Symlink(escaped, link); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-001")
+		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/TG-001")
 		assertDomainError(t, err, ErrContainment)
 	})
 }
 
-func TestResolvePackageMissingPackagesRoot(t *testing.T) {
-	// INVARIANT: an absent _packages root is the aggregate form of a missing
-	// package directory, so it classifies as ErrPackageNotFound (which aggregate
+func TestResolveTaskGroupMissingTaskGroupsRoot(t *testing.T) {
+	// INVARIANT: an absent _task_groups root is the aggregate form of a missing
+	// task group directory, so it classifies as ErrTaskGroupNotFound (which aggregate
 	// sync degrades to a Missing placeholder) rather than ErrContainment (a hard
 	// abort). A root that resolves outside the initiative still fails closed.
-	// OWNING_LAYER: unit. EXISTING_SUITE: internal/core/workpackages/workpackages_test.go.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/core/taskgroups/taskgroups_test.go.
 	t.Parallel()
 	resolver := TargetResolver{}
 	newWorkspace := func(t *testing.T) string {
 		t.Helper()
 		workspace := t.TempDir()
 		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
-		planContent := strings.ReplaceAll(string(twoPackagePlan(t)), "demo", "customer-management")
+		planContent := strings.ReplaceAll(string(twoTaskGroupPlan(t)), "demo", "customer-management")
 		writeTestFile(t, initiativeDir, ManifestFileName, planContent)
 		return workspace
 	}
 
-	t.Run("missing root degrades to package not found", func(t *testing.T) {
+	t.Run("missing root degrades to task group not found", func(t *testing.T) {
 		t.Parallel()
 		workspace := newWorkspace(t)
-		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-001")
-		assertDomainError(t, err, ErrPackageNotFound)
+		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/TG-001")
+		assertDomainError(t, err, ErrTaskGroupNotFound)
 	})
 
 	t.Run("root escaping the initiative still fails closed", func(t *testing.T) {
@@ -477,13 +477,13 @@ func TestResolvePackageMissingPackagesRoot(t *testing.T) {
 		workspace := newWorkspace(t)
 		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
 		escaped := filepath.Join(t.TempDir(), "outside")
-		if err := os.MkdirAll(filepath.Join(escaped, "WP-001"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(escaped, "TG-001"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Symlink(escaped, filepath.Join(initiativeDir, "_packages")); err != nil {
+		if err := os.Symlink(escaped, filepath.Join(initiativeDir, "_task_groups")); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/WP-001")
+		_, err := resolver.Resolve(context.Background(), workspace, "customer-management/TG-001")
 		assertDomainError(t, err, ErrContainment)
 	})
 }
@@ -499,20 +499,20 @@ func TestResolveOperationalPathsReadableDirectory(t *testing.T) {
 		writeTestFile(
 			t,
 			initiativeDir,
-			"_packages/001-persistence-foundation/task_01.md",
+			"_task_groups/001-persistence-foundation/task_01.md",
 			"---\nstatus: completed\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
 		)
 
 		paths, err := ResolveOperationalPaths(
 			context.Background(),
 			workspace,
-			"customer-management/WP-001",
+			"customer-management/TG-001",
 		)
 		if err != nil {
 			t.Fatalf("ResolveOperationalPaths() error = %v", err)
 		}
-		if filepath.Base(paths.PackageDir) != "001-persistence-foundation" {
-			t.Fatalf("PackageDir = %q", paths.PackageDir)
+		if filepath.Base(paths.TaskGroupDir) != "001-persistence-foundation" {
+			t.Fatalf("TaskGroupDir = %q", paths.TaskGroupDir)
 		}
 	})
 
@@ -520,36 +520,36 @@ func TestResolveOperationalPathsReadableDirectory(t *testing.T) {
 		t.Parallel()
 		workspace := t.TempDir()
 		initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
-		writeTestFile(t, initiativeDir, "_packages/001-one/task_01.md", "content")
-		writeTestFile(t, initiativeDir, "_packages/001-two/task_01.md", "content")
+		writeTestFile(t, initiativeDir, "_task_groups/001-one/task_01.md", "content")
+		writeTestFile(t, initiativeDir, "_task_groups/001-two/task_01.md", "content")
 
 		_, err := ResolveOperationalPaths(
 			context.Background(),
 			workspace,
-			"customer-management/WP-001",
+			"customer-management/TG-001",
 		)
 		assertDomainError(t, err, ErrInvalidPlan)
 	})
 }
 
 func TestExecutionScope(t *testing.T) {
-	// INVARIANT: a package reference always separates root specifications from
-	// one contained package operational directory.
-	// OWNING_LAYER: unit. EXISTING_SUITE: internal/core/workpackages/workpackages_test.go.
+	// INVARIANT: a task group reference always separates root specifications from
+	// one contained task group operational directory.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/core/taskgroups/taskgroups_test.go.
 	workspace := t.TempDir()
 	initiativeDir := filepath.Join(workspace, ".compozy", "tasks", "customer-management")
-	planContent := strings.ReplaceAll(string(twoPackagePlan(t)), "demo", "customer-management")
+	planContent := strings.ReplaceAll(string(twoTaskGroupPlan(t)), "demo", "customer-management")
 	writeTestFile(t, initiativeDir, ManifestFileName, planContent)
 	writeTestFile(
 		t,
 		initiativeDir,
-		"_packages/WP-001/task_01.md",
+		"_task_groups/TG-001/task_01.md",
 		"---\nstatus: pending\ntitle: one\ntype: backend\ncomplexity: low\n---\n",
 	)
 
-	target, err := (TargetResolver{}).ResolvePackage(context.Background(), workspace, "customer-management/WP-001")
+	target, err := (TargetResolver{}).ResolveTaskGroup(context.Background(), workspace, "customer-management/TG-001")
 	if err != nil {
-		t.Fatalf("ResolvePackage() error = %v", err)
+		t.Fatalf("ResolveTaskGroup() error = %v", err)
 	}
 	scope, err := BuildExecutionScope(target)
 	if err != nil {
@@ -559,14 +559,14 @@ func TestExecutionScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvalSymlinks(initiative): %v", err)
 	}
-	if scope.WorkflowRef != "customer-management/WP-001" || scope.SpecDir != canonicalInitiativeDir ||
-		scope.OperationalDir != filepath.Join(canonicalInitiativeDir, "_packages", "WP-001") ||
+	if scope.WorkflowRef != "customer-management/TG-001" || scope.SpecDir != canonicalInitiativeDir ||
+		scope.OperationalDir != filepath.Join(canonicalInitiativeDir, "_task_groups", "TG-001") ||
 		scope.TasksDir != scope.OperationalDir || scope.ReviewsDir != scope.OperationalDir ||
 		scope.MemoryDir != filepath.Join(scope.OperationalDir, "memory") {
 		t.Fatalf("UT-037 execution scope = %#v", scope)
 	}
 
-	target.PackageDir = ""
+	target.TaskGroupDir = ""
 	if _, err := BuildExecutionScope(target); err == nil {
 		t.Fatal("BuildExecutionScope() error = nil for incomplete target")
 	}
@@ -576,40 +576,40 @@ func TestReadiness(t *testing.T) {
 	t.Parallel()
 	t.Run("UT-016 keeps direct blockers before transitive context", func(t *testing.T) {
 		t.Parallel()
-		plan := mustParsePlan(t, threePackagePlan(t, []Dependency{
-			{From: "WP-001", To: "WP-002", Rationale: "one"},
-			{From: "WP-002", To: "WP-003", Rationale: "two"},
+		plan := mustParsePlan(t, threeTaskGroupPlan(t, []Dependency{
+			{From: "TG-001", To: "TG-002", Rationale: "one"},
+			{From: "TG-002", To: "TG-003", Rationale: "two"},
 		}))
-		readiness, err := EvaluateReadiness(plan, "WP-003")
+		readiness, err := EvaluateReadiness(plan, "TG-003")
 		if err != nil || readiness.Eligible || len(readiness.DirectUnmet) != 1 ||
-			readiness.DirectUnmet[0].From != "WP-002" {
+			readiness.DirectUnmet[0].From != "TG-002" {
 			t.Fatalf("readiness = %#v, error = %v", readiness, err)
 		}
 		if len(readiness.TransitiveUnmet) != 1 ||
-			!slices.Equal(readiness.TransitiveUnmet[0].PackageIDs, []string{"WP-001", "WP-002"}) {
+			!slices.Equal(readiness.TransitiveUnmet[0].TaskGroupIDs, []string{"TG-001", "TG-002"}) {
 			t.Fatalf("transitive = %#v", readiness.TransitiveUnmet)
 		}
 	})
 
 	t.Run("UT-029 keeps dependencies attached to stable IDs on rename", func(t *testing.T) {
 		t.Parallel()
-		content := strings.Replace(string(twoPackagePlan(t)), "Persistence", "Renamed persistence", 1)
+		content := strings.Replace(string(twoTaskGroupPlan(t)), "Persistence", "Renamed persistence", 1)
 		plan := mustParsePlan(t, []byte(content))
-		readiness, err := EvaluateReadiness(plan, "WP-002")
-		if err != nil || len(readiness.DirectUnmet) != 1 || readiness.DirectUnmet[0].From != "WP-001" {
+		readiness, err := EvaluateReadiness(plan, "TG-002")
+		if err != nil || len(readiness.DirectUnmet) != 1 || readiness.DirectUnmet[0].From != "TG-001" {
 			t.Fatalf("readiness = %#v, error = %v", readiness, err)
 		}
 	})
 
 	t.Run("UT-035 marks checked prerequisites eligible and independent peers", func(t *testing.T) {
 		t.Parallel()
-		plan := packagePlan(t, []fixturePackage{
-			{id: "WP-001", title: "one", completed: true},
-			{id: "WP-002", title: "two"},
-			{id: "WP-003", title: "three"},
-		}, []Dependency{{From: "WP-001", To: "WP-002", Rationale: "one"}})
-		readiness, err := EvaluateReadiness(mustParsePlan(t, plan), "WP-002")
-		if err != nil || !readiness.Eligible || !slices.Equal(readiness.IndependentPeers, []string{"WP-003"}) {
+		plan := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "one", completed: true},
+			{id: "TG-002", title: "two"},
+			{id: "TG-003", title: "three"},
+		}, []Dependency{{From: "TG-001", To: "TG-002", Rationale: "one"}})
+		readiness, err := EvaluateReadiness(mustParsePlan(t, plan), "TG-002")
+		if err != nil || !readiness.Eligible || !slices.Equal(readiness.IndependentPeers, []string{"TG-003"}) {
 			t.Fatalf("readiness = %#v, error = %v", readiness, err)
 		}
 	})
@@ -642,10 +642,10 @@ func TestCompletion(t *testing.T) {
 		}
 	})
 
-	t.Run("UT-019 is byte-identical for an already checked package", func(t *testing.T) {
+	t.Run("UT-019 is byte-identical for an already checked task group", func(t *testing.T) {
 		t.Parallel()
-		content := twoPackagePlan(t)
-		rewrite, err := RewriteCompletion(content, "WP-002")
+		content := twoTaskGroupPlan(t)
+		rewrite, err := RewriteCompletion(content, "TG-002")
 		if err != nil || !rewrite.AlreadyCompleted || rewrite.WriteRequired || !slices.Equal(rewrite.Content, content) {
 			t.Fatalf("rewrite = %#v, error = %v", rewrite, err)
 		}
@@ -656,7 +656,7 @@ func TestCompletion(t *testing.T) {
 		for _, failAt := range []string{"write", "sync", "close", "rename", "directory-sync"} {
 			t.Run(failAt, func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), ManifestFileName)
-				original := twoPackagePlan(t)
+				original := twoTaskGroupPlan(t)
 				writeTestFile(t, filepath.Dir(path), filepath.Base(path), string(original))
 				err := writePlanAtomically(failingAtomicOps(failAt), path, []byte("new"), 0o600)
 				if err == nil {
@@ -674,28 +674,28 @@ func TestCompletion(t *testing.T) {
 
 	t.Run("UT-021 and UT-034 use stable ID and preserve unrelated latest bytes", func(t *testing.T) {
 		t.Parallel()
-		content := strings.Replace(string(twoPackagePlan(t)), "Persistence", "Renamed", 1)
+		content := strings.Replace(string(twoTaskGroupPlan(t)), "Persistence", "Renamed", 1)
 		content = strings.Replace(content, "  - Database schema", "  - Updated scope", 1)
 		before := []byte(content)
-		rewrite, err := RewriteCompletion(before, "WP-001")
+		rewrite, err := RewriteCompletion(before, "TG-001")
 		if err != nil || !rewrite.WriteRequired ||
-			!strings.Contains(string(rewrite.Content), "## [x] WP-001 — Renamed") {
+			!strings.Contains(string(rewrite.Content), "## [x] TG-001 — Renamed") {
 			t.Fatalf("rewrite = %#v, error = %v", rewrite, err)
 		}
-		if strings.Replace(string(rewrite.Content), "[x] WP-001", "[ ] WP-001", 1) != string(before) {
+		if strings.Replace(string(rewrite.Content), "[x] TG-001", "[ ] TG-001", 1) != string(before) {
 			t.Fatalf("rewrite changed bytes other than selected checkbox\nwant %q\ngot  %q", before, rewrite.Content)
 		}
 	})
 
 	t.Run("UT-022 through UT-024 keep lifecycle independent of Git or PR state", func(t *testing.T) {
 		t.Parallel()
-		plan := mustParsePlan(t, twoPackagePlan(t))
-		state, err := ProjectLifecycleState(plan, "WP-002")
+		plan := mustParsePlan(t, twoTaskGroupPlan(t))
+		state, err := ProjectLifecycleState(plan, "TG-002")
 		if err != nil || !state.LifecycleComplete {
 			t.Fatalf("state = %#v, error = %v", state, err)
 		}
-		rewrite, err := RewriteCompletion(twoPackagePlan(t), "WP-001")
-		if err != nil || !rewrite.WriteRequired || !strings.Contains(string(rewrite.Content), "## [x] WP-001") {
+		rewrite, err := RewriteCompletion(twoTaskGroupPlan(t), "TG-001")
+		if err != nil || !rewrite.WriteRequired || !strings.Contains(string(rewrite.Content), "## [x] TG-001") {
 			t.Fatalf("Git/remote-independent rewrite = %#v, error = %v", rewrite, err)
 		}
 	})
@@ -705,7 +705,7 @@ func TestCompletion(t *testing.T) {
 			t.Skip("read-only replacement semantics differ on Windows")
 		}
 		initiativeDir := filepath.Join(t.TempDir(), "demo")
-		before := twoPackagePlan(t)
+		before := twoTaskGroupPlan(t)
 		writeTestFile(t, initiativeDir, ManifestFileName, string(before))
 		planPath := filepath.Join(initiativeDir, ManifestFileName)
 		if err := os.Chmod(planPath, 0o444); err != nil {
@@ -717,7 +717,7 @@ func TestCompletion(t *testing.T) {
 			}
 		})
 
-		result, err := NewStore().MarkComplete(context.Background(), initiativeDir, "WP-001")
+		result, err := NewStore().MarkComplete(context.Background(), initiativeDir, "TG-001")
 		assertDomainError(t, err, ErrPlanReadOnly)
 		if result.CompletionRecorded || result.AlreadyCompleted {
 			t.Fatalf("MarkComplete() result = %#v, want no completion", result)
@@ -729,22 +729,22 @@ func TestCompletion(t *testing.T) {
 
 	t.Run("locks concurrent durable completions by stable ID", func(t *testing.T) {
 		initiativeDir := filepath.Join(t.TempDir(), "demo")
-		content := packagePlan(t, []fixturePackage{
-			{id: "WP-001", title: "One", outcome: "One outcome"},
-			{id: "WP-002", title: "Two", outcome: "Two outcome"},
+		content := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "One", outcome: "One outcome"},
+			{id: "TG-002", title: "Two", outcome: "Two outcome"},
 		}, nil)
 		writeTestFile(t, initiativeDir, ManifestFileName, string(content))
 		start := make(chan struct{})
 		errs := make(chan error, 2)
 		var group sync.WaitGroup
-		for _, packageID := range []string{"WP-001", "WP-002"} {
+		for _, taskGroupID := range []string{"TG-001", "TG-002"} {
 			group.Add(1)
 			go func(id string) {
 				defer group.Done()
 				<-start
 				_, err := NewStore().MarkComplete(context.Background(), initiativeDir, id)
 				errs <- err
-			}(packageID)
+			}(taskGroupID)
 		}
 		close(start)
 		group.Wait()
@@ -755,49 +755,49 @@ func TestCompletion(t *testing.T) {
 			}
 		}
 		plan := mustParsePlan(t, mustReadFile(t, filepath.Join(initiativeDir, ManifestFileName)))
-		if !plan.IsComplete("WP-001") || !plan.IsComplete("WP-002") {
+		if !plan.IsComplete("TG-001") || !plan.IsComplete("TG-002") {
 			t.Fatalf("concurrent completion plan = %#v", plan)
 		}
 	})
 }
 
-type fixturePackage struct {
+type fixtureTaskGroup struct {
 	id        string
 	title     string
 	outcome   string
 	completed bool
 }
 
-func twoPackagePlan(t *testing.T) []byte {
+func twoTaskGroupPlan(t *testing.T) []byte {
 	t.Helper()
-	return packagePlan(t, []fixturePackage{
-		{id: "WP-001", title: "Persistence", outcome: "Persist customer data"},
-		{id: "WP-002", title: "Interface", outcome: "Render customer data", completed: true},
-	}, []Dependency{{From: "WP-001", To: "WP-002", Rationale: "API contract"}})
+	return taskGroupPlan(t, []fixtureTaskGroup{
+		{id: "TG-001", title: "Persistence", outcome: "Persist customer data"},
+		{id: "TG-002", title: "Interface", outcome: "Render customer data", completed: true},
+	}, []Dependency{{From: "TG-001", To: "TG-002", Rationale: "API contract"}})
 }
 
-func threePackagePlan(t *testing.T, edges []Dependency) []byte {
+func threeTaskGroupPlan(t *testing.T, edges []Dependency) []byte {
 	t.Helper()
-	return packagePlan(t, []fixturePackage{
-		{id: "WP-001", title: "One", outcome: "One outcome"},
-		{id: "WP-002", title: "Two", outcome: "Two outcome"},
-		{id: "WP-003", title: "Three", outcome: "Three outcome"},
+	return taskGroupPlan(t, []fixtureTaskGroup{
+		{id: "TG-001", title: "One", outcome: "One outcome"},
+		{id: "TG-002", title: "Two", outcome: "Two outcome"},
+		{id: "TG-003", title: "Three", outcome: "Three outcome"},
 	}, edges)
 }
 
-func packagePlan(t *testing.T, packages []fixturePackage, edges []Dependency) []byte {
+func taskGroupPlan(t *testing.T, taskGroups []fixtureTaskGroup, edges []Dependency) []byte {
 	t.Helper()
 	plan := Plan{SchemaVersion: SchemaVersion, Initiative: "demo", Edges: slices.Clone(edges)}
-	for _, spec := range packages {
+	for _, spec := range taskGroups {
 		outcome := spec.outcome
 		if outcome == "" {
 			outcome = spec.id + " outcome"
 		}
-		plan.Packages = append(plan.Packages, Package{
+		plan.TaskGroups = append(plan.TaskGroups, TaskGroup{
 			ID:         spec.id,
 			Title:      spec.title,
 			Outcome:    outcome,
-			Directory:  "_packages/" + spec.id,
+			Directory:  "_task_groups/" + spec.id,
 			Completed:  spec.completed,
 			OwnedScope: []string{spec.id + " scope"},
 		})
@@ -839,7 +839,7 @@ func assertIssueContains(t *testing.T, err error, field string) {
 	t.Fatalf("issues = %#v, want field %q", domainErr.Issues, field)
 }
 
-func equalPackage(left, right Package) bool {
+func equalTaskGroup(left, right TaskGroup) bool {
 	return left.ID == right.ID &&
 		left.Title == right.Title &&
 		left.Outcome == right.Outcome &&

@@ -16,7 +16,7 @@ type ExecutionScope struct {
 	MemoryDir      string
 }
 
-// ReviewDir returns the package-local directory for one review round.
+// ReviewDir returns the task-group-local directory for one review round.
 func (s ExecutionScope) ReviewDir(round int) string {
 	return filepath.Join(s.ReviewsDir, fmt.Sprintf("reviews-%03d", round))
 }

@@ -55,17 +55,17 @@ describe("tasks api adapter", () => {
     expect(stub.calls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
   });
 
-  it("Should encode a selected package as a query field", async () => {
+  it("Should encode a selected task group as a query field", async () => {
     const stub = installFetchStub([
       {
-        matcher: matchPath("/api/tasks/alpha/board?package_id=WP-002"),
+        matcher: matchPath("/api/tasks/alpha/board?task_group_id=TG-002"),
         status: 200,
         body: { board: { task_counts: { total: 0, completed: 0, pending: 0 } } },
       },
     ]);
     restore = stub.restore;
-    await getWorkflowBoard({ workspaceId: "ws-1", slug: "alpha", packageId: "WP-002" });
-    expect(stub.calls[0]?.url).toContain("package_id=WP-002");
+    await getWorkflowBoard({ workspaceId: "ws-1", slug: "alpha", taskGroupId: "TG-002" });
+    expect(stub.calls[0]?.url).toContain("task_group_id=TG-002");
   });
 
   it("Should surface transport errors from the board endpoint", async () => {

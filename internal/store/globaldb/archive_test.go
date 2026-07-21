@@ -496,7 +496,7 @@ func TestMarkWorkflowHierarchyArchivedSnapshotsInsideTransaction(t *testing.T) {
 }
 
 func TestMarkWorkflowHierarchyArchivedRollsBackWhenSnapshotReadFails(t *testing.T) {
-	// Not parallel: overrides the package-level readArchivedHierarchySnapshot seam.
+	// Not parallel: overrides the task-group-level readArchivedHierarchySnapshot seam.
 	db := openTestGlobalDB(t)
 	defer func() {
 		_ = db.Close()
@@ -593,21 +593,21 @@ func mustArchivableHierarchy(t *testing.T, db *GlobalDB) (parentID string, child
 
 	workspace := registerSyncTestWorkspace(t, db)
 	syncedAt := time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC)
-	child := func(packageID string) WorkflowSyncInput {
+	child := func(taskGroupID string) WorkflowSyncInput {
 		return WorkflowSyncInput{
 			WorkspaceID:        workspace.ID,
-			WorkflowSlug:       "initiative/" + packageID,
-			Kind:               WorkflowKindWorkPackage,
-			PackageID:          packageID,
-			DisplayTitle:       "Package " + packageID,
-			Outcome:            "Deliver " + packageID,
+			WorkflowSlug:       "initiative/" + taskGroupID,
+			Kind:               WorkflowKindTaskGroup,
+			TaskGroupID:        taskGroupID,
+			DisplayTitle:       "Task Group " + taskGroupID,
+			Outcome:            "Deliver " + taskGroupID,
 			LifecycleCompleted: true,
 			SyncedAt:           syncedAt,
-			CheckpointChecksum: packageID + "-checkpoint",
+			CheckpointChecksum: taskGroupID + "-checkpoint",
 			TaskItems: []TaskItemInput{{
 				TaskNumber: 1,
-				TaskID:     packageID + "-task",
-				Title:      packageID + " task",
+				TaskID:     taskGroupID + "-task",
+				Title:      taskGroupID + " task",
 				Status:     "completed",
 				Kind:       "backend",
 				SourcePath: "task_01.md",
@@ -623,7 +623,7 @@ func mustArchivableHierarchy(t *testing.T, db *GlobalDB) (parentID string, child
 			SyncedAt:           syncedAt,
 			CheckpointChecksum: "initiative-checkpoint",
 		},
-		Children: []WorkflowSyncInput{child("WP-001"), child("WP-002")},
+		Children: []WorkflowSyncInput{child("TG-001"), child("TG-002")},
 	})
 	if err != nil {
 		t.Fatalf("ReconcileAggregateWorkflowSync(): %v", err)

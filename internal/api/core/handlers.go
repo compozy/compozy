@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -302,7 +302,7 @@ func normalizeRequiredSlugs(values []string) ([]string, error) {
 	return slugs, nil
 }
 
-func workflowRouteReference(slug string, packageID string) (string, error) {
+func workflowRouteReference(slug string, taskGroupID string) (string, error) {
 	initiative := strings.TrimSpace(slug)
 	if initiative == "" {
 		return "", validationProblem(
@@ -318,11 +318,11 @@ func workflowRouteReference(slug string, packageID string) (string, error) {
 			map[string]any{"field": "slug"},
 		)
 	}
-	selectedPackage := strings.TrimSpace(packageID)
-	if selectedPackage == "" {
+	selectedTaskGroup := strings.TrimSpace(taskGroupID)
+	if selectedTaskGroup == "" {
 		return initiative, nil
 	}
-	ref, err := workpackages.ParsePackageRef(initiative + "/" + selectedPackage)
+	ref, err := taskgroups.ParseTaskGroupRef(initiative + "/" + selectedTaskGroup)
 	if err != nil {
 		return "", err
 	}
@@ -330,7 +330,7 @@ func workflowRouteReference(slug string, packageID string) (string, error) {
 }
 
 func (h *Handlers) queryWorkflowReference(c *gin.Context) (string, bool) {
-	reference, err := workflowRouteReference(c.Param("slug"), c.Query("package_id"))
+	reference, err := workflowRouteReference(c.Param("slug"), c.Query("task_group_id"))
 	if err != nil {
 		h.respondError(c, err)
 		return "", false
@@ -346,15 +346,15 @@ func normalizeTaskRunTargets(targets []TaskRunTarget) ([]TaskRunTarget, error) {
 	seen := make(map[string]struct{}, len(targets))
 	for index, target := range targets {
 		initiative := strings.TrimSpace(target.InitiativeSlug)
-		packageID := strings.TrimSpace(target.PackageID)
-		if packageID == "" {
+		taskGroupID := strings.TrimSpace(target.TaskGroupID)
+		if taskGroupID == "" {
 			return nil, validationProblem(
-				"work_package_selection_required",
-				"structured task targets require package_id",
+				"task_group_selection_required",
+				"structured task targets require task_group_id",
 				map[string]any{"field": "targets", "index": index},
 			)
 		}
-		reference, err := workflowRouteReference(initiative, packageID)
+		reference, err := workflowRouteReference(initiative, taskGroupID)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +366,7 @@ func normalizeTaskRunTargets(targets []TaskRunTarget) ([]TaskRunTarget, error) {
 			)
 		}
 		seen[reference] = struct{}{}
-		result = append(result, TaskRunTarget{InitiativeSlug: initiative, PackageID: packageID})
+		result = append(result, TaskRunTarget{InitiativeSlug: initiative, TaskGroupID: taskGroupID})
 	}
 	return result, nil
 }
@@ -908,7 +908,7 @@ func (h *Handlers) ValidateTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	reference, err := workflowRouteReference(c.Param("slug"), body.PackageID)
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -937,14 +937,14 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 		return
 	}
 
-	reference, err := workflowRouteReference(c.Param("slug"), body.PackageID)
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
 	if err != nil {
 		h.respondError(c, err)
 		return
 	}
 	run, err := h.Tasks.StartRun(c.Request.Context(), workspace, reference, TaskRunRequest{
 		Workspace:        workspace,
-		PackageID:        strings.TrimSpace(body.PackageID),
+		TaskGroupID:      strings.TrimSpace(body.TaskGroupID),
 		AllowOutOfOrder:  body.AllowOutOfOrder,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
@@ -1061,14 +1061,14 @@ func (h *Handlers) ArchiveTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(body.PackageID) != "" {
+	if strings.TrimSpace(body.TaskGroupID) != "" {
 		h.respondError(c, NewProblem(
 			http.StatusConflict,
-			"work_package_archive_forbidden",
-			"work packages cannot be archived independently",
+			"task_group_archive_forbidden",
+			"task groups cannot be archived independently",
 			map[string]any{
 				"initiative_slug": strings.TrimSpace(c.Param("slug")),
-				"package_id":      strings.TrimSpace(body.PackageID),
+				"task_group_id":   strings.TrimSpace(body.TaskGroupID),
 			},
 			nil,
 		))
@@ -1114,17 +1114,17 @@ func (h *Handlers) FetchReview(c *gin.Context) {
 		return
 	}
 
-	reference, err := workflowRouteReference(c.Param("slug"), body.PackageID)
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
 	if err != nil {
 		h.respondError(c, err)
 		return
 	}
 	result, err := h.Reviews.Fetch(c.Request.Context(), workspace, reference, ReviewFetchRequest{
-		Workspace: workspace,
-		PackageID: strings.TrimSpace(body.PackageID),
-		Provider:  strings.TrimSpace(body.Provider),
-		PRRef:     strings.TrimSpace(body.PRRef),
-		Round:     body.Round,
+		Workspace:   workspace,
+		TaskGroupID: strings.TrimSpace(body.TaskGroupID),
+		Provider:    strings.TrimSpace(body.Provider),
+		PRRef:       strings.TrimSpace(body.PRRef),
+		Round:       body.Round,
 	})
 	if err != nil {
 		h.respondError(c, err)
@@ -1276,14 +1276,14 @@ func (h *Handlers) StartReviewRun(c *gin.Context) {
 		return
 	}
 
-	reference, err := workflowRouteReference(c.Param("slug"), body.PackageID)
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
 	if err != nil {
 		h.respondError(c, err)
 		return
 	}
 	run, err := h.Reviews.StartRun(c.Request.Context(), workspace, reference, round, ReviewRunRequest{
 		Workspace:        workspace,
-		PackageID:        strings.TrimSpace(body.PackageID),
+		TaskGroupID:      strings.TrimSpace(body.TaskGroupID),
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
 		Batching:         body.Batching,
@@ -1317,14 +1317,14 @@ func (h *Handlers) StartReviewWatch(c *gin.Context) {
 		return
 	}
 
-	reference, err := workflowRouteReference(c.Param("slug"), body.PackageID)
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
 	if err != nil {
 		h.respondError(c, err)
 		return
 	}
 	run, err := h.Reviews.StartWatch(c.Request.Context(), workspace, reference, ReviewWatchRequest{
 		Workspace:        workspace,
-		PackageID:        strings.TrimSpace(body.PackageID),
+		TaskGroupID:      strings.TrimSpace(body.TaskGroupID),
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		Provider:         strings.TrimSpace(body.Provider),
 		PRRef:            strings.TrimSpace(body.PRRef),

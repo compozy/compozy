@@ -9,15 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type internalWorkPackageCompletionCommandState struct {
+type internalTaskGroupCompletionCommandState struct {
 	verificationPassed bool
 	complete           completionCommand
 }
 
 type completionCommand func(
 	context.Context,
-	corepkg.WorkPackageCompletionRequest,
-) (corepkg.WorkPackageCompletionResult, error)
+	corepkg.TaskGroupCompletionRequest,
+) (corepkg.TaskGroupCompletionResult, error)
 
 func newInternalCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -26,26 +26,26 @@ func newInternalCommand() *cobra.Command {
 		SilenceUsage: true,
 		Hidden:       true,
 	}
-	command.AddCommand(newInternalWorkPackagesCommand())
+	command.AddCommand(newInternalTaskGroupsCommand())
 	return command
 }
 
-func newInternalWorkPackagesCommand() *cobra.Command {
+func newInternalTaskGroupsCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:          "work-packages",
-		Short:        "Internal Work Package operations",
+		Use:          "task-groups",
+		Short:        "Internal Task Group operations",
 		SilenceUsage: true,
 		Hidden:       true,
 	}
-	command.AddCommand(newInternalWorkPackageCompleteCommand())
+	command.AddCommand(newInternalTaskGroupCompleteCommand())
 	return command
 }
 
-func newInternalWorkPackageCompleteCommand() *cobra.Command {
-	state := &internalWorkPackageCompletionCommandState{complete: corepkg.CompleteWorkPackage}
+func newInternalTaskGroupCompleteCommand() *cobra.Command {
+	state := &internalTaskGroupCompletionCommandState{complete: corepkg.CompleteTaskGroup}
 	command := &cobra.Command{
-		Use:          "complete <initiative>/WP-NNN",
-		Short:        "Record a clean package final-review result",
+		Use:          "complete <initiative>/TG-NNN",
+		Short:        "Record a clean task group final-review result",
 		SilenceUsage: true,
 		Hidden:       true,
 		Args:         cobra.ExactArgs(1),
@@ -62,7 +62,7 @@ func newInternalWorkPackageCompleteCommand() *cobra.Command {
 	return command
 }
 
-func (s *internalWorkPackageCompletionCommandState) run(cmd *cobra.Command, reference string) error {
+func (s *internalTaskGroupCompletionCommandState) run(cmd *cobra.Command, reference string) error {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 	workspaceRoot, err := discoverWorkspaceRoot(ctx)
@@ -71,15 +71,15 @@ func (s *internalWorkPackageCompletionCommandState) run(cmd *cobra.Command, refe
 	}
 	complete := s.complete
 	if complete == nil {
-		complete = corepkg.CompleteWorkPackage
+		complete = corepkg.CompleteTaskGroup
 	}
-	result, completeErr := complete(ctx, corepkg.WorkPackageCompletionRequest{
+	result, completeErr := complete(ctx, corepkg.TaskGroupCompletionRequest{
 		WorkspaceRoot:      workspaceRoot,
 		Reference:          reference,
 		VerificationPassed: s.verificationPassed,
 	})
 	if err := json.NewEncoder(cmd.OutOrStdout()).Encode(result); err != nil {
-		return withExitCode(2, fmt.Errorf("write work package completion result: %w", err))
+		return withExitCode(2, fmt.Errorf("write task group completion result: %w", err))
 	}
 	if completeErr != nil {
 		return withExitCode(1, completeErr)

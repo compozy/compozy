@@ -122,41 +122,41 @@ redundant type conversion, slightly misleading comment.
 - If one problem spans multiple files, create one issue per affected file.
 - Acknowledge well-implemented patterns; do not create issues for them.
 
-## Work Package review contract
+## Task Group review contract
 
-For target `<initiative>/WP-NNN`, compare implementation against this scope:
+For target `<initiative>/TG-NNN`, compare implementation against this scope:
 
 - Shared root context: `_prd.md`, `_techspec.md`, `_user_stories.md`,
-  `_tests.md`, ADRs, and root `_work_packages.md`.
-- Selected mutable context: the selected manifest-declared package directory's
+  `_tests.md`, ADRs, and root `_task_groups.md`.
+- Selected mutable context: the selected manifest-declared task group directory's
   `_tasks.md`, task files, memory, review rounds, and run/diff boundary. New
-  plans normally use `_packages/NNN-<brief>/`; legacy `_packages/WP-NNN/`
+  plans normally use `_task_groups/NNN-<brief>/`; legacy `_task_groups/TG-NNN/`
   remains valid.
-- Excluded owned context: sibling package tasks, memory, review issues, and
+- Excluded owned context: sibling task group tasks, memory, review issues, and
   execution artifacts. Do not let identical local names such as `task_01.md` or
-  `reviews-001/` collapse package identity.
+  `reviews-001/` collapse task group identity.
 
-Check selected package outcome, owned scope, dependency rationale, current
-canonical specs, and package task manifest. If branch diff contains changes
+Check selected task group outcome, owned scope, dependency rationale, current
+canonical specs, and task group task manifest. If branch diff contains changes
 attributable only to a sibling, report a sibling-scope warning naming paths and
-why they do not belong to the selected package. Preserve the user's work: never
+why they do not belong to the selected task group. Preserve the user's work: never
 reset, discard, silently ignore, or rewrite those changes as part of review.
 
-Ordinary workflow rule: absent `_work_packages.md` means existing review
+Ordinary workflow rule: absent `_task_groups.md` means existing review
 discovery and scope apply unchanged. Present empty or malformed marker means
 invalid opt-in and must not fall back to ordinary review.
 
 ### Clean-review completion gate
 
-Package lifecycle completion requires all gates in order:
+Task Group lifecycle completion requires all gates in order:
 
 1. Current review creates no new issue.
-2. Every earlier selected-package issue file has `status: resolved`; sibling
+2. Every earlier selected-task-group issue file has `status: resolved`; sibling
    issue history does not satisfy this gate.
 3. Full `cy-final-verify` verification succeeds, including `make verify` where
    repository defines it.
-4. Invoke hidden `compozy internal work-packages complete
-   <initiative>/WP-NNN --verification-passed` bridge. The `--verification-passed`
+4. Invoke hidden `compozy internal task-groups complete
+   <initiative>/TG-NNN --verification-passed` bridge. The `--verification-passed`
    flag asserts gate 3 (`cy-final-verify`) succeeded; the bridge defaults it to
    `false` and refuses completion with `verification_failed` when omitted, so
    never drop it. Bridge owns locking, latest-plan reread, stable-ID checkbox
@@ -165,7 +165,7 @@ Package lifecycle completion requires all gates in order:
 Never manually rewrite `[ ]` to `[x]` in review guidance. Bridge is hidden
 integration primitive, not additional user lifecycle step. It must not create or
 switch branches, commit, push, open/merge PRs, inspect remote Git state, or
-advance to another package.
+advance to another task group.
 
 Always report these independent fields:
 

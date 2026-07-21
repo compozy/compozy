@@ -285,7 +285,7 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 		}
 	})
 
-	t.Run("start task run sends package identity in the request body", func(t *testing.T) {
+	t.Run("start task run sends task group identity in the request body", func(t *testing.T) {
 		client := &Client{
 			target:  Target{SocketPath: "/tmp/compozy.sock"},
 			baseURL: "http://daemon",
@@ -305,8 +305,8 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 						t.Fatalf("decode request body: %v", err)
 					}
-					if body.PackageID != "WP-001" || !body.AllowOutOfOrder {
-						t.Fatalf("request target = %#v, want WP-001 with override", body)
+					if body.TaskGroupID != "TG-001" || !body.AllowOutOfOrder {
+						t.Fatalf("request target = %#v, want TG-001 with override", body)
 					}
 					return jsonResponse(http.StatusCreated, `{"run":{"run_id":"task-run-1","mode":"task"}}`), nil
 				}),
@@ -315,7 +315,7 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 
 		run, err := client.StartTaskRun(context.Background(), " demo-alpha ", apicore.TaskRunRequest{
 			Workspace:       "/tmp/workspace",
-			PackageID:       " WP-001 ",
+			TaskGroupID:     " TG-001 ",
 			AllowOutOfOrder: true,
 		})
 		if err != nil {
@@ -328,7 +328,7 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 
 	t.Run("start task run rejects slash-containing route slugs", func(t *testing.T) {
 		client := &Client{}
-		_, err := client.StartTaskRun(context.Background(), "demo/WP-001", apicore.TaskRunRequest{})
+		_, err := client.StartTaskRun(context.Background(), "demo/TG-001", apicore.TaskRunRequest{})
 		if !errors.Is(err, ErrWorkflowRouteSegmentInvalid) {
 			t.Fatalf("StartTaskRun() error = %v, want ErrWorkflowRouteSegmentInvalid", err)
 		}

@@ -581,7 +581,7 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 		data, err := json.Marshal(contract.TaskRunMultipleRequest{
 			Targets: []contract.TaskRunTarget{{
 				InitiativeSlug: "customer-management",
-				PackageID:      "WP-002",
+				TaskGroupID:    "TG-002",
 			}},
 			AllowOutOfOrder: true,
 		})
@@ -634,13 +634,13 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 		}
 	})
 
-	t.Run("Should encode structured package targets without legacy slugs", func(t *testing.T) {
+	t.Run("Should encode structured task group targets without legacy slugs", func(t *testing.T) {
 		t.Parallel()
 
 		data, err := json.Marshal(contract.TaskRunMultipleRequest{
 			Targets: []contract.TaskRunTarget{
-				{InitiativeSlug: "customer-management", PackageID: "WP-001"},
-				{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+				{InitiativeSlug: "customer-management", TaskGroupID: "TG-001"},
+				{InitiativeSlug: "customer-management", TaskGroupID: "TG-002"},
 			},
 		})
 		if err != nil {
@@ -654,8 +654,8 @@ func TestTaskRunMultipleContractCarriesParallelLimitAndWorktreeMetadata(t *testi
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
 		if !reflect.DeepEqual(decoded.Targets, []contract.TaskRunTarget{
-			{InitiativeSlug: "customer-management", PackageID: "WP-001"},
-			{InitiativeSlug: "customer-management", PackageID: "WP-002"},
+			{InitiativeSlug: "customer-management", TaskGroupID: "TG-001"},
+			{InitiativeSlug: "customer-management", TaskGroupID: "TG-002"},
 		}) {
 			t.Fatalf("decoded targets = %#v", decoded.Targets)
 		}

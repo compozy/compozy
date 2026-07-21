@@ -269,7 +269,7 @@ func (s *transportReviewService) resolveReviewWorkflow(
 	if err != nil {
 		return globaldb.Workflow{}, err
 	}
-	if err := validatePackageTransportReference(
+	if err := validateTaskGroupTransportReference(
 		ctx,
 		s.globalDB,
 		workspaceRow.ID,
@@ -305,7 +305,7 @@ func (s *transportReviewService) ReviewDetail(
 	if err != nil {
 		return apicore.ReviewDetailPayload{}, err
 	}
-	if err := validatePackageTransportReference(
+	if err := validateTaskGroupTransportReference(
 		ctx,
 		s.globalDB,
 		workspace.ID,

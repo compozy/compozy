@@ -17,7 +17,7 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	runspkg "github.com/compozy/compozy/pkg/compozy/runs"
@@ -225,7 +225,7 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	target, err := s.resolveReviewWorkPackageTarget(ctx, cmd)
+	target, err := s.resolveReviewTaskGroupTarget(ctx, cmd)
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -236,11 +236,11 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 	}
 
 	result, err := client.FetchReview(ctx, s.workspaceRoot, s.name, apicore.ReviewFetchRequest{
-		Workspace: s.workspaceRoot,
-		PackageID: s.packageID,
-		Provider:  s.provider,
-		PRRef:     s.pr,
-		Round:     intPointerOrNil(s.round),
+		Workspace:   s.workspaceRoot,
+		TaskGroupID: s.taskGroupID,
+		Provider:    s.provider,
+		PRRef:       s.pr,
+		Round:       intPointerOrNil(s.round),
 	})
 	if err != nil {
 		return mapDaemonCommandError(err)
@@ -269,7 +269,7 @@ func (s *commandState) listReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx, cmd); err != nil {
+	if _, err := s.resolveReviewTaskGroupTarget(ctx, cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -278,7 +278,7 @@ func (s *commandState) listReviewsDaemon(cmd *cobra.Command, args []string) erro
 		return withExitCode(2, err)
 	}
 
-	review, err := getLatestReviewForPackage(ctx, client, s.workspaceRoot, s.name, s.packageID)
+	review, err := getLatestReviewForTaskGroup(ctx, client, s.workspaceRoot, s.name, s.taskGroupID)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -308,7 +308,7 @@ func (s *commandState) showReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.resolveWorkflowNameAndRoundArgs(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx, cmd); err != nil {
+	if _, err := s.resolveReviewTaskGroupTarget(ctx, cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -317,11 +317,11 @@ func (s *commandState) showReviewsDaemon(cmd *cobra.Command, args []string) erro
 		return withExitCode(2, err)
 	}
 
-	round, err := getReviewRoundForPackage(ctx, client, s.workspaceRoot, s.name, s.round, s.packageID)
+	round, err := getReviewRoundForTaskGroup(ctx, client, s.workspaceRoot, s.name, s.round, s.taskGroupID)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
-	issues, err := listReviewIssuesForPackage(ctx, client, s.workspaceRoot, s.name, s.round, s.packageID)
+	issues, err := listReviewIssuesForTaskGroup(ctx, client, s.workspaceRoot, s.name, s.round, s.taskGroupID)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -368,7 +368,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	target, err := s.resolveReviewWorkPackageTarget(ctx, cmd)
+	target, err := s.resolveReviewTaskGroupTarget(ctx, cmd)
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -414,7 +414,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		s.round,
 		apicore.ReviewRunRequest{
 			Workspace:        s.workspaceRoot,
-			PackageID:        s.packageID,
+			TaskGroupID:      s.taskGroupID,
 			PresentationMode: presentationMode,
 			RuntimeOverrides: runtimeOverrides,
 			Batching:         batching,
@@ -438,7 +438,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 
 func (s *commandState) stopReviewFixWithoutPendingIssues(
 	cmd *cobra.Command,
-	target workpackages.Target,
+	target taskgroups.Target,
 ) (bool, error) {
 	if s.includeResolved {
 		return false, nil
@@ -637,7 +637,7 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx, cmd); err != nil {
+	if _, err := s.resolveReviewTaskGroupTarget(ctx, cmd); err != nil {
 		return withExitCode(1, err)
 	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
@@ -668,7 +668,7 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 
 	run, err := client.StartReviewWatch(ctx, s.workspaceRoot, s.name, apicore.ReviewWatchRequest{
 		Workspace:        s.workspaceRoot,
-		PackageID:        s.packageID,
+		TaskGroupID:      s.taskGroupID,
 		PresentationMode: presentationMode,
 		Provider:         s.provider,
 		PRRef:            s.pr,
@@ -1627,7 +1627,7 @@ func (s *commandState) resolveWorkflowNameAndRoundArgs(cmd *cobra.Command, args 
 	return nil
 }
 
-func (s *commandState) resolveReviewRound(ctx context.Context, target workpackages.Target) error {
+func (s *commandState) resolveReviewRound(ctx context.Context, target taskgroups.Target) error {
 	if s.round > 0 {
 		return nil
 	}
@@ -1654,7 +1654,7 @@ func (s *commandState) resolveReviewRound(ctx context.Context, target workpackag
 	if err != nil {
 		return err
 	}
-	review, err := getLatestReviewForPackage(ctx, client, s.workspaceRoot, s.name, s.packageID)
+	review, err := getLatestReviewForTaskGroup(ctx, client, s.workspaceRoot, s.name, s.taskGroupID)
 	if err != nil {
 		return err
 	}
@@ -1662,113 +1662,113 @@ func (s *commandState) resolveReviewRound(ctx context.Context, target workpackag
 	return nil
 }
 
-func (s *commandState) resolveReviewWorkPackageTarget(
+func (s *commandState) resolveReviewTaskGroupTarget(
 	ctx context.Context,
 	cmd *cobra.Command,
-) (workpackages.Target, error) {
-	target, err := (workpackages.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
+) (taskgroups.Target, error) {
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
 	if err != nil {
-		if errors.Is(err, workpackages.ErrInitiativeNotFound) && !strings.Contains(strings.TrimSpace(s.name), "/") {
-			s.packageID = ""
-			return workpackages.Target{
-				Mode: workpackages.TargetModeOrdinary,
-				Ref:  workpackages.Ref{Initiative: strings.TrimSpace(s.name)},
+		if errors.Is(err, taskgroups.ErrInitiativeNotFound) && !strings.Contains(strings.TrimSpace(s.name), "/") {
+			s.taskGroupID = ""
+			return taskgroups.Target{
+				Mode: taskgroups.TargetModeOrdinary,
+				Ref:  taskgroups.Ref{Initiative: strings.TrimSpace(s.name)},
 			}, nil
 		}
-		return workpackages.Target{}, err
+		return taskgroups.Target{}, err
 	}
-	if target.Mode == workpackages.TargetModeInitiative {
-		target, err = s.resolveInteractiveWorkPackage(ctx, cmd, target)
+	if target.Mode == taskgroups.TargetModeInitiative {
+		target, err = s.resolveInteractiveTaskGroup(ctx, cmd, target)
 		if err != nil {
-			return workpackages.Target{}, err
+			return taskgroups.Target{}, err
 		}
 	}
-	if target.Mode == workpackages.TargetModePackage {
+	if target.Mode == taskgroups.TargetModeTaskGroup {
 		s.name = target.Ref.Initiative
-		s.packageID = target.Package.ID
+		s.taskGroupID = target.TaskGroup.ID
 		return target, nil
 	}
-	s.packageID = ""
+	s.taskGroupID = ""
 	return target, nil
 }
 
-func reviewRoundDirectory(target workpackages.Target, workspaceRoot string, round int) string {
-	if target.Mode == workpackages.TargetModePackage && strings.TrimSpace(target.ReviewsDir) != "" {
+func reviewRoundDirectory(target taskgroups.Target, workspaceRoot string, round int) string {
+	if target.Mode == taskgroups.TargetModeTaskGroup && strings.TrimSpace(target.ReviewsDir) != "" {
 		return filepath.Join(target.ReviewsDir, fmt.Sprintf("reviews-%03d", round))
 	}
 	return reviewRoundDirForWorkflow(workspaceRoot, target.Ref.Initiative, round)
 }
 
-type packageReviewClient interface {
-	GetLatestReviewForPackage(context.Context, string, string, string) (apicore.ReviewSummary, error)
-	GetReviewRoundForPackage(context.Context, string, string, int, string) (apicore.ReviewRound, error)
-	ListReviewIssuesForPackage(context.Context, string, string, int, string) ([]apicore.ReviewIssue, error)
+type taskGroupReviewClient interface {
+	GetLatestReviewForTaskGroup(context.Context, string, string, string) (apicore.ReviewSummary, error)
+	GetReviewRoundForTaskGroup(context.Context, string, string, int, string) (apicore.ReviewRound, error)
+	ListReviewIssuesForTaskGroup(context.Context, string, string, int, string) ([]apicore.ReviewIssue, error)
 }
 
-func getLatestReviewForPackage(
+func getLatestReviewForTaskGroup(
 	ctx context.Context,
 	client daemonCommandClient,
 	workspace string,
 	slug string,
-	packageID string,
+	taskGroupID string,
 ) (apicore.ReviewSummary, error) {
-	if strings.TrimSpace(packageID) == "" {
+	if strings.TrimSpace(taskGroupID) == "" {
 		return client.GetLatestReview(ctx, workspace, slug)
 	}
-	scoped, ok := client.(packageReviewClient)
+	scoped, ok := client.(taskGroupReviewClient)
 	if !ok {
-		return apicore.ReviewSummary{}, errors.New("daemon client does not support package-scoped review reads")
+		return apicore.ReviewSummary{}, errors.New("daemon client does not support task-group-scoped review reads")
 	}
-	return scoped.GetLatestReviewForPackage(ctx, workspace, slug, packageID)
+	return scoped.GetLatestReviewForTaskGroup(ctx, workspace, slug, taskGroupID)
 }
 
-func getReviewRoundForPackage(
+func getReviewRoundForTaskGroup(
 	ctx context.Context,
 	client daemonCommandClient,
 	workspace string,
 	slug string,
 	round int,
-	packageID string,
+	taskGroupID string,
 ) (apicore.ReviewRound, error) {
-	if strings.TrimSpace(packageID) == "" {
+	if strings.TrimSpace(taskGroupID) == "" {
 		return client.GetReviewRound(ctx, workspace, slug, round)
 	}
-	scoped, ok := client.(packageReviewClient)
+	scoped, ok := client.(taskGroupReviewClient)
 	if !ok {
-		return apicore.ReviewRound{}, errors.New("daemon client does not support package-scoped review reads")
+		return apicore.ReviewRound{}, errors.New("daemon client does not support task-group-scoped review reads")
 	}
-	return scoped.GetReviewRoundForPackage(ctx, workspace, slug, round, packageID)
+	return scoped.GetReviewRoundForTaskGroup(ctx, workspace, slug, round, taskGroupID)
 }
 
-func listReviewIssuesForPackage(
+func listReviewIssuesForTaskGroup(
 	ctx context.Context,
 	client daemonCommandClient,
 	workspace string,
 	slug string,
 	round int,
-	packageID string,
+	taskGroupID string,
 ) ([]apicore.ReviewIssue, error) {
-	if strings.TrimSpace(packageID) == "" {
+	if strings.TrimSpace(taskGroupID) == "" {
 		return client.ListReviewIssues(ctx, workspace, slug, round)
 	}
-	scoped, ok := client.(packageReviewClient)
+	scoped, ok := client.(taskGroupReviewClient)
 	if !ok {
-		return nil, errors.New("daemon client does not support package-scoped review reads")
+		return nil, errors.New("daemon client does not support task-group-scoped review reads")
 	}
-	return scoped.ListReviewIssuesForPackage(ctx, workspace, slug, round, packageID)
+	return scoped.ListReviewIssuesForTaskGroup(ctx, workspace, slug, round, taskGroupID)
 }
 
 // latestLocalReviewRoundForTarget resolves the newest non-empty review round written to
-// disk for the resolved target. A Work Package keeps its rounds under ReviewsDir (the package
+// disk for the resolved target. A Task Group keeps its rounds under ReviewsDir (the task group
 // directory), where a manual cy-review-round writes reviews-NNN before the daemon catalog is
 // synced, so scanning there makes a freshly created round discoverable without --round. Any
 // other target falls back to the ordinary .compozy/tasks/<slug> layout.
 func latestLocalReviewRoundForTarget(
-	target workpackages.Target,
+	target taskgroups.Target,
 	workspaceRoot string,
 	workflowSlug string,
 ) (int, bool, error) {
-	if target.Mode == workpackages.TargetModePackage && strings.TrimSpace(target.ReviewsDir) != "" {
+	if target.Mode == taskgroups.TargetModeTaskGroup && strings.TrimSpace(target.ReviewsDir) != "" {
 		return latestLocalReviewRoundInDir(target.ReviewsDir)
 	}
 	return latestLocalReviewRound(workspaceRoot, workflowSlug)

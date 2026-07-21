@@ -121,11 +121,11 @@ function invalidateWorkflowQueries(
     return;
   }
 
-  // Invalidate at the package-agnostic prefix that stops before the trailing
-  // `packageId ?? null` slot the key builders carry. TanStack matches by partial key,
+  // Invalidate at the task-group-agnostic prefix that stops before the trailing
+  // `taskGroupId ?? null` slot the key builders carry. TanStack matches by partial key,
   // so filtering on that slot (e.g. `board(ws, slug)` -> `[…, null, "board"]`) would
-  // only ever hit the initiative variant and leave every package-scoped (`WP-NNN`)
-  // view a stale sibling. These prefixes match the initiative and all package scopes.
+  // only ever hit the initiative variant and leave every task-group-scoped (`TG-NNN`)
+  // view a stale sibling. These prefixes match the initiative and all task group scopes.
   void queryClient.invalidateQueries({
     queryKey: [...workflowKeys.workflows(), workspaceId, workflowSlug],
   });

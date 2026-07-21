@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	xansi "github.com/charmbracelet/x/ansi"
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -25,7 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -3424,107 +3425,201 @@ func TestResolveTaskPresentationModeRejectsConflictsAndInvalidModes(t *testing.T
 	}
 }
 
-func TestWorkPackagePickerOptions(t *testing.T) {
+func TestTaskGroupPickerOptions(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
 	initiative := "auth"
-	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
-	packageRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_packages")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-001"), "task_001.md", "completed")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-002"), "task_001.md", "completed")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-002"), "task_002.md", "pending")
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
+	taskGroupRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_task_groups")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-001"), "task_001.md", "completed")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-002"), "task_001.md", "completed")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-002"), "task_002.md", "completed")
 
-	target, err := (workpackages.TargetResolver{}).Resolve(context.Background(), workspaceRoot, initiative)
+	target, err := (taskgroups.TargetResolver{}).Resolve(context.Background(), workspaceRoot, initiative)
 	if err != nil {
 		t.Fatalf("resolve initiative: %v", err)
 	}
-	options, err := buildWorkPackagePickerOptions(workPackagePickerInput{
+	options, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
 		Target:  target,
 		RunMode: daemonRunModeTask,
-	}, map[string]string{initiative + "/WP-002": execStatusFailed})
+	}, map[string]string{initiative + "/TG-002": execStatusFailed})
 	if err != nil {
 		t.Fatalf("build picker options: %v", err)
 	}
 	if len(options) != 2 {
-		t.Fatalf("picker options = %#v, want two Work Packages", options)
+		t.Fatalf("picker options = %#v, want two Task Groups", options)
 	}
 	for _, want := range []string{
-		"[✓] WP-001 — Foundation — Completed — 1/1 tasks completed",
-		"[ ] WP-002 — Delivery — Ready to retry — 1/2 tasks completed",
+		"[✓] TG-001 — Foundation — Completed — 1/1 tasks completed",
+		"[✓] TG-002 — Delivery — Completed — 2/2 tasks completed",
 	} {
-		if !slices.ContainsFunc(options, func(option workPackagePickerOption) bool {
+		if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
 			return option.Label == want
 		}) {
 			t.Fatalf("picker options = %#v, missing %q", options, want)
 		}
 	}
 
-	if err := validateWorkPackagePickerSelection(options, "WP-001", false); err == nil ||
-		!strings.Contains(err.Error(), "completed Work Package is locked") {
+	if err := validateTaskGroupPickerSelection(options, "TG-001", false); err == nil ||
+		!strings.Contains(err.Error(), "completed Task Group is locked") {
 		t.Fatalf("completed selection error = %v, want locked explanation", err)
 	}
-	if err := validateWorkPackagePickerSelection(options, "WP-001", true); err != nil {
+	if err := validateTaskGroupPickerSelection(options, "TG-001", true); err != nil {
 		t.Fatalf("include-completed selection error = %v", err)
 	}
-	if err := validateWorkPackagePickerSelection(options, "WP-002", false); err != nil {
-		t.Fatalf("ready selection error = %v", err)
+	if err := validateTaskGroupPickerSelection(options, "TG-002", false); err == nil ||
+		!strings.Contains(err.Error(), "completed Task Group is locked") {
+		t.Fatalf("implementation-complete selection error = %v, want locked explanation", err)
+	}
+	completedIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == "TG-002"
+	})
+	if completedIndex < 0 ||
+		!strings.Contains(taskGroupPickerOptionLabel(options[completedIndex]), xansi.SGR(xansi.AttrStrikethrough)) {
+		t.Fatalf("implementation-complete Task Group is not struck through: %#v", options)
+	}
+
+	reviewOptions, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
+		Target:  target,
+		RunMode: daemonRunModeReview,
+	}, nil)
+	if err != nil {
+		t.Fatalf("build review picker options: %v", err)
+	}
+	reviewIndex := slices.IndexFunc(reviewOptions, func(option taskGroupPickerOption) bool {
+		return option.Value == "TG-002"
+	})
+	if reviewIndex < 0 {
+		t.Fatalf("review picker options = %#v, missing TG-002", reviewOptions)
+	}
+	if got, want := reviewOptions[reviewIndex].Label,
+		"[ ] TG-002 — Delivery — No review round — No issues pending"; got != want {
+		t.Fatalf("review picker label = %q, want %q", got, want)
+	}
+	if reviewOptions[reviewIndex].Completed {
+		t.Fatalf("review-ready Task Group without a review round is completed: %#v", reviewOptions[reviewIndex])
+	}
+	if err := validateTaskGroupPickerSelection(reviewOptions, "TG-002", true); err == nil ||
+		!strings.Contains(err.Error(), "review target has no pending issues") {
+		t.Fatalf("zero-pending review selection error = %v, want no-pending guidance", err)
 	}
 }
 
-func TestWorkPackagePickerShowsDependencyBlockedMarker(t *testing.T) {
+func TestTaskGroupPickerShowsDependencyBlockedMarker(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
 	initiative := "auth"
-	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
-	packageRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_packages")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-001"), "task_001.md", "pending")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-002"), "task_001.md", "pending")
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
+	taskGroupRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_task_groups")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-001"), "task_001.md", "pending")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-002"), "task_001.md", "pending")
 
-	target, err := (workpackages.TargetResolver{}).Resolve(context.Background(), workspaceRoot, initiative)
+	target, err := (taskgroups.TargetResolver{}).Resolve(context.Background(), workspaceRoot, initiative)
 	if err != nil {
 		t.Fatalf("resolve initiative: %v", err)
 	}
-	options, err := buildWorkPackagePickerOptions(workPackagePickerInput{
+	options, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
 		Target:  target,
 		RunMode: daemonRunModeTask,
 	}, nil)
 	if err != nil {
 		t.Fatalf("build picker options: %v", err)
 	}
-	blockedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
-		return option.Value == "WP-002"
+	blockedIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == "TG-002"
 	})
 	if blockedIndex < 0 {
-		t.Fatalf("picker options = %#v, missing blocked Work Package", options)
+		t.Fatalf("picker options = %#v, missing blocked Task Group", options)
 	}
-	want := "[⊘] WP-002 — Delivery — Blocked — 0/1 tasks completed — waits for WP-001"
+	want := "[⊘] TG-002 — Delivery — Blocked — 0/1 tasks completed — waits for TG-001"
 	if got := options[blockedIndex].Label; got != want {
-		t.Fatalf("blocked Work Package label = %q, want %q", got, want)
+		t.Fatalf("blocked Task Group label = %q, want %q", got, want)
 	}
-	if got := workPackagePickerSelectedLabel(options[blockedIndex].Label); !strings.HasPrefix(got, "[x] WP-002") {
-		t.Fatalf("selected blocked Work Package label = %q, want [x] marker", got)
+	if got := taskGroupPickerSelectedLabel(options[blockedIndex].Label); !strings.HasPrefix(got, "[x] TG-002") {
+		t.Fatalf("selected blocked Task Group label = %q, want [x] marker", got)
 	}
 }
 
-// Invariant: review target markers reflect implementation and pending-review state,
-// and only review-clean completed targets are struck through.
+// Invariant: Task Groups stay in canonical ID order without changing readiness status.
+func TestTaskGroupPickerPreservesCanonicalIDOrder(t *testing.T) {
+	t.Parallel()
+
+	state := newTaskRunWizardTestState(t, "auth")
+	taskGroups := []taskgroups.TaskGroup{
+		{ID: "TG-001", Title: "Foundation"},
+		{ID: "TG-002", Title: "Blocked delivery"},
+		{ID: "TG-003", Title: "Independent docs"},
+		{ID: "TG-004", Title: "Blocked rollout"},
+		{ID: "TG-005", Title: "Independent tooling"},
+	}
+	writeTaskRunWizardPlanWithEdges(t, state, "auth", taskGroups, []taskgroups.Dependency{
+		{From: "TG-001", To: "TG-002", Rationale: "Delivery needs the foundation"},
+		{From: "TG-002", To: "TG-004", Rationale: "Rollout needs delivery"},
+	})
+
+	target, err := (taskgroups.TargetResolver{}).Resolve(context.Background(), state.workspaceRoot, "auth")
+	if err != nil {
+		t.Fatalf("resolve initiative: %v", err)
+	}
+	options, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
+		Target:  target,
+		RunMode: daemonRunModeTask,
+	}, nil)
+	if err != nil {
+		t.Fatalf("build picker options: %v", err)
+	}
+	got := make([]string, 0, len(options))
+	for _, option := range options {
+		got = append(got, option.Value)
+	}
+	want := []string{"TG-001", "TG-002", "TG-003", "TG-004", "TG-005"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Task Group order = %#v, want canonical ID order %#v", got, want)
+	}
+	for _, taskGroupID := range []string{"TG-002", "TG-004"} {
+		index := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+			return option.Value == taskGroupID
+		})
+		if index < 0 || !strings.HasPrefix(options[index].Label, taskGroupPickerBlockedMarker) {
+			t.Fatalf("blocked status changed for %s: %#v", taskGroupID, options)
+		}
+	}
+}
+
+// Invariant: review targets keep initiative roots above canonically ordered,
+// indented Task Groups while preserving review status and completion styling.
 func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
 	initiative := "auth"
-	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
-	packageRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_packages")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-001"), "task_001.md", "completed")
-	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-002"), "task_001.md", "pending")
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
+	taskGroupRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_task_groups")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-001"), "task_001.md", "completed")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-002"), "task_001.md", "pending")
 	cleanRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", "clean")
 	if err := os.MkdirAll(cleanRoot, 0o755); err != nil {
 		t.Fatalf("create clean workflow: %v", err)
 	}
 	writeFormTaskFile(t, cleanRoot, "task_001.md", "completed")
-	reviewDir := filepath.Join(packageRoot, "WP-001", "reviews-003")
+	if err := reviews.WriteRound(filepath.Join(cleanRoot, "reviews-001"), model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 20, 16, 40, 0, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title: "Resolved issue", File: "clean.go", Line: 1, Body: "Already resolved.",
+	}}); err != nil {
+		t.Fatalf("write clean review round: %v", err)
+	}
+	resolveCLIReviewIssue(t, filepath.Join(cleanRoot, "reviews-001", "issue_001.md"))
+	unreviewedRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", "unreviewed")
+	if err := os.MkdirAll(unreviewedRoot, 0o755); err != nil {
+		t.Fatalf("create unreviewed workflow: %v", err)
+	}
+	writeFormTaskFile(t, unreviewedRoot, "task_001.md", "completed")
+	reviewDir := filepath.Join(taskGroupRoot, "TG-001", "reviews-003")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "manual",
 		Round:     3,
@@ -3535,83 +3630,151 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("write review round: %v", err)
 	}
-	resolvedIssuePath := filepath.Join(reviewDir, "issue_002.md")
-	resolvedIssue, err := os.ReadFile(resolvedIssuePath)
-	if err != nil {
-		t.Fatalf("read review issue: %v", err)
-	}
-	if err := os.WriteFile(
-		resolvedIssuePath,
-		[]byte(strings.Replace(string(resolvedIssue), "status: pending", "status: resolved", 1)),
-		0o600,
-	); err != nil {
-		t.Fatalf("resolve review issue: %v", err)
-	}
+	resolveCLIReviewIssue(t, filepath.Join(reviewDir, "issue_002.md"))
 	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, map[string]string{
-		initiative + "/WP-001": execStatusFailed,
-		initiative + "/WP-002": taskRunWizardRunStatusRunning,
+		initiative + "/TG-001": execStatusFailed,
+		initiative + "/TG-002": taskRunWizardRunStatusRunning,
 	})
 	if err != nil {
 		t.Fatalf("build review target picker options: %v", err)
 	}
 	wants := map[string]string{
-		initiative + "/WP-001": "[ ] auth/WP-001 — Foundation — Review round 3 — 1 issue pending",
-		initiative + "/WP-002": "[⊘] auth/WP-002 — Delivery — No review round — No issues pending",
-		"clean":                "[✓] clean — No review round — No issues pending",
+		initiative:             "[ ] auth",
+		initiative + "/TG-001": "[ ] TG-001 — Foundation — Review round 3 — 1 issue pending",
+		initiative + "/TG-002": "[⊘] TG-002 — Delivery — No review round — No issues pending",
+		"clean":                "[✓] clean — Review round 1 — No issues pending",
+		"unreviewed":           "[ ] unreviewed — No review round — No issues pending",
 	}
 	if len(options) != len(wants) {
 		t.Fatalf("review target options = %#v, want %d", options, len(wants))
 	}
 	for value, label := range wants {
-		if !slices.ContainsFunc(options, func(option workPackagePickerOption) bool {
+		if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
 			return option.Value == value && option.Label == label
 		}) {
 			t.Fatalf("review target options = %#v, missing %q => %q", options, value, label)
 		}
 	}
-	pendingIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
-		return option.Value == initiative+"/WP-001"
+	gotOrder := make([]string, 0, len(options))
+	for index := range options {
+		gotOrder = append(gotOrder, options[index].Value)
+	}
+	wantOrder := []string{
+		initiative,
+		initiative + "/TG-001",
+		initiative + "/TG-002",
+		"clean",
+		"unreviewed",
+	}
+	if !slices.Equal(gotOrder, wantOrder) {
+		t.Fatalf("review target order = %#v, want roots and canonical Task Groups %#v", gotOrder, wantOrder)
+	}
+	for index := range options {
+		wantDepth := 0
+		if strings.HasPrefix(options[index].Value, initiative+"/") {
+			wantDepth = 1
+		}
+		if options[index].Depth != wantDepth {
+			t.Fatalf("review target %q depth = %d, want %d", options[index].Value, options[index].Depth, wantDepth)
+		}
+	}
+	pendingIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == initiative+"/TG-001"
 	})
 	if pendingIndex < 0 {
 		t.Fatal("pending review target is missing")
 	}
-	pendingLabel := workPackagePickerOptionLabel(options[pendingIndex])
+	pendingLabel := taskGroupPickerOptionLabel(options[pendingIndex])
 	if strings.Contains(pendingLabel, "\x1b[9m") {
 		t.Fatalf("pending review target label = %q, want no strikethrough", pendingLabel)
 	}
-	completedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
+	if err := validateTaskGroupPickerSelection(options, initiative+"/TG-001", true); err != nil {
+		t.Fatalf("pending review target selection error = %v", err)
+	}
+	if err := validateTaskGroupPickerSelection(options, initiative, true); err != nil {
+		t.Fatalf("initiative with a pending Task Group selection error = %v", err)
+	}
+	completedIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
 		return option.Value == "clean"
 	})
 	if completedIndex < 0 {
 		t.Fatal("clean completed review target is missing")
 	}
-	completedLabel := workPackagePickerOptionLabel(options[completedIndex])
+	completedLabel := taskGroupPickerOptionLabel(options[completedIndex])
 	if !strings.Contains(completedLabel, "\x1b[9m") {
 		t.Fatalf("clean completed review target label = %q, want strikethrough", completedLabel)
 	}
-	blockedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
-		return option.Value == initiative+"/WP-002"
+	if err := validateTaskGroupPickerSelection(options, "clean", true); err == nil ||
+		!strings.Contains(err.Error(), "review target has no pending issues") {
+		t.Fatalf("clean review target selection error = %v, want no-pending guidance", err)
+	}
+	unreviewedIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == "unreviewed"
+	})
+	if unreviewedIndex < 0 {
+		t.Fatal("unreviewed implementation-complete target is missing")
+	}
+	unreviewedLabel := taskGroupPickerOptionLabel(options[unreviewedIndex])
+	if strings.Contains(unreviewedLabel, "\x1b[9m") {
+		t.Fatalf("unreviewed target label = %q, want no strikethrough", unreviewedLabel)
+	}
+	if err := validateTaskGroupPickerSelection(options, "unreviewed", true); err == nil ||
+		!strings.Contains(err.Error(), "review target has no pending issues") {
+		t.Fatalf("unreviewed target selection error = %v, want no-pending guidance", err)
+	}
+	blockedIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == initiative+"/TG-002"
 	})
 	if blockedIndex < 0 {
 		t.Fatal("review-blocked target is missing")
 	}
-	if got := workPackagePickerOptionLabel(options[blockedIndex]); got != wants[initiative+"/WP-002"] {
-		t.Fatalf("review-blocked target label = %q, want blocked marker", got)
+	if got, want := taskGroupPickerOptionLabel(options[blockedIndex]),
+		"  "+wants[initiative+"/TG-002"]; got != want {
+		t.Fatalf("review-blocked target label = %q, want %q", got, want)
 	}
-	if err := validateWorkPackagePickerSelection(options, initiative+"/WP-002", true); err == nil ||
+	if err := validateTaskGroupPickerSelection(options, initiative+"/TG-002", true); err == nil ||
 		!strings.Contains(err.Error(), "review is blocked until at least one implementation task is complete") {
 		t.Fatalf("review-blocked selection error = %v, want implementation guidance", err)
 	}
 }
 
-func TestLoadWorkPackagePickerLatestRunStatusesUsesReviewMode(t *testing.T) {
+// Invariant: an initiative root cannot be selected when none of its Task Groups
+// has an actionable pending review issue.
+func TestReviewFixInitiativeRootRequiresActionableTaskGroup(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "clean-initiative"
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
+	taskGroupRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_task_groups")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-001"), "task_001.md", "completed")
+	writeFormTaskFile(t, filepath.Join(taskGroupRoot, "TG-002"), "task_001.md", "completed")
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options: %v", err)
+	}
+	if err := validateTaskGroupPickerSelection(options, initiative, true); err == nil ||
+		!strings.Contains(err.Error(), "no Task Groups with pending issues") {
+		t.Fatalf("zero-pending initiative selection error = %v, want actionable-task-group guidance", err)
+	}
+	for _, taskGroupID := range []string{"TG-001", "TG-002"} {
+		reference := initiative + "/" + taskGroupID
+		if err := validateTaskGroupPickerSelection(options, reference, true); err == nil ||
+			!strings.Contains(err.Error(), "review target has no pending issues") {
+			t.Fatalf("zero-pending selection error for %s = %v, want no-pending guidance", reference, err)
+		}
+	}
+}
+
+func TestLoadTaskGroupPickerLatestRunStatusesUsesReviewMode(t *testing.T) {
 	t.Parallel()
 
 	client := &stubDaemonCommandClient{runs: []apicore.Run{
-		{RunID: "latest", WorkflowSlug: "auth/WP-001", Mode: daemonRunModeReview, Status: execStatusFailed},
-		{RunID: "older", WorkflowSlug: "auth/WP-001", Mode: daemonRunModeReview, Status: execStatusCompleted},
+		{RunID: "latest", WorkflowSlug: "auth/TG-001", Mode: daemonRunModeReview, Status: execStatusFailed},
+		{RunID: "older", WorkflowSlug: "auth/TG-001", Mode: daemonRunModeReview, Status: execStatusCompleted},
 	}}
-	got, err := loadWorkPackagePickerLatestRunStatuses(
+	got, err := loadTaskGroupPickerLatestRunStatuses(
 		context.Background(),
 		client,
 		"/workspace",
@@ -3620,7 +3783,7 @@ func TestLoadWorkPackagePickerLatestRunStatusesUsesReviewMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load review picker statuses: %v", err)
 	}
-	if got["auth/WP-001"] != execStatusFailed {
+	if got["auth/TG-001"] != execStatusFailed {
 		t.Fatalf("review picker statuses = %#v, want latest failed status", got)
 	}
 	if len(client.runListRequests) != 1 || client.runListRequests[0].Mode != daemonRunModeReview ||
@@ -3629,7 +3792,7 @@ func TestLoadWorkPackagePickerLatestRunStatusesUsesReviewMode(t *testing.T) {
 	}
 }
 
-func TestLoadWorkPackagePickerLatestRunStatusesTreatsUnregisteredWorkspaceAsEmpty(t *testing.T) {
+func TestLoadTaskGroupPickerLatestRunStatusesTreatsUnregisteredWorkspaceAsEmpty(t *testing.T) {
 	t.Parallel()
 
 	client := &stubDaemonCommandClient{runsErr: &apiclient.RemoteError{
@@ -3639,7 +3802,7 @@ func TestLoadWorkPackagePickerLatestRunStatusesTreatsUnregisteredWorkspaceAsEmpt
 			Message: "active workspace context is stale",
 		},
 	}}
-	got, err := loadWorkPackagePickerLatestRunStatuses(
+	got, err := loadTaskGroupPickerLatestRunStatuses(
 		context.Background(),
 		client,
 		"/new-workspace",
@@ -3653,36 +3816,36 @@ func TestLoadWorkPackagePickerLatestRunStatusesTreatsUnregisteredWorkspaceAsEmpt
 	}
 }
 
-// E2E-005, E2E-007, E2E-008, E2E-009 and E2E-013: package selection is
+// E2E-005, E2E-007, E2E-008, E2E-009 and E2E-013: task group selection is
 // explicit, cancellable, and advisory; it never mutates plan completion.
-func TestResolveTaskRunTargetRequiresExplicitPackageSelection(t *testing.T) {
+func TestResolveTaskRunTargetRequiresExplicitTaskGroupSelection(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
 	initiative := "customer-management"
-	planPath := writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+	planPath := writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
 	originalPlan, err := os.ReadFile(planPath)
 	if err != nil {
 		t.Fatalf("read plan: %v", err)
 	}
 
-	t.Run("non tty initiative requires an exact package reference", func(t *testing.T) {
+	t.Run("non tty initiative requires an exact task group reference", func(t *testing.T) {
 		state := newCommandState(commandKindTasksRun, "")
 		state.workspaceRoot = workspaceRoot
 		state.name = initiative
 		state.isInteractive = func() bool { return false }
-		state.pickWorkPackage = func(*cobra.Command, workPackagePickerInput) (string, error) {
+		state.pickTaskGroup = func(*cobra.Command, taskGroupPickerInput) (string, error) {
 			t.Fatal("picker must not run outside a TTY")
 			return "", nil
 		}
 
 		_, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
-		var packageErr *workpackages.Error
-		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrSelectionRequired) {
-			t.Fatalf("selection error = %#v (%v), want selection-required work package error", packageErr, err)
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(err, &taskGroupErr) || !errors.Is(err, taskgroups.ErrSelectionRequired) {
+			t.Fatalf("selection error = %#v (%v), want selection-required task group error", taskGroupErr, err)
 		}
-		if state.packageID != "" {
-			t.Fatalf("package id = %q, want empty after rejected selection", state.packageID)
+		if state.taskGroupID != "" {
+			t.Fatalf("task group id = %q, want empty after rejected selection", state.taskGroupID)
 		}
 	})
 
@@ -3691,16 +3854,16 @@ func TestResolveTaskRunTargetRequiresExplicitPackageSelection(t *testing.T) {
 		state.workspaceRoot = workspaceRoot
 		state.name = initiative
 		state.isInteractive = func() bool { return true }
-		state.pickWorkPackage = func(*cobra.Command, workPackagePickerInput) (string, error) {
-			return "", errWorkPackageSelectionCanceled
+		state.pickTaskGroup = func(*cobra.Command, taskGroupPickerInput) (string, error) {
+			return "", errTaskGroupSelectionCanceled
 		}
 
 		_, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
-		if !errors.Is(err, errWorkPackageSelectionCanceled) {
+		if !errors.Is(err, errTaskGroupSelectionCanceled) {
 			t.Fatalf("picker error = %v, want cancellation", err)
 		}
-		if state.name != initiative || state.packageID != "" {
-			t.Fatalf("state after cancellation = name:%q package:%q", state.name, state.packageID)
+		if state.name != initiative || state.taskGroupID != "" {
+			t.Fatalf("state after cancellation = name:%q task group:%q", state.name, state.taskGroupID)
 		}
 	})
 
@@ -3709,26 +3872,26 @@ func TestResolveTaskRunTargetRequiresExplicitPackageSelection(t *testing.T) {
 		state.workspaceRoot = workspaceRoot
 		state.name = initiative
 		state.isInteractive = func() bool { return true }
-		state.pickWorkPackage = func(_ *cobra.Command, input workPackagePickerInput) (string, error) {
+		state.pickTaskGroup = func(_ *cobra.Command, input taskGroupPickerInput) (string, error) {
 			target := input.Target
-			if target.Mode != workpackages.TargetModeInitiative {
+			if target.Mode != taskgroups.TargetModeInitiative {
 				t.Fatalf("picker target mode = %q, want initiative", target.Mode)
 			}
 			if input.RunMode != daemonRunModeTask {
 				t.Fatalf("picker run mode = %q, want %q", input.RunMode, daemonRunModeTask)
 			}
 			if !input.LockCompleted {
-				t.Fatal("task picker must lock completed Work Packages")
+				t.Fatal("task picker must lock completed Task Groups")
 			}
-			return "WP-002", nil
+			return "TG-002", nil
 		}
 		confirmed := false
-		state.confirmPackageRun = func(
+		state.confirmTaskGroupRun = func(
 			_ *cobra.Command,
-			target workpackages.Target,
-			readiness workpackages.Readiness,
+			target taskgroups.Target,
+			readiness taskgroups.Readiness,
 		) (bool, error) {
-			confirmed = target.Ref.String() == initiative+"/WP-002" && !readiness.Eligible
+			confirmed = target.Ref.String() == initiative+"/TG-002" && !readiness.Eligible
 			return true, nil
 		}
 
@@ -3736,13 +3899,13 @@ func TestResolveTaskRunTargetRequiresExplicitPackageSelection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolve task target: %v", err)
 		}
-		if !confirmed || target.Ref.String() != initiative+"/WP-002" ||
-			state.name != initiative || state.packageID != "WP-002" || !state.allowOutOfOrder {
+		if !confirmed || target.Ref.String() != initiative+"/TG-002" ||
+			state.name != initiative || state.taskGroupID != "TG-002" || !state.allowOutOfOrder {
 			t.Fatalf(
-				"resolved target/state = %#v name:%q package:%q allow:%t confirmed:%t",
+				"resolved target/state = %#v name:%q task group:%q allow:%t confirmed:%t",
 				target,
 				state.name,
-				state.packageID,
+				state.taskGroupID,
 				state.allowOutOfOrder,
 				confirmed,
 			)
@@ -3752,7 +3915,7 @@ func TestResolveTaskRunTargetRequiresExplicitPackageSelection(t *testing.T) {
 			t.Fatalf("read plan after confirmation: %v", readErr)
 		}
 		if !bytes.Equal(currentPlan, originalPlan) {
-			t.Fatal("CLI dependency confirmation changed package completion state")
+			t.Fatal("CLI dependency confirmation changed task group completion state")
 		}
 	})
 }
@@ -3764,57 +3927,57 @@ func TestResolveTaskRunTargetRequiresNonInteractiveDependencyOverride(t *testing
 
 	workspaceRoot := t.TempDir()
 	initiative := "customer-management"
-	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
 
 	state := newCommandState(commandKindTasksRun, "")
 	state.workspaceRoot = workspaceRoot
-	state.name = initiative + "/WP-002"
+	state.name = initiative + "/TG-002"
 	state.isInteractive = func() bool { return false }
 	_, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
 	var problem *apicore.Problem
-	if !errors.As(err, &problem) || problem.Code != "work_package_dependencies_unmet" {
+	if !errors.As(err, &problem) || problem.Code != "task_group_dependencies_unmet" {
 		t.Fatalf("non-interactive error = %#v (%v), want dependency problem", problem, err)
 	}
 
 	state = newCommandState(commandKindTasksRun, "")
 	state.workspaceRoot = workspaceRoot
-	state.name = initiative + "/WP-002"
+	state.name = initiative + "/TG-002"
 	state.allowOutOfOrder = true
 	state.isInteractive = func() bool { return false }
 	target, err := state.resolveTaskRunTarget(context.Background(), newTaskRunPresentationCommand(state))
 	if err != nil {
 		t.Fatalf("resolve with --allow-out-of-order: %v", err)
 	}
-	if target.Ref.String() != initiative+"/WP-002" || state.name != initiative || state.packageID != "WP-002" {
-		t.Fatalf("resolved target/state = %#v name:%q package:%q", target, state.name, state.packageID)
+	if target.Ref.String() != initiative+"/TG-002" || state.name != initiative || state.taskGroupID != "TG-002" {
+		t.Fatalf("resolved target/state = %#v name:%q task group:%q", target, state.name, state.taskGroupID)
 	}
 }
 
-func writeCLIWorkPackagePlan(t *testing.T, workspaceRoot string, initiative string, firstCompleted bool) string {
+func writeCLITaskGroupPlan(t *testing.T, workspaceRoot string, initiative string, firstCompleted bool) string {
 	t.Helper()
-	plan, err := workpackages.RenderPlan(workpackages.Plan{
-		SchemaVersion: workpackages.SchemaVersion,
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
 		Initiative:    initiative,
-		Packages: []workpackages.Package{
+		TaskGroups: []taskgroups.TaskGroup{
 			{
-				ID:         "WP-001",
+				ID:         "TG-001",
 				Title:      "Foundation",
 				Outcome:    "Provide the prerequisite",
-				Directory:  "_packages/WP-001",
+				Directory:  "_task_groups/TG-001",
 				Completed:  firstCompleted,
 				OwnedScope: []string{"foundation"},
 			},
 			{
-				ID:         "WP-002",
+				ID:         "TG-002",
 				Title:      "Delivery",
 				Outcome:    "Use the prerequisite",
-				Directory:  "_packages/WP-002",
+				Directory:  "_task_groups/TG-002",
 				OwnedScope: []string{"delivery"},
 			},
 		},
-		Edges: []workpackages.Dependency{{
-			From:      "WP-001",
-			To:        "WP-002",
+		Edges: []taskgroups.Dependency{{
+			From:      "TG-001",
+			To:        "TG-002",
 			Rationale: "Foundation must be complete first",
 		}},
 	})
@@ -3825,16 +3988,28 @@ func writeCLIWorkPackagePlan(t *testing.T, workspaceRoot string, initiative stri
 	if err := os.MkdirAll(initiativeDir, 0o755); err != nil {
 		t.Fatalf("mkdir initiative: %v", err)
 	}
-	for _, packageID := range []string{"WP-001", "WP-002"} {
-		if err := os.MkdirAll(filepath.Join(initiativeDir, "_packages", packageID), 0o755); err != nil {
-			t.Fatalf("mkdir package %s: %v", packageID, err)
+	for _, taskGroupID := range []string{"TG-001", "TG-002"} {
+		if err := os.MkdirAll(filepath.Join(initiativeDir, "_task_groups", taskGroupID), 0o755); err != nil {
+			t.Fatalf("mkdir task group %s: %v", taskGroupID, err)
 		}
 	}
-	planPath := filepath.Join(initiativeDir, "_work_packages.md")
+	planPath := filepath.Join(initiativeDir, "_task_groups.md")
 	if err := os.WriteFile(planPath, plan, 0o600); err != nil {
 		t.Fatalf("write plan: %v", err)
 	}
 	return planPath
+}
+
+func resolveCLIReviewIssue(t *testing.T, issuePath string) {
+	t.Helper()
+	content, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read review issue: %v", err)
+	}
+	resolved := strings.Replace(string(content), "status: pending", "status: resolved", 1)
+	if err := os.WriteFile(issuePath, []byte(resolved), 0o600); err != nil {
+		t.Fatalf("resolve review issue: %v", err)
+	}
 }
 
 func TestWarnIfOtherWorkspaceTaskRunsActive(t *testing.T) {
@@ -4373,26 +4548,26 @@ func TestMapDaemonCommandErrorUsesStableExitCodes(t *testing.T) {
 	})
 	assertExitCode(t, validationErr, 1)
 
-	packageErr := mapDaemonCommandError(&apiclient.RemoteError{
+	taskGroupErr := mapDaemonCommandError(&apiclient.RemoteError{
 		StatusCode: http.StatusConflict,
 		Envelope: apicore.TransportError{
-			RequestID: "req-package",
-			Code:      "work_package_dependencies_unmet",
-			Message:   "work package dependencies are not complete",
+			RequestID: "req-task-group",
+			Code:      "task_group_dependencies_unmet",
+			Message:   "task group dependencies are not complete",
 		},
 	})
-	assertExitCode(t, packageErr, 1)
-	if !strings.Contains(packageErr.Error(), "work_package_dependencies_unmet") {
-		t.Fatalf("package command error = %v, want stable package code", packageErr)
+	assertExitCode(t, taskGroupErr, 1)
+	if !strings.Contains(taskGroupErr.Error(), "task_group_dependencies_unmet") {
+		t.Fatalf("task group command error = %v, want stable task group code", taskGroupErr)
 	}
 
-	localSelectionErr := mapWorkPackageSelectionError(&workpackages.Error{
-		Cause:      workpackages.ErrSelectionRequired,
+	localSelectionErr := mapTaskGroupSelectionError(&taskgroups.Error{
+		Cause:      taskgroups.ErrSelectionRequired,
 		Initiative: "customer-management",
 	})
 	assertExitCode(t, localSelectionErr, 1)
-	if !strings.Contains(localSelectionErr.Error(), "work_package_selection_required") {
-		t.Fatalf("local selection error = %v, want stable package code", localSelectionErr)
+	if !strings.Contains(localSelectionErr.Error(), "task_group_selection_required") {
+		t.Fatalf("local selection error = %v, want stable task group code", localSelectionErr)
 	}
 
 	transportErr := mapDaemonCommandError(fmt.Errorf("dial daemon: %w", errors.New("connection refused")))

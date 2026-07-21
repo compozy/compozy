@@ -263,20 +263,20 @@ func validateReviewWatchGitOptions(
 		)
 	}
 	if scope != nil && options.AutoPush {
-		return packageReviewWatchPushProblem(scope)
+		return taskGroupReviewWatchPushProblem(scope)
 	}
 	return nil
 }
 
-func packageReviewWatchPushProblem(scope *model.ExecutionScope) error {
-	workflowRef := "work package"
+func taskGroupReviewWatchPushProblem(scope *model.ExecutionScope) error {
+	workflowRef := "task group"
 	if scope != nil && strings.TrimSpace(scope.WorkflowRef) != "" {
 		workflowRef = strings.TrimSpace(scope.WorkflowRef)
 	}
 	return apicore.NewProblem(
 		http.StatusUnprocessableEntity,
-		"package_git_mutation_forbidden",
-		"work package review watches cannot push or mutate Git lifecycle state",
+		"task_group_git_mutation_forbidden",
+		"task group review watches cannot push or mutate Git lifecycle state",
 		map[string]any{"workflow": workflowRef, "field": "auto_push"},
 		nil,
 	)

@@ -165,7 +165,7 @@ func (c *Client) StartTaskRun(
 
 	body := contract.TaskRunRequest{
 		Workspace:        strings.TrimSpace(req.Workspace),
-		PackageID:        strings.TrimSpace(req.PackageID),
+		TaskGroupID:      strings.TrimSpace(req.TaskGroupID),
 		AllowOutOfOrder:  req.AllowOutOfOrder,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
@@ -261,18 +261,18 @@ func normalizeClientTaskTargets(values []apicore.TaskRunTarget) ([]contract.Task
 		if err != nil {
 			return nil, err
 		}
-		packageID := strings.TrimSpace(value.PackageID)
-		if packageID == "" {
-			return nil, errors.New("structured task target package_id is required")
+		taskGroupID := strings.TrimSpace(value.TaskGroupID)
+		if taskGroupID == "" {
+			return nil, errors.New("structured task target task_group_id is required")
 		}
-		key := initiative + "/" + packageID
+		key := initiative + "/" + taskGroupID
 		if _, exists := seen[key]; exists {
 			return nil, errors.New("structured task targets must not contain duplicates")
 		}
 		seen[key] = struct{}{}
 		targets = append(targets, contract.TaskRunTarget{
 			InitiativeSlug: initiative,
-			PackageID:      packageID,
+			TaskGroupID:    taskGroupID,
 		})
 	}
 	return targets, nil

@@ -17,7 +17,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	coreRun "github.com/compozy/compozy/internal/core/run"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/setup"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -1186,84 +1186,84 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 }
 
 func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
-	t.Run("review target requires an exact package outside a tty", func(t *testing.T) {
+	t.Run("review target requires an exact task group outside a tty", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiative := "foods-new-form-consistency"
-		writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+		writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
 
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.workspaceRoot = workspaceRoot
 		state.name = initiative
 		state.isInteractive = func() bool { return false }
-		state.pickWorkPackage = func(*cobra.Command, workPackagePickerInput) (string, error) {
+		state.pickTaskGroup = func(*cobra.Command, taskGroupPickerInput) (string, error) {
 			t.Fatal("picker must not run outside a tty")
 			return "", nil
 		}
 
-		_, err := state.resolveReviewWorkPackageTarget(context.Background(), &cobra.Command{})
-		var packageErr *workpackages.Error
-		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrSelectionRequired) {
-			t.Fatalf("selection error = %#v (%v), want selection-required work package error", packageErr, err)
+		_, err := state.resolveReviewTaskGroupTarget(context.Background(), &cobra.Command{})
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(err, &taskGroupErr) || !errors.Is(err, taskgroups.ErrSelectionRequired) {
+			t.Fatalf("selection error = %#v (%v), want selection-required task group error", taskGroupErr, err)
 		}
-		if state.packageID != "" {
-			t.Fatalf("package id = %q, want empty after rejected selection", state.packageID)
+		if state.taskGroupID != "" {
+			t.Fatalf("task group id = %q, want empty after rejected selection", state.taskGroupID)
 		}
 	})
 
-	t.Run("read-only review commands keep completed packages selectable", func(t *testing.T) {
+	t.Run("read-only review commands keep completed task groups selectable", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiative := "foods-new-form-consistency"
-		writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
+		writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
 
 		state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 		state.workspaceRoot = workspaceRoot
 		state.name = initiative
 		state.isInteractive = func() bool { return true }
-		state.pickWorkPackage = func(_ *cobra.Command, input workPackagePickerInput) (string, error) {
+		state.pickTaskGroup = func(_ *cobra.Command, input taskGroupPickerInput) (string, error) {
 			if input.RunMode != "" || input.LockCompleted {
 				t.Fatalf("read-only picker input = %#v, want no run status or completion lock", input)
 			}
-			return "WP-001", nil
+			return "TG-001", nil
 		}
 
-		target, err := state.resolveReviewWorkPackageTarget(context.Background(), &cobra.Command{})
+		target, err := state.resolveReviewTaskGroupTarget(context.Background(), &cobra.Command{})
 		if err != nil {
 			t.Fatalf("resolve completed review target: %v", err)
 		}
-		if target.Ref.String() != initiative+"/WP-001" {
-			t.Fatalf("review target = %q, want completed Work Package", target.Ref.String())
+		if target.Ref.String() != initiative+"/TG-001" {
+			t.Fatalf("review target = %q, want completed Task Group", target.Ref.String())
 		}
 	})
 
-	t.Run("review fixes keep completed packages selectable", func(t *testing.T) {
+	t.Run("review fixes keep completed task groups selectable", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiative := "foods-new-form-consistency"
-		writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
+		writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
 
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.workspaceRoot = workspaceRoot
 		state.name = initiative
 		state.isInteractive = func() bool { return true }
-		state.pickWorkPackage = func(_ *cobra.Command, input workPackagePickerInput) (string, error) {
+		state.pickTaskGroup = func(_ *cobra.Command, input taskGroupPickerInput) (string, error) {
 			if input.RunMode != daemonRunModeReview || input.LockCompleted {
 				t.Fatalf("review fix picker input = %#v, want review status without completion lock", input)
 			}
-			return "WP-001", nil
+			return "TG-001", nil
 		}
 
-		target, err := state.resolveReviewWorkPackageTarget(context.Background(), &cobra.Command{})
+		target, err := state.resolveReviewTaskGroupTarget(context.Background(), &cobra.Command{})
 		if err != nil {
 			t.Fatalf("resolve completed review target: %v", err)
 		}
-		if target.Ref.String() != initiative+"/WP-001" {
-			t.Fatalf("review target = %q, want completed Work Package", target.Ref.String())
+		if target.Ref.String() != initiative+"/TG-001" {
+			t.Fatalf("review target = %q, want completed Task Group", target.Ref.String())
 		}
 	})
 
 	t.Run("resolve review round prefers reviews dir", func(t *testing.T) {
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.reviewsDir = filepath.Join(t.TempDir(), "reviews-009")
-		if err := state.resolveReviewRound(context.Background(), workpackages.Target{}); err != nil {
+		if err := state.resolveReviewRound(context.Background(), taskgroups.Target{}); err != nil {
 			t.Fatalf("resolveReviewRound() error = %v", err)
 		}
 		if state.round != 9 {
@@ -1291,7 +1291,7 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.workspaceRoot = workspaceRoot
 		state.name = "demo"
-		if err := state.resolveReviewRound(context.Background(), workpackages.Target{}); err != nil {
+		if err := state.resolveReviewRound(context.Background(), taskgroups.Target{}); err != nil {
 			t.Fatalf("resolveReviewRound() error = %v", err)
 		}
 		if state.round != 3 {
@@ -1299,44 +1299,44 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("resolve review round selects package-local round before daemon", func(t *testing.T) {
-		// A manual cy-review-round writes reviews-NNN under the package directory before the
+	t.Run("resolve review round selects task-group-local round before daemon", func(t *testing.T) {
+		// A manual cy-review-round writes reviews-NNN under the task group directory before the
 		// daemon catalog is synced. The fixer must discover that round on disk instead of
-		// asking a stale/empty daemon catalog that cannot yet serve the package.
+		// asking a stale/empty daemon catalog that cannot yet serve the task group.
 		workspaceRoot := t.TempDir()
-		packageDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative", "WP-001")
-		roundDir := filepath.Join(packageDir, "reviews-002")
+		taskGroupDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative", "TG-001")
+		roundDir := filepath.Join(taskGroupDir, "reviews-002")
 		if err := os.MkdirAll(roundDir, 0o755); err != nil {
-			t.Fatalf("mkdir package round dir: %v", err)
+			t.Fatalf("mkdir task group round dir: %v", err)
 		}
 		if err := os.WriteFile(
 			filepath.Join(roundDir, "issue_001.md"),
 			[]byte("# issue\n"),
 			0o644,
 		); err != nil {
-			t.Fatalf("write package issue file: %v", err)
+			t.Fatalf("write task group issue file: %v", err)
 		}
 
-		// Plain stub client cannot serve package-scoped reads: reaching the daemon would fail,
+		// Plain stub client cannot serve task-group-scoped reads: reaching the daemon would fail,
 		// so a successful resolution proves the local scan short-circuited the catalog lookup.
 		installTestCLIReadyDaemonBootstrap(t, &stubDaemonCommandClient{
 			health:          apicore.DaemonHealth{Ready: true},
-			reviewLatestErr: errors.New("daemon catalog has not synced this package round"),
+			reviewLatestErr: errors.New("daemon catalog has not synced this task group round"),
 		})
 
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.workspaceRoot = workspaceRoot
 		state.name = "initiative"
-		state.packageID = "WP-001"
-		target := workpackages.Target{
-			Mode:       workpackages.TargetModePackage,
-			ReviewsDir: packageDir,
+		state.taskGroupID = "TG-001"
+		target := taskgroups.Target{
+			Mode:       taskgroups.TargetModeTaskGroup,
+			ReviewsDir: taskGroupDir,
 		}
 		if err := state.resolveReviewRound(context.Background(), target); err != nil {
 			t.Fatalf("resolveReviewRound() error = %v", err)
 		}
 		if state.round != 2 {
-			t.Fatalf("state.round = %d, want package-local round 2", state.round)
+			t.Fatalf("state.round = %d, want task-group-local round 2", state.round)
 		}
 	})
 

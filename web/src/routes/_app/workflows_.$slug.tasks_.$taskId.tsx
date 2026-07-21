@@ -4,22 +4,22 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
-import { workPackageSearchSchema } from "@/lib/work-package-search";
+import { taskGroupSearchSchema } from "@/lib/task-group-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { useRunTranscript } from "@/systems/runs";
 import { TaskDetailView, useWorkflowTask, type TaskRelatedRun } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/workflows_/$slug/tasks_/$taskId")({
   component: WorkflowTaskDetailRoute,
-  validateSearch: workPackageSearchSchema,
+  validateSearch: taskGroupSearchSchema,
 });
 
 function WorkflowTaskDetailRoute(): ReactElement {
   const { slug, taskId } = useParams({ from: "/_app/workflows_/$slug/tasks_/$taskId" });
-  const { package_id: packageId } = Route.useSearch();
+  const { task_group_id: taskGroupId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
-  const taskQuery = useWorkflowTask(activeWorkspace.id, slug, taskId, packageId);
+  const taskQuery = useWorkflowTask(activeWorkspace.id, slug, taskId, taskGroupId);
   const transcriptRunId = selectTranscriptRunId(taskQuery.data?.related_runs ?? []);
   const transcriptQuery = useRunTranscript(transcriptRunId);
 
@@ -37,7 +37,7 @@ function WorkflowTaskDetailRoute(): ReactElement {
               void navigate({
                 to: "/workflows/$slug/tasks",
                 params: { slug },
-                search: packageId ? { package_id: packageId } : {},
+                search: taskGroupId ? { task_group_id: taskGroupId } : {},
               })
             }
             type="button"
@@ -66,7 +66,7 @@ function WorkflowTaskDetailRoute(): ReactElement {
           isLoadingRunTranscript={transcriptQuery.isLoading}
           isRunTranscriptError={transcriptQuery.isError}
           payload={taskQuery.data}
-          packageId={packageId}
+          taskGroupId={taskGroupId}
           runTranscript={transcriptQuery.data}
           runTranscriptError={
             transcriptQuery.error

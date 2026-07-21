@@ -3186,17 +3186,17 @@ func TestReviewsFixCommandNoFlagsUsesInteractiveForm(t *testing.T) {
 	}
 }
 
-func TestReviewsFixCommandNoFlagsUsesFirstScreenWorkPackageSelection(t *testing.T) {
+func TestReviewsFixCommandNoFlagsUsesFirstScreenTaskGroupSelection(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	initiative := "foods-new-form-consistency"
-	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
 	reviewDir := filepath.Join(
 		workspaceRoot,
 		".compozy",
 		"tasks",
 		initiative,
-		"_packages",
-		"WP-001",
+		"_task_groups",
+		"TG-001",
 		"reviews-001",
 	)
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
@@ -3209,7 +3209,7 @@ func TestReviewsFixCommandNoFlagsUsesFirstScreenWorkPackageSelection(t *testing.
 		Line:  27,
 		Body:  "Make RouteBackLink reactively consume the root locale.",
 	}}); err != nil {
-		t.Fatalf("write package review round: %v", err)
+		t.Fatalf("write task group review round: %v", err)
 	}
 	withWorkingDir(t, workspaceRoot)
 
@@ -3218,7 +3218,7 @@ func TestReviewsFixCommandNoFlagsUsesFirstScreenWorkPackageSelection(t *testing.
 			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
 			health: apicore.DaemonHealth{Ready: true},
 			reviewRun: apicore.Run{
-				RunID:            "run-review-package-form-001",
+				RunID:            "run-review-task-group-form-001",
 				Mode:             string(core.ModePRReview),
 				Status:           "running",
 				PresentationMode: attachModeUI,
@@ -3237,47 +3237,47 @@ func TestReviewsFixCommandNoFlagsUsesFirstScreenWorkPackageSelection(t *testing.
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return true }
 	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
-		state.name = initiative + "/WP-001"
+		state.name = initiative + "/TG-001"
 		return nil
 	}
-	defaults.pickWorkPackage = func(*cobra.Command, workPackagePickerInput) (string, error) {
-		t.Fatal("first-screen Work Package selection must avoid a second picker")
+	defaults.pickTaskGroup = func(*cobra.Command, taskGroupPickerInput) (string, error) {
+		t.Fatal("first-screen Task Group selection must avoid a second picker")
 		return "", nil
 	}
 
 	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "reviews", "fix")
 	if err != nil {
-		t.Fatalf("execute interactive package reviews fix: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute interactive task group reviews fix: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if client.startReviewSlug != initiative || client.startReviewRound != 1 ||
-		client.startReviewReq.PackageID != "WP-001" {
+		client.startReviewReq.TaskGroupID != "TG-001" {
 		t.Fatalf(
-			"review run target = slug:%q round:%d package:%q",
+			"review run target = slug:%q round:%d task group:%q",
 			client.startReviewSlug,
 			client.startReviewRound,
-			client.startReviewReq.PackageID,
+			client.startReviewReq.TaskGroupID,
 		)
 	}
-	if attachedRunID != "run-review-package-form-001" {
-		t.Fatalf("attached run id = %q, want run-review-package-form-001", attachedRunID)
+	if attachedRunID != "run-review-task-group-form-001" {
+		t.Fatalf("attached run id = %q, want run-review-task-group-form-001", attachedRunID)
 	}
 	if stdout != "" || stderr != "" {
-		t.Fatalf("expected quiet package form flow before ui attach, got stdout=%q stderr=%q", stdout, stderr)
+		t.Fatalf("expected quiet task group form flow before ui attach, got stdout=%q stderr=%q", stdout, stderr)
 	}
 }
 
 func TestReviewsFixCommandWithNoPendingIssuesSkipsRun(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	initiative := "foods-new-form-consistency"
-	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
 	reviewDir := filepath.Join(
 		workspaceRoot,
 		".compozy",
 		"tasks",
 		initiative,
-		"_packages",
-		"WP-001",
+		"_task_groups",
+		"TG-001",
 		"reviews-001",
 	)
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
@@ -3312,13 +3312,13 @@ func TestReviewsFixCommandWithNoPendingIssuesSkipsRun(t *testing.T) {
 		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
 		nil,
 		"fix",
-		initiative+"/WP-001",
+		initiative+"/TG-001",
 		"--detach",
 	)
 	if err != nil {
 		t.Fatalf("execute reviews fix without pending issues: %v\noutput:\n%s", err, output)
 	}
-	if !strings.Contains(output, "No pending review issues for "+initiative+"/WP-001 in round 001.") {
+	if !strings.Contains(output, "No pending review issues for "+initiative+"/TG-001 in round 001.") {
 		t.Fatalf("unexpected no-pending output: %q", output)
 	}
 	if client.startReviewSlug != "" {
@@ -3329,7 +3329,7 @@ func TestReviewsFixCommandWithNoPendingIssuesSkipsRun(t *testing.T) {
 		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
 		nil,
 		"fix",
-		initiative+"/WP-001",
+		initiative+"/TG-001",
 		"--detach",
 		"--format",
 		"json",
@@ -3341,7 +3341,7 @@ func TestReviewsFixCommandWithNoPendingIssuesSkipsRun(t *testing.T) {
 	if err := json.Unmarshal([]byte(jsonOutput), &payload); err != nil {
 		t.Fatalf("decode no-pending JSON: %v\noutput:\n%s", err, jsonOutput)
 	}
-	if payload["status"] != "no_pending_review_issues" || payload["workflow"] != initiative+"/WP-001" ||
+	if payload["status"] != "no_pending_review_issues" || payload["workflow"] != initiative+"/TG-001" ||
 		payload["pending_issues"] != float64(0) || payload["total_issues"] != float64(1) {
 		t.Fatalf("unexpected no-pending JSON: %#v", payload)
 	}

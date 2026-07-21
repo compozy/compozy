@@ -25,7 +25,7 @@ import (
 	runpkg "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/run/recovery"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -2065,40 +2065,40 @@ func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
 	}
 }
 
-func TestExtensionBridgePackageRunsResolveChildScope(t *testing.T) {
-	// INVARIANT: extension-created package runs retain the selected child
+func TestExtensionBridgeTaskGroupRunsResolveChildScope(t *testing.T) {
+	// INVARIANT: extension-created task group runs retain the selected child
 	// identity and ignore caller-provided sibling operational directories.
 	// OWNING_LAYER: service-integration. CONTRACT: IT-019, IT-024.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-001"
-	packageDir := filepath.Join(env.workflowDir(initiative), "_packages", "WP-001")
-	siblingDir := filepath.Join(env.workflowDir(initiative), "_packages", "WP-002")
+	taskGroupRef := initiative + "/TG-001"
+	taskGroupDir := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-001")
+	siblingDir := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-002")
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("pending", "Package task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "reviews-001", "issue_001.md"),
+		filepath.Join("_task_groups", "TG-001", "reviews-001", "issue_001.md"),
 		daemonReviewIssueBody("pending", "high"),
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-002", "task_01.md"),
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
 		"sibling artifact must not be read\n",
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-002", "reviews-001", "issue_001.md"),
+		filepath.Join("_task_groups", "TG-002", "reviews-001", "issue_001.md"),
 		"sibling review must not be read\n",
 	)
 
@@ -2108,13 +2108,13 @@ func TestExtensionBridgePackageRunsResolveChildScope(t *testing.T) {
 	}
 	taskHandle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
 		WorkspaceRoot: env.workspaceRoot,
-		Name:          packageRef,
+		Name:          taskGroupRef,
 		TasksDir:      siblingDir,
 		Mode:          model.ExecutionModePRDTasks,
-		ParentRunID:   "parent-package-task",
+		ParentRunID:   "parent-task-group-task",
 	})
 	if err != nil {
-		t.Fatalf("StartRun(package task) error = %v", err)
+		t.Fatalf("StartRun(task group task) error = %v", err)
 	}
 	taskRun := waitForRun(t, env.globalDB, taskHandle.RunID, func(row globaldb.Run) bool {
 		return isTerminalRunStatus(row.Status)
@@ -2124,9 +2124,9 @@ func TestExtensionBridgePackageRunsResolveChildScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveOrRegister() error = %v", err)
 	}
-	child, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, packageRef)
+	child, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, taskGroupRef)
 	if err != nil {
-		t.Fatalf("GetActiveWorkflowBySlug(package): %v", err)
+		t.Fatalf("GetActiveWorkflowBySlug(task group): %v", err)
 	}
 	if taskRun.WorkflowID == nil || *taskRun.WorkflowID != child.ID {
 		t.Fatalf("IT-019 task WorkflowID = %v, want child %q", taskRun.WorkflowID, child.ID)
@@ -2134,14 +2134,14 @@ func TestExtensionBridgePackageRunsResolveChildScope(t *testing.T) {
 
 	reviewHandle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
 		WorkspaceRoot: env.workspaceRoot,
-		Name:          packageRef,
+		Name:          taskGroupRef,
 		Round:         1,
 		ReviewsDir:    filepath.Join(siblingDir, "reviews-001"),
 		Mode:          model.ExecutionModePRReview,
-		ParentRunID:   "parent-package-review",
+		ParentRunID:   "parent-task-group-review",
 	})
 	if err != nil {
-		t.Fatalf("StartRun(package review) error = %v", err)
+		t.Fatalf("StartRun(task group review) error = %v", err)
 	}
 	reviewRun := waitForRun(t, env.globalDB, reviewHandle.RunID, func(row globaldb.Run) bool {
 		return isTerminalRunStatus(row.Status)
@@ -2149,8 +2149,8 @@ func TestExtensionBridgePackageRunsResolveChildScope(t *testing.T) {
 	if reviewRun.WorkflowID == nil || *reviewRun.WorkflowID != child.ID {
 		t.Fatalf("IT-022 review WorkflowID = %v, want child %q", reviewRun.WorkflowID, child.ID)
 	}
-	if _, err := os.Stat(filepath.Join(packageDir, "reviews-001", "issue_001.md")); err != nil {
-		t.Fatalf("selected package review artifact was not retained: %v", err)
+	if _, err := os.Stat(filepath.Join(taskGroupDir, "reviews-001", "issue_001.md")); err != nil {
+		t.Fatalf("selected task group review artifact was not retained: %v", err)
 	}
 }
 
@@ -3208,80 +3208,80 @@ func TestRunManagerReviewRunWatcherSyncsOwnedWorkflowArtifacts(t *testing.T) {
 	})
 }
 
-func TestRunManagerPackageLifecycleUsesChildScopeForTaskAndReviewPreparation(t *testing.T) {
-	// INVARIANT: package task and review preparation retain the public child
-	// workflow identity while all mutable inputs resolve under that package.
+func TestRunManagerTaskGroupLifecycleUsesChildScopeForTaskAndReviewPreparation(t *testing.T) {
+	// INVARIANT: task group task and review preparation retain the public child
+	// workflow identity while all mutable inputs resolve under that task group.
 	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-001"
-	packageDir := filepath.Join(env.workflowDir(initiative), "_packages", "WP-001")
+	taskGroupRef := initiative + "/TG-001"
+	taskGroupDir := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-001")
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("pending", "Package task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-002", "task_01.md"),
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
 		"sibling artifact must not be read\n",
 	)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "reviews-001", "issue_001.md"),
+		filepath.Join("_task_groups", "TG-001", "reviews-001", "issue_001.md"),
 		daemonReviewIssueBody("pending", "high"),
 	)
 
 	_, workflowID, taskCfg, _, _, _, err := env.manager.prepareTaskStart(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
 	)
 	if err != nil {
-		t.Fatalf("prepareTaskStart(package): %v", err)
+		t.Fatalf("prepareTaskStart(task group): %v", err)
 	}
-	canonicalPackageDir, err := filepath.EvalSymlinks(packageDir)
+	canonicalTaskGroupDir, err := filepath.EvalSymlinks(taskGroupDir)
 	if err != nil {
-		t.Fatalf("EvalSymlinks(package): %v", err)
+		t.Fatalf("EvalSymlinks(task group): %v", err)
 	}
-	if workflowID == nil || taskCfg.ExecutionScope == nil || taskCfg.Name != packageRef ||
-		taskCfg.WorkflowName != packageRef ||
+	if workflowID == nil || taskCfg.ExecutionScope == nil || taskCfg.Name != taskGroupRef ||
+		taskCfg.WorkflowName != taskGroupRef ||
 		taskCfg.TasksDir != taskCfg.ExecutionScope.TasksDir ||
-		taskCfg.ExecutionScope.OperationalDir != canonicalPackageDir {
-		t.Fatalf("IT-017/IT-019 task package config = %#v workflowID=%v", taskCfg, workflowID)
+		taskCfg.ExecutionScope.OperationalDir != canonicalTaskGroupDir {
+		t.Fatalf("IT-017/IT-019 task task group config = %#v workflowID=%v", taskCfg, workflowID)
 	}
 	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
 	if err != nil {
 		t.Fatalf("ResolveOrRegister(workspace): %v", err)
 	}
-	workflow, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, packageRef)
+	workflow, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, taskGroupRef)
 	if err != nil {
-		t.Fatalf("GetActiveWorkflowBySlug(package): %v", err)
+		t.Fatalf("GetActiveWorkflowBySlug(task group): %v", err)
 	}
-	if workflow.ID != *workflowID || workflow.Kind != globaldb.WorkflowKindWorkPackage {
-		t.Fatalf("child workflow = %#v, want package child %q", workflow, *workflowID)
+	if workflow.ID != *workflowID || workflow.Kind != globaldb.WorkflowKindTaskGroup {
+		t.Fatalf("child workflow = %#v, want task group child %q", workflow, *workflowID)
 	}
 
 	_, reviewWorkflowID, reviewCfg, _, _, err := env.manager.prepareReviewStart(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		1,
 		apicore.ReviewRunRequest{Workspace: env.workspaceRoot},
 	)
 	if err != nil {
-		t.Fatalf("prepareReviewStart(package): %v", err)
+		t.Fatalf("prepareReviewStart(task group): %v", err)
 	}
 	if reviewWorkflowID == nil || *reviewWorkflowID != *workflowID || reviewCfg.ExecutionScope == nil ||
 		reviewCfg.ReviewsDir != reviewCfg.ExecutionScope.ReviewDir(1) {
-		t.Fatalf("IT-022/IT-041 review package config = %#v workflowID=%v", reviewCfg, reviewWorkflowID)
+		t.Fatalf("IT-022/IT-041 review task group config = %#v workflowID=%v", reviewCfg, reviewWorkflowID)
 	}
 	if err := os.Remove(filepath.Join(env.workflowDir(initiative), "_techspec.md")); err != nil {
 		t.Fatalf("remove canonical techspec: %v", err)
@@ -3289,7 +3289,7 @@ func TestRunManagerPackageLifecycleUsesChildScopeForTaskAndReviewPreparation(t *
 	if _, _, _, _, _, _, err := env.manager.prepareTaskStart(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
 	); err == nil || !strings.Contains(err.Error(), "_techspec.md") {
 		t.Fatalf("IT-038 prepareTaskStart() error = %v, want inaccessible canonical techspec", err)
@@ -3297,17 +3297,17 @@ func TestRunManagerPackageLifecycleUsesChildScopeForTaskAndReviewPreparation(t *
 }
 
 // IT-015, IT-016, IT-033, IT-034, IT-035 and IT-036: the daemon owns the
-// final package readiness decision and persists why a one-run override was
+// final task group readiness decision and persists why a one-run override was
 // requested and whether it was actually required.
-func TestRunManagerTaskRunPreflightUsesCurrentPackageReadinessAndRecordsOverride(t *testing.T) {
+func TestRunManagerTaskRunPreflightUsesCurrentTaskGroupReadinessAndRecordsOverride(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
 		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
 			return &model.SolvePreparation{}, nil
 		},
 	})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-002"
-	writeDaemonDependentPackageFixture(t, env, initiative, false)
+	taskGroupRef := initiative + "/TG-002"
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
 
 	_, err := env.manager.StartTaskRun(
 		context.Background(),
@@ -3315,24 +3315,24 @@ func TestRunManagerTaskRunPreflightUsesCurrentPackageReadinessAndRecordsOverride
 		initiative,
 		apicore.TaskRunRequest{
 			Workspace:        env.workspaceRoot,
-			PackageID:        "WP-002",
+			TaskGroupID:      "TG-002",
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"package-blocked"}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-blocked"}`),
 		},
 	)
 	var problem *apicore.Problem
 	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
-		problem.Code != "work_package_dependencies_unmet" {
-		t.Fatalf("blocked package error = %#v (%v), want 409 dependency problem", problem, err)
+		problem.Code != "task_group_dependencies_unmet" {
+		t.Fatalf("blocked task group error = %#v (%v), want 409 dependency problem", problem, err)
 	}
 	if _, err := env.globalDB.GetRun(
 		context.Background(),
-		"package-blocked",
+		"task-group-blocked",
 	); !errors.Is(
 		err,
 		globaldb.ErrRunNotFound,
 	) {
-		t.Fatalf("GetRun(package-blocked) error = %v, want no durable run", err)
+		t.Fatalf("GetRun(task-group-blocked) error = %v, want no durable run", err)
 	}
 
 	run, err := env.manager.StartTaskRun(
@@ -3341,10 +3341,10 @@ func TestRunManagerTaskRunPreflightUsesCurrentPackageReadinessAndRecordsOverride
 		initiative,
 		apicore.TaskRunRequest{
 			Workspace:        env.workspaceRoot,
-			PackageID:        "WP-002",
+			TaskGroupID:      "TG-002",
 			AllowOutOfOrder:  true,
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"package-override-needed"}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-override-needed"}`),
 		},
 	)
 	if err != nil {
@@ -3367,17 +3367,17 @@ func TestRunManagerTaskRunPreflightUsesCurrentPackageReadinessAndRecordsOverride
 
 	// Change the source plan after the prior run. A new start must re-resolve
 	// this state rather than reuse the earlier blocked readiness result.
-	writeDaemonDependentPackageFixture(t, env, initiative, true)
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
 	run, err = env.manager.StartTaskRun(
 		context.Background(),
 		env.workspaceRoot,
 		initiative,
 		apicore.TaskRunRequest{
 			Workspace:        env.workspaceRoot,
-			PackageID:        "WP-002",
+			TaskGroupID:      "TG-002",
 			AllowOutOfOrder:  true,
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"package-override-unneeded"}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-override-unneeded"}`),
 		},
 	)
 	if err != nil {
@@ -3397,41 +3397,41 @@ func TestRunManagerTaskRunPreflightUsesCurrentPackageReadinessAndRecordsOverride
 			row.OutOfOrderNeeded,
 		)
 	}
-	if run.WorkflowSlug != packageRef {
-		t.Fatalf("run workflow = %q, want %q", run.WorkflowSlug, packageRef)
+	if run.WorkflowSlug != taskGroupRef {
+		t.Fatalf("run workflow = %q, want %q", run.WorkflowSlug, taskGroupRef)
 	}
 }
 
-func writeDaemonDependentPackageFixture(
+func writeDaemonDependentTaskGroupFixture(
 	t *testing.T,
 	env *runManagerTestEnv,
 	initiative string,
-	firstPackageCompleted bool,
+	firstTaskGroupCompleted bool,
 ) {
 	t.Helper()
-	plan, err := workpackages.RenderPlan(workpackages.Plan{
-		SchemaVersion: workpackages.SchemaVersion,
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
 		Initiative:    initiative,
-		Packages: []workpackages.Package{
+		TaskGroups: []taskgroups.TaskGroup{
 			{
-				ID:         "WP-001",
+				ID:         "TG-001",
 				Title:      "Foundation",
 				Outcome:    "Provide the prerequisite",
-				Directory:  "_packages/WP-001",
-				Completed:  firstPackageCompleted,
+				Directory:  "_task_groups/TG-001",
+				Completed:  firstTaskGroupCompleted,
 				OwnedScope: []string{"foundation"},
 			},
 			{
-				ID:         "WP-002",
+				ID:         "TG-002",
 				Title:      "Delivery",
 				Outcome:    "Use the prerequisite",
-				Directory:  "_packages/WP-002",
+				Directory:  "_task_groups/TG-002",
 				OwnedScope: []string{"delivery"},
 			},
 		},
-		Edges: []workpackages.Dependency{{
-			From:      "WP-001",
-			To:        "WP-002",
+		Edges: []taskgroups.Dependency{{
+			From:      "TG-001",
+			To:        "TG-002",
 			Rationale: "Foundation must be complete first",
 		}},
 	})
@@ -3440,66 +3440,66 @@ func writeDaemonDependentPackageFixture(
 	}
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", string(plan))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", string(plan))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-002", "task_01.md"),
-		daemonTaskBody("pending", "Package delivery task"),
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
+		daemonTaskBody("pending", "Task Group delivery task"),
 	)
 }
 
-func TestRunManagerRejectsEscapedPackageManifestBeforeTaskStarts(t *testing.T) {
-	// INVARIANT: package task starts never accept graph nodes that resolve outside the selected package.
+func TestRunManagerRejectsEscapedTaskGroupManifestBeforeTaskStarts(t *testing.T) {
+	// INVARIANT: task group task starts never accept graph nodes that resolve outside the selected task group.
 	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
-	newEscapedPackage := func(t *testing.T) (*runManagerTestEnv, string) {
+	newEscapedTaskGroup := func(t *testing.T) (*runManagerTestEnv, string) {
 		t.Helper()
 
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})
 		initiative := "watcher"
-		packageRef := initiative + "/WP-002"
-		writeDaemonDependentPackageFixture(t, env, initiative, true)
+		taskGroupRef := initiative + "/TG-002"
+		writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join("_packages", "WP-001", "task_01.md"),
-			daemonTaskBody("pending", "Sibling package task"),
+			filepath.Join("_task_groups", "TG-001", "task_01.md"),
+			daemonTaskBody("pending", "Sibling task group task"),
 		)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join("_packages", "WP-002", "_tasks.md"),
+			filepath.Join("_task_groups", "TG-002", "_tasks.md"),
 			strings.Replace(
-				packageTaskGraphManifest(packageRef),
+				taskGroupTaskGraphManifest(taskGroupRef),
 				"file: task_01.md",
-				"file: ../WP-001/task_01.md",
+				"file: ../TG-001/task_01.md",
 				1,
 			),
 		)
-		return env, packageRef
+		return env, taskGroupRef
 	}
 
 	assertContainmentFailure := func(t *testing.T, err error) {
 		t.Helper()
 
-		var packageErr *workpackages.Error
-		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrInvalidPlan) {
-			t.Fatalf("package start error = %v, want invalid package manifest", err)
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(err, &taskGroupErr) || !errors.Is(err, taskgroups.ErrInvalidPlan) {
+			t.Fatalf("task group start error = %v, want invalid task group manifest", err)
 		}
-		if len(packageErr.Issues) != 1 || !strings.Contains(packageErr.Issues[0].Message, "sibling-ownership") {
-			t.Fatalf("package containment issues = %#v", packageErr.Issues)
+		if len(taskGroupErr.Issues) != 1 || !strings.Contains(taskGroupErr.Issues[0].Message, "sibling-ownership") {
+			t.Fatalf("task group containment issues = %#v", taskGroupErr.Issues)
 		}
 	}
 
 	t.Run("single task run", func(t *testing.T) {
 		t.Parallel()
 
-		env, packageRef := newEscapedPackage(t)
-		const runID = "package-escaped-single"
+		env, taskGroupRef := newEscapedTaskGroup(t)
+		const runID = "task-group-escaped-single"
 		_, err := env.manager.StartTaskRun(
 			context.Background(),
 			env.workspaceRoot,
-			packageRef,
+			taskGroupRef,
 			apicore.TaskRunRequest{
 				Workspace:        env.workspaceRoot,
 				PresentationMode: defaultPresentationMode,
@@ -3515,13 +3515,13 @@ func TestRunManagerRejectsEscapedPackageManifestBeforeTaskStarts(t *testing.T) {
 	t.Run("multiple task run", func(t *testing.T) {
 		t.Parallel()
 
-		env, _ := newEscapedPackage(t)
+		env, _ := newEscapedTaskGroup(t)
 		_, err := env.manager.StartTaskRunMultiple(
 			context.Background(),
 			env.workspaceRoot,
 			apicore.TaskRunMultipleRequest{
 				Workspace:        env.workspaceRoot,
-				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: "watcher", PackageID: "WP-002"}},
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: "watcher", TaskGroupID: "TG-002"}},
 				PresentationMode: defaultPresentationMode,
 			},
 		)
@@ -3529,54 +3529,54 @@ func TestRunManagerRejectsEscapedPackageManifestBeforeTaskStarts(t *testing.T) {
 	})
 }
 
-func TestRunManagerPackageWorktreeExecutionIsRejected(t *testing.T) {
-	// INVARIANT: package lifecycle operations never delegate Git worktree
+func TestRunManagerTaskGroupWorktreeExecutionIsRejected(t *testing.T) {
+	// INVARIANT: task group lifecycle operations never delegate Git worktree
 	// creation or switching to the parallel task runner.
 	// OWNING_LAYER: service-integration. CONTRACT: IT-030.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-001"
+	taskGroupRef := initiative + "/TG-001"
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("pending", "Package task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
 	)
 
-	assertPackageGitMutationForbidden := func(t *testing.T, err error) {
+	assertTaskGroupGitMutationForbidden := func(t *testing.T, err error) {
 		t.Helper()
 		var problem *apicore.Problem
 		if !errors.As(err, &problem) || problem.Status != http.StatusUnprocessableEntity ||
-			problem.Code != "package_git_mutation_forbidden" {
-			t.Fatalf("problem = %#v error = %v, want 422 package_git_mutation_forbidden", problem, err)
+			problem.Code != "task_group_git_mutation_forbidden" {
+			t.Fatalf("problem = %#v error = %v, want 422 task_group_git_mutation_forbidden", problem, err)
 		}
-		if got := problem.Details["workflow"]; got != packageRef {
-			t.Fatalf("problem workflow = %#v, want %q", got, packageRef)
+		if got := problem.Details["workflow"]; got != taskGroupRef {
+			t.Fatalf("problem workflow = %#v, want %q", got, taskGroupRef)
 		}
 	}
 
 	_, err := env.manager.StartTaskRun(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		apicore.TaskRunRequest{
 			Workspace:        env.workspaceRoot,
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"package-parallel-task","parallel_tasks":{"enabled":true}}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-parallel-task","parallel_tasks":{"enabled":true}}`),
 		},
 	)
-	assertPackageGitMutationForbidden(t, err)
+	assertTaskGroupGitMutationForbidden(t, err)
 	if _, err := env.globalDB.GetRun(
 		context.Background(),
-		"package-parallel-task",
+		"task-group-parallel-task",
 	); !errors.Is(
 		err,
 		globaldb.ErrRunNotFound,
 	) {
-		t.Fatalf("GetRun(package-parallel-task) error = %v, want no run created", err)
+		t.Fatalf("GetRun(task-group-parallel-task) error = %v, want no run created", err)
 	}
 
 	_, err = env.manager.StartTaskRunMultiple(
@@ -3584,102 +3584,102 @@ func TestRunManagerPackageWorktreeExecutionIsRejected(t *testing.T) {
 		env.workspaceRoot,
 		apicore.TaskRunMultipleRequest{
 			Workspace:        env.workspaceRoot,
-			Slugs:            []string{packageRef},
+			Slugs:            []string{taskGroupRef},
 			Mode:             workspacecfg.TaskRunMultipleModeParallel,
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"package-parallel-multi"}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-parallel-multi"}`),
 		},
 	)
-	assertPackageGitMutationForbidden(t, err)
+	assertTaskGroupGitMutationForbidden(t, err)
 	if _, err := env.globalDB.GetRun(
 		context.Background(),
-		"package-parallel-multi",
+		"task-group-parallel-multi",
 	); !errors.Is(
 		err,
 		globaldb.ErrRunNotFound,
 	) {
-		t.Fatalf("GetRun(package-parallel-multi) error = %v, want no run created", err)
+		t.Fatalf("GetRun(task-group-parallel-multi) error = %v, want no run created", err)
 	}
 }
 
-func TestRunManagerPackageEmptyTaskSuiteFailsBeforeRunCreation(t *testing.T) {
-	// INVARIANT: an opted-in package with no executable task file never starts
+func TestRunManagerTaskGroupEmptyTaskSuiteFailsBeforeRunCreation(t *testing.T) {
+	// INVARIANT: an opted-in task group with no executable task file never starts
 	// an agent session or creates a durable run.
 	// OWNING_LAYER: service-integration. CONTRACT: IT-018.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-001"
+	taskGroupRef := initiative + "/TG-001"
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
-	env.writeWorkflowFile(t, initiative, filepath.Join("_packages", "WP-001", "_tasks.md"), "# Empty package\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(t, initiative, filepath.Join("_task_groups", "TG-001", "_tasks.md"), "# Empty task group\n")
 
 	_, err := env.manager.StartTaskRun(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		apicore.TaskRunRequest{
 			Workspace:        env.workspaceRoot,
 			PresentationMode: defaultPresentationMode,
-			RuntimeOverrides: rawJSON(t, `{"run_id":"package-empty-suite"}`),
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-empty-suite"}`),
 		},
 	)
 	var problem *apicore.Problem
 	if !errors.As(err, &problem) || problem.Status != http.StatusUnprocessableEntity ||
-		problem.Code != "package_no_executable_tasks" {
+		problem.Code != "task_group_no_executable_tasks" {
 		t.Fatalf("IT-018 problem = %#v error = %v", problem, err)
 	}
 	if _, err := env.globalDB.GetRun(
 		context.Background(),
-		"package-empty-suite",
+		"task-group-empty-suite",
 	); !errors.Is(
 		err,
 		globaldb.ErrRunNotFound,
 	) {
-		t.Fatalf("GetRun(package-empty-suite) error = %v, want no run created", err)
+		t.Fatalf("GetRun(task-group-empty-suite) error = %v, want no run created", err)
 	}
 }
 
-func TestRunManagerPackageRerunUsesExistingCompletionPolicy(t *testing.T) {
-	// INVARIANT: package runs use the established include-completed policy and
+func TestRunManagerTaskGroupRerunUsesExistingCompletionPolicy(t *testing.T) {
+	// INVARIANT: task group runs use the established include-completed policy and
 	// never rewrite the completion checkbox while applying it.
 	// OWNING_LAYER: service-integration. CONTRACT: IT-014, IT-017.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
-	packageRef := initiative + "/WP-001"
+	taskGroupRef := initiative + "/TG-001"
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", daemonWorkPackagePlan(" "))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("completed", "Completed package task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("completed", "Completed task group task"),
 	)
 
 	_, _, _, _, _, _, err := env.manager.prepareTaskStart(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
 	)
 	var problem *apicore.Problem
 	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
 		problem.Code != "workflow_no_pending_tasks" {
-		t.Fatalf("IT-017 completed package problem = %#v error = %v", problem, err)
+		t.Fatalf("IT-017 completed task group problem = %#v error = %v", problem, err)
 	}
 
 	_, _, runtimeCfg, _, _, _, err := env.manager.prepareTaskStart(
 		context.Background(),
 		env.workspaceRoot,
-		packageRef,
+		taskGroupRef,
 		apicore.TaskRunRequest{
 			Workspace:        env.workspaceRoot,
 			RuntimeOverrides: rawJSON(t, `{"include_completed":true}`),
 		},
 	)
 	if err != nil || runtimeCfg == nil || !runtimeCfg.IncludeCompleted || runtimeCfg.ExecutionScope == nil {
-		t.Fatalf("IT-014 include-completed package config = %#v error = %v", runtimeCfg, err)
+		t.Fatalf("IT-014 include-completed task group config = %#v error = %v", runtimeCfg, err)
 	}
 }
 

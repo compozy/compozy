@@ -7,32 +7,32 @@ import (
 	"testing"
 )
 
-func TestResolveWorkflowReadTargetActivePackageResolvesNestedRoot(t *testing.T) {
+func TestResolveWorkflowReadTargetActiveTaskGroupResolvesNestedRoot(t *testing.T) {
 	// INVARIANT: an active (unarchived) child resolves to its active parent root joined
-	// with the package directory, so the filesystem fallback reaches the nested active
-	// artifacts under <initiative>/_packages/<id> rather than the slug-only
+	// with the task group directory, so the filesystem fallback reaches the nested active
+	// artifacts under <initiative>/_task_groups/<id> rather than the slug-only
 	// <initiative>/<id> directory that structurally cannot exist.
 	// OWNING_LAYER: read-model. CONTRACT: nested-workflows/reviews-007/issue_003.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "customer-management"
-	writeDaemonDependentPackageFixture(t, env, initiative, false)
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
 		daemonTaskBody("pending", "Foundation child task"),
 	)
 	syncNamedWorkflowForDaemonTest(t, env, initiative)
 
 	svc := &queryService{globalDB: env.globalDB, runManager: env.manager, documents: newDocumentReader()}
-	ref := initiative + "/WP-001"
+	ref := initiative + "/TG-001"
 	target, err := svc.resolveWorkflowReadTarget(context.Background(), env.workspaceRoot, ref)
 	if err != nil {
-		t.Fatalf("resolveWorkflowReadTarget(active package) error = %v", err)
+		t.Fatalf("resolveWorkflowReadTarget(active task group) error = %v", err)
 	}
 
 	if info, statErr := os.Stat(target.rootDir); statErr != nil || !info.IsDir() {
-		t.Fatalf("active package rootDir %q is not a directory: %v", target.rootDir, statErr)
+		t.Fatalf("active task group rootDir %q is not a directory: %v", target.rootDir, statErr)
 	}
 	// Canonicalize both sides: on macOS t.TempDir() lives under the /var -> /private/var
 	// symlink, and production stores the resolved workspace root, so a raw string compare
@@ -45,15 +45,15 @@ func TestResolveWorkflowReadTargetActivePackageResolvesNestedRoot(t *testing.T) 
 	if err != nil {
 		t.Fatalf("EvalSymlinks(rootDir) error = %v", err)
 	}
-	wantRoot := filepath.Join(workflowRootDir(resolvedWorkspaceRoot, initiative), "_packages", "WP-001")
+	wantRoot := filepath.Join(workflowRootDir(resolvedWorkspaceRoot, initiative), "_task_groups", "TG-001")
 	if resolvedRoot != wantRoot {
-		t.Fatalf("active package rootDir = %q, want %q", resolvedRoot, wantRoot)
+		t.Fatalf("active task group rootDir = %q, want %q", resolvedRoot, wantRoot)
 	}
-	// Regression guard: the slug-only root that the package-unaware resolver produced
-	// (the pre-fix behavior) must never be selected for an active package.
+	// Regression guard: the slug-only root that the task-group-unaware resolver produced
+	// (the pre-fix behavior) must never be selected for an active task group.
 	wrongRoot := workflowRootDir(resolvedWorkspaceRoot, ref)
 	if resolvedRoot == wrongRoot {
-		t.Fatalf("active package rootDir resolved to slug-only root %q", wrongRoot)
+		t.Fatalf("active task group rootDir resolved to slug-only root %q", wrongRoot)
 	}
 
 	// Clearing the durable snapshots forces the filesystem fallback, proving the
@@ -68,9 +68,9 @@ func TestResolveWorkflowReadTargetActivePackageResolvesNestedRoot(t *testing.T) 
 		"task_01",
 	)
 	if err != nil {
-		t.Fatalf("readRequiredWorkflowDocument(active package via filesystem) error = %v", err)
+		t.Fatalf("readRequiredWorkflowDocument(active task group via filesystem) error = %v", err)
 	}
 	if doc.Title != "Foundation child task" {
-		t.Fatalf("active package task document title = %q, want Foundation child task", doc.Title)
+		t.Fatalf("active task group task document title = %q, want Foundation child task", doc.Title)
 	}
 }

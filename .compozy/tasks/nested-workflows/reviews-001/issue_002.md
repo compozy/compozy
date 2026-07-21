@@ -15,7 +15,7 @@ provider_ref:
 
 ## Review Comment
 
-The hierarchy migration adds `parent_workflow_id REFERENCES workflows(id)` with the default restrictive delete behavior. `PruneMissingActiveWorkflows` deliberately skips child rows and deletes a missing top-level workflow directly. For any initiative that still has package child rows, SQLite rejects that parent delete with `FOREIGN KEY constraint failed`, so a successful root sync cannot prune an initiative removed from disk.
+The hierarchy migration adds `parent_workflow_id REFERENCES workflows(id)` with the default restrictive delete behavior. `PruneMissingActiveWorkflows` deliberately skips child rows and deletes a missing top-level workflow directly. For any initiative that still has task group child rows, SQLite rejects that parent delete with `FOREIGN KEY constraint failed`, so a successful root sync cannot prune an initiative removed from disk.
 
 The existing prune test covers ordinary workflows only and therefore misses the new hierarchy. Implement hierarchy-aware pruning in one transaction: evaluate active runs across the parent and children, preserve/skip the aggregate when any child is active, and otherwise delete children before the parent. An `ON DELETE CASCADE` migration can be part of the solution, but it still needs aggregate active-run protection so live child runs are not orphaned. Add a real-SQLite test for a missing initiative with children and for the active-child-run case.
 

@@ -14,7 +14,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -647,9 +647,9 @@ func newTransportReadModelFixture(t *testing.T) transportReadModelFixture {
 	}
 }
 
-func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
-	// A first-ever partial sync (a present package depends on a missing one, plus a
-	// missing independent package) must leave the daemon read models readable: the
+func TestTaskTransportServiceProjectsFirstPartialTaskGroupSync(t *testing.T) {
+	// A first-ever partial sync (a present task group depends on a missing one, plus a
+	// missing independent task group) must leave the daemon read models readable: the
 	// stored declared graph is complete, so EvaluateReadiness no longer rejects it,
 	// and the initiative is not falsely archive-eligible.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
@@ -660,8 +660,8 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 			return nil
 		},
 	})
-	const slug = "wp-initiative"
-	writeDaemonPartialWorkPackageInitiative(t, env, slug)
+	const slug = "tg-initiative"
+	writeDaemonPartialTaskGroupInitiative(t, env, slug)
 
 	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
 	if err != nil {
@@ -693,40 +693,40 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 			t.Fatalf("ListWorkflows() error = %v", err)
 		}
 		initiative := findInitiativeSummary(t, workflows, slug)
-		if len(initiative.WorkPackages) != 3 {
+		if len(initiative.TaskGroups) != 3 {
 			t.Fatalf(
-				"initiative work packages = %d, want complete declared graph of 3",
-				len(initiative.WorkPackages),
+				"initiative task groups = %d, want complete declared graph of 3",
+				len(initiative.TaskGroups),
 			)
 		}
 		if initiative.ArchiveEligible == nil || *initiative.ArchiveEligible {
 			t.Fatalf(
-				"initiative archive eligible = %v, want blocked by missing packages",
+				"initiative archive eligible = %v, want blocked by missing task groups",
 				initiative.ArchiveEligible,
 			)
 		}
-		// WP-001 and WP-002 are the incomplete packages blocking archive, so both are
-		// named as the actionable reason. WP-003 carries a completed manifest checkbox,
+		// TG-001 and TG-002 are the incomplete task groups blocking archive, so both are
+		// named as the actionable reason. TG-003 carries a completed manifest checkbox,
 		// so the first partial sync honors it as lifecycle-complete rather than falsely
-		// projecting it pending; it therefore no longer inflates the pending-package
+		// projecting it pending; it therefore no longer inflates the pending-task-group
 		// archive reason even though its directory is still absent.
-		if !strings.Contains(initiative.ArchiveReason, "WP-001") ||
-			!strings.Contains(initiative.ArchiveReason, "WP-002") {
-			t.Fatalf("archive reason = %q, want pending WP-001 and WP-002", initiative.ArchiveReason)
+		if !strings.Contains(initiative.ArchiveReason, "TG-001") ||
+			!strings.Contains(initiative.ArchiveReason, "TG-002") {
+			t.Fatalf("archive reason = %q, want pending TG-001 and TG-002", initiative.ArchiveReason)
 		}
-		independent := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		independent := findTaskGroupSummary(t, initiative.TaskGroups, "TG-003")
 		if !independent.LifecycleComplete {
-			t.Fatalf("WP-003 lifecycle_complete = false, want the completed checkbox honored on a missing placeholder")
+			t.Fatalf("TG-003 lifecycle_complete = false, want the completed checkbox honored on a missing placeholder")
 		}
-		dependent := findWorkPackageSummary(t, initiative.WorkPackages, "WP-002")
-		if len(dependent.UnmetDependencies) != 1 || dependent.UnmetDependencies[0].PackageID != "WP-001" {
-			t.Fatalf("WP-002 unmet dependencies = %#v, want single edge to WP-001", dependent.UnmetDependencies)
+		dependent := findTaskGroupSummary(t, initiative.TaskGroups, "TG-002")
+		if len(dependent.UnmetDependencies) != 1 || dependent.UnmetDependencies[0].TaskGroupID != "TG-001" {
+			t.Fatalf("TG-002 unmet dependencies = %#v, want single edge to TG-001", dependent.UnmetDependencies)
 		}
-		// Both missing placeholders (dependency-blocked WP-001 and independent
-		// WP-003) must be reported as not runnable with a missing-directory reason
+		// Both missing placeholders (dependency-blocked TG-001 and independent
+		// TG-003) must be reported as not runnable with a missing-directory reason
 		// so the inventory never enables a start that would fail on re-resolution.
-		assertMissingPlaceholderBlocked(t, initiative.WorkPackages, "WP-001")
-		assertMissingPlaceholderBlocked(t, initiative.WorkPackages, "WP-003")
+		assertMissingPlaceholderBlocked(t, initiative.TaskGroups, "TG-001")
+		assertMissingPlaceholderBlocked(t, initiative.TaskGroups, "TG-003")
 	})
 
 	t.Run("Should project the same complete graph into the dashboard", func(t *testing.T) {
@@ -735,14 +735,14 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 			t.Fatalf("Dashboard() error = %v", err)
 		}
 		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
-		if len(card.Workflow.WorkPackages) != 3 {
-			t.Fatalf("dashboard initiative work packages = %d, want 3", len(card.Workflow.WorkPackages))
+		if len(card.Workflow.TaskGroups) != 3 {
+			t.Fatalf("dashboard initiative task groups = %d, want 3", len(card.Workflow.TaskGroups))
 		}
-		assertMissingPlaceholderBlocked(t, card.Workflow.WorkPackages, "WP-001")
-		assertMissingPlaceholderBlocked(t, card.Workflow.WorkPackages, "WP-003")
+		assertMissingPlaceholderBlocked(t, card.Workflow.TaskGroups, "TG-001")
+		assertMissingPlaceholderBlocked(t, card.Workflow.TaskGroups, "TG-003")
 	})
 
-	t.Run("Should refuse to really start a missing independent package", func(t *testing.T) {
+	t.Run("Should refuse to really start a missing independent task group", func(t *testing.T) {
 		_, startErr := env.manager.StartTaskRun(
 			context.Background(),
 			env.workspaceRoot,
@@ -750,19 +750,19 @@ func TestTaskTransportServiceProjectsFirstPartialWorkPackageSync(t *testing.T) {
 			apicore.TaskRunRequest{
 				Workspace:        env.workspaceRoot,
 				PresentationMode: defaultPresentationMode,
-				PackageID:        "WP-003",
+				TaskGroupID:      "TG-003",
 			},
 		)
-		if !errors.Is(startErr, workpackages.ErrPackageNotFound) {
-			t.Fatalf("StartTaskRun(missing WP-003) error = %v, want ErrPackageNotFound", startErr)
+		if !errors.Is(startErr, taskgroups.ErrTaskGroupNotFound) {
+			t.Fatalf("StartTaskRun(missing TG-003) error = %v, want ErrTaskGroupNotFound", startErr)
 		}
 	})
 }
 
-func TestTaskTransportServiceProjectsWorkPackageReviewIntoReadModels(t *testing.T) {
-	// A work package's latest review round must survive projection into both read
+func TestTaskTransportServiceProjectsTaskGroupReviewIntoReadModels(t *testing.T) {
+	// A task group's latest review round must survive projection into both read
 	// models (workflow list and dashboard) so the UI can navigate to it, and the
-	// dashboard pending-review total must include package unresolved counts that the
+	// dashboard pending-review total must include task group unresolved counts that the
 	// parent card cannot see on its own review rounds.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
 		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
@@ -772,20 +772,20 @@ func TestTaskTransportServiceProjectsWorkPackageReviewIntoReadModels(t *testing.
 			return nil
 		},
 	})
-	const slug = "wp-initiative"
-	writeDaemonMaterializedWorkPackageInitiative(t, env, slug)
-	// Seed a local review round carrying one unresolved issue under two packages.
-	for _, packageID := range []string{"WP-001", "WP-002"} {
+	const slug = "tg-initiative"
+	writeDaemonMaterializedTaskGroupInitiative(t, env, slug)
+	// Seed a local review round carrying one unresolved issue under two task groups.
+	for _, taskGroupID := range []string{"TG-001", "TG-002"} {
 		env.writeWorkflowFile(
 			t,
 			slug,
-			filepath.Join("_packages", packageID, "reviews-001", "_meta.md"),
+			filepath.Join("_task_groups", taskGroupID, "reviews-001", "_meta.md"),
 			daemonReviewRoundMetaBody("coderabbit", "123", 1),
 		)
 		env.writeWorkflowFile(
 			t,
 			slug,
-			filepath.Join("_packages", packageID, "reviews-001", "issue_001.md"),
+			filepath.Join("_task_groups", taskGroupID, "reviews-001", "issue_001.md"),
 			daemonReviewIssueBody("pending", "medium"),
 		)
 	}
@@ -810,53 +810,53 @@ func TestTaskTransportServiceProjectsWorkPackageReviewIntoReadModels(t *testing.
 	})
 	service := newTransportTaskService(env.globalDB, env.manager, query)
 
-	assertPackageLatestReview := func(t *testing.T, pkg apicore.WorkPackageSummary) {
+	assertTaskGroupLatestReview := func(t *testing.T, taskGroup apicore.TaskGroupSummary) {
 		t.Helper()
-		if pkg.LatestReview == nil {
-			t.Fatalf("work package %q latest review = nil, want projected round", pkg.PackageID)
+		if taskGroup.LatestReview == nil {
+			t.Fatalf("task group %q latest review = nil, want projected round", taskGroup.TaskGroupID)
 		}
-		if pkg.LatestReview.RoundNumber != 1 {
+		if taskGroup.LatestReview.RoundNumber != 1 {
 			t.Fatalf(
-				"work package %q latest review round = %d, want 1",
-				pkg.PackageID,
-				pkg.LatestReview.RoundNumber,
+				"task group %q latest review round = %d, want 1",
+				taskGroup.TaskGroupID,
+				taskGroup.LatestReview.RoundNumber,
 			)
 		}
-		if pkg.LatestReview.UnresolvedCount != 1 {
+		if taskGroup.LatestReview.UnresolvedCount != 1 {
 			t.Fatalf(
-				"work package %q latest review unresolved = %d, want 1",
-				pkg.PackageID,
-				pkg.LatestReview.UnresolvedCount,
+				"task group %q latest review unresolved = %d, want 1",
+				taskGroup.TaskGroupID,
+				taskGroup.LatestReview.UnresolvedCount,
 			)
 		}
 	}
 
-	t.Run("Should project package latest review into the workflow list", func(t *testing.T) {
+	t.Run("Should project task group latest review into the workflow list", func(t *testing.T) {
 		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("ListWorkflows() error = %v", err)
 		}
 		initiative := findInitiativeSummary(t, workflows, slug)
-		assertPackageLatestReview(t, findWorkPackageSummary(t, initiative.WorkPackages, "WP-001"))
-		assertPackageLatestReview(t, findWorkPackageSummary(t, initiative.WorkPackages, "WP-002"))
-		if pkg := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003"); pkg.LatestReview != nil {
-			t.Fatalf("work package WP-003 latest review = %#v, want nil (no round)", pkg.LatestReview)
+		assertTaskGroupLatestReview(t, findTaskGroupSummary(t, initiative.TaskGroups, "TG-001"))
+		assertTaskGroupLatestReview(t, findTaskGroupSummary(t, initiative.TaskGroups, "TG-002"))
+		if taskGroup := findTaskGroupSummary(t, initiative.TaskGroups, "TG-003"); taskGroup.LatestReview != nil {
+			t.Fatalf("task group TG-003 latest review = %#v, want nil (no round)", taskGroup.LatestReview)
 		}
 	})
 
-	t.Run("Should project package latest review and aggregate unresolved into the dashboard", func(t *testing.T) {
+	t.Run("Should project task group latest review and aggregate unresolved into the dashboard", func(t *testing.T) {
 		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("Dashboard() error = %v", err)
 		}
 		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
-		assertPackageLatestReview(t, findWorkPackageSummary(t, card.Workflow.WorkPackages, "WP-001"))
-		assertPackageLatestReview(t, findWorkPackageSummary(t, card.Workflow.WorkPackages, "WP-002"))
+		assertTaskGroupLatestReview(t, findTaskGroupSummary(t, card.Workflow.TaskGroups, "TG-001"))
+		assertTaskGroupLatestReview(t, findTaskGroupSummary(t, card.Workflow.TaskGroups, "TG-002"))
 		// The initiative card has no review round of its own, so the whole pending
-		// total must come from the two package rounds — proving package unresolved
+		// total must come from the two task group rounds — proving task group unresolved
 		// counts are no longer omitted from the aggregate.
 		if dashboard.PendingReviews != 2 {
-			t.Fatalf("dashboard pending reviews = %d, want 2 from package rounds", dashboard.PendingReviews)
+			t.Fatalf("dashboard pending reviews = %d, want 2 from task group rounds", dashboard.PendingReviews)
 		}
 	})
 }
@@ -865,7 +865,7 @@ func TestTaskTransportServiceBlocksArchiveForInitiativeWithActiveParentRun(t *te
 	// An ordinary workflow promoted to an initiative in place keeps its active run on the
 	// parent workflow ID, a row that lives outside the plan-declared child workflows. The
 	// core archive path (activeInitiativeRunConflict) refuses that hierarchy with
-	// ErrWorkflowHasActiveRuns even when every package child is complete, so both read
+	// ErrWorkflowHasActiveRuns even when every task group child is complete, so both read
 	// models must report the initiative as archive-ineligible with an active-run reason
 	// instead of advertising a Completed workflow whose archive action always fails.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
@@ -876,8 +876,8 @@ func TestTaskTransportServiceBlocksArchiveForInitiativeWithActiveParentRun(t *te
 			return nil
 		},
 	})
-	const slug = "wp-initiative"
-	writeDaemonMaterializedWorkPackageInitiative(t, env, slug)
+	const slug = "tg-initiative"
+	writeDaemonMaterializedTaskGroupInitiative(t, env, slug)
 
 	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
 	if err != nil {
@@ -907,7 +907,7 @@ func TestTaskTransportServiceBlocksArchiveForInitiativeWithActiveParentRun(t *te
 		initiative := findInitiativeSummary(t, workflows, slug)
 		if initiative.ArchiveEligible == nil || !*initiative.ArchiveEligible {
 			t.Fatalf(
-				"baseline initiative archive eligible = %v, want true with every package completed",
+				"baseline initiative archive eligible = %v, want true with every task group completed",
 				initiative.ArchiveEligible,
 			)
 		}
@@ -962,11 +962,11 @@ func TestTaskTransportServiceBlocksArchiveForInitiativeWithActiveParentRun(t *te
 	})
 }
 
-func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *testing.T) {
-	// A previously materialized package whose directory later disappears must be
+func TestTaskTransportServiceReprojectsMaterializedThenRemovedTaskGroup(t *testing.T) {
+	// A previously materialized task group whose directory later disappears must be
 	// re-projected as missing across the read models: start is blocked with the
 	// missing-directory reason, a real start fails on re-resolution, and a completed
-	// package that vanished stops reporting archive-eligible so the read model no
+	// task group that vanished stops reporting archive-eligible so the read model no
 	// longer disagrees with the filesystem.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
 		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
@@ -976,8 +976,8 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 			return nil
 		},
 	})
-	const slug = "wp-initiative"
-	writeDaemonMaterializedWorkPackageInitiative(t, env, slug)
+	const slug = "tg-initiative"
+	writeDaemonMaterializedTaskGroupInitiative(t, env, slug)
 
 	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
 	if err != nil {
@@ -999,20 +999,20 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 	})
 	service := newTransportTaskService(env.globalDB, env.manager, query)
 
-	t.Run("Should report the completed package as archive eligible while present", func(t *testing.T) {
+	t.Run("Should report the completed task group as archive eligible while present", func(t *testing.T) {
 		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("ListWorkflows() error = %v", err)
 		}
 		initiative := findInitiativeSummary(t, workflows, slug)
-		completed := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		completed := findTaskGroupSummary(t, initiative.TaskGroups, "TG-003")
 		if completed.ArchiveEligible == nil || !*completed.ArchiveEligible {
-			t.Fatalf("present completed WP-003 archive eligible = %v, want true baseline", completed.ArchiveEligible)
+			t.Fatalf("present completed TG-003 archive eligible = %v, want true baseline", completed.ArchiveEligible)
 		}
 	})
 
-	if err := os.RemoveAll(filepath.Join(env.workflowDir(slug), "_packages", "WP-003")); err != nil {
-		t.Fatalf("remove WP-003: %v", err)
+	if err := os.RemoveAll(filepath.Join(env.workflowDir(slug), "_task_groups", "TG-003")); err != nil {
+		t.Fatalf("remove TG-003: %v", err)
 	}
 	result, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
 		TasksDir: env.workflowDir(slug),
@@ -1024,41 +1024,41 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 		t.Fatalf("removal sync not flagged partial: %#v", result)
 	}
 
-	t.Run("Should block start and archive for the removed completed package", func(t *testing.T) {
+	t.Run("Should block start and archive for the removed completed task group", func(t *testing.T) {
 		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("ListWorkflows() error = %v", err)
 		}
 		initiative := findInitiativeSummary(t, workflows, slug)
-		if len(initiative.WorkPackages) != 3 {
-			t.Fatalf("initiative work packages = %d, want complete declared graph of 3", len(initiative.WorkPackages))
+		if len(initiative.TaskGroups) != 3 {
+			t.Fatalf("initiative task groups = %d, want complete declared graph of 3", len(initiative.TaskGroups))
 		}
-		// The completed package that vanished must stop advertising as runnable and
+		// The completed task group that vanished must stop advertising as runnable and
 		// stop reporting archive-eligible even though its retained projection looks
 		// complete; otherwise the read model disagrees with the filesystem.
-		assertMissingPlaceholderBlocked(t, initiative.WorkPackages, "WP-003")
-		removed := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		assertMissingPlaceholderBlocked(t, initiative.TaskGroups, "TG-003")
+		removed := findTaskGroupSummary(t, initiative.TaskGroups, "TG-003")
 		if removed.ArchiveEligible == nil || *removed.ArchiveEligible {
-			t.Fatalf("removed completed WP-003 archive eligible = %v, want false", removed.ArchiveEligible)
+			t.Fatalf("removed completed TG-003 archive eligible = %v, want false", removed.ArchiveEligible)
 		}
 		if initiative.ArchiveEligible == nil || *initiative.ArchiveEligible {
-			t.Fatalf("initiative archive eligible = %v, want blocked by missing package", initiative.ArchiveEligible)
+			t.Fatalf("initiative archive eligible = %v, want blocked by missing task group", initiative.ArchiveEligible)
 		}
-		if !strings.Contains(initiative.ArchiveReason, "WP-003") {
-			t.Fatalf("archive reason = %q, want the missing WP-003 surfaced", initiative.ArchiveReason)
+		if !strings.Contains(initiative.ArchiveReason, "TG-003") {
+			t.Fatalf("archive reason = %q, want the missing TG-003 surfaced", initiative.ArchiveReason)
 		}
 	})
 
-	t.Run("Should project the removed package as blocked in the dashboard", func(t *testing.T) {
+	t.Run("Should project the removed task group as blocked in the dashboard", func(t *testing.T) {
 		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("Dashboard() error = %v", err)
 		}
 		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
-		assertMissingPlaceholderBlocked(t, card.Workflow.WorkPackages, "WP-003")
+		assertMissingPlaceholderBlocked(t, card.Workflow.TaskGroups, "TG-003")
 	})
 
-	t.Run("Should refuse to really start the removed package", func(t *testing.T) {
+	t.Run("Should refuse to really start the removed task group", func(t *testing.T) {
 		_, startErr := env.manager.StartTaskRun(
 			context.Background(),
 			env.workspaceRoot,
@@ -1066,11 +1066,11 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 			apicore.TaskRunRequest{
 				Workspace:        env.workspaceRoot,
 				PresentationMode: defaultPresentationMode,
-				PackageID:        "WP-003",
+				TaskGroupID:      "TG-003",
 			},
 		)
-		if !errors.Is(startErr, workpackages.ErrPackageNotFound) {
-			t.Fatalf("StartTaskRun(removed WP-003) error = %v, want ErrPackageNotFound", startErr)
+		if !errors.Is(startErr, taskgroups.ErrTaskGroupNotFound) {
+			t.Fatalf("StartTaskRun(removed TG-003) error = %v, want ErrTaskGroupNotFound", startErr)
 		}
 	})
 
@@ -1078,8 +1078,8 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 		env.writeWorkflowFile(
 			t,
 			slug,
-			filepath.Join("_packages", "WP-003", "task_01.md"),
-			daemonTaskBody("completed", "WP-003 task"),
+			filepath.Join("_task_groups", "TG-003", "task_01.md"),
+			daemonTaskBody("completed", "TG-003 task"),
 		)
 		if _, err := corepkg.SyncWithDB(context.Background(), env.globalDB, workspace, corepkg.SyncConfig{
 			TasksDir: env.workflowDir(slug),
@@ -1091,23 +1091,23 @@ func TestTaskTransportServiceReprojectsMaterializedThenRemovedWorkPackage(t *tes
 			t.Fatalf("ListWorkflows() error = %v", err)
 		}
 		initiative := findInitiativeSummary(t, workflows, slug)
-		restored := findWorkPackageSummary(t, initiative.WorkPackages, "WP-003")
+		restored := findTaskGroupSummary(t, initiative.TaskGroups, "TG-003")
 		if restored.StartBlockReason == workflowStartReasonMissing {
-			t.Fatalf("rematerialized WP-003 still blocked missing: %q", restored.StartBlockReason)
+			t.Fatalf("rematerialized TG-003 still blocked missing: %q", restored.StartBlockReason)
 		}
 		if restored.ArchiveEligible == nil || !*restored.ArchiveEligible {
-			t.Fatalf("rematerialized completed WP-003 archive eligible = %v, want true", restored.ArchiveEligible)
+			t.Fatalf("rematerialized completed TG-003 archive eligible = %v, want true", restored.ArchiveEligible)
 		}
 	})
 }
 
-func TestTaskTransportServiceBlocksMaterializedEmptyWorkPackageStart(t *testing.T) {
-	// A materialized-but-empty work package (directory present on disk, zero
+func TestTaskTransportServiceBlocksMaterializedEmptyTaskGroupStart(t *testing.T) {
+	// A materialized-but-empty task group (directory present on disk, zero
 	// executable tasks) must be projected as not runnable across the read models
 	// with the no-executable-tasks reason, matching the runtime start preflight
-	// that rejects the same package with package_no_executable_tasks. A sibling
-	// package that carries a real pending task stays runnable, proving the
-	// predicate is scoped to empty packages rather than blocking the initiative.
+	// that rejects the same task group with task_group_no_executable_tasks. A sibling
+	// task group that carries a real pending task stays runnable, proving the
+	// predicate is scoped to empty task groups rather than blocking the initiative.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
 		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
 			return &model.SolvePreparation{}, nil
@@ -1116,8 +1116,8 @@ func TestTaskTransportServiceBlocksMaterializedEmptyWorkPackageStart(t *testing.
 			return nil
 		},
 	})
-	const slug = "wp-initiative"
-	writeDaemonEmptyWorkPackageInitiative(t, env, slug)
+	const slug = "tg-initiative"
+	writeDaemonEmptyTaskGroupInitiative(t, env, slug)
 
 	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
 	if err != nil {
@@ -1139,33 +1139,33 @@ func TestTaskTransportServiceBlocksMaterializedEmptyWorkPackageStart(t *testing.
 	})
 	service := newTransportTaskService(env.globalDB, env.manager, query)
 
-	t.Run("Should block the empty package start in the workflow list", func(t *testing.T) {
+	t.Run("Should block the empty task group start in the workflow list", func(t *testing.T) {
 		workflows, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("ListWorkflows() error = %v", err)
 		}
 		initiative := findInitiativeSummary(t, workflows, slug)
-		assertEmptyPackageBlocked(t, initiative.WorkPackages, "WP-002")
-		runnable := findWorkPackageSummary(t, initiative.WorkPackages, "WP-001")
+		assertEmptyTaskGroupBlocked(t, initiative.TaskGroups, "TG-002")
+		runnable := findTaskGroupSummary(t, initiative.TaskGroups, "TG-001")
 		if runnable.CanStartRun == nil || !*runnable.CanStartRun || runnable.StartBlockReason != "" {
 			t.Fatalf(
-				"WP-001 can start = %v reason = %q, want the materialized package runnable",
+				"TG-001 can start = %v reason = %q, want the materialized task group runnable",
 				runnable.CanStartRun,
 				runnable.StartBlockReason,
 			)
 		}
 	})
 
-	t.Run("Should block the empty package start in the dashboard", func(t *testing.T) {
+	t.Run("Should block the empty task group start in the dashboard", func(t *testing.T) {
 		dashboard, err := service.Dashboard(context.Background(), env.workspaceRoot)
 		if err != nil {
 			t.Fatalf("Dashboard() error = %v", err)
 		}
 		card := findDashboardInitiativeCard(t, dashboard.Workflows, slug)
-		assertEmptyPackageBlocked(t, card.Workflow.WorkPackages, "WP-002")
+		assertEmptyTaskGroupBlocked(t, card.Workflow.TaskGroups, "TG-002")
 	})
 
-	t.Run("Should refuse to really start the empty package", func(t *testing.T) {
+	t.Run("Should refuse to really start the empty task group", func(t *testing.T) {
 		_, startErr := env.manager.StartTaskRun(
 			context.Background(),
 			env.workspaceRoot,
@@ -1173,237 +1173,237 @@ func TestTaskTransportServiceBlocksMaterializedEmptyWorkPackageStart(t *testing.
 			apicore.TaskRunRequest{
 				Workspace:        env.workspaceRoot,
 				PresentationMode: defaultPresentationMode,
-				PackageID:        "WP-002",
+				TaskGroupID:      "TG-002",
 			},
 		)
 		// The read-model block reason must agree with the endpoint the confirm
-		// action calls; the endpoint rejects the empty package outright.
+		// action calls; the endpoint rejects the empty task group outright.
 		var problem *apicore.Problem
 		if !errors.As(startErr, &problem) || problem.Status != http.StatusUnprocessableEntity ||
-			problem.Code != "package_no_executable_tasks" {
-			t.Fatalf("StartTaskRun(empty WP-002) problem = %#v error = %v", problem, startErr)
+			problem.Code != "task_group_no_executable_tasks" {
+			t.Fatalf("StartTaskRun(empty TG-002) problem = %#v error = %v", problem, startErr)
 		}
 	})
 }
 
-// assertMissingPlaceholderBlocked verifies a missing-directory work-package
+// assertMissingPlaceholderBlocked verifies a missing-directory task-group
 // placeholder is projected as not runnable with the missing-directory reason.
 func assertMissingPlaceholderBlocked(
 	t *testing.T,
-	packages []apicore.WorkPackageSummary,
-	packageID string,
+	taskGroups []apicore.TaskGroupSummary,
+	taskGroupID string,
 ) {
 	t.Helper()
-	placeholder := findWorkPackageSummary(t, packages, packageID)
+	placeholder := findTaskGroupSummary(t, taskGroups, taskGroupID)
 	if placeholder.CanStartRun == nil || *placeholder.CanStartRun {
-		t.Fatalf("%s can start run = %v, want blocked missing placeholder", packageID, placeholder.CanStartRun)
+		t.Fatalf("%s can start run = %v, want blocked missing placeholder", taskGroupID, placeholder.CanStartRun)
 	}
 	if placeholder.StartBlockReason != workflowStartReasonMissing {
 		t.Fatalf(
 			"%s start block reason = %q, want %q",
-			packageID,
+			taskGroupID,
 			placeholder.StartBlockReason,
 			workflowStartReasonMissing,
 		)
 	}
 }
 
-// assertEmptyPackageBlocked verifies a materialized-but-empty work package is
+// assertEmptyTaskGroupBlocked verifies a materialized-but-empty task group is
 // projected as not runnable with the no-executable-tasks reason.
-func assertEmptyPackageBlocked(
+func assertEmptyTaskGroupBlocked(
 	t *testing.T,
-	packages []apicore.WorkPackageSummary,
-	packageID string,
+	taskGroups []apicore.TaskGroupSummary,
+	taskGroupID string,
 ) {
 	t.Helper()
-	empty := findWorkPackageSummary(t, packages, packageID)
+	empty := findTaskGroupSummary(t, taskGroups, taskGroupID)
 	if empty.CanStartRun == nil || *empty.CanStartRun {
-		t.Fatalf("%s can start run = %v, want blocked empty package", packageID, empty.CanStartRun)
+		t.Fatalf("%s can start run = %v, want blocked empty task group", taskGroupID, empty.CanStartRun)
 	}
 	if empty.StartBlockReason != workflowStartReasonNoExecutableTasks {
 		t.Fatalf(
 			"%s start block reason = %q, want %q",
-			packageID,
+			taskGroupID,
 			empty.StartBlockReason,
 			workflowStartReasonNoExecutableTasks,
 		)
 	}
 }
 
-func writeDaemonPartialWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
+func writeDaemonPartialTaskGroupInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
 	t.Helper()
 	env.writeWorkflowFile(t, slug, "_prd.md", "# Initiative\n")
 	env.writeWorkflowFile(t, slug, "_techspec.md", "# Initiative Techspec\n")
-	env.writeWorkflowFile(t, slug, "_work_packages.md", strings.Join([]string{
+	env.writeWorkflowFile(t, slug, "_task_groups.md", strings.Join([]string{
 		"---",
-		"schema_version: compozy.work-packages/v1",
+		"schema_version: compozy.task-groups/v1",
 		"initiative: " + slug,
 		"graph:",
 		"  nodes:",
-		"    - id: WP-001",
-		"      directory: _packages/WP-001",
-		"    - id: WP-002",
-		"      directory: _packages/WP-002",
-		"    - id: WP-003",
-		"      directory: _packages/WP-003",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
+		"    - id: TG-002",
+		"      directory: _task_groups/TG-002",
+		"    - id: TG-003",
+		"      directory: _task_groups/TG-003",
 		"  edges:",
-		"    - from: WP-001",
-		"      to: WP-002",
-		"      rationale: WP-002 consumes the WP-001 contract.",
+		"    - from: TG-001",
+		"      to: TG-002",
+		"      rationale: TG-002 consumes the TG-001 contract.",
 		"---",
 		"",
-		"# Initiative Work Packages",
+		"# Initiative Task Groups",
 		"",
-		"## [ ] WP-001 — Persistence",
+		"## [ ] TG-001 — Persistence",
 		"",
-		"- Reference: `" + slug + "/WP-001`",
+		"- Reference: `" + slug + "/TG-001`",
 		"- Outcome: Persist the parent workflow.",
 		"- Owns:",
 		"  - persistence",
 		"- Dependencies: None",
 		"",
-		"## [ ] WP-002 — Archive",
+		"## [ ] TG-002 — Archive",
 		"",
-		"- Reference: `" + slug + "/WP-002`",
+		"- Reference: `" + slug + "/TG-002`",
 		"- Outcome: Archive the aggregate workflow.",
 		"- Owns:",
 		"  - archive",
 		"- Dependencies:",
-		"  - `WP-001` — WP-002 consumes the WP-001 contract.",
+		"  - `TG-001` — TG-002 consumes the TG-001 contract.",
 		"",
-		"## [x] WP-003 — Reporting",
+		"## [x] TG-003 — Reporting",
 		"",
-		"- Reference: `" + slug + "/WP-003`",
+		"- Reference: `" + slug + "/TG-003`",
 		"- Outcome: Report aggregate status.",
 		"- Owns:",
 		"  - reporting",
 		"- Dependencies: None",
 		"",
 	}, "\n"))
-	// Only WP-002 has a materialized directory. WP-001 (a declared prerequisite of
-	// WP-002) and WP-003 (declared but independent) are absent on this first sync.
+	// Only TG-002 has a materialized directory. TG-001 (a declared prerequisite of
+	// TG-002) and TG-003 (declared but independent) are absent on this first sync.
 	env.writeWorkflowFile(
 		t,
 		slug,
-		filepath.Join("_packages", "WP-002", "task_01.md"),
-		daemonTaskBody("pending", "WP-002 task"),
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
+		daemonTaskBody("pending", "TG-002 task"),
 	)
 }
 
-func writeDaemonMaterializedWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
+func writeDaemonMaterializedTaskGroupInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
 	t.Helper()
 	env.writeWorkflowFile(t, slug, "_prd.md", "# Initiative\n")
 	env.writeWorkflowFile(t, slug, "_techspec.md", "# Initiative Techspec\n")
-	env.writeWorkflowFile(t, slug, "_work_packages.md", strings.Join([]string{
+	env.writeWorkflowFile(t, slug, "_task_groups.md", strings.Join([]string{
 		"---",
-		"schema_version: compozy.work-packages/v1",
+		"schema_version: compozy.task-groups/v1",
 		"initiative: " + slug,
 		"graph:",
 		"  nodes:",
-		"    - id: WP-001",
-		"      directory: _packages/WP-001",
-		"    - id: WP-002",
-		"      directory: _packages/WP-002",
-		"    - id: WP-003",
-		"      directory: _packages/WP-003",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
+		"    - id: TG-002",
+		"      directory: _task_groups/TG-002",
+		"    - id: TG-003",
+		"      directory: _task_groups/TG-003",
 		"  edges:",
-		"    - from: WP-001",
-		"      to: WP-002",
-		"      rationale: WP-002 consumes the WP-001 contract.",
+		"    - from: TG-001",
+		"      to: TG-002",
+		"      rationale: TG-002 consumes the TG-001 contract.",
 		"---",
 		"",
-		"# Initiative Work Packages",
+		"# Initiative Task Groups",
 		"",
-		"## [x] WP-001 — Persistence",
+		"## [x] TG-001 — Persistence",
 		"",
-		"- Reference: `" + slug + "/WP-001`",
+		"- Reference: `" + slug + "/TG-001`",
 		"- Outcome: Persist the parent workflow.",
 		"- Owns:",
 		"  - persistence",
 		"- Dependencies: None",
 		"",
-		"## [x] WP-002 — Archive",
+		"## [x] TG-002 — Archive",
 		"",
-		"- Reference: `" + slug + "/WP-002`",
+		"- Reference: `" + slug + "/TG-002`",
 		"- Outcome: Archive the aggregate workflow.",
 		"- Owns:",
 		"  - archive",
 		"- Dependencies:",
-		"  - `WP-001` — WP-002 consumes the WP-001 contract.",
+		"  - `TG-001` — TG-002 consumes the TG-001 contract.",
 		"",
-		"## [x] WP-003 — Reporting",
+		"## [x] TG-003 — Reporting",
 		"",
-		"- Reference: `" + slug + "/WP-003`",
+		"- Reference: `" + slug + "/TG-003`",
 		"- Outcome: Report aggregate status.",
 		"- Owns:",
 		"  - reporting",
 		"- Dependencies: None",
 		"",
 	}, "\n"))
-	// Every declared package is materialized and completed here so removing WP-003
+	// Every declared task group is materialized and completed here so removing TG-003
 	// later isolates the completed-then-vanished archive-eligibility path: the only
 	// remaining archive blocker is the missing directory.
-	for _, packageID := range []string{"WP-001", "WP-002", "WP-003"} {
+	for _, taskGroupID := range []string{"TG-001", "TG-002", "TG-003"} {
 		env.writeWorkflowFile(
 			t,
 			slug,
-			filepath.Join("_packages", packageID, "task_01.md"),
-			daemonTaskBody("completed", packageID+" task"),
+			filepath.Join("_task_groups", taskGroupID, "task_01.md"),
+			daemonTaskBody("completed", taskGroupID+" task"),
 		)
 	}
 }
 
-func writeDaemonEmptyWorkPackageInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
+func writeDaemonEmptyTaskGroupInitiative(t *testing.T, env *runManagerTestEnv, slug string) {
 	t.Helper()
 	env.writeWorkflowFile(t, slug, "_prd.md", "# Initiative\n")
 	env.writeWorkflowFile(t, slug, "_techspec.md", "# Initiative Techspec\n")
-	env.writeWorkflowFile(t, slug, "_work_packages.md", strings.Join([]string{
+	env.writeWorkflowFile(t, slug, "_task_groups.md", strings.Join([]string{
 		"---",
-		"schema_version: compozy.work-packages/v1",
+		"schema_version: compozy.task-groups/v1",
 		"initiative: " + slug,
 		"graph:",
 		"  nodes:",
-		"    - id: WP-001",
-		"      directory: _packages/WP-001",
-		"    - id: WP-002",
-		"      directory: _packages/WP-002",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
+		"    - id: TG-002",
+		"      directory: _task_groups/TG-002",
 		"  edges: []",
 		"---",
 		"",
-		"# Initiative Work Packages",
+		"# Initiative Task Groups",
 		"",
-		"## [ ] WP-001 — Persistence",
+		"## [ ] TG-001 — Persistence",
 		"",
-		"- Reference: `" + slug + "/WP-001`",
+		"- Reference: `" + slug + "/TG-001`",
 		"- Outcome: Persist the parent workflow.",
 		"- Owns:",
 		"  - persistence",
 		"- Dependencies: None",
 		"",
-		"## [ ] WP-002 — Reporting",
+		"## [ ] TG-002 — Reporting",
 		"",
-		"- Reference: `" + slug + "/WP-002`",
+		"- Reference: `" + slug + "/TG-002`",
 		"- Outcome: Report aggregate status.",
 		"- Owns:",
 		"  - reporting",
 		"- Dependencies: None",
 		"",
 	}, "\n"))
-	// WP-001 carries a real pending task and stays runnable. WP-002's directory is
+	// TG-001 carries a real pending task and stays runnable. TG-002's directory is
 	// materialized but holds only a non-task artifact, so it resolves as present
 	// (not missing) with zero executable tasks -- the drift case the read model
 	// must block so its Start action agrees with the runtime start preflight.
 	env.writeWorkflowFile(
 		t,
 		slug,
-		filepath.Join("_packages", "WP-001", "task_01.md"),
-		daemonTaskBody("pending", "WP-001 task"),
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "TG-001 task"),
 	)
 	env.writeWorkflowFile(
 		t,
 		slug,
-		filepath.Join("_packages", "WP-002", "_tasks.md"),
-		"# Empty package\n",
+		filepath.Join("_task_groups", "TG-002", "_tasks.md"),
+		"# Empty task group\n",
 	)
 }
 
@@ -1437,19 +1437,19 @@ func findDashboardInitiativeCard(
 	return apicore.WorkflowCard{}
 }
 
-func findWorkPackageSummary(
+func findTaskGroupSummary(
 	t *testing.T,
-	packages []apicore.WorkPackageSummary,
-	packageID string,
-) apicore.WorkPackageSummary {
+	taskGroups []apicore.TaskGroupSummary,
+	taskGroupID string,
+) apicore.TaskGroupSummary {
 	t.Helper()
-	for i := range packages {
-		if packages[i].PackageID == packageID {
-			return packages[i]
+	for i := range taskGroups {
+		if taskGroups[i].TaskGroupID == taskGroupID {
+			return taskGroups[i]
 		}
 	}
-	t.Fatalf("work package %q not found in %#v", packageID, packages)
-	return apicore.WorkPackageSummary{}
+	t.Fatalf("task group %q not found in %#v", taskGroupID, taskGroups)
+	return apicore.TaskGroupSummary{}
 }
 
 func mustProblem(t *testing.T, err error) *apicore.Problem {

@@ -784,16 +784,16 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 	}
 }
 
-func TestRootCommandRegistersHiddenWorkPackageCompletionBridge(t *testing.T) {
+func TestRootCommandRegistersHiddenTaskGroupCompletionBridge(t *testing.T) {
 	// INVARIANT: final-review automation has one non-public, deterministic
 	// completion bridge rather than a user-visible lifecycle command.
 	// OWNING_LAYER: unit. EXISTING_SUITE: internal/cli/root_test.go.
 	root := NewRootCommand()
-	command, _, err := root.Find([]string{"internal", "work-packages", "complete"})
+	command, _, err := root.Find([]string{"internal", "task-groups", "complete"})
 	if err != nil {
 		t.Fatalf("Find(hidden completion bridge): %v", err)
 	}
-	if command == nil || !command.Hidden || command.Use != "complete <initiative>/WP-NNN" {
+	if command == nil || !command.Hidden || command.Use != "complete <initiative>/TG-NNN" {
 		t.Fatalf("hidden completion command = %#v", command)
 	}
 	if command.Flags().Lookup("verification-passed") == nil {
@@ -801,12 +801,12 @@ func TestRootCommandRegistersHiddenWorkPackageCompletionBridge(t *testing.T) {
 	}
 }
 
-func TestInternalCompleteBridgeRecordsDocumentedCleanPackage(t *testing.T) {
+func TestInternalCompleteBridgeRecordsDocumentedCleanTaskGroup(t *testing.T) {
 	// INVARIANT: the exact command the cy-review-round skill documents —
-	// `compozy internal work-packages complete <initiative>/WP-NNN
-	// --verification-passed` — must record completion for a clean package, and
+	// `compozy internal task-groups complete <initiative>/TG-NNN
+	// --verification-passed` — must record completion for a clean task group, and
 	// omitting the flag must be refused. This guards the doc/flag contract that
-	// TestRootCommandRegistersHiddenWorkPackageCompletionBridge cannot, since it
+	// TestRootCommandRegistersHiddenTaskGroupCompletionBridge cannot, since it
 	// only asserts the flag exists rather than that the documented invocation
 	// works. The fail-closed default is why the docs must carry the flag.
 	// OWNING_LAYER: cli command. EXISTING_SUITE: internal/cli/root_test.go.
@@ -815,7 +815,7 @@ func TestInternalCompleteBridgeRecordsDocumentedCleanPackage(t *testing.T) {
 		t.Setenv("COMPOZY_HOME", t.TempDir())
 		t.Chdir(workspaceRoot)
 
-		out, err := runInternalCompletion(t, "initiative/WP-001", "--verification-passed")
+		out, err := runInternalCompletion(t, "initiative/TG-001", "--verification-passed")
 		if err != nil {
 			t.Fatalf("documented completion invocation failed: %v\noutput: %s", err, out.String())
 		}
@@ -830,7 +830,7 @@ func TestInternalCompleteBridgeRecordsDocumentedCleanPackage(t *testing.T) {
 		t.Setenv("COMPOZY_HOME", t.TempDir())
 		t.Chdir(workspaceRoot)
 
-		out, err := runInternalCompletion(t, "initiative/WP-001")
+		out, err := runInternalCompletion(t, "initiative/TG-001")
 		if err == nil {
 			t.Fatalf("expected verification_failed without --verification-passed, output: %s", out.String())
 		}
@@ -853,16 +853,16 @@ func runInternalCompletion(t *testing.T, reference string, flags ...string) (*by
 	root := NewRootCommand()
 	root.SetOut(out)
 	root.SetErr(out)
-	args := append([]string{"internal", "work-packages", "complete", reference}, flags...)
+	args := append([]string{"internal", "task-groups", "complete", reference}, flags...)
 	root.SetArgs(args)
 	return out, root.Execute()
 }
 
-func decodeCompletionResult(t *testing.T, output []byte) core.WorkPackageCompletionResult {
+func decodeCompletionResult(t *testing.T, output []byte) core.TaskGroupCompletionResult {
 	t.Helper()
 	// The bridge encodes its JSON result before any error text, so decode the
 	// first JSON value and ignore trailing cobra error output.
-	var result core.WorkPackageCompletionResult
+	var result core.TaskGroupCompletionResult
 	if err := json.NewDecoder(bytes.NewReader(output)).Decode(&result); err != nil {
 		t.Fatalf("decode completion result from %q: %v", string(output), err)
 	}
@@ -870,7 +870,7 @@ func decodeCompletionResult(t *testing.T, output []byte) core.WorkPackageComplet
 }
 
 // writeCleanCompletionWorkspace builds the minimal workspace whose single
-// dependency-free package satisfies every completion gate: canonical
+// dependency-free task group satisfies every completion gate: canonical
 // specifications, a terminal task, no dependencies, and no unresolved reviews.
 // It returns the workspace root the hidden bridge should discover.
 func writeCleanCompletionWorkspace(t *testing.T) string {
@@ -879,39 +879,39 @@ func writeCleanCompletionWorkspace(t *testing.T) string {
 	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
 	writeCompletionFixtureFile(t, initiativeDir, "_prd.md", "# Initiative\n")
 	writeCompletionFixtureFile(t, initiativeDir, "_techspec.md", "# Initiative Techspec\n")
-	writeCompletionFixtureFile(t, initiativeDir, "_work_packages.md", strings.Join([]string{
+	writeCompletionFixtureFile(t, initiativeDir, "_task_groups.md", strings.Join([]string{
 		"---",
-		"schema_version: compozy.work-packages/v1",
+		"schema_version: compozy.task-groups/v1",
 		"initiative: initiative",
 		"graph:",
 		"  nodes:",
-		"    - id: WP-001",
-		"      directory: _packages/WP-001",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
 		"  edges: []",
 		"---",
 		"",
-		"# Initiative Work Packages",
+		"# Initiative Task Groups",
 		"",
-		"## [ ] WP-001 — Persistence",
+		"## [ ] TG-001 — Persistence",
 		"",
-		"- Reference: `initiative/WP-001`",
+		"- Reference: `initiative/TG-001`",
 		"- Outcome: Persist the parent workflow.",
 		"- Owns:",
 		"  - persistence",
 		"- Dependencies: None",
 		"",
 	}, "\n"))
-	packageDir := filepath.Join(initiativeDir, "_packages", "WP-001")
-	writeCompletionFixtureFile(t, packageDir, "task_01.md", strings.Join([]string{
+	taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+	writeCompletionFixtureFile(t, taskGroupDir, "task_01.md", strings.Join([]string{
 		"---",
 		"status: completed",
-		"title: WP-001 task",
+		"title: TG-001 task",
 		"type: backend",
 		"complexity: low",
 		"dependencies: []",
 		"---",
 		"",
-		"# WP-001 task",
+		"# TG-001 task",
 		"",
 	}, "\n"))
 	return workspaceRoot

@@ -60,14 +60,14 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 
 1. Invoke `/cy-create-tasks` with the feature name.
 2. The skill loads the PRD, TechSpec, and their catalogs (`_user_stories.md`, `_tests.md`), then drafts the complete neutral task breakdown in memory.
-3. Review the proposed task table and total task count, then choose `ordinary` to keep it as one general workflow or `work_packages` to reorganize it into coherent independently reviewable outcomes.
-4. A Work Package selection opens a second proposal showing every package, its complete task table, exact test assignments, and any revised task count before approval. Stable references remain `<slug>/WP-NNN`; new physical directories use `_packages/NNN-<brief>/`.
+3. Review the proposed task table and total task count, then choose among four planning strategies: ordinary as drafted, smaller ordinary tasks, Task Groups by outcome, or Task Groups by task type. The menu shows concrete task/group counts, marks one recommendation, and explains unavailable strategies.
+4. Smaller ordinary tasks produce a complete revised task table before approval. Either Task Group strategy opens a second proposal showing every task group, its complete task table, exact test assignments, and any revised task count before approval. Stable references remain `<slug>/TG-NNN`; new physical directories use `_task_groups/NNN-<brief>/`.
 5. Every test case from `_tests.md` is assigned to exactly one task's `## Tests` section.
 6. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`.
 7. `_tasks.md` is generated as the canonical `compozy.tasks/v2` graph manifest with `graph.nodes` and `graph.edges`.
 8. Tasks are enriched with codebase patterns and implementation context.
 9. Validation runs via `compozy tasks validate`.
-10. Output: ordinary `task_01.md` through `task_N.md` plus `_tasks.md`, or `_work_packages.md` plus package-local task suites.
+10. Output: ordinary `task_01.md` through `task_N.md` plus `_tasks.md`, or `_task_groups.md` plus task-group-local task suites.
 
 **Task types:** `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`. Custom types can be registered in `.compozy/config.toml` under `[tasks].types`.
 

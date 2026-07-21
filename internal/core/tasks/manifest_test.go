@@ -154,7 +154,7 @@ func TestLoadValidatedTaskGraphManifestRejectsEscapedNodeFiles(t *testing.T) {
 		{
 			name: "parent directory reference",
 			file: func(_ *testing.T, _, _ string) string {
-				return "../WP-001/task_01.md"
+				return "../TG-001/task_01.md"
 			},
 		},
 		{
@@ -181,8 +181,8 @@ func TestLoadValidatedTaskGraphManifestRejectsEscapedNodeFiles(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			tasksDir := filepath.Join(root, "WP-002")
-			siblingTask := filepath.Join(root, "WP-001", "task_01.md")
+			tasksDir := filepath.Join(root, "TG-002")
+			siblingTask := filepath.Join(root, "TG-001", "task_01.md")
 			if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 				t.Fatalf("create tasks directory: %v", err)
 			}
@@ -191,9 +191,9 @@ func TestLoadValidatedTaskGraphManifestRejectsEscapedNodeFiles(t *testing.T) {
 				"# Sibling task",
 			))
 			file := tt.file(t, tasksDir, siblingTask)
-			writeTaskManifestTestFile(t, tasksDir, "_tasks.md", singleTaskGraphManifestMarkdown("demo/WP-002", file))
+			writeTaskManifestTestFile(t, tasksDir, "_tasks.md", singleTaskGraphManifestMarkdown("demo/TG-002", file))
 
-			_, _, err := LoadValidatedTaskGraphManifest(context.Background(), tasksDir, "demo/WP-002")
+			_, _, err := LoadValidatedTaskGraphManifest(context.Background(), tasksDir, "demo/TG-002")
 			var validationErr *TaskGraphManifestValidationError
 			if !errors.As(err, &validationErr) {
 				t.Fatalf("LoadValidatedTaskGraphManifest() error = %v, want manifest validation error", err)

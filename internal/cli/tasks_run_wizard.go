@@ -14,12 +14,13 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/compozy/compozy/internal/charmtheme"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/spf13/cobra"
 )
@@ -171,19 +172,19 @@ type taskRunWizardChoice struct {
 }
 
 type taskRunWizardWorkflowOption struct {
-	Value                 string
-	Label                 string
-	Initiative            string
-	Depth                 int
-	Group                 bool
-	Status                taskRunWizardWorkflowStatus
-	Completed             bool
-	CompletedTasks        int
-	TotalTasks            int
-	TaskProgressKnown     bool
-	CompletedWorkPackages int
-	TotalWorkPackages     int
-	BlockedBy             []string
+	Value               string
+	Label               string
+	Initiative          string
+	Depth               int
+	Group               bool
+	Status              taskRunWizardWorkflowStatus
+	Completed           bool
+	CompletedTasks      int
+	TotalTasks          int
+	TaskProgressKnown   bool
+	CompletedTaskGroups int
+	TotalTaskGroups     int
+	BlockedBy           []string
 }
 
 type taskRunWizardTextInputs struct {
@@ -566,14 +567,14 @@ func listTaskRunWizardWorkflowOptions(
 	return buildTaskRunWizardWorkflowOptions(baseDir, latestRunStatuses)
 }
 
-func readTaskRunWizardPlan(baseDir, initiative string) (workpackages.Plan, bool) {
-	content, err := os.ReadFile(filepath.Join(baseDir, initiative, workpackages.ManifestFileName))
+func readTaskRunWizardPlan(baseDir, initiative string) (taskgroups.Plan, bool) {
+	content, err := os.ReadFile(filepath.Join(baseDir, initiative, taskgroups.ManifestFileName))
 	if err != nil {
-		return workpackages.Plan{}, false
+		return taskgroups.Plan{}, false
 	}
-	plan, err := workpackages.ParsePlanForInitiative(string(content), initiative)
+	plan, err := taskgroups.ParsePlanForInitiative(string(content), initiative)
 	if err != nil {
-		return workpackages.Plan{}, false
+		return taskgroups.Plan{}, false
 	}
 	return plan, true
 }
@@ -2018,7 +2019,7 @@ func (m *taskRunWizardModel) renderWorkflowDualPane(
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 	return strings.Join([]string{
 		taskRunWizardSubtitleStyle().Render(
-			"Select workflows or individual Work Packages. [⊘] means dependency blocked; [!] means no tasks are complete.",
+			"Select workflows or individual Task Groups. [⊘] means dependency blocked; [!] means no tasks are complete.",
 		),
 		panes,
 		m.workflowStatusLine(),
@@ -2079,6 +2080,7 @@ func (m *taskRunWizardModel) workflowListLines(
 		indent := strings.Repeat("  ", option.Depth)
 		label := taskRunWizardWorkflowOptionLabel(option)
 		if m.workflowOptionLocked(option) {
+			label = xansi.SGR(xansi.AttrStrikethrough) + label + xansi.SGR(xansi.AttrNoStrikethrough)
 			label = taskRunWizardMutedStyle().Render(label)
 		}
 		lines = append(lines, taskRunWizardTruncate(cursor+indent+mark+" "+label, width))
@@ -2108,7 +2110,7 @@ func (m *taskRunWizardModel) workflowSelectionMark(option taskRunWizardWorkflowO
 		return taskRunWizardCompletedStyle().Render("[✓]")
 	}
 	if option.Status == taskRunWizardWorkflowBlocked {
-		return taskRunWizardMutedStyle().Render(workPackagePickerBlockedMarker)
+		return taskRunWizardMutedStyle().Render(taskGroupPickerBlockedMarker)
 	}
 	if taskRunWizardWorkflowNotStarted(option) {
 		return taskRunWizardMutedStyle().Render("[!]")
@@ -2600,7 +2602,7 @@ func (m *taskRunWizardModel) reviewFlagsValue() string {
 }
 
 // reviewParallelWorkflowLimit shows the configured max concurrent workflows,
-// falling back to the package default when the field is left blank.
+// falling back to the task group default when the field is left blank.
 func (m *taskRunWizardModel) reviewParallelWorkflowLimit() string {
 	if limit := strings.TrimSpace(m.inputs.parallelWorkflowLimit); limit != "" {
 		return limit

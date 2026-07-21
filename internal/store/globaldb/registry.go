@@ -61,7 +61,7 @@ const workflowSelectColumns = `
 	slug,
 	kind,
 	parent_workflow_id,
-	package_id,
+	task_group_id,
 	display_title,
 	outcome,
 	lifecycle_completed,
@@ -75,10 +75,10 @@ const workflowSelectColumns = `
 const (
 	// WorkflowKindOrdinary identifies legacy workflow rows.
 	WorkflowKindOrdinary WorkflowKind = "ordinary"
-	// WorkflowKindInitiative identifies an opted-in Work Package root row.
+	// WorkflowKindInitiative identifies an opted-in Task Group root row.
 	WorkflowKindInitiative WorkflowKind = "initiative"
-	// WorkflowKindWorkPackage identifies a hidden Work Package child row.
-	WorkflowKindWorkPackage WorkflowKind = "work_package"
+	// WorkflowKindTaskGroup identifies a hidden Task Group child row.
+	WorkflowKindTaskGroup WorkflowKind = "task_group"
 
 	// WorkspaceFilesystemStatePresent means the workspace root exists on disk.
 	WorkspaceFilesystemStatePresent = "present"
@@ -90,10 +90,10 @@ const (
 // WorkflowKind describes the persistence role of a workflow row.
 type WorkflowKind string
 
-// WorkflowDependency is a package prerequisite projected for catalog reads.
+// WorkflowDependency is a task group prerequisite projected for catalog reads.
 type WorkflowDependency struct {
-	PackageID string `json:"package_id"`
-	Rationale string `json:"rationale"`
+	TaskGroupID string `json:"task_group_id"`
+	Rationale   string `json:"rationale"`
 }
 
 // Workspace captures one durable workspace registration.
@@ -120,11 +120,11 @@ type Workflow struct {
 	Slug               string
 	Kind               WorkflowKind
 	ParentWorkflowID   string
-	PackageID          string
+	TaskGroupID        string
 	DisplayTitle       string
 	Outcome            string
 	LifecycleCompleted bool
-	// Missing marks a placeholder row seeded for a declared package whose
+	// Missing marks a placeholder row seeded for a declared task group whose
 	// directory is absent on disk. Present, materialized rows leave it false.
 	Missing      bool
 	Dependencies []WorkflowDependency
@@ -578,7 +578,7 @@ func (g *GlobalDB) ListWorkflows(ctx context.Context, opts ListWorkflowsOptions)
 	return workflows, nil
 }
 
-// ListChildWorkflows returns child rows for one initiative in stable package order.
+// ListChildWorkflows returns child rows for one initiative in stable task group order.
 func (g *GlobalDB) ListChildWorkflows(
 	ctx context.Context,
 	parentWorkflowID string,
@@ -598,7 +598,7 @@ func (g *GlobalDB) ListChildWorkflows(
 	if !includeArchived {
 		query += ` AND archived_at IS NULL`
 	}
-	query += ` ORDER BY package_id ASC, created_at ASC, id ASC`
+	query += ` ORDER BY task_group_id ASC, created_at ASC, id ASC`
 
 	rows, err := g.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -1055,7 +1055,7 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO workflows (
-			id, workspace_id, slug, kind, parent_workflow_id, package_id,
+			id, workspace_id, slug, kind, parent_workflow_id, task_group_id,
 			display_title, outcome, lifecycle_completed, missing, dependencies_json,
 			archived_at, last_synced_at, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1064,7 +1064,7 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 		workflow.Slug,
 		workflow.Kind,
 		store.NullableString(workflow.ParentWorkflowID),
-		workflow.PackageID,
+		workflow.TaskGroupID,
 		workflow.DisplayTitle,
 		workflow.Outcome,
 		workflow.LifecycleCompleted,
@@ -1106,7 +1106,7 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE workflows
-		 SET workspace_id = ?, slug = ?, kind = ?, parent_workflow_id = ?, package_id = ?,
+		 SET workspace_id = ?, slug = ?, kind = ?, parent_workflow_id = ?, task_group_id = ?,
 		     display_title = ?, outcome = ?, lifecycle_completed = ?, missing = ?, dependencies_json = ?,
 		     archived_at = ?, last_synced_at = ?, updated_at = ?
 		 WHERE id = ?`,
@@ -1114,7 +1114,7 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 		workflow.Slug,
 		workflow.Kind,
 		store.NullableString(workflow.ParentWorkflowID),
-		workflow.PackageID,
+		workflow.TaskGroupID,
 		workflow.DisplayTitle,
 		workflow.Outcome,
 		workflow.LifecycleCompleted,
@@ -1162,7 +1162,7 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 		&workflow.Slug,
 		&kind,
 		&parentWorkflowIDRaw,
-		&workflow.PackageID,
+		&workflow.TaskGroupID,
 		&workflow.DisplayTitle,
 		&workflow.Outcome,
 		&lifecycleCompleted,
@@ -1177,7 +1177,7 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 	}
 	workflow.Kind = WorkflowKind(strings.TrimSpace(kind))
 	workflow.ParentWorkflowID = strings.TrimSpace(parentWorkflowIDRaw.String)
-	workflow.PackageID = strings.TrimSpace(workflow.PackageID)
+	workflow.TaskGroupID = strings.TrimSpace(workflow.TaskGroupID)
 	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
 	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
 	workflow.LifecycleCompleted = lifecycleCompleted != 0
@@ -1221,7 +1221,7 @@ func normalizeWorkflow(workflow Workflow) (Workflow, string, error) {
 	workflow.Slug = strings.TrimSpace(workflow.Slug)
 	workflow.Kind = WorkflowKind(strings.TrimSpace(string(workflow.Kind)))
 	workflow.ParentWorkflowID = strings.TrimSpace(workflow.ParentWorkflowID)
-	workflow.PackageID = strings.TrimSpace(workflow.PackageID)
+	workflow.TaskGroupID = strings.TrimSpace(workflow.TaskGroupID)
 	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
 	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
 	if workflow.Kind == "" {
@@ -1229,25 +1229,25 @@ func normalizeWorkflow(workflow Workflow) (Workflow, string, error) {
 	}
 	if workflow.Kind != WorkflowKindOrdinary &&
 		workflow.Kind != WorkflowKindInitiative &&
-		workflow.Kind != WorkflowKindWorkPackage {
+		workflow.Kind != WorkflowKindTaskGroup {
 		return Workflow{}, "", fmt.Errorf("globaldb: invalid workflow kind %q", workflow.Kind)
 	}
-	if workflow.Kind == WorkflowKindWorkPackage {
+	if workflow.Kind == WorkflowKindTaskGroup {
 		if workflow.ParentWorkflowID == "" {
 			return Workflow{}, "", errors.New("globaldb: child workflow parent id is required")
 		}
-		if workflow.PackageID == "" {
-			return Workflow{}, "", errors.New("globaldb: child workflow package id is required")
+		if workflow.TaskGroupID == "" {
+			return Workflow{}, "", errors.New("globaldb: child workflow task group id is required")
 		}
-	} else if workflow.ParentWorkflowID != "" || workflow.PackageID != "" {
-		return Workflow{}, "", errors.New("globaldb: only child workflows may have parent or package identity")
+	} else if workflow.ParentWorkflowID != "" || workflow.TaskGroupID != "" {
+		return Workflow{}, "", errors.New("globaldb: only child workflows may have parent or task group identity")
 	}
 	dependencies := make([]WorkflowDependency, 0, len(workflow.Dependencies))
 	for _, dependency := range workflow.Dependencies {
-		dependency.PackageID = strings.TrimSpace(dependency.PackageID)
+		dependency.TaskGroupID = strings.TrimSpace(dependency.TaskGroupID)
 		dependency.Rationale = strings.TrimSpace(dependency.Rationale)
-		if dependency.PackageID == "" || dependency.Rationale == "" {
-			return Workflow{}, "", errors.New("globaldb: workflow dependency package id and rationale are required")
+		if dependency.TaskGroupID == "" || dependency.Rationale == "" {
+			return Workflow{}, "", errors.New("globaldb: workflow dependency task group id and rationale are required")
 		}
 		dependencies = append(dependencies, dependency)
 	}

@@ -22,14 +22,14 @@ function ReviewsIndexRoute(): ReactElement {
       if (card.latest_review) {
         rounds.push({ slug: card.workflow.slug, review: card.latest_review });
       }
-      // Package rounds route through the parent initiative slug plus package_id,
-      // matching the package-aware review routes.
-      for (const pkg of card.workflow.work_packages ?? []) {
-        if (pkg.latest_review) {
+      // Task Group rounds route through the parent initiative slug plus task_group_id,
+      // matching the task-group-aware review routes.
+      for (const taskGroup of card.workflow.task_groups ?? []) {
+        if (taskGroup.latest_review) {
           rounds.push({
             slug: card.workflow.slug,
-            review: pkg.latest_review,
-            packageId: pkg.package_id,
+            review: taskGroup.latest_review,
+            taskGroupId: taskGroup.task_group_id,
           });
         }
       }

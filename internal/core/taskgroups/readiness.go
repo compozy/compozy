@@ -1,4 +1,4 @@
-package workpackages
+package taskgroups
 
 import (
 	"fmt"
@@ -6,32 +6,32 @@ import (
 	"strings"
 )
 
-// EvaluateReadiness evaluates direct, transitive, and independent package state.
-func EvaluateReadiness(plan Plan, packageID string) (Readiness, error) {
-	selected, found := plan.Package(packageID)
+// EvaluateReadiness evaluates direct, transitive, and independent task group state.
+func EvaluateReadiness(plan Plan, taskGroupID string) (Readiness, error) {
+	selected, found := plan.TaskGroup(taskGroupID)
 	if !found {
-		return Readiness{}, packageNotFound(Ref{Initiative: plan.Initiative, PackageID: packageID}, plan)
+		return Readiness{}, taskGroupNotFound(Ref{Initiative: plan.Initiative, TaskGroupID: taskGroupID}, plan)
 	}
-	packages := make(map[string]*Package, len(plan.Packages))
-	for index := range plan.Packages {
-		pkg := &plan.Packages[index]
-		packages[pkg.ID] = pkg
+	taskGroups := make(map[string]*TaskGroup, len(plan.TaskGroups))
+	for index := range plan.TaskGroups {
+		taskGroup := &plan.TaskGroups[index]
+		taskGroups[taskGroup.ID] = taskGroup
 	}
 	for _, edge := range plan.Edges {
-		if _, exists := packages[edge.From]; !exists {
+		if _, exists := taskGroups[edge.From]; !exists {
 			return Readiness{}, newError(
 				ErrInvalidPlan,
 				plan.Initiative,
-				packageID,
+				taskGroupID,
 				plan.Path,
 				[]Issue{{Field: "graph.edges", Message: fmt.Sprintf("unknown prerequisite %q", edge.From)}},
 			)
 		}
-		if _, exists := packages[edge.To]; !exists {
+		if _, exists := taskGroups[edge.To]; !exists {
 			return Readiness{}, newError(
 				ErrInvalidPlan,
 				plan.Initiative,
-				packageID,
+				taskGroupID,
 				plan.Path,
 				[]Issue{{Field: "graph.edges", Message: fmt.Sprintf("unknown consumer %q", edge.To)}},
 			)
@@ -40,22 +40,22 @@ func EvaluateReadiness(plan Plan, packageID string) (Readiness, error) {
 
 	direct := make([]Dependency, 0)
 	for _, dependency := range selected.Dependencies {
-		if !packages[dependency.From].Completed {
+		if !taskGroups[dependency.From].Completed {
 			direct = append(direct, dependency)
 		}
 	}
 	slices.SortFunc(direct, compareDependency)
-	transitive := unmetTransitivePaths(plan, packages, packageID)
+	transitive := unmetTransitivePaths(plan, taskGroups, taskGroupID)
 	return Readiness{
 		Eligible:         len(direct) == 0 && len(transitive) == 0,
 		DirectUnmet:      direct,
 		TransitiveUnmet:  transitive,
-		IndependentPeers: independentPeers(plan, packages, packageID),
+		IndependentPeers: independentPeers(plan, taskGroups, taskGroupID),
 	}, nil
 }
 
-func unmetTransitivePaths(plan Plan, packages map[string]*Package, selected string) []DependencyPath {
-	incoming := make(map[string][]Dependency, len(packages))
+func unmetTransitivePaths(plan Plan, taskGroups map[string]*TaskGroup, selected string) []DependencyPath {
+	incoming := make(map[string][]Dependency, len(taskGroups))
 	for _, edge := range plan.Edges {
 		incoming[edge.To] = append(incoming[edge.To], edge)
 	}
@@ -71,12 +71,12 @@ func unmetTransitivePaths(plan Plan, packages map[string]*Package, selected stri
 			}
 			nextEdges := append(slices.Clone(edges), edge)
 			nextIDs := append(slices.Clone(ids), edge.From)
-			if len(nextEdges) > 1 && !packages[edge.From].Completed {
+			if len(nextEdges) > 1 && !taskGroups[edge.From].Completed {
 				reversedIDs := reverseStrings(nextIDs)
 				reversedEdges := reverseDependencies(nextEdges)
 				reversedEdges = reversedEdges[:len(reversedEdges)-1]
 				key := strings.Join(reversedIDs, "\x00")
-				paths[key] = DependencyPath{PackageIDs: reversedIDs, Edges: reversedEdges}
+				paths[key] = DependencyPath{TaskGroupIDs: reversedIDs, Edges: reversedEdges}
 			}
 			nextAncestors := make(map[string]struct{}, len(ancestors)+1)
 			for id := range ancestors {
@@ -115,17 +115,17 @@ func reverseDependencies(values []Dependency) []Dependency {
 }
 
 func compareDependencyPath(left, right DependencyPath) int {
-	leftKey := strings.Join(left.PackageIDs, "\x00")
-	rightKey := strings.Join(right.PackageIDs, "\x00")
+	leftKey := strings.Join(left.TaskGroupIDs, "\x00")
+	rightKey := strings.Join(right.TaskGroupIDs, "\x00")
 	return strings.Compare(leftKey, rightKey)
 }
 
-func independentPeers(plan Plan, packages map[string]*Package, selected string) []string {
+func independentPeers(plan Plan, taskGroups map[string]*TaskGroup, selected string) []string {
 	forward := reachable(plan.Edges, selected, false)
 	backward := reachable(plan.Edges, selected, true)
 	peers := make([]string, 0)
-	for id := range packages {
-		if id == selected || packages[id].Completed || forward[id] || backward[id] {
+	for id := range taskGroups {
+		if id == selected || taskGroups[id].Completed || forward[id] || backward[id] {
 			continue
 		}
 		peers = append(peers, id)

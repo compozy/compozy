@@ -10,32 +10,35 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/spf13/cobra"
 )
 
 const (
-	daemonRunModeTask                 = "task"
-	daemonRunModeReview               = "review"
-	workPackagePickerUnselectedMarker = "[ ]"
-	workPackagePickerSelectedMarker   = "[x]"
-	workPackagePickerNotStartedMarker = "[!]"
-	workPackagePickerBlockedMarker    = "[⊘]"
-	workPackagePickerCompletedMarker  = "[✓]"
-	reviewImplementationBlockedReason = "review is blocked until at least one implementation task is complete"
+	daemonRunModeTask                  = "task"
+	daemonRunModeReview                = "review"
+	taskGroupPickerUnselectedMarker    = "[ ]"
+	taskGroupPickerSelectedMarker      = "[x]"
+	taskGroupPickerNotStartedMarker    = "[!]"
+	taskGroupPickerBlockedMarker       = "[⊘]"
+	taskGroupPickerCompletedMarker     = "[✓]"
+	reviewImplementationBlockedReason  = "review is blocked until at least one implementation task is complete"
+	reviewNoPendingIssuesReason        = "review target has no pending issues"
+	reviewNoActionableTaskGroupsReason = "review target has no Task Groups with pending issues that can be fixed"
 )
 
-type workPackagePickerInput struct {
-	Target           workpackages.Target
+type taskGroupPickerInput struct {
+	Target           taskgroups.Target
 	WorkspaceRoot    string
 	RunMode          string
 	LockCompleted    bool
 	IncludeCompleted bool
 }
 
-type workPackagePickerOption struct {
+type taskGroupPickerOption struct {
 	Value                  string
 	Label                  string
+	Depth                  int
 	Completed              bool
 	SelectionBlocked       bool
 	SelectionBlockedReason string
@@ -47,7 +50,7 @@ type reviewRoundPickerSummary struct {
 	PendingIssueCount int
 }
 
-func (s *commandState) workPackagePickerRunMode() string {
+func (s *commandState) taskGroupPickerRunMode() string {
 	switch s.kind {
 	case commandKindTasksRun:
 		return daemonRunModeTask
@@ -58,14 +61,14 @@ func (s *commandState) workPackagePickerRunMode() string {
 	}
 }
 
-func defaultPickWorkPackage(cmd *cobra.Command, input workPackagePickerInput) (string, error) {
+func defaultPickTaskGroup(cmd *cobra.Command, input taskGroupPickerInput) (string, error) {
 	latestRunStatuses := map[string]string(nil)
 	if strings.TrimSpace(input.RunMode) != "" {
 		client, err := newCLIDaemonBootstrap().ensure(cmd.Context())
 		if err != nil {
-			return "", fmt.Errorf("prepare Work Package status picker: %w", err)
+			return "", fmt.Errorf("prepare Task Group status picker: %w", err)
 		}
-		latestRunStatuses, err = loadWorkPackagePickerLatestRunStatuses(
+		latestRunStatuses, err = loadTaskGroupPickerLatestRunStatuses(
 			cmd.Context(),
 			client,
 			input.WorkspaceRoot,
@@ -76,51 +79,53 @@ func defaultPickWorkPackage(cmd *cobra.Command, input workPackagePickerInput) (s
 		}
 	}
 
-	options, err := buildWorkPackagePickerOptions(input, latestRunStatuses)
+	options, err := buildTaskGroupPickerOptions(input, latestRunStatuses)
 	if err != nil {
 		return "", err
 	}
 	if len(options) == 0 {
-		return "", errWorkPackageSelectionCanceled
+		return "", errTaskGroupSelectionCanceled
 	}
 
 	huhOptions := make([]huh.Option[string], 0, len(options))
 	allowCompleted := !input.LockCompleted || input.IncludeCompleted
 	for index := range options {
 		option := &options[index]
-		huhOptions = append(huhOptions, huh.NewOption(workPackagePickerOptionLabel(*option), option.Value))
+		huhOptions = append(huhOptions, huh.NewOption(taskGroupPickerOptionLabel(*option), option.Value))
 	}
-	selected := defaultWorkPackagePickerSelection(options, allowCompleted)
+	selected := defaultTaskGroupPickerSelection(options, allowCompleted)
 
 	description := "Each row includes completion, live run status, dependency readiness, and task progress. " +
 		"[⊘] means dependency blocked; [!] means no tasks are complete."
 	if input.RunMode == daemonRunModeReview {
-		description = "Rows show the latest review round and pending issues. " +
+		description = "Rows without pending issues stay visible but stay locked. " +
 			"[⊘] means no implementation tasks are complete and review is blocked."
 	} else if !allowCompleted {
-		description = "Completed packages stay visible with a check but stay locked. " +
+		description = "Completed task groups stay visible with a check but stay locked. " +
 			"Rows include status and task progress; [⊘] means dependency blocked; [!] means no tasks are complete."
 	}
 	field := huh.NewSelect[string]().
-		Title("Select a Work Package").
+		Title("Select a Task Group").
 		Description(description).
 		Options(huhOptions...).
-		Filtering(true).
 		Validate(func(value string) error {
-			return validateWorkPackagePickerSelection(options, value, allowCompleted)
+			return validateTaskGroupPickerSelection(options, value, allowCompleted)
 		}).
 		Value(&selected)
+	if input.RunMode != daemonRunModeReview {
+		field = field.Filtering(true)
+	}
 	form := huh.NewForm(huh.NewGroup(field))
 	if err := form.Run(); err != nil {
 		return "", err
 	}
-	if err := validateWorkPackagePickerSelection(options, selected, allowCompleted); err != nil {
+	if err := validateTaskGroupPickerSelection(options, selected, allowCompleted); err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(selected), nil
 }
 
-func defaultWorkPackagePickerSelection(options []workPackagePickerOption, allowCompleted bool) string {
+func defaultTaskGroupPickerSelection(options []taskGroupPickerOption, allowCompleted bool) string {
 	for index := range options {
 		option := &options[index]
 		if option.SelectionBlocked || (option.Completed && !allowCompleted) {
@@ -135,8 +140,8 @@ func loadReviewFixTargetPickerOptions(
 	ctx context.Context,
 	client daemonCommandClient,
 	workspaceRoot string,
-) ([]workPackagePickerOption, error) {
-	latestRunStatuses, err := loadWorkPackagePickerLatestRunStatuses(
+) ([]taskGroupPickerOption, error) {
+	latestRunStatuses, err := loadTaskGroupPickerLatestRunStatuses(
 		ctx,
 		client,
 		workspaceRoot,
@@ -148,21 +153,21 @@ func loadReviewFixTargetPickerOptions(
 	return buildReviewFixTargetPickerOptions(ctx, workspaceRoot, latestRunStatuses)
 }
 
-func buildWorkPackagePickerOptions(
-	input workPackagePickerInput,
+func buildTaskGroupPickerOptions(
+	input taskGroupPickerInput,
 	latestRunStatuses map[string]string,
-) ([]workPackagePickerOption, error) {
+) ([]taskGroupPickerOption, error) {
 	target := input.Target
 	baseDir := filepath.Dir(target.InitiativeDir)
-	options := make([]workPackagePickerOption, 0, len(target.Plan.Packages))
-	for index := range target.Plan.Packages {
-		pkg := target.Plan.Packages[index]
-		option, err := buildWorkPackagePickerOption(
+	options := make([]taskGroupPickerOption, 0, len(target.Plan.TaskGroups))
+	for index := range target.Plan.TaskGroups {
+		taskGroup := target.Plan.TaskGroups[index]
+		option, err := buildTaskGroupPickerOption(
 			input,
 			baseDir,
-			pkg,
-			pkg.ID,
-			pkg.ID,
+			taskGroup,
+			taskGroup.ID,
+			taskGroup.ID,
 			latestRunStatuses,
 		)
 		if err != nil {
@@ -177,17 +182,17 @@ func buildReviewFixTargetPickerOptions(
 	ctx context.Context,
 	workspaceRoot string,
 	latestRunStatuses map[string]string,
-) ([]workPackagePickerOption, error) {
+) ([]taskGroupPickerOption, error) {
 	baseDir := model.TasksBaseDirForWorkspace(workspaceRoot)
 	slugs := listTaskSubdirs(baseDir)
-	options := make([]workPackagePickerOption, 0, len(slugs))
-	resolver := workpackages.TargetResolver{}
+	options := make([]taskGroupPickerOption, 0, len(slugs))
+	resolver := taskgroups.TargetResolver{}
 	for _, slug := range slugs {
 		target, err := resolver.Resolve(ctx, workspaceRoot, slug)
 		if err != nil {
 			return nil, fmt.Errorf("resolve review target %s: %w", slug, err)
 		}
-		if target.Mode != workpackages.TargetModeInitiative {
+		if target.Mode != taskgroups.TargetModeInitiative {
 			option, err := buildOrdinaryReviewFixTargetPickerOption(baseDir, slug, latestRunStatuses[slug])
 			if err != nil {
 				return nil, err
@@ -196,104 +201,140 @@ func buildReviewFixTargetPickerOptions(
 			continue
 		}
 
-		input := workPackagePickerInput{Target: target, RunMode: daemonRunModeReview}
-		for index := range target.Plan.Packages {
-			pkg := target.Plan.Packages[index]
-			reference := target.Ref.Initiative + "/" + pkg.ID
-			option, err := buildWorkPackagePickerOption(
+		input := taskGroupPickerInput{Target: target, RunMode: daemonRunModeReview}
+		children := make([]taskGroupPickerOption, 0, len(target.Plan.TaskGroups))
+		hasActionableTaskGroup := false
+		for index := range target.Plan.TaskGroups {
+			taskGroup := target.Plan.TaskGroups[index]
+			reference := target.Ref.Initiative + "/" + taskGroup.ID
+			option, err := buildTaskGroupPickerOption(
 				input,
 				baseDir,
-				pkg,
+				taskGroup,
 				reference,
-				reference,
+				taskGroup.ID,
 				latestRunStatuses,
 			)
 			if err != nil {
 				return nil, err
 			}
-			options = append(options, option)
+			option.Depth = 1
+			children = append(children, option)
+			hasActionableTaskGroup = hasActionableTaskGroup || !option.SelectionBlocked
 		}
+		root := taskGroupPickerOption{
+			Value: slug,
+			Label: taskGroupPickerUnselectedMarker + " " + slug,
+		}
+		if !hasActionableTaskGroup {
+			root.SelectionBlocked = true
+			root.SelectionBlockedReason = reviewNoActionableTaskGroupsReason
+		}
+		options = append(options, root)
+		options = append(options, children...)
 	}
 	return options, nil
 }
 
-func buildWorkPackagePickerOption(
-	input workPackagePickerInput,
+func buildTaskGroupPickerOption(
+	input taskGroupPickerInput,
 	baseDir string,
-	pkg workpackages.Package,
+	taskGroup taskgroups.TaskGroup,
 	value string,
 	displayReference string,
 	latestRunStatuses map[string]string,
-) (workPackagePickerOption, error) {
+) (taskGroupPickerOption, error) {
 	target := input.Target
-	if _, err := workpackages.EvaluateReadiness(target.Plan, pkg.ID); err != nil {
-		return workPackagePickerOption{}, err
+	if _, err := taskgroups.EvaluateReadiness(target.Plan, taskGroup.ID); err != nil {
+		return taskGroupPickerOption{}, err
 	}
-	workflowOption := taskRunWizardPackageOption(
+	workflowOption := taskRunWizardTaskGroupOption(
 		baseDir,
 		target.Ref.Initiative,
 		target.Plan,
-		pkg,
+		taskGroup,
 		latestRunStatuses,
 	)
-	workflowOption.Label = displayReference + " — " + pkg.Title
+	workflowOption.Label = displayReference + " — " + taskGroup.Title
 	if input.RunMode == daemonRunModeReview {
-		workflowOption.Status = reviewFixPickerStatus(latestRunStatuses[target.Ref.Initiative+"/"+pkg.ID])
+		workflowOption.Status = reviewFixPickerStatus(latestRunStatuses[target.Ref.Initiative+"/"+taskGroup.ID])
 		workflowOption.BlockedBy = nil
 	}
 
 	if input.RunMode == daemonRunModeReview {
 		summary, err := latestReviewRoundPickerSummary(filepath.Join(
 			target.InitiativeDir,
-			filepath.FromSlash(pkg.Directory),
+			filepath.FromSlash(taskGroup.Directory),
 		))
 		if err != nil {
-			return workPackagePickerOption{}, err
+			return taskGroupPickerOption{}, err
 		}
-		completed := workflowOption.Completed && summary.PendingIssueCount == 0
+		completed := reviewRoundPickerCompleted(workflowOption.Completed, summary)
 		reviewBlocked := taskRunWizardWorkflowNotStarted(workflowOption)
-		mark := workPackagePickerMarker(completed, reviewBlocked, false)
+		selectionBlockedReason := reviewFixSelectionBlockedReason(reviewBlocked, summary)
+		mark := taskGroupPickerMarker(completed, reviewBlocked, false)
 		label := mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(summary)
-		return workPackagePickerOption{
+		return taskGroupPickerOption{
 			Value:                  value,
 			Label:                  label,
 			Completed:              completed,
-			SelectionBlocked:       reviewBlocked,
-			SelectionBlockedReason: reviewImplementationBlockedReason,
+			SelectionBlocked:       selectionBlockedReason != "",
+			SelectionBlockedReason: selectionBlockedReason,
 		}, nil
 	}
-	mark := workPackagePickerMarker(
+	mark := taskGroupPickerMarker(
 		workflowOption.Completed,
 		workflowOption.Status == taskRunWizardWorkflowBlocked,
 		taskRunWizardWorkflowNotStarted(workflowOption),
 	)
 	label := mark + " " + taskRunWizardWorkflowOptionLabel(workflowOption)
-	return workPackagePickerOption{Value: value, Label: label, Completed: workflowOption.Completed}, nil
+	return taskGroupPickerOption{Value: value, Label: label, Completed: workflowOption.Completed}, nil
 }
 
 func buildOrdinaryReviewFixTargetPickerOption(
 	baseDir string,
 	slug string,
 	latestRunStatus string,
-) (workPackagePickerOption, error) {
+) (taskGroupPickerOption, error) {
 	workflowOption := taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus)
 	workflowOption.Status = reviewFixPickerStatus(latestRunStatus)
 	summary, err := latestReviewRoundPickerSummary(filepath.Join(baseDir, slug))
 	if err != nil {
-		return workPackagePickerOption{}, err
+		return taskGroupPickerOption{}, err
 	}
-	completed := workflowOption.Completed && summary.PendingIssueCount == 0
+	completed := reviewRoundPickerCompleted(workflowOption.Completed, summary)
 	reviewBlocked := taskRunWizardWorkflowNotStarted(workflowOption)
-	mark := workPackagePickerMarker(completed, reviewBlocked, false)
-	return workPackagePickerOption{
+	selectionBlockedReason := reviewFixSelectionBlockedReason(reviewBlocked, summary)
+	mark := taskGroupPickerMarker(completed, reviewBlocked, false)
+	return taskGroupPickerOption{
 		Value:                  slug,
-		SelectionBlocked:       reviewBlocked,
-		SelectionBlockedReason: reviewImplementationBlockedReason,
+		SelectionBlocked:       selectionBlockedReason != "",
+		SelectionBlockedReason: selectionBlockedReason,
 		Label: mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(
 			summary,
 		),
 		Completed: completed,
 	}, nil
+}
+
+func reviewFixSelectionBlockedReason(
+	implementationBlocked bool,
+	summary reviewRoundPickerSummary,
+) string {
+	if implementationBlocked {
+		return reviewImplementationBlockedReason
+	}
+	if summary.PendingIssueCount == 0 {
+		return reviewNoPendingIssuesReason
+	}
+	return ""
+}
+
+func reviewRoundPickerCompleted(
+	implementationCompleted bool,
+	summary reviewRoundPickerSummary,
+) bool {
+	return implementationCompleted && summary.Round > 0 && summary.PendingIssueCount == 0
 }
 
 func reviewFixPickerStatus(latestRunStatus string) taskRunWizardWorkflowStatus {
@@ -343,40 +384,41 @@ func reviewRoundPickerSummaryLabel(summary reviewRoundPickerSummary) string {
 	return fmt.Sprintf("Review round %d — %s", summary.Round, pendingLabel)
 }
 
-func workPackagePickerMarker(completed bool, blocked bool, notStarted bool) string {
+func taskGroupPickerMarker(completed bool, blocked bool, notStarted bool) string {
 	switch {
 	case completed:
-		return workPackagePickerCompletedMarker
+		return taskGroupPickerCompletedMarker
 	case blocked:
-		return workPackagePickerBlockedMarker
+		return taskGroupPickerBlockedMarker
 	case notStarted:
-		return workPackagePickerNotStartedMarker
+		return taskGroupPickerNotStartedMarker
 	default:
-		return workPackagePickerUnselectedMarker
+		return taskGroupPickerUnselectedMarker
 	}
 }
 
-func workPackagePickerOptionLabel(option workPackagePickerOption) string {
+func taskGroupPickerOptionLabel(option taskGroupPickerOption) string {
+	label := strings.Repeat("  ", option.Depth) + option.Label
 	if !option.Completed {
-		return option.Label
+		return label
 	}
-	return xansi.SGR(xansi.AttrStrikethrough) + option.Label + xansi.SGR(xansi.AttrNoStrikethrough)
+	return xansi.SGR(xansi.AttrStrikethrough) + label + xansi.SGR(xansi.AttrNoStrikethrough)
 }
 
-func workPackagePickerSelectedLabel(label string) string {
-	label = strings.Replace(label, workPackagePickerUnselectedMarker, workPackagePickerSelectedMarker, 1)
-	label = strings.Replace(label, workPackagePickerNotStartedMarker, workPackagePickerSelectedMarker, 1)
-	return strings.Replace(label, workPackagePickerBlockedMarker, workPackagePickerSelectedMarker, 1)
+func taskGroupPickerSelectedLabel(label string) string {
+	label = strings.Replace(label, taskGroupPickerUnselectedMarker, taskGroupPickerSelectedMarker, 1)
+	label = strings.Replace(label, taskGroupPickerNotStartedMarker, taskGroupPickerSelectedMarker, 1)
+	return strings.Replace(label, taskGroupPickerBlockedMarker, taskGroupPickerSelectedMarker, 1)
 }
 
-func validateWorkPackagePickerSelection(
-	options []workPackagePickerOption,
+func validateTaskGroupPickerSelection(
+	options []taskGroupPickerOption,
 	selected string,
 	allowCompleted bool,
 ) error {
 	selected = strings.TrimSpace(selected)
 	if selected == "" {
-		return errWorkPackageSelectionCanceled
+		return errTaskGroupSelectionCanceled
 	}
 	for index := range options {
 		option := &options[index]
@@ -391,9 +433,9 @@ func validateWorkPackagePickerSelection(
 			return fmt.Errorf("%s: %s", selected, reason)
 		}
 		if option.Completed && !allowCompleted {
-			return fmt.Errorf("%s: completed Work Package is locked", selected)
+			return fmt.Errorf("%s: completed Task Group is locked", selected)
 		}
 		return nil
 	}
-	return fmt.Errorf("unknown Work Package %q", selected)
+	return fmt.Errorf("unknown Task Group %q", selected)
 }

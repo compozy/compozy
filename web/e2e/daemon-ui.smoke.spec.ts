@@ -69,7 +69,7 @@ test.describe.serial("daemon-served web UI smoke flows", () => {
     await expect(page.getByTestId(`runs-list-link-${env.seededTaskRunId}`)).toBeVisible();
   });
 
-  test("navigates an initiative hierarchy without exposing package slugs as routes", async ({
+  test("navigates an initiative hierarchy without exposing task group slugs as routes", async ({
     page,
   }) => {
     // CONTRACT: E2E-004.
@@ -78,57 +78,61 @@ test.describe.serial("daemon-served web UI smoke flows", () => {
     await page.goto(`${env.baseUrl}/workflows`);
     await expect(page.getByTestId(`workflow-row-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`)).toBeVisible();
     await expect(
-      page.getByTestId(`workflow-packages-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`)
+      page.getByTestId(`workflow-task-groups-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`)
     ).toBeVisible();
-    await expect(page.getByTestId("workflow-row-nested-fixture/WP-001")).toHaveCount(0);
+    await expect(page.getByTestId("workflow-row-nested-fixture/TG-001")).toHaveCount(0);
 
     await page
-      .getByTestId(`workflow-package-tasks-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-WP-002`)
+      .getByTestId(`workflow-task-group-tasks-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-TG-002`)
       .click();
     await expect(page).toHaveURL(
-      new RegExp(`/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/tasks\\?package_id=WP-002`)
+      new RegExp(`/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/tasks\\?task_group_id=TG-002`)
     );
     await expect(page.getByTestId("task-board-view")).toContainText(
-      `${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/WP-002`
+      `${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/TG-002`
     );
 
     await page.locator("[data-testid^='task-board-link-']").first().click();
-    await expect(page).toHaveURL(/\/tasks\/task_001\?package_id=WP-002/);
+    await expect(page).toHaveURL(/\/tasks\/task_001\?task_group_id=TG-002/);
 
     await page.goto(
-      `${env.baseUrl}/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/spec?package_id=WP-002`
+      `${env.baseUrl}/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/spec?task_group_id=TG-002`
     );
-    await expect(page.getByTestId("workflow-spec-tab-package")).toBeVisible();
-    await expect(page.getByTestId("workflow-spec-package-body")).toContainText(
-      "WP-002 — Package 002"
+    await expect(page.getByTestId("workflow-spec-tab-task-group")).toBeVisible();
+    await expect(page.getByTestId("workflow-spec-task-group-body")).toContainText(
+      "TG-002 — Task Group 002"
     );
-    await expect(page.getByTestId("workflow-spec-package-body")).not.toContainText(
-      "WP-001 — Package 001"
+    await expect(page.getByTestId("workflow-spec-task-group-body")).not.toContainText(
+      "TG-001 — Task Group 001"
     );
   });
 
-  test("filters a large package collection and selects it from the keyboard", async ({ page }) => {
+  test("filters a large task group collection and selects it from the keyboard", async ({
+    page,
+  }) => {
     // CONTRACT: E2E-006.
     const env = await loadDaemonUIEnvironment();
     await page.goto(`${env.baseUrl}/workflows`);
 
-    const filter = page.getByTestId(`workflow-packages-filter-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`);
+    const filter = page.getByTestId(
+      `workflow-task-groups-filter-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`
+    );
     await filter.focus();
-    await page.keyboard.type("WP-100");
+    await page.keyboard.type("TG-100");
     await expect(
-      page.getByTestId(`workflow-package-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-WP-100`)
+      page.getByTestId(`workflow-task-group-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-TG-100`)
     ).toBeVisible();
     await expect(
-      page.getByTestId(`workflow-package-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-WP-001`)
+      page.getByTestId(`workflow-task-group-${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}-TG-001`)
     ).toHaveCount(0);
 
     const selection = page.getByRole("link", {
-      name: /WP-100, Package 100.*lifecycle incomplete.*0 unmet dependencies/i,
+      name: /TG-100, Task Group 100.*lifecycle incomplete.*0 unmet dependencies/i,
     });
     await selection.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(
-      new RegExp(`/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/tasks\\?package_id=WP-100`)
+      new RegExp(`/workflows/${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/tasks\\?task_group_id=TG-100`)
     );
   });
 

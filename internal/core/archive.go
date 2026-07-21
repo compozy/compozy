@@ -12,8 +12,8 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -21,22 +21,22 @@ const workflowStateNotSyncedReason = "workflow state not synced"
 
 var (
 	ErrWorkflowForceRequired      = errors.New("core: workflow force required")
-	ErrWorkPackageRootOnly        = errors.New("core: work package sync or archive requires initiative root")
+	ErrTaskGroupRootOnly          = errors.New("core: task group sync or archive requires initiative root")
 	ErrArchiveDatabaseRequired    = errors.New("core: archive database is required")
 	ErrArchiveWorkspaceIDRequired = errors.New("core: archive workspace id is required")
 )
 
-// WorkPackageRootOnlyError rejects a package-local sync or archive target.
-type WorkPackageRootOnlyError struct {
+// TaskGroupRootOnlyError rejects a task-group-local sync or archive target.
+type TaskGroupRootOnlyError struct {
 	Target string
 }
 
-func (e WorkPackageRootOnlyError) Error() string {
-	return fmt.Sprintf("core: work package target %q cannot be synchronized or archived independently", e.Target)
+func (e TaskGroupRootOnlyError) Error() string {
+	return fmt.Sprintf("core: task group target %q cannot be synchronized or archived independently", e.Target)
 }
 
-func (e WorkPackageRootOnlyError) Is(target error) bool {
-	return target == ErrWorkPackageRootOnly
+func (e TaskGroupRootOnlyError) Is(target error) bool {
+	return target == ErrTaskGroupRootOnly
 }
 
 // ArchiveWorkspaceMismatchError reports that the archive target is outside the
@@ -147,8 +147,8 @@ func archiveResolvedTarget(
 	result *ArchiveResult,
 ) (*ArchiveResult, error) {
 	if singleWorkflow {
-		if isWorkPackageOperationalDirectory(workspace.RootDir, target) {
-			return result, WorkPackageRootOnlyError{Target: target}
+		if isTaskGroupOperationalDirectory(workspace.RootDir, target) {
+			return result, TaskGroupRootOnlyError{Target: target}
 		}
 		if err := archiveWorkflow(ctx, db, workspace, target, cfg.Force, result, true); err != nil {
 			return result, err
@@ -185,7 +185,7 @@ func archiveResolvedTarget(
 	return result, nil
 }
 
-func isWorkPackageOperationalDirectory(workspaceRoot string, path string) bool {
+func isTaskGroupOperationalDirectory(workspaceRoot string, path string) bool {
 	tasksRoot := canonicalWorkflowScopePath(model.TasksBaseDirForWorkspace(workspaceRoot))
 	target := canonicalWorkflowScopePath(path)
 	relative, err := filepath.Rel(tasksRoot, target)
@@ -193,7 +193,7 @@ func isWorkPackageOperationalDirectory(workspaceRoot string, path string) bool {
 		return false
 	}
 	for _, component := range strings.Split(filepath.Clean(relative), string(filepath.Separator)) {
-		if component == "_packages" {
+		if component == "_task_groups" {
 			return true
 		}
 	}
@@ -205,8 +205,8 @@ func resolveArchiveTarget(ctx context.Context, cfg ArchiveConfig) (string, strin
 	if name == model.ArchivedWorkflowDirName {
 		return "", "", false, fmt.Errorf("archive target cannot be %s", model.ArchivedWorkflowDirName)
 	}
-	if target, ok := namedWorkPackageTarget(name); ok {
-		return "", "", false, WorkPackageRootOnlyError{Target: target}
+	if target, ok := namedTaskGroupTarget(name); ok {
+		return "", "", false, TaskGroupRootOnlyError{Target: target}
 	}
 
 	resolvedTarget, rootDir, specificTarget, slug, err := resolveArchiveSelection(cfg, name)
@@ -350,12 +350,12 @@ func archiveWorkflow(
 		return errors.New("archive result is required")
 	}
 	if workflowRoot, ok := workspaceWorkflowRoot(workspace.RootDir, tasksDir); ok {
-		target, resolveErr := (workpackages.TargetResolver{}).Resolve(ctx, workspace.RootDir, workflowRoot)
+		target, resolveErr := (taskgroups.TargetResolver{}).Resolve(ctx, workspace.RootDir, workflowRoot)
 		if resolveErr != nil {
 			return fmt.Errorf("resolve archive workflow %s: %w", tasksDir, resolveErr)
 		}
-		if target.Mode == workpackages.TargetModeInitiative {
-			return archiveWorkPackageInitiative(ctx, db, workspace, target, force, result, conflictOnSkip)
+		if target.Mode == taskgroups.TargetModeInitiative {
+			return archiveTaskGroupInitiative(ctx, db, workspace, target, force, result, conflictOnSkip)
 		}
 	}
 
@@ -417,18 +417,18 @@ type initiativeArchiveState struct {
 	Children          map[string]globaldb.WorkflowArchiveEligibility
 	// DirectChildren holds every non-archived direct child of the initiative,
 	// including stale children retained by pruning while a run is active. It is a
-	// superset of Children (plan-declared packages) so the active-run guard covers
+	// superset of Children (plan-declared task groups) so the active-run guard covers
 	// the exact hierarchy the archive mutation touches.
-	DirectChildren  []globaldb.WorkflowArchiveEligibility
-	PendingPackages []string
-	MissingPackages []string
+	DirectChildren    []globaldb.WorkflowArchiveEligibility
+	PendingTaskGroups []string
+	MissingTaskGroups []string
 }
 
-func archiveWorkPackageInitiative(
+func archiveTaskGroupInitiative(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
-	target workpackages.Target,
+	target taskgroups.Target,
 	force bool,
 	result *ArchiveResult,
 	conflictOnSkip bool,
@@ -439,13 +439,13 @@ func archiveWorkPackageInitiative(
 		return err
 	}
 	populateInitiativeArchiveResult(result, state)
-	if len(state.MissingPackages) > 0 {
+	if len(state.MissingTaskGroups) > 0 {
 		return resolveInitiativeArchiveConflict(
 			result,
 			latestTarget.InitiativeDir,
 			conflictOnSkip,
 			state,
-			"declared work package directories are missing: "+strings.Join(state.MissingPackages, ", "),
+			"declared task group directories are missing: "+strings.Join(state.MissingTaskGroups, ", "),
 		)
 	}
 	if activeErr := activeInitiativeRunConflict(state); activeErr != nil {
@@ -502,46 +502,46 @@ func refreshInitiativeArchiveState(
 	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
 	initiative string,
-) (workpackages.Target, initiativeArchiveState, error) {
-	resolver := workpackages.TargetResolver{}
+) (taskgroups.Target, initiativeArchiveState, error) {
+	resolver := taskgroups.TargetResolver{}
 	target, err := resolver.Resolve(ctx, workspace.RootDir, initiative)
 	if err != nil {
-		return workpackages.Target{}, initiativeArchiveState{}, fmt.Errorf("reload work package archive plan: %w", err)
+		return taskgroups.Target{}, initiativeArchiveState{}, fmt.Errorf("reload task group archive plan: %w", err)
 	}
 	if _, err := SyncWithDB(ctx, db, workspace, SyncConfig{
 		WorkspaceRoot: workspace.RootDir,
 		TasksDir:      target.InitiativeDir,
 	}); err != nil {
-		return workpackages.Target{}, initiativeArchiveState{}, fmt.Errorf(
-			"refresh work package archive state: %w",
+		return taskgroups.Target{}, initiativeArchiveState{}, fmt.Errorf(
+			"refresh task group archive state: %w",
 			err,
 		)
 	}
 	target, err = resolver.Resolve(ctx, workspace.RootDir, initiative)
 	if err != nil {
-		return workpackages.Target{}, initiativeArchiveState{}, fmt.Errorf("reload work package archive plan: %w", err)
+		return taskgroups.Target{}, initiativeArchiveState{}, fmt.Errorf("reload task group archive plan: %w", err)
 	}
 	state, err := loadInitiativeArchiveState(ctx, db, workspace, target)
 	if err != nil {
-		return workpackages.Target{}, initiativeArchiveState{}, err
+		return taskgroups.Target{}, initiativeArchiveState{}, err
 	}
 	return target, state, nil
 }
 
 func populateInitiativeArchiveResult(result *ArchiveResult, state initiativeArchiveState) {
-	result.PendingWorkPackages = append([]string(nil), state.PendingPackages...)
-	result.WorkPackageChildIDs = result.WorkPackageChildIDs[:0]
-	for packageID := range state.Children {
-		result.WorkPackageChildIDs = append(result.WorkPackageChildIDs, state.Children[packageID].Workflow.ID)
+	result.PendingTaskGroups = append([]string(nil), state.PendingTaskGroups...)
+	result.TaskGroupChildIDs = result.TaskGroupChildIDs[:0]
+	for taskGroupID := range state.Children {
+		result.TaskGroupChildIDs = append(result.TaskGroupChildIDs, state.Children[taskGroupID].Workflow.ID)
 	}
-	sort.Strings(result.WorkPackageChildIDs)
+	sort.Strings(result.TaskGroupChildIDs)
 }
 
 func loadInitiativeArchiveState(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
-	target workpackages.Target,
+	target taskgroups.Target,
 ) (initiativeArchiveState, error) {
 	parent, err := db.GetActiveWorkflowBySlug(ctx, workspace.ID, target.Ref.Initiative)
 	if err != nil {
@@ -553,10 +553,10 @@ func loadInitiativeArchiveState(
 	}
 	// Resolve eligibility for the parent row and every non-archived direct child so
 	// the active-run guard matches the archive mutation's exact scope
-	// (id = parent OR parent_workflow_id = parent), not just plan-declared packages.
+	// (id = parent OR parent_workflow_id = parent), not just plan-declared task groups.
 	// An ordinary workflow promoted to an initiative in place keeps its runs on the
 	// parent row, and pruning retains a removed child while its run is active; both
-	// live outside target.Plan.Packages.
+	// live outside target.Plan.TaskGroups.
 	scope := make([]globaldb.Workflow, 0, len(children)+1)
 	scope = append(scope, parent)
 	scope = append(scope, children...)
@@ -564,41 +564,41 @@ func loadInitiativeArchiveState(
 	if err != nil {
 		return initiativeArchiveState{}, err
 	}
-	childByPackageID := make(map[string]globaldb.Workflow, len(children))
+	childByTaskGroupID := make(map[string]globaldb.Workflow, len(children))
 	directChildren := make([]globaldb.WorkflowArchiveEligibility, 0, len(children))
 	for childIndex := range children {
 		child := &children[childIndex]
-		childByPackageID[child.PackageID] = *child
+		childByTaskGroupID[child.TaskGroupID] = *child
 		directChildren = append(directChildren, eligibilityByID[child.ID])
 	}
 	state := initiativeArchiveState{
 		Parent:            parent,
 		ParentEligibility: eligibilityByID[parent.ID],
-		Children:          make(map[string]globaldb.WorkflowArchiveEligibility, len(target.Plan.Packages)),
+		Children:          make(map[string]globaldb.WorkflowArchiveEligibility, len(target.Plan.TaskGroups)),
 		DirectChildren:    directChildren,
 	}
-	for packageIndex := range target.Plan.Packages {
-		pkg := &target.Plan.Packages[packageIndex]
-		child, exists := childByPackageID[pkg.ID]
+	for taskGroupIndex := range target.Plan.TaskGroups {
+		taskGroup := &target.Plan.TaskGroups[taskGroupIndex]
+		child, exists := childByTaskGroupID[taskGroup.ID]
 		// A durable child flagged Missing has no directory on disk: sync retains its
 		// completed task/review projection but marks the row missing (see
-		// appendMissingWorkPackagePlaceholders). Because refreshInitiativeArchiveState
-		// syncs before loading state, such a package always owns a row, so the !exists
-		// branch alone can never catch it. Treat Missing as a missing declared package
+		// appendMissingTaskGroupPlaceholders). Because refreshInitiativeArchiveState
+		// syncs before loading state, such a task group always owns a row, so the !exists
+		// branch alone can never catch it. Treat Missing as a missing declared task group
 		// so archive refuses before any normal or forced mutation, matching the daemon
-		// read model (transportWorkPackageSummary), which likewise makes a Missing row
+		// read model (transportTaskGroupSummary), which likewise makes a Missing row
 		// archive-ineligible.
 		if !exists || child.Missing {
-			state.MissingPackages = append(state.MissingPackages, pkg.ID)
+			state.MissingTaskGroups = append(state.MissingTaskGroups, taskGroup.ID)
 			continue
 		}
-		if !pkg.Completed {
-			state.PendingPackages = append(state.PendingPackages, pkg.ID)
+		if !taskGroup.Completed {
+			state.PendingTaskGroups = append(state.PendingTaskGroups, taskGroup.ID)
 		}
-		state.Children[child.PackageID] = eligibilityByID[child.ID]
+		state.Children[child.TaskGroupID] = eligibilityByID[child.ID]
 	}
-	sort.Strings(state.PendingPackages)
-	sort.Strings(state.MissingPackages)
+	sort.Strings(state.PendingTaskGroups)
+	sort.Strings(state.MissingTaskGroups)
 	return state, nil
 }
 
@@ -624,15 +624,15 @@ func activeInitiativeRunConflict(state initiativeArchiveState) error {
 }
 
 func initiativeArchiveBlocked(state initiativeArchiveState) bool {
-	if len(state.PendingPackages) > 0 {
+	if len(state.PendingTaskGroups) > 0 {
 		return true
 	}
 	return initiativeChildStateBlocked(state)
 }
 
 func initiativeChildStateBlocked(state initiativeArchiveState) bool {
-	for packageID := range state.Children {
-		eligibility := state.Children[packageID]
+	for taskGroupID := range state.Children {
+		eligibility := state.Children[taskGroupID]
 		if eligibility.SkipReason() != "" {
 			return true
 		}
@@ -641,14 +641,14 @@ func initiativeChildStateBlocked(state initiativeArchiveState) bool {
 }
 
 func initiativeArchiveReason(state initiativeArchiveState) string {
-	parts := make([]string, 0, len(state.PendingPackages)+len(state.Children))
-	if len(state.PendingPackages) > 0 {
-		parts = append(parts, "pending packages: "+strings.Join(state.PendingPackages, ", "))
+	parts := make([]string, 0, len(state.PendingTaskGroups)+len(state.Children))
+	if len(state.PendingTaskGroups) > 0 {
+		parts = append(parts, "pending task groups: "+strings.Join(state.PendingTaskGroups, ", "))
 	}
-	for packageID := range state.Children {
-		eligibility := state.Children[packageID]
+	for taskGroupID := range state.Children {
+		eligibility := state.Children[taskGroupID]
 		if reason := eligibility.SkipReason(); reason != "" {
-			parts = append(parts, packageID+": "+reason)
+			parts = append(parts, taskGroupID+": "+reason)
 		}
 	}
 	sort.Strings(parts)
@@ -678,21 +678,25 @@ func resolveInitiativeArchiveConflict(
 	return nil
 }
 
-func forceArchiveInitiative(ctx context.Context, workspaceRoot string, target workpackages.Target) (int, int, error) {
-	resolver := workpackages.TargetResolver{}
+func forceArchiveInitiative(ctx context.Context, workspaceRoot string, target taskgroups.Target) (int, int, error) {
+	resolver := taskgroups.TargetResolver{}
 	completedTasks := 0
 	resolvedReviewIssues := 0
-	for packageIndex := range target.Plan.Packages {
-		pkg := &target.Plan.Packages[packageIndex]
-		childTarget, err := resolver.Resolve(ctx, workspaceRoot, target.Ref.Initiative+"/"+pkg.ID)
+	for taskGroupIndex := range target.Plan.TaskGroups {
+		taskGroup := &target.Plan.TaskGroups[taskGroupIndex]
+		childTarget, err := resolver.Resolve(ctx, workspaceRoot, target.Ref.Initiative+"/"+taskGroup.ID)
 		if err != nil {
-			return completedTasks, resolvedReviewIssues, fmt.Errorf("resolve force archive package %s: %w", pkg.ID, err)
+			return completedTasks, resolvedReviewIssues, fmt.Errorf(
+				"resolve force archive task group %s: %w",
+				taskGroup.ID,
+				err,
+			)
 		}
-		completed, err := tasks.CompleteNonTerminalTasks(childTarget.PackageDir)
+		completed, err := tasks.CompleteNonTerminalTasks(childTarget.TaskGroupDir)
 		if err != nil {
 			return completedTasks, resolvedReviewIssues, err
 		}
-		resolved, err := reviews.ResolveUnresolvedIssues(childTarget.PackageDir)
+		resolved, err := reviews.ResolveUnresolvedIssues(childTarget.TaskGroupDir)
 		if err != nil {
 			return completedTasks + completed, resolvedReviewIssues, err
 		}
@@ -704,8 +708,8 @@ func forceArchiveInitiative(ctx context.Context, workspaceRoot string, target wo
 
 func initiativeTaskTotal(state initiativeArchiveState) int {
 	total := 0
-	for packageID := range state.Children {
-		eligibility := state.Children[packageID]
+	for taskGroupID := range state.Children {
+		eligibility := state.Children[taskGroupID]
 		total += eligibility.TaskTotal
 	}
 	return total
@@ -713,8 +717,8 @@ func initiativeTaskTotal(state initiativeArchiveState) int {
 
 func initiativePendingTaskTotal(state initiativeArchiveState) int {
 	total := 0
-	for packageID := range state.Children {
-		eligibility := state.Children[packageID]
+	for taskGroupID := range state.Children {
+		eligibility := state.Children[taskGroupID]
 		total += eligibility.PendingTasks
 	}
 	return total
@@ -722,8 +726,8 @@ func initiativePendingTaskTotal(state initiativeArchiveState) int {
 
 func initiativeReviewTotal(state initiativeArchiveState) int {
 	total := 0
-	for packageID := range state.Children {
-		eligibility := state.Children[packageID]
+	for taskGroupID := range state.Children {
+		eligibility := state.Children[taskGroupID]
 		total += eligibility.ReviewIssueTotal
 	}
 	return total
@@ -731,8 +735,8 @@ func initiativeReviewTotal(state initiativeArchiveState) int {
 
 func initiativeUnresolvedReviewTotal(state initiativeArchiveState) int {
 	total := 0
-	for packageID := range state.Children {
-		eligibility := state.Children[packageID]
+	for taskGroupID := range state.Children {
+		eligibility := state.Children[taskGroupID]
 		total += eligibility.UnresolvedReviewIssues
 	}
 	return total

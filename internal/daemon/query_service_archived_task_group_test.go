@@ -10,52 +10,52 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 )
 
-// archiveDependentPackageInitiativeForTest builds a two-package initiative with
-// per-package tasks, memory, and a review round, syncs it into the durable
+// archiveDependentTaskGroupInitiativeForTest builds a two-task-group initiative with
+// per-task-group tasks, memory, and a review round, syncs it into the durable
 // catalog, then force-archives the whole hierarchy as one root. It returns the
 // archive result so callers can locate the moved archive directory.
-func archiveDependentPackageInitiativeForTest(
+func archiveDependentTaskGroupInitiativeForTest(
 	t *testing.T,
 	env *runManagerTestEnv,
 	initiative string,
 ) *corepkg.ArchiveResult {
 	t.Helper()
 
-	writeDaemonDependentPackageFixture(t, env, initiative, false)
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
 	for _, fixture := range []struct {
-		packageID string
-		title     string
-		severity  string
+		taskGroupID string
+		title       string
+		severity    string
 	}{
-		{packageID: "WP-001", title: "Foundation child task", severity: "high"},
-		{packageID: "WP-002", title: "Delivery child task", severity: "low"},
+		{taskGroupID: "TG-001", title: "Foundation child task", severity: "high"},
+		{taskGroupID: "TG-002", title: "Delivery child task", severity: "low"},
 	} {
-		packageRoot := filepath.Join("_packages", fixture.packageID)
+		taskGroupRoot := filepath.Join("_task_groups", fixture.taskGroupID)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join(packageRoot, "task_01.md"),
+			filepath.Join(taskGroupRoot, "task_01.md"),
 			daemonTaskBody("pending", fixture.title),
 		)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join(packageRoot, "memory", "MEMORY.md"),
-			"# "+fixture.packageID+" Memory\n",
+			filepath.Join(taskGroupRoot, "memory", "MEMORY.md"),
+			"# "+fixture.taskGroupID+" Memory\n",
 		)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join(packageRoot, "reviews-001", "_meta.md"),
-			daemonReviewRoundMetaBody("manual", fixture.packageID, 1),
+			filepath.Join(taskGroupRoot, "reviews-001", "_meta.md"),
+			daemonReviewRoundMetaBody("manual", fixture.taskGroupID, 1),
 		)
 		env.writeWorkflowFile(
 			t,
 			initiative,
-			filepath.Join(packageRoot, "reviews-001", "issue_001.md"),
+			filepath.Join(taskGroupRoot, "reviews-001", "issue_001.md"),
 			daemonReviewIssueBody("pending", fixture.severity),
 		)
 	}
@@ -79,10 +79,10 @@ func archiveDependentPackageInitiativeForTest(
 	return result
 }
 
-// recreateInitiativeWithoutFoundationForTest writes a fresh single-package plan
-// for an already-archived initiative that drops WP-001, then re-syncs it so a new
+// recreateInitiativeWithoutFoundationForTest writes a fresh single-task-group plan
+// for an already-archived initiative that drops TG-001, then re-syncs it so a new
 // active generation exists whose current plan no longer contains the foundation
-// package. The archived WP-001 row remains in the durable catalog.
+// task group. The archived TG-001 row remains in the durable catalog.
 func recreateInitiativeWithoutFoundationForTest(
 	t *testing.T,
 	env *runManagerTestEnv,
@@ -90,15 +90,15 @@ func recreateInitiativeWithoutFoundationForTest(
 ) {
 	t.Helper()
 
-	plan, err := workpackages.RenderPlan(workpackages.Plan{
-		SchemaVersion: workpackages.SchemaVersion,
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
 		Initiative:    initiative,
-		Packages: []workpackages.Package{
+		TaskGroups: []taskgroups.TaskGroup{
 			{
-				ID:         "WP-002",
+				ID:         "TG-002",
 				Title:      "Delivery",
 				Outcome:    "Deliver the recreated scope",
-				Directory:  "_packages/WP-002",
+				Directory:  "_task_groups/TG-002",
 				OwnedScope: []string{"delivery"},
 			},
 		},
@@ -108,11 +108,11 @@ func recreateInitiativeWithoutFoundationForTest(
 	}
 	env.writeWorkflowFile(t, initiative, "_prd.md", "# Recreated PRD\n")
 	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Recreated TechSpec\n")
-	env.writeWorkflowFile(t, initiative, "_work_packages.md", string(plan))
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", string(plan))
 	env.writeWorkflowFile(
 		t,
 		initiative,
-		filepath.Join("_packages", "WP-002", "task_01.md"),
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
 		daemonTaskBody("pending", "Recreated delivery task"),
 	)
 	syncNamedWorkflowForDaemonTest(t, env, initiative)
@@ -129,19 +129,19 @@ func taskBoardContainsTitle(lanes []apicore.TaskLane, title string) bool {
 	return false
 }
 
-func TestTransportServicesReadArchivedWorkPackageThroughPublicSurface(t *testing.T) {
-	// INVARIANT: archived work packages stay readable through the public transport surface
+func TestTransportServicesReadArchivedTaskGroupThroughPublicSurface(t *testing.T) {
+	// INVARIANT: archived task groups stay readable through the public transport surface
 	// even though their active plan directory has moved into the archive hierarchy.
 	// OWNING_LAYER: service-integration. CONTRACT: nested-workflows/reviews-002/issue_004.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "customer-management"
-	archiveDependentPackageInitiativeForTest(t, env, initiative)
+	archiveDependentTaskGroupInitiativeForTest(t, env, initiative)
 
 	query := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
 	taskService := newTransportTaskService(env.globalDB, env.manager, query)
 	reviewService := newTransportReviewService(env.globalDB, env.manager, query)
 	ctx := context.Background()
-	ref := initiative + "/WP-001"
+	ref := initiative + "/TG-001"
 
 	overview, err := taskService.WorkflowOverview(ctx, env.workspaceRoot, ref)
 	if err != nil {
@@ -175,7 +175,7 @@ func TestTransportServicesReadArchivedWorkPackageThroughPublicSurface(t *testing
 		spec.TechSpec == nil || spec.TechSpec.Title != "Canonical TechSpec" {
 		t.Fatalf("WorkflowSpec(%s) canonical documents = %#v", ref, spec)
 	}
-	if spec.PlanExcerpt == nil || !strings.Contains(spec.PlanExcerpt.Markdown, "WP-001 — Foundation") {
+	if spec.PlanExcerpt == nil || !strings.Contains(spec.PlanExcerpt.Markdown, "TG-001 — Foundation") {
 		t.Fatalf("WorkflowSpec(%s).PlanExcerpt = %#v", ref, spec.PlanExcerpt)
 	}
 
@@ -210,27 +210,27 @@ func TestTransportServicesReadArchivedWorkPackageThroughPublicSurface(t *testing
 	}
 }
 
-func TestResolveWorkflowReadTargetArchivedPackageResolvesNestedRoot(t *testing.T) {
+func TestResolveWorkflowReadTargetArchivedTaskGroupResolvesNestedRoot(t *testing.T) {
 	// INVARIANT: an archived child resolves to its archived parent root joined with the
-	// package directory, so filesystem reads reach the nested archived artifacts rather
+	// task group directory, so filesystem reads reach the nested archived artifacts rather
 	// than a non-existent top-level archive directory derived from the child slug.
 	// OWNING_LAYER: read-model. CONTRACT: nested-workflows/reviews-002/issue_004.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "customer-management"
-	result := archiveDependentPackageInitiativeForTest(t, env, initiative)
+	result := archiveDependentTaskGroupInitiativeForTest(t, env, initiative)
 
 	svc := &queryService{globalDB: env.globalDB, runManager: env.manager, documents: newDocumentReader()}
-	target, err := svc.resolveWorkflowReadTarget(context.Background(), env.workspaceRoot, initiative+"/WP-001")
+	target, err := svc.resolveWorkflowReadTarget(context.Background(), env.workspaceRoot, initiative+"/TG-001")
 	if err != nil {
-		t.Fatalf("resolveWorkflowReadTarget(archived package) error = %v", err)
+		t.Fatalf("resolveWorkflowReadTarget(archived task group) error = %v", err)
 	}
 
-	wantRoot := filepath.Join(result.ArchivedPaths[0], "_packages", "WP-001")
+	wantRoot := filepath.Join(result.ArchivedPaths[0], "_task_groups", "TG-001")
 	if target.rootDir != wantRoot {
-		t.Fatalf("archived package rootDir = %q, want %q", target.rootDir, wantRoot)
+		t.Fatalf("archived task group rootDir = %q, want %q", target.rootDir, wantRoot)
 	}
 	if info, statErr := os.Stat(target.rootDir); statErr != nil || !info.IsDir() {
-		t.Fatalf("archived package rootDir %q is not a directory: %v", target.rootDir, statErr)
+		t.Fatalf("archived task group rootDir %q is not a directory: %v", target.rootDir, statErr)
 	}
 
 	// Clearing the durable snapshots forces the filesystem fallback, proving the
@@ -244,29 +244,29 @@ func TestResolveWorkflowReadTargetArchivedPackageResolvesNestedRoot(t *testing.T
 		"task_01",
 	)
 	if err != nil {
-		t.Fatalf("readRequiredWorkflowDocument(archived package via filesystem) error = %v", err)
+		t.Fatalf("readRequiredWorkflowDocument(archived task group via filesystem) error = %v", err)
 	}
 	if doc.Title != "Foundation child task" {
-		t.Fatalf("archived package task document title = %q, want Foundation child task", doc.Title)
+		t.Fatalf("archived task group task document title = %q, want Foundation child task", doc.Title)
 	}
 }
 
-func TestTransportGateRejectsArchivedPackageDroppedByRecreatedParent(t *testing.T) {
+func TestTransportGateRejectsArchivedTaskGroupDroppedByRecreatedParent(t *testing.T) {
 	// INVARIANT: once an initiative is archived and recreated with a plan that drops a
-	// child package, public reads of that child resolve relative to the current parent
-	// generation and return a typed package-not-found instead of shadowing the stale
+	// child task group, public reads of that child resolve relative to the current parent
+	// generation and return a typed task-group-not-found instead of shadowing the stale
 	// archived generation's tasks, spec, reviews, and memory.
 	// OWNING_LAYER: service-integration. CONTRACT: nested-workflows/reviews-003/issue_002.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "customer-management"
-	archiveDependentPackageInitiativeForTest(t, env, initiative)
+	archiveDependentTaskGroupInitiativeForTest(t, env, initiative)
 	recreateInitiativeWithoutFoundationForTest(t, env, initiative)
 
 	query := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
 	taskService := newTransportTaskService(env.globalDB, env.manager, query)
 	reviewService := newTransportReviewService(env.globalDB, env.manager, query)
 	ctx := context.Background()
-	droppedRef := initiative + "/WP-001"
+	droppedRef := initiative + "/TG-001"
 
 	surfaces := []struct {
 		name string
@@ -304,15 +304,15 @@ func TestTransportGateRejectsArchivedPackageDroppedByRecreatedParent(t *testing.
 	for _, surface := range surfaces {
 		t.Run(surface.name, func(t *testing.T) {
 			err := surface.read()
-			if !errors.Is(err, workpackages.ErrPackageNotFound) {
-				t.Fatalf("%s(%s) error = %v, want ErrPackageNotFound", surface.name, droppedRef, err)
+			if !errors.Is(err, taskgroups.ErrTaskGroupNotFound) {
+				t.Fatalf("%s(%s) error = %v, want ErrTaskGroupNotFound", surface.name, droppedRef, err)
 			}
 		})
 	}
 
-	// Sanity: the package the recreated plan still contains reads the current
+	// Sanity: the task group the recreated plan still contains reads the current
 	// generation rather than being over-blocked, and does not return archived data.
-	survivingRef := initiative + "/WP-002"
+	survivingRef := initiative + "/TG-002"
 	board, err := taskService.TaskBoard(ctx, env.workspaceRoot, survivingRef)
 	if err != nil {
 		t.Fatalf("TaskBoard(%s) error = %v", survivingRef, err)

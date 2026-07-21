@@ -12,7 +12,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
-	"github.com/compozy/compozy/internal/core/workpackages"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -20,16 +20,16 @@ import (
 
 const workflowArchiveReasonArchived = "workflow archived"
 
-// workflowStartReasonMissing blocks starting a work package whose directory is
+// workflowStartReasonMissing blocks starting a task group whose directory is
 // absent on disk. Such rows exist only as placeholders that keep the dependency
 // graph whole; a real start would immediately fail to resolve the directory.
-const workflowStartReasonMissing = "package directory missing"
+const workflowStartReasonMissing = "task group directory missing"
 
 // workflowStartReasonNoExecutableTasks blocks starting a materialized work
-// package whose directory is present but holds zero tasks. It mirrors the
-// runtime preflight requirePackageExecutableTasks, which rejects the same
-// package with package_no_executable_tasks, so the read-model Start action never
-// advertises a package the start endpoint would immediately refuse.
+// task group whose directory is present but holds zero tasks. It mirrors the
+// runtime preflight requireTaskGroupExecutableTasks, which rejects the same
+// task group with task_group_no_executable_tasks, so the read-model Start action never
+// advertises a task group the start endpoint would immediately refuse.
 const workflowStartReasonNoExecutableTasks = "no executable tasks"
 
 func transportWorkspace(row globaldb.Workspace) apicore.Workspace {
@@ -59,26 +59,26 @@ func transportWorkflowSummary(row globaldb.Workflow) apicore.WorkflowSummary {
 		LastSyncedAt:      row.LastSyncedAt,
 		Kind:              string(row.Kind),
 		ParentWorkflowID:  row.ParentWorkflowID,
-		PackageID:         row.PackageID,
+		TaskGroupID:       row.TaskGroupID,
 		DisplayTitle:      row.DisplayTitle,
 		Outcome:           row.Outcome,
 		LifecycleComplete: row.LifecycleCompleted,
 	}
 }
 
-func transportWorkPackageSummary(
+func transportTaskGroupSummary(
 	row globaldb.Workflow,
 	counts WorkflowTaskCounts,
 	eligibility globaldb.WorkflowArchiveEligibility,
-	readiness workPackageReadinessProjection,
+	readiness taskGroupReadinessProjection,
 	latestReview *apicore.ReviewSummary,
-) apicore.WorkPackageSummary {
+) apicore.TaskGroupSummary {
 	apiCounts := transportWorkflowTaskCounts(counts)
 	archiveEligible := eligibility.Archivable()
 	if row.ArchivedAt != nil {
 		archiveEligible = false
 	}
-	// A declared package whose directory is absent is never archive-eligible in the
+	// A declared task group whose directory is absent is never archive-eligible in the
 	// read model: its retained projection can otherwise look complete while a real
 	// archive would disagree with the filesystem.
 	if row.Missing {
@@ -92,16 +92,16 @@ func transportWorkPackageSummary(
 		copyValue := *latestReview
 		latestReviewCopy = &copyValue
 	}
-	return apicore.WorkPackageSummary{
+	return apicore.TaskGroupSummary{
 		WorkflowID:                row.ID,
-		PackageID:                 row.PackageID,
+		TaskGroupID:               row.TaskGroupID,
 		Reference:                 row.Slug,
 		Title:                     row.DisplayTitle,
 		Outcome:                   row.Outcome,
 		LifecycleComplete:         row.LifecycleCompleted,
-		Dependencies:              transportWorkPackageDependencies(readiness.dependencies),
-		UnmetDependencies:         transportWorkPackageDependencies(readiness.unmetDependencies),
-		UnmetDependencyPaths:      transportWorkPackageDependencyPaths(readiness.unmetDependencyPaths),
+		Dependencies:              transportTaskGroupDependencies(readiness.dependencies),
+		UnmetDependencies:         transportTaskGroupDependencies(readiness.unmetDependencies),
+		UnmetDependencyPaths:      transportTaskGroupDependencyPaths(readiness.unmetDependencyPaths),
 		TaskCounts:                &apiCounts,
 		UnresolvedReviews:         eligibility.UnresolvedReviewIssues,
 		LatestReview:              latestReviewCopy,
@@ -116,123 +116,123 @@ func transportWorkPackageSummary(
 	}
 }
 
-func transportWorkPackageDependencies(
-	dependencies []workPackageDependencyProjection,
-) []apicore.WorkPackageDependency {
+func transportTaskGroupDependencies(
+	dependencies []taskGroupDependencyProjection,
+) []apicore.TaskGroupDependency {
 	if len(dependencies) == 0 {
 		return nil
 	}
-	result := make([]apicore.WorkPackageDependency, 0, len(dependencies))
+	result := make([]apicore.TaskGroupDependency, 0, len(dependencies))
 	for _, dependency := range dependencies {
-		result = append(result, apicore.WorkPackageDependency{
-			PackageID: dependency.packageID,
-			Title:     dependency.title,
-			Rationale: dependency.rationale,
+		result = append(result, apicore.TaskGroupDependency{
+			TaskGroupID: dependency.taskGroupID,
+			Title:       dependency.title,
+			Rationale:   dependency.rationale,
 		})
 	}
 	return result
 }
 
-func transportWorkPackageDependencyPaths(
-	paths []workPackageDependencyPathProjection,
-) []apicore.WorkPackageDependencyPath {
+func transportTaskGroupDependencyPaths(
+	paths []taskGroupDependencyPathProjection,
+) []apicore.TaskGroupDependencyPath {
 	if len(paths) == 0 {
 		return nil
 	}
-	result := make([]apicore.WorkPackageDependencyPath, 0, len(paths))
+	result := make([]apicore.TaskGroupDependencyPath, 0, len(paths))
 	for _, path := range paths {
-		result = append(result, apicore.WorkPackageDependencyPath{
-			PackageIDs:   append([]string(nil), path.packageIDs...),
-			Dependencies: transportWorkPackageDependencies(path.dependencies),
+		result = append(result, apicore.TaskGroupDependencyPath{
+			TaskGroupIDs: append([]string(nil), path.taskGroupIDs...),
+			Dependencies: transportTaskGroupDependencies(path.dependencies),
 		})
 	}
 	return result
 }
 
-type workPackageReadinessProjection struct {
-	dependencies          []workPackageDependencyProjection
-	unmetDependencies     []workPackageDependencyProjection
-	unmetDependencyPaths  []workPackageDependencyPathProjection
+type taskGroupReadinessProjection struct {
+	dependencies          []taskGroupDependencyProjection
+	unmetDependencies     []taskGroupDependencyProjection
+	unmetDependencyPaths  []taskGroupDependencyPathProjection
 	independentlyEligible bool
 }
 
-type workPackageDependencyProjection struct {
-	packageID string
-	title     string
-	rationale string
+type taskGroupDependencyProjection struct {
+	taskGroupID string
+	title       string
+	rationale   string
 }
 
-type workPackageDependencyPathProjection struct {
-	packageIDs   []string
-	dependencies []workPackageDependencyProjection
+type taskGroupDependencyPathProjection struct {
+	taskGroupIDs []string
+	dependencies []taskGroupDependencyProjection
 }
 
-func projectWorkPackageReadiness(
+func projectTaskGroupReadiness(
 	children []*globaldb.Workflow,
-) (map[string]workPackageReadinessProjection, error) {
-	plan := workpackages.Plan{Packages: make([]workpackages.Package, 0, len(children))}
-	titlesByPackageID := make(map[string]string, len(children))
+) (map[string]taskGroupReadinessProjection, error) {
+	plan := taskgroups.Plan{TaskGroups: make([]taskgroups.TaskGroup, 0, len(children))}
+	titlesByTaskGroupID := make(map[string]string, len(children))
 	for _, child := range children {
-		titlesByPackageID[child.PackageID] = child.DisplayTitle
+		titlesByTaskGroupID[child.TaskGroupID] = child.DisplayTitle
 	}
 	for _, child := range children {
-		pkg := workpackages.Package{
-			ID:        child.PackageID,
+		taskGroup := taskgroups.TaskGroup{
+			ID:        child.TaskGroupID,
 			Completed: child.LifecycleCompleted,
 		}
 		for _, dependency := range child.Dependencies {
-			edge := workpackages.Dependency{
-				From:      dependency.PackageID,
-				To:        child.PackageID,
+			edge := taskgroups.Dependency{
+				From:      dependency.TaskGroupID,
+				To:        child.TaskGroupID,
 				Rationale: dependency.Rationale,
 			}
-			pkg.Dependencies = append(pkg.Dependencies, edge)
+			taskGroup.Dependencies = append(taskGroup.Dependencies, edge)
 			plan.Edges = append(plan.Edges, edge)
 		}
-		plan.Packages = append(plan.Packages, pkg)
+		plan.TaskGroups = append(plan.TaskGroups, taskGroup)
 	}
-	result := make(map[string]workPackageReadinessProjection, len(children))
+	result := make(map[string]taskGroupReadinessProjection, len(children))
 	for _, child := range children {
-		readiness, err := workpackages.EvaluateReadiness(plan, child.PackageID)
+		readiness, err := taskgroups.EvaluateReadiness(plan, child.TaskGroupID)
 		if err != nil {
-			return nil, fmt.Errorf("project work package %q readiness: %w", child.PackageID, err)
+			return nil, fmt.Errorf("project task group %q readiness: %w", child.TaskGroupID, err)
 		}
-		dependencies := make([]workPackageDependencyProjection, 0, len(child.Dependencies))
+		dependencies := make([]taskGroupDependencyProjection, 0, len(child.Dependencies))
 		for _, dependency := range child.Dependencies {
-			dependencies = append(dependencies, workPackageDependencyProjection{
-				packageID: dependency.PackageID,
-				title:     titlesByPackageID[dependency.PackageID],
-				rationale: dependency.Rationale,
+			dependencies = append(dependencies, taskGroupDependencyProjection{
+				taskGroupID: dependency.TaskGroupID,
+				title:       titlesByTaskGroupID[dependency.TaskGroupID],
+				rationale:   dependency.Rationale,
 			})
 		}
-		unmetDependencies := make([]workPackageDependencyProjection, 0, len(readiness.DirectUnmet))
+		unmetDependencies := make([]taskGroupDependencyProjection, 0, len(readiness.DirectUnmet))
 		for _, dependency := range readiness.DirectUnmet {
-			unmetDependencies = append(unmetDependencies, workPackageDependencyProjection{
-				packageID: dependency.From,
-				title:     titlesByPackageID[dependency.From],
-				rationale: dependency.Rationale,
+			unmetDependencies = append(unmetDependencies, taskGroupDependencyProjection{
+				taskGroupID: dependency.From,
+				title:       titlesByTaskGroupID[dependency.From],
+				rationale:   dependency.Rationale,
 			})
 		}
 		unmetDependencyPaths := make(
-			[]workPackageDependencyPathProjection,
+			[]taskGroupDependencyPathProjection,
 			0,
 			len(readiness.TransitiveUnmet),
 		)
 		for _, path := range readiness.TransitiveUnmet {
-			pathDependencies := make([]workPackageDependencyProjection, 0, len(path.Edges))
+			pathDependencies := make([]taskGroupDependencyProjection, 0, len(path.Edges))
 			for _, dependency := range path.Edges {
-				pathDependencies = append(pathDependencies, workPackageDependencyProjection{
-					packageID: dependency.From,
-					title:     titlesByPackageID[dependency.From],
-					rationale: dependency.Rationale,
+				pathDependencies = append(pathDependencies, taskGroupDependencyProjection{
+					taskGroupID: dependency.From,
+					title:       titlesByTaskGroupID[dependency.From],
+					rationale:   dependency.Rationale,
 				})
 			}
-			unmetDependencyPaths = append(unmetDependencyPaths, workPackageDependencyPathProjection{
-				packageIDs:   append([]string(nil), path.PackageIDs...),
+			unmetDependencyPaths = append(unmetDependencyPaths, taskGroupDependencyPathProjection{
+				taskGroupIDs: append([]string(nil), path.TaskGroupIDs...),
 				dependencies: pathDependencies,
 			})
 		}
-		result[child.PackageID] = workPackageReadinessProjection{
+		result[child.TaskGroupID] = taskGroupReadinessProjection{
 			dependencies:          dependencies,
 			unmetDependencies:     unmetDependencies,
 			unmetDependencyPaths:  unmetDependencyPaths,
@@ -301,7 +301,7 @@ func initiativeArchiveAction(
 		return false, "", err
 	}
 	if len(children) == 0 {
-		return false, "no work packages present", nil
+		return false, "no task groups present", nil
 	}
 	// Resolve eligibility for the parent row alongside every direct child. An ordinary
 	// workflow promoted to an initiative in place keeps its active runs on the parent
@@ -321,26 +321,26 @@ func initiativeArchiveAction(
 	if parentEligibility := eligibilityByID[parent.ID]; parentEligibility.ActiveRuns > 0 {
 		return false, parentEligibility.SkipReason(), nil
 	}
-	pendingPackages := make([]string, 0)
+	pendingTaskGroups := make([]string, 0)
 	blockedChildren := make([]string, 0)
 	for childIndex := range children {
 		child := &children[childIndex]
 		if !child.LifecycleCompleted {
-			pendingPackages = append(pendingPackages, child.PackageID)
+			pendingTaskGroups = append(pendingTaskGroups, child.TaskGroupID)
 		}
 		// A missing directory blocks initiative archive with a clear reason even when
 		// the retained projection would otherwise report the child as archivable.
 		if child.Missing {
-			blockedChildren = append(blockedChildren, child.PackageID+": "+workflowStartReasonMissing)
+			blockedChildren = append(blockedChildren, child.TaskGroupID+": "+workflowStartReasonMissing)
 			continue
 		}
 		if reason := eligibilityByID[child.ID].SkipReason(); reason != "" {
-			blockedChildren = append(blockedChildren, child.PackageID+": "+reason)
+			blockedChildren = append(blockedChildren, child.TaskGroupID+": "+reason)
 		}
 	}
-	if len(pendingPackages) > 0 {
-		sort.Strings(pendingPackages)
-		return false, "pending packages: " + strings.Join(pendingPackages, ", "), nil
+	if len(pendingTaskGroups) > 0 {
+		sort.Strings(pendingTaskGroups)
+		return false, "pending task groups: " + strings.Join(pendingTaskGroups, ", "), nil
 	}
 	if len(blockedChildren) > 0 {
 		sort.Strings(blockedChildren)
@@ -354,16 +354,16 @@ func workflowStartAction(row globaldb.Workflow, counts WorkflowTaskCounts) (bool
 		return false, workflowArchiveReasonArchived
 	}
 	if row.Kind == globaldb.WorkflowKindInitiative {
-		return false, "select a work package"
+		return false, "select a task group"
 	}
 	if row.Missing {
 		return false, workflowStartReasonMissing
 	}
-	// A materialized work package with zero tasks is rejected by the runtime
-	// preflight (requirePackageExecutableTasks -> package_no_executable_tasks).
+	// A materialized task group with zero tasks is rejected by the runtime
+	// preflight (requireTaskGroupExecutableTasks -> task_group_no_executable_tasks).
 	// Block it in the read model too so the Start action agrees with the endpoint.
 	// Ordinary workflows keep their legacy zero-task semantics and stay startable.
-	if row.Kind == globaldb.WorkflowKindWorkPackage && counts.Total == 0 {
+	if row.Kind == globaldb.WorkflowKindTaskGroup && counts.Total == 0 {
 		return false, workflowStartReasonNoExecutableTasks
 	}
 	if counts.Total > 0 && counts.Pending == 0 {
@@ -398,8 +398,8 @@ func transportSyncResult(
 	out.LegacyArtifactsRemoved = result.LegacyArtifactsRemoved
 	out.SyncedPaths = append([]string(nil), result.SyncedPaths...)
 	out.PrunedWorkflows = append([]string(nil), result.PrunedWorkflows...)
-	out.WorkPackageChildIDs = append([]string(nil), result.WorkPackageChildIDs...)
-	out.MissingWorkPackages = append([]string(nil), result.MissingWorkPackages...)
+	out.TaskGroupChildIDs = append([]string(nil), result.TaskGroupChildIDs...)
+	out.MissingTaskGroups = append([]string(nil), result.MissingTaskGroups...)
 	out.Partial = result.Partial
 	out.Warnings = append([]string(nil), result.Warnings...)
 	return out
@@ -416,8 +416,8 @@ func transportArchiveResult(result *corepkg.ArchiveResult) apicore.ArchiveResult
 	out.Forced = result.Forced
 	out.CompletedTasks = result.CompletedTasks
 	out.ResolvedReviewIssues = result.ResolvedReviewIssues
-	out.WorkPackageChildIDs = append([]string(nil), result.WorkPackageChildIDs...)
-	out.PendingWorkPackages = append([]string(nil), result.PendingWorkPackages...)
+	out.TaskGroupChildIDs = append([]string(nil), result.TaskGroupChildIDs...)
+	out.PendingTaskGroups = append([]string(nil), result.PendingTaskGroups...)
 	return out
 }
 

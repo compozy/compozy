@@ -25,8 +25,8 @@ import (
 	"github.com/compozy/compozy/internal/core/reviews"
 	runpkg "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
@@ -486,7 +486,7 @@ func (m *RunManager) StartTaskRun(
 		ctx,
 		workspaceRef,
 		workflowSlug,
-		req.PackageID,
+		req.TaskGroupID,
 	)
 	if err != nil {
 		return apicore.Run{}, err
@@ -509,7 +509,7 @@ func (m *RunManager) StartTaskRun(
 	if err := validateTaskExecutionDescriptor(req.Execution, expectedExecutionKind, expectedWorktrees); err != nil {
 		return apicore.Run{}, err
 	}
-	outOfOrderNeeded, err := m.preflightPackageTaskRun(
+	outOfOrderNeeded, err := m.preflightTaskGroupTaskRun(
 		ctx,
 		workspaceRef,
 		resolvedWorkflowRef,
@@ -550,31 +550,31 @@ func (m *RunManager) resolveTaskRunReference(
 	ctx context.Context,
 	workspaceRef string,
 	workflowSlug string,
-	packageID string,
+	taskGroupID string,
 ) (string, error) {
 	reference := strings.TrimSpace(workflowSlug)
-	selectedPackage := strings.TrimSpace(packageID)
-	if selectedPackage != "" {
+	selectedTaskGroup := strings.TrimSpace(taskGroupID)
+	if selectedTaskGroup != "" {
 		if strings.Contains(reference, "/") {
-			parsed, err := workpackages.ParsePackageRef(reference)
+			parsed, err := taskgroups.ParseTaskGroupRef(reference)
 			if err != nil {
 				return "", err
 			}
-			if parsed.PackageID != selectedPackage {
+			if parsed.TaskGroupID != selectedTaskGroup {
 				return "", apicore.NewProblem(
 					http.StatusUnprocessableEntity,
-					"work_package_target_mismatch",
-					"package_id does not match the selected workflow reference",
+					"task_group_target_mismatch",
+					"task_group_id does not match the selected workflow reference",
 					map[string]any{
 						"initiative_slug": parsed.Initiative,
-						"package_id":      selectedPackage,
+						"task_group_id":   selectedTaskGroup,
 					},
 					nil,
 				)
 			}
 			return parsed.String(), nil
 		}
-		parsed, err := workpackages.ParsePackageRef(reference + "/" + selectedPackage)
+		parsed, err := taskgroups.ParseTaskGroupRef(reference + "/" + selectedTaskGroup)
 		if err != nil {
 			return "", err
 		}
@@ -590,26 +590,26 @@ func (m *RunManager) resolveTaskRunReference(
 	if err := requireWorkspacePathAvailable(workspace); err != nil {
 		return "", err
 	}
-	target, err := (workpackages.TargetResolver{}).Resolve(ctx, workspace.RootDir, reference)
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, workspace.RootDir, reference)
 	if err != nil {
 		return "", err
 	}
-	if target.Mode != workpackages.TargetModeInitiative {
+	if target.Mode != taskgroups.TargetModeInitiative {
 		return reference, nil
 	}
-	return "", &workpackages.Error{
-		Cause:           workpackages.ErrSelectionRequired,
-		Initiative:      target.Ref.Initiative,
-		PlanPath:        target.Plan.Path,
-		ValidPackageIDs: target.Plan.PackageIDs(),
-		Issues: []workpackages.Issue{{
-			Field:   "package_id",
-			Message: "a complete initiative/WP-NNN reference is required",
+	return "", &taskgroups.Error{
+		Cause:             taskgroups.ErrSelectionRequired,
+		Initiative:        target.Ref.Initiative,
+		PlanPath:          target.Plan.Path,
+		ValidTaskGroupIDs: target.Plan.TaskGroupIDs(),
+		Issues: []taskgroups.Issue{{
+			Field:   "task_group_id",
+			Message: "a complete initiative/TG-NNN reference is required",
 		}},
 	}
 }
 
-func (m *RunManager) preflightPackageTaskRun(
+func (m *RunManager) preflightTaskGroupTaskRun(
 	ctx context.Context,
 	workspaceRef string,
 	workflowRef string,
@@ -618,7 +618,7 @@ func (m *RunManager) preflightPackageTaskRun(
 	if !strings.Contains(strings.TrimSpace(workflowRef), "/") {
 		return false, nil
 	}
-	ref, err := workpackages.ParsePackageRef(strings.TrimSpace(workflowRef))
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(workflowRef))
 	if err != nil {
 		return false, err
 	}
@@ -629,11 +629,11 @@ func (m *RunManager) preflightPackageTaskRun(
 	if err := requireWorkspacePathAvailable(workspace); err != nil {
 		return false, err
 	}
-	target, err := (workpackages.TargetResolver{}).ResolvePackage(ctx, workspace.RootDir, ref.String())
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, ref.String())
 	if err != nil {
 		return false, err
 	}
-	readiness, err := workpackages.EvaluateReadiness(target.Plan, ref.PackageID)
+	readiness, err := taskgroups.EvaluateReadiness(target.Plan, ref.TaskGroupID)
 	if err != nil {
 		return false, err
 	}
@@ -645,15 +645,15 @@ func (m *RunManager) preflightPackageTaskRun(
 	}
 	return false, apicore.NewProblem(
 		http.StatusConflict,
-		"work_package_dependencies_unmet",
-		"work package dependencies are not complete",
+		"task_group_dependencies_unmet",
+		"task group dependencies are not complete",
 		map[string]any{
 			"initiative_slug":  target.Ref.Initiative,
-			"package_id":       target.Package.ID,
+			"task_group_id":    target.TaskGroup.ID,
 			"direct_unmet":     readiness.DirectUnmet,
 			"transitive_unmet": readiness.TransitiveUnmet,
 		},
-		workpackages.ErrDependenciesUnmet,
+		taskgroups.ErrDependenciesUnmet,
 	)
 }
 
@@ -683,19 +683,19 @@ func validateTaskExecutionDescriptor(
 	)
 }
 
-// packageWorktreeExecutionProblem keeps package lifecycle execution out of the
+// taskGroupWorktreeExecutionProblem keeps task group lifecycle execution out of the
 // worktree runner. That runner creates and switches Git worktrees as part of
-// its existing ownership model, whereas a work package must leave Git flow to
+// its existing ownership model, whereas a task group must leave Git flow to
 // the user.
-func packageWorktreeExecutionProblem(scope *model.ExecutionScope) error {
-	workflowRef := "work package"
+func taskGroupWorktreeExecutionProblem(scope *model.ExecutionScope) error {
+	workflowRef := "task group"
 	if scope != nil && strings.TrimSpace(scope.WorkflowRef) != "" {
 		workflowRef = strings.TrimSpace(scope.WorkflowRef)
 	}
 	return apicore.NewProblem(
 		http.StatusUnprocessableEntity,
-		"package_git_mutation_forbidden",
-		"work package execution cannot use the Git worktree runner",
+		"task_group_git_mutation_forbidden",
+		"task group execution cannot use the Git worktree runner",
 		map[string]any{"workflow": workflowRef},
 		nil,
 	)
@@ -1193,25 +1193,25 @@ func resolveTaskOperationalDirectory(
 		return "", err
 	}
 	if scope != nil {
-		if err := requirePackageExecutableTasks(tasksDir, scope.WorkflowRef); err != nil {
+		if err := requireTaskGroupExecutableTasks(tasksDir, scope.WorkflowRef); err != nil {
 			return "", err
 		}
 	}
 	return tasksDir, nil
 }
 
-func requirePackageExecutableTasks(tasksDir string, workflowRef string) error {
+func requireTaskGroupExecutableTasks(tasksDir string, workflowRef string) error {
 	meta, err := taskscore.SnapshotTaskMeta(tasksDir)
 	if err != nil {
-		return fmt.Errorf("inspect package tasks for %s: %w", strings.TrimSpace(workflowRef), err)
+		return fmt.Errorf("inspect task group tasks for %s: %w", strings.TrimSpace(workflowRef), err)
 	}
 	if meta.Total > 0 {
 		return nil
 	}
 	return apicore.NewProblem(
 		http.StatusUnprocessableEntity,
-		"package_no_executable_tasks",
-		"work package has no executable tasks",
+		"task_group_no_executable_tasks",
+		"task group has no executable tasks",
 		map[string]any{"workflow": strings.TrimSpace(workflowRef)},
 		nil,
 	)
@@ -1524,7 +1524,7 @@ func (m *RunManager) resolveLifecycleWorkflowContext(
 		return workspace, workflowID, projectCfg, nil, err
 	}
 
-	ref, err := workpackages.ParsePackageRef(strings.TrimSpace(workflowSlug))
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(workflowSlug))
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
@@ -1539,23 +1539,23 @@ func (m *RunManager) resolveLifecycleWorkflowContext(
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
-	target, err := (workpackages.TargetResolver{}).ResolvePackage(ctx, workspace.RootDir, ref.String())
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, ref.String())
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
-	if err := workpackages.ValidatePackageManifestContainment(ctx, target); err != nil {
+	if err := taskgroups.ValidateTaskGroupManifestContainment(ctx, target); err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
-	scope, err := workpackages.BuildExecutionScope(target)
+	scope, err := taskgroups.BuildExecutionScope(target)
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
-	if err := ensureCurrentPackageSpecifications(scope); err != nil {
+	if err := ensureCurrentTaskGroupSpecifications(scope); err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
 	}
 	if _, err := corepkg.SyncWithDB(ctx, m.globalDB, workspace, model.SyncConfig{ExecutionScope: &scope}); err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, fmt.Errorf(
-			"sync package lifecycle target %s: %w",
+			"sync task group lifecycle target %s: %w",
 			scope.WorkflowRef,
 			err,
 		)
@@ -1568,18 +1568,18 @@ func (m *RunManager) resolveLifecycleWorkflowContext(
 	return workspace, &workflowID, projectCfg, &scope, nil
 }
 
-func ensureCurrentPackageSpecifications(scope model.ExecutionScope) error {
+func ensureCurrentTaskGroupSpecifications(scope model.ExecutionScope) error {
 	for _, name := range []string{"_prd.md", "_techspec.md"} {
 		path := filepath.Join(scope.SpecDir, name)
 		if _, err := os.ReadFile(path); err != nil {
-			// A missing canonical spec is a client-actionable state (the package
+			// A missing canonical spec is a client-actionable state (the task group
 			// exists but its initiative is incomplete), not an internal fault, so
 			// emit a typed 422 with a stable code instead of leaking the absolute
 			// SpecDir path through the generic error mapping.
 			if errors.Is(err, os.ErrNotExist) {
 				return apicore.NewProblem(
 					http.StatusUnprocessableEntity,
-					"package_specification_missing",
+					"task_group_specification_missing",
 					fmt.Sprintf("canonical specification %s is missing for %s", name, scope.WorkflowRef),
 					map[string]any{"specification": name, "workflow": scope.WorkflowRef},
 					err,

@@ -591,7 +591,7 @@ func listArchivedChildWorkflowsInTx(ctx context.Context, tx *sql.Tx, parentID st
 		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE parent_workflow_id = ?
-		 ORDER BY package_id ASC, created_at ASC, id ASC`,
+		 ORDER BY task_group_id ASC, created_at ASC, id ASC`,
 		strings.TrimSpace(parentID),
 	)
 	if err != nil {

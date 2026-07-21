@@ -12,16 +12,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestReviewWorkPackagePickerThemePreservesBlockedMarker(t *testing.T) {
+func TestReviewTaskGroupPickerThemePreservesBlockedMarker(t *testing.T) {
 	t.Parallel()
 
-	styles := reviewWorkPackagePickerHuhTheme().Theme(true)
-	blocked := xansi.Strip(styles.Focused.SelectedOption.Render("[⊘] auth/WP-004"))
-	if !strings.Contains(blocked, "[⊘] auth/WP-004") || strings.Contains(blocked, "[x]") {
+	styles := reviewTaskGroupPickerHuhTheme().Theme(true)
+	blocked := xansi.Strip(styles.Focused.SelectedOption.Render("[⊘] auth/TG-004"))
+	if !strings.Contains(blocked, "[⊘] auth/TG-004") || strings.Contains(blocked, "[x]") {
 		t.Fatalf("focused review-blocked label = %q, want blocked marker preserved", blocked)
 	}
-	ready := xansi.Strip(styles.Focused.SelectedOption.Render("[ ] auth/WP-003"))
-	if !strings.Contains(ready, "[x] auth/WP-003") {
+	ready := xansi.Strip(styles.Focused.SelectedOption.Render("[ ] auth/TG-003"))
+	if !strings.Contains(ready, "[x] auth/TG-003") {
 		t.Fatalf("focused ready review label = %q, want selected marker", ready)
 	}
 }

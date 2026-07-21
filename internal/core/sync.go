@@ -18,8 +18,8 @@ import (
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/internal/core/workpackages"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -27,7 +27,7 @@ const authoredTaskListHeader = "| # | Title | Status | Complexity | Dependencies
 
 func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
 	if cfg.ExecutionScope != nil {
-		return syncScopedWorkPackageDirect(ctx, cfg)
+		return syncScopedTaskGroupDirect(ctx, cfg)
 	}
 	target, singleWorkflow, err := resolveSyncTarget(cfg)
 	result := &SyncResult{Target: target}
@@ -46,7 +46,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 	return syncResolvedTarget(ctx, db, workspace, target, singleWorkflow, result)
 }
 
-func syncScopedWorkPackageDirect(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+func syncScopedTaskGroupDirect(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
 	scope := cfg.ExecutionScope
 	result := &SyncResult{}
 	if scope != nil {
@@ -54,7 +54,7 @@ func syncScopedWorkPackageDirect(ctx context.Context, cfg SyncConfig) (*SyncResu
 	}
 	workspaceRoot := strings.TrimSpace(cfg.WorkspaceRoot)
 	if workspaceRoot == "" {
-		return result, errors.New("work package execution scope requires workspace root")
+		return result, errors.New("task group execution scope requires workspace root")
 	}
 	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
@@ -74,7 +74,7 @@ func syncScopedWorkPackageDirect(ctx context.Context, cfg SyncConfig) (*SyncResu
 	if err != nil {
 		return result, fmt.Errorf("resolve scoped sync workspace: %w", err)
 	}
-	return syncScopedWorkPackage(ctx, db, workspace, cfg)
+	return syncScopedTaskGroup(ctx, db, workspace, cfg)
 }
 
 // SyncWithDB reconciles workflow artifacts into an already-open global.db.
@@ -85,7 +85,7 @@ func SyncWithDB(
 	cfg SyncConfig,
 ) (*SyncResult, error) {
 	if cfg.ExecutionScope != nil {
-		return syncScopedWorkPackage(ctx, db, workspace, cfg)
+		return syncScopedTaskGroup(ctx, db, workspace, cfg)
 	}
 	target, singleWorkflow, err := resolveSyncTarget(cfg)
 	result := &SyncResult{Target: target}
@@ -104,14 +104,14 @@ func SyncWithDB(
 	return syncResolvedTarget(ctx, db, workspace, target, singleWorkflow, result)
 }
 
-func syncScopedWorkPackage(
+func syncScopedTaskGroup(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
 	cfg SyncConfig,
 ) (*SyncResult, error) {
 	if cfg.ExecutionScope == nil {
-		return nil, errors.New("work package execution scope is required")
+		return nil, errors.New("task group execution scope is required")
 	}
 	if db == nil {
 		return nil, errors.New("sync database is required")
@@ -122,28 +122,28 @@ func syncScopedWorkPackage(
 	scope := *cfg.ExecutionScope
 	result := &SyncResult{Target: scope.OperationalDir}
 	if strings.TrimSpace(scope.WorkflowRef) == "" {
-		return result, errors.New("work package execution scope workflow reference is required")
+		return result, errors.New("task group execution scope workflow reference is required")
 	}
 	if !syncTargetBelongsToWorkspace(scope.SpecDir, workspace.RootDir) ||
 		!syncTargetBelongsToWorkspace(scope.OperationalDir, workspace.RootDir) {
-		return result, fmt.Errorf("mismatched workspace and work package execution scope: %s", scope.WorkflowRef)
+		return result, fmt.Errorf("mismatched workspace and task group execution scope: %s", scope.WorkflowRef)
 	}
 	if err := ensureCurrentExecutionScopeSpecifications(scope); err != nil {
 		return result, err
 	}
 
-	target, err := (workpackages.TargetResolver{}).ResolvePackage(ctx, workspace.RootDir, scope.WorkflowRef)
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, scope.WorkflowRef)
 	if err != nil {
-		return result, fmt.Errorf("resolve work package execution scope %s: %w", scope.WorkflowRef, err)
+		return result, fmt.Errorf("resolve task group execution scope %s: %w", scope.WorkflowRef, err)
 	}
-	currentScope, err := workpackages.BuildExecutionScope(target)
+	currentScope, err := taskgroups.BuildExecutionScope(target)
 	if err != nil {
 		return result, err
 	}
 	if !sameExecutionScope(scope, currentScope) {
-		return result, fmt.Errorf("work package execution scope changed while syncing %s", scope.WorkflowRef)
+		return result, fmt.Errorf("task group execution scope changed while syncing %s", scope.WorkflowRef)
 	}
-	if err := syncWorkPackageTarget(ctx, db, workspace, target, result); err != nil {
+	if err := syncTaskGroupTarget(ctx, db, workspace, target, result); err != nil {
 		return result, err
 	}
 	return result, nil
@@ -190,8 +190,8 @@ func syncResolvedTarget(
 	result *SyncResult,
 ) (*SyncResult, error) {
 	if singleWorkflow {
-		if isWorkPackageOperationalDirectory(workspace.RootDir, target) {
-			return result, WorkPackageRootOnlyError{Target: target}
+		if isTaskGroupOperationalDirectory(workspace.RootDir, target) {
+			return result, TaskGroupRootOnlyError{Target: target}
 		}
 		if err := syncWorkspaceWorkflow(ctx, db, workspace, target, result); err != nil {
 			return result, err
@@ -278,8 +278,8 @@ func openWorkflowGlobalDB(
 }
 
 func resolveSyncTarget(cfg SyncConfig) (string, bool, error) {
-	if target, ok := namedWorkPackageTarget(cfg.Name); ok {
-		return "", false, WorkPackageRootOnlyError{Target: target}
+	if target, ok := namedTaskGroupTarget(cfg.Name); ok {
+		return "", false, TaskGroupRootOnlyError{Target: target}
 	}
 	resolved, err := resolveWorkflowTarget(workflowTargetOptions{
 		command:       "sync",
@@ -295,9 +295,9 @@ func resolveSyncTarget(cfg SyncConfig) (string, bool, error) {
 	return resolved.target, resolved.specificTarget, nil
 }
 
-func namedWorkPackageTarget(name string) (string, bool) {
-	ref, err := workpackages.ParseRef(strings.TrimSpace(name))
-	if err != nil || !ref.IsPackage() {
+func namedTaskGroupTarget(name string) (string, bool) {
+	ref, err := taskgroups.ParseRef(strings.TrimSpace(name))
+	if err != nil || !ref.IsTaskGroup() {
 		return "", false
 	}
 	return ref.String(), true
@@ -317,19 +317,19 @@ func syncWorkspaceWorkflow(
 		return errors.New("sync result is required")
 	}
 
-	initiativeTarget, resolveErr := (workpackages.TargetResolver{}).Resolve(
+	initiativeTarget, resolveErr := (taskgroups.TargetResolver{}).Resolve(
 		ctx,
 		workspace.RootDir,
 		filepath.Base(tasksDir),
 	)
 	if resolveErr != nil {
-		if errors.Is(resolveErr, workpackages.ErrInvalidPlan) {
+		if errors.Is(resolveErr, taskgroups.ErrInvalidPlan) {
 			return fmt.Errorf("sync workflow %s: %w", tasksDir, resolveErr)
 		}
 		return fmt.Errorf("resolve sync workflow target %s: %w", tasksDir, resolveErr)
 	}
-	if initiativeTarget.Mode == workpackages.TargetModeInitiative {
-		return syncWorkPackageInitiative(ctx, db, workspace, initiativeTarget, result)
+	if initiativeTarget.Mode == taskgroups.TargetModeInitiative {
+		return syncTaskGroupInitiative(ctx, db, workspace, initiativeTarget, result)
 	}
 	return syncWorkflow(ctx, db, workspace.ID, tasksDir, result)
 }
@@ -403,23 +403,23 @@ func syncWorkflow(
 	return nil
 }
 
-func syncWorkPackageInitiative(
+func syncTaskGroupInitiative(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
-	target workpackages.Target,
+	target taskgroups.Target,
 	result *SyncResult,
 ) error {
-	parentSnapshots, parentChecksum, err := collectArtifactSnapshotsExcludingPackages(target.InitiativeDir)
+	parentSnapshots, parentChecksum, err := collectArtifactSnapshotsExcludingTaskGroups(target.InitiativeDir)
 	if err != nil {
 		return err
 	}
 
-	collection, err := collectWorkPackageSyncChildren(ctx, workspace, target)
+	collection, err := collectTaskGroupSyncChildren(ctx, workspace, target)
 	if err != nil {
 		return err
 	}
-	children := appendMissingWorkPackagePlaceholders(workspace, target, &collection)
+	children := appendMissingTaskGroupPlaceholders(workspace, target, &collection)
 
 	aggregate, err := db.ReconcileAggregateWorkflowSync(ctx, globaldb.AggregateWorkflowSyncInput{
 		Parent: globaldb.WorkflowSyncInput{
@@ -432,32 +432,32 @@ func syncWorkPackageInitiative(
 			ArtifactSnapshots:  parentSnapshots,
 		},
 		Children: children,
-		// The child set is complete: appendMissingWorkPackagePlaceholders emits a
-		// Missing placeholder for every declared package whose directory is absent,
-		// so those package IDs stay in the reconcile's seen set. Full-initiative sync
+		// The child set is complete: appendMissingTaskGroupPlaceholders emits a
+		// Missing placeholder for every declared task group whose directory is absent,
+		// so those task group IDs stay in the reconcile's seen set. Full-initiative sync
 		// must therefore prune children the plan no longer declares (the pruner still
 		// skips and reports any child that owns an active run). Suppressing pruning
-		// here would strand a package dropped from the plan as a ghost child whenever
+		// here would strand a task group dropped from the plan as a ghost child whenever
 		// a sibling directory happened to be absent. Only the deliberately scoped
-		// single-package sync (syncWorkPackageTarget), which collects one child
+		// single-task-group sync (syncTaskGroupTarget), which collects one child
 		// without its siblings, sets PreserveMissingChildren=true.
 		PreserveMissingChildren: false,
 	})
 	if err != nil {
-		return fmt.Errorf("reconcile work package initiative %s: %w", target.Ref.Initiative, err)
+		return fmt.Errorf("reconcile task group initiative %s: %w", target.Ref.Initiative, err)
 	}
 
 	applyWorkflowSyncResult(result, target.InitiativeDir, &aggregate.Parent)
 	for childIndex := range aggregate.Children {
 		child := &aggregate.Children[childIndex]
-		applyWorkflowSyncResult(result, collection.childPaths[child.Workflow.PackageID], child)
-		result.WorkPackageChildIDs = append(result.WorkPackageChildIDs, child.Workflow.ID)
+		applyWorkflowSyncResult(result, collection.childPaths[child.Workflow.TaskGroupID], child)
+		result.TaskGroupChildIDs = append(result.TaskGroupChildIDs, child.Workflow.ID)
 	}
-	result.WorkflowsPruned += len(aggregate.PrunedChildPackageIDs)
-	result.PrunedWorkflows = append(result.PrunedWorkflows, aggregate.PrunedChildPackageIDs...)
+	result.WorkflowsPruned += len(aggregate.PrunedChildTaskGroupIDs)
+	result.PrunedWorkflows = append(result.PrunedWorkflows, aggregate.PrunedChildTaskGroupIDs...)
 	for _, skipped := range aggregate.SkippedChildPrunes {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
-			"%s: skipped stale work package prune: %s (%d active run(s))",
+			"%s: skipped stale task group prune: %s (%d active run(s))",
 			skipped.Slug,
 			skipped.Reason,
 			skipped.ActiveRuns,
@@ -472,34 +472,34 @@ func syncWorkPackageInitiative(
 			strings.Join(collection.removedLegacyArtifacts, ", "),
 		))
 	}
-	if len(collection.missingPackageIDs) > 0 {
-		sort.Strings(collection.missingPackageIDs)
+	if len(collection.missingTaskGroupIDs) > 0 {
+		sort.Strings(collection.missingTaskGroupIDs)
 		result.Partial = true
-		result.MissingWorkPackages = append(result.MissingWorkPackages, collection.missingPackageIDs...)
+		result.MissingTaskGroups = append(result.MissingTaskGroups, collection.missingTaskGroupIDs...)
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
-			"%s: partial work package sync; missing package directories %s",
+			"%s: partial task group sync; missing task group directories %s",
 			target.Ref.Initiative,
-			strings.Join(collection.missingPackageIDs, ", "),
+			strings.Join(collection.missingTaskGroupIDs, ", "),
 		))
 	}
 	return nil
 }
 
-func syncWorkPackageTarget(
+func syncTaskGroupTarget(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
 	workspace globaldb.Workspace,
-	target workpackages.Target,
+	target taskgroups.Target,
 	result *SyncResult,
 ) error {
-	if target.Mode != workpackages.TargetModePackage {
-		return fmt.Errorf("sync work package target: %s is not a package", target.DisplayRef)
+	if target.Mode != taskgroups.TargetModeTaskGroup {
+		return fmt.Errorf("sync task group target: %s is not a task group", target.DisplayRef)
 	}
-	parentSnapshots, parentChecksum, err := collectArtifactSnapshotsExcludingPackages(target.InitiativeDir)
+	parentSnapshots, parentChecksum, err := collectArtifactSnapshotsExcludingTaskGroups(target.InitiativeDir)
 	if err != nil {
 		return err
 	}
-	child, childPath, removed, err := collectWorkPackageSyncChildFromTarget(ctx, workspace, target)
+	child, childPath, removed, err := collectTaskGroupSyncChildFromTarget(ctx, workspace, target)
 	if err != nil {
 		return err
 	}
@@ -517,13 +517,13 @@ func syncWorkPackageTarget(
 		PreserveMissingChildren: true,
 	})
 	if err != nil {
-		return fmt.Errorf("reconcile work package %s: %w", target.DisplayRef, err)
+		return fmt.Errorf("reconcile task group %s: %w", target.DisplayRef, err)
 	}
 	applyWorkflowSyncResult(result, target.InitiativeDir, &aggregate.Parent)
 	for childIndex := range aggregate.Children {
 		childResult := &aggregate.Children[childIndex]
 		applyWorkflowSyncResult(result, childPath, childResult)
-		result.WorkPackageChildIDs = append(result.WorkPackageChildIDs, childResult.Workflow.ID)
+		result.TaskGroupChildIDs = append(result.TaskGroupChildIDs, childResult.Workflow.ID)
 	}
 	result.LegacyArtifactsRemoved += len(removed)
 	if len(removed) > 0 {
@@ -537,55 +537,55 @@ func syncWorkPackageTarget(
 	return nil
 }
 
-type workPackageSyncChildren struct {
+type taskGroupSyncChildren struct {
 	children               []globaldb.WorkflowSyncInput
 	childPaths             map[string]string
-	missingPackageIDs      []string
+	missingTaskGroupIDs    []string
 	removedLegacyArtifacts []string
 }
 
-func collectWorkPackageSyncChildren(
+func collectTaskGroupSyncChildren(
 	ctx context.Context,
 	workspace globaldb.Workspace,
-	target workpackages.Target,
-) (workPackageSyncChildren, error) {
-	result := workPackageSyncChildren{
-		children:   make([]globaldb.WorkflowSyncInput, 0, len(target.Plan.Packages)),
-		childPaths: make(map[string]string, len(target.Plan.Packages)),
+	target taskgroups.Target,
+) (taskGroupSyncChildren, error) {
+	result := taskGroupSyncChildren{
+		children:   make([]globaldb.WorkflowSyncInput, 0, len(target.Plan.TaskGroups)),
+		childPaths: make(map[string]string, len(target.Plan.TaskGroups)),
 	}
-	resolver := workpackages.TargetResolver{}
-	for packageIndex := range target.Plan.Packages {
-		pkg := &target.Plan.Packages[packageIndex]
-		child, childPath, removed, err := collectWorkPackageSyncChild(ctx, resolver, workspace, target, pkg)
+	resolver := taskgroups.TargetResolver{}
+	for taskGroupIndex := range target.Plan.TaskGroups {
+		taskGroup := &target.Plan.TaskGroups[taskGroupIndex]
+		child, childPath, removed, err := collectTaskGroupSyncChild(ctx, resolver, workspace, target, taskGroup)
 		if err != nil {
-			if errors.Is(err, workpackages.ErrPackageNotFound) {
-				result.missingPackageIDs = append(result.missingPackageIDs, pkg.ID)
+			if errors.Is(err, taskgroups.ErrTaskGroupNotFound) {
+				result.missingTaskGroupIDs = append(result.missingTaskGroupIDs, taskGroup.ID)
 				continue
 			}
-			return workPackageSyncChildren{}, err
+			return taskGroupSyncChildren{}, err
 		}
 		result.children = append(result.children, child)
-		result.childPaths[pkg.ID] = childPath
+		result.childPaths[taskGroup.ID] = childPath
 		result.removedLegacyArtifacts = append(result.removedLegacyArtifacts, removed...)
 	}
 	return result, nil
 }
 
-// appendMissingWorkPackagePlaceholders reconciles the durable child row for
-// every declared package whose directory is absent so Missing always tracks
+// appendMissingTaskGroupPlaceholders reconciles the durable child row for
+// every declared task group whose directory is absent so Missing always tracks
 // current source availability. A first-ever partial sync would otherwise omit
-// the node entirely, so any dependent package keeps a graph edge to a
+// the node entirely, so any dependent task group keeps a graph edge to a
 // nonexistent node: DB-only read models that reconstruct the plan
-// (workpackages.EvaluateReadiness) then reject the whole initiative and fail
-// workflow listing, dashboard projection, and archive eligibility. A package
+// (taskgroups.EvaluateReadiness) then reject the whole initiative and fail
+// workflow listing, dashboard projection, and archive eligibility. A task group
 // with no durable row yet is seeded fresh with the declared identity and
 // dependency edges but no artifacts, so read models keep a complete graph and
-// block start/archive with a clear reason. A package that already owns a durable
+// block start/archive with a clear reason. A task group that already owns a durable
 // row -- whether it was materialized before its directory vanished, is a
 // placeholder written by an earlier partial sync, or was materialized by a scoped
 // sync racing this one -- keeps its retained snapshots, tasks, reviews, and
 // checkpoint via a metadata-only reconcile that only refreshes identity columns
-// (flipping Missing to true and tracking pkg.Completed plus later plan edits);
+// (flipping Missing to true and tracking taskGroup.Completed plus later plan edits);
 // otherwise the preserved row would advertise an absent directory as runnable or
 // archive-eligible. Each placeholder sets MetadataOnlyIfExisting so the reconcile
 // resolves "preserve vs seed" against the transaction's own snapshot: keying on
@@ -595,40 +595,40 @@ func collectWorkPackageSyncChildren(
 // rather than via an out-of-transaction precheck closes a TOCTOU race where a
 // concurrent scoped sync commits real projections in the gap. Missing clears
 // automatically once the directory returns and a full projection is collected.
-func appendMissingWorkPackagePlaceholders(
+func appendMissingTaskGroupPlaceholders(
 	workspace globaldb.Workspace,
-	target workpackages.Target,
-	collection *workPackageSyncChildren,
+	target taskgroups.Target,
+	collection *taskGroupSyncChildren,
 ) []globaldb.WorkflowSyncInput {
-	if len(collection.missingPackageIDs) == 0 {
+	if len(collection.missingTaskGroupIDs) == 0 {
 		return collection.children
 	}
-	missing := make(map[string]struct{}, len(collection.missingPackageIDs))
-	for _, packageID := range collection.missingPackageIDs {
-		missing[packageID] = struct{}{}
+	missing := make(map[string]struct{}, len(collection.missingTaskGroupIDs))
+	for _, taskGroupID := range collection.missingTaskGroupIDs {
+		missing[taskGroupID] = struct{}{}
 	}
 	children := collection.children
-	for packageIndex := range target.Plan.Packages {
-		pkg := &target.Plan.Packages[packageIndex]
-		if _, ok := missing[pkg.ID]; !ok {
+	for taskGroupIndex := range target.Plan.TaskGroups {
+		taskGroup := &target.Plan.TaskGroups[taskGroupIndex]
+		if _, ok := missing[taskGroup.ID]; !ok {
 			continue
 		}
-		slug := target.Ref.Initiative + "/" + pkg.ID
+		slug := target.Ref.Initiative + "/" + taskGroup.ID
 		placeholder := globaldb.WorkflowSyncInput{
 			WorkspaceID:  workspace.ID,
 			WorkflowSlug: slug,
-			Kind:         globaldb.WorkflowKindWorkPackage,
-			PackageID:    pkg.ID,
-			DisplayTitle: pkg.Title,
-			Outcome:      pkg.Outcome,
+			Kind:         globaldb.WorkflowKindTaskGroup,
+			TaskGroupID:  taskGroup.ID,
+			DisplayTitle: taskGroup.Title,
+			Outcome:      taskGroup.Outcome,
 			// Seed the canonical manifest checkbox so a first-ever missing child
 			// reflects completion truthfully instead of always projecting false.
-			LifecycleCompleted: pkg.Completed,
+			LifecycleCompleted: taskGroup.Completed,
 			Missing:            true,
-			Dependencies:       packageDependencies(pkg),
+			Dependencies:       taskGroupDependencies(taskGroup),
 			SyncedAt:           time.Now().UTC(),
 			CheckpointScope:    "workflow",
-			// Preserve any durable row for this package -- whether it was materialized
+			// Preserve any durable row for this task group -- whether it was materialized
 			// before its directory vanished, written by an earlier partial sync, or
 			// created by a scoped sync racing this one -- via a metadata-only reconcile,
 			// and seed a fresh node only when no row exists. The reconcile resolves that
@@ -638,109 +638,112 @@ func appendMissingWorkPackagePlaceholders(
 			MetadataOnlyIfExisting: true,
 		}
 		children = append(children, placeholder)
-		collection.childPaths[pkg.ID] = filepath.Join(target.InitiativeDir, filepath.FromSlash(pkg.Directory))
+		collection.childPaths[taskGroup.ID] = filepath.Join(
+			target.InitiativeDir,
+			filepath.FromSlash(taskGroup.Directory),
+		)
 	}
 	return children
 }
 
-func collectWorkPackageSyncChild(
+func collectTaskGroupSyncChild(
 	ctx context.Context,
-	resolver workpackages.TargetResolver,
+	resolver taskgroups.TargetResolver,
 	workspace globaldb.Workspace,
-	target workpackages.Target,
-	pkg *workpackages.Package,
+	target taskgroups.Target,
+	taskGroup *taskgroups.TaskGroup,
 ) (globaldb.WorkflowSyncInput, string, []string, error) {
 	if err := ctx.Err(); err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, err
 	}
-	childTarget, err := resolver.Resolve(ctx, workspace.RootDir, target.Ref.Initiative+"/"+pkg.ID)
+	childTarget, err := resolver.Resolve(ctx, workspace.RootDir, target.Ref.Initiative+"/"+taskGroup.ID)
 	if err != nil {
-		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("resolve work package %s: %w", pkg.ID, err)
+		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf("resolve task group %s: %w", taskGroup.ID, err)
 	}
-	return collectWorkPackageSyncChildFromTarget(ctx, workspace, childTarget)
+	return collectTaskGroupSyncChildFromTarget(ctx, workspace, childTarget)
 }
 
-func collectWorkPackageSyncChildFromTarget(
+func collectTaskGroupSyncChildFromTarget(
 	ctx context.Context,
 	workspace globaldb.Workspace,
-	childTarget workpackages.Target,
+	childTarget taskgroups.Target,
 ) (globaldb.WorkflowSyncInput, string, []string, error) {
 	if err := ctx.Err(); err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, err
 	}
-	if childTarget.Mode != workpackages.TargetModePackage {
+	if childTarget.Mode != taskgroups.TargetModeTaskGroup {
 		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
-			"resolve work package target: %s is not a package",
+			"resolve task group target: %s is not a task group",
 			childTarget.DisplayRef,
 		)
 	}
-	removed, err := cleanupLegacyWorkflowMetadata(childTarget.PackageDir)
+	removed, err := cleanupLegacyWorkflowMetadata(childTarget.TaskGroupDir)
 	if err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
-			"cleanup work package %s metadata: %w",
-			childTarget.Package.ID,
+			"cleanup task group %s metadata: %w",
+			childTarget.TaskGroup.ID,
 			err,
 		)
 	}
-	snapshots, checksum, err := collectArtifactSnapshots(childTarget.PackageDir)
+	snapshots, checksum, err := collectArtifactSnapshots(childTarget.TaskGroupDir)
 	if err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
-			"collect work package %s artifacts: %w",
-			childTarget.Package.ID,
+			"collect task group %s artifacts: %w",
+			childTarget.TaskGroup.ID,
 			err,
 		)
 	}
-	taskItems, err := collectTaskItems(childTarget.PackageDir)
+	taskItems, err := collectTaskItems(childTarget.TaskGroupDir)
 	if err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
-			"collect work package %s tasks: %w",
-			childTarget.Package.ID,
+			"collect task group %s tasks: %w",
+			childTarget.TaskGroup.ID,
 			err,
 		)
 	}
-	reviewRounds, err := collectReviewRounds(childTarget.PackageDir)
+	reviewRounds, err := collectReviewRounds(childTarget.TaskGroupDir)
 	if err != nil {
 		return globaldb.WorkflowSyncInput{}, "", nil, fmt.Errorf(
-			"collect work package %s reviews: %w",
-			childTarget.Package.ID,
+			"collect task group %s reviews: %w",
+			childTarget.TaskGroup.ID,
 			err,
 		)
 	}
-	removedWithPackageID := make([]string, 0, len(removed))
+	removedWithTaskGroupID := make([]string, 0, len(removed))
 	for _, path := range removed {
-		removedWithPackageID = append(removedWithPackageID, childTarget.Package.ID+"/"+path)
+		removedWithTaskGroupID = append(removedWithTaskGroupID, childTarget.TaskGroup.ID+"/"+path)
 	}
 	return globaldb.WorkflowSyncInput{
 		WorkspaceID:        workspace.ID,
 		WorkflowSlug:       childTarget.DisplayRef,
-		Kind:               globaldb.WorkflowKindWorkPackage,
-		PackageID:          childTarget.Package.ID,
-		DisplayTitle:       childTarget.Package.Title,
-		Outcome:            childTarget.Package.Outcome,
-		LifecycleCompleted: childTarget.Package.Completed,
-		Dependencies:       packageDependencies(&childTarget.Package),
+		Kind:               globaldb.WorkflowKindTaskGroup,
+		TaskGroupID:        childTarget.TaskGroup.ID,
+		DisplayTitle:       childTarget.TaskGroup.Title,
+		Outcome:            childTarget.TaskGroup.Outcome,
+		LifecycleCompleted: childTarget.TaskGroup.Completed,
+		Dependencies:       taskGroupDependencies(&childTarget.TaskGroup),
 		SyncedAt:           time.Now().UTC(),
 		CheckpointScope:    "workflow",
 		CheckpointChecksum: checksum,
 		ArtifactSnapshots:  snapshots,
 		TaskItems:          taskItems,
 		ReviewRounds:       reviewRounds,
-	}, childTarget.PackageDir, removedWithPackageID, nil
+	}, childTarget.TaskGroupDir, removedWithTaskGroupID, nil
 }
 
-func packageDependencies(pkg *workpackages.Package) []globaldb.WorkflowDependency {
-	dependencies := make([]globaldb.WorkflowDependency, 0, len(pkg.Dependencies))
-	for _, dependency := range pkg.Dependencies {
+func taskGroupDependencies(taskGroup *taskgroups.TaskGroup) []globaldb.WorkflowDependency {
+	dependencies := make([]globaldb.WorkflowDependency, 0, len(taskGroup.Dependencies))
+	for _, dependency := range taskGroup.Dependencies {
 		dependencies = append(dependencies, globaldb.WorkflowDependency{
-			PackageID: dependency.From,
-			Rationale: dependency.Rationale,
+			TaskGroupID: dependency.From,
+			Rationale:   dependency.Rationale,
 		})
 	}
 	sort.Slice(dependencies, func(i, j int) bool {
-		if dependencies[i].PackageID == dependencies[j].PackageID {
+		if dependencies[i].TaskGroupID == dependencies[j].TaskGroupID {
 			return dependencies[i].Rationale < dependencies[j].Rationale
 		}
-		return dependencies[i].PackageID < dependencies[j].PackageID
+		return dependencies[i].TaskGroupID < dependencies[j].TaskGroupID
 	})
 	return dependencies
 }
@@ -762,13 +765,13 @@ func collectArtifactSnapshots(tasksDir string) ([]globaldb.ArtifactSnapshotInput
 	return collectArtifactSnapshotsWithOptions(tasksDir, false)
 }
 
-func collectArtifactSnapshotsExcludingPackages(tasksDir string) ([]globaldb.ArtifactSnapshotInput, string, error) {
+func collectArtifactSnapshotsExcludingTaskGroups(tasksDir string) ([]globaldb.ArtifactSnapshotInput, string, error) {
 	return collectArtifactSnapshotsWithOptions(tasksDir, true)
 }
 
 func collectArtifactSnapshotsWithOptions(
 	tasksDir string,
-	excludePackages bool,
+	excludeTaskGroups bool,
 ) ([]globaldb.ArtifactSnapshotInput, string, error) {
 	root, err := os.OpenRoot(strings.TrimSpace(tasksDir))
 	if err != nil {
@@ -777,9 +780,9 @@ func collectArtifactSnapshotsWithOptions(
 	defer root.Close()
 
 	collector := artifactSnapshotCollector{
-		root:            root,
-		tasksDir:        tasksDir,
-		excludePackages: excludePackages,
+		root:              root,
+		tasksDir:          tasksDir,
+		excludeTaskGroups: excludeTaskGroups,
 	}
 	err = filepath.WalkDir(tasksDir, collector.visit)
 	if err != nil {
@@ -796,11 +799,11 @@ func collectArtifactSnapshotsWithOptions(
 }
 
 type artifactSnapshotCollector struct {
-	root            *os.Root
-	tasksDir        string
-	excludePackages bool
-	snapshots       []globaldb.ArtifactSnapshotInput
-	checksumParts   []string
+	root              *os.Root
+	tasksDir          string
+	excludeTaskGroups bool
+	snapshots         []globaldb.ArtifactSnapshotInput
+	checksumParts     []string
 }
 
 func (c *artifactSnapshotCollector) visit(path string, entry fs.DirEntry, walkErr error) error {
@@ -817,7 +820,7 @@ func (c *artifactSnapshotCollector) visit(path string, entry fs.DirEntry, walkEr
 }
 
 func (c *artifactSnapshotCollector) visitDirectory(path string, entry fs.DirEntry) error {
-	if c.excludePackages && path != c.tasksDir && entry.Name() == "_packages" {
+	if c.excludeTaskGroups && path != c.tasksDir && entry.Name() == "_task_groups" {
 		return filepath.SkipDir
 	}
 	if path != c.tasksDir && strings.HasPrefix(entry.Name(), ".") {
@@ -888,8 +891,8 @@ func classifyArtifactKind(relativePath string) string {
 		return "techspec"
 	case clean == "_tasks.md":
 		return "tasks_index"
-	case clean == workpackages.ManifestFileName:
-		return "work_package_plan"
+	case clean == taskgroups.ManifestFileName:
+		return "task_group_plan"
 	case tasks.ExtractTaskNumber(base) > 0 && !strings.Contains(clean, "/"):
 		return "task"
 	case strings.HasPrefix(clean, "adrs/"):

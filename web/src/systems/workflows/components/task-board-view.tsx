@@ -23,22 +23,22 @@ export interface TaskBoardViewProps {
   isLoading: boolean;
   isRefetching: boolean;
   error?: string | null;
-  packageId?: string;
+  taskGroupId?: string;
   workflowSlug: string;
   workspaceName: string;
 }
 
 export function TaskBoardView(props: TaskBoardViewProps): ReactElement {
-  const { board, isLoading, isRefetching, error, packageId, workflowSlug, workspaceName } = props;
+  const { board, isLoading, isRefetching, error, taskGroupId, workflowSlug, workspaceName } = props;
   const lanes = board?.lanes ?? [];
   const totalTasks = board?.task_counts?.total ?? 0;
 
   return (
     <div className="space-y-6" data-testid="task-board-view">
       <SectionHeading
-        description={`Tasks registered for ${packageId ? `${workflowSlug}/${packageId}` : workflowSlug} in ${workspaceName}.`}
+        description={`Tasks registered for ${taskGroupId ? `${workflowSlug}/${taskGroupId}` : workflowSlug} in ${workspaceName}.`}
         eyebrow="Workflow · Tasks"
-        title={packageId ? `${workflowSlug}/${packageId}` : workflowSlug}
+        title={taskGroupId ? `${workflowSlug}/${taskGroupId}` : workflowSlug}
       />
 
       {error ? (
@@ -71,7 +71,7 @@ export function TaskBoardView(props: TaskBoardViewProps): ReactElement {
             <BoardLane
               key={`${lane.status}-${lane.title}`}
               lane={lane}
-              packageId={packageId}
+              taskGroupId={taskGroupId}
               slug={workflowSlug}
             />
           ))}
@@ -111,11 +111,11 @@ function CountsSummary({ counts }: { counts: WorkflowTaskCounts }): ReactElement
 
 function BoardLane({
   lane,
-  packageId,
+  taskGroupId,
   slug,
 }: {
   lane: TaskLane;
-  packageId?: string;
+  taskGroupId?: string;
   slug: string;
 }): ReactElement {
   const items = lane.items ?? [];
@@ -147,7 +147,7 @@ function BoardLane({
         ) : (
           <ul className="space-y-2" data-testid={`task-board-lane-items-${lane.status}`}>
             {items.map(task => (
-              <TaskRow key={task.task_id} packageId={packageId} slug={slug} task={task} />
+              <TaskRow key={task.task_id} taskGroupId={taskGroupId} slug={slug} task={task} />
             ))}
           </ul>
         )}
@@ -157,11 +157,11 @@ function BoardLane({
 }
 
 function TaskRow({
-  packageId,
+  taskGroupId,
   slug,
   task,
 }: {
-  packageId?: string;
+  taskGroupId?: string;
   slug: string;
   task: TaskCard;
 }): ReactElement {
@@ -181,7 +181,7 @@ function TaskRow({
             className="block truncate text-sm font-medium text-foreground hover:underline"
             data-testid={`task-board-link-${task.task_id}`}
             params={{ slug, taskId: task.task_id }}
-            search={packageId ? { package_id: packageId } : {}}
+            search={taskGroupId ? { task_group_id: taskGroupId } : {}}
             to="/workflows/$slug/tasks/$taskId"
             title={task.title}
           >
