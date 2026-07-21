@@ -66,7 +66,7 @@ func TestTaskRunWizardWorkflowStatuses(t *testing.T) {
 			"auth — Running — 1/5 Work Packages completed — 3/7 tasks completed",
 			"[✓] WP-001 — Data model — Completed — 2/2 tasks completed",
 			"[ ] WP-002 — API — Ready to retry — 1/2 tasks completed",
-			"[!] WP-003 — UI — Blocked — 0/1 tasks completed — waits for WP-002",
+			"[⊘] WP-003 — UI — Blocked — 0/1 tasks completed — waits for WP-002",
 			"[!] WP-004 — Session hardening — Running — 0/1 tasks completed",
 			"[!] WP-005 — Documentation — Ready — 0/1 tasks completed",
 		} {
@@ -141,6 +141,79 @@ func TestTaskRunWizardWorkflowStatuses(t *testing.T) {
 			t.Fatalf("group selection = %#v, want completed Work Package after opt-in", wizard.inputs.selectedWorkflows)
 		}
 	})
+
+	t.Run(
+		"Should auto-select only eligible Work Packages and explicitly authorize a blocked selection",
+		func(t *testing.T) {
+			t.Parallel()
+
+			state := newTaskRunWizardTestState(t, "auth")
+			packages := []workpackages.Package{
+				{ID: "WP-001", Title: "Foundation"},
+				{ID: "WP-002", Title: "API"},
+				{ID: "WP-003", Title: "UI"},
+				{ID: "WP-004", Title: "Rollout"},
+			}
+			writeTaskRunWizardPlanWithEdges(t, state, "auth", packages, []workpackages.Dependency{
+				{From: "WP-001", To: "WP-003", Rationale: "UI needs the foundation"},
+				{From: "WP-002", To: "WP-003", Rationale: "UI needs the API"},
+				{From: "WP-003", To: "WP-004", Rationale: "Rollout needs the UI"},
+			})
+			wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+
+			view := xansi.Strip(strings.Join(
+				wizard.workflowListLines(wizard.filteredWorkflowOptions(), 180, 20),
+				"\n",
+			))
+			for _, want := range []string{
+				"[⊘] WP-003 — UI — Blocked",
+				"[⊘] WP-004 — Rollout — Blocked",
+			} {
+				if !strings.Contains(view, want) {
+					t.Fatalf("blocked workflow view missing %q:\n%s", want, view)
+				}
+			}
+
+			wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+			if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"auth/WP-001", "auth/WP-002"}) {
+				t.Fatalf(
+					"parent selection = %#v, want only dependency-ready Work Packages",
+					wizard.inputs.selectedWorkflows,
+				)
+			}
+			if view := xansi.Strip(wizard.View().Content); !strings.Contains(view, "[-] auth") {
+				t.Fatalf("eligible-only parent selection must remain partial:\n%s", view)
+			}
+
+			for range 3 {
+				wizard = updateTaskRunWizardTestModel(t, wizard, "down")
+			}
+			wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+			if !slices.Equal(wizard.inputs.selectedWorkflows, []string{
+				"auth/WP-001",
+				"auth/WP-002",
+				"auth/WP-003",
+			}) {
+				t.Fatalf("manual blocked selection = %#v, want WP-003 appended", wizard.inputs.selectedWorkflows)
+			}
+			if review := xansi.Strip(wizard.renderReviewStep(100)); !strings.Contains(review, "out-of-order") {
+				t.Fatalf("review must disclose the dependency override:\n%s", review)
+			}
+
+			cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+			appliedState := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+			if err := wizard.inputs.apply(cmd, appliedState); err != nil {
+				t.Fatalf("apply blocked workflow selection: %v", err)
+			}
+			if !appliedState.allowOutOfOrder || !cmd.Flags().Changed("allow-out-of-order") {
+				t.Fatalf(
+					"manual blocked selection must authorize this run: allow=%t changed=%t",
+					appliedState.allowOutOfOrder,
+					cmd.Flags().Changed("allow-out-of-order"),
+				)
+			}
+		},
+	)
 
 	t.Run("Should load the latest task run status for each target", func(t *testing.T) {
 		t.Parallel()

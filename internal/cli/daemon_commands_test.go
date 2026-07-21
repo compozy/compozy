@@ -3472,6 +3472,42 @@ func TestWorkPackagePickerOptions(t *testing.T) {
 	}
 }
 
+func TestWorkPackagePickerShowsDependencyBlockedMarker(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "auth"
+	writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+	packageRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_packages")
+	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-001"), "task_001.md", "pending")
+	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-002"), "task_001.md", "pending")
+
+	target, err := (workpackages.TargetResolver{}).Resolve(context.Background(), workspaceRoot, initiative)
+	if err != nil {
+		t.Fatalf("resolve initiative: %v", err)
+	}
+	options, err := buildWorkPackagePickerOptions(workPackagePickerInput{
+		Target:  target,
+		RunMode: daemonRunModeTask,
+	}, nil)
+	if err != nil {
+		t.Fatalf("build picker options: %v", err)
+	}
+	blockedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
+		return option.Value == "WP-002"
+	})
+	if blockedIndex < 0 {
+		t.Fatalf("picker options = %#v, missing blocked Work Package", options)
+	}
+	want := "[⊘] WP-002 — Delivery — Blocked — 0/1 tasks completed — waits for WP-001"
+	if got := options[blockedIndex].Label; got != want {
+		t.Fatalf("blocked Work Package label = %q, want %q", got, want)
+	}
+	if got := workPackagePickerSelectedLabel(options[blockedIndex].Label); !strings.HasPrefix(got, "[x] WP-002") {
+		t.Fatalf("selected blocked Work Package label = %q, want [x] marker", got)
+	}
+}
+
 // Invariant: review target markers reflect implementation and pending-review state,
 // and only review-clean completed targets are struck through.
 func TestBuildReviewFixTargetPickerOptions(t *testing.T) {

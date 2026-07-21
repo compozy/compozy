@@ -149,6 +149,7 @@ type taskRunFormInputs struct {
 	dryRun                    bool
 	autoCommit                bool
 	includeCompleted          bool
+	allowOutOfOrder           bool
 	recursive                 bool
 	parallelTasks             bool
 	parallelResolverIDE       string
@@ -229,6 +230,7 @@ type taskRunWizardModel struct {
 	message                string
 	submitted              bool
 	canceled               bool
+	initialAllowOutOfOrder bool
 }
 
 var runTaskRunWizardProgram = defaultRunTaskRunWizardProgram
@@ -331,6 +333,7 @@ func newTaskRunFormInputsFromState(state *commandState) *taskRunFormInputs {
 	inputs.dryRun = state.dryRun
 	inputs.autoCommit = state.autoCommit
 	inputs.includeCompleted = state.includeCompleted
+	inputs.allowOutOfOrder = state.allowOutOfOrder
 	inputs.recursive = state.recursive
 	inputs.parallelTasks = state.parallelTasks
 	inputs.parallelResolverIDE = state.parallelConflictResolverIDE
@@ -381,15 +384,16 @@ func newTaskRunWizardModelWithRunStatuses(
 		baseDir = model.TasksBaseDirForWorkspace(state.workspaceRoot)
 	}
 	m := &taskRunWizardModel{
-		ctx:             ctx,
-		state:           state,
-		inputs:          inputs,
-		workflowOptions: listTaskRunWizardWorkflowOptions(baseDir, latestRunStatuses),
-		ideOptions:      taskRunWizardIDEOptions(),
-		reasoningOpts:   taskRunWizardReasoningOptions(),
-		accessModeOpts:  taskRunWizardAccessModeOptions(),
-		width:           taskRunWizardMinWidth,
-		height:          taskRunWizardMinHeight,
+		ctx:                    ctx,
+		state:                  state,
+		inputs:                 inputs,
+		workflowOptions:        listTaskRunWizardWorkflowOptions(baseDir, latestRunStatuses),
+		ideOptions:             taskRunWizardIDEOptions(),
+		reasoningOpts:          taskRunWizardReasoningOptions(),
+		accessModeOpts:         taskRunWizardAccessModeOptions(),
+		width:                  taskRunWizardMinWidth,
+		height:                 taskRunWizardMinHeight,
+		initialAllowOutOfOrder: inputs.allowOutOfOrder,
 	}
 	m.textInputs = newTaskRunWizardTextInputs(inputs)
 	m.overrideModelInput = newTaskRunWizardInput("inherit default", "")
@@ -509,6 +513,7 @@ func (m *taskRunWizardModel) ensureWorkflowSelectionDefaults() {
 			m.inputs.includeCompleted,
 		)
 	}
+	m.syncOutOfOrderAuthorization()
 }
 
 func taskRunWizardChoiceContains(options []taskRunWizardChoice, value string) bool {
@@ -1535,7 +1540,7 @@ func (m *taskRunWizardModel) toggleWorkflowOption(option taskRunWizardWorkflowOp
 	}
 	m.message = ""
 	if option.Group {
-		if m.workflowGroupFullySelected(option) {
+		if m.workflowGroupSelectableTargetsFullySelected(option) {
 			m.deselectWorkflowGroup(option)
 			return
 		}
@@ -1543,6 +1548,13 @@ func (m *taskRunWizardModel) toggleWorkflowOption(option taskRunWizardWorkflowOp
 		return
 	}
 	m.toggleWorkflow(option.Value)
+	if option.Status == taskRunWizardWorkflowBlocked &&
+		slices.Contains(m.inputs.selectedWorkflows, option.Value) {
+		m.message = option.Value + " selected out of order"
+		if len(option.BlockedBy) > 0 {
+			m.message += "; waits for " + strings.Join(option.BlockedBy, ", ")
+		}
+	}
 }
 
 func (m *taskRunWizardModel) toggleWorkflow(slug string) {
@@ -1557,10 +1569,12 @@ func (m *taskRunWizardModel) toggleWorkflow(slug string) {
 	idx := slices.Index(m.inputs.selectedWorkflows, trimmed)
 	if idx >= 0 {
 		m.inputs.selectedWorkflows = slices.Delete(m.inputs.selectedWorkflows, idx, idx+1)
+		m.syncOutOfOrderAuthorization()
 		m.clampOrderCursor()
 		return
 	}
 	m.inputs.selectedWorkflows = append(m.inputs.selectedWorkflows, trimmed)
+	m.syncOutOfOrderAuthorization()
 	m.clampOrderCursor()
 }
 
@@ -1568,7 +1582,8 @@ func (m *taskRunWizardModel) toggleAllFilteredWorkflows(filtered []taskRunWizard
 	targets := make([]string, 0, len(filtered))
 	for index := range filtered {
 		option := &filtered[index]
-		if !option.Group && !m.workflowOptionLocked(*option) && !slices.Contains(targets, option.Value) {
+		if !option.Group && option.Status != taskRunWizardWorkflowBlocked &&
+			!m.workflowOptionLocked(*option) && !slices.Contains(targets, option.Value) {
 			targets = append(targets, option.Value)
 		}
 	}
@@ -1590,13 +1605,15 @@ func (m *taskRunWizardModel) toggleAllFilteredWorkflows(filtered []taskRunWizard
 			m.inputs.selectedWorkflows = append(m.inputs.selectedWorkflows, target)
 		}
 	}
+	m.syncOutOfOrderAuthorization()
 	m.clampOrderCursor()
 }
 
-func taskRunWizardSelectableGroupTargets(
+func taskRunWizardGroupTargets(
 	options []taskRunWizardWorkflowOption,
 	group taskRunWizardWorkflowOption,
 	includeCompleted bool,
+	includeBlocked bool,
 ) []string {
 	targets := make([]string, 0)
 	for index := range options {
@@ -1607,13 +1624,43 @@ func taskRunWizardSelectableGroupTargets(
 		if option.Completed && !includeCompleted {
 			continue
 		}
+		if option.Status == taskRunWizardWorkflowBlocked && !includeBlocked {
+			continue
+		}
 		targets = append(targets, option.Value)
 	}
 	return targets
 }
 
+func taskRunWizardSelectableGroupTargets(
+	options []taskRunWizardWorkflowOption,
+	group taskRunWizardWorkflowOption,
+	includeCompleted bool,
+) []string {
+	return taskRunWizardGroupTargets(options, group, includeCompleted, false)
+}
+
 func (m *taskRunWizardModel) workflowGroupTargets(group taskRunWizardWorkflowOption) []string {
+	return taskRunWizardGroupTargets(m.workflowOptions, group, m.inputs.includeCompleted, true)
+}
+
+func (m *taskRunWizardModel) workflowGroupSelectableTargets(group taskRunWizardWorkflowOption) []string {
 	return taskRunWizardSelectableGroupTargets(m.workflowOptions, group, m.inputs.includeCompleted)
+}
+
+func (m *taskRunWizardModel) workflowGroupSelectableTargetsFullySelected(
+	group taskRunWizardWorkflowOption,
+) bool {
+	targets := m.workflowGroupSelectableTargets(group)
+	if len(targets) == 0 {
+		return false
+	}
+	for _, target := range targets {
+		if !slices.Contains(m.inputs.selectedWorkflows, target) {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *taskRunWizardModel) workflowGroupFullySelected(group taskRunWizardWorkflowOption) bool {
@@ -1642,21 +1689,38 @@ func (m *taskRunWizardModel) workflowGroupPartiallySelected(group taskRunWizardW
 }
 
 func (m *taskRunWizardModel) selectWorkflowGroup(group taskRunWizardWorkflowOption) {
-	for _, target := range m.workflowGroupTargets(group) {
+	for _, target := range m.workflowGroupSelectableTargets(group) {
 		if !slices.Contains(m.inputs.selectedWorkflows, target) {
 			m.inputs.selectedWorkflows = append(m.inputs.selectedWorkflows, target)
 		}
 	}
+	m.syncOutOfOrderAuthorization()
 	m.clampOrderCursor()
 }
 
 func (m *taskRunWizardModel) deselectWorkflowGroup(group taskRunWizardWorkflowOption) {
-	for _, target := range m.workflowGroupTargets(group) {
+	for _, target := range m.workflowGroupSelectableTargets(group) {
 		if index := slices.Index(m.inputs.selectedWorkflows, target); index >= 0 {
 			m.inputs.selectedWorkflows = slices.Delete(m.inputs.selectedWorkflows, index, index+1)
 		}
 	}
+	m.syncOutOfOrderAuthorization()
 	m.clampOrderCursor()
+}
+
+func (m *taskRunWizardModel) syncOutOfOrderAuthorization() {
+	m.inputs.allowOutOfOrder = m.initialAllowOutOfOrder || m.state != nil && m.state.allowOutOfOrder
+	if m.inputs.allowOutOfOrder {
+		return
+	}
+	for index := range m.workflowOptions {
+		option := &m.workflowOptions[index]
+		if option.Status == taskRunWizardWorkflowBlocked &&
+			slices.Contains(m.inputs.selectedWorkflows, option.Value) {
+			m.inputs.allowOutOfOrder = true
+			return
+		}
+	}
 }
 
 func (m *taskRunWizardModel) workflowOption(value string) (taskRunWizardWorkflowOption, bool) {
@@ -1713,6 +1777,7 @@ func (m *taskRunWizardModel) removeSelectedWorkflowAtCursor() {
 	}
 	index := min(max(m.orderCursor, 0), len(m.inputs.selectedWorkflows)-1)
 	m.inputs.selectedWorkflows = slices.Delete(m.inputs.selectedWorkflows, index, index+1)
+	m.syncOutOfOrderAuthorization()
 	m.clampOrderCursor()
 }
 
@@ -1953,7 +2018,7 @@ func (m *taskRunWizardModel) renderWorkflowDualPane(
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 	return strings.Join([]string{
 		taskRunWizardSubtitleStyle().Render(
-			"Select workflows or individual Work Packages. [!] means no tasks are complete.",
+			"Select workflows or individual Work Packages. [⊘] means dependency blocked; [!] means no tasks are complete.",
 		),
 		panes,
 		m.workflowStatusLine(),
@@ -2041,6 +2106,9 @@ func (m *taskRunWizardModel) workflowSelectionMark(option taskRunWizardWorkflowO
 	}
 	if option.Completed {
 		return taskRunWizardCompletedStyle().Render("[✓]")
+	}
+	if option.Status == taskRunWizardWorkflowBlocked {
+		return taskRunWizardMutedStyle().Render(workPackagePickerBlockedMarker)
 	}
 	if taskRunWizardWorkflowNotStarted(option) {
 		return taskRunWizardMutedStyle().Render("[!]")
@@ -2507,6 +2575,9 @@ func (m *taskRunWizardModel) reviewFlagsValue() string {
 	if m.inputs.autoCommit {
 		flags = append(flags, "auto-commit")
 	}
+	if m.inputs.allowOutOfOrder {
+		flags = append(flags, "out-of-order")
+	}
 	if m.inputs.recursive {
 		flags = append(flags, "recursive")
 	}
@@ -2744,6 +2815,11 @@ func (inputs *taskRunFormInputs) apply(cmd *cobra.Command, state *commandState) 
 	applyInput(cmd, "include-completed", inputs.includeCompleted, passThroughInput[bool], func(value bool) {
 		state.includeCompleted = value
 	})
+	if inputs.allowOutOfOrder {
+		applyInput(cmd, "allow-out-of-order", true, passThroughInput[bool], func(value bool) {
+			state.allowOutOfOrder = value
+		})
+	}
 	applyInput(cmd, "recursive", inputs.recursive, passThroughInput[bool], func(value bool) { state.recursive = value })
 	inputs.applyParallelControls(cmd, state)
 	applyInput(cmd, "recovery", inputs.recoveryEnabled, passThroughInput[bool], func(value bool) {
