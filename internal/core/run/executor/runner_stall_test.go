@@ -388,6 +388,50 @@ func TestJobRunnerStallRetryRunsFromACleanWorktree(t *testing.T) {
 			t.Fatalf("job status = %q, want %q", harness.job.Status, runStatusSucceeded)
 		}
 	})
+
+	t.Run("Should retry a PRD task when TasksDir is excluded from the baseline", func(t *testing.T) {
+		root := initStallGitRepo(t)
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+		)
+		harness.execCtx.cfg.Mode = model.ExecutionModePRDTasks
+		harness.execCtx.cfg.TasksDir = filepath.Join(root, ".compozy", "tasks", "demo")
+
+		var secondAttemptDirty []string
+		var calls int
+		harness.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
+			calls++
+			if calls == 1 {
+				if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# stalled\n"), 0o600); err != nil {
+					t.Errorf("rewrite README: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
+					t.Errorf("write scratch: %v", err)
+				}
+				return stallResult(harness.job, "tool-call-1")
+			}
+
+			secondAttemptDirty = dirtyPaths(t, root)
+			return ordinaryFailureResult(harness.job)
+		}
+
+		harness.runner.executeAttempts(context.Background())
+
+		if calls != 2 {
+			t.Fatalf("attempts = %d, want 2", calls)
+		}
+		if len(secondAttemptDirty) != 0 {
+			t.Fatalf("PRD stall retry started with a dirty worktree: %v", secondAttemptDirty)
+		}
+		evs := harness.drain(t, 4)
+		if !hasEvent(evs, eventspkg.EventKindJobRetryScheduled) {
+			t.Fatalf("missing job.retry_scheduled in %v", eventKinds(evs))
+		}
+		if hasEvent(evs, eventspkg.EventKindJobParked) {
+			t.Fatalf("unexpected job.parked in %v", eventKinds(evs))
+		}
+	})
 }
 
 func dirtyPaths(t *testing.T, root string) []string {

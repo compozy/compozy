@@ -53,7 +53,7 @@ func Reset(ctx context.Context, root string, baseline Snapshot) error {
 	if _, err := runGit(ctx, root, "clean", "-fd"); err != nil {
 		return fmt.Errorf("worktree: clean %s: %w", root, err)
 	}
-	final, err := Capture(ctx, root)
+	final, err := CaptureExcluding(ctx, root, baseline.excludedPaths...)
 	if err != nil {
 		return fmt.Errorf("worktree: verify reset of %s: %w", root, err)
 	}
