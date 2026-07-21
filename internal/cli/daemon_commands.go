@@ -39,7 +39,7 @@ const (
 
 	defaultDaemonStartupTimeout = 10 * time.Second
 	defaultDaemonPollInterval   = 100 * time.Millisecond
-	taskRunGuardRunListLimit    = 1000
+	taskRunGuardRunListLimit    = apicore.MaxPageLimit
 )
 
 var errWorkPackageSelectionCanceled = errors.New("work package selection canceled")
@@ -1626,7 +1626,13 @@ func (s *commandState) resolveInteractiveWorkPackage(
 	if picker == nil {
 		picker = defaultPickWorkPackage
 	}
-	packageID, pickErr := picker(cmd, target)
+	packageID, pickErr := picker(cmd, workPackagePickerInput{
+		Target:           target,
+		WorkspaceRoot:    s.workspaceRoot,
+		RunMode:          s.workPackagePickerRunMode(),
+		LockCompleted:    s.kind == commandKindTasksRun,
+		IncludeCompleted: s.includeCompleted,
+	})
 	if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errWorkPackageSelectionCanceled) {
 		return workpackages.Target{}, errWorkPackageSelectionCanceled
 	}
@@ -1702,45 +1708,6 @@ func workPackageDependenciesUnmetError(target workpackages.Target, readiness wor
 		},
 		workpackages.ErrDependenciesUnmet,
 	)
-}
-
-func defaultPickWorkPackage(_ *cobra.Command, target workpackages.Target) (string, error) {
-	options := make([]huh.Option[string], 0, len(target.Plan.Packages))
-	for i := range target.Plan.Packages {
-		pkg := &target.Plan.Packages[i]
-		readiness, err := workpackages.EvaluateReadiness(target.Plan, pkg.ID)
-		if err != nil {
-			return "", err
-		}
-		completion := "incomplete"
-		if pkg.Completed {
-			completion = execStatusCompleted
-		}
-		label := fmt.Sprintf(
-			"%s — %s — %s — %d unmet dependencies",
-			pkg.ID,
-			pkg.Title,
-			completion,
-			len(readiness.DirectUnmet),
-		)
-		options = append(options, huh.NewOption(label, pkg.ID))
-	}
-	selected := ""
-	form := huh.NewForm(huh.NewGroup(
-		huh.NewSelect[string]().
-			Title("Select a Work Package").
-			Description("Use the package ID, title, completion state, and unmet dependency count to choose one package.").
-			Options(options...).
-			Filtering(true).
-			Value(&selected),
-	))
-	if err := form.Run(); err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(selected) == "" {
-		return "", errWorkPackageSelectionCanceled
-	}
-	return selected, nil
 }
 
 func defaultConfirmPackageRun(

@@ -225,7 +225,7 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	target, err := s.resolveReviewWorkPackageTarget(ctx)
+	target, err := s.resolveReviewWorkPackageTarget(ctx, cmd)
 	if err != nil {
 		return withExitCode(1, err)
 	}
@@ -269,7 +269,7 @@ func (s *commandState) listReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+	if _, err := s.resolveReviewWorkPackageTarget(ctx, cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -308,7 +308,7 @@ func (s *commandState) showReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.resolveWorkflowNameAndRoundArgs(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+	if _, err := s.resolveReviewWorkPackageTarget(ctx, cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -368,12 +368,19 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	target, err := s.resolveReviewWorkPackageTarget(ctx)
+	target, err := s.resolveReviewWorkPackageTarget(ctx, cmd)
 	if err != nil {
 		return withExitCode(1, err)
 	}
 	if err := s.resolveReviewRound(ctx, target); err != nil {
 		return withExitCode(1, err)
+	}
+	stopped, err := s.stopReviewFixWithoutPendingIssues(cmd, target)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	if stopped {
+		return nil
 	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
@@ -426,6 +433,76 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return s.streamDaemonWorkflowEvents(ctx, cmd.OutOrStdout(), client, run.RunID, true)
 	default:
 		return handleStartedTaskRun(ctx, cmd, client, run)
+	}
+}
+
+func (s *commandState) stopReviewFixWithoutPendingIssues(
+	cmd *cobra.Command,
+	target workpackages.Target,
+) (bool, error) {
+	if s.includeResolved {
+		return false, nil
+	}
+	reviewDir := strings.TrimSpace(s.reviewsDir)
+	if reviewDir == "" {
+		reviewDir = reviewRoundDirectory(target, s.workspaceRoot, s.round)
+	}
+	summary, err := readReviewRoundPickerSummary(reviewDir, s.round)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect pending review issues: %w", err)
+	}
+	if summary.PendingIssueCount > 0 {
+		return false, nil
+	}
+
+	reference := target.Ref.String()
+	if strings.TrimSpace(reference) == "" {
+		reference = strings.TrimSpace(s.name)
+	}
+	if err := writeNoPendingReviewIssues(cmd, s.outputFormat, reference, summary); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func writeNoPendingReviewIssues(
+	cmd *cobra.Command,
+	outputFormat string,
+	reference string,
+	summary reviewRoundPickerSummary,
+) error {
+	switch strings.TrimSpace(outputFormat) {
+	case string(core.OutputFormatJSON), string(core.OutputFormatRawJSON):
+		payload := struct {
+			Status        string `json:"status"`
+			Workflow      string `json:"workflow"`
+			Round         int    `json:"round"`
+			PendingIssues int    `json:"pending_issues"`
+			TotalIssues   int    `json:"total_issues"`
+		}{
+			Status:        "no_pending_review_issues",
+			Workflow:      strings.TrimSpace(reference),
+			Round:         summary.Round,
+			PendingIssues: summary.PendingIssueCount,
+			TotalIssues:   summary.IssueCount,
+		}
+		if err := json.NewEncoder(cmd.OutOrStdout()).Encode(payload); err != nil {
+			return fmt.Errorf("write no-pending review result: %w", err)
+		}
+		return nil
+	default:
+		if _, err := fmt.Fprintf(
+			cmd.OutOrStdout(),
+			"No pending review issues for %s in round %03d.\n",
+			strings.TrimSpace(reference),
+			summary.Round,
+		); err != nil {
+			return fmt.Errorf("write no-pending review result: %w", err)
+		}
+		return nil
 	}
 }
 
@@ -560,7 +637,7 @@ func (s *commandState) runReviewWatchDaemon(cmd *cobra.Command, args []string) e
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
-	if _, err := s.resolveReviewWorkPackageTarget(ctx); err != nil {
+	if _, err := s.resolveReviewWorkPackageTarget(ctx, cmd); err != nil {
 		return withExitCode(1, err)
 	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
@@ -1585,7 +1662,10 @@ func (s *commandState) resolveReviewRound(ctx context.Context, target workpackag
 	return nil
 }
 
-func (s *commandState) resolveReviewWorkPackageTarget(ctx context.Context) (workpackages.Target, error) {
+func (s *commandState) resolveReviewWorkPackageTarget(
+	ctx context.Context,
+	cmd *cobra.Command,
+) (workpackages.Target, error) {
 	target, err := (workpackages.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
 	if err != nil {
 		if errors.Is(err, workpackages.ErrInitiativeNotFound) && !strings.Contains(strings.TrimSpace(s.name), "/") {
@@ -1598,7 +1678,10 @@ func (s *commandState) resolveReviewWorkPackageTarget(ctx context.Context) (work
 		return workpackages.Target{}, err
 	}
 	if target.Mode == workpackages.TargetModeInitiative {
-		return workpackages.Target{}, workPackageSelectionRequiredError(target)
+		target, err = s.resolveInteractiveWorkPackage(ctx, cmd, target)
+		if err != nil {
+			return workpackages.Target{}, err
+		}
 	}
 	if target.Mode == workpackages.TargetModePackage {
 		s.name = target.Ref.Initiative

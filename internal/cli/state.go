@@ -111,7 +111,7 @@ type commandStateCallbacks struct {
 	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
 	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
 	runWorkflow            func(context.Context, core.Config) error
-	pickWorkPackage        func(*cobra.Command, workpackages.Target) (string, error)
+	pickWorkPackage        func(*cobra.Command, workPackagePickerInput) (string, error)
 	confirmPackageRun      func(*cobra.Command, workpackages.Target, workpackages.Readiness) (bool, error)
 }
 

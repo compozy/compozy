@@ -21,7 +21,8 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-const maxPageLimit = 500
+// MaxPageLimit is the largest collection page accepted by daemon API handlers.
+const MaxPageLimit = 500
 
 const workspaceSocketWriteTimeout = 5 * time.Second
 
@@ -1360,10 +1361,10 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 	if limit == 0 {
 		limit = 100
 	}
-	if limit > maxPageLimit {
+	if limit > MaxPageLimit {
 		h.respondError(c, validationProblem(
 			"limit_invalid",
-			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
+			fmt.Sprintf("limit must be less than or equal to %d", MaxPageLimit),
 			map[string]any{"field": "limit"},
 		))
 		return
@@ -1377,7 +1378,7 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 		Limit:     limit,
 	})
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, c.Query("workspace"), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.RunListResponse{Runs: runs})
@@ -1469,10 +1470,10 @@ func (h *Handlers) ListRunEvents(c *gin.Context) {
 	if limit == 0 {
 		limit = 100
 	}
-	if limit > maxPageLimit {
+	if limit > MaxPageLimit {
 		h.respondError(c, validationProblem(
 			"limit_invalid",
-			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
+			fmt.Sprintf("limit must be less than or equal to %d", MaxPageLimit),
 			map[string]any{"field": "limit"},
 		))
 		return

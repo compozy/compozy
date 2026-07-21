@@ -355,6 +355,15 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
+			"runs list stale workspace context",
+			&core.HandlerConfig{Runs: &errorRunService{err: globaldb.ErrWorkspaceNotFound}},
+			http.MethodGet,
+			"/api/runs?workspace=ws-stale&limit=10",
+			"",
+			http.StatusPreconditionFailed,
+			"workspace_context_stale",
+		},
+		{
 			"run snapshot service error",
 			&core.HandlerConfig{Runs: &errorRunService{err: boom}},
 			http.MethodGet,

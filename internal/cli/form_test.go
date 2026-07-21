@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/huh/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
@@ -78,6 +80,51 @@ func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 		"reasoning-effort",
 	)
 	assertFieldKeysAbsent(t, keys, "dry-run", "include-resolved", "tail-lines", "access-mode", "timeout")
+}
+
+func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
+	cmd := newReviewsFixCommandWithDefaults(defaultCommandStateDefaults())
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	builder := newFormBuilder(cmd, state)
+	builder.reviewFixTargetOptions = []workPackagePickerOption{
+		{
+			Value:     "auth/WP-001",
+			Label:     "[✓] auth/WP-001 — Data model — Review round 3 — (!) No issues pending",
+			Completed: true,
+		},
+		{
+			Value: "auth/WP-002",
+			Label: "[ ] auth/WP-002 — API — Review round 2 — 1 issue pending",
+		},
+	}
+	inputs := newFormInputs()
+	inputs.register(builder)
+
+	if len(builder.fields) == 0 {
+		t.Fatal("review form has no fields")
+	}
+	field, ok := builder.fields[0].(*huh.Select[string])
+	if !ok {
+		t.Fatalf("first review field = %T, want Work Package select", builder.fields[0])
+	}
+	var output bytes.Buffer
+	if err := field.RunAccessible(&output, strings.NewReader("2\n")); err != nil {
+		t.Fatalf("run accessible review target field: %v", err)
+	}
+	if inputs.name != "auth/WP-002" {
+		t.Fatalf("selected review target = %q, want exact Work Package reference", inputs.name)
+	}
+	accessibleOutput := xansi.Strip(output.String())
+	for _, want := range []string{"auth/WP-001", "(!) No issues pending", "auth/WP-002", "1 issue pending"} {
+		if !strings.Contains(accessibleOutput, want) {
+			t.Fatalf("review target output missing %q:\n%s", want, output.String())
+		}
+	}
+	for _, hidden := range []string{"Ready", "tasks completed", "issues total"} {
+		if strings.Contains(accessibleOutput, hidden) {
+			t.Fatalf("review target output includes hidden detail %q:\n%s", hidden, output.String())
+		}
+	}
 }
 
 func TestWatchReviewsFormCollectsReviewWatchInputs(t *testing.T) {

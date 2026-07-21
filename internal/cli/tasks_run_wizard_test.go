@@ -1,7 +1,12 @@
+// Suite: task-run interactive wizard
+// Invariant: visible wizard state and keyboard actions preserve task-run selection semantics.
+// Boundary IN: task files, Work Package plans, daemon run summaries, and Bubble Tea updates/views.
+// Boundary OUT: daemon transport and executor behavior, covered by daemon and task-run integration suites.
 package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,12 +16,171 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	apicore "github.com/compozy/compozy/internal/api/core"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/workpackages"
 )
 
 func newTaskRunWizardModel(state *commandState, inputs taskRunFormInputs) *taskRunWizardModel {
 	return newTaskRunWizardModelWithContext(context.Background(), state, inputs)
+}
+
+func TestTaskRunWizardWorkflowStatuses(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should show full lifecycle and progress for Work Packages", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "auth")
+		packages := []workpackages.Package{
+			{ID: "WP-001", Title: "Data model", Directory: "_packages/001-data-model", Completed: true},
+			{ID: "WP-002", Title: "API", Directory: "_packages/002-api"},
+			{ID: "WP-003", Title: "UI", Directory: "_packages/003-ui"},
+			{ID: "WP-004", Title: "Session hardening", Directory: "_packages/004-session-hardening"},
+			{ID: "WP-005", Title: "Documentation", Directory: "_packages/005-documentation"},
+		}
+		writeTaskRunWizardPlanWithEdges(t, state, "auth", packages, []workpackages.Dependency{
+			{From: "WP-002", To: "WP-003", Rationale: "UI consumes the API"},
+		})
+		writeTaskRunWizardTasks(t, state, "auth", packages[0].Directory, "completed", "completed")
+		writeTaskRunWizardTasks(t, state, "auth", packages[1].Directory, "completed", "pending")
+		writeTaskRunWizardTasks(t, state, "auth", packages[2].Directory, "pending")
+		writeTaskRunWizardTasks(t, state, "auth", packages[3].Directory, "pending")
+		writeTaskRunWizardTasks(t, state, "auth", packages[4].Directory, "pending")
+
+		wizard := newTaskRunWizardModelWithRunStatuses(
+			context.Background(),
+			state,
+			taskRunFormInputs{},
+			map[string]string{
+				"auth/WP-002": "failed",
+				"auth/WP-003": "failed",
+				"auth/WP-004": "running",
+			},
+		)
+		view := xansi.Strip(strings.Join(
+			wizard.workflowListLines(wizard.filteredWorkflowOptions(), 180, 20),
+			"\n",
+		))
+		for _, want := range []string{
+			"auth — Running — 1/5 Work Packages completed — 3/7 tasks completed",
+			"[✓] WP-001 — Data model — Completed — 2/2 tasks completed",
+			"[ ] WP-002 — API — Ready to retry — 1/2 tasks completed",
+			"[ ] WP-003 — UI — Blocked — 0/1 tasks completed — waits for WP-002",
+			"[ ] WP-004 — Session hardening — Running — 0/1 tasks completed",
+			"[ ] WP-005 — Documentation — Ready — 0/1 tasks completed",
+		} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("workflow status view missing %q:\n%s", want, view)
+			}
+		}
+	})
+
+	t.Run("Should lock completed targets until include completed is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "done", "ready")
+		writeFormTaskFile(t, filepath.Join(state.workspaceRoot, ".compozy", "tasks", "done"), "task_01.md", "completed")
+		writeFormTaskFile(t, filepath.Join(state.workspaceRoot, ".compozy", "tasks", "ready"), "task_01.md", "pending")
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{selectedWorkflows: []string{"done"}})
+		view := xansi.Strip(strings.Join(
+			wizard.workflowListLines(wizard.filteredWorkflowOptions(), 100, 10),
+			"\n",
+		))
+		if !strings.Contains(view, "[✓] done — Completed — 1/1 tasks completed") {
+			t.Fatalf("completed workflow row missing full status:\n%s", view)
+		}
+
+		if len(wizard.inputs.selectedWorkflows) != 0 {
+			t.Fatalf("initial selection = %#v, want completed target removed", wizard.inputs.selectedWorkflows)
+		}
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if len(wizard.inputs.selectedWorkflows) != 0 {
+			t.Fatalf("selection = %#v, want completed target locked", wizard.inputs.selectedWorkflows)
+		}
+		if !strings.Contains(wizard.message, "completed target is locked") {
+			t.Fatalf("message = %q, want completed-target explanation", wizard.message)
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "i")
+		if !wizard.inputs.includeCompleted {
+			t.Fatal("expected include completed to be enabled")
+		}
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"done"}) {
+			t.Fatalf("selection = %#v, want completed target after opt-in", wizard.inputs.selectedWorkflows)
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "i")
+		if wizard.inputs.includeCompleted {
+			t.Fatal("expected completed targets to be locked again")
+		}
+		if len(wizard.inputs.selectedWorkflows) != 0 {
+			t.Fatalf("selection = %#v, want completed target removed after locking", wizard.inputs.selectedWorkflows)
+		}
+	})
+
+	t.Run("Should exclude completed Work Packages from group selection until opt-in", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "auth")
+		writeTaskRunWizardPlan(t, state, "auth",
+			workpackages.Package{ID: "WP-001", Title: "Done", Completed: true},
+			workpackages.Package{ID: "WP-002", Title: "Ready"},
+		)
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"auth/WP-002"}) {
+			t.Fatalf("group selection = %#v, want only unfinished Work Package", wizard.inputs.selectedWorkflows)
+		}
+
+		wizard = updateTaskRunWizardTestModel(t, wizard, "i")
+		wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+		if !slices.Equal(wizard.inputs.selectedWorkflows, []string{"auth/WP-002", "auth/WP-001"}) {
+			t.Fatalf("group selection = %#v, want completed Work Package after opt-in", wizard.inputs.selectedWorkflows)
+		}
+	})
+
+	t.Run("Should load the latest task run status for each target", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubDaemonCommandClient{runs: []apicore.Run{
+			{RunID: "alpha-latest", WorkflowSlug: "alpha", Mode: "task", Status: "failed"},
+			{RunID: "alpha-older", WorkflowSlug: "alpha", Mode: "task", Status: "completed"},
+			{RunID: "beta-latest", WorkflowSlug: "beta/WP-001", Mode: "task", Status: "running"},
+		}}
+		got, err := loadTaskRunWizardLatestRunStatuses(context.Background(), client, "/workspace")
+		if err != nil {
+			t.Fatalf("load latest run statuses: %v", err)
+		}
+		want := map[string]string{"alpha": "failed", "beta/WP-001": "running"}
+		if len(got) != len(want) {
+			t.Fatalf("statuses = %#v, want %#v", got, want)
+		}
+		for target, status := range want {
+			if got[target] != status {
+				t.Fatalf("status[%q] = %q, want %q", target, got[target], status)
+			}
+		}
+		if len(client.runListRequests) != 1 {
+			t.Fatalf("run list requests = %d, want 1", len(client.runListRequests))
+		}
+		request := client.runListRequests[0]
+		if request.Workspace != "/workspace" || request.Mode != "task" || request.Limit != apicore.MaxPageLimit {
+			t.Fatalf("run list request = %#v, want workspace-scoped task history", request)
+		}
+	})
+
+	t.Run("Should report run history loading failures", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubDaemonCommandClient{runsErr: os.ErrPermission}
+		_, err := loadTaskRunWizardLatestRunStatuses(context.Background(), client, "/workspace")
+		if err == nil || !strings.Contains(err.Error(), "list task runs for picker") {
+			t.Fatalf("error = %v, want wrapped run-history failure", err)
+		}
+	})
 }
 
 func TestTaskRunWizardModel(t *testing.T) {
@@ -941,6 +1105,17 @@ func writeTaskRunWizardPlan(
 	packages ...workpackages.Package,
 ) {
 	t.Helper()
+	writeTaskRunWizardPlanWithEdges(t, state, initiative, packages, nil)
+}
+
+func writeTaskRunWizardPlanWithEdges(
+	t *testing.T,
+	state *commandState,
+	initiative string,
+	packages []workpackages.Package,
+	edges []workpackages.Dependency,
+) {
+	t.Helper()
 
 	for i := range packages {
 		packages[i].Outcome = "Deliver " + packages[i].Title
@@ -950,6 +1125,7 @@ func writeTaskRunWizardPlan(
 		SchemaVersion: workpackages.SchemaVersion,
 		Initiative:    initiative,
 		Packages:      packages,
+		Edges:         edges,
 	})
 	if err != nil {
 		t.Fatalf("render Work Package plan: %v", err)
@@ -963,6 +1139,30 @@ func writeTaskRunWizardPlan(
 	)
 	if err := os.WriteFile(planPath, content, 0o644); err != nil {
 		t.Fatalf("write Work Package plan: %v", err)
+	}
+}
+
+func writeTaskRunWizardTasks(
+	t *testing.T,
+	state *commandState,
+	initiative string,
+	packageDirectory string,
+	statuses ...string,
+) {
+	t.Helper()
+
+	tasksDir := filepath.Join(
+		state.workspaceRoot,
+		".compozy",
+		"tasks",
+		initiative,
+		filepath.FromSlash(packageDirectory),
+	)
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir Work Package tasks dir: %v", err)
+	}
+	for index, status := range statuses {
+		writeFormTaskFile(t, tasksDir, fmt.Sprintf("task_%02d.md", index+1), status)
 	}
 }
 

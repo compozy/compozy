@@ -1186,6 +1186,80 @@ func TestReviewsWatchCommandObservationModes(t *testing.T) {
 }
 
 func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
+	t.Run("review target requires an exact package outside a tty", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiative := "foods-new-form-consistency"
+		writeCLIWorkPackagePlan(t, workspaceRoot, initiative, false)
+
+		state := newCommandState(commandKindFixReviews, core.ModePRReview)
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return false }
+		state.pickWorkPackage = func(*cobra.Command, workPackagePickerInput) (string, error) {
+			t.Fatal("picker must not run outside a tty")
+			return "", nil
+		}
+
+		_, err := state.resolveReviewWorkPackageTarget(context.Background(), &cobra.Command{})
+		var packageErr *workpackages.Error
+		if !errors.As(err, &packageErr) || !errors.Is(err, workpackages.ErrSelectionRequired) {
+			t.Fatalf("selection error = %#v (%v), want selection-required work package error", packageErr, err)
+		}
+		if state.packageID != "" {
+			t.Fatalf("package id = %q, want empty after rejected selection", state.packageID)
+		}
+	})
+
+	t.Run("read-only review commands keep completed packages selectable", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiative := "foods-new-form-consistency"
+		writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
+
+		state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return true }
+		state.pickWorkPackage = func(_ *cobra.Command, input workPackagePickerInput) (string, error) {
+			if input.RunMode != "" || input.LockCompleted {
+				t.Fatalf("read-only picker input = %#v, want no run status or completion lock", input)
+			}
+			return "WP-001", nil
+		}
+
+		target, err := state.resolveReviewWorkPackageTarget(context.Background(), &cobra.Command{})
+		if err != nil {
+			t.Fatalf("resolve completed review target: %v", err)
+		}
+		if target.Ref.String() != initiative+"/WP-001" {
+			t.Fatalf("review target = %q, want completed Work Package", target.Ref.String())
+		}
+	})
+
+	t.Run("review fixes keep completed packages selectable", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiative := "foods-new-form-consistency"
+		writeCLIWorkPackagePlan(t, workspaceRoot, initiative, true)
+
+		state := newCommandState(commandKindFixReviews, core.ModePRReview)
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return true }
+		state.pickWorkPackage = func(_ *cobra.Command, input workPackagePickerInput) (string, error) {
+			if input.RunMode != daemonRunModeReview || input.LockCompleted {
+				t.Fatalf("review fix picker input = %#v, want review status without completion lock", input)
+			}
+			return "WP-001", nil
+		}
+
+		target, err := state.resolveReviewWorkPackageTarget(context.Background(), &cobra.Command{})
+		if err != nil {
+			t.Fatalf("resolve completed review target: %v", err)
+		}
+		if target.Ref.String() != initiative+"/WP-001" {
+			t.Fatalf("review target = %q, want completed Work Package", target.Ref.String())
+		}
+	})
+
 	t.Run("resolve review round prefers reviews dir", func(t *testing.T) {
 		state := newCommandState(commandKindFixReviews, core.ModePRReview)
 		state.reviewsDir = filepath.Join(t.TempDir(), "reviews-009")
