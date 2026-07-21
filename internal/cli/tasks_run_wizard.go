@@ -1952,7 +1952,9 @@ func (m *taskRunWizardModel) renderWorkflowDualPane(
 	right := wizardRenderPane(rightTotal, rows, !listFocused, m.workflowOrderLines(rightTotal-4, rows-1))
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 	return strings.Join([]string{
-		taskRunWizardSubtitleStyle().Render("Select workflows or individual Work Packages."),
+		taskRunWizardSubtitleStyle().Render(
+			"Select workflows or individual Work Packages. [!] means no tasks are complete.",
+		),
 		panes,
 		m.workflowStatusLine(),
 	}, "\n")
@@ -2028,6 +2030,8 @@ func (m *taskRunWizardModel) workflowSelectionMark(option taskRunWizardWorkflowO
 			return taskRunWizardActiveStyle().Render("[-]")
 		case option.Completed:
 			return taskRunWizardCompletedStyle().Render("[✓]")
+		case taskRunWizardWorkflowNotStarted(option):
+			return taskRunWizardMutedStyle().Render("[!]")
 		default:
 			return taskRunWizardMutedStyle().Render("[ ]")
 		}
@@ -2037,6 +2041,9 @@ func (m *taskRunWizardModel) workflowSelectionMark(option taskRunWizardWorkflowO
 	}
 	if option.Completed {
 		return taskRunWizardCompletedStyle().Render("[✓]")
+	}
+	if taskRunWizardWorkflowNotStarted(option) {
+		return taskRunWizardMutedStyle().Render("[!]")
 	}
 	return taskRunWizardMutedStyle().Render("[ ]")
 }

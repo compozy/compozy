@@ -66,9 +66,9 @@ func TestTaskRunWizardWorkflowStatuses(t *testing.T) {
 			"auth — Running — 1/5 Work Packages completed — 3/7 tasks completed",
 			"[✓] WP-001 — Data model — Completed — 2/2 tasks completed",
 			"[ ] WP-002 — API — Ready to retry — 1/2 tasks completed",
-			"[ ] WP-003 — UI — Blocked — 0/1 tasks completed — waits for WP-002",
-			"[ ] WP-004 — Session hardening — Running — 0/1 tasks completed",
-			"[ ] WP-005 — Documentation — Ready — 0/1 tasks completed",
+			"[!] WP-003 — UI — Blocked — 0/1 tasks completed — waits for WP-002",
+			"[!] WP-004 — Session hardening — Running — 0/1 tasks completed",
+			"[!] WP-005 — Documentation — Ready — 0/1 tasks completed",
 		} {
 			if !strings.Contains(view, want) {
 				t.Fatalf("workflow status view missing %q:\n%s", want, view)

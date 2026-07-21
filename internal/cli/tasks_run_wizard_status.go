@@ -296,3 +296,7 @@ func taskRunWizardWorkflowOptionLabel(option taskRunWizardWorkflowOption) string
 	}
 	return strings.Join(parts, " — ")
 }
+
+func taskRunWizardWorkflowNotStarted(option taskRunWizardWorkflowOption) bool {
+	return option.TaskProgressKnown && option.TotalTasks > 0 && option.CompletedTasks == 0
+}

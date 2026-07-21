@@ -281,7 +281,8 @@ func (fb *formBuilder) addNameField(target *string) {
 				Title("Review Target").
 				Description(
 					"Select a workflow or Work Package. " +
-						"Rows show review round and pending issues; (!) means none are pending.",
+						"Rows show review round and pending issues; " +
+						"[!] means no implementation tasks are complete.",
 				).
 				Options(options...).
 				Filtering(true).

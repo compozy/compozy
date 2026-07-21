@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	xansi "github.com/charmbracelet/x/ansi"
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -3473,8 +3472,8 @@ func TestWorkPackagePickerOptions(t *testing.T) {
 	}
 }
 
-// Invariant: review target rows show only round and pending-issue state while
-// zero-pending and completed targets remain visibly distinct.
+// Invariant: review target markers reflect implementation and pending-review state,
+// and only review-clean completed targets are struck through.
 func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	t.Parallel()
 
@@ -3484,6 +3483,11 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	packageRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_packages")
 	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-001"), "task_001.md", "completed")
 	writeFormTaskFile(t, filepath.Join(packageRoot, "WP-002"), "task_001.md", "pending")
+	cleanRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", "clean")
+	if err := os.MkdirAll(cleanRoot, 0o755); err != nil {
+		t.Fatalf("create clean workflow: %v", err)
+	}
+	writeFormTaskFile(t, cleanRoot, "task_001.md", "completed")
 	reviewDir := filepath.Join(packageRoot, "WP-001", "reviews-003")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "manual",
@@ -3507,7 +3511,6 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	); err != nil {
 		t.Fatalf("resolve review issue: %v", err)
 	}
-
 	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, map[string]string{
 		initiative + "/WP-001": execStatusFailed,
 		initiative + "/WP-002": taskRunWizardRunStatusRunning,
@@ -3516,8 +3519,9 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 		t.Fatalf("build review target picker options: %v", err)
 	}
 	wants := map[string]string{
-		initiative + "/WP-001": "[✓] auth/WP-001 — Foundation — Review round 3 — 1 issue pending",
-		initiative + "/WP-002": "[ ] auth/WP-002 — Delivery — No review round — (!) No issues pending",
+		initiative + "/WP-001": "[ ] auth/WP-001 — Foundation — Review round 3 — 1 issue pending",
+		initiative + "/WP-002": "[!] auth/WP-002 — Delivery — No review round — No issues pending",
+		"clean":                "[✓] clean — No review round — No issues pending",
 	}
 	if len(options) != len(wants) {
 		t.Fatalf("review target options = %#v, want %d", options, len(wants))
@@ -3529,30 +3533,38 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 			t.Fatalf("review target options = %#v, missing %q => %q", options, value, label)
 		}
 	}
-	completedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
+	pendingIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
 		return option.Value == initiative+"/WP-001"
 	})
+	if pendingIndex < 0 {
+		t.Fatal("pending review target is missing")
+	}
+	pendingLabel := workPackagePickerOptionLabel(options[pendingIndex])
+	if strings.Contains(pendingLabel, "\x1b[9m") {
+		t.Fatalf("pending review target label = %q, want no strikethrough", pendingLabel)
+	}
+	completedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
+		return option.Value == "clean"
+	})
 	if completedIndex < 0 {
-		t.Fatal("completed review target is missing")
+		t.Fatal("clean completed review target is missing")
 	}
 	completedLabel := workPackagePickerOptionLabel(options[completedIndex])
 	if !strings.Contains(completedLabel, "\x1b[9m") {
-		t.Fatalf("completed review target label = %q, want strikethrough", completedLabel)
+		t.Fatalf("clean completed review target label = %q, want strikethrough", completedLabel)
 	}
-	if !strings.Contains(completedLabel, "auth/WP-001") {
-		t.Fatalf("completed review target label = %q, want searchable identity", completedLabel)
-	}
-	if got := xansi.Strip(completedLabel); got != wants[initiative+"/WP-001"] {
-		t.Fatalf("completed review target visible label = %q, want %q", got, wants[initiative+"/WP-001"])
-	}
-	pendingIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
+	notStartedIndex := slices.IndexFunc(options, func(option workPackagePickerOption) bool {
 		return option.Value == initiative+"/WP-002"
 	})
-	if pendingIndex < 0 {
-		t.Fatal("unfinished review target is missing")
+	if notStartedIndex < 0 {
+		t.Fatal("not-started review target is missing")
 	}
-	if got := workPackagePickerOptionLabel(options[pendingIndex]); got != wants[initiative+"/WP-002"] {
-		t.Fatalf("unfinished review target label = %q, want no strikethrough", got)
+	if got := workPackagePickerOptionLabel(options[notStartedIndex]); got != wants[initiative+"/WP-002"] {
+		t.Fatalf("not-started review target label = %q, want no strikethrough", got)
+	}
+	if got := workPackagePickerSelectedLabel(options[notStartedIndex].Label); got !=
+		"[x] auth/WP-002 — Delivery — No review round — No issues pending" {
+		t.Fatalf("selected not-started review target label = %q, want [x] marker", got)
 	}
 }
 

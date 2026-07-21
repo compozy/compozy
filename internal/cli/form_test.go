@@ -90,7 +90,7 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 	builder.reviewFixTargetOptions = []workPackagePickerOption{
 		{
 			Value:     "auth/WP-001",
-			Label:     "[✓] auth/WP-001 — Data model — Review round 3 — (!) No issues pending",
+			Label:     "[✓] auth/WP-001 — Data model — Review round 3 — No issues pending",
 			Completed: true,
 		},
 		{
@@ -99,7 +99,11 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 		},
 		{
 			Value: "auth/WP-003",
-			Label: "[ ] auth/WP-003 — Web — No review round — (!) No issues pending",
+			Label: "[ ] auth/WP-003 — Web — Review round 1 — 3 issues pending",
+		},
+		{
+			Value: "auth/WP-004",
+			Label: "[!] auth/WP-004 — Rollout — No review round — No issues pending",
 		},
 	}
 	inputs := newFormInputs()
@@ -122,9 +126,11 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 	}
 	rendered := xansi.Strip(field.View())
 	for _, want := range []string{
+		"[!] means no implementation tasks are complete.",
 		"[✓] auth/WP-001",
 		"[x] auth/WP-002",
 		"[ ] auth/WP-003",
+		"[!] auth/WP-004",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("review target view missing %q:\n%s", want, rendered)
@@ -145,7 +151,7 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 		t.Fatalf("selected review target = %q, want exact Work Package reference", inputs.name)
 	}
 	accessibleOutput := xansi.Strip(output.String())
-	for _, want := range []string{"auth/WP-001", "(!) No issues pending", "auth/WP-002", "1 issue pending"} {
+	for _, want := range []string{"auth/WP-001", "No issues pending", "auth/WP-002", "1 issue pending", "auth/WP-004"} {
 		if !strings.Contains(accessibleOutput, want) {
 			t.Fatalf("review target output missing %q:\n%s", want, output.String())
 		}
@@ -154,6 +160,9 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 		if strings.Contains(accessibleOutput, hidden) {
 			t.Fatalf("review target output includes hidden detail %q:\n%s", hidden, output.String())
 		}
+	}
+	if strings.Contains(accessibleOutput, "(!)") {
+		t.Fatalf("review target output includes the removed zero-pending marker:\n%s", output.String())
 	}
 }
 

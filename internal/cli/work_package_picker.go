@@ -19,6 +19,7 @@ const (
 	daemonRunModeReview               = "review"
 	workPackagePickerUnselectedMarker = "[ ]"
 	workPackagePickerSelectedMarker   = "[x]"
+	workPackagePickerNotStartedMarker = "[!]"
 	workPackagePickerCompletedMarker  = "[✓]"
 )
 
@@ -90,11 +91,14 @@ func defaultPickWorkPackage(cmd *cobra.Command, input workPackagePickerInput) (s
 		}
 	}
 
-	description := "Each row includes completion, live run status, dependency readiness, and task progress."
+	description := "Each row includes completion, live run status, dependency readiness, and task progress. " +
+		"[!] means no tasks are complete."
 	if input.RunMode == daemonRunModeReview {
-		description = "Rows show the latest review round and pending issues. (!) means no issues are pending."
+		description = "Rows show the latest review round and pending issues. " +
+			"[!] means no implementation tasks are complete."
 	} else if !allowCompleted {
-		description = "Completed packages stay visible with a check but stay locked. Rows include status and task progress."
+		description = "Completed packages stay visible with a check but stay locked. " +
+			"Rows include status and task progress; [!] means no tasks are complete."
 	}
 	field := huh.NewSelect[string]().
 		Title("Select a Work Package").
@@ -226,10 +230,6 @@ func buildWorkPackagePickerOption(
 		workflowOption.BlockedBy = nil
 	}
 
-	mark := workPackagePickerUnselectedMarker
-	if workflowOption.Completed {
-		mark = workPackagePickerCompletedMarker
-	}
 	if input.RunMode == daemonRunModeReview {
 		summary, err := latestReviewRoundPickerSummary(filepath.Join(
 			target.InitiativeDir,
@@ -238,9 +238,12 @@ func buildWorkPackagePickerOption(
 		if err != nil {
 			return workPackagePickerOption{}, err
 		}
+		completed := workflowOption.Completed && summary.PendingIssueCount == 0
+		mark := workPackagePickerMarker(completed, taskRunWizardWorkflowNotStarted(workflowOption))
 		label := mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(summary)
-		return workPackagePickerOption{Value: value, Label: label, Completed: workflowOption.Completed}, nil
+		return workPackagePickerOption{Value: value, Label: label, Completed: completed}, nil
 	}
+	mark := workPackagePickerMarker(workflowOption.Completed, taskRunWizardWorkflowNotStarted(workflowOption))
 	label := mark + " " + taskRunWizardWorkflowOptionLabel(workflowOption)
 	return workPackagePickerOption{Value: value, Label: label, Completed: workflowOption.Completed}, nil
 }
@@ -252,20 +255,18 @@ func buildOrdinaryReviewFixTargetPickerOption(
 ) (workPackagePickerOption, error) {
 	workflowOption := taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus)
 	workflowOption.Status = reviewFixPickerStatus(latestRunStatus)
-	mark := workPackagePickerUnselectedMarker
-	if workflowOption.Completed {
-		mark = workPackagePickerCompletedMarker
-	}
 	summary, err := latestReviewRoundPickerSummary(filepath.Join(baseDir, slug))
 	if err != nil {
 		return workPackagePickerOption{}, err
 	}
+	completed := workflowOption.Completed && summary.PendingIssueCount == 0
+	mark := workPackagePickerMarker(completed, taskRunWizardWorkflowNotStarted(workflowOption))
 	return workPackagePickerOption{
 		Value: slug,
 		Label: mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(
 			summary,
 		),
-		Completed: workflowOption.Completed,
+		Completed: completed,
 	}, nil
 }
 
@@ -304,9 +305,9 @@ func readReviewRoundPickerSummary(reviewDir string, round int) (reviewRoundPicke
 
 func reviewRoundPickerSummaryLabel(summary reviewRoundPickerSummary) string {
 	if summary.Round <= 0 {
-		return "No review round — (!) No issues pending"
+		return "No review round — No issues pending"
 	}
-	pendingLabel := "(!) No issues pending"
+	pendingLabel := "No issues pending"
 	if summary.PendingIssueCount > 0 {
 		pendingLabel = fmt.Sprintf("%d issues pending", summary.PendingIssueCount)
 		if summary.PendingIssueCount == 1 {
@@ -314,6 +315,17 @@ func reviewRoundPickerSummaryLabel(summary reviewRoundPickerSummary) string {
 		}
 	}
 	return fmt.Sprintf("Review round %d — %s", summary.Round, pendingLabel)
+}
+
+func workPackagePickerMarker(completed bool, notStarted bool) string {
+	switch {
+	case completed:
+		return workPackagePickerCompletedMarker
+	case notStarted:
+		return workPackagePickerNotStartedMarker
+	default:
+		return workPackagePickerUnselectedMarker
+	}
 }
 
 func workPackagePickerOptionLabel(option workPackagePickerOption) string {
@@ -324,7 +336,8 @@ func workPackagePickerOptionLabel(option workPackagePickerOption) string {
 }
 
 func workPackagePickerSelectedLabel(label string) string {
-	return strings.Replace(label, workPackagePickerUnselectedMarker, workPackagePickerSelectedMarker, 1)
+	label = strings.Replace(label, workPackagePickerUnselectedMarker, workPackagePickerSelectedMarker, 1)
+	return strings.Replace(label, workPackagePickerNotStartedMarker, workPackagePickerSelectedMarker, 1)
 }
 
 func validateWorkPackagePickerSelection(
