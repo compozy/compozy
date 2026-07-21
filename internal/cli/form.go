@@ -217,7 +217,11 @@ func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
 }
 
 func (fb *formBuilder) build() *huh.Form {
-	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(darkHuhTheme())
+	theme := darkHuhTheme()
+	if len(fb.reviewFixTargetOptions) > 0 {
+		theme = workPackagePickerHuhTheme()
+	}
+	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(theme)
 }
 
 func (fb *formBuilder) hasFlag(flag string) bool {

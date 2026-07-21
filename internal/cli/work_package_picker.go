@@ -15,8 +15,11 @@ import (
 )
 
 const (
-	daemonRunModeTask   = "task"
-	daemonRunModeReview = "review"
+	daemonRunModeTask                 = "task"
+	daemonRunModeReview               = "review"
+	workPackagePickerUnselectedMarker = "[ ]"
+	workPackagePickerSelectedMarker   = "[x]"
+	workPackagePickerCompletedMarker  = "[✓]"
 )
 
 type workPackagePickerInput struct {
@@ -223,9 +226,9 @@ func buildWorkPackagePickerOption(
 		workflowOption.BlockedBy = nil
 	}
 
-	mark := "[ ]"
+	mark := workPackagePickerUnselectedMarker
 	if workflowOption.Completed {
-		mark = "[✓]"
+		mark = workPackagePickerCompletedMarker
 	}
 	if input.RunMode == daemonRunModeReview {
 		summary, err := latestReviewRoundPickerSummary(filepath.Join(
@@ -249,9 +252,9 @@ func buildOrdinaryReviewFixTargetPickerOption(
 ) (workPackagePickerOption, error) {
 	workflowOption := taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus)
 	workflowOption.Status = reviewFixPickerStatus(latestRunStatus)
-	mark := "[ ]"
+	mark := workPackagePickerUnselectedMarker
 	if workflowOption.Completed {
-		mark = "[✓]"
+		mark = workPackagePickerCompletedMarker
 	}
 	summary, err := latestReviewRoundPickerSummary(filepath.Join(baseDir, slug))
 	if err != nil {
@@ -318,6 +321,10 @@ func workPackagePickerOptionLabel(option workPackagePickerOption) string {
 		return option.Label
 	}
 	return xansi.SGR(xansi.AttrStrikethrough) + option.Label + xansi.SGR(xansi.AttrNoStrikethrough)
+}
+
+func workPackagePickerSelectedLabel(label string) string {
+	return strings.Replace(label, workPackagePickerUnselectedMarker, workPackagePickerSelectedMarker, 1)
 }
 
 func validateWorkPackagePickerSelection(

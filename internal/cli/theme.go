@@ -97,6 +97,15 @@ func darkHuhTheme() huh.Theme {
 	})
 }
 
+func workPackagePickerHuhTheme() huh.Theme {
+	return huh.ThemeFunc(func(bool) *huh.Styles {
+		styles := newDarkHuhStyles()
+		styles.Focused.SelectedOption = styles.Focused.SelectedOption.Transform(workPackagePickerSelectedLabel)
+		styles.Blurred.SelectedOption = styles.Blurred.SelectedOption.Transform(workPackagePickerSelectedLabel)
+		return styles
+	})
+}
+
 func newDarkHuhStyles() *huh.Styles {
 	styles := huh.ThemeBase(true)
 

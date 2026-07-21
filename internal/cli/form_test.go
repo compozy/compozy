@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 	core "github.com/compozy/compozy/internal/core"
@@ -96,9 +97,14 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 			Value: "auth/WP-002",
 			Label: "[ ] auth/WP-002 — API — Review round 2 — 1 issue pending",
 		},
+		{
+			Value: "auth/WP-003",
+			Label: "[ ] auth/WP-003 — Web — No review round — (!) No issues pending",
+		},
 	}
 	inputs := newFormInputs()
 	inputs.register(builder)
+	builder.build()
 
 	if len(builder.fields) == 0 {
 		t.Fatal("review form has no fields")
@@ -106,6 +112,30 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 	field, ok := builder.fields[0].(*huh.Select[string])
 	if !ok {
 		t.Fatalf("first review field = %T, want Work Package select", builder.fields[0])
+	}
+	field = field.WithWidth(160).WithHeight(10).(*huh.Select[string])
+	_ = field.Focus()
+	updated, _ := field.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	field, ok = updated.(*huh.Select[string])
+	if !ok {
+		t.Fatalf("updated review field = %T, want Work Package select", updated)
+	}
+	rendered := xansi.Strip(field.View())
+	for _, want := range []string{
+		"[✓] auth/WP-001",
+		"[x] auth/WP-002",
+		"[ ] auth/WP-003",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("review target view missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "[x] auth/WP-001") || strings.Contains(rendered, "[x] auth/WP-003") {
+		t.Fatalf("review target view marks a non-active target as selected:\n%s", rendered)
+	}
+	_ = field.Blur()
+	if blurred := xansi.Strip(field.View()); !strings.Contains(blurred, "[x] auth/WP-002") {
+		t.Fatalf("blurred review target view loses selected marker:\n%s", blurred)
 	}
 	var output bytes.Buffer
 	if err := field.RunAccessible(&output, strings.NewReader("2\n")); err != nil {
