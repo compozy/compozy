@@ -209,6 +209,52 @@ func TestCreatePRDUserStoriesTemplateRequiresAuthorizationCoverage(t *testing.T)
 	}
 }
 
+func TestCreateTechSpecTemplateRequiresOperationalEventContracts(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: every mandated operational event has a complete contract and matching test cases.
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-techspec", "references", "techspec-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	required := []string{
+		"machine-readable YAML contract",
+		"event_contracts:",
+		"requirement: \"<required|optional>\"",
+		"privacy: \"<privacy classification>\"",
+		"request_id:",
+		"correlation_id:",
+		"actor_id:",
+		"resource_id:",
+		"allowed_outcomes:",
+		"success:",
+		"rejection:",
+		"replay:",
+		"stale_command:",
+		"delivery_semantics:",
+		"sink_failure:",
+		"blocking product decision",
+		"Never infer",
+		"required fields and outcome enums",
+		"forbidden payload fields",
+		"event-sink failures",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(text, snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 

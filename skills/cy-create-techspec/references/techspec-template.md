@@ -86,6 +86,60 @@ Operational visibility for the implementation:
 - Log events and structured fields
 - Alerting thresholds and escalation
 
+### Operational Event Contracts
+
+When a requirement mandates emitting an operational event, include one machine-readable YAML contract per event. Replace every placeholder with a resolved value; use `none` only with an explicit reason. List every emitted payload field, including identifiers, under `fields` so each field has its own requirement, privacy classification, and source.
+
+```yaml
+event_contracts:
+  - name: "<stable event name>"
+    trigger: "<exact emission condition>"
+    fields:
+      - name: "<payload field name>"
+        requirement: "<required|optional>"
+        privacy: "<privacy classification>"
+        source: "<authoritative value source>"
+    forbidden_fields:
+      - "<field that must never enter the payload>"
+    identifiers:
+      request_id:
+        field: "<payload field or none>"
+        source: "<request ID source or reason none>"
+      correlation_id:
+        field: "<payload field or none>"
+        source: "<correlation ID source or reason none>"
+      actor_id:
+        field: "<payload field or none>"
+        source: "<actor identifier source or reason none>"
+      resource_id:
+        field: "<payload field or none>"
+        source: "<resource identifier source or reason none>"
+    allowed_outcomes:
+      - "<stable outcome enum>"
+    outcome_behavior:
+      success: "<when and what to emit, or reason not applicable>"
+      rejection: "<when and what to emit, or reason not applicable>"
+      replay: "<deduplication and emission behavior, or reason not applicable>"
+      stale_command: "<detection and emission behavior, or reason not applicable>"
+    delivery_semantics:
+      guarantee: "<at-most-once|at-least-once|effectively-once>"
+      ordering: "<ordering guarantee>"
+      retry: "<retry and deduplication policy>"
+    sink_failure:
+      behavior: "<drop|retry|fail operation|other explicit policy>"
+      caller_impact: "<observable effect on the triggering operation>"
+      fallback: "<durable fallback or none with reason>"
+```
+
+Any missing or unresolved contract value is a blocking product decision: return to technical clarification and do not publish the TechSpec. Never infer an event value, identifier source, privacy class, outcome, delivery guarantee, or failure policy.
+
+For every event contract, add concrete IDs to `_tests.md` covering:
+- Validation of required fields and outcome enums, including missing and unknown values
+- Rejection of forbidden payload fields and privacy-policy violations
+- Success, rejection, replay, and stale-command behavior
+- Delivery guarantees, including duplicate and out-of-order delivery where applicable
+- Handling of event-sink failures, including the declared caller impact, retry policy, and fallback
+
 ## Technical Considerations
 
 ### Key Decisions
