@@ -3,7 +3,9 @@ package worktree
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -241,8 +243,9 @@ func TestReviewIsolationRestoresSourceWhenAutoCommitHookRejects(t *testing.T) {
 	headBefore := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD")))
 
 	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
-	if err == nil || !strings.Contains(err.Error(), "commit integrated review changes") {
-		t.Fatalf("Apply(auto commit) error = %v, want rejected commit", err)
+	var exitErr *exec.ExitError
+	if err == nil || !errors.As(err, &exitErr) {
+		t.Fatalf("Apply(auto commit) error = %v, want wrapped Git exit error", err)
 	}
 	if statusAfter := mustRunGit(
 		t,
@@ -294,8 +297,9 @@ func TestReviewIsolationRestoresSourceWhenAutoCommitStagingFails(t *testing.T) {
 	statusBefore := mustRunGit(t, repo, "status", "--porcelain=v1", "-z")
 
 	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
-	if err == nil || !strings.Contains(err.Error(), "stage integrated review changes") {
-		t.Fatalf("Apply(auto commit) error = %v, want staging failure", err)
+	var exitErr *exec.ExitError
+	if err == nil || !errors.As(err, &exitErr) {
+		t.Fatalf("Apply(auto commit) error = %v, want wrapped Git exit error", err)
 	}
 	if statusAfter := mustRunGit(
 		t,
