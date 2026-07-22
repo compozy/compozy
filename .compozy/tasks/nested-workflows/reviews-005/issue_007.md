@@ -3,7 +3,7 @@ provider: manual
 pr:
 round: 5
 round_created_at: 2026-07-22T21:45:58Z
-status: pending
+status: resolved
 file: internal/cli/validate_tasks.go
 line: 188
 severity: medium
@@ -21,5 +21,14 @@ Resolve the manifest reference through the canonical Task Group plan and compare
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `VALID`
+- Notes: `validateDirectTaskGroupSuite` used the child `_tasks.md` manifest's own
+  `workflow` value as `ExpectedWorkflow`, then checked only that the reference parsed
+  and named the containing initiative. It never resolved that reference through the
+  initiative's canonical `_task_groups.md` plan, so missing plans, unknown stable IDs,
+  and IDs mapped to another declared directory could all be reported as valid. The fix
+  resolves the manifest reference with `taskgroups.TargetResolver`, compares the
+  resolver's containment-checked Task Group directory with the requested directory,
+  and reports mapping failures as validation issues. Regression coverage exercises
+  orphan directories, unknown IDs, and valid IDs mapped to a different directory.
+- Verification: `make verify` passed after the code and regression-test changes.

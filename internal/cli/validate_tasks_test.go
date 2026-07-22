@@ -141,6 +141,78 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects direct task group when canonical plan is missing", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		planPath := writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
+		if err := os.Remove(planPath); err != nil {
+			t.Fatalf("remove task group plan: %v", err)
+		}
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			taskGroupDir,
+		)
+		if exitCode != 1 {
+			t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, "does not resolve through the canonical Task Group plan") {
+			t.Fatalf("expected missing-plan diagnostic, got stdout=%q stderr=%q", stdout, stderr)
+		}
+	})
+
+	t.Run("rejects direct task group with unknown stable ID", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
+		writeTaskGroupSuiteForCLI(t, taskGroupDir, "demo/TG-999")
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			taskGroupDir,
+		)
+		if exitCode != 1 {
+			t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, "task group not found") {
+			t.Fatalf("expected unknown-ID diagnostic, got stdout=%q stderr=%q", stdout, stderr)
+		}
+	})
+
+	t.Run("rejects valid stable ID mapped to another directory", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+		orphanDir := filepath.Join(tasksDir, "_task_groups", "002-api")
+		if err := os.MkdirAll(orphanDir, 0o755); err != nil {
+			t.Fatalf("mkdir orphan task group directory: %v", err)
+		}
+		writeTaskGroupSuiteForCLI(t, orphanDir, "demo/TG-001")
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			orphanDir,
+		)
+		if exitCode != 1 {
+			t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, "resolves to task group directory") ||
+			!strings.Contains(stdout, filepath.Join("_task_groups", "001-foundation")) {
+			t.Fatalf("expected directory-mapping diagnostic, got stdout=%q stderr=%q", stdout, stderr)
+		}
+	})
+
 	t.Run("rejects physical directory basename as task group workflow", func(t *testing.T) {
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
@@ -537,10 +609,18 @@ func writeTaskGroupWorkflowForCLI(t *testing.T, tasksDir string, invalidHeading 
 	if err := os.MkdirAll(taskGroupDir, 0o755); err != nil {
 		t.Fatalf("mkdir task group directory: %v", err)
 	}
+	writeTaskGroupSuiteForCLI(t, taskGroupDir, "demo/TG-001")
+
+	return filepath.Join(tasksDir, taskgroups.ManifestFileName)
+}
+
+func writeTaskGroupSuiteForCLI(t *testing.T, taskGroupDir, workflow string) {
+	t.Helper()
+
 	writeRawTaskFileForCLI(t, taskGroupDir, "_tasks.md", strings.Join([]string{
 		"---",
 		"schema_version: compozy.tasks/v2",
-		"workflow: demo/TG-001",
+		"workflow: " + workflow,
 		"graph:",
 		"  nodes:",
 		"    - id: task_01",
@@ -554,8 +634,6 @@ func writeTaskGroupWorkflowForCLI(t *testing.T, tasksDir string, invalidHeading 
 		[]string{"status: pending", "title: Foundation Task", "type: backend", "complexity: low"},
 		"# Task 1: Foundation Task",
 	))
-
-	return filepath.Join(tasksDir, taskgroups.ManifestFileName)
 }
 
 func cliTaskMarkdown(frontMatter []string, h1 string) string {

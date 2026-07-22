@@ -90,7 +90,7 @@ func (s *validateTasksCommandState) run(cmd *cobra.Command, _ []string) error {
 		return withExitCode(2, err)
 	}
 
-	report, err := validateTaskWorkflow(ctx, resolvedTasksDir, registry)
+	report, err := validateTaskWorkflow(ctx, s.workspaceRoot, resolvedTasksDir, registry)
 	if err != nil {
 		return withExitCode(2, err)
 	}
@@ -111,10 +111,11 @@ func (s *validateTasksCommandState) run(cmd *cobra.Command, _ []string) error {
 
 func validateTaskWorkflow(
 	ctx context.Context,
+	workspaceRoot string,
 	tasksDir string,
 	registry *tasks.TypeRegistry,
 ) (tasks.Report, error) {
-	if report, handled, err := validateDirectTaskGroupSuite(ctx, tasksDir, registry); handled {
+	if report, handled, err := validateDirectTaskGroupSuite(ctx, workspaceRoot, tasksDir, registry); handled {
 		return report, err
 	}
 
@@ -177,6 +178,7 @@ func validateTaskWorkflow(
 
 func validateDirectTaskGroupSuite(
 	ctx context.Context,
+	workspaceRoot string,
 	tasksDir string,
 	registry *tasks.TypeRegistry,
 ) (tasks.Report, bool, error) {
@@ -213,6 +215,44 @@ func validateDirectTaskGroupSuite(
 			Path:    manifest.Path,
 			Field:   "workflow",
 			Message: fmt.Sprintf("workflow %q must be a valid %s/TG-NNN reference", workflow, initiative),
+		})
+		sortTaskValidationIssues(report.Issues)
+		return report, true, nil
+	}
+
+	target, resolveErr := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspaceRoot, ref.String())
+	if resolveErr != nil {
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(resolveErr, &taskGroupErr) {
+			return tasks.Report{}, true, fmt.Errorf("resolve task group workflow %q: %w", workflow, resolveErr)
+		}
+		report.Issues = append(report.Issues, tasks.Issue{
+			Path:  manifest.Path,
+			Field: "workflow",
+			Message: fmt.Sprintf(
+				"workflow %q does not resolve through the canonical Task Group plan: %v",
+				workflow,
+				resolveErr,
+			),
+		})
+		sortTaskValidationIssues(report.Issues)
+		return report, true, nil
+	}
+
+	resolvedTasksDir, err := filepath.EvalSymlinks(tasksDir)
+	if err != nil {
+		return tasks.Report{}, true, fmt.Errorf("resolve direct task group directory %s: %w", tasksDir, err)
+	}
+	if target.TaskGroupDir != resolvedTasksDir {
+		report.Issues = append(report.Issues, tasks.Issue{
+			Path:  manifest.Path,
+			Field: "workflow",
+			Message: fmt.Sprintf(
+				"workflow %q resolves to task group directory %q, not requested directory %q",
+				workflow,
+				target.TaskGroupDir,
+				resolvedTasksDir,
+			),
 		})
 		sortTaskValidationIssues(report.Issues)
 	}
