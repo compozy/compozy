@@ -29,15 +29,21 @@ type ReviewWorkspace struct {
 // ReviewIsolation owns the private worktrees for one concurrent review run and
 // serializes their write-back into the source workspace.
 type ReviewIsolation struct {
-	sourceRoot string
-	workspaces []ReviewWorkspace
-	applyMu    sync.Mutex
+	sourceRoot  string
+	workspaces  []ReviewWorkspace
+	sourceIndex gitIndexBackup
+	applyMu     sync.Mutex
 }
 
 type gitIndexBackup struct {
 	path    string
 	content []byte
 	mode    fs.FileMode
+}
+
+type gitBaselineEntry struct {
+	mode     string
+	objectID string
 }
 
 // NewReviewIsolation creates one clean detached worktree per review batch. The
@@ -82,11 +88,19 @@ func NewReviewIsolation(
 			strings.Join(snapshotEntryPaths(snapshot.Entries()), ", "),
 		)
 	}
+	sourceIndex, err := captureGitIndex(ctx, source)
+	if err != nil {
+		return nil, fmt.Errorf("capture review isolation source index: %w", err)
+	}
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create review isolation root %s: %w", root, err)
 	}
 
-	isolation := &ReviewIsolation{sourceRoot: source, workspaces: make([]ReviewWorkspace, 0, len(jobNames))}
+	isolation := &ReviewIsolation{
+		sourceRoot:  source,
+		workspaces:  make([]ReviewWorkspace, 0, len(jobNames)),
+		sourceIndex: sourceIndex,
+	}
 	for index, name := range jobNames {
 		workspace, createErr := createReviewWorkspace(
 			ctx,
@@ -327,11 +341,14 @@ func (r *ReviewIsolation) Apply(
 	if err != nil {
 		return fmt.Errorf("build isolated review patch in %s: %w", workspace.Root, err)
 	}
+	if err := ensureSourcePathsUnchanged(ctx, r.sourceRoot, workspace.BaselineRef, paths); err != nil {
+		return err
+	}
 	var indexBackup gitIndexBackup
 	if autoCommit {
-		indexBackup, err = captureGitIndex(ctx, r.sourceRoot)
+		indexBackup, err = requireUnchangedGitIndex(ctx, r.sourceRoot, r.sourceIndex)
 		if err != nil {
-			return fmt.Errorf("capture source index before integrating %s: %w", workspace.Root, err)
+			return fmt.Errorf("validate source index before integrating %s: %w", workspace.Root, err)
 		}
 	}
 	if err := runGitInput(ctx, r.sourceRoot, patch, "apply", "--binary", "--whitespace=nowarn"); err != nil {
@@ -340,23 +357,261 @@ func (r *ReviewIsolation) Apply(
 	if !autoCommit {
 		return nil
 	}
+	return r.commitReviewPatch(ctx, workspace, paths, patch, commitMessage, indexBackup)
+}
+
+func (r *ReviewIsolation) commitReviewPatch(
+	ctx context.Context,
+	workspace ReviewWorkspace,
+	paths []string,
+	patch []byte,
+	commitMessage string,
+	indexBackup gitIndexBackup,
+) error {
 	message := strings.TrimSpace(commitMessage)
 	if message == "" {
 		message = "fix: resolve review batch"
 	}
 	stageArgs := []string{"add", "-f", "-A", "--"}
-	stageArgs = append(stageArgs, paths...)
+	stageArgs = append(stageArgs, literalPathspecs(paths)...)
 	if _, err := runGit(ctx, r.sourceRoot, stageArgs...); err != nil {
 		cause := fmt.Errorf("stage integrated review changes from %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup))
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, indexBackup))
+	}
+	stagedIndex, err := captureGitIndex(ctx, r.sourceRoot)
+	if err != nil {
+		cause := fmt.Errorf("capture staged source index for %s: %w", workspace.Root, err)
+		return errors.Join(cause, rollbackReviewWorktree(ctx, r.sourceRoot, patch))
+	}
+	if err := validateStagedReviewIndex(ctx, r.sourceRoot, workspace.Root, paths); err != nil {
+		cause := fmt.Errorf("validate staged review changes from %s: %w", workspace.Root, err)
+		return errors.Join(cause, rollbackReviewWorktree(ctx, r.sourceRoot, patch))
 	}
 	args := []string{"commit", "--only", "-m", message, "--"}
-	args = append(args, paths...)
+	args = append(args, literalPathspecs(paths)...)
 	if _, err := runGit(ctx, r.sourceRoot, args...); err != nil {
 		cause := fmt.Errorf("commit integrated review changes from %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup))
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex))
+	}
+	r.sourceIndex, err = captureGitIndex(ctx, r.sourceRoot)
+	if err != nil {
+		return fmt.Errorf("refresh source index after committing %s: %w", workspace.Root, err)
 	}
 	return nil
+}
+
+func ensureSourcePathsUnchanged(
+	ctx context.Context,
+	root string,
+	baselineRef string,
+	paths []string,
+) (err error) {
+	tempRoot, err := os.MkdirTemp("", "compozy-review-index-")
+	if err != nil {
+		return fmt.Errorf("create temporary review index directory: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, removeTemporaryReviewIndex(tempRoot))
+	}()
+	indexPath := filepath.Join(tempRoot, "index")
+	if _, err := runGitWithIndex(ctx, root, indexPath, "read-tree", baselineRef); err != nil {
+		return fmt.Errorf("read review isolation baseline %s: %w", baselineRef, err)
+	}
+	pathspecs := literalPathspecs(paths)
+	args := []string{"ls-files", "--stage", "-z", "--"}
+	baselineRaw, err := runGitWithIndex(ctx, root, indexPath, append(args, pathspecs...)...)
+	if err != nil {
+		return fmt.Errorf("list review isolation baseline entries: %w", err)
+	}
+	baselineEntries := make(map[string]gitBaselineEntry, len(paths))
+	for len(baselineRaw) > 0 {
+		var record []byte
+		record, baselineRaw = nextPorcelainToken(baselineRaw)
+		mode, objectID, stage, path, ok := parseLsFilesRecord(record)
+		if !ok || stage != "0" {
+			continue
+		}
+		baselineEntries[path] = gitBaselineEntry{mode: mode, objectID: objectID}
+	}
+	changed := make([]string, 0)
+	for _, path := range paths {
+		entry, tracked := baselineEntries[path]
+		matches, matchErr := sourcePathMatchesBaseline(ctx, root, path, entry, tracked)
+		if matchErr != nil {
+			return fmt.Errorf("compare source path %s with review isolation baseline: %w", path, matchErr)
+		}
+		if !matches {
+			changed = append(changed, path)
+		}
+	}
+	changed = uniqueSorted(changed)
+	if len(changed) > 0 {
+		return fmt.Errorf(
+			"source paths changed since review isolation began: %s",
+			strings.Join(changed, ", "),
+		)
+	}
+	return nil
+}
+
+func sourcePathMatchesBaseline(
+	ctx context.Context,
+	root string,
+	path string,
+	baseline gitBaselineEntry,
+	tracked bool,
+) (bool, error) {
+	absolutePath, err := safeWorkspacePath(root, path)
+	if err != nil {
+		return false, err
+	}
+	info, err := os.Lstat(absolutePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return !tracked, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stat source path: %w", err)
+	}
+	if !tracked {
+		return false, nil
+	}
+	switch baseline.mode {
+	case "100644", "100755":
+		return regularSourcePathMatchesBaseline(ctx, root, path, absolutePath, info, baseline)
+	case "120000":
+		return symlinkSourcePathMatchesBaseline(ctx, root, absolutePath, info, baseline)
+	case "160000":
+		return gitlinkSourcePathMatchesBaseline(ctx, absolutePath, info, baseline)
+	default:
+		return false, fmt.Errorf("unsupported baseline mode %s", baseline.mode)
+	}
+}
+
+func regularSourcePathMatchesBaseline(
+	ctx context.Context,
+	root string,
+	path string,
+	absolutePath string,
+	info fs.FileInfo,
+	baseline gitBaselineEntry,
+) (bool, error) {
+	if !info.Mode().IsRegular() {
+		return false, nil
+	}
+	currentMode := "100644"
+	if info.Mode().Perm()&0o111 != 0 {
+		currentMode = "100755"
+	}
+	if currentMode != baseline.mode {
+		return false, nil
+	}
+	raw, err := runGit(ctx, root, "hash-object", "--path="+path, "--", absolutePath)
+	if err != nil {
+		return false, fmt.Errorf("hash regular file: %w", err)
+	}
+	return strings.TrimSpace(string(raw)) == baseline.objectID, nil
+}
+
+func symlinkSourcePathMatchesBaseline(
+	ctx context.Context,
+	root string,
+	absolutePath string,
+	info fs.FileInfo,
+	baseline gitBaselineEntry,
+) (bool, error) {
+	if info.Mode()&os.ModeSymlink == 0 {
+		return false, nil
+	}
+	target, err := os.Readlink(absolutePath)
+	if err != nil {
+		return false, fmt.Errorf("read symlink: %w", err)
+	}
+	raw, err := runGitInputOutput(ctx, root, []byte(target), "hash-object", "--stdin")
+	if err != nil {
+		return false, fmt.Errorf("hash symlink: %w", err)
+	}
+	return strings.TrimSpace(string(raw)) == baseline.objectID, nil
+}
+
+func gitlinkSourcePathMatchesBaseline(
+	ctx context.Context,
+	absolutePath string,
+	info fs.FileInfo,
+	baseline gitBaselineEntry,
+) (bool, error) {
+	if !info.IsDir() {
+		return false, nil
+	}
+	raw, err := runGit(ctx, absolutePath, "rev-parse", "HEAD")
+	if err != nil {
+		return false, fmt.Errorf("resolve gitlink HEAD: %w", err)
+	}
+	return strings.TrimSpace(string(raw)) == baseline.objectID, nil
+}
+
+func removeTemporaryReviewIndex(root string) error {
+	if err := os.RemoveAll(root); err != nil {
+		return fmt.Errorf("remove temporary review index directory %s: %w", root, err)
+	}
+	return nil
+}
+
+func requireUnchangedGitIndex(
+	ctx context.Context,
+	root string,
+	expected gitIndexBackup,
+) (gitIndexBackup, error) {
+	current, err := captureGitIndex(ctx, root)
+	if err != nil {
+		return gitIndexBackup{}, err
+	}
+	if current.path != expected.path || !bytes.Equal(current.content, expected.content) {
+		return gitIndexBackup{}, errors.New("source git index changed since review isolation began")
+	}
+	return current, nil
+}
+
+func validateStagedReviewIndex(
+	ctx context.Context,
+	sourceRoot string,
+	workspaceRoot string,
+	paths []string,
+) error {
+	stagedRaw, err := runGit(ctx, sourceRoot, "diff", "--cached", "--name-only", "-z", "--no-renames")
+	if err != nil {
+		return fmt.Errorf("list staged source paths: %w", err)
+	}
+	allowed := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		allowed[path] = struct{}{}
+	}
+	for _, path := range splitNULTokens(stagedRaw) {
+		if _, ok := allowed[path]; !ok {
+			return fmt.Errorf("source git index changed during review integration: %s", path)
+		}
+	}
+	args := []string{"ls-files", "--stage", "-z", "--"}
+	args = append(args, literalPathspecs(paths)...)
+	sourceEntries, err := runGit(ctx, sourceRoot, args...)
+	if err != nil {
+		return fmt.Errorf("inspect staged source entries: %w", err)
+	}
+	workspaceEntries, err := runGit(ctx, workspaceRoot, args...)
+	if err != nil {
+		return fmt.Errorf("inspect isolated review entries: %w", err)
+	}
+	if !bytes.Equal(sourceEntries, workspaceEntries) {
+		return errors.New("staged source entries differ from isolated review results")
+	}
+	return nil
+}
+
+func literalPathspecs(paths []string) []string {
+	pathspecs := make([]string, 0, len(paths))
+	for _, path := range paths {
+		pathspecs = append(pathspecs, ":(top,literal)"+path)
+	}
+	return pathspecs
 }
 
 func captureGitIndex(ctx context.Context, root string) (gitIndexBackup, error) {
@@ -384,21 +639,71 @@ func rollbackReviewApply(
 	root string,
 	patch []byte,
 	indexBackup gitIndexBackup,
+	expectedIndex gitIndexBackup,
 ) error {
-	rollbackCtx := context.WithoutCancel(ctx)
-	var result error
+	result := rollbackReviewWorktree(ctx, root, patch)
+	result = errors.Join(result, restoreGitIndexCAS(indexBackup, expectedIndex))
+	return result
+}
+
+func rollbackReviewWorktree(ctx context.Context, root string, patch []byte) error {
 	if err := runGitInput(
-		rollbackCtx,
+		context.WithoutCancel(ctx),
 		root,
 		patch,
 		"apply", "--reverse", "--binary", "--whitespace=nowarn",
 	); err != nil {
-		result = errors.Join(result, fmt.Errorf("roll back integrated review patch: %w", err))
+		return fmt.Errorf("roll back integrated review patch: %w", err)
 	}
-	if err := os.WriteFile(indexBackup.path, indexBackup.content, indexBackup.mode.Perm()); err != nil {
-		result = errors.Join(result, fmt.Errorf("restore source git index %s: %w", indexBackup.path, err))
+	return nil
+}
+
+func restoreGitIndexCAS(backup gitIndexBackup, expected gitIndexBackup) (result error) {
+	if backup.path == "" || backup.path != expected.path {
+		return errors.New("restore source git index: index path changed during review integration")
 	}
-	return result
+	lockPath := backup.path + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, backup.mode.Perm())
+	if err != nil {
+		return fmt.Errorf("lock source git index %s for rollback: %w", backup.path, err)
+	}
+	lockOpen := true
+	installed := false
+	defer func() {
+		if lockOpen {
+			result = errors.Join(result, lockFile.Close())
+		}
+		if !installed {
+			if removeErr := os.Remove(lockPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				result = errors.Join(result, fmt.Errorf("remove source git index lock %s: %w", lockPath, removeErr))
+			}
+		}
+	}()
+	current, err := os.ReadFile(backup.path)
+	if err != nil {
+		return fmt.Errorf("read source git index %s for rollback: %w", backup.path, err)
+	}
+	if !bytes.Equal(current, expected.content) {
+		return errors.New("source git index changed during review rollback; preserved concurrent index state")
+	}
+	if err := lockFile.Chmod(backup.mode.Perm()); err != nil {
+		return fmt.Errorf("set source git index rollback mode: %w", err)
+	}
+	if _, err := lockFile.Write(backup.content); err != nil {
+		return fmt.Errorf("write source git index rollback: %w", err)
+	}
+	if err := lockFile.Sync(); err != nil {
+		return fmt.Errorf("sync source git index rollback: %w", err)
+	}
+	if err := lockFile.Close(); err != nil {
+		return fmt.Errorf("close source git index rollback: %w", err)
+	}
+	lockOpen = false
+	if err := os.Rename(lockPath, backup.path); err != nil {
+		return fmt.Errorf("install source git index rollback: %w", err)
+	}
+	installed = true
+	return nil
 }
 
 // Cleanup removes an integrated disposable worktree. Failed or parked jobs do
@@ -439,6 +744,11 @@ func splitNULTokens(raw []byte) []string {
 }
 
 func runGitInput(ctx context.Context, root string, input []byte, args ...string) error {
+	_, err := runGitInputOutput(ctx, root, input, args...)
+	return err
+}
+
+func runGitInputOutput(ctx context.Context, root string, input []byte, args ...string) ([]byte, error) {
 	cmd := gitenv.Command(ctx, root, args...)
 	cmd.Env = append(cmd.Env, "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
 	cmd.Stdin = bytes.NewReader(input)
@@ -450,9 +760,36 @@ func runGitInput(ctx context.Context, root string, input []byte, args ...string)
 		if message == "" {
 			message = strings.TrimSpace(stdout.String())
 		}
-		return fmt.Errorf("git %s: %w (%s)", strings.Join(args, " "), err, message)
+		return nil, fmt.Errorf("git %s: %w (%s)", strings.Join(args, " "), err, message)
 	}
-	return nil
+	return stdout.Bytes(), nil
+}
+
+func runGitWithIndex(
+	ctx context.Context,
+	root string,
+	indexPath string,
+	args ...string,
+) ([]byte, error) {
+	cmd := gitenv.Command(ctx, root, args...)
+	cmd.Env = append(
+		cmd.Env,
+		"LC_ALL=C",
+		"GIT_OPTIONAL_LOCKS=0",
+		"GIT_INDEX_FILE="+indexPath,
+	)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf(
+			"git %s: %w (%s)",
+			strings.Join(args, " "),
+			err,
+			strings.TrimSpace(stderr.String()),
+		)
+	}
+	return stdout.Bytes(), nil
 }
 
 // OverlayTree copies a regular-file directory tree over an existing

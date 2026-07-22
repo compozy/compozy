@@ -143,8 +143,8 @@ func TestReviewIsolationPreservesConflictingWorkspace(t *testing.T) {
 		t.Fatalf("Apply(first) error = %v", err)
 	}
 	err = isolation.Apply(context.Background(), 1, false, "fix: second")
-	if err == nil || !strings.Contains(err.Error(), "apply isolated review changes") {
-		t.Fatalf("Apply(second) error = %v, want integration conflict", err)
+	if err == nil || !strings.Contains(err.Error(), "source paths changed since review isolation began: README.md") {
+		t.Fatalf("Apply(second) error = %v, want touched-path drift rejection", err)
 	}
 	if _, statErr := os.Stat(second.Root); statErr != nil {
 		t.Fatalf("conflicting worktree was not preserved: %v", statErr)
@@ -197,6 +197,58 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	}
 	if status := strings.TrimSpace(string(mustRunGit(t, repo, "status", "--porcelain"))); status != "" {
 		t.Fatalf("source status after exact batch commit = %q, want clean", status)
+	}
+}
+
+func TestReviewIsolationRejectsTouchedSourcePathChangedAfterCreation(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	baseline := "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n"
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte(baseline), 0o600); err != nil {
+		t.Fatalf("write source baseline: %v", err)
+	}
+	mustRunGit(t, repo, "add", "README.md")
+	mustRunGit(t, repo, "commit", "-q", "-m", "expand baseline")
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, _ := isolation.Workspace(0)
+	batchResult := strings.Replace(baseline, "one\n", "batch\n", 1)
+	if err := os.WriteFile(filepath.Join(workspace.Root, "README.md"), []byte(batchResult), 0o600); err != nil {
+		t.Fatalf("write isolated result: %v", err)
+	}
+	externalResult := strings.Replace(baseline, "ten\n", "external\n", 1)
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte(externalResult), 0o600); err != nil {
+		t.Fatalf("write external source edit: %v", err)
+	}
+	headBefore := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD")))
+
+	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
+	if err == nil || !strings.Contains(err.Error(), "source paths changed since review isolation began: README.md") {
+		t.Fatalf("Apply(auto commit) error = %v, want touched-path drift rejection", err)
+	}
+	if headAfter := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD"))); headAfter != headBefore {
+		t.Fatalf("source HEAD after rejected apply = %q, want %q", headAfter, headBefore)
+	}
+	if body, readErr := os.ReadFile(
+		filepath.Join(repo, "README.md"),
+	); readErr != nil ||
+		string(body) != externalResult {
+		t.Fatalf("source README after rejected apply = %q, error = %v, want external edit", body, readErr)
 	}
 }
 
@@ -261,6 +313,51 @@ func TestReviewIsolationRestoresSourceWhenAutoCommitHookRejects(t *testing.T) {
 	}
 	if body, readErr := os.ReadFile(issuePath); readErr != nil || string(body) != "status: pending\n" {
 		t.Fatalf("source issue after rejected commit = %q, error = %v", body, readErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, "fix.go")); !os.IsNotExist(statErr) {
+		t.Fatalf("source fix remains after rejected commit: %v", statErr)
+	}
+}
+
+func TestRollbackReviewApplyPreservesConcurrentStaging(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	concurrentPath := filepath.Join(repo, "concurrent.txt")
+	if err := os.WriteFile(concurrentPath, []byte("original\n"), 0o600); err != nil {
+		t.Fatalf("write concurrent baseline: %v", err)
+	}
+	mustRunGit(t, repo, "add", "concurrent.txt")
+	mustRunGit(t, repo, "commit", "-q", "-m", "track concurrent path")
+	indexBackup, err := captureGitIndex(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("captureGitIndex(baseline) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "fix.go"), []byte("package fix\n"), 0o600); err != nil {
+		t.Fatalf("write fix: %v", err)
+	}
+	mustRunGit(t, repo, "add", "fix.go")
+	patch := mustRunGit(t, repo, "diff", "--cached", "--binary", "--full-index", "--no-renames", "HEAD")
+	stagedIndex, err := captureGitIndex(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("captureGitIndex(staged review) error = %v", err)
+	}
+	if err := os.WriteFile(concurrentPath, []byte("concurrent staged\n"), 0o600); err != nil {
+		t.Fatalf("write concurrent change: %v", err)
+	}
+	mustRunGit(t, repo, "add", "concurrent.txt")
+
+	err = rollbackReviewApply(context.Background(), repo, patch, indexBackup, stagedIndex)
+	if err == nil || !strings.Contains(err.Error(), "preserved concurrent index state") {
+		t.Fatalf("rollbackReviewApply() error = %v, want index conflict", err)
+	}
+	if staged := strings.TrimSpace(
+		string(mustRunGit(t, repo, "diff", "--cached", "--name-only")),
+	); staged != "concurrent.txt\nfix.go" {
+		t.Fatalf("staged paths after rollback conflict = %q, want concurrent.txt and fix.go", staged)
+	}
+	if stagedBody := string(mustRunGit(t, repo, "show", ":concurrent.txt")); stagedBody != "concurrent staged\n" {
+		t.Fatalf("staged concurrent content = %q, want external staged content", stagedBody)
 	}
 	if _, statErr := os.Stat(filepath.Join(repo, "fix.go")); !os.IsNotExist(statErr) {
 		t.Fatalf("source fix remains after rejected commit: %v", statErr)
