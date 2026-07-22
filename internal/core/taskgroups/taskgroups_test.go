@@ -732,6 +732,47 @@ func TestCompletion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve an external plan update when completion rollback conflicts", func(t *testing.T) {
+		t.Parallel()
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		before := twoTaskGroupPlan(t)
+		planPath := filepath.Join(initiativeDir, ManifestFileName)
+		externalUpdate := bytes.Replace(before, []byte("Persistence"), []byte("Externally updated"), 1)
+		writeTestFile(t, initiativeDir, ManifestFileName, string(before))
+		validations := 0
+
+		result, err := NewStore().MarkCompleteValidated(
+			context.Background(),
+			initiativeDir,
+			"TG-001",
+			func(context.Context) error {
+				validations++
+				if validations != 2 {
+					return nil
+				}
+				if writeErr := os.WriteFile(planPath, externalUpdate, 0o600); writeErr != nil {
+					return fmt.Errorf("replace plan externally: %w", writeErr)
+				}
+				return errors.New("task reopened")
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "task reopened") {
+			t.Fatalf("MarkCompleteValidated() error = %v, want stale-evidence rejection", err)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted {
+			t.Fatalf("MarkCompleteValidated() result = %#v, want no completion", result)
+		}
+		if got := mustReadFile(t, planPath); !bytes.Equal(got, externalUpdate) {
+			t.Fatalf("completion rollback overwrote external plan update\nwant %q\ngot  %q", externalUpdate, got)
+		}
+		assertDomainError(t, err, ErrCompletionConflict)
+		assertIssueContains(t, err, "write")
+		var conflictErr *Error
+		if !errors.As(err, &conflictErr) || conflictErr.PlanPath != planPath || conflictErr.TaskGroupID != "TG-001" {
+			t.Fatalf("completion conflict evidence = %#v", conflictErr)
+		}
+	})
+
 	t.Run("UT-022 through UT-024 keep lifecycle independent of Git or PR state", func(t *testing.T) {
 		t.Parallel()
 		plan := mustParsePlan(t, twoTaskGroupPlan(t))

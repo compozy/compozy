@@ -1,6 +1,7 @@
 package taskgroups
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -349,6 +350,27 @@ func (s *Store) writeValidatedCompletion(
 		return err
 	}
 	if err := validateCompletionEvidenceAtWrite(ctx, validator); err != nil {
+		current, readErr := os.ReadFile(planPath)
+		var conflictMessage string
+		if readErr != nil {
+			conflictMessage = "completion rollback skipped because the current plan could not be compared: " + readErr.Error()
+		} else if !bytes.Equal(current, rewritten) {
+			conflictMessage = "completion rollback skipped because the plan changed after the completion write; " +
+				"current bytes preserved"
+		}
+		if conflictMessage != "" {
+			return errors.Join(err, newError(
+				ErrCompletionConflict,
+				initiative,
+				taskGroupID,
+				planPath,
+				[]Issue{{
+					Path:    planPath,
+					Field:   "write",
+					Message: conflictMessage,
+				}},
+			))
+		}
 		rollbackErr := s.ops.write(planPath, original, mode)
 		if rollbackErr != nil {
 			rollbackErr = fmt.Errorf("restore task group plan after stale completion evidence: %w", rollbackErr)
