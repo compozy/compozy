@@ -164,6 +164,39 @@ Payload type: `kinds.JobRetryScheduledPayload`
 - `max_attempts`
 - `reason`
 
+### `job.stalled`
+
+Payload type: `kinds.JobStalledPayload`
+
+Emitted when the stall watchdog classifies the current attempt as frozen,
+before the runtime decides whether to retry or park the job. It is followed by
+`job.retry_scheduled` when a clean-state retry can proceed, or by `job.parked`
+when recovery is exhausted or cannot proceed safely.
+
+- `index`
+- `attempt`
+- `max_attempts`
+- `reason`
+- `last_tool_call`
+
+### `job.parked`
+
+Payload type: `kinds.JobParkedPayload`
+
+Emitted when a stalled job cannot continue: its stall-retry budget is exhausted,
+an extension declines or fails the retry, or the runtime cannot reset the
+worktree safely. Parked is a terminal job state distinct from failed. The run
+still exits non-zero, while the worktree and log are retained for triage.
+
+- `index`
+- `attempt`
+- `max_attempts`
+- `reason`
+- `last_tool_call`
+- `last_progress_seq`
+- `worktree_path`
+- `log_path`
+
 ### `job.pausing`
 
 Payload type: `kinds.JobPausingPayload`
