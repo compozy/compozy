@@ -383,9 +383,15 @@ func (r *ReviewIsolation) commitReviewPatch(
 		cause := fmt.Errorf("capture staged source index for %s: %w", workspace.Root, err)
 		return errors.Join(cause, rollbackReviewWorktree(ctx, r.sourceRoot, patch))
 	}
-	if err := validateStagedReviewIndex(ctx, r.sourceRoot, workspace.Root, paths); err != nil {
+	if err := validateStagedReviewIndex(
+		ctx,
+		r.sourceRoot,
+		workspace.Root,
+		paths,
+		indexBackup,
+	); err != nil {
 		cause := fmt.Errorf("validate staged review changes from %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewWorktree(ctx, r.sourceRoot, patch))
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex))
 	}
 	args := []string{"commit", "--only", "-m", message, "--"}
 	args = append(args, literalPathspecs(paths)...)
@@ -576,19 +582,34 @@ func validateStagedReviewIndex(
 	sourceRoot string,
 	workspaceRoot string,
 	paths []string,
-) error {
-	stagedRaw, err := runGit(ctx, sourceRoot, "diff", "--cached", "--name-only", "-z", "--no-renames")
+	indexBackup gitIndexBackup,
+) (err error) {
+	tempRoot, err := os.MkdirTemp("", "compozy-review-staged-index-")
 	if err != nil {
-		return fmt.Errorf("list staged source paths: %w", err)
+		return fmt.Errorf("create temporary staged index directory: %w", err)
 	}
-	allowed := make(map[string]struct{}, len(paths))
-	for _, path := range paths {
-		allowed[path] = struct{}{}
+	defer func() {
+		err = errors.Join(err, removeTemporaryReviewIndex(tempRoot))
+	}()
+	expectedIndexPath := filepath.Join(tempRoot, "index")
+	if err := os.WriteFile(expectedIndexPath, indexBackup.content, indexBackup.mode.Perm()); err != nil {
+		return fmt.Errorf("copy source index baseline for validation: %w", err)
 	}
-	for _, path := range splitNULTokens(stagedRaw) {
-		if _, ok := allowed[path]; !ok {
-			return fmt.Errorf("source git index changed during review integration: %s", path)
-		}
+	stageArgs := []string{"add", "-f", "-A", "--"}
+	stageArgs = append(stageArgs, literalPathspecs(paths)...)
+	if _, err := runGitWithIndex(ctx, sourceRoot, expectedIndexPath, stageArgs...); err != nil {
+		return fmt.Errorf("stage expected review index entries: %w", err)
+	}
+	expectedEntries, err := runGitWithIndex(ctx, sourceRoot, expectedIndexPath, "ls-files", "--stage", "-z")
+	if err != nil {
+		return fmt.Errorf("inspect expected source index: %w", err)
+	}
+	actualEntries, err := runGit(ctx, sourceRoot, "ls-files", "--stage", "-z")
+	if err != nil {
+		return fmt.Errorf("inspect staged source index: %w", err)
+	}
+	if !bytes.Equal(actualEntries, expectedEntries) {
+		return errors.New("source git index changed during review integration")
 	}
 	args := []string{"ls-files", "--stage", "-z", "--"}
 	args = append(args, literalPathspecs(paths)...)

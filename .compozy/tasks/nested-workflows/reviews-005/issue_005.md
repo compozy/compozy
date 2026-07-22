@@ -3,7 +3,7 @@ provider: manual
 pr:
 round: 5
 round_created_at: 2026-07-22T21:45:58Z
-status: pending
+status: resolved
 file: internal/core/worktree/review_isolation.go
 line: 580
 severity: high
@@ -21,5 +21,5 @@ Validate only the batch's index delta relative to the captured baseline, prefera
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `VALID`
+- Notes: `NewReviewIsolation` intentionally captures the source index after excluding workflow artifacts from the clean-source check, so pre-existing staged artifacts are part of the accepted baseline. During auto-commit, `validateStagedReviewIndex` instead compared every staged path with the batch path set; an untouched baseline artifact therefore failed validation even though the index had not changed outside the transaction. That error path called only `rollbackReviewWorktree`, leaving entries written by `git add` in the source index. The remediation now constructs the expected post-stage index from the captured baseline, compares the real index with that expected transaction result, and restores the captured index through the existing compare-and-swap rollback on validation failure. Regression coverage proves successful integration with an unrelated pre-staged artifact and byte-identical index restoration after a forced validation mismatch. Full verification uses a short `COMPOZY_HOME` for frontend E2E because this review worktree's path exceeds macOS Unix-socket limits; Go commands run with `COMPOZY_HOME` unset.`

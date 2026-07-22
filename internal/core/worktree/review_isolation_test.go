@@ -1,9 +1,14 @@
+// Suite: isolated review integration
+// Invariant: review integration changes only batch-owned source state.
+// Boundary IN: real Git worktrees, indexes, commits, and rollback behavior.
+// Boundary OUT: review workflow orchestration outside the worktree package.
 package worktree
 
 import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -175,7 +180,10 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReviewIsolation() error = %v", err)
 	}
-	workspace, _ := isolation.Workspace(0)
+	workspace, err := isolation.Workspace(0)
+	if err != nil {
+		t.Fatalf("Workspace(0) error = %v", err)
+	}
 	if err := os.WriteFile(
 		filepath.Join(workspace.ReviewsDir, "issue_001.md"),
 		[]byte("status: resolved\n"),
@@ -197,6 +205,124 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	}
 	if status := strings.TrimSpace(string(mustRunGit(t, repo, "status", "--porcelain"))); status != "" {
 		t.Fatalf("source status after exact batch commit = %q, want clean", status)
+	}
+}
+
+func TestReviewIsolationAutoCommitPreservesPreStagedWorkflowArtifact(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+	artifactRel := filepath.ToSlash(filepath.Join(".compozy", "tasks", "demo", "_techspec.md"))
+	artifactPath := filepath.Join(repo, filepath.FromSlash(artifactRel))
+	if err := os.WriteFile(artifactPath, []byte("# Staged TechSpec\n"), 0o600); err != nil {
+		t.Fatalf("write staged artifact: %v", err)
+	}
+	mustRunGit(t, repo, "add", "--", artifactRel)
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, err := isolation.Workspace(0)
+	if err != nil {
+		t.Fatalf("Workspace(0) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace.Root, "fix.go"), []byte("package fix\n"), 0o600); err != nil {
+		t.Fatalf("write fix: %v", err)
+	}
+
+	if err := isolation.Apply(context.Background(), 0, true, "fix: batch a"); err != nil {
+		t.Fatalf("Apply(auto commit) error = %v", err)
+	}
+	if staged := strings.TrimSpace(
+		string(mustRunGit(t, repo, "diff", "--cached", "--name-only")),
+	); staged != artifactRel {
+		t.Fatalf("staged paths after commit = %q, want %q", staged, artifactRel)
+	}
+	if body := string(mustRunGit(t, repo, "show", ":"+artifactRel)); body != "# Staged TechSpec\n" {
+		t.Fatalf("staged artifact content = %q, want original content", body)
+	}
+}
+
+func TestReviewIsolationValidationFailureRestoresExactIndex(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+	artifactRel := filepath.ToSlash(filepath.Join(".compozy", "tasks", "demo", "_techspec.md"))
+	artifactPath := filepath.Join(repo, filepath.FromSlash(artifactRel))
+	if err := os.WriteFile(artifactPath, []byte("# Staged TechSpec\n"), 0o600); err != nil {
+		t.Fatalf("write staged artifact: %v", err)
+	}
+	mustRunGit(t, repo, "add", "--", artifactRel)
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, err := isolation.Workspace(0)
+	if err != nil {
+		t.Fatalf("Workspace(0) error = %v", err)
+	}
+	fixPath := filepath.Join(workspace.Root, "fix.go")
+	if err := os.WriteFile(fixPath, []byte("package fix\n"), 0o600); err != nil {
+		t.Fatalf("write fix: %v", err)
+	}
+	sourceRoot, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatalf("resolve source root: %v", err)
+	}
+	hook := fmt.Sprintf(
+		"#!/bin/sh\nif [ \"$(pwd -P)\" != %q ]; then\n  exit 0\nfi\nprintf 'package changed\\n' > %q\nunset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR\ngit -c core.hooksPath=/dev/null -C %q add -A\n",
+		sourceRoot,
+		fixPath,
+		workspace.Root,
+	)
+	if err := os.WriteFile(filepath.Join(repo, ".git", "hooks", "post-index-change"), []byte(hook), 0o700); err != nil {
+		t.Fatalf("write post-index-change hook: %v", err)
+	}
+	indexBackup, err := captureGitIndex(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("captureGitIndex(baseline) error = %v", err)
+	}
+
+	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
+	if err == nil || !strings.Contains(err.Error(), "staged source entries differ from isolated review results") {
+		t.Fatalf("Apply(auto commit) error = %v, want staged-entry validation failure", err)
+	}
+	indexAfter, readErr := os.ReadFile(indexBackup.path)
+	if readErr != nil {
+		t.Fatalf("read restored source index: %v", readErr)
+	}
+	if !bytes.Equal(indexAfter, indexBackup.content) {
+		t.Fatal("source index after validation failure differs from byte-identical baseline")
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, "fix.go")); !os.IsNotExist(statErr) {
+		t.Fatalf("source fix remains after validation failure: %v; apply error: %v", statErr, err)
+	}
+	if body := string(mustRunGit(t, repo, "show", ":"+artifactRel)); body != "# Staged TechSpec\n" {
+		t.Fatalf("staged artifact content = %q, want original content", body)
 	}
 }
 
