@@ -262,6 +262,7 @@ type usageUpdateMsg struct {
 
 type runStatusMsg struct {
 	Status string
+	Err    error
 }
 
 type shutdownStatusMsg struct {

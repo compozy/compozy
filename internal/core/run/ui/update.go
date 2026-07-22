@@ -214,6 +214,16 @@ func (m *uiModel) afterParallelUpdate() tea.Cmd {
 
 func (m *uiModel) handleRunStatus(v runStatusMsg) tea.Cmd {
 	m.runStatus = strings.TrimSpace(v.Status)
+	if !isFailedRunStatus(m.runStatus) {
+		return nil
+	}
+	if v.Err != nil {
+		m.failures = append(m.failures, failInfo{ExitCode: 1, Err: v.Err})
+	}
+	m.closeQuitDialog()
+	m.shutdown = shutdownState{}
+	m.currentView = uiViewSummary
+	m.refreshViewportContent()
 	return nil
 }
 
@@ -740,7 +750,7 @@ func (m *uiModel) settledJobs() int {
 }
 
 func (m *uiModel) isRunComplete() bool {
-	return m.settledJobs() >= m.total
+	return isTerminalRunStatus(m.runStatus) || m.settledJobs() >= m.total
 }
 
 func (m *uiModel) currentJob() *uiJob {
