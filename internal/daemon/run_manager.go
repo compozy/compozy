@@ -220,6 +220,15 @@ type startRunSpec struct {
 	recovery            workspacecfg.AgentRecoveryConfig
 	outOfOrderRequested bool
 	outOfOrderNeeded    bool
+	taskGroupPreflight  *taskGroupPreflightEvidence
+}
+
+type taskGroupPreflightEvidence struct {
+	initiativeSlug   string
+	taskGroupID      string
+	planChecksum     string
+	readiness        taskgroups.Readiness
+	outOfOrderNeeded bool
 }
 
 type terminalState struct {
@@ -509,7 +518,7 @@ func (m *RunManager) StartTaskRun(
 	if err := validateTaskExecutionDescriptor(req.Execution, expectedExecutionKind, expectedWorktrees); err != nil {
 		return apicore.Run{}, err
 	}
-	outOfOrderNeeded, err := m.preflightTaskGroupTaskRun(
+	taskGroupPreflight, err := m.preflightTaskGroupTaskRunWithEvidence(
 		ctx,
 		workspaceRef,
 		resolvedWorkflowRef,
@@ -517,6 +526,10 @@ func (m *RunManager) StartTaskRun(
 	)
 	if err != nil {
 		return apicore.Run{}, err
+	}
+	outOfOrderNeeded := false
+	if taskGroupPreflight != nil {
+		outOfOrderNeeded = taskGroupPreflight.outOfOrderNeeded
 	}
 
 	if run, routed, err := m.startParallelTaskRunIfEnabled(
@@ -543,6 +556,7 @@ func (m *RunManager) StartTaskRun(
 		recovery:            recoveryCfg,
 		outOfOrderRequested: req.AllowOutOfOrder,
 		outOfOrderNeeded:    outOfOrderNeeded,
+		taskGroupPreflight:  taskGroupPreflight,
 	})
 }
 
@@ -615,44 +629,110 @@ func (m *RunManager) preflightTaskGroupTaskRun(
 	workflowRef string,
 	allowOutOfOrder bool,
 ) (bool, error) {
+	evidence, err := m.preflightTaskGroupTaskRunWithEvidence(
+		ctx,
+		workspaceRef,
+		workflowRef,
+		allowOutOfOrder,
+	)
+	if err != nil || evidence == nil {
+		return false, err
+	}
+	return evidence.outOfOrderNeeded, nil
+}
+
+func (m *RunManager) preflightTaskGroupTaskRunWithEvidence(
+	ctx context.Context,
+	workspaceRef string,
+	workflowRef string,
+	allowOutOfOrder bool,
+) (*taskGroupPreflightEvidence, error) {
+	evidence, err := m.resolveTaskGroupPreflightEvidence(ctx, workspaceRef, workflowRef)
+	if err != nil || evidence == nil {
+		return evidence, err
+	}
+	outOfOrderNeeded, err := taskGroupPreflightDecision(evidence, allowOutOfOrder, nil)
+	if err != nil {
+		return nil, err
+	}
+	evidence.outOfOrderNeeded = outOfOrderNeeded
+	return evidence, nil
+}
+
+func (m *RunManager) resolveTaskGroupPreflightEvidence(
+	ctx context.Context,
+	workspaceRef string,
+	workflowRef string,
+) (*taskGroupPreflightEvidence, error) {
 	if !strings.Contains(strings.TrimSpace(workflowRef), "/") {
-		return false, nil
+		return nil, nil
 	}
 	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(workflowRef))
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if err := requireWorkspacePathAvailable(workspace); err != nil {
-		return false, err
+		return nil, err
 	}
 	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, ref.String())
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	readiness, err := taskgroups.EvaluateReadiness(target.Plan, ref.TaskGroupID)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	if readiness.Eligible {
+	return &taskGroupPreflightEvidence{
+		initiativeSlug: target.Ref.Initiative,
+		taskGroupID:    target.TaskGroup.ID,
+		planChecksum:   target.Plan.Checksum,
+		readiness:      readiness,
+	}, nil
+}
+
+func taskGroupPreflightDecision(
+	evidence *taskGroupPreflightEvidence,
+	allowOutOfOrder bool,
+	previous *taskGroupPreflightEvidence,
+) (bool, error) {
+	if evidence.readiness.Eligible {
 		return false, nil
+	}
+	if previous != nil && evidence.planChecksum != previous.planChecksum {
+		return false, taskGroupDependenciesProblem(evidence, previous)
 	}
 	if allowOutOfOrder {
 		return true, nil
 	}
-	return false, apicore.NewProblem(
+	return false, taskGroupDependenciesProblem(evidence, nil)
+}
+
+func taskGroupDependenciesProblem(
+	evidence *taskGroupPreflightEvidence,
+	previous *taskGroupPreflightEvidence,
+) error {
+	details := map[string]any{
+		"initiative_slug":  evidence.initiativeSlug,
+		"task_group_id":    evidence.taskGroupID,
+		"direct_unmet":     evidence.readiness.DirectUnmet,
+		"transitive_unmet": evidence.readiness.TransitiveUnmet,
+	}
+	message := "task group dependencies are not complete"
+	if previous != nil {
+		details["plan_changed"] = true
+		details["preflight_plan_checksum"] = previous.planChecksum
+		details["current_plan_checksum"] = evidence.planChecksum
+		message = "task group plan changed and dependencies are not complete; retry against the current plan"
+	}
+	return apicore.NewProblem(
 		http.StatusConflict,
 		"task_group_dependencies_unmet",
-		"task group dependencies are not complete",
-		map[string]any{
-			"initiative_slug":  target.Ref.Initiative,
-			"task_group_id":    target.TaskGroup.ID,
-			"direct_unmet":     readiness.DirectUnmet,
-			"transitive_unmet": readiness.TransitiveUnmet,
-		},
+		message,
+		details,
 		taskgroups.ErrDependenciesUnmet,
 	)
 }
@@ -1654,6 +1734,9 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	if err := m.syncWorkflowBeforeRun(ctx, spec); err != nil {
 		return apicore.Run{}, err
 	}
+	if err := m.revalidateTaskGroupPreflight(ctx, &spec); err != nil {
+		return apicore.Run{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return apicore.Run{}, err
 	}
@@ -1700,6 +1783,28 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	started = true
 
 	return m.toCoreRun(runCtx, row, active.workflowSlug)
+}
+
+func (m *RunManager) revalidateTaskGroupPreflight(ctx context.Context, spec *startRunSpec) error {
+	if spec.taskGroupPreflight == nil {
+		return nil
+	}
+	current, err := m.resolveTaskGroupPreflightEvidence(ctx, spec.workspace.RootDir, spec.workflowSlug)
+	if err != nil {
+		return err
+	}
+	outOfOrderNeeded, err := taskGroupPreflightDecision(
+		current,
+		spec.outOfOrderRequested,
+		spec.taskGroupPreflight,
+	)
+	if err != nil {
+		return err
+	}
+	current.outOfOrderNeeded = outOfOrderNeeded
+	spec.outOfOrderNeeded = outOfOrderNeeded
+	spec.taskGroupPreflight = current
+	return nil
 }
 
 func (m *RunManager) prepareRunRow(

@@ -3434,6 +3434,62 @@ func TestRunManagerTaskRunPreflightUsesCurrentTaskGroupReadinessAndRecordsOverri
 	}
 }
 
+func TestRunManagerTaskRunRequiresFreshOverrideAfterFinalSyncPlanChange(t *testing.T) {
+	// INVARIANT: an override evaluated against one plan cannot authorize unmet dependencies introduced after preflight.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
+	const initiative = "watcher"
+	const runID = "task-group-final-sync-blocked"
+	var env *runManagerTestEnv
+	var executed atomic.Bool
+	env = newRunManagerTestEnv(t, runManagerTestDeps{
+		syncWorkflow: func(
+			ctx context.Context,
+			db *globaldb.GlobalDB,
+			workspace globaldb.Workspace,
+			cfg model.SyncConfig,
+		) (*corepkg.SyncResult, error) {
+			writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+			return corepkg.SyncWithDB(ctx, db, workspace, cfg)
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			executed.Store(true)
+			return nil
+		},
+	})
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			TaskGroupID:      "TG-002",
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`"}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
+		problem.Code != "task_group_dependencies_unmet" {
+		t.Fatalf(
+			"StartTaskRun(final sync changed readiness) error = %#v (%v), want 409 dependency problem",
+			problem,
+			err,
+		)
+	}
+	if planChanged, ok := problem.Details["plan_changed"].(bool); !ok || !planChanged {
+		t.Fatalf("dependency problem details = %#v, want plan_changed=true", problem.Details)
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(%q) error = %v, want no durable run", runID, err)
+	}
+	if executed.Load() {
+		t.Fatal("Execute() called for task group blocked at final readiness check")
+	}
+}
+
 func writeDaemonDependentTaskGroupFixture(
 	t *testing.T,
 	env *runManagerTestEnv,
