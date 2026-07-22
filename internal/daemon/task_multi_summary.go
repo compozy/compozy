@@ -9,10 +9,10 @@ import (
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 )
 
-// childSummaryReadTimeout bounds the durable read of one child's job lifecycle
-// events. The summary is best-effort reporting on an already-settled batch, so a
-// slow or wedged child store must never hold the parent's finalization open.
-const childSummaryReadTimeout = 5 * time.Second
+// childSummaryBatchTimeout bounds all durable reads needed for one recovery
+// summary. The summary is best-effort reporting on an already-settled batch, so
+// slow or wedged child stores must never hold the parent's finalization open.
+const childSummaryBatchTimeout = 5 * time.Second
 
 // childSummaryKinds are the only event kinds the recovery summary reads. Each one
 // is terminal-ish for a job, so the set stays tiny no matter how long the child ran.
@@ -119,26 +119,35 @@ func (m *RunManager) collectTaskMultiRecoverySummary(
 	total int,
 	childRunIDs []string,
 ) taskMultiRecoverySummary {
+	readCtx, cancel := context.WithTimeout(detachContext(ctx), childSummaryBatchTimeout)
+	defer cancel()
+	children := collectChildSummaryEvidence(readCtx, childRunIDs, m.readChildSummaryEvidence)
+	return summarizeChildOutcomes(total, children)
+}
+
+func collectChildSummaryEvidence(
+	ctx context.Context,
+	childRunIDs []string,
+	read func(context.Context, string) childSummaryEvidence,
+) []childSummaryEvidence {
 	children := make([]childSummaryEvidence, 0, len(childRunIDs))
 	for _, runID := range childRunIDs {
 		runID = strings.TrimSpace(runID)
 		if runID == "" {
 			continue
 		}
-		children = append(children, m.readChildSummaryEvidence(ctx, runID))
+		children = append(children, read(ctx, runID))
 	}
-	return summarizeChildOutcomes(total, children)
+	return children
 }
 
 func (m *RunManager) readChildSummaryEvidence(ctx context.Context, runID string) childSummaryEvidence {
-	readCtx, cancel := context.WithTimeout(detachContext(ctx), childSummaryReadTimeout)
-	defer cancel()
-	row, err := m.globalDB.GetRun(readCtx, runID)
+	row, err := m.globalDB.GetRun(ctx, runID)
 	if err != nil {
 		slog.Default().Warn("daemon: child summary result unavailable", "run_id", runID, "error", err)
 		return childSummaryEvidence{}
 	}
-	lease, err := m.acquireRunDB(readCtx, runID)
+	lease, err := m.acquireRunDB(ctx, runID)
 	if err != nil {
 		slog.Default().Warn("daemon: child summary store unavailable", "run_id", runID, "error", err)
 		return childSummaryEvidence{}
@@ -148,7 +157,7 @@ func (m *RunManager) readChildSummaryEvidence(ctx context.Context, runID string)
 			slog.Default().Warn("daemon: release child summary store", "run_id", runID, "error", closeErr)
 		}
 	}()
-	evs, err := lease.DB().ListEventsByKind(readCtx, childSummaryKinds)
+	evs, err := lease.DB().ListEventsByKind(ctx, childSummaryKinds)
 	if err != nil {
 		slog.Default().Warn("daemon: child summary events unreadable", "run_id", runID, "error", err)
 		return childSummaryEvidence{}

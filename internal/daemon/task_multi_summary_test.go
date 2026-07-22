@@ -1,7 +1,7 @@
 package daemon
 
 // Suite: task-multi recovery summary
-// Invariant: completed and recovered counts include only successful child runs without failed jobs.
+// Invariant: summary counts use settled evidence, and evidence reads share one batch deadline.
 // Boundary IN: child summary classification plus durable run-status and event reads
 // Boundary OUT: parent queue orchestration in task_multi_test.go
 
@@ -240,5 +240,44 @@ func TestCollectTaskMultiRecoverySummaryUsesSettledChildStatus(t *testing.T) {
 	want := taskMultiRecoverySummary{Total: 1}
 	if summary != want {
 		t.Fatalf("collectTaskMultiRecoverySummary() = %+v, want %+v", summary, want)
+	}
+}
+
+func TestCollectChildSummaryEvidenceUsesSingleBatchDeadline(t *testing.T) {
+	t.Parallel()
+
+	const aggregateTimeout = 50 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), aggregateTimeout)
+	defer cancel()
+	wantDeadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("batch context has no deadline")
+	}
+
+	var readDeadlines []time.Time
+	children := collectChildSummaryEvidence(
+		ctx,
+		[]string{"child-one", "child-two", "child-three"},
+		func(readCtx context.Context, _ string) childSummaryEvidence {
+			deadline, hasDeadline := readCtx.Deadline()
+			if !hasDeadline {
+				t.Fatal("child read context has no deadline")
+			}
+			readDeadlines = append(readDeadlines, deadline)
+			<-readCtx.Done()
+			return childSummaryEvidence{}
+		},
+	)
+
+	if len(children) != 3 {
+		t.Fatalf("collectChildSummaryEvidence() returned %d children, want 3", len(children))
+	}
+	if len(readDeadlines) != 3 {
+		t.Fatalf("evidence reader called %d times, want 3", len(readDeadlines))
+	}
+	for idx, deadline := range readDeadlines {
+		if !deadline.Equal(wantDeadline) {
+			t.Errorf("child %d deadline = %s, want batch deadline %s", idx, deadline, wantDeadline)
+		}
 	}
 }
