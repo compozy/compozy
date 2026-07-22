@@ -3,7 +3,7 @@ provider: manual
 pr:
 round: 5
 round_created_at: 2026-07-22T21:45:58Z
-status: pending
+status: resolved
 file: web/src/systems/app-shell/hooks/use-workspace-events.ts
 line: 172
 severity: medium
@@ -21,5 +21,10 @@ Include `_task_groups.md` in spec invalidation and add an event-hook test using 
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `VALID`
+- Notes: `artifact.changed` delegates spec invalidation to `shouldInvalidateSpec`, which
+  omits `_task_groups.md` even though the daemon watcher emits that path and the selected
+  Task Group spec reads its `plan_excerpt` from the initiative plan. Add the missing path
+  classification and cover the event-hook path with a composite `demo/TG-NNN` reference,
+  asserting that the selected child spec invalidates without invalidating initiative or
+  sibling Task Group specs.

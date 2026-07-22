@@ -171,7 +171,12 @@ function parseWorkflowQueryReference(reference: string): WorkflowQueryReference 
 
 function shouldInvalidateSpec(paths: string[] | undefined): boolean {
   return (paths ?? []).some(path => {
-    return path === "_prd.md" || path === "_techspec.md" || path.startsWith("adrs/");
+    return (
+      path === "_prd.md" ||
+      path === "_techspec.md" ||
+      path === "_task_groups.md" ||
+      path.startsWith("adrs/")
+    );
   });
 }
 
