@@ -56,6 +56,17 @@ Table of components affected by this implementation:
 |-----------|-------------|---------------------|-----------------|
 | [component] | [new/modified/deprecated] | [what changes and risk level] | [action needed] |
 
+### Contract Change Analysis
+
+Required for every change to an existing API, schema, event, interface, or protocol. Derive known consumers from repository analysis. For each changed contract, record:
+- Contract diff: name the contract and list the exact fields, routes, methods, or semantics added, removed, or changed
+- Active consumers: enumerate every known internal and external consumer with its repository path or ownership evidence; when none are found, state the paths and searches used to establish that result
+- Rollout strategy: choose exactly one of atomic consumer updates, backward compatibility, versioning, content negotiation, feature flag, or temporary adapter, then state the rollout order
+- Consumer coordination: put consumer updates and verification in the same implementation task or a coordinated task linked by a declared dependency
+- Temporary compatibility: for every compatibility layer, record its owner, cleanup condition, and removal task
+
+Block TechSpec generation when an active consumer exists and no rollout strategy is defined.
+
 ## Testing Approach
 
 Strategy only — every concrete test case lives in `_tests.md`, the test contract written alongside this TechSpec:

@@ -255,6 +255,42 @@ func TestCreateTechSpecTemplateRequiresOperationalEventContracts(t *testing.T) {
 	}
 }
 
+func TestTechSpecTemplateRequiresContractRolloutPlanning(t *testing.T) {
+	t.Parallel()
+
+	templatePath := filepath.Join(
+		repoRoot(t),
+		"skills",
+		"cy-create-techspec",
+		"references",
+		"techspec-template.md",
+	)
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	requiredInstructions := []string{
+		"### Contract Change Analysis",
+		"Derive known consumers from repository analysis.",
+		"Contract diff:",
+		"Active consumers:",
+		"choose exactly one of atomic consumer updates, backward compatibility, versioning, content negotiation, feature flag, or temporary adapter",
+		"same implementation task or a coordinated task linked by a declared dependency",
+		"owner, cleanup condition, and removal task",
+		"Block TechSpec generation when an active consumer exists and no rollout strategy is defined.",
+	}
+	for _, instruction := range requiredInstructions {
+		t.Run(instruction, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), instruction) {
+				t.Fatalf("expected %s to include %q", templatePath, instruction)
+			}
+		})
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 
