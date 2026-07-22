@@ -58,6 +58,10 @@ The matrix is the completion gate for this document:
 - Every component and interface in the TechSpec has a row with unit coverage that includes its error paths — a component whose only cases are happy-path is uncovered.
 - Every API endpoint, CLI verb, or message contract in the TechSpec has cases for its success shape and each documented failure shape.
 - Every user journey has at least one end-to-end or integration case following it start to finish.
+- Cross-requirement coverage is mandatory when the source artifacts combine idempotency, replay, deduplication, or stored responses with authorization, redaction, tenant isolation, or sensitive output. Add integration cases that prove:
+  - an initial request succeeds and stores the canonical result, access is then revoked, and replaying the same idempotency key rechecks current authorization, tenant isolation, and redaction before denying or projecting the response without changing the stored result;
+  - every relevant grant transition is followed by replay of the same key, with the response projection determined by the current grant while the stored result remains unchanged; and
+  - reusing the key with a mismatched request fingerprint is rejected and never replays the stored result.
 - An empty cell in a populated row is fine; a row with no IDs at all is a hole — fill it or annotate the row with the reason it needs no test.
 
 ## Case-Writing Rules
