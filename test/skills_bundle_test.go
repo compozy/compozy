@@ -285,6 +285,48 @@ func TestCreateTechSpecTestsTemplateRequiresQuantitativeVerification(t *testing.
 	}
 }
 
+func TestCreateTechSpecTestsTemplateRequiresAtomicityVerification(t *testing.T) {
+	t.Parallel()
+
+	templatePath := filepath.Join(
+		repoRoot(t),
+		"skills",
+		"cy-create-techspec",
+		"references",
+		"tests-template.md",
+	)
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"multi-write atomicity requirement",
+		"`A` fails before any later write",
+		"`A` succeeds and `B` fails",
+		"`A` and `B` succeed and `C` fails",
+		"transaction commit fails",
+		"database constraints",
+		"transaction callbacks",
+		"dedicated test seams",
+		"production-only flags",
+		"domain, ledger, and event state",
+		"nested or bound transaction scopes",
+		"retry after rollback",
+		"at least one failure-injection test ID",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
 func TestTechSpecTemplateRequiresContractRolloutPlanning(t *testing.T) {
 	t.Parallel()
 

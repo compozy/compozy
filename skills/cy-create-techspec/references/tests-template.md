@@ -72,6 +72,16 @@ The matrix is the completion gate for this document:
 - The owning case must repeat and use the exact quantity or threshold in its setup or assertion, apply the stated measurement method in the named environment, and fail when the target is violated. An ID-only link does not verify a metric.
 - Fixture and workload generation must be deterministic and reproducible: name the generator or recipe, exact record count, fixed seed when randomness is used, controlled clock when time matters, and pinned input or dataset version.
 - Block `_tests.md` generation while any quantified requirement lacks a metric row, verification method, deterministic fixture or workload recipe, test environment, or owning test ID.
+- Scan the PRD, `_user_stories.md`, and TechSpec for every multi-write atomicity requirement. For each ordered write sequence `A` → `B` → `C`, add separate failure-injection integration cases proving:
+  - `A` fails before any later write;
+  - `A` succeeds and `B` fails;
+  - `A` and `B` succeed and `C` fails; and
+  - every write succeeds but the transaction commit fails.
+- Inject failures through the repository's real failure paths, database constraints, transaction callbacks, or dedicated test seams at I/O boundaries. Never add production-only flags or branches for test injection.
+- Each atomicity case must assert the reported failure and query every state surface named by the requirement. When specified, domain, ledger, and event state must roll back together with no partial record, pending outbox entry, or independently committed side effect.
+- When nested or bound transaction scopes exist, prove that inner failures preserve the outer rollback and no nested scope commits independently.
+- Define and test retry after rollback: state whether a retry succeeds or is rejected, then assert the exact resulting state and error.
+- Every atomicity requirement must own at least one failure-injection test ID. Block `_tests.md` generation while any required failure boundary, rollback assertion, transaction-scope assertion, or retry behavior lacks an owning case.
 - Cross-requirement coverage is mandatory when the source artifacts combine idempotency, replay, deduplication, or stored responses with authorization, redaction, tenant isolation, or sensitive output. Add integration cases that prove:
   - an initial request succeeds and stores the canonical result, access is then revoked, and replaying the same idempotency key rechecks current authorization, tenant isolation, and redaction before denying or projecting the response without changing the stored result;
   - every relevant grant transition is followed by replay of the same key, with the response projection determined by the current grant while the stored result remains unchanged; and
