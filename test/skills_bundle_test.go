@@ -209,6 +209,47 @@ func TestCreatePRDUserStoriesTemplateRequiresAuthorizationCoverage(t *testing.T)
 	}
 }
 
+func TestCreatePRDUserStoriesTemplateRequiresUnknownOutcomeRecovery(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-prd", "references", "user-stories-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"## Uncertain-Outcome Recovery",
+		"May execution begin or repeat?",
+		"Client response",
+		"Durable evidence",
+		"Retry after restart or transport failure",
+		"`no record`",
+		"`pending / incomplete`",
+		"`completed success`",
+		"`completed failure`",
+		"`fingerprint mismatch`",
+		"`corrupt / unreadable`",
+		"deterministic completed-result replay",
+		"documented incomplete-record recovery",
+		"mismatch rejection without execution or replay",
+		"transport loss after commit",
+		"process restart",
+		"`UNKNOWN_OUTCOME` only when durable evidence cannot determine the result",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
 func TestCreateTechSpecTemplateRequiresOperationalEventContracts(t *testing.T) {
 	t.Parallel()
 

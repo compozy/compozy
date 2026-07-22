@@ -42,6 +42,19 @@ Edge cases:
 - EC-1: [condition] → [expected behavior the user observes].
 - EC-2: [condition] → [expected behavior].
 
+### Uncertain-Outcome Recovery
+
+[Include when a command can create durable side effects and the client can lose its terminal response. Link every row to the governing AC or EC.]
+
+| Durable state | May execution begin or repeat? | Client response | Durable evidence | Retry after restart or transport failure |
+| --- | --- | --- | --- | --- |
+| `no record` | [yes/no and precondition] | [response] | [evidence proving no prior attempt] | [retry behavior] |
+| `pending / incomplete` | [yes/no and recovery rule] | [response] | [evidence of incomplete work] | [retry behavior] |
+| `completed success` | [yes/no] | [response or replayed result] | [terminal success evidence] | [retry behavior] |
+| `completed failure` | [yes/no] | [response or replayed result] | [terminal failure evidence] | [retry behavior] |
+| `fingerprint mismatch` | [yes/no] | [rejection] | [stored and presented fingerprints] | [retry behavior] |
+| `corrupt / unreadable` | [yes/no] | [response] | [validation or read failure] | [retry behavior] |
+
 ## Authorization Rule Pack
 
 | ID | Story / criterion | Operation | Protected resource / field | Data classification | Actor / role / capability | Outcome | Permitted side effects | Risk |
@@ -67,9 +80,24 @@ Probe every story against every class below and record each finding as an `EC` e
 | Concurrency | Same action twice in flight, two actors on one resource, stale reads. |
 | Interruption | Cancel mid-flow, connection loss, process restart, partial completion. |
 | Repetition | Retry after success, duplicate submission, replay — is the action idempotent? |
+| Uncertain outcome | The client loses a terminal response after a potentially durable side effect — what evidence makes execution, replay, rejection, or `UNKNOWN_OUTCOME` safe? |
 | Ordering | Steps out of order, prerequisite skipped, back-navigation, deep links. |
 | State transitions | Action on deleted/closed/archived entities, invalid state jumps. |
 | Scale | Behavior at zero items, at typical volume, and at 100× typical volume. |
+
+## Uncertain-Outcome Recovery
+
+When a command can create a durable side effect and its terminal response can be lost, the generic interruption and repetition probes are not sufficient. Add the recovery table from the document skeleton to the affected story and link each row to an AC or EC. Every row must define whether execution may begin or repeat, the exact client response, the durable evidence consulted, and retry behavior after process restart or transport failure.
+
+Require the generated behavior to meet these safety rules:
+
+- A `pending / incomplete` record uses documented incomplete-record recovery and is never treated as permission for a blind repeat.
+- `completed success` and `completed failure` records use deterministic completed-result replay without repeating execution.
+- A `fingerprint mismatch` uses mismatch rejection without execution or replay.
+- A `corrupt / unreadable` record cannot authorize execution or replay. Return `UNKNOWN_OUTCOME` only when durable evidence cannot determine the result; otherwise return the result established by that evidence.
+- A `no record` decision states what durable evidence proves absence and what must be persisted before execution may begin.
+
+Give every applicable recovery row at least one downstream `_tests.md` obligation. The test set must cover deterministic completed-result replay, documented incomplete-record recovery, mismatch rejection without execution or replay, transport loss after commit, process restart in each nonterminal or terminal state that can survive restart, and `UNKNOWN_OUTCOME` only when durable evidence cannot determine the result.
 
 ## Authorization Rule Pack
 
