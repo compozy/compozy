@@ -15,7 +15,7 @@ import (
 	"github.com/gofrs/flock"
 )
 
-var completionHeadingPattern = regexp.MustCompile(`(?m)^## \[([ x])\] (TG-[0-9]{3}) — [^\r\n]+`)
+var completionHeadingPattern = regexp.MustCompile(`(?m)^## \[([ x])\] (TG-[0-9]{3}) —[ \t]*[^ \t\r\n][^\r\n]*`)
 
 // CompletionBlockReason identifies why completion cannot be recorded.
 type CompletionBlockReason string
@@ -131,6 +131,10 @@ type CompletionResult struct {
 	AlreadyCompleted   bool
 }
 
+// CompletionValidator rechecks external completion evidence at the durable
+// plan-write boundary.
+type CompletionValidator func(context.Context) error
+
 // Store loads plans and records one stable completion through a locked atomic write.
 type Store struct {
 	newLock func(string) *flock.Flock
@@ -178,13 +182,23 @@ func (s *Store) MarkComplete(
 	ctx context.Context,
 	initiativeDir, taskGroupID string,
 ) (CompletionResult, error) {
+	return s.MarkCompleteValidated(ctx, initiativeDir, taskGroupID, nil)
+}
+
+// MarkCompleteValidated records one checkbox only while validator confirms the
+// external task and review evidence remains current.
+func (s *Store) MarkCompleteValidated(
+	ctx context.Context,
+	initiativeDir, taskGroupID string,
+	validator CompletionValidator,
+) (CompletionResult, error) {
 	if err := context.Cause(ctx); err != nil {
 		return CompletionResult{}, fmt.Errorf("complete task group: %w", err)
 	}
 	s = usableStore(s)
 	planPath := filepath.Join(initiativeDir, ManifestFileName)
 	return s.withPlanLock(ctx, planPath, func() (CompletionResult, error) {
-		return s.markCompleteLocked(ctx, initiativeDir, planPath, taskGroupID)
+		return s.markCompleteLocked(ctx, initiativeDir, planPath, taskGroupID, validator)
 	})
 }
 
@@ -225,6 +239,7 @@ func (s *Store) withPlanLock(
 func (s *Store) markCompleteLocked(
 	ctx context.Context,
 	initiativeDir, planPath, taskGroupID string,
+	validator CompletionValidator,
 ) (CompletionResult, error) {
 	content, readErr := os.ReadFile(planPath)
 	if readErr != nil {
@@ -254,6 +269,9 @@ func (s *Store) markCompleteLocked(
 			[]Issue{{Field: "body." + taskGroupID, Message: "selected task group does not exist"}},
 		)
 	}
+	if err := validateCompletionEvidenceAtWrite(ctx, validator); err != nil {
+		return CompletionResult{}, err
+	}
 	rewrite, rewriteErr := RewriteCompletion(content, taskGroupID)
 	if rewriteErr != nil {
 		return CompletionResult{}, rewriteErr
@@ -261,30 +279,21 @@ func (s *Store) markCompleteLocked(
 	if rewrite.AlreadyCompleted {
 		return CompletionResult{Plan: plan, AlreadyCompleted: true}, nil
 	}
-	info, statErr := os.Stat(planPath)
-	if statErr != nil {
-		return CompletionResult{}, fmt.Errorf("stat task group plan: %w", statErr)
+	mode, modeErr := writablePlanMode(planPath, plan.Initiative, taskGroupID)
+	if modeErr != nil {
+		return CompletionResult{}, modeErr
 	}
-	if info.Mode().Perm()&0o222 == 0 {
-		return CompletionResult{}, newError(
-			ErrPlanReadOnly,
-			plan.Initiative,
-			taskGroupID,
-			planPath,
-			[]Issue{{Path: planPath, Field: "write", Message: "task group plan has no write permission"}},
-		)
-	}
-	if writeErr := s.ops.write(planPath, rewrite.Content, info.Mode().Perm()); writeErr != nil {
-		if errors.Is(writeErr, fs.ErrPermission) {
-			return CompletionResult{}, newError(
-				ErrPlanReadOnly,
-				plan.Initiative,
-				taskGroupID,
-				planPath,
-				[]Issue{{Path: planPath, Field: "write", Message: writeErr.Error()}},
-			)
-		}
-		return CompletionResult{}, writeErr
+	if err := s.writeValidatedCompletion(
+		ctx,
+		planPath,
+		plan.Initiative,
+		taskGroupID,
+		content,
+		rewrite.Content,
+		mode,
+		validator,
+	); err != nil {
+		return CompletionResult{}, err
 	}
 	committed, committedErr := s.Load(ctx, initiativeDir)
 	if committedErr != nil {
@@ -300,6 +309,63 @@ func (s *Store) markCompleteLocked(
 		)
 	}
 	return CompletionResult{Plan: committed, CompletionRecorded: true}, nil
+}
+
+func writablePlanMode(planPath, initiative, taskGroupID string) (fs.FileMode, error) {
+	info, err := os.Stat(planPath)
+	if err != nil {
+		return 0, fmt.Errorf("stat task group plan: %w", err)
+	}
+	mode := info.Mode().Perm()
+	if mode&0o222 == 0 {
+		return 0, newError(
+			ErrPlanReadOnly,
+			initiative,
+			taskGroupID,
+			planPath,
+			[]Issue{{Path: planPath, Field: "write", Message: "task group plan has no write permission"}},
+		)
+	}
+	return mode, nil
+}
+
+func (s *Store) writeValidatedCompletion(
+	ctx context.Context,
+	planPath, initiative, taskGroupID string,
+	original, rewritten []byte,
+	mode fs.FileMode,
+	validator CompletionValidator,
+) error {
+	if err := s.ops.write(planPath, rewritten, mode); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return newError(
+				ErrPlanReadOnly,
+				initiative,
+				taskGroupID,
+				planPath,
+				[]Issue{{Path: planPath, Field: "write", Message: err.Error()}},
+			)
+		}
+		return err
+	}
+	if err := validateCompletionEvidenceAtWrite(ctx, validator); err != nil {
+		rollbackErr := s.ops.write(planPath, original, mode)
+		if rollbackErr != nil {
+			rollbackErr = fmt.Errorf("restore task group plan after stale completion evidence: %w", rollbackErr)
+		}
+		return errors.Join(err, rollbackErr)
+	}
+	return nil
+}
+
+func validateCompletionEvidenceAtWrite(ctx context.Context, validator CompletionValidator) error {
+	if validator == nil {
+		return nil
+	}
+	if err := validator(ctx); err != nil {
+		return fmt.Errorf("validate task group completion evidence: %w", err)
+	}
+	return nil
 }
 
 // MarkComplete records a checkbox through a default completion store.

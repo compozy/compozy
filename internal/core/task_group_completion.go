@@ -33,7 +33,12 @@ type TaskGroupCompletionResult struct {
 }
 
 type taskGroupCompletionStore interface {
-	MarkComplete(context.Context, string, string) (taskgroups.CompletionResult, error)
+	MarkCompleteValidated(
+		context.Context,
+		string,
+		string,
+		taskgroups.CompletionValidator,
+	) (taskgroups.CompletionResult, error)
 }
 
 type taskGroupTargetResolver interface {
@@ -82,20 +87,19 @@ func (s *TaskGroupCompletionService) Complete(
 		return result, err
 	}
 
-	// Re-derive current task, review, path, and dependency evidence immediately
-	// before the checkbox write. Store.MarkComplete locks only _task_groups.md,
-	// so a concurrent task, review, or plan writer could invalidate the gate above
-	// between the check and the record below. Recording completion from stale
-	// evidence would violate the bridge invariant that a task group is completed only
-	// from current terminal-task, resolved-review, dependency, and verification
-	// evidence; this compare-and-swap refuses to record when any of it has changed.
-	gate, err = service.evaluateCompletionGate(ctx, request, result.Reference)
-	result.ReviewClean = gate.reviewClean
-	if err != nil {
-		return result, err
-	}
-
-	completed, err := service.store.MarkComplete(ctx, gate.target.InitiativeDir, gate.target.TaskGroup.ID)
+	completed, err := service.store.MarkCompleteValidated(
+		ctx,
+		gate.target.InitiativeDir,
+		gate.target.TaskGroup.ID,
+		func(validationCtx context.Context) error {
+			currentGate, validationErr := service.evaluateCompletionGate(validationCtx, request, result.Reference)
+			result.ReviewClean = currentGate.reviewClean
+			if validationErr == nil {
+				gate = currentGate
+			}
+			return validationErr
+		},
+	)
 	if err != nil {
 		return result, err
 	}

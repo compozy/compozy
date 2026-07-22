@@ -302,7 +302,7 @@ func TestTransportGateRejectsArchivedTaskGroupDroppedByRecreatedParent(t *testin
 		}},
 	}
 	for _, surface := range surfaces {
-		t.Run(surface.name, func(t *testing.T) {
+		t.Run("Should reject dropped task group on "+surface.name, func(t *testing.T) {
 			err := surface.read()
 			if !errors.Is(err, taskgroups.ErrTaskGroupNotFound) {
 				t.Fatalf("%s(%s) error = %v, want ErrTaskGroupNotFound", surface.name, droppedRef, err)

@@ -3523,7 +3523,7 @@ func TestRunManagerRejectsEscapedTaskGroupManifestBeforeTaskStarts(t *testing.T)
 		}
 	}
 
-	t.Run("single task run", func(t *testing.T) {
+	t.Run("Should reject an escaped manifest on a single task run", func(t *testing.T) {
 		t.Parallel()
 
 		env, taskGroupRef := newEscapedTaskGroup(t)
@@ -3544,7 +3544,7 @@ func TestRunManagerRejectsEscapedTaskGroupManifestBeforeTaskStarts(t *testing.T)
 		}
 	})
 
-	t.Run("multiple task run", func(t *testing.T) {
+	t.Run("Should reject an escaped manifest on a multiple task run", func(t *testing.T) {
 		t.Parallel()
 
 		env, _ := newEscapedTaskGroup(t)

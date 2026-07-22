@@ -95,7 +95,7 @@ func TestTaskGroupErrorsUseTypedSafeTransportProblems(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("Should return "+tc.name, func(t *testing.T) {
 			t.Parallel()
 			engine := newCanonicalHandlersEngine(core.NewHandlers(&core.HandlerConfig{
 				TransportName: "test",
@@ -149,7 +149,7 @@ func TestTaskRunRoutesUseStructuredTaskGroupIdentity(t *testing.T) {
 		Tasks:         tasks,
 	}))
 
-	t.Run("single task group body", func(t *testing.T) {
+	t.Run("Should accept a single task group body", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodPost,
@@ -170,7 +170,7 @@ func TestTaskRunRoutesUseStructuredTaskGroupIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple task group targets", func(t *testing.T) {
+	t.Run("Should accept multiple task group targets", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodPost,
@@ -193,7 +193,7 @@ func TestTaskRunRoutesUseStructuredTaskGroupIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("slash child route is not accepted", func(t *testing.T) {
+	t.Run("Should reject a slash child route", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
 			http.MethodPost,
@@ -244,7 +244,7 @@ func TestStructuredTaskTargetsRejectInvalidTaskGroupID(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("Should reject "+tc.name, func(t *testing.T) {
 			t.Parallel()
 			request := httptest.NewRequestWithContext(
 				t.Context(),

@@ -1,4 +1,4 @@
-// TaskGroup taskgroups owns the canonical optional Task Group domain.
+// Package taskgroups owns the canonical optional Task Group domain.
 package taskgroups
 
 const (

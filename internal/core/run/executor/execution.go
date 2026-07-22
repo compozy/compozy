@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
@@ -684,11 +686,61 @@ func remapReviewPromptPaths(prompt []byte, sourceRoot string, isolatedRoot strin
 	if len(prompt) == 0 {
 		return prompt
 	}
-	replacer := strings.NewReplacer(
-		filepath.Clean(sourceRoot), filepath.Clean(isolatedRoot),
-		filepath.ToSlash(filepath.Clean(sourceRoot)), filepath.ToSlash(filepath.Clean(isolatedRoot)),
-	)
-	return []byte(replacer.Replace(string(prompt)))
+	source := filepath.Clean(sourceRoot)
+	isolation := filepath.Clean(isolatedRoot)
+	remapped := remapPromptPathRoot(string(prompt), source, isolation)
+	slashSource := filepath.ToSlash(source)
+	if slashSource != source {
+		remapped = remapPromptPathRoot(remapped, slashSource, filepath.ToSlash(isolation))
+	}
+	return []byte(remapped)
+}
+
+func remapPromptPathRoot(text string, sourceRoot string, isolatedRoot string) string {
+	var builder strings.Builder
+	cursor := 0
+	searchFrom := 0
+	for searchFrom < len(text) {
+		offset := strings.Index(text[searchFrom:], sourceRoot)
+		if offset < 0 {
+			break
+		}
+		start := searchFrom + offset
+		end := start + len(sourceRoot)
+		if promptPathBoundaryBefore(text, start) && promptPathBoundaryAfter(text, end) {
+			builder.WriteString(text[cursor:start])
+			builder.WriteString(isolatedRoot)
+			cursor = end
+			searchFrom = end
+			continue
+		}
+		searchFrom = end
+	}
+	if cursor == 0 {
+		return text
+	}
+	builder.WriteString(text[cursor:])
+	return builder.String()
+}
+
+func promptPathBoundaryBefore(text string, index int) bool {
+	if index == 0 {
+		return true
+	}
+	value, _ := utf8.DecodeLastRuneInString(text[:index])
+	return promptPathDelimiter(value)
+}
+
+func promptPathBoundaryAfter(text string, index int) bool {
+	if index == len(text) {
+		return true
+	}
+	value, _ := utf8.DecodeRuneInString(text[index:])
+	return value == '/' || value == '\\' || promptPathDelimiter(value)
+}
+
+func promptPathDelimiter(value rune) bool {
+	return unicode.IsSpace(value) || strings.ContainsRune("\"'`()[]{}<>,;:=", value)
 }
 
 func (j *jobExecutionContext) runtimeForJob(index int) (*config, string) {

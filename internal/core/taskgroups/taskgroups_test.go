@@ -1,6 +1,7 @@
 package taskgroups
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -684,6 +685,50 @@ func TestCompletion(t *testing.T) {
 		}
 		if strings.Replace(string(rewrite.Content), "[x] TG-001", "[ ] TG-001", 1) != string(before) {
 			t.Fatalf("rewrite changed bytes other than selected checkbox\nwant %q\ngot  %q", before, rewrite.Content)
+		}
+	})
+
+	t.Run("Should rewrite headings with parser-compatible separator whitespace", func(t *testing.T) {
+		t.Parallel()
+		for _, separator := range []string{"—", "—\t"} {
+			content := bytes.Replace(twoTaskGroupPlan(t), []byte("— Persistence"), []byte(separator+"Persistence"), 1)
+			rewrite, err := RewriteCompletion(content, "TG-001")
+			if err != nil || !rewrite.WriteRequired || !bytes.Contains(rewrite.Content, []byte("[x] TG-001")) {
+				t.Fatalf("RewriteCompletion(separator %q) = %#v, error = %v", separator, rewrite, err)
+			}
+		}
+	})
+
+	t.Run("Should restore the plan when completion evidence changes during the write", func(t *testing.T) {
+		t.Parallel()
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		before := twoTaskGroupPlan(t)
+		writeTestFile(t, initiativeDir, ManifestFileName, string(before))
+		validations := 0
+
+		result, err := NewStore().MarkCompleteValidated(
+			context.Background(),
+			initiativeDir,
+			"TG-001",
+			func(context.Context) error {
+				validations++
+				if validations == 2 {
+					return errors.New("task reopened")
+				}
+				return nil
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "task reopened") {
+			t.Fatalf("MarkCompleteValidated() error = %v, want stale-evidence rejection", err)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted {
+			t.Fatalf("MarkCompleteValidated() result = %#v, want no completion", result)
+		}
+		if validations != 2 {
+			t.Fatalf("completion evidence validations = %d, want 2", validations)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, ManifestFileName)); !slices.Equal(got, before) {
+			t.Fatalf("stale-evidence rollback changed plan bytes\nwant %q\ngot  %q", before, got)
 		}
 	})
 

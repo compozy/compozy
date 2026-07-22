@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
@@ -202,6 +203,9 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 
 func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	var captured agent.ClientConfig
+	start := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
+	clock := newFakeClock(start)
+	t.Cleanup(SetActivityClockForTest(clock))
 	activity := newActivityMonitor()
 	restore := SwapNewAgentClientForTest(func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
 		captured = cfg
@@ -252,6 +256,10 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 		t.Fatalf("active terminal reported idle duration %v, want 0", idle)
 	}
 	captured.TerminalActivityFinished()
+	clock.set(start.Add(time.Second))
+	if idle := activity.TimeSinceLastActivity(); idle != time.Second {
+		t.Fatalf("finished terminal reported idle duration %v, want %v", idle, time.Second)
+	}
 }
 
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {

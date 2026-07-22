@@ -18,14 +18,20 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
-type completionStoreFunc func(context.Context, string, string) (taskgroups.CompletionResult, error)
+type completionStoreFunc func(
+	context.Context,
+	string,
+	string,
+	taskgroups.CompletionValidator,
+) (taskgroups.CompletionResult, error)
 
-func (fn completionStoreFunc) MarkComplete(
+func (fn completionStoreFunc) MarkCompleteValidated(
 	ctx context.Context,
 	initiativeDir string,
 	taskGroupID string,
+	validator taskgroups.CompletionValidator,
 ) (taskgroups.CompletionResult, error) {
-	return fn(ctx, initiativeDir, taskGroupID)
+	return fn(ctx, initiativeDir, taskGroupID, validator)
 }
 
 func TestSyncTaskMetadataSyncsSingleWorkflowIntoGlobalDBWithoutMutatingArtifacts(t *testing.T) {
@@ -1211,7 +1217,12 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 		before := mustReadFile(t, planPath)
 		service := NewTaskGroupCompletionService()
 		service.store = completionStoreFunc(
-			func(context.Context, string, string) (taskgroups.CompletionResult, error) {
+			func(
+				context.Context,
+				string,
+				string,
+				taskgroups.CompletionValidator,
+			) (taskgroups.CompletionResult, error) {
 				return taskgroups.CompletionResult{}, fmt.Errorf(
 					"record completion: %w",
 					taskgroups.ErrPlanReadOnly,
@@ -1469,6 +1480,44 @@ func TestTaskGroupCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
 		}
 		if got := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName)); got != before {
 			t.Fatal("reopened-review race changed plan bytes")
+		}
+	})
+
+	t.Run("Should refuse completion when a task reopens after the final service gate", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("completed", "TG-001 task"))
+		before := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName))
+		realStore := taskgroups.NewStore()
+		service := NewTaskGroupCompletionService()
+		service.store = completionStoreFunc(
+			func(
+				ctx context.Context,
+				initiativeDir, taskGroupID string,
+				validator taskgroups.CompletionValidator,
+			) (taskgroups.CompletionResult, error) {
+				writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("pending", "TG-001 task"))
+				return realStore.MarkCompleteValidated(ctx, initiativeDir, taskGroupID, validator)
+			},
+		)
+		service.sync = func(context.Context, string, model.ExecutionScope) error {
+			t.Fatal("sync must not run after evidence changes at the store boundary")
+			return nil
+		}
+
+		result, err := service.Complete(context.Background(), TaskGroupCompletionRequest{
+			WorkspaceRoot: workspaceRoot, Reference: "initiative/TG-001", VerificationPassed: true,
+		})
+		if err == nil || !strings.Contains(err.Error(), "all task group tasks to be terminal") {
+			t.Fatalf("store-boundary completion error = %v, want terminal-task block", err)
+		}
+		if result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("store-boundary stale evidence recorded completion: %#v", result)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName)); got != before {
+			t.Fatal("store-boundary stale evidence changed plan bytes")
 		}
 	})
 }

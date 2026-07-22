@@ -366,42 +366,69 @@ func TestRunDBProjectsIndexZeroLifecycleToCanonicalJobID(t *testing.T) {
 func TestRunDBProjectsStalledAndParkedJobStates(t *testing.T) {
 	t.Parallel()
 
-	runID := "run-parked-projection"
-	db := openTestRunDB(t, runID)
-	defer func() { _ = db.Close() }()
-	startedAt := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
-	items := []events.Event{
-		mustEvent(t, runID, 1, startedAt, events.EventKindJobQueued, kinds.JobQueuedPayload{
-			Index: 0, SafeName: "review-batch-001", TaskTitle: "Fix review batch",
-		}),
-		mustEvent(t, runID, 2, startedAt.Add(time.Second), events.EventKindJobStalled, kinds.JobStalledPayload{
-			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 2},
-			Reason:         "no activity",
-			LastToolCall:   "tool-bash",
-		}),
-		mustEvent(t, runID, 3, startedAt.Add(2*time.Second), events.EventKindJobParked, kinds.JobParkedPayload{
-			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 2, MaxAttempts: 2},
-			Reason:         "stalled again",
-			WorktreePath:   "/tmp/review-job",
-		}),
-	}
-	if err := db.StoreEventBatch(context.Background(), items); err != nil {
-		t.Fatalf("StoreEventBatch() error = %v", err)
-	}
+	t.Run("Should project stalled then parked states", func(t *testing.T) {
+		t.Parallel()
 
-	rows, err := db.ListJobState(context.Background())
-	if err != nil {
-		t.Fatalf("ListJobState() error = %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("job rows = %#v, want one canonical row", rows)
-	}
-	if got, want := rows[0].Status, "parked"; got != want {
-		t.Fatalf("job status = %q, want %q", got, want)
-	}
-	if !strings.Contains(rows[0].SummaryJSON, `"worktree_path":"/tmp/review-job"`) {
-		t.Fatalf("job summary = %s, want parked triage payload", rows[0].SummaryJSON)
-	}
+		runID := "run-parked-projection"
+		db := openTestRunDB(t, runID)
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Errorf("close run database: %v", err)
+			}
+		})
+		startedAt := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
+		initial := []events.Event{
+			mustEvent(t, runID, 1, startedAt, events.EventKindJobQueued, kinds.JobQueuedPayload{
+				Index: 0, SafeName: "review-batch-001", TaskTitle: "Fix review batch",
+			}),
+			mustEvent(t, runID, 2, startedAt.Add(time.Second), events.EventKindJobStalled, kinds.JobStalledPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 2},
+				Reason:         "no activity",
+				LastToolCall:   "tool-bash",
+			}),
+		}
+		if err := db.StoreEventBatch(context.Background(), initial); err != nil {
+			t.Fatalf("StoreEventBatch(stalled) error = %v", err)
+		}
+
+		rows, err := db.ListJobState(context.Background())
+		if err != nil {
+			t.Fatalf("ListJobState(stalled) error = %v", err)
+		}
+		if len(rows) != 1 || rows[0].Status != "stalled" {
+			t.Fatalf("stalled job rows = %#v, want one stalled row", rows)
+		}
+		if !strings.Contains(rows[0].SummaryJSON, `"last_tool_call":"tool-bash"`) {
+			t.Fatalf("job summary = %s, want stalled diagnostics", rows[0].SummaryJSON)
+		}
+
+		parked := mustEvent(
+			t,
+			runID,
+			3,
+			startedAt.Add(2*time.Second),
+			events.EventKindJobParked,
+			kinds.JobParkedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 2, MaxAttempts: 2},
+				Reason:         "stalled again",
+				WorktreePath:   "/tmp/review-job",
+			},
+		)
+		if err := db.StoreEventBatch(context.Background(), []events.Event{parked}); err != nil {
+			t.Fatalf("StoreEventBatch(parked) error = %v", err)
+		}
+
+		rows, err = db.ListJobState(context.Background())
+		if err != nil {
+			t.Fatalf("ListJobState(parked) error = %v", err)
+		}
+		if len(rows) != 1 || rows[0].Status != "parked" {
+			t.Fatalf("parked job rows = %#v, want one parked row", rows)
+		}
+		if !strings.Contains(rows[0].SummaryJSON, `"worktree_path":"/tmp/review-job"`) {
+			t.Fatalf("job summary = %s, want parked triage payload", rows[0].SummaryJSON)
+		}
+	})
 }
 
 func TestRunDBRecordHookRunValidatesRequiredFields(t *testing.T) {

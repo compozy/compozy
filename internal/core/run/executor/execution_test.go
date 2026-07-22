@@ -1738,6 +1738,21 @@ func assertNoRuntimeEvents(t *testing.T, ch <-chan eventspkg.Event, wait time.Du
 	}
 }
 
+func TestRemapReviewPromptPathsPreservesPathBoundaries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remap workspace children without corrupting prefixed external paths", func(t *testing.T) {
+		t.Parallel()
+
+		prompt := []byte("edit /work/app/task.md and inspect /work/app-backup/input.md")
+		got := string(remapReviewPromptPaths(prompt, "/work/app", "/tmp/isolated"))
+		want := "edit /tmp/isolated/task.md and inspect /work/app-backup/input.md"
+		if got != want {
+			t.Fatalf("remapped prompt = %q, want %q", got, want)
+		}
+	})
+}
+
 type statusCodeErr struct {
 	code int
 	err  error
