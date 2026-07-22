@@ -202,6 +202,7 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 
 func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	var captured agent.ClientConfig
+	activity := newActivityMonitor()
 	restore := SwapNewAgentClientForTest(func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
 		captured = cfg
 		return &capturingCommandIOClient{}, nil
@@ -223,6 +224,7 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 			ReasoningEffort: "high",
 		},
 		silentLogger(),
+		activity,
 	)
 	if err != nil {
 		t.Fatalf("create ACP client: %v", err)
@@ -242,6 +244,14 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	if captured.AccessMode != model.AccessModeFull {
 		t.Fatalf("expected access mode to stay global, got %q", captured.AccessMode)
 	}
+	if captured.TerminalActivityStarted == nil || captured.TerminalActivityFinished == nil {
+		t.Fatal("terminal activity callbacks were not forwarded to the ACP client")
+	}
+	captured.TerminalActivityStarted()
+	if idle := activity.TimeSinceLastActivity(); idle != 0 {
+		t.Fatalf("active terminal reported idle duration %v, want 0", idle)
+	}
+	captured.TerminalActivityFinished()
 }
 
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {

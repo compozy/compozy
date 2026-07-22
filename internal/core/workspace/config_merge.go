@@ -133,7 +133,8 @@ func buildEffectiveFixReviewsConfig(
 			workspaceDefaults.OutputFormat,
 			workspace.OutputFormat,
 		),
-		TUI: cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
+		TUI:   cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
+		Stall: effectiveStallOverride(globalDefaults.Stall, global.Stall, workspaceDefaults.Stall, workspace.Stall),
 	}
 }
 

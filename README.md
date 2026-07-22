@@ -219,6 +219,11 @@ concurrent = 2
 batch_size = 3
 include_resolved = false
 
+[fix_reviews.stall]
+timeout = "45s"
+terminal_command_timeout = "8m"
+retries = 4
+
 [fetch_reviews]
 provider = "coderabbit"
 nitpicks = false
@@ -226,13 +231,13 @@ nitpicks = false
 
 Supported sections:
 
-- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`; `[defaults.stall]` controls progress-aware idle detection, terminal command caps, and clean-state retry budget
 - `[defaults.by_complexity.low|medium|high|critical]` for per-task `ide`, `model`, and `reasoning_effort` defaults used by PRD task runs
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
 - `[tasks.run.parallel]` for options used after dependency-aware parallel execution is explicitly selected for one PRD task workflow, including `max_concurrency` and the conflict-resolver agent under `[tasks.run.parallel.conflict_resolver]`; `enabled` remains parseable for compatibility but is not authorization to create worktrees
-- `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
+- `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`; `[fix_reviews.stall]` overrides the global stall policy for review-fix runs
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[recovery]` for agentic recovery defaults used by run-producing commands: `enabled`, `ide`, `model`, `reasoning_effort`, and `max_attempts`
 - `[sound]` for optional run-completion audio presets or absolute file paths

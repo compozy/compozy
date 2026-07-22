@@ -31,14 +31,27 @@ func (j *jobExecutionContext) afterJobSuccess(
 	jb *job,
 	preSnapshot worktree.Snapshot,
 ) error {
-	if j.cfg.Mode == model.ExecutionModePRDTasks {
+	return j.afterJobSuccessForRuntime(ctx, 0, jb, j.cfg, preSnapshot)
+}
+
+func (j *jobExecutionContext) afterJobSuccessForRuntime(
+	ctx context.Context,
+	index int,
+	jb *job,
+	jobCfg *config,
+	preSnapshot worktree.Snapshot,
+) error {
+	if jobCfg == nil {
+		return errors.New("missing job runtime config for post-processing")
+	}
+	if jobCfg.Mode == model.ExecutionModePRDTasks {
 		return j.afterTaskJobSuccess(ctx, jb, preSnapshot)
 	}
 
-	if j.cfg.Mode != model.ExecutionModePRReview {
+	if jobCfg.Mode != model.ExecutionModePRReview {
 		return nil
 	}
-	return j.afterReviewJobSuccess(ctx, jb)
+	return j.afterReviewJobSuccess(ctx, index, jb, jobCfg)
 }
 
 func (j *jobExecutionContext) afterTaskJobSuccess(
@@ -170,20 +183,18 @@ func (j *jobExecutionContext) recordTaskNoOp(entry model.IssueEntry, preservedSt
 	)
 }
 
-func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job) error {
-	if strings.TrimSpace(j.cfg.ReviewsDir) == "" {
-		return fmt.Errorf("missing reviews directory for review post-processing")
-	}
-
-	batchEntries := prompt.FlattenAndSortIssues(jb.Groups, model.ExecutionModePRReview)
-	if len(batchEntries) == 0 {
-		return errors.New("missing review entries for review post-processing")
-	}
-	if err := reviews.FinalizeIssueStatuses(j.cfg.ReviewsDir, batchEntries); err != nil {
+func (j *jobExecutionContext) afterReviewJobSuccess(
+	ctx context.Context,
+	index int,
+	jb *job,
+	jobCfg *config,
+) error {
+	batchEntries, visibleEntries, err := j.integrateReviewBatch(ctx, index, jb, jobCfg)
+	if err != nil {
 		return err
 	}
 	issueIDs := make([]string, 0, len(batchEntries))
-	for _, entry := range batchEntries {
+	for _, entry := range visibleEntries {
 		issueIDs = append(issueIDs, entry.Name)
 	}
 	j.submitEventOrWarn(
@@ -198,8 +209,9 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 	if err != nil {
 		return err
 	}
+	resolvedIssues = remapResolvedReviewIssues(resolvedIssues, jobCfg.WorkspaceRoot, j.cfg.WorkspaceRoot)
 	outcome := hookFixOutcome(nil)
-	for _, entry := range batchEntries {
+	for _, entry := range visibleEntries {
 		model.DispatchObserverHook(
 			ctx,
 			j.cfg.RuntimeManager,
@@ -247,7 +259,73 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 		"unresolved",
 		meta.Unresolved,
 	)
+	j.cleanupIntegratedReviewWorkspace(ctx, index)
 	return nil
+}
+
+func (j *jobExecutionContext) cleanupIntegratedReviewWorkspace(ctx context.Context, index int) {
+	if j.reviewIsolation == nil {
+		return
+	}
+	if err := j.reviewIsolation.Cleanup(context.WithoutCancel(ctx), index); err != nil {
+		j.runtimeLogger().Warn("failed to remove integrated review worktree", "job_index", index, "error", err)
+	}
+}
+
+func (j *jobExecutionContext) integrateReviewBatch(
+	ctx context.Context,
+	index int,
+	jb *job,
+	jobCfg *config,
+) ([]model.IssueEntry, []model.IssueEntry, error) {
+	if strings.TrimSpace(jobCfg.ReviewsDir) == "" {
+		return nil, nil, fmt.Errorf("missing reviews directory for review post-processing")
+	}
+
+	batchEntries := prompt.FlattenAndSortIssues(jb.Groups, model.ExecutionModePRReview)
+	if len(batchEntries) == 0 {
+		return nil, nil, errors.New("missing review entries for review post-processing")
+	}
+	if err := reviews.FinalizeIssueStatuses(jobCfg.ReviewsDir, batchEntries); err != nil {
+		return nil, nil, err
+	}
+	if j.reviewIsolation != nil {
+		message := fmt.Sprintf("fix: resolve review batch %s", strings.TrimSpace(jb.SafeName))
+		if err := j.reviewIsolation.Apply(ctx, index, jobCfg.AutoCommit, message); err != nil {
+			return nil, nil, err
+		}
+	}
+	visibleEntries := remapReviewEntries(batchEntries, jobCfg.WorkspaceRoot, j.cfg.WorkspaceRoot)
+	return batchEntries, visibleEntries, nil
+}
+
+func remapReviewEntries(entries []model.IssueEntry, sourceRoot string, targetRoot string) []model.IssueEntry {
+	result := append([]model.IssueEntry(nil), entries...)
+	for index := range result {
+		result[index].AbsPath = remapReviewWorkspacePath(result[index].AbsPath, sourceRoot, targetRoot)
+	}
+	return result
+}
+
+func remapResolvedReviewIssues(
+	issues []resolvedReviewIssue,
+	sourceRoot string,
+	targetRoot string,
+) []resolvedReviewIssue {
+	result := append([]resolvedReviewIssue(nil), issues...)
+	for index := range result {
+		result[index].Entry.AbsPath = remapReviewWorkspacePath(
+			result[index].Entry.AbsPath,
+			sourceRoot,
+			targetRoot,
+		)
+		result[index].Provider.FilePath = remapReviewWorkspacePath(
+			result[index].Provider.FilePath,
+			sourceRoot,
+			targetRoot,
+		)
+	}
+	return result
 }
 
 func singleTaskEntry(jb *job) (model.IssueEntry, error) {

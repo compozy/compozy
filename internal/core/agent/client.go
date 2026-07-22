@@ -51,6 +51,10 @@ type ClientConfig struct {
 	// terminal command as a last-resort backstop. Zero falls back to the
 	// resolved stall-policy default.
 	TerminalCommandTimeout time.Duration
+	// TerminalActivityStarted and TerminalActivityFinished bracket each live
+	// terminal command so callers can distinguish command execution from idle.
+	TerminalActivityStarted  func()
+	TerminalActivityFinished func()
 }
 
 // SessionRequest contains the parameters for creating a new ACP session.
@@ -312,20 +316,22 @@ type clientImpl struct {
 	// the deadline (used by focused tests that build the struct directly).
 	handlerDeadline time.Duration
 
-	mu             sync.Mutex
-	process        *subprocess.Process
-	conn           *acp.ClientSideConnection
-	started        bool
-	closed         bool
-	startModel     string
-	startCommand   []string
-	sessions       map[string]*sessionImpl
-	pendingCreates int
-	pendingUpdates map[string][]model.SessionUpdate
-	loadSupported  bool
-	terminalMu     sync.Mutex
-	terminalNext   int
-	terminals      map[string]*terminalProcess
+	mu                       sync.Mutex
+	process                  *subprocess.Process
+	conn                     *acp.ClientSideConnection
+	started                  bool
+	closed                   bool
+	startModel               string
+	startCommand             []string
+	sessions                 map[string]*sessionImpl
+	pendingCreates           int
+	pendingUpdates           map[string][]model.SessionUpdate
+	loadSupported            bool
+	terminalMu               sync.Mutex
+	terminalNext             int
+	terminals                map[string]*terminalProcess
+	terminalActivityStarted  func()
+	terminalActivityFinished func()
 
 	wg sync.WaitGroup
 }
@@ -346,13 +352,15 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 	}
 
 	return &clientImpl{
-		spec:                   spec,
-		cfg:                    cfg,
-		logger:                 cfg.Logger,
-		shutdownTimeout:        shutdownTimeout,
-		terminalCommandTimeout: cfg.TerminalCommandTimeout,
-		handlerDeadline:        defaultAgentHandlerDeadline,
-		sessions:               make(map[string]*sessionImpl),
+		spec:                     spec,
+		cfg:                      cfg,
+		logger:                   cfg.Logger,
+		shutdownTimeout:          shutdownTimeout,
+		terminalCommandTimeout:   cfg.TerminalCommandTimeout,
+		terminalActivityStarted:  cfg.TerminalActivityStarted,
+		terminalActivityFinished: cfg.TerminalActivityFinished,
+		handlerDeadline:          defaultAgentHandlerDeadline,
+		sessions:                 make(map[string]*sessionImpl),
 	}, nil
 }
 

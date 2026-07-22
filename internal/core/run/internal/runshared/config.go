@@ -47,6 +47,7 @@ type Config struct {
 	SoundOnParked          string
 	Stall                  model.StallPolicy
 	JobControls            *model.JobControlRegistry
+	ExecutionScope         *model.ExecutionScope
 }
 
 type Job struct {
@@ -148,6 +149,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		RunArtifacts:           runArtifacts,
 		IncludeCompleted:       src.IncludeCompleted,
 		IncludeResolved:        src.IncludeResolved,
+		ExecutionScope:         cloneExecutionScope(src.ExecutionScope),
 		Timeout:                src.Timeout,
 		MaxRetries:             src.MaxRetries,
 		RetryBackoffMultiplier: src.RetryBackoffMultiplier,
@@ -158,6 +160,14 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		Stall:                  src.StallPolicy(),
 		JobControls:            src.JobControls,
 	}
+}
+
+func cloneExecutionScope(scope *model.ExecutionScope) *model.ExecutionScope {
+	if scope == nil {
+		return nil
+	}
+	cloned := *scope
+	return &cloned
 }
 
 func NewJobs(src []model.Job) []Job {

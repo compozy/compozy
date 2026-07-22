@@ -2468,12 +2468,29 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			OutputFormat:     stringPtr(string(model.OutputFormatRawJSON)),
 			TaskRuntimeRules: &rules,
 		})
-		applyReviewProjectConfig(cfg, workspacecfg.FixReviewsConfig{
+		if err := applyReviewProjectConfig(cfg, workspacecfg.FixReviewsConfig{
 			Concurrent:      intPtr(4),
 			BatchSize:       intPtr(2),
 			IncludeResolved: boolPtr(true),
 			OutputFormat:    stringPtr(string(model.OutputFormatJSON)),
-		})
+			Stall: workspacecfg.StallOverrides{
+				Timeout:                stringPtr("45s"),
+				TerminalCommandTimeout: stringPtr("8m"),
+				Retries:                intPtr(4),
+			},
+		}); err != nil {
+			t.Fatalf("applyReviewProjectConfig() error = %v", err)
+		}
+		if cfg.StallTimeout != 45*time.Second || cfg.TerminalCommandTimeout != 8*time.Minute {
+			t.Fatalf(
+				"review stall durations = %v / %v, want 45s / 8m",
+				cfg.StallTimeout,
+				cfg.TerminalCommandTimeout,
+			)
+		}
+		if cfg.StallRetries == nil || *cfg.StallRetries != 4 {
+			t.Fatalf("review stall retries = %#v, want 4", cfg.StallRetries)
+		}
 		if err := applyExecProjectConfig(cfg, workspacecfg.ExecConfig{
 			RuntimeOverrides: workspacecfg.RuntimeOverrides{
 				Timeout: stringPtr("3m"),
@@ -2639,6 +2656,14 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			)
 		}
 		assertProblemStatus(t, terminalErr, 422)
+
+		reviewErr := applyReviewProjectConfig(cfg, workspacecfg.FixReviewsConfig{
+			Stall: workspacecfg.StallOverrides{Timeout: stringPtr("invalid-review-timeout")},
+		})
+		if reviewErr == nil {
+			t.Fatal("applyReviewProjectConfig(invalid stall.timeout) error = nil, want non-nil")
+		}
+		assertProblemStatus(t, reviewErr, 422)
 	})
 
 	t.Run("Should resolve the parked sound override", func(t *testing.T) {
@@ -2663,6 +2688,10 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			"child_timeout = \"9m\"\n" +
 			"terminal_command_timeout = \"30m\"\n" +
 			"retries = 2\n\n" +
+			"[fix_reviews.stall]\n" +
+			"timeout = \"45s\"\n" +
+			"terminal_command_timeout = \"8m\"\n" +
+			"retries = 4\n\n" +
 			"[sound]\n" +
 			"on_parked = \"ping\"\n"
 		if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o600); err != nil {
@@ -2683,17 +2712,20 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		); err != nil {
 			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
 		}
+		if err := applyReviewProjectConfig(cfg, projectCfg.FixReviews); err != nil {
+			t.Fatalf("applyReviewProjectConfig() error = %v", err)
+		}
 		cfg.ApplyDefaults()
 
 		policy := cfg.StallPolicy()
 		if !policy.Enabled {
 			t.Fatalf("expected enabled-by-default when unset, got %#v", policy)
 		}
-		if policy.IdleTimeout != 2*time.Minute || policy.ChildTimeout != 9*time.Minute {
-			t.Fatalf("resolved timeouts = %v / %v, want 2m / 9m", policy.IdleTimeout, policy.ChildTimeout)
+		if policy.IdleTimeout != 45*time.Second || policy.ChildTimeout != 9*time.Minute {
+			t.Fatalf("resolved timeouts = %v / %v, want 45s / 9m", policy.IdleTimeout, policy.ChildTimeout)
 		}
-		if policy.TerminalCap != 30*time.Minute || policy.Retries != 2 {
-			t.Fatalf("resolved cap/retries = %v / %d, want 30m / 2", policy.TerminalCap, policy.Retries)
+		if policy.TerminalCap != 8*time.Minute || policy.Retries != 4 {
+			t.Fatalf("resolved cap/retries = %v / %d, want 8m / 4", policy.TerminalCap, policy.Retries)
 		}
 		if cfg.SoundOnParked != "ping" {
 			t.Fatalf("resolved parked sound = %q, want ping", cfg.SoundOnParked)

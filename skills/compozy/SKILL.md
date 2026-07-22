@@ -185,6 +185,11 @@ recursive = false
 concurrent = 2
 batch_size = 3
 
+[fix_reviews.stall]
+timeout = "45s"
+terminal_command_timeout = "8m"
+retries = 4
+
 [fetch_reviews]
 provider = "coderabbit"
 nitpicks = false

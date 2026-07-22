@@ -153,7 +153,7 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := createACPClient(setupCtx, req.Config, req.Job, logger)
+	client, err := createACPClient(setupCtx, req.Config, req.Job, logger, req.Activity)
 	if err != nil {
 		err = withSetupContextCause(setupCtx, err)
 		setupErr := setupFailureForUser(req.Config, req.Job, err)
@@ -331,17 +331,30 @@ func resolveSessionLogger(logger *slog.Logger) *slog.Logger {
 	return runtimeLogger(false)
 }
 
-func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Logger) (agent.Client, error) {
+func createACPClient(
+	ctx context.Context,
+	cfg *config,
+	job *job,
+	logger *slog.Logger,
+	activity *activityMonitor,
+) (agent.Client, error) {
 	ide := jobIDE(cfg, job)
+	var terminalActivityStarted, terminalActivityFinished func()
+	if activity != nil {
+		terminalActivityStarted = activity.BeginActivity
+		terminalActivityFinished = activity.EndActivity
+	}
 	client, err := newAgentClient(ctx, agent.ClientConfig{
-		IDE:                    ide,
-		Model:                  jobModel(cfg, job),
-		AddDirs:                append([]string(nil), cfg.AddDirs...),
-		ReasoningEffort:        jobReasoningEffort(cfg, job),
-		AccessMode:             cfg.AccessMode,
-		Logger:                 logger.With("component", "acp.client", "agent_id", ide),
-		ShutdownTimeout:        runshared.ProcessTerminationGracePeriod,
-		TerminalCommandTimeout: cfg.Stall.TerminalCap,
+		IDE:                      ide,
+		Model:                    jobModel(cfg, job),
+		AddDirs:                  append([]string(nil), cfg.AddDirs...),
+		ReasoningEffort:          jobReasoningEffort(cfg, job),
+		AccessMode:               cfg.AccessMode,
+		Logger:                   logger.With("component", "acp.client", "agent_id", ide),
+		ShutdownTimeout:          runshared.ProcessTerminationGracePeriod,
+		TerminalCommandTimeout:   cfg.Stall.TerminalCap,
+		TerminalActivityStarted:  terminalActivityStarted,
+		TerminalActivityFinished: terminalActivityFinished,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create ACP client: %w", err)

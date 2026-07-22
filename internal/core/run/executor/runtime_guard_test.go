@@ -166,6 +166,10 @@ func TestJobRunnerDispatchPreExecuteRejectsRuntimeMutation(t *testing.T) {
 		},
 	}
 
+	execCfg := &config{
+		RuntimeManager: manager,
+		RunArtifacts:   model.RunArtifacts{RunID: "run-1"},
+	}
 	runner := &jobRunner{
 		job: &job{
 			SafeName:        "task_01",
@@ -173,12 +177,8 @@ func TestJobRunnerDispatchPreExecuteRejectsRuntimeMutation(t *testing.T) {
 			Model:           "gpt-5.5",
 			ReasoningEffort: "medium",
 		},
-		execCtx: &jobExecutionContext{
-			cfg: &config{
-				RuntimeManager: manager,
-				RunArtifacts:   model.RunArtifacts{RunID: "run-1"},
-			},
-		},
+		cfg:     execCfg,
+		execCtx: &jobExecutionContext{cfg: execCfg},
 	}
 
 	err := runner.dispatchPreExecuteHook(context.Background())
@@ -203,6 +203,10 @@ func TestJobRunnerDispatchPreExecuteRejectsWhitespaceOnlyRuntimeMutation(t *test
 		},
 	}
 
+	execCfg := &config{
+		RuntimeManager: manager,
+		RunArtifacts:   model.RunArtifacts{RunID: "run-1"},
+	}
 	runner := &jobRunner{
 		job: &job{
 			SafeName:        "task_01",
@@ -210,12 +214,8 @@ func TestJobRunnerDispatchPreExecuteRejectsWhitespaceOnlyRuntimeMutation(t *test
 			Model:           "gpt-5.5",
 			ReasoningEffort: "medium",
 		},
-		execCtx: &jobExecutionContext{
-			cfg: &config{
-				RuntimeManager: manager,
-				RunArtifacts:   model.RunArtifacts{RunID: "run-1"},
-			},
-		},
+		cfg:     execCfg,
+		execCtx: &jobExecutionContext{cfg: execCfg},
 	}
 
 	err := runner.dispatchPreExecuteHook(context.Background())

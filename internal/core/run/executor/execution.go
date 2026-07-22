@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/sound"
+	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -453,26 +454,29 @@ func equalOptionalString(left *string, right *string) bool {
 }
 
 type jobExecutionContext struct {
-	ctx            context.Context
-	cfg            *config
-	jobs           []job
-	total          int
-	cwd            string
-	logger         *slog.Logger
-	journal        *journal.Journal
-	bus            *events.Bus[events.Event]
-	ui             uiSession
-	sem            chan struct{}
-	aggregateUsage model.Usage
-	aggregateMu    sync.Mutex
-	failed         int32
-	failures       []failInfo
-	failuresMu     sync.Mutex
-	completed      int32
-	wg             sync.WaitGroup
-	clientsMu      sync.Mutex
-	activeClients  map[agent.Client]struct{}
-	cancelJobs     context.CancelCauseFunc
+	ctx             context.Context
+	cfg             *config
+	jobs            []job
+	total           int
+	cwd             string
+	logger          *slog.Logger
+	journal         *journal.Journal
+	bus             *events.Bus[events.Event]
+	ui              uiSession
+	sem             chan struct{}
+	aggregateUsage  model.Usage
+	aggregateMu     sync.Mutex
+	failed          int32
+	failures        []failInfo
+	failuresMu      sync.Mutex
+	completed       int32
+	wg              sync.WaitGroup
+	clientsMu       sync.Mutex
+	activeClients   map[agent.Client]struct{}
+	cancelJobs      context.CancelCauseFunc
+	reviewIsolation *worktree.ReviewIsolation
+	jobConfigs      []*config
+	jobCWDs         []string
 	// alertPlayer plays the parked alert. It is nil in every production path, where
 	// sound.New() supplies the platform player; tests inject a recorder so the alert
 	// is observable without shelling out to afplay.
@@ -505,12 +509,196 @@ func newJobExecutionContext(
 		sem:           make(chan struct{}, atLeastOne(cfg.Concurrent)),
 		activeClients: make(map[agent.Client]struct{}),
 	}
+	if err := execCtx.prepareReviewIsolation(ctx); err != nil {
+		return nil, err
+	}
 	for idx := range execCtx.jobs {
 		execCtx.jobs[idx].OutBuffer = newLineBuffer(cfg.TailLines)
 		execCtx.jobs[idx].ErrBuffer = newLineBuffer(cfg.TailLines)
 	}
 	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, bus, cfg.UIEnabled())
 	return execCtx, nil
+}
+
+func (j *jobExecutionContext) prepareReviewIsolation(ctx context.Context) error {
+	if j == nil || j.cfg == nil || j.cfg.DryRun || j.cfg.Mode != model.ExecutionModePRReview ||
+		len(j.jobs) <= 1 || atLeastOne(j.cfg.Concurrent) <= 1 {
+		return nil
+	}
+	if strings.TrimSpace(j.cfg.RunArtifacts.RunDir) == "" {
+		return nil
+	}
+	names := make([]string, len(j.jobs))
+	for index := range j.jobs {
+		names[index] = j.jobs[index].SafeName
+	}
+	artifactDir, err := reviewIsolationArtifactDir(j.cfg)
+	if err != nil {
+		return fmt.Errorf("resolve concurrent review artifact scope: %w", err)
+	}
+	isolation, err := worktree.NewReviewIsolation(
+		ctx,
+		j.cfg.WorkspaceRoot,
+		j.cfg.ReviewsDir,
+		artifactDir,
+		filepath.Join(j.cfg.RunArtifacts.RunDir, "review-worktrees"),
+		names,
+	)
+	if err != nil {
+		return fmt.Errorf("prepare concurrent review worktrees: %w", err)
+	}
+	j.reviewIsolation = isolation
+	j.jobConfigs = make([]*config, len(j.jobs))
+	j.jobCWDs = make([]string, len(j.jobs))
+	for index := range j.jobs {
+		workspace, workspaceErr := isolation.Workspace(index)
+		if workspaceErr != nil {
+			return workspaceErr
+		}
+		jobCfg := cloneJobConfig(j.cfg)
+		jobCfg.WorkspaceRoot = workspace.Root
+		jobCfg.ReviewsDir = workspace.ReviewsDir
+		jobCfg.AddDirs = remapReviewWorkspacePaths(j.cfg.AddDirs, j.cfg.WorkspaceRoot, workspace.Root)
+		remapReviewExecutionScope(jobCfg.ExecutionScope, j.cfg.WorkspaceRoot, workspace.Root)
+		remapReviewJobPaths(&j.jobs[index], j.cfg.WorkspaceRoot, workspace.Root)
+		j.jobConfigs[index] = jobCfg
+		j.jobCWDs[index] = workspace.Root
+	}
+	return nil
+}
+
+func cloneJobConfig(source *config) *config {
+	if source == nil {
+		return nil
+	}
+	cloned := *source
+	cloned.AddDirs = append([]string(nil), source.AddDirs...)
+	cloned.TaskRuntimeRules = model.CloneTaskRuntimeRules(source.TaskRuntimeRules)
+	if source.ExecutionScope != nil {
+		scope := *source.ExecutionScope
+		cloned.ExecutionScope = &scope
+	}
+	return &cloned
+}
+
+func reviewIsolationArtifactDir(cfg *config) (string, error) {
+	if cfg == nil {
+		return "", errors.New("review runtime config is required")
+	}
+	workspaceRoot, err := filepath.Abs(filepath.Clean(strings.TrimSpace(cfg.WorkspaceRoot)))
+	if err != nil || strings.TrimSpace(cfg.WorkspaceRoot) == "" {
+		return "", errors.New("review workspace root is required")
+	}
+	reviewsDir, err := workspaceContainedPath(workspaceRoot, cfg.ReviewsDir, "reviews directory")
+	if err != nil {
+		return "", err
+	}
+	artifactDir := filepath.Dir(reviewsDir)
+	if cfg.ExecutionScope == nil || strings.TrimSpace(cfg.ExecutionScope.SpecDir) == "" {
+		return artifactDir, nil
+	}
+	specDir, err := workspaceContainedPath(workspaceRoot, cfg.ExecutionScope.SpecDir, "spec directory")
+	if err != nil {
+		return "", err
+	}
+	return commonPathAncestor(artifactDir, specDir), nil
+}
+
+func workspaceContainedPath(workspaceRoot string, path string, label string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("review %s is required", label)
+	}
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("resolve review %s: %w", label, err)
+	}
+	rel, err := filepath.Rel(workspaceRoot, abs)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("review %s %s is outside workspace %s", label, abs, workspaceRoot)
+	}
+	return abs, nil
+}
+
+func commonPathAncestor(left string, right string) string {
+	ancestor := filepath.Clean(left)
+	for {
+		rel, err := filepath.Rel(ancestor, filepath.Clean(right))
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return ancestor
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return ancestor
+		}
+		ancestor = parent
+	}
+}
+
+func remapReviewExecutionScope(scope *model.ExecutionScope, sourceRoot string, isolatedRoot string) {
+	if scope == nil {
+		return
+	}
+	scope.SpecDir = remapReviewWorkspacePath(scope.SpecDir, sourceRoot, isolatedRoot)
+	scope.OperationalDir = remapReviewWorkspacePath(scope.OperationalDir, sourceRoot, isolatedRoot)
+	scope.TasksDir = remapReviewWorkspacePath(scope.TasksDir, sourceRoot, isolatedRoot)
+	scope.ReviewsDir = remapReviewWorkspacePath(scope.ReviewsDir, sourceRoot, isolatedRoot)
+	scope.MemoryDir = remapReviewWorkspacePath(scope.MemoryDir, sourceRoot, isolatedRoot)
+}
+
+func remapReviewJobPaths(jb *job, sourceRoot string, isolatedRoot string) {
+	if jb == nil {
+		return
+	}
+	for group, entries := range jb.Groups {
+		cloned := append([]model.IssueEntry(nil), entries...)
+		for index := range cloned {
+			cloned[index].AbsPath = remapReviewWorkspacePath(cloned[index].AbsPath, sourceRoot, isolatedRoot)
+		}
+		jb.Groups[group] = cloned
+	}
+	jb.Prompt = remapReviewPromptPaths(jb.Prompt, sourceRoot, isolatedRoot)
+	jb.SystemPrompt = string(remapReviewPromptPaths([]byte(jb.SystemPrompt), sourceRoot, isolatedRoot))
+}
+
+func remapReviewWorkspacePaths(paths []string, sourceRoot string, isolatedRoot string) []string {
+	result := make([]string, len(paths))
+	for index, path := range paths {
+		result[index] = remapReviewWorkspacePath(path, sourceRoot, isolatedRoot)
+	}
+	return result
+}
+
+func remapReviewWorkspacePath(path string, sourceRoot string, isolatedRoot string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" || !filepath.IsAbs(trimmed) {
+		return path
+	}
+	rel, err := filepath.Rel(filepath.Clean(sourceRoot), filepath.Clean(trimmed))
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return path
+	}
+	return filepath.Join(isolatedRoot, rel)
+}
+
+func remapReviewPromptPaths(prompt []byte, sourceRoot string, isolatedRoot string) []byte {
+	if len(prompt) == 0 {
+		return prompt
+	}
+	replacer := strings.NewReplacer(
+		filepath.Clean(sourceRoot), filepath.Clean(isolatedRoot),
+		filepath.ToSlash(filepath.Clean(sourceRoot)), filepath.ToSlash(filepath.Clean(isolatedRoot)),
+	)
+	return []byte(replacer.Replace(string(prompt)))
+}
+
+func (j *jobExecutionContext) runtimeForJob(index int) (*config, string) {
+	if j != nil && index >= 0 && index < len(j.jobConfigs) && j.jobConfigs[index] != nil {
+		return j.jobConfigs[index], j.jobCWDs[index]
+	}
+	if j == nil {
+		return nil, ""
+	}
+	return j.cfg, j.cwd
 }
 
 func resolveWorkflowSessionCWD(cfg *config) (string, error) {

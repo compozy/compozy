@@ -343,6 +343,11 @@ include_resolved = false
 output_format = "raw-json"
 tui = false
 
+[fix_reviews.stall]
+timeout = "45s"
+terminal_command_timeout = "8m"
+retries = 4
+
 [fetch_reviews]
 provider = "coderabbit"
 nitpicks = true
@@ -405,6 +410,19 @@ output_format = "json"
 	}
 	if cfg.FixReviews.TUI == nil || *cfg.FixReviews.TUI {
 		t.Fatalf("unexpected fix_reviews.tui: %#v", cfg.FixReviews.TUI)
+	}
+	if cfg.FixReviews.Stall.Timeout == nil || *cfg.FixReviews.Stall.Timeout != "45s" {
+		t.Fatalf("unexpected fix_reviews.stall.timeout: %#v", cfg.FixReviews.Stall.Timeout)
+	}
+	if cfg.FixReviews.Stall.TerminalCommandTimeout == nil ||
+		*cfg.FixReviews.Stall.TerminalCommandTimeout != "8m" {
+		t.Fatalf(
+			"unexpected fix_reviews.stall.terminal_command_timeout: %#v",
+			cfg.FixReviews.Stall.TerminalCommandTimeout,
+		)
+	}
+	if cfg.FixReviews.Stall.Retries == nil || *cfg.FixReviews.Stall.Retries != 4 {
+		t.Fatalf("unexpected fix_reviews.stall.retries: %#v", cfg.FixReviews.Stall.Retries)
 	}
 	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", cfg.FetchReviews.Provider)
@@ -563,6 +581,53 @@ func TestLoadConfigMergesStallWorkspaceOverGlobalConfig(t *testing.T) {
 			t.Fatalf("global stall.enabled not inherited: %#v", stall.Enabled)
 		}
 	})
+}
+
+func TestLoadConfigMergesReviewSpecificStallOverrides(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[defaults.stall]
+timeout = "3m"
+child_timeout = "6m"
+retries = 1
+
+[fix_reviews.stall]
+timeout = "1m"
+terminal_command_timeout = "12m"
+`)
+	writeWorkspaceConfig(t, root, `
+[defaults.stall]
+child_timeout = "8m"
+
+[fix_reviews.stall]
+timeout = "45s"
+retries = 4
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	stall := cfg.FixReviews.Stall
+	if stall.Timeout == nil || *stall.Timeout != "45s" {
+		t.Fatalf("fix_reviews.stall.timeout = %#v, want workspace command override", stall.Timeout)
+	}
+	if stall.ChildTimeout != nil {
+		t.Fatalf(
+			"fix_reviews.stall.child_timeout = %#v, want inherited workspace default to remain implicit",
+			stall.ChildTimeout,
+		)
+	}
+	if stall.TerminalCommandTimeout == nil || *stall.TerminalCommandTimeout != "12m" {
+		t.Fatalf(
+			"fix_reviews.stall.terminal_command_timeout = %#v, want global command override",
+			stall.TerminalCommandTimeout,
+		)
+	}
+	if stall.Retries == nil || *stall.Retries != 4 {
+		t.Fatalf("fix_reviews.stall.retries = %#v, want workspace command override", stall.Retries)
+	}
 }
 
 func TestLoadConfigRejectsInvalidRecoveryValues(t *testing.T) {

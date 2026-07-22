@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -15,6 +16,56 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 )
+
+func TestClientTerminalActivityCallbacksBracketCommandLifetime(t *testing.T) {
+	t.Parallel()
+
+	client, sessionID := newTerminalTestClient(t)
+	var active atomic.Int32
+	started := make(chan struct{}, 1)
+	finished := make(chan struct{}, 1)
+	client.terminalActivityStarted = func() {
+		active.Add(1)
+		started <- struct{}{}
+	}
+	client.terminalActivityFinished = func() {
+		active.Add(-1)
+		finished <- struct{}{}
+	}
+
+	resp, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{
+		SessionId: acp.SessionId(sessionID),
+		Command:   os.Args[0],
+		Args:      []string{"-test.run=TestTerminalCommandHelperProcess", "--"},
+		Env:       terminalHelperEnv("block", "ready", "0"),
+	})
+	if err != nil {
+		t.Fatalf("create terminal: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal activity did not start")
+	}
+	if got := active.Load(); got != 1 {
+		t.Fatalf("active terminal count = %d, want 1", got)
+	}
+
+	if _, err := client.KillTerminal(context.Background(), acp.KillTerminalRequest{
+		SessionId:  acp.SessionId(sessionID),
+		TerminalId: resp.TerminalId,
+	}); err != nil {
+		t.Fatalf("kill terminal: %v", err)
+	}
+	select {
+	case <-finished:
+	case <-time.After(3 * time.Second):
+		t.Fatal("terminal activity did not finish")
+	}
+	if got := active.Load(); got != 0 {
+		t.Fatalf("active terminal count after exit = %d, want 0", got)
+	}
+}
 
 func newTerminalTestClientWithRunContext(ctx context.Context, t *testing.T) (*clientImpl, string) {
 	t.Helper()

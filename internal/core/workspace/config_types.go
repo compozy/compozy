@@ -194,11 +194,12 @@ type TasksConfig struct {
 }
 
 type FixReviewsConfig struct {
-	Concurrent      *int    `toml:"concurrent"`
-	BatchSize       *int    `toml:"batch_size"`
-	IncludeResolved *bool   `toml:"include_resolved"`
-	OutputFormat    *string `toml:"output_format"`
-	TUI             *bool   `toml:"tui"`
+	Concurrent      *int           `toml:"concurrent"`
+	BatchSize       *int           `toml:"batch_size"`
+	IncludeResolved *bool          `toml:"include_resolved"`
+	OutputFormat    *string        `toml:"output_format"`
+	TUI             *bool          `toml:"tui"`
+	Stall           StallOverrides `toml:"stall,omitempty"`
 }
 
 type FetchReviewsConfig struct {

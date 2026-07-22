@@ -41,6 +41,7 @@ type terminalProcess struct {
 	done      chan struct{}
 	grace     time.Duration
 	killOnce  sync.Once
+	onDone    func()
 
 	mu       sync.Mutex
 	exitCode *int
@@ -95,6 +96,7 @@ func (c *clientImpl) createTerminal(
 		output:    output,
 		done:      make(chan struct{}),
 		grace:     terminalKillGracePeriod,
+		onDone:    c.terminalActivityFinished,
 	}
 	// On context cancellation (attempt cancel or cap expiry) os/exec invokes
 	// cmd.Cancel. It must not block, so it force-kills the process group as the
@@ -111,6 +113,9 @@ func (c *clientImpl) createTerminal(
 	}
 
 	c.storeTerminal(terminal)
+	if c.terminalActivityStarted != nil {
+		c.terminalActivityStarted()
+	}
 	go terminal.wait()
 	return acp.CreateTerminalResponse{TerminalId: terminal.id}, nil
 }
@@ -329,6 +334,9 @@ func (c *clientImpl) drainTerminals() []*terminalProcess {
 }
 
 func (t *terminalProcess) wait() {
+	if t.onDone != nil {
+		defer t.onDone()
+	}
 	waitErr := t.cmd.Wait()
 	t.cancel()
 	var exitCode *int

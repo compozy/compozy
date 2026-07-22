@@ -1329,7 +1329,9 @@ func (m *RunManager) prepareReviewStart(
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
-	applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews)
+	if err := applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews); err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+	}
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
@@ -3377,10 +3379,14 @@ func applyTaskProjectConfig(
 	cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(rules)
 }
 
-func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) {
+func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) error {
 	if cfg == nil {
-		return
+		return nil
 	}
+	if err := applyStallDurations(cfg, projectCfg.Stall, "fix_reviews"); err != nil {
+		return err
+	}
+	applyStallScalars(cfg, projectCfg.Stall)
 	applyOptionalOutputFormat(cfg, projectCfg.OutputFormat)
 	if projectCfg.Concurrent != nil {
 		cfg.Concurrent = *projectCfg.Concurrent
@@ -3391,6 +3397,7 @@ func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.
 	if projectCfg.IncludeResolved != nil {
 		cfg.IncludeResolved = *projectCfg.IncludeResolved
 	}
+	return nil
 }
 
 func applyExecProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.ExecConfig) error {

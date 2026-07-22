@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,6 +89,98 @@ func initStallGitRepo(t *testing.T) string {
 	mustStallGit(t, root, "add", "README.md")
 	mustStallGit(t, root, "commit", "-q", "-m", "initial")
 	return root
+}
+
+func TestConcurrentReviewJobsUseResettableIsolatedWorktrees(t *testing.T) {
+	t.Parallel()
+	root := initStallGitRepo(t)
+	workflowDir := filepath.Join(root, ".compozy", "tasks", "demo")
+	operationalDir := filepath.Join(workflowDir, "task-groups", "backend")
+	reviewsDir := filepath.Join(operationalDir, "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+	techspecPath := filepath.Join(workflowDir, "_techspec.md")
+	if err := os.WriteFile(techspecPath, []byte("# parent spec\n"), 0o600); err != nil {
+		t.Fatalf("write parent techspec: %v", err)
+	}
+	jobs := make([]job, 2)
+	for index := range jobs {
+		issuePath := filepath.Join(reviewsDir, fmt.Sprintf("issue_%03d.md", index+1))
+		if err := os.WriteFile(issuePath, []byte("status: pending\n"), 0o600); err != nil {
+			t.Fatalf("write issue %d: %v", index+1, err)
+		}
+		jobs[index] = job{
+			SafeName: fmt.Sprintf("batch-%d", index+1),
+			Groups: map[string][]model.IssueEntry{
+				"README.md": {{Name: filepath.Base(issuePath), AbsPath: issuePath, Content: "status: pending\n"}},
+			},
+			Prompt: []byte("review " + issuePath),
+		}
+	}
+	cfg := &config{
+		WorkspaceRoot: root,
+		ReviewsDir:    reviewsDir,
+		Mode:          model.ExecutionModePRReview,
+		Concurrent:    2,
+		RunArtifacts:  model.RunArtifacts{RunDir: filepath.Join(t.TempDir(), "run")},
+		ExecutionScope: &model.ExecutionScope{
+			SpecDir:        workflowDir,
+			OperationalDir: operationalDir,
+			TasksDir:       filepath.Join(operationalDir, "tasks"),
+			ReviewsDir:     operationalDir,
+			MemoryDir:      filepath.Join(operationalDir, "memory"),
+		},
+		Stall: model.StallPolicy{
+			Enabled: true,
+			Retries: 1,
+		},
+	}
+	execCtx, err := newJobExecutionContext(context.Background(), jobs, cfg, nil, nil)
+	if err != nil {
+		t.Fatalf("newJobExecutionContext() error = %v", err)
+	}
+	if execCtx.reviewIsolation == nil {
+		t.Fatal("concurrent review jobs did not enable worktree isolation")
+	}
+	defer func() {
+		for index := range jobs {
+			if cleanupErr := execCtx.reviewIsolation.Cleanup(context.Background(), index); cleanupErr != nil {
+				t.Errorf("cleanup review worktree %d: %v", index, cleanupErr)
+			}
+		}
+	}()
+	first := newJobRunner(0, &execCtx.jobs[0], execCtx)
+	second := newJobRunner(1, &execCtx.jobs[1], execCtx)
+	if first.cfg.WorkspaceRoot == second.cfg.WorkspaceRoot || first.cfg.WorkspaceRoot == root {
+		t.Fatalf(
+			"review workspaces are shared: source=%q first=%q second=%q",
+			root,
+			first.cfg.WorkspaceRoot,
+			second.cfg.WorkspaceRoot,
+		)
+	}
+	mappedSpec := filepath.Join(first.cfg.WorkspaceRoot, ".compozy", "tasks", "demo", "_techspec.md")
+	if body, readErr := os.ReadFile(mappedSpec); readErr != nil || string(body) != "# parent spec\n" {
+		t.Fatalf("isolated parent techspec = %q, error = %v", body, readErr)
+	}
+	if first.cfg.ExecutionScope == cfg.ExecutionScope || first.cfg.ExecutionScope.SpecDir != filepath.Dir(mappedSpec) {
+		t.Fatalf("execution scope was not independently remapped: %#v", first.cfg.ExecutionScope)
+	}
+	if !first.canAttemptCleanReset() || !second.canAttemptCleanReset() {
+		t.Fatal("isolated sibling jobs must allow clean stall resets")
+	}
+	first.preSnapshot = first.captureWorkspaceSnapshot(context.Background())
+	partial := filepath.Join(first.cfg.WorkspaceRoot, "partial.txt")
+	if err := os.WriteFile(partial, []byte("partial\n"), 0o600); err != nil {
+		t.Fatalf("write partial attempt: %v", err)
+	}
+	if err := first.resetWorktreeForStallRetry(context.Background()); err != nil {
+		t.Fatalf("resetWorktreeForStallRetry() error = %v", err)
+	}
+	if _, err := os.Stat(partial); !os.IsNotExist(err) {
+		t.Fatalf("stall reset left partial output: %v", err)
+	}
 }
 
 type stallHarness struct {
