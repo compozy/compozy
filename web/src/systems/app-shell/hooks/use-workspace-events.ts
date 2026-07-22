@@ -104,6 +104,13 @@ interface WorkflowInvalidationOptions {
   paths?: string[];
 }
 
+interface WorkflowQueryReference {
+  workflowSlug: string;
+  taskGroupId?: string;
+}
+
+const taskGroupReferencePattern = /^([^/]+)\/(TG-[0-9]{3})$/;
+
 function invalidateWorkflowQueries(
   queryClient: QueryClient,
   workspaceId: string,
@@ -121,30 +128,45 @@ function invalidateWorkflowQueries(
     return;
   }
 
-  // Invalidate at the task-group-agnostic prefix that stops before the trailing
-  // `taskGroupId ?? null` slot the key builders carry. TanStack matches by partial key,
-  // so filtering on that slot (e.g. `board(ws, slug)` -> `[…, null, "board"]`) would
-  // only ever hit the initiative variant and leave every task-group-scoped (`TG-NNN`)
-  // view a stale sibling. These prefixes match the initiative and all task group scopes.
+  const reference = parseWorkflowQueryReference(workflowSlug);
+  const queryScope = reference.taskGroupId
+    ? [workspaceId, reference.workflowSlug, reference.taskGroupId]
+    : [workspaceId, reference.workflowSlug];
+
+  // An initiative event stops before the task-group slot and invalidates every child.
+  // A composite initiative/TG-NNN event includes that slot and invalidates only its child.
   void queryClient.invalidateQueries({
-    queryKey: [...workflowKeys.workflows(), workspaceId, workflowSlug],
+    queryKey: [...workflowKeys.workflows(), ...queryScope],
   });
 
   if (options.allArtifacts || shouldInvalidateSpec(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: [...specKeys.all, workspaceId, workflowSlug] });
+    void queryClient.invalidateQueries({ queryKey: [...specKeys.all, ...queryScope] });
   }
   if (options.allArtifacts || shouldInvalidateMemory(options.paths)) {
     void queryClient.invalidateQueries({
-      queryKey: [...memoryKeys.indexes(), workspaceId, workflowSlug],
+      queryKey: [...memoryKeys.indexes(), ...queryScope],
     });
-    void queryClient.invalidateQueries({ queryKey: memoryKeys.files() });
+    void queryClient.invalidateQueries({ queryKey: [...memoryKeys.files(), ...queryScope] });
   }
   if (options.allArtifacts || shouldInvalidateReviews(options.paths)) {
     void queryClient.invalidateQueries({
-      queryKey: [...reviewKeys.summaries(), workspaceId, workflowSlug],
+      queryKey: [...reviewKeys.summaries(), ...queryScope],
     });
-    void queryClient.invalidateQueries({ queryKey: reviewKeys.rounds() });
+    void queryClient.invalidateQueries({ queryKey: [...reviewKeys.rounds(), ...queryScope] });
   }
+}
+
+function parseWorkflowQueryReference(reference: string): WorkflowQueryReference {
+  const match = taskGroupReferencePattern.exec(reference);
+  if (!match) {
+    return { workflowSlug: reference };
+  }
+  const workflowSlug = match[1];
+  const taskGroupId = match[2];
+  if (!workflowSlug || !taskGroupId) {
+    return { workflowSlug: reference };
+  }
+  return { workflowSlug, taskGroupId };
 }
 
 function shouldInvalidateSpec(paths: string[] | undefined): boolean {

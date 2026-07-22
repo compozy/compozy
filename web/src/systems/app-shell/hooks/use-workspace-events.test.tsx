@@ -138,7 +138,7 @@ describe("useWorkspaceEvents", () => {
     });
   });
 
-  it("Should invalidate task-group-scoped workflow views from workflow events", async () => {
+  it("Should invalidate every task group from initiative workflow events", async () => {
     const queryClient = createTestQueryClient();
     const taskGroupId = "TG-002";
     const boardKey = workflowKeys.board("workspace-1", "demo", taskGroupId);
@@ -172,6 +172,47 @@ describe("useWorkspaceEvents", () => {
       expect(queryClient.getQueryState(memoryIndexKey)?.isInvalidated).toBe(true);
       expect(queryClient.getQueryState(reviewSummaryKey)?.isInvalidated).toBe(true);
       expect(queryClient.getQueryState(initiativeBoardKey)?.isInvalidated).toBe(true);
+    });
+  });
+
+  it("Should normalize composite task-group workflow references before invalidation", async () => {
+    const queryClient = createTestQueryClient();
+    const taskGroupId = "TG-002";
+    const matchingKeys = [
+      workflowKeys.board("workspace-1", "demo", taskGroupId),
+      workflowKeys.tasks("workspace-1", "demo", taskGroupId),
+      specKeys.workflow("workspace-1", "demo", taskGroupId),
+      memoryKeys.index("workspace-1", "demo", taskGroupId),
+      memoryKeys.file("workspace-1", "demo", "MEMORY.md", taskGroupId),
+      reviewKeys.summary("workspace-1", "demo", taskGroupId),
+      reviewKeys.issues("workspace-1", "demo", 1, taskGroupId),
+    ];
+    const unrelatedKeys = [
+      workflowKeys.board("workspace-1", "demo"),
+      workflowKeys.board("workspace-1", "demo", "TG-001"),
+      memoryKeys.file("workspace-1", "demo", "MEMORY.md", "TG-001"),
+      reviewKeys.issues("workspace-1", "demo", 1, "TG-001"),
+    ];
+    for (const key of [...matchingKeys, ...unrelatedKeys]) {
+      queryClient.setQueryData(key, { ok: true });
+    }
+
+    invalidateWorkspaceEvent(
+      queryClient,
+      "workspace-1",
+      workspaceEvent({
+        kind: "workflow.sync_completed",
+        workflow_slug: "demo/TG-002",
+      })
+    );
+
+    await waitFor(() => {
+      for (const key of matchingKeys) {
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+      }
+      for (const key of unrelatedKeys) {
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+      }
     });
   });
 

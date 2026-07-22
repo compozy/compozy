@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -194,6 +195,119 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	}
 	if status := strings.TrimSpace(string(mustRunGit(t, repo, "status", "--porcelain"))); status != "" {
 		t.Fatalf("source status after exact batch commit = %q, want clean", status)
+	}
+}
+
+func TestReviewIsolationRestoresSourceWhenAutoCommitHookRejects(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+	issuePath := filepath.Join(reviewsDir, "issue_001.md")
+	if err := os.WriteFile(issuePath, []byte("status: pending\n"), 0o600); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, _ := isolation.Workspace(0)
+	if err := os.WriteFile(
+		filepath.Join(workspace.ReviewsDir, "issue_001.md"),
+		[]byte("status: resolved\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("resolve issue: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace.Root, "fix.go"), []byte("package fix\n"), 0o600); err != nil {
+		t.Fatalf("write fix: %v", err)
+	}
+	hookPath := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hookPath, []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil {
+		t.Fatalf("write rejecting hook: %v", err)
+	}
+	statusBefore := mustRunGit(t, repo, "status", "--porcelain=v1", "-z")
+	headBefore := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD")))
+
+	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
+	if err == nil || !strings.Contains(err.Error(), "commit integrated review changes") {
+		t.Fatalf("Apply(auto commit) error = %v, want rejected commit", err)
+	}
+	if statusAfter := mustRunGit(
+		t,
+		repo,
+		"status",
+		"--porcelain=v1",
+		"-z",
+	); !bytes.Equal(statusAfter, statusBefore) {
+		t.Fatalf("source status after rejected commit = %q, want original %q", statusAfter, statusBefore)
+	}
+	if headAfter := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD"))); headAfter != headBefore {
+		t.Fatalf("source HEAD after rejected commit = %q, want %q", headAfter, headBefore)
+	}
+	if body, readErr := os.ReadFile(issuePath); readErr != nil || string(body) != "status: pending\n" {
+		t.Fatalf("source issue after rejected commit = %q, error = %v", body, readErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, "fix.go")); !os.IsNotExist(statErr) {
+		t.Fatalf("source fix remains after rejected commit: %v", statErr)
+	}
+}
+
+func TestReviewIsolationRestoresSourceWhenAutoCommitStagingFails(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, _ := isolation.Workspace(0)
+	if err := os.WriteFile(filepath.Join(workspace.Root, "fix.go"), []byte("package fix\n"), 0o600); err != nil {
+		t.Fatalf("write fix: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", "index.lock"), []byte("locked\n"), 0o600); err != nil {
+		t.Fatalf("lock source index: %v", err)
+	}
+	statusBefore := mustRunGit(t, repo, "status", "--porcelain=v1", "-z")
+
+	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
+	if err == nil || !strings.Contains(err.Error(), "stage integrated review changes") {
+		t.Fatalf("Apply(auto commit) error = %v, want staging failure", err)
+	}
+	if statusAfter := mustRunGit(
+		t,
+		repo,
+		"status",
+		"--porcelain=v1",
+		"-z",
+	); !bytes.Equal(statusAfter, statusBefore) {
+		t.Fatalf("source status after staging failure = %q, want original %q", statusAfter, statusBefore)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, "fix.go")); !os.IsNotExist(statErr) {
+		t.Fatalf("source fix remains after staging failure: %v", statErr)
 	}
 }
 

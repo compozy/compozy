@@ -34,6 +34,12 @@ type ReviewIsolation struct {
 	applyMu    sync.Mutex
 }
 
+type gitIndexBackup struct {
+	path    string
+	content []byte
+	mode    fs.FileMode
+}
+
 // NewReviewIsolation creates one clean detached worktree per review batch. The
 // current workflow artifacts are committed only inside each disposable worktree,
 // making clean stall resets possible even when those artifacts are untracked in
@@ -304,7 +310,7 @@ func (r *ReviewIsolation) Apply(
 	pathsRaw, err := runGit(
 		ctx,
 		workspace.Root,
-		"diff", "--cached", "--name-only", "-z", workspace.BaselineRef,
+		"diff", "--cached", "--name-only", "-z", "--no-renames", workspace.BaselineRef,
 	)
 	if err != nil {
 		return fmt.Errorf("list isolated review changes in %s: %w", workspace.Root, err)
@@ -316,10 +322,17 @@ func (r *ReviewIsolation) Apply(
 	patch, err := runGit(
 		ctx,
 		workspace.Root,
-		"diff", "--cached", "--binary", "--full-index", workspace.BaselineRef,
+		"diff", "--cached", "--binary", "--full-index", "--no-renames", workspace.BaselineRef,
 	)
 	if err != nil {
 		return fmt.Errorf("build isolated review patch in %s: %w", workspace.Root, err)
+	}
+	var indexBackup gitIndexBackup
+	if autoCommit {
+		indexBackup, err = captureGitIndex(ctx, r.sourceRoot)
+		if err != nil {
+			return fmt.Errorf("capture source index before integrating %s: %w", workspace.Root, err)
+		}
 	}
 	if err := runGitInput(ctx, r.sourceRoot, patch, "apply", "--binary", "--whitespace=nowarn"); err != nil {
 		return fmt.Errorf("apply isolated review changes from %s: %w", workspace.Root, err)
@@ -334,14 +347,58 @@ func (r *ReviewIsolation) Apply(
 	stageArgs := []string{"add", "-f", "-A", "--"}
 	stageArgs = append(stageArgs, paths...)
 	if _, err := runGit(ctx, r.sourceRoot, stageArgs...); err != nil {
-		return fmt.Errorf("stage integrated review changes from %s: %w", workspace.Root, err)
+		cause := fmt.Errorf("stage integrated review changes from %s: %w", workspace.Root, err)
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup))
 	}
 	args := []string{"commit", "--only", "-m", message, "--"}
 	args = append(args, paths...)
 	if _, err := runGit(ctx, r.sourceRoot, args...); err != nil {
-		return fmt.Errorf("commit integrated review changes from %s: %w", workspace.Root, err)
+		cause := fmt.Errorf("commit integrated review changes from %s: %w", workspace.Root, err)
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup))
 	}
 	return nil
+}
+
+func captureGitIndex(ctx context.Context, root string) (gitIndexBackup, error) {
+	pathRaw, err := runGit(ctx, root, "rev-parse", "--git-path", "index")
+	if err != nil {
+		return gitIndexBackup{}, err
+	}
+	path := strings.TrimSpace(string(pathRaw))
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(root, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return gitIndexBackup{}, fmt.Errorf("stat git index %s: %w", path, err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return gitIndexBackup{}, fmt.Errorf("read git index %s: %w", path, err)
+	}
+	return gitIndexBackup{path: path, content: content, mode: info.Mode()}, nil
+}
+
+func rollbackReviewApply(
+	ctx context.Context,
+	root string,
+	patch []byte,
+	indexBackup gitIndexBackup,
+) error {
+	rollbackCtx := context.WithoutCancel(ctx)
+	var result error
+	if err := runGitInput(
+		rollbackCtx,
+		root,
+		patch,
+		"apply", "--reverse", "--binary", "--whitespace=nowarn",
+	); err != nil {
+		result = errors.Join(result, fmt.Errorf("roll back integrated review patch: %w", err))
+	}
+	if err := os.WriteFile(indexBackup.path, indexBackup.content, indexBackup.mode.Perm()); err != nil {
+		result = errors.Join(result, fmt.Errorf("restore source git index %s: %w", indexBackup.path, err))
+	}
+	return result
 }
 
 // Cleanup removes an integrated disposable worktree. Failed or parked jobs do
