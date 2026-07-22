@@ -262,7 +262,7 @@ func buildTaskGroupPickerOption(
 	}
 
 	if input.RunMode == daemonRunModeReview {
-		summary, err := latestReviewRoundPickerSummary(filepath.Join(
+		summary, err := reviewRoundPickerSummaryAcrossRounds(filepath.Join(
 			target.InitiativeDir,
 			filepath.FromSlash(taskGroup.Directory),
 		))
@@ -298,7 +298,7 @@ func buildOrdinaryReviewFixTargetPickerOption(
 ) (taskGroupPickerOption, error) {
 	workflowOption := taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus)
 	workflowOption.Status = reviewFixPickerStatus(latestRunStatus)
-	summary, err := latestReviewRoundPickerSummary(filepath.Join(baseDir, slug))
+	summary, err := reviewRoundPickerSummaryAcrossRounds(filepath.Join(baseDir, slug))
 	if err != nil {
 		return taskGroupPickerOption{}, err
 	}
@@ -341,15 +341,28 @@ func reviewFixPickerStatus(latestRunStatus string) taskRunWizardWorkflowStatus {
 	return taskRunWizardStatus(false, false, latestRunStatus)
 }
 
-func latestReviewRoundPickerSummary(reviewRoot string) (reviewRoundPickerSummary, error) {
-	round, found, err := latestLocalReviewRoundInDir(reviewRoot)
+func reviewRoundPickerSummaryAcrossRounds(reviewRoot string) (reviewRoundPickerSummary, error) {
+	rounds, err := reviews.DiscoverRounds(reviewRoot)
 	if err != nil {
 		return reviewRoundPickerSummary{}, err
 	}
-	if !found {
-		return reviewRoundPickerSummary{}, nil
+	summary := reviewRoundPickerSummary{}
+	for _, round := range rounds {
+		roundSummary, err := readReviewRoundPickerSummary(
+			filepath.Join(reviewRoot, reviews.RoundDirName(round)),
+			round,
+		)
+		if err != nil {
+			return reviewRoundPickerSummary{}, err
+		}
+		if roundSummary.IssueCount == 0 {
+			continue
+		}
+		summary.Round = round
+		summary.IssueCount += roundSummary.IssueCount
+		summary.PendingIssueCount += roundSummary.PendingIssueCount
 	}
-	return readReviewRoundPickerSummary(filepath.Join(reviewRoot, reviews.RoundDirName(round)), round)
+	return summary, nil
 }
 
 func readReviewRoundPickerSummary(reviewDir string, round int) (reviewRoundPickerSummary, error) {

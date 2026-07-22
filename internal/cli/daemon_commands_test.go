@@ -3738,6 +3738,84 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 	}
 }
 
+func TestReviewFixPickerShowsOlderPendingIssueForOrdinaryWorkflow(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	workflow := "ordinary"
+	workflowRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", workflow)
+	if err := os.MkdirAll(workflowRoot, 0o755); err != nil {
+		t.Fatalf("create ordinary workflow: %v", err)
+	}
+	writeFormTaskFile(t, workflowRoot, "task_001.md", "completed")
+	for round, title := range map[int]string{1: "Pending issue", 2: "Resolved issue"} {
+		reviewDir := filepath.Join(workflowRoot, reviews.RoundDirName(round))
+		if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+			Provider:  "manual",
+			Round:     round,
+			CreatedAt: time.Date(2026, 7, 20, 16, 40+round, 0, 0, time.UTC),
+		}, []provider.ReviewItem{{
+			Title: title, File: "ordinary.go", Line: round, Body: title + ".",
+		}}); err != nil {
+			t.Fatalf("write review round %d: %v", round, err)
+		}
+	}
+	resolveCLIReviewIssue(t, filepath.Join(workflowRoot, "reviews-002", "issue_001.md"))
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options: %v", err)
+	}
+	wantLabel := "[ ] ordinary — Review round 2 — 1 issue pending"
+	if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == workflow && option.Label == wantLabel
+	}) {
+		t.Fatalf("review target options = %#v, missing %q => %q", options, workflow, wantLabel)
+	}
+	if err := validateTaskGroupPickerSelection(options, workflow, true); err != nil {
+		t.Fatalf("ordinary workflow with older pending issue is locked: %v", err)
+	}
+}
+
+func TestReviewFixPickerShowsOlderPendingIssueForTaskGroup(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "auth"
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
+	taskGroupRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative, "_task_groups")
+	taskGroupDir := filepath.Join(taskGroupRoot, "TG-001")
+	writeFormTaskFile(t, taskGroupDir, "task_001.md", "completed")
+	for round, title := range map[int]string{1: "Pending issue", 2: "Resolved issue"} {
+		reviewDir := filepath.Join(taskGroupDir, reviews.RoundDirName(round))
+		if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+			Provider:  "manual",
+			Round:     round,
+			CreatedAt: time.Date(2026, 7, 20, 16, 40+round, 0, 0, time.UTC),
+		}, []provider.ReviewItem{{
+			Title: title, File: "task_group.go", Line: round, Body: title + ".",
+		}}); err != nil {
+			t.Fatalf("write review round %d: %v", round, err)
+		}
+	}
+	resolveCLIReviewIssue(t, filepath.Join(taskGroupDir, "reviews-002", "issue_001.md"))
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options: %v", err)
+	}
+	reference := initiative + "/TG-001"
+	wantLabel := "[ ] TG-001 — Foundation — Review round 2 — 1 issue pending"
+	if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == reference && option.Label == wantLabel
+	}) {
+		t.Fatalf("review target options = %#v, missing %q => %q", options, reference, wantLabel)
+	}
+	if err := validateTaskGroupPickerSelection(options, reference, true); err != nil {
+		t.Fatalf("Task Group with older pending issue is locked: %v", err)
+	}
+}
+
 // Invariant: an initiative root cannot be selected when none of its Task Groups
 // has an actionable pending review issue.
 func TestReviewFixInitiativeRootRequiresActionableTaskGroup(t *testing.T) {
