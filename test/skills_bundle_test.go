@@ -173,6 +173,42 @@ func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
 	}
 }
 
+func TestCreatePRDUserStoriesTemplateRequiresAuthorizationCoverage(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-prd", "references", "user-stories-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"## Authorization Rule Pack",
+		"`create`, `read`, `update`, `delete`, `transition`, and `replay`",
+		"Data classification",
+		"Actor / role / capability",
+		"`allow`, `deny`, `redact`, or `ignore`",
+		"Permitted side effects",
+		"complete matrix",
+		"documented pairwise coverage",
+		"without a negative test",
+		"client-controlled sensitive field",
+		"protected state remains unchanged",
+		"field-level read redaction",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 
