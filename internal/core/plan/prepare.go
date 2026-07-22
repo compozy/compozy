@@ -442,8 +442,8 @@ func prepareJobs(
 		effectiveBatchSize = 1
 	}
 
-	collected := flattenBatchIssues(groups, cfg.Mode)
-	batches := createIssueBatches(collected, effectiveBatchSize)
+	orderedGroups := orderBatchIssueGroups(groups, cfg.Mode)
+	batches := createIssueBatches(orderedGroups, effectiveBatchSize)
 	if len(batches) == 0 {
 		return nil, errors.New("no batches created for prompt preparation")
 	}
@@ -974,16 +974,44 @@ func promptSourceForConfig(cfg *model.RuntimeConfig) string {
 	}
 }
 
-func createIssueBatches(allIssues []model.IssueEntry, batchSize int) [][]model.IssueEntry {
+func createIssueBatches(issueGroups [][]model.IssueEntry, batchSize int) [][]model.IssueEntry {
 	batches := make([][]model.IssueEntry, 0)
-	for i := 0; i < len(allIssues); i += batchSize {
+	for i := 0; i < len(issueGroups); i += batchSize {
 		end := i + batchSize
-		if end > len(allIssues) {
-			end = len(allIssues)
+		if end > len(issueGroups) {
+			end = len(issueGroups)
 		}
-		batches = append(batches, allIssues[i:end])
+
+		issueCount := 0
+		for _, group := range issueGroups[i:end] {
+			issueCount += len(group)
+		}
+		batch := make([]model.IssueEntry, 0, issueCount)
+		for _, group := range issueGroups[i:end] {
+			batch = append(batch, group...)
+		}
+		batches = append(batches, batch)
 	}
 	return batches
+}
+
+func orderBatchIssueGroups(
+	groups map[string][]model.IssueEntry,
+	mode model.ExecutionMode,
+) [][]model.IssueEntry {
+	orderedIssues := flattenBatchIssues(groups, mode)
+	orderedGroups := make([][]model.IssueEntry, 0, len(groups))
+	groupIndexes := make(map[string]int, len(groups))
+	for _, issue := range orderedIssues {
+		index, exists := groupIndexes[issue.CodeFile]
+		if !exists {
+			index = len(orderedGroups)
+			groupIndexes[issue.CodeFile] = index
+			orderedGroups = append(orderedGroups, nil)
+		}
+		orderedGroups[index] = append(orderedGroups[index], issue)
+	}
+	return orderedGroups
 }
 
 func flattenBatchIssues(

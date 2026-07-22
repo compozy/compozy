@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -89,6 +92,93 @@ func initStallGitRepo(t *testing.T) string {
 	mustStallGit(t, root, "add", "README.md")
 	mustStallGit(t, root, "commit", "-q", "-m", "initial")
 	return root
+}
+
+func TestConcurrentReviewPlanningKeepsFileGroupsInSingleWorktrees(t *testing.T) {
+	t.Parallel()
+	requireStallGit(t)
+	root := initStallGitRepo(t)
+	reviewsDir := filepath.Join(root, model.TasksBaseDir(), "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewsDir, model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{Title: "First README issue", File: "README.md", Body: "Fix the first behavior."},
+		{Title: "Second README issue", File: "README.md", Body: "Fix the second behavior."},
+		{Title: "Docs issue", File: "docs/guide.md", Body: "Fix the documentation behavior."},
+	}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "reviews-atomic-worktrees-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: root,
+		ReviewsDir:    reviewsDir,
+		IDE:           model.IDECodex,
+		DryRun:        true,
+		Mode:          model.ExecutionModePRReview,
+		BatchSize:     1,
+		Concurrent:    2,
+	}
+	prep, err := plan.Prepare(
+		context.Background(),
+		cfg,
+		&model.BaseRunScope{Artifacts: runArtifacts},
+	)
+	if err != nil {
+		t.Fatalf("prepare concurrent review: %v", err)
+	}
+	if len(prep.Jobs) != 2 {
+		t.Fatalf("prepared jobs = %d, want one per file group", len(prep.Jobs))
+	}
+
+	runtimeCfg := newConfig(cfg, runArtifacts)
+	runtimeCfg.DryRun = false
+	execCtx, err := newJobExecutionContext(
+		context.Background(),
+		newJobs(prep.Jobs),
+		runtimeCfg,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("newJobExecutionContext() error = %v", err)
+	}
+	if execCtx.reviewIsolation == nil {
+		t.Fatal("concurrent review jobs did not enable worktree isolation")
+	}
+	defer func() {
+		for index := range execCtx.jobs {
+			if cleanupErr := execCtx.reviewIsolation.Cleanup(context.Background(), index); cleanupErr != nil {
+				t.Errorf("cleanup review worktree %d: %v", index, cleanupErr)
+			}
+		}
+	}()
+
+	groupWorktrees := make(map[string]string)
+	for index := range execCtx.jobs {
+		worktreeRoot := execCtx.jobCWDs[index]
+		for codeFile, entries := range execCtx.jobs[index].Groups {
+			if previous, exists := groupWorktrees[codeFile]; exists && previous != worktreeRoot {
+				t.Fatalf("code-file group %q split across worktrees %q and %q", codeFile, previous, worktreeRoot)
+			}
+			groupWorktrees[codeFile] = worktreeRoot
+			if codeFile == "README.md" && len(entries) != 2 {
+				t.Fatalf("README.md issue count = %d, want 2 in one worktree", len(entries))
+			}
+		}
+	}
+	if len(groupWorktrees) != 2 {
+		t.Fatalf("worktree group count = %d, want 2", len(groupWorktrees))
+	}
+	if groupWorktrees["README.md"] == groupWorktrees["docs/guide.md"] {
+		t.Fatalf("distinct file groups unexpectedly share worktree %q", groupWorktrees["README.md"])
+	}
 }
 
 func TestConcurrentReviewJobsUseResettableIsolatedWorktrees(t *testing.T) {
