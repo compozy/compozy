@@ -354,6 +354,35 @@ func TestTaskTemplateRequiresObservablePersistenceCriteria(t *testing.T) {
 	}
 }
 
+func TestCreateTasksTemplateClassifiesAndValidatesFilePaths(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-tasks", "references", "task-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	required := []string{
+		"`existing`",
+		"`proposed`",
+		"`generated`",
+		"`possible`",
+		"Every path MUST use exactly one classification",
+		"missing or renamed `existing` path as a blocking error",
+		"Treat `proposed` and `possible` paths as advisory",
+		"derive `Dependent Files` from repository analysis",
+		"outcomes, not advisory filenames",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(text, snippet) {
+			t.Errorf("expected %s to include %q", templatePath, snippet)
+		}
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 

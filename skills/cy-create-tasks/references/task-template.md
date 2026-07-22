@@ -35,14 +35,21 @@ complexity: [low, medium, high, critical]
 - [ ] N.3 [Subtask description]
 
 ## Implementation Details
-[File paths to create or modify and integration points.
-Reference the TechSpec implementation section for code patterns and interface designs.]
+[Integration points and classified file paths to inspect, modify, create, or generate.
+Reference the TechSpec implementation section for code patterns and interface designs.
+Use exactly one path classification from the contract below for every row.]
 
 ### Relevant Files
-- `path/to/file` — [brief reason this file is relevant]
+
+| Classification | Path | Evidence / relevance |
+| --- | --- | --- |
+| `[existing|proposed|generated|possible]` | `path/to/file` | [Why the path is relevant and the repository or TechSpec evidence for it] |
 
 ### Dependent Files
-- `path/to/dependency` — [brief reason this file is affected]
+
+| Classification | Path | Evidence / effect |
+| --- | --- | --- |
+| `[existing|proposed|generated|possible]` | `path/to/dependency` | [Why repository analysis shows this file is affected] |
 
 ### Related ADRs
 - [ADR-NNN: Title](../adrs/adr-NNN.md) — Relevance to this task
@@ -92,6 +99,17 @@ without executing the database behavior.]
 
 - Write one subtask per coherent unit of work — WHAT to accomplish, not HOW; robust tasks typically carry 5-12.
 - Sizing, independence, and test-assignment rules live in SKILL.md; the `<critical>` block above ships verbatim in every generated task file.
+
+### Path classification contract
+
+- Every path MUST use exactly one classification:
+  - `existing` — a repository file confirmed at its current path that the task must inspect or modify.
+  - `proposed` — a new source or configuration file suggested by repository analysis or required by the approved TechSpec.
+  - `generated` — an artifact produced by a named build, code-generation, or execution step; identify that producer in the evidence column.
+  - `possible` — an unconfirmed architectural location that may help discovery but is not an implementation commitment.
+- Before generating the task, validate each `existing` path against the repository. Treat a missing or renamed `existing` path as a blocking error: resolve the current path or remove the claim before publishing the task.
+- Treat `proposed` and `possible` paths as advisory unless the approved TechSpec mandates the exact location. Express subtasks, deliverables, and success criteria as outcomes, not advisory filenames.
+- Trace imports, calls, configuration, generated outputs, and test ownership to derive `Dependent Files` from repository analysis rather than guesses. Record that evidence in the table.
 
 ## Task Group task-suite additions
 
