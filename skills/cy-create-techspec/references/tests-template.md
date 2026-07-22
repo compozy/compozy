@@ -29,6 +29,15 @@ Derived from `_user_stories.md` (behavior) and `_techspec.md` (components).
 | US-001.EC-1   | [edge case]       | UT-003         | —           | —       |
 | [Component A] | [responsibility]  | UT-010–UT-014  | IT-002      | —       |
 
+## Quantitative Verification
+
+Extract every quantified requirement from the source artifacts into this table. Preserve the comparator, value, and unit exactly as written.
+
+| Source | Metric | Target value | Measurement method | Test environment | Category | Owning test ID |
+|--------|--------|--------------|--------------------|------------------|----------|----------------|
+| US-002 | [maximum page size] | [<= 100 items] | [issue a request for 101 items and assert the documented rejection] | [named integration harness and dataset] | capacity | IT-004 |
+| [TechSpec section] | [p95 response latency] | [< 200 ms] | [collect the named percentile over the declared workload] | [named benchmark environment and load profile] | performance | IT-005 |
+
 ## Unit Tests
 
 ### [Component A] (TechSpec: [section name])
@@ -58,6 +67,11 @@ The matrix is the completion gate for this document:
 - Every component and interface in the TechSpec has a row with unit coverage that includes its error paths — a component whose only cases are happy-path is uncovered.
 - Every API endpoint, CLI verb, or message contract in the TechSpec has cases for its success shape and each documented failure shape.
 - Every user journey has at least one end-to-end or integration case following it start to finish.
+- Extract every numeric or quantitative requirement from the PRD, `_user_stories.md`, and TechSpec, including fixture size, latency, retry count, page size, concurrency, capacity, and retention limits. Record one row per metric under Quantitative Verification.
+- Every metric row names its source, metric, exact target value, measurement method, test environment, category (`correctness`, `capacity`, or `performance`), and one owning test ID.
+- The owning case must repeat and use the exact quantity or threshold in its setup or assertion, apply the stated measurement method in the named environment, and fail when the target is violated. An ID-only link does not verify a metric.
+- Fixture and workload generation must be deterministic and reproducible: name the generator or recipe, exact record count, fixed seed when randomness is used, controlled clock when time matters, and pinned input or dataset version.
+- Block `_tests.md` generation while any quantified requirement lacks a metric row, verification method, deterministic fixture or workload recipe, test environment, or owning test ID.
 - Cross-requirement coverage is mandatory when the source artifacts combine idempotency, replay, deduplication, or stored responses with authorization, redaction, tenant isolation, or sensitive output. Add integration cases that prove:
   - an initial request succeeds and stores the canonical result, access is then revoked, and replaying the same idempotency key rechecks current authorization, tenant isolation, and redaction before denying or projecting the response without changing the stored result;
   - every relevant grant transition is followed by replay of the same key, with the response projection determined by the current grant while the stored result remains unchanged; and

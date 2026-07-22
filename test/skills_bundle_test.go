@@ -255,6 +255,36 @@ func TestCreateTechSpecTemplateRequiresOperationalEventContracts(t *testing.T) {
 	}
 }
 
+func TestCreateTechSpecTestsTemplateRequiresQuantitativeVerification(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-techspec", "references", "tests-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"## Quantitative Verification",
+		"| Source | Metric | Target value | Measurement method | Test environment | Category | Owning test ID |",
+		"`correctness`, `capacity`, or `performance`",
+		"repeat and use the exact quantity or threshold",
+		"deterministic and reproducible",
+		"Block `_tests.md` generation",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
 func TestTechSpecTemplateRequiresContractRolloutPlanning(t *testing.T) {
 	t.Parallel()
 
