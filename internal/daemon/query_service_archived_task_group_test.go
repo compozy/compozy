@@ -11,6 +11,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/taskgroups"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 // archiveDependentTaskGroupInitiativeForTest builds a two-task-group initiative with
@@ -127,6 +128,115 @@ func taskBoardContainsTitle(lanes []apicore.TaskLane, title string) bool {
 		}
 	}
 	return false
+}
+
+func archivedTaskGroupPlanSnapshotForTest(
+	t *testing.T,
+	env *runManagerTestEnv,
+	taskGroupRef string,
+) globaldb.ArtifactSnapshotRow {
+	t.Helper()
+
+	workspaceID := mustWorkspaceID(t, env.globalDB, env.workspaceRoot)
+	taskGroupWorkflow, err := env.globalDB.GetLatestArchivedWorkflowBySlug(
+		context.Background(),
+		workspaceID,
+		taskGroupRef,
+	)
+	if err != nil {
+		t.Fatalf("GetLatestArchivedWorkflowBySlug(%s) error = %v", taskGroupRef, err)
+	}
+	snapshots, err := env.globalDB.ListArtifactSnapshots(
+		context.Background(),
+		taskGroupWorkflow.ParentWorkflowID,
+	)
+	if err != nil {
+		t.Fatalf("ListArtifactSnapshots(parent of %s) error = %v", taskGroupRef, err)
+	}
+	for idx := range snapshots {
+		if filepath.ToSlash(snapshots[idx].RelativePath) == taskgroups.ManifestFileName {
+			return snapshots[idx]
+		}
+	}
+	t.Fatalf("parent of %s has no %s snapshot", taskGroupRef, taskgroups.ManifestFileName)
+	return globaldb.ArtifactSnapshotRow{}
+}
+
+func TestQueryServiceReadsArchivedTaskGroupPlanExcerptAfterArchiveDirectoryDisappears(t *testing.T) {
+	// INVARIANT: an archived task group's plan excerpt remains readable from the
+	// selected parent generation's durable snapshot when its archive directory is gone.
+	// OWNING_LAYER: service-integration. CONTRACT: nested-workflows/reviews-004/issue_005.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	result := archiveDependentTaskGroupInitiativeForTest(t, env, initiative)
+	taskGroupRef := initiative + "/TG-001"
+	planSnapshot := archivedTaskGroupPlanSnapshotForTest(t, env, taskGroupRef)
+
+	if err := os.RemoveAll(result.ArchivedPaths[0]); err != nil {
+		t.Fatalf("RemoveAll(archived initiative) error = %v", err)
+	}
+
+	query := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
+	spec, err := query.WorkflowSpec(context.Background(), env.workspaceRoot, taskGroupRef)
+	if err != nil {
+		t.Fatalf("WorkflowSpec(%s) error = %v, want snapshot-backed success", taskGroupRef, err)
+	}
+	if spec.PlanExcerpt == nil || !strings.Contains(spec.PlanExcerpt.Markdown, "TG-001 — Foundation") {
+		t.Fatalf("WorkflowSpec(%s).PlanExcerpt = %#v", taskGroupRef, spec.PlanExcerpt)
+	}
+	if !spec.PlanExcerpt.UpdatedAt.Equal(planSnapshot.SourceMTime) {
+		t.Fatalf(
+			"WorkflowSpec(%s).PlanExcerpt.UpdatedAt = %s, want snapshot time %s",
+			taskGroupRef,
+			spec.PlanExcerpt.UpdatedAt,
+			planSnapshot.SourceMTime,
+		)
+	}
+}
+
+func TestQueryServicePinsArchivedTaskGroupPlanExcerptToDurableGeneration(t *testing.T) {
+	// INVARIANT: an archived task group's plan excerpt uses the selected parent
+	// generation's durable content and timestamp even when its filesystem plan diverges.
+	// OWNING_LAYER: service-integration. CONTRACT: nested-workflows/reviews-004/issue_005.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	result := archiveDependentTaskGroupInitiativeForTest(t, env, initiative)
+	taskGroupRef := initiative + "/TG-001"
+	planSnapshot := archivedTaskGroupPlanSnapshotForTest(t, env, taskGroupRef)
+	planPath := filepath.Join(result.ArchivedPaths[0], taskgroups.ManifestFileName)
+
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("ReadFile(archived task group plan) error = %v", err)
+	}
+	divergentContent := strings.Replace(string(content), "TG-001 — Foundation", "TG-001 — Filesystem Drift", 1)
+	if err := os.WriteFile(planPath, []byte(divergentContent), 0o600); err != nil {
+		t.Fatalf("WriteFile(divergent archived task group plan) error = %v", err)
+	}
+	filesystemTime := planSnapshot.SourceMTime.AddDate(0, 0, 1)
+	if err := os.Chtimes(planPath, filesystemTime, filesystemTime); err != nil {
+		t.Fatalf("Chtimes(divergent archived task group plan) error = %v", err)
+	}
+
+	query := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
+	spec, err := query.WorkflowSpec(context.Background(), env.workspaceRoot, taskGroupRef)
+	if err != nil {
+		t.Fatalf("WorkflowSpec(%s) error = %v", taskGroupRef, err)
+	}
+	if spec.PlanExcerpt == nil || !strings.Contains(spec.PlanExcerpt.Markdown, "TG-001 — Foundation") {
+		t.Fatalf("WorkflowSpec(%s).PlanExcerpt = %#v, want durable Foundation excerpt", taskGroupRef, spec.PlanExcerpt)
+	}
+	if strings.Contains(spec.PlanExcerpt.Markdown, "Filesystem Drift") {
+		t.Fatalf("WorkflowSpec(%s) used divergent filesystem plan: %q", taskGroupRef, spec.PlanExcerpt.Markdown)
+	}
+	if !spec.PlanExcerpt.UpdatedAt.Equal(planSnapshot.SourceMTime) {
+		t.Fatalf(
+			"WorkflowSpec(%s).PlanExcerpt.UpdatedAt = %s, want snapshot time %s",
+			taskGroupRef,
+			spec.PlanExcerpt.UpdatedAt,
+			planSnapshot.SourceMTime,
+		)
+	}
 }
 
 func TestTransportServicesReadArchivedTaskGroupThroughPublicSurface(t *testing.T) {

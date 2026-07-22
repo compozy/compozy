@@ -9,8 +9,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
@@ -682,19 +684,11 @@ func readTaskGroupPlanExcerpt(
 	if contextErr := context.Cause(ctx); contextErr != nil {
 		return MarkdownDocument{}, fmt.Errorf("read task group plan excerpt: %w", contextErr)
 	}
-	planPath := filepath.Join(initiativeTarget.rootDir, taskgroups.ManifestFileName)
-	content, err := os.ReadFile(planPath)
+	content, updatedAt, err := readTaskGroupPlanSource(initiativeTarget, taskGroupWorkflow)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return MarkdownDocument{}, DocumentMissingError{
-				Kind:         "task_group",
-				WorkflowSlug: taskGroupWorkflow.Slug,
-				RelativePath: taskgroups.ManifestFileName,
-			}
-		}
-		return MarkdownDocument{}, fmt.Errorf("read task group plan excerpt: %w", err)
+		return MarkdownDocument{}, err
 	}
-	plan, err := taskgroups.ParsePlanForInitiative(string(content), initiativeTarget.workflow.Slug)
+	plan, err := taskgroups.ParsePlanForInitiative(content, initiativeTarget.workflow.Slug)
 	if err != nil {
 		return MarkdownDocument{}, fmt.Errorf("parse task group plan excerpt: %w", err)
 	}
@@ -709,21 +703,52 @@ func readTaskGroupPlanExcerpt(
 			taskGroupWorkflow.TaskGroupID,
 		)
 	}
-	info, err := os.Stat(planPath)
-	if err != nil {
-		return MarkdownDocument{}, fmt.Errorf("stat task group plan excerpt: %w", err)
-	}
 	return MarkdownDocument{
 		ID:        "task-group-" + taskGroupWorkflow.TaskGroupID,
 		Kind:      "task_group",
 		Title:     taskGroupWorkflow.TaskGroupID + " — " + taskGroup.Title,
-		UpdatedAt: info.ModTime().UTC(),
+		UpdatedAt: updatedAt,
 		Markdown:  string(excerpt),
 		Metadata: map[string]any{
 			"task_group_id": taskGroupWorkflow.TaskGroupID,
 			"workflow_ref":  taskGroupWorkflow.Slug,
 		},
 	}, nil
+}
+
+func readTaskGroupPlanSource(
+	initiativeTarget workflowReadTarget,
+	taskGroupWorkflow globaldb.Workflow,
+) (string, time.Time, error) {
+	if snapshot, ok := initiativeTarget.snapshotsByPath[taskgroups.ManifestFileName]; ok {
+		doc, err := markdownDocumentFromSnapshot(snapshot, "task_group", "task-group-plan")
+		if err != nil {
+			return "", time.Time{}, fmt.Errorf("read task group plan snapshot: %w", err)
+		}
+		content, err := frontmatter.Format(doc.Metadata, doc.Markdown)
+		if err != nil {
+			return "", time.Time{}, fmt.Errorf("format task group plan snapshot: %w", err)
+		}
+		return content, snapshot.SourceMTime.UTC(), nil
+	}
+
+	planPath := filepath.Join(initiativeTarget.rootDir, taskgroups.ManifestFileName)
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", time.Time{}, DocumentMissingError{
+				Kind:         "task_group",
+				WorkflowSlug: taskGroupWorkflow.Slug,
+				RelativePath: taskgroups.ManifestFileName,
+			}
+		}
+		return "", time.Time{}, fmt.Errorf("read task group plan excerpt: %w", err)
+	}
+	info, err := os.Stat(planPath)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("stat task group plan excerpt: %w", err)
+	}
+	return string(content), info.ModTime().UTC(), nil
 }
 
 func (s *queryService) snapshotIndex(
