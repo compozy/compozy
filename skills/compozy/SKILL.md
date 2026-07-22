@@ -80,7 +80,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | `compozy reviews fetch` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round` |
 | `compozy reviews fix` | Process review issue files | `--name`, `--round`, `--concurrent`, `--batch-size`, `--ide` |
 | **Utilities** | | |
-| `compozy tasks validate` | Validate task file metadata | `--name`, `--tasks-dir`, `--format` |
+| `compozy tasks validate` | Validate task files, graphs, and Task Group plans | `--name`, `--tasks-dir`, `--format` |
 | `compozy sync` | Reconcile workflow artifacts into daemon `global.db` | `--name`, `--root-dir`, `--tasks-dir` |
 | `compozy archive` | Move daemon-eligible completed workflows to archive | `--name`, `--root-dir`, `--tasks-dir` |
 | `compozy migrate` | Convert legacy artifacts to frontmatter | `--name`, `--dry-run`, `--reviews-dir` |

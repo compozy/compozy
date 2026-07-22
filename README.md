@@ -146,7 +146,7 @@ dependencies:
 ---
 ```
 
-Validate task files at any time with `compozy tasks validate --name <feature>`. `compozy tasks run <feature>` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
+Validate workflow artifacts at any time with `compozy tasks validate --name <feature>`. For Task Group initiatives this includes the root `_task_groups.md` plan and every declared child task suite. `compozy tasks run <feature>` runs its execution preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
 
 ## ⚙️ Config Files
 
@@ -644,13 +644,13 @@ The daemon lazily registers workspaces on first use, but the `workspaces` family
 </details>
 
 <details>
-<summary><code>compozy tasks validate</code> — Validate task metadata before execution</summary>
+<summary><code>compozy tasks validate</code> — Validate task workflow artifacts before execution</summary>
 
 ```bash
 compozy tasks validate [--name my-feature | --tasks-dir .compozy/tasks/my-feature] [--format text|json]
 ```
 
-Use `tasks validate` to check every `task_*.md` file in a workflow directory against the v2 task metadata schema before you run `tasks run`.
+Use `tasks validate` to check task metadata and graph manifests before `tasks run`. When `_task_groups.md` is present, it also validates that canonical root plan and every manifest-declared Task Group suite.
 
 </details>
 

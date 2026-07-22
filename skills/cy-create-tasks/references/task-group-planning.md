@@ -109,10 +109,60 @@ directories remain valid and stay byte-for-byte stable during plan edits. A
 persisted readable directory also remains stable when its display title changes
 unless the user explicitly approves a directory migration.
 
-Root plan must satisfy `compozy.task-groups/v1` manifest and readable Markdown
-body contract from `_techspec.md`: stable IDs, exact directories, hierarchical
-references, non-empty title/outcome/scope, dependency rationales, acyclic graph,
-mirrored dependency lists, and heading checkbox state.
+Root plan must use this exact `compozy.task-groups/v1` hybrid YAML/Markdown
+shape. The root field is `initiative`; `workflow` belongs only in each Task
+Group-local `_tasks.md` manifest.
+
+```markdown
+---
+schema_version: compozy.task-groups/v1
+initiative: customer-management
+graph:
+  nodes:
+    - id: TG-001
+      directory: _task_groups/001-shared-foundation
+    - id: TG-002
+      directory: _task_groups/002-api-delivery
+  edges:
+    - from: TG-001
+      to: TG-002
+      rationale: Shared contracts must exist before API delivery
+---
+
+# customer-management Task Groups
+
+## [ ] TG-001 — Shared foundation
+
+- Reference: `customer-management/TG-001`
+- Outcome: Shared contracts and persistence are ready
+- Owns:
+  - Domain contracts
+  - Persistence primitives
+- Dependencies: None
+
+## [ ] TG-002 — API delivery
+
+- Reference: `customer-management/TG-002`
+- Outcome: Customer management API is ready
+- Owns:
+  - HTTP handlers
+  - API integration tests
+- Dependencies:
+  - `TG-001` — Shared contracts must exist before API delivery
+```
+
+Every YAML node has exactly one body heading in the literal form
+`## [ ] TG-NNN — Title` or `## [x] TG-NNN — Title`. Completion is stored only
+in that checkbox; do not emit `- Completed:`. Each body contains `Reference`,
+`Outcome`, a non-empty indented `Owns` list, and `Dependencies`. Use
+`- Dependencies: None` when no edge enters the Task Group. Otherwise list every
+incoming dependency as ``  - `TG-NNN` — rationale`` with text exactly matching
+the corresponding YAML edge rationale. Free-form headings such as `## Summary`
+do not represent Task Groups.
+
+The plan must also preserve stable IDs, exact directories, hierarchical
+references, non-empty title/outcome/scope, acyclic graph edges, mirrored
+dependency lists, and heading checkbox state.
 
 Every task group task manifest uses `workflow: <initiative>/TG-NNN`. Each task is
 owned by containing task group and qualified for initiative-wide audits as

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
 )
 
@@ -96,6 +97,107 @@ func TestValidateTasksCommandAllValid(t *testing.T) {
 	}
 }
 
+func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts canonical plan and declared task group suite", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			tasksDir,
+		)
+		if exitCode != 0 {
+			t.Fatalf("expected exit code 0, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, "all tasks valid (1 scanned)") {
+			t.Fatalf("expected task group suite in success output, got %q", stdout)
+		}
+	})
+
+	t.Run("accepts public workflow reference for direct task group directory", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			taskGroupDir,
+		)
+		if exitCode != 0 {
+			t.Fatalf("expected exit code 0, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, "all tasks valid (1 scanned)") {
+			t.Fatalf("expected direct task group validation success, got %q", stdout)
+		}
+	})
+
+	t.Run("rejects physical directory basename as task group workflow", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
+		manifestPath := filepath.Join(taskGroupDir, "_tasks.md")
+		manifestContent, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatalf("read task group manifest: %v", err)
+		}
+		manifestContent = []byte(strings.Replace(
+			string(manifestContent),
+			"workflow: demo/TG-001",
+			"workflow: 001-foundation",
+			1,
+		))
+		if err := os.WriteFile(manifestPath, manifestContent, 0o600); err != nil {
+			t.Fatalf("write task group manifest: %v", err)
+		}
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			taskGroupDir,
+		)
+		if exitCode != 1 {
+			t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, "must be a valid demo/TG-NNN reference") {
+			t.Fatalf("expected public workflow diagnostic, got stdout=%q stderr=%q", stdout, stderr)
+		}
+	})
+
+	t.Run("rejects YAML node without canonical Markdown heading", func(t *testing.T) {
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		planPath := writeTaskGroupWorkflowForCLI(t, tasksDir, true)
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			tasksDir,
+		)
+		if exitCode != 1 {
+			t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, planPath) ||
+			!strings.Contains(stdout, "YAML task group has no Markdown heading") {
+			t.Fatalf("expected task group plan diagnostic, got stdout=%q stderr=%q", stdout, stderr)
+		}
+	})
+}
+
 func TestValidateTasksCommandMissingDir(t *testing.T) {
 	workspaceRoot, _ := makeValidateTasksWorkspace(t, "demo")
 	missingDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "missing")
@@ -158,6 +260,39 @@ func TestWriteValidateTasksJSONAndHelpers(t *testing.T) {
 	}
 	if got := validateTasksMessage(tasks.Report{}); got != "no tasks found" {
 		t.Fatalf("unexpected no-tasks message: %q", got)
+	}
+}
+
+func TestValidateTasksFixPromptDescribesTaskGroupPlanGrammar(t *testing.T) {
+	t.Parallel()
+
+	registry, err := tasks.NewRegistry(nil)
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	planPath := filepath.Join("tmp", "tasks", taskgroups.ManifestFileName)
+	report := tasks.Report{
+		TasksDir: filepath.Dir(planPath),
+		Issues: []tasks.Issue{{
+			Path:    planPath,
+			Field:   "graph.nodes.TG-001",
+			Message: "YAML task group has no Markdown heading",
+		}},
+	}
+
+	prompt := validateTasksFixPrompt(report, registry)
+	for _, expected := range []string{
+		"compozy.task-groups/v1",
+		"initiative",
+		"## [ ] TG-NNN — Title",
+		"YAML task group has no Markdown heading",
+	} {
+		if !strings.Contains(prompt, expected) {
+			t.Fatalf("expected task group fix prompt to contain %q, got:\n%s", expected, prompt)
+		}
+	}
+	if strings.Contains(prompt, "Rewrite the YAML front matter to schema v2") {
+		t.Fatalf("task group fix prompt used task-file remediation:\n%s", prompt)
 	}
 }
 
@@ -367,6 +502,60 @@ func writeTaskWorkflowForCLI(t *testing.T, workspaceRoot string, slug string) st
 		"# Task 1: "+slug+" Task",
 	))
 	return tasksDir
+}
+
+func writeTaskGroupWorkflowForCLI(t *testing.T, tasksDir string, invalidHeading bool) string {
+	t.Helper()
+
+	const taskGroupID = "TG-001"
+	const taskGroupDirectory = "_task_groups/001-foundation"
+	planContent, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
+		Initiative:    "demo",
+		TaskGroups: []taskgroups.TaskGroup{{
+			ID:         taskGroupID,
+			Title:      "Foundation",
+			Outcome:    "Shared foundation is ready",
+			Directory:  taskGroupDirectory,
+			OwnedScope: []string{"Shared contracts"},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("render task group plan: %v", err)
+	}
+	if invalidHeading {
+		planContent = []byte(strings.Replace(
+			string(planContent),
+			"## [ ] TG-001 — Foundation",
+			"## Summary",
+			1,
+		))
+	}
+	writeRawTaskFileForCLI(t, tasksDir, taskgroups.ManifestFileName, string(planContent))
+
+	taskGroupDir := filepath.Join(tasksDir, filepath.FromSlash(taskGroupDirectory))
+	if err := os.MkdirAll(taskGroupDir, 0o755); err != nil {
+		t.Fatalf("mkdir task group directory: %v", err)
+	}
+	writeRawTaskFileForCLI(t, taskGroupDir, "_tasks.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.tasks/v2",
+		"workflow: demo/TG-001",
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"  edges: []",
+		"---",
+		"",
+		"# Foundation Task List",
+	}, "\n")+"\n")
+	writeRawTaskFileForCLI(t, taskGroupDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "title: Foundation Task", "type: backend", "complexity: low"},
+		"# Task 1: Foundation Task",
+	))
+
+	return filepath.Join(tasksDir, taskgroups.ManifestFileName)
 }
 
 func cliTaskMarkdown(frontMatter []string, h1 string) string {
