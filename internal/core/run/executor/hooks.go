@@ -133,6 +133,8 @@ func hookRuntimeConfig(src *config) model.RuntimeConfig {
 	if src == nil {
 		return model.RuntimeConfig{}
 	}
+	stallEnabled := src.Stall.Enabled
+	stallRetries := src.Stall.Retries
 	return model.RuntimeConfig{
 		WorkspaceRoot:          src.WorkspaceRoot,
 		Name:                   src.Name,
@@ -167,6 +169,11 @@ func hookRuntimeConfig(src *config) model.RuntimeConfig {
 		SoundOnCompleted:       src.SoundOnCompleted,
 		SoundOnFailed:          src.SoundOnFailed,
 		SoundOnParked:          src.SoundOnParked,
+		StallEnabled:           &stallEnabled,
+		StallTimeout:           src.Stall.IdleTimeout,
+		ChildStallTimeout:      src.Stall.ChildTimeout,
+		TerminalCommandTimeout: src.Stall.TerminalCap,
+		StallRetries:           &stallRetries,
 	}
 }
 
@@ -207,6 +214,19 @@ func applyHookRuntimeConfig(dst *config, updated model.RuntimeConfig) {
 	dst.SoundOnCompleted = updated.SoundOnCompleted
 	dst.SoundOnFailed = updated.SoundOnFailed
 	dst.SoundOnParked = updated.SoundOnParked
+	dst.Stall = resolvedHookStallPolicy(updated)
+}
+
+func resolvedHookStallPolicy(updated model.RuntimeConfig) model.StallPolicy {
+	stallConfig := model.RuntimeConfig{
+		StallEnabled:           updated.StallEnabled,
+		StallTimeout:           updated.StallTimeout,
+		ChildStallTimeout:      updated.ChildStallTimeout,
+		TerminalCommandTimeout: updated.TerminalCommandTimeout,
+		StallRetries:           updated.StallRetries,
+	}
+	stallConfig.ApplyDefaults()
+	return stallConfig.StallPolicy()
 }
 
 func hookRunSummary(result executionResult) model.RunSummary {
