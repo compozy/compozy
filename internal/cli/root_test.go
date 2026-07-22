@@ -902,13 +902,26 @@ func writeCleanCompletionWorkspace(t *testing.T) string {
 		"",
 	}, "\n"))
 	taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+	writeCompletionFixtureFile(t, taskGroupDir, "_tasks.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.tasks/v2",
+		"workflow: initiative/TG-001",
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"  edges: []",
+		"---",
+		"",
+		"# Initiative TG-001 Tasks",
+		"",
+	}, "\n"))
 	writeCompletionFixtureFile(t, taskGroupDir, "task_01.md", strings.Join([]string{
 		"---",
 		"status: completed",
 		"title: TG-001 task",
 		"type: backend",
 		"complexity: low",
-		"dependencies: []",
 		"---",
 		"",
 		"# TG-001 task",

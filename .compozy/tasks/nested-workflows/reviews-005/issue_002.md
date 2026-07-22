@@ -3,7 +3,7 @@ provider: manual
 pr:
 round: 5
 round_created_at: 2026-07-22T21:45:58Z
-status: pending
+status: resolved
 file: internal/core/task_group_completion.go
 line: 253
 severity: high
@@ -21,5 +21,15 @@ Load and validate the current manifest against the exact `<initiative>/TG-NNN` r
 
 ## Triage
 
-- Decision: `UNREVIEWED`
-- Notes:
+- Decision: `VALID`
+- Notes: `taskCompletionEvidence` calls `tasks.SnapshotTaskMeta`, which discovers every
+  `task_*.md` in the directory without reading `_tasks.md`. The daemon's task runner instead
+  uses `tasks.LoadValidatedTaskGraphManifest`, so completion can currently accept evidence
+  that the executable workflow rejects (including a mismatched workflow identity, missing
+  manifest-owned files, or an invalid graph). The completion bridge now loads and validates
+  `_tasks.md` against the exact selected `<initiative>/TG-NNN` reference on every evidence
+  pass and derives terminal state only from the validated manifest-owned task entries.
+  Regression coverage mutates workflow identity, manifest-owned file presence, and graph
+  cycles both before the durable write and after its pre-write validation, proving both
+  evidence passes reject the completion. The repository verification pipeline passes with
+  the repaired production path and fixtures.

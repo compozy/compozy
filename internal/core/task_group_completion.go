@@ -124,7 +124,7 @@ func (s *TaskGroupCompletionService) evaluateCompletionGate(
 	request TaskGroupCompletionRequest,
 	reference string,
 ) (completionGate, error) {
-	paths, reviewClean, err := validateCompletionEvidence(ctx, request)
+	paths, reviewClean, err := validateCompletionEvidence(ctx, request, reference)
 	gate := completionGate{reviewClean: reviewClean}
 	if err != nil {
 		return gate, err
@@ -158,8 +158,9 @@ func (s *TaskGroupCompletionService) evaluateCompletionGate(
 func validateCompletionEvidence(
 	ctx context.Context,
 	request TaskGroupCompletionRequest,
+	reference string,
 ) (taskgroups.OperationalPaths, bool, error) {
-	paths, review, err := reviewCompletionEvidence(ctx, request.WorkspaceRoot, request.Reference)
+	paths, review, err := reviewCompletionEvidence(ctx, request.WorkspaceRoot, reference)
 	// ReviewClean is derived only from final verification and the independent review
 	// scan. A task-inspection failure below is a separate completion blocker and must
 	// never flip a genuinely clean, fully resolved review result.
@@ -167,7 +168,7 @@ func validateCompletionEvidence(
 	if err != nil {
 		return paths, reviewClean, fmt.Errorf("inspect task group review evidence: %w", err)
 	}
-	tasksTerminal, err := taskCompletionEvidence(paths.TaskGroupDir)
+	tasksTerminal, err := taskCompletionEvidence(ctx, paths.TaskGroupDir, reference)
 	if err != nil {
 		return paths, reviewClean, fmt.Errorf("inspect task group task evidence: %w", err)
 	}
@@ -247,15 +248,23 @@ func reviewCompletionEvidence(
 	return paths, outcome, nil
 }
 
-// taskCompletionEvidence reports whether every task group task is terminal. Its
-// failures are completion blockers that the caller keeps separate from the
-// review outcome.
-func taskCompletionEvidence(taskGroupDir string) (bool, error) {
-	taskMeta, err := tasks.SnapshotTaskMeta(taskGroupDir)
+// taskCompletionEvidence validates the selected task graph and reports whether
+// every manifest-owned task is terminal. Its failures are completion blockers
+// that the caller keeps separate from the review outcome.
+func taskCompletionEvidence(ctx context.Context, taskGroupDir, reference string) (bool, error) {
+	_, taskFiles, err := tasks.LoadValidatedTaskGraphManifest(ctx, taskGroupDir, reference)
 	if err != nil {
 		return false, err
 	}
-	return taskMeta.Total > 0 && taskMeta.Pending == 0, nil
+	if len(taskFiles) == 0 {
+		return false, nil
+	}
+	for index := range taskFiles {
+		if !tasks.IsTaskCompleted(taskFiles[index].Entry) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func sameCompletionOperationalPaths(paths taskgroups.OperationalPaths, scope model.ExecutionScope) bool {

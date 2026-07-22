@@ -14,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/taskgroups"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -1087,12 +1088,18 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 		workspaceRoot := t.TempDir()
 		setSyncTestHome(t)
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		writeSyncWorkflowFile(
 			t,
 			filepath.Join(initiativeDir, "_task_groups", "TG-001"),
 			"task_01.md",
-			taskBody("completed", "TG-001 task"),
+			taskGraphTaskBody("completed", "TG-001 task"),
+		)
+		writeSyncWorkflowFile(
+			t,
+			filepath.Join(initiativeDir, "_task_groups", "TG-001"),
+			"task_99.md",
+			taskGraphTaskBody("pending", "unowned task must not affect completion"),
 		)
 		writeSyncWorkflowFile(
 			t,
@@ -1148,12 +1155,12 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("IT-025 preserves a clean review when the current plan is malformed", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		writeSyncWorkflowFile(
 			t,
 			filepath.Join(initiativeDir, "_task_groups", "TG-001"),
 			"task_01.md",
-			taskBody("completed", "TG-001 task"),
+			taskGraphTaskBody("completed", "TG-001 task"),
 		)
 		planPath := filepath.Join(initiativeDir, taskgroups.ManifestFileName)
 		malformed := "---\ninvalid"
@@ -1176,12 +1183,12 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("IT-028 and sync failure keep completion outcomes distinct", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		writeSyncWorkflowFile(
 			t,
 			filepath.Join(initiativeDir, "_task_groups", "TG-001"),
 			"task_01.md",
-			taskBody("completed", "TG-001 task"),
+			taskGraphTaskBody("completed", "TG-001 task"),
 		)
 		service := NewTaskGroupCompletionService()
 		service.sync = func(context.Context, string, model.ExecutionScope) error {
@@ -1206,12 +1213,12 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("IT-028 preserves a clean review when the plan is read only", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		writeSyncWorkflowFile(
 			t,
 			filepath.Join(initiativeDir, "_task_groups", "TG-001"),
 			"task_01.md",
-			taskBody("completed", "TG-001 task"),
+			taskGraphTaskBody("completed", "TG-001 task"),
 		)
 		planPath := filepath.Join(initiativeDir, taskgroups.ManifestFileName)
 		before := mustReadFile(t, planPath)
@@ -1251,12 +1258,12 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("IT-027 rechecks reopened dependencies before recording completion", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		writeSyncWorkflowFile(
 			t,
 			filepath.Join(initiativeDir, "_task_groups", "TG-002"),
 			"task_01.md",
-			taskBody("completed", "TG-002 task"),
+			taskGraphTaskBody("completed", "TG-002 task"),
 		)
 		before := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName))
 
@@ -1277,9 +1284,9 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("IT-021 rejects unresolved review evidence without changing the plan", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
-		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("completed", "TG-001 task"))
+		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("completed", "TG-001 task"))
 		writeSyncWorkflowFile(
 			t,
 			taskGroupDir,
@@ -1302,9 +1309,9 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("keeps a clean resolved review distinct from a nonterminal task", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
-		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("pending", "TG-001 task"))
+		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("pending", "TG-001 task"))
 		writeSyncWorkflowFile(
 			t,
 			taskGroupDir,
@@ -1335,10 +1342,10 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 	t.Run("preserves a clean resolved review when task evidence fails to parse", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
-		// A malformed task file makes tasks.SnapshotTaskMeta fail. The review scan must
-		// still run independently so a fully resolved review history is not erased.
+		// A malformed manifest-owned task makes task graph validation fail. The review
+		// scan must still run independently so a fully resolved history is not erased.
 		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", "---\nstatus: [unterminated\n---\n# broken\n")
 		writeSyncWorkflowFile(
 			t,
@@ -1378,9 +1385,11 @@ func TestTaskGroupCompletionBridgeSeparatesReviewAndCompletionOutcomes(t *testin
 // but before the checkbox write, deterministically reproducing the stale-evidence
 // race without goroutines or timing hacks.
 type completionResolverSpy struct {
-	inner   taskGroupTargetResolver
-	mutate  func()
-	mutated bool
+	inner           taskGroupTargetResolver
+	mutate          func()
+	mutateOnResolve int
+	resolveCount    int
+	mutated         bool
 }
 
 func (r *completionResolverSpy) ResolveTaskGroup(
@@ -1389,7 +1398,9 @@ func (r *completionResolverSpy) ResolveTaskGroup(
 	reference string,
 ) (taskgroups.Target, error) {
 	target, err := r.inner.ResolveTaskGroup(ctx, workspaceRoot, reference)
-	if err == nil && !r.mutated && r.mutate != nil {
+	r.resolveCount++
+	mutationDue := r.mutateOnResolve == 0 || r.resolveCount == r.mutateOnResolve
+	if err == nil && !r.mutated && r.mutate != nil && mutationDue {
 		r.mutated = true
 		r.mutate()
 	}
@@ -1417,13 +1428,13 @@ func TestTaskGroupCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
 	t.Run("refuses completion when a task turns nonterminal after the initial gate", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
-		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("completed", "TG-001 task"))
+		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("completed", "TG-001 task"))
 		before := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName))
 
 		service := newBlockingService(t, func() {
-			writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("pending", "TG-001 task"))
+			writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("pending", "TG-001 task"))
 		})
 		result, err := service.Complete(context.Background(), TaskGroupCompletionRequest{
 			WorkspaceRoot: workspaceRoot, Reference: "initiative/TG-001", VerificationPassed: true,
@@ -1447,9 +1458,9 @@ func TestTaskGroupCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
 	t.Run("refuses completion when a review reopens after the initial gate", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
-		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("completed", "TG-001 task"))
+		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("completed", "TG-001 task"))
 		writeSyncWorkflowFile(
 			t,
 			taskGroupDir,
@@ -1486,9 +1497,9 @@ func TestTaskGroupCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
 	t.Run("Should refuse completion when a task reopens after the final service gate", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
-		writeTaskGroupFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
+		writeTaskGroupCompletionFixture(t, initiativeDir, map[string]string{"TG-001": "pending", "TG-002": "pending"})
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
-		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("completed", "TG-001 task"))
+		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("completed", "TG-001 task"))
 		before := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName))
 		realStore := taskgroups.NewStore()
 		service := NewTaskGroupCompletionService()
@@ -1498,7 +1509,7 @@ func TestTaskGroupCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
 				initiativeDir, taskGroupID string,
 				validator taskgroups.CompletionValidator,
 			) (taskgroups.CompletionResult, error) {
-				writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody("pending", "TG-001 task"))
+				writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("pending", "TG-001 task"))
 				return realStore.MarkCompleteValidated(ctx, initiativeDir, taskGroupID, validator)
 			},
 		)
@@ -1520,6 +1531,95 @@ func TestTaskGroupCompletionBridgeRejectsStaleEvidenceRaces(t *testing.T) {
 			t.Fatal("store-boundary stale evidence changed plan bytes")
 		}
 	})
+}
+
+func TestTaskGroupCompletionBridgeRejectsTaskManifestMutationsAcrossWriteBoundary(t *testing.T) {
+	// INVARIANT: completion records a checkbox only while the exact selected
+	// Task Group's manifest remains executable before and after the plan write.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/sync_test.go.
+	manifestCases := []struct {
+		name string
+		body func() string
+	}{
+		{
+			name: "mismatched workflow identity",
+			body: func() string {
+				return taskGraphManifestBody("initiative/TG-999", []string{"task_01"}, nil)
+			},
+		},
+		{
+			name: "missing manifest-owned task file",
+			body: func() string {
+				return taskGraphManifestBody("initiative/TG-001", []string{"task_01", "task_02"}, nil)
+			},
+		},
+		{
+			name: "cyclic task graph",
+			body: func() string {
+				return taskGraphManifestBody(
+					"initiative/TG-001",
+					[]string{"task_01", "task_02"},
+					[][2]string{{"task_01", "task_02"}, {"task_02", "task_01"}},
+				)
+			},
+		},
+	}
+	writeWindows := []struct {
+		name            string
+		mutateOnResolve int
+	}{
+		{name: "pre-write evidence pass", mutateOnResolve: 1},
+		{name: "post-write evidence pass", mutateOnResolve: 2},
+	}
+
+	for _, writeWindow := range writeWindows {
+		for _, manifestCase := range manifestCases {
+			t.Run(writeWindow.name+"/"+manifestCase.name, func(t *testing.T) {
+				workspaceRoot := t.TempDir()
+				initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+				writeTaskGroupCompletionFixture(
+					t,
+					initiativeDir,
+					map[string]string{"TG-001": "pending", "TG-002": "pending"},
+				)
+				taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+				writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskGraphTaskBody("completed", "TG-001 task"))
+				writeSyncWorkflowFile(
+					t,
+					taskGroupDir,
+					"_tasks.md",
+					taskGraphManifestBody("initiative/TG-001", []string{"task_01"}, nil),
+				)
+				before := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName))
+
+				service := NewTaskGroupCompletionService()
+				service.resolver = &completionResolverSpy{
+					inner:           taskgroups.TargetResolver{},
+					mutateOnResolve: writeWindow.mutateOnResolve,
+					mutate: func() {
+						writeSyncWorkflowFile(t, taskGroupDir, "_tasks.md", manifestCase.body())
+					},
+				}
+				service.sync = func(context.Context, string, model.ExecutionScope) error {
+					t.Fatal("sync must not run when task manifest evidence becomes invalid")
+					return nil
+				}
+
+				result, err := service.Complete(context.Background(), TaskGroupCompletionRequest{
+					WorkspaceRoot: workspaceRoot, Reference: "initiative/TG-001", VerificationPassed: true,
+				})
+				if !errors.Is(err, tasks.ErrTaskGraphManifestInvalid) {
+					t.Fatalf("manifest-mutated completion error = %v, want invalid task manifest", err)
+				}
+				if !result.ReviewClean || result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+					t.Fatalf("manifest-mutated completion result = %#v", result)
+				}
+				if got := mustReadFile(t, filepath.Join(initiativeDir, taskgroups.ManifestFileName)); got != before {
+					t.Fatal("manifest-mutated completion changed task group plan bytes")
+				}
+			})
+		}
+	}
 }
 
 func TestSyncTaskGroupInitiativeFailsClosedAndPreservesChildren(t *testing.T) {
@@ -2227,6 +2327,20 @@ func taskBody(status string, title string) string {
 	}, "\n")
 }
 
+func taskGraphTaskBody(status string, title string) string {
+	return strings.Join([]string{
+		"---",
+		"status: " + status,
+		"title: " + title,
+		"type: backend",
+		"complexity: low",
+		"---",
+		"",
+		"# " + title,
+		"",
+	}, "\n")
+}
+
 func canonicalTaskListBody() string {
 	return strings.Join([]string{
 		"# Demo — Task List",
@@ -2293,6 +2407,26 @@ func writeTaskGroupFixture(t *testing.T, initiativeDir string, states map[string
 		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", taskGroupID)
 		writeSyncWorkflowFile(t, taskGroupDir, "_tasks.md", canonicalTaskListBody())
 		writeSyncWorkflowFile(t, taskGroupDir, "task_01.md", taskBody(states[taskGroupID], taskGroupID+" task"))
+	}
+}
+
+func writeTaskGroupCompletionFixture(t *testing.T, initiativeDir string, states map[string]string) {
+	t.Helper()
+	writeTaskGroupFixture(t, initiativeDir, states)
+	for _, taskGroupID := range []string{"TG-001", "TG-002"} {
+		taskGroupDir := filepath.Join(initiativeDir, "_task_groups", taskGroupID)
+		writeSyncWorkflowFile(
+			t,
+			taskGroupDir,
+			"_tasks.md",
+			taskGraphManifestBody("initiative/"+taskGroupID, []string{"task_01"}, nil),
+		)
+		writeSyncWorkflowFile(
+			t,
+			taskGroupDir,
+			"task_01.md",
+			taskGraphTaskBody(states[taskGroupID], taskGroupID+" task"),
+		)
 	}
 }
 
@@ -2369,20 +2503,35 @@ func hasWarningContaining(warnings []string, substr string) bool {
 }
 
 func canonicalTaskGraphManifestBody(workflow string) string {
-	return strings.Join([]string{
+	return taskGraphManifestBody(workflow, []string{"task_01"}, nil)
+}
+
+func taskGraphManifestBody(workflow string, nodes []string, edges [][2]string) string {
+	lines := []string{
 		"---",
 		"schema_version: \"compozy.tasks/v2\"",
 		"workflow: " + workflow,
 		"graph:",
 		"  nodes:",
-		"    - id: task_01",
-		"      file: task_01.md",
-		"  edges: []",
+	}
+	for _, node := range nodes {
+		lines = append(lines, "    - id: "+node, "      file: "+node+".md")
+	}
+	if len(edges) == 0 {
+		lines = append(lines, "  edges: []")
+	} else {
+		lines = append(lines, "  edges:")
+		for _, edge := range edges {
+			lines = append(lines, "    - from: "+edge[0], "      to: "+edge[1])
+		}
+	}
+	lines = append(lines,
 		"---",
 		"",
-		"# " + workflow + " Tasks",
+		"# "+workflow+" Tasks",
 		"",
-	}, "\n")
+	)
+	return strings.Join(lines, "\n")
 }
 
 func reviewRoundMetaBody(provider string, pr string, round int) string {
