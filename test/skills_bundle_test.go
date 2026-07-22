@@ -467,6 +467,51 @@ func TestTaskTemplateRequiresObservablePersistenceCriteria(t *testing.T) {
 	}
 }
 
+func TestTaskTemplateTracksEachAssignedTestIndependently(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: every catalog-backed test assignment has one stable ID, one owner, and one checkbox.
+	templatePath := filepath.Join(
+		repoRoot(t),
+		"skills",
+		"cy-create-tasks",
+		"references",
+		"task-template.md",
+	)
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	normalizedText := strings.Join(strings.Fields(text), " ")
+	required := []string{
+		"Model every catalog-backed assignment as one structured record",
+		"The containing task's qualified ID is the record's sole owner",
+		"Group headings are plain bullets, never checkboxes",
+		"Preserve each unchanged ID's existing checkbox status during regeneration",
+		"name every missing or duplicate ID directly",
+		"multiple owners",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(normalizedText, snippet) {
+				t.Errorf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+
+	groupedAssignment := regexp.MustCompile(
+		`(?m)^\s*- \[[ xX]\].*(?:UT|IT|E2E)-[A-Z0-9]+\s*,\s*(?:UT|IT|E2E)-[A-Z0-9]+`,
+	)
+	if match := groupedAssignment.FindString(text); match != "" {
+		t.Fatalf("expected %s to assign one test ID per checkbox, found %q", templatePath, match)
+	}
+}
+
 func TestCreateTasksTemplateClassifiesAndValidatesFilePaths(t *testing.T) {
 	t.Parallel()
 

@@ -63,11 +63,16 @@ Use exactly one path classification from the contract below for every row.]
 
 Cases assigned from `_tests.md`, the test contract — read each ID's full definition there before writing tests.
 
-- [ ] UT-NNN, UT-NNN, UT-NNN — [component/behavior these cover]
-- [ ] IT-NNN — [flow these cover]
-- [ ] E2E-NNN — [journey this covers]
+- Unit
+  - [ ] `UT-NNN` — [component/behavior this covers]
+- Integration
+  - [ ] `IT-NNN` — [flow this covers]
+- End-to-end
+  - [ ] `E2E-NNN` — [journey this covers]
 
-[When the workflow has no `_tests.md`, list concrete cases inline instead — exact input, condition, and expected result per case.]
+[Repeat one nested checkbox per assigned ID. When the workflow has no `_tests.md`,
+list one concrete case per nested checkbox instead — exact input, condition, and
+expected result per case.]
 
 ## Success Criteria
 - Every assigned test case implemented and passing
@@ -98,7 +103,30 @@ without executing the database behavior.]
 ## Guidelines
 
 - Write one subtask per coherent unit of work — WHAT to accomplish, not HOW; robust tasks typically carry 5-12.
-- Sizing, independence, and test-assignment rules live in SKILL.md; the `<critical>` block above ships verbatim in every generated task file.
+- Sizing and independence rules live in SKILL.md; this file owns the task shape
+  and test-record rendering contract. The `<critical>` block above ships verbatim
+  in every generated task file.
+
+### Test assignment contract
+
+- Model every catalog-backed assignment as one structured record with `id`,
+  `owner`, `status`, and `behavior`. The `id` is the exact globally unique ID from
+  `_tests.md`; the `status` is that record's own `[ ]` or `[x]` checkbox state.
+- The containing task's qualified ID is the record's sole owner: use `task_NN` in
+  an ordinary suite and `<task-group-id>/<task-id>` in a Task Group suite. Reject
+  multiple owners for one ID.
+- Render test-level groups as parents with exactly one nested checklist entry per
+  record. Group headings are plain bullets, never checkboxes. Derive group
+  completion from its children; any incomplete child keeps the group incomplete.
+  Never place multiple test IDs in one checklist entry.
+- Preserve each unchanged ID's existing checkbox status during regeneration by
+  merging on the stable ID. New IDs start unchecked; never copy a group-level or
+  sibling status onto a child record.
+- Validate the entire workflow before publishing: reject duplicate IDs in
+  `_tests.md`, duplicate assignments, orphaned assignments, missing assignments,
+  or multiple owners. Validation and progress output MUST name every missing or
+  duplicate ID directly, include each conflicting owner, and list incomplete IDs
+  instead of reporting only group counts.
 
 ### Path classification contract
 
