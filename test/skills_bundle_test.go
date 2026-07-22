@@ -291,6 +291,69 @@ func TestTechSpecTemplateRequiresContractRolloutPlanning(t *testing.T) {
 	}
 }
 
+func TestTaskTemplateRequiresObservablePersistenceCriteria(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-tasks", "references", "task-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	normalizedText := strings.Join(strings.Fields(text), " ")
+	requiredPhrases := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "Should require a property, target, and runtime measurement for every persistence constraint",
+			want: "Every persistence constraint MUST name its observable property, target operation or query, and runtime measurement mechanism.",
+		},
+		{
+			name: "Should separate correctness and consistency criteria",
+			want: "### Persistence Correctness and Consistency",
+		},
+		{name: "Should separate performance criteria", want: "### Persistence Performance"},
+		{
+			name: "Should support exact or bounded statement counts",
+			want: "exact or bounded executed SQL statement counts",
+		},
+		{name: "Should support one-snapshot reads", want: "reads share one snapshot transaction"},
+		{name: "Should support shared row and total predicates", want: "row and total queries use the same predicates"},
+		{name: "Should support generated query-plan checks", want: "generated query-plan checks"},
+		{name: "Should support statement-observer evidence", want: "statement-observer evidence"},
+		{
+			name: "Should reject criteria without observable assertions",
+			want: "Reject a persistence criterion that lacks an observable assertion",
+		},
+		{
+			name: "Should reject tests of implementation constants without database execution",
+			want: "implementation constants without executing the database behavior",
+		},
+	}
+	for _, testCase := range requiredPhrases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(normalizedText, testCase.want) {
+				t.Fatalf("expected %s to include %q", templatePath, testCase.want)
+			}
+		})
+	}
+
+	criterionPattern := regexp.MustCompile(`(?m)^- Property: \[[^\n]+\]; Target: \[[^\n]+\]; Measurement: \[[^\n]+\]$`)
+	if matches := criterionPattern.FindAllString(text, -1); len(matches) != 2 {
+		t.Fatalf(
+			"expected %s to define two property/target/measurement criterion shapes, got %d",
+			templatePath,
+			len(matches),
+		)
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 

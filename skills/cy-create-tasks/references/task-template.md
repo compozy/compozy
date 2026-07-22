@@ -66,6 +66,26 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 - Every assigned test case implemented and passing
 - [Measurable outcome 1]
 - [Measurable outcome 2]
+
+[For a task that touches persistence, replace generic outcomes with distinct
+criteria in the applicable categories below. Every persistence constraint MUST
+name its observable property, target operation or query, and runtime measurement
+mechanism. Omit both categories when the task does not touch persistence.]
+
+### Persistence Correctness and Consistency
+- Property: [correctness or consistency invariant]; Target: [operation, query, or transaction]; Measurement: [runtime assertion and expected observation]
+
+### Persistence Performance
+- Property: [quantified performance threshold]; Target: [operation or query under a named dataset/load]; Measurement: [runtime assertion and bound]
+
+[Supported runtime assertions include exact or bounded executed SQL statement
+counts, proof that reads share one snapshot transaction, proof that row and total
+queries use the same predicates, generated query-plan checks, and
+statement-observer evidence. Classify statement counts by intent: correctness/consistency
+when they prove atomic behavior, performance when they impose a resource bound.
+Reject a persistence criterion that lacks an observable assertion or whose test
+only inspects SQL text, query-builder configuration, or implementation constants
+without executing the database behavior.]
 ```
 
 ## Guidelines
