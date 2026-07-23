@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/huh/v2"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
@@ -22,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
+	"github.com/spf13/cobra"
 )
 
 // tasksRunFlagRegexp captures long-flag tokens (e.g. --parallel-limit) from
@@ -680,6 +682,202 @@ func TestTasksRunParallelTaskGroupsEndToEndWorkspaceAndLimit(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestTasksRunParallelTaskGroupsInteractiveEndToEnd covers the interactive
+// --parallel-task-groups journey (a bare initiative target with no --multiple
+// set) that routes through runInteractiveParallelTaskGroups and its conflict
+// guard rejectInteractiveParallelTaskGroupConflicts. The sibling
+// TestTasksRunParallelTaskGroupsEndToEnd* tests only drive the explicit
+// --multiple set, which never reaches the interactive picker orchestrator, so
+// these subtests fill the wiring gap: picker-driven selection resolving to the
+// task_multi_group_parallel kind, the --parallel / --parallel-tasks rejections,
+// and the picker-abort clean exit.
+func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
+	requireGitForCLITests(t)
+
+	t.Run("E2E-012 picker selection launches the parallel task-group journey", func(t *testing.T) {
+		const initiative = "cli-interactive-groups"
+		client, paths, _ := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		var pickerCalls int
+		var pickerMode taskgroups.TargetMode
+		stdout, stderr, err := runParallelTaskGroupsPickerCLI(
+			t,
+			func(_ *cobra.Command, input taskGroupPickerInput) ([]string, error) {
+				pickerCalls++
+				pickerMode = input.Target.Mode
+				return []string{"TG-001", "TG-002"}, nil
+			},
+			"tasks", "run", initiative,
+			"--parallel-task-groups",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("E2E-012 execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if pickerCalls != 1 || pickerMode != taskgroups.TargetModeInitiative {
+			t.Fatalf("E2E-012 picker calls = %d mode = %q, want 1 call on the initiative target",
+				pickerCalls, pickerMode)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=parallel total=2",
+			initiative+"/TG-001",
+			initiative+"/TG-002",
+		) {
+			t.Fatalf("E2E-012 output missing interactive journey progress:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		if !containsAll(
+			stderr,
+			"kind=task_multi_group_parallel",
+			"worktrees=true",
+			"source=--parallel-task-groups=true",
+		) {
+			t.Fatalf("E2E-012 execution resolution:\n%s", stderr)
+		}
+		snapshot, err := client.GetTaskRunMultipleSnapshot(
+			context.Background(),
+			taskMultiRunIDFromCLIOutput(t, stdout),
+		)
+		if err != nil {
+			t.Fatalf("E2E-012 snapshot: %v", err)
+		}
+		if snapshot.ExecutionKind != apicore.ExecutionKindTaskMultiGroupParallel ||
+			snapshot.Run.Status != "completed" ||
+			len(snapshot.Items) != 2 {
+			t.Fatalf("E2E-012 snapshot = %#v", snapshot)
+		}
+		for _, item := range snapshot.Items {
+			if item.Status != "completed" ||
+				item.ResultBranch == "" ||
+				!strings.HasPrefix(item.WorktreePath, paths.WorktreesDir) {
+				t.Fatalf("E2E-012 item = %#v", item)
+			}
+		}
+	})
+
+	t.Run("E2E-013 --parallel is rejected before any daemon contact", func(t *testing.T) {
+		const initiative = "cli-interactive-parallel-conflict"
+		newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelTaskGroupsPickerCLI(
+			t,
+			func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+				t.Fatal("E2E-013 picker must not run when a conflicting flag is rejected")
+				return nil, nil
+			},
+			"tasks", "run", initiative,
+			"--parallel-task-groups",
+			"--parallel",
+			"--stream",
+			"--dry-run",
+		)
+		if err == nil ||
+			!strings.Contains(
+				err.Error(),
+				"--parallel-task-groups selects parallel mode and cannot be combined with --parallel",
+			) {
+			t.Fatalf("E2E-013 error = %v, want --parallel conflict rejection\nstderr:\n%s", err, stderr)
+		}
+		if strings.Contains(stdout, "task multi-run started:") {
+			t.Fatalf("E2E-013 launched despite conflict:\n%s", stdout)
+		}
+	})
+
+	t.Run("E2E-014 --parallel-tasks is rejected before any daemon contact", func(t *testing.T) {
+		const initiative = "cli-interactive-parallel-tasks-conflict"
+		newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelTaskGroupsPickerCLI(
+			t,
+			func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+				t.Fatal("E2E-014 picker must not run when a conflicting flag is rejected")
+				return nil, nil
+			},
+			"tasks", "run", initiative,
+			"--parallel-task-groups",
+			"--parallel-tasks",
+			"--stream",
+			"--dry-run",
+		)
+		if err == nil ||
+			!strings.Contains(
+				err.Error(),
+				"--parallel-tasks cannot be combined with --parallel-task-groups",
+			) {
+			t.Fatalf("E2E-014 error = %v, want --parallel-tasks conflict rejection\nstderr:\n%s", err, stderr)
+		}
+		if strings.Contains(stdout, "task multi-run started:") {
+			t.Fatalf("E2E-014 launched despite conflict:\n%s", stdout)
+		}
+	})
+
+	t.Run("E2E-015 aborted picker exits cleanly without launching", func(t *testing.T) {
+		const initiative = "cli-interactive-abort"
+		newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelTaskGroupsPickerCLI(
+			t,
+			func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+				return nil, huh.ErrUserAborted
+			},
+			"tasks", "run", initiative,
+			"--parallel-task-groups",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("E2E-015 aborted picker error = %v, want clean exit\nstdout:\n%s\nstderr:\n%s",
+				err, stdout, stderr)
+		}
+		if strings.Contains(stdout, "task multi-run started:") {
+			t.Fatalf("E2E-015 launched despite user abort:\n%s", stdout)
+		}
+	})
+}
+
+// runParallelTaskGroupsPickerCLI drives the full `tasks run` command through the
+// interactive multi-select picker seam: it forces an interactive terminal and
+// swaps in a stubbed pickTaskGroups so the --parallel-task-groups journey can be
+// exercised end-to-end without a real TTY.
+func runParallelTaskGroupsPickerCLI(
+	t *testing.T,
+	picker func(*cobra.Command, taskGroupPickerInput) ([]string, error),
+	args ...string,
+) (string, string, error) {
+	t.Helper()
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	defaults.pickTaskGroups = picker
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	return executeCommandCapturingProcessIO(t, cmd, nil, args...)
 }
 
 func TestTasksRunParallelTasksEndToEndRoutesSingleWorkflowThroughParallelOrchestrator(t *testing.T) {
