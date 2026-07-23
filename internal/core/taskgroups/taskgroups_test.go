@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -612,6 +613,186 @@ func TestReadiness(t *testing.T) {
 		readiness, err := EvaluateReadiness(mustParsePlan(t, plan), "TG-002")
 		if err != nil || !readiness.Eligible || !slices.Equal(readiness.IndependentPeers, []string{"TG-003"}) {
 			t.Fatalf("readiness = %#v, error = %v", readiness, err)
+		}
+	})
+}
+
+func TestValidateIndependentSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		plan         func(*testing.T) Plan
+		selected     []string
+		wantEligible []string
+		wantRejected map[string]Rejection
+		wantErr      error
+	}{
+		{
+			name: "UT-001 accepts an independent pair",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, threeTaskGroupPlan(t, nil))
+			},
+			selected:     []string{"TG-001", "TG-002"},
+			wantEligible: []string{"TG-001", "TG-002"},
+			wantRejected: map[string]Rejection{},
+		},
+		{
+			name: "UT-002 rejects an in-set dependency",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, threeTaskGroupPlan(t, []Dependency{{
+					From: "TG-001", To: "TG-003", Rationale: "one before three",
+				}}))
+			},
+			selected:     []string{"TG-001", "TG-003"},
+			wantEligible: []string{},
+			wantRejected: map[string]Rejection{
+				"TG-001": {Reason: "depends_on_selected", Blockers: []string{"TG-003"}},
+				"TG-003": {Reason: "depends_on_selected", Blockers: []string{"TG-001"}},
+			},
+		},
+		{
+			name: "UT-003 rejects an unmet out-of-set dependency",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, taskGroupPlan(t, []fixtureTaskGroup{
+					{id: "TG-001", title: "One"},
+					{id: "TG-002", title: "Two"},
+					{id: "TG-003", title: "Three"},
+					{id: "TG-004", title: "Four"},
+				}, []Dependency{{From: "TG-002", To: "TG-004", Rationale: "two before four"}}))
+			},
+			selected:     []string{"TG-004"},
+			wantEligible: []string{},
+			wantRejected: map[string]Rejection{
+				"TG-004": {Reason: "unmet_dependency", Blockers: []string{"TG-002"}},
+			},
+		},
+		{
+			name: "sorts and deduplicates unmet blockers",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, taskGroupPlan(t, []fixtureTaskGroup{
+					{id: "TG-001", title: "One"},
+					{id: "TG-002", title: "Two"},
+					{id: "TG-003", title: "Three"},
+					{id: "TG-004", title: "Four"},
+				}, []Dependency{
+					{From: "TG-003", To: "TG-004", Rationale: "three before four"},
+					{From: "TG-001", To: "TG-002", Rationale: "one before two"},
+					{From: "TG-002", To: "TG-004", Rationale: "two before four"},
+				}))
+			},
+			selected:     []string{"TG-004"},
+			wantEligible: []string{},
+			wantRejected: map[string]Rejection{
+				"TG-004": {
+					Reason:   "unmet_dependency",
+					Blockers: []string{"TG-001", "TG-002", "TG-003"},
+				},
+			},
+		},
+		{
+			name: "UT-004 rejects an already-completed member",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, taskGroupPlan(t, []fixtureTaskGroup{{
+					id: "TG-001", title: "One", completed: true,
+				}}, nil))
+			},
+			selected:     []string{"TG-001"},
+			wantEligible: []string{},
+			wantRejected: map[string]Rejection{
+				"TG-001": {Reason: "already_completed"},
+			},
+		},
+		{
+			name: "UT-005 rejects an unknown member",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, threeTaskGroupPlan(t, nil))
+			},
+			selected:     []string{"TG-999"},
+			wantEligible: []string{},
+			wantRejected: map[string]Rejection{
+				"TG-999": {Reason: "unknown"},
+			},
+		},
+		{
+			name: "UT-006 rejects an empty selection with a typed error",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, threeTaskGroupPlan(t, nil))
+			},
+			selected:     nil,
+			wantEligible: []string{},
+			wantRejected: map[string]Rejection{},
+			wantErr:      ErrSelectionRequired,
+		},
+		{
+			name: "UT-007 accepts a single independent member",
+			plan: func(t *testing.T) Plan {
+				return mustParsePlan(t, threeTaskGroupPlan(t, nil))
+			},
+			selected:     []string{"TG-001"},
+			wantEligible: []string{"TG-001"},
+			wantRejected: map[string]Rejection{},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			plan := test.plan(t)
+
+			got, err := ValidateIndependentSet(plan, test.selected)
+			if test.wantErr != nil {
+				assertDomainError(t, err, test.wantErr)
+				var domainErr *Error
+				if !errors.As(err, &domainErr) {
+					t.Fatalf("ValidateIndependentSet() error = %v, want *Error", err)
+				}
+			} else if err != nil {
+				t.Fatalf("ValidateIndependentSet() error = %v", err)
+			}
+			if !slices.Equal(got.Eligible, test.wantEligible) {
+				t.Fatalf("ValidateIndependentSet() eligible = %#v, want %#v", got.Eligible, test.wantEligible)
+			}
+			if !reflect.DeepEqual(got.Rejected, test.wantRejected) {
+				t.Fatalf("ValidateIndependentSet() rejected = %#v, want %#v", got.Rejected, test.wantRejected)
+			}
+			if got.PlanChecksum != plan.Checksum {
+				t.Fatalf("ValidateIndependentSet() checksum = %q, want %q", got.PlanChecksum, plan.Checksum)
+			}
+		})
+	}
+
+	t.Run("UT-008 is symmetric and order-invariant", func(t *testing.T) {
+		t.Parallel()
+		plan := mustParsePlan(t, threeTaskGroupPlan(t, nil))
+		firstReadiness, err := EvaluateReadiness(plan, "TG-001")
+		if err != nil {
+			t.Fatalf("EvaluateReadiness(TG-001) error = %v", err)
+		}
+		secondReadiness, err := EvaluateReadiness(plan, "TG-002")
+		if err != nil {
+			t.Fatalf("EvaluateReadiness(TG-002) error = %v", err)
+		}
+		if !slices.Contains(firstReadiness.IndependentPeers, "TG-002") ||
+			!slices.Contains(secondReadiness.IndependentPeers, "TG-001") {
+			t.Fatalf(
+				"IndependentPeers are not symmetric: TG-001=%#v TG-002=%#v",
+				firstReadiness.IndependentPeers,
+				secondReadiness.IndependentPeers,
+			)
+		}
+
+		first, err := ValidateIndependentSet(plan, []string{"TG-001", "TG-002"})
+		if err != nil {
+			t.Fatalf("ValidateIndependentSet(A,B) error = %v", err)
+		}
+		second, err := ValidateIndependentSet(plan, []string{"TG-002", "TG-001"})
+		if err != nil {
+			t.Fatalf("ValidateIndependentSet(B,A) error = %v", err)
+		}
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("order changed validation result: first=%#v second=%#v", first, second)
 		}
 	})
 }
