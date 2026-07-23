@@ -255,6 +255,48 @@ func TestTasksRunMultipleParallelEndToEndReportsWorktreePaths(t *testing.T) {
 	})
 }
 
+// TestTasksRunMultipleParallelEndToEndWarnsOnDirtyWorktree exercises R3
+// (ADR-010 / US-001.EC-3): an uncommitted change in the checkout must produce a
+// stderr warning, the parallel run must still start, and the uncommitted change
+// must remain in the checkout because worktree branches are cut from the last
+// commit.
+func TestTasksRunMultipleParallelEndToEndWarnsOnDirtyWorktree(t *testing.T) {
+	t.Run("Should warn about uncommitted changes and still start the parallel run", func(t *testing.T) {
+		requireGitForCLITests(t)
+
+		_, _, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+
+		// Introduce an uncommitted change so `git status --porcelain` is non-empty.
+		dirtyPath := filepath.Join(workspaceRoot, "uncommitted-wip.txt")
+		if err := os.WriteFile(dirtyPath, []byte("work in progress\n"), 0o600); err != nil {
+			t.Fatalf("write uncommitted file: %v", err)
+		}
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream", "--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("execute parallel multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(stderr, "has uncommitted changes", "excluded from the child runs") {
+			t.Fatalf("expected dirty-tree warning on stderr, got:\n%s", stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=parallel total=2",
+			"task multi-run handoff:",
+		) {
+			t.Fatalf("expected parallel run to still start, got stdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		// The warning is advisory: the uncommitted change must remain untouched.
+		if _, statErr := os.Stat(dirtyPath); statErr != nil {
+			t.Fatalf("expected the uncommitted change to remain in the checkout: %v", statErr)
+		}
+	})
+}
+
 // TestTasksRunMultipleParallelLimitOneEndToEnd verifies that --parallel-limit 1
 // flows through to the daemon (the resolved limit is emitted) and that the run
 // still completes every child with a final handoff.

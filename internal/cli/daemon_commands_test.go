@@ -1428,6 +1428,66 @@ func TestResolveTaskRunMultipleParallelLimit(t *testing.T) {
 	})
 }
 
+func TestPreflightParallelWorktreeModeDirtyTree(t *testing.T) {
+	// R3 (ADR-010 / US-001.EC-3): parallel worktree branches are cut from the last
+	// commit, so a dirty checkout WARNS to stderr and PROCEEDS rather than blocking.
+	// These subtests set process env via prepareInProcessCLIDaemonHome, so they must
+	// not run in parallel.
+	t.Run("UT-070 Should not warn when the workspace tree is clean", func(t *testing.T) {
+		requireGitForCLITests(t)
+		prepareInProcessCLIDaemonHome(t)
+
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("seed\n"), 0o600); err != nil {
+			t.Fatalf("write seed file: %v", err)
+		}
+		gitInitCommitCLIWorkspace(t, root)
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.workspaceRoot = root
+		cmd := &cobra.Command{}
+		var stderr bytes.Buffer
+		cmd.SetErr(&stderr)
+
+		if err := state.preflightParallelWorktreeMode(context.Background(), cmd); err != nil {
+			t.Fatalf("preflightParallelWorktreeMode() error = %v", err)
+		}
+		if stderr.Len() != 0 {
+			t.Fatalf("expected no dirty-tree warning for a clean tree, got %q", stderr.String())
+		}
+	})
+
+	t.Run("UT-071 Should warn and return nil when the workspace tree is dirty", func(t *testing.T) {
+		requireGitForCLITests(t)
+		prepareInProcessCLIDaemonHome(t)
+
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("seed\n"), 0o600); err != nil {
+			t.Fatalf("write seed file: %v", err)
+		}
+		gitInitCommitCLIWorkspace(t, root)
+		// Untracked file makes `git status --porcelain` non-empty.
+		if err := os.WriteFile(filepath.Join(root, "wip.txt"), []byte("uncommitted work\n"), 0o600); err != nil {
+			t.Fatalf("write uncommitted file: %v", err)
+		}
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		state.workspaceRoot = root
+		cmd := &cobra.Command{}
+		var stderr bytes.Buffer
+		cmd.SetErr(&stderr)
+
+		if err := state.preflightParallelWorktreeMode(context.Background(), cmd); err != nil {
+			t.Fatalf("preflightParallelWorktreeMode() returned error, want nil: %v", err)
+		}
+		warning := stderr.String()
+		if !strings.Contains(warning, "has uncommitted changes") ||
+			!strings.Contains(warning, "excluded from the child runs") {
+			t.Fatalf("expected dirty-tree warning on stderr, got %q", warning)
+		}
+	})
+}
+
 func TestRejectMultipleOnlyParallelFlags(t *testing.T) {
 	t.Parallel()
 

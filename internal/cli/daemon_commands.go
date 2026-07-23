@@ -713,7 +713,7 @@ func addTaskRunParallelFlags(cmd *cobra.Command, state *commandState) {
 		"parallel-limit",
 		workspacecfg.DefaultRunMultipleParallelLimit,
 		"Maximum number of child runs started at once in --parallel mode "+
-			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
+			"(overrides run_multiple_parallel_limit; a value of 0 or less is treated as 1; valid only with --multiple)",
 	)
 	cmd.Flags().BoolVar(
 		&state.parallelTasks,
@@ -827,7 +827,7 @@ func (s *commandState) startPreparedTaskRun(
 	}
 	execution := s.resolveSingleTaskExecution(cmd)
 	if execution.Kind == apicore.ExecutionKindTaskParallel {
-		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
+		if err := s.preflightParallelWorktreeMode(ctx, cmd); err != nil {
 			return err
 		}
 	}
@@ -975,7 +975,7 @@ func (s *commandState) prepareTaskRunMultipleParallelLaunch(
 		))
 	}
 	if mode == workspacecfg.TaskRunMultipleModeParallel {
-		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
+		if err := s.preflightParallelWorktreeMode(ctx, cmd); err != nil {
 			return 0, err
 		}
 	}
@@ -1098,7 +1098,7 @@ func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
 	return nil
 }
 
-func (s *commandState) preflightParallelWorktreeMode(ctx context.Context) error {
+func (s *commandState) preflightParallelWorktreeMode(ctx context.Context, cmd *cobra.Command) error {
 	root := strings.TrimSpace(s.workspaceRoot)
 	if root == "" {
 		return withExitCode(2, errors.New("parallel worktree-backed task runs require a workspace root"))
@@ -1143,7 +1143,29 @@ func (s *commandState) preflightParallelWorktreeMode(ctx context.Context) error 
 			),
 		)
 	}
+	// ADR-010 / R3 (US-001.EC-3): parallel worktree branches are cut from the
+	// current commit, so uncommitted work in the checkout is excluded from the
+	// child runs. Warn and proceed rather than block; the changes stay in place.
+	status, statusErr := runTaskRunGitPreflight(ctx, root, "status", "--porcelain")
+	if statusErr == nil && strings.TrimSpace(status) != "" {
+		writeParallelDirtyWorktreeWarning(cmd, root)
+	}
 	return nil
+}
+
+// writeParallelDirtyWorktreeWarning advises that uncommitted changes in the
+// workspace are excluded from parallel worktree child runs (ADR-010 / R3). The
+// run proceeds regardless; the warning is advisory, so a closed stderr must not
+// prevent starting the run.
+func writeParallelDirtyWorktreeWarning(cmd *cobra.Command, root string) {
+	if _, err := fmt.Fprintf(
+		cmd.ErrOrStderr(),
+		"Warning: workspace %s has uncommitted changes; parallel worktree branches are cut from the "+
+			"last commit, so those changes stay in this checkout and are excluded from the child runs.\n",
+		root,
+	); err != nil {
+		return
+	}
 }
 
 func runTaskRunGitPreflight(ctx context.Context, workspaceRoot string, args ...string) (string, error) {
