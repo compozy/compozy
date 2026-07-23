@@ -258,6 +258,7 @@ func (m *RunManager) prepareTaskMultiGroupLaunch(
 		slugsByGroupID[ref.TaskGroupID] = ref.String()
 	}
 
+	m.hydrateTaskGroupPlanBestEffort(ctx, workspaceRow.RootDir, initiative)
 	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, workspaceRow.RootDir, initiative)
 	if err != nil {
 		return nil, err

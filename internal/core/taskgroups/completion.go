@@ -203,6 +203,93 @@ func (s *Store) MarkCompleteValidated(
 	})
 }
 
+// HydrateCompletion marks every authoritative completion in one plan through
+// the same lock and atomic writer used by explicit completion.
+func (s *Store) HydrateCompletion(
+	ctx context.Context,
+	initiativeDir string,
+	completedTaskGroupIDs []string,
+) ([]string, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, fmt.Errorf("hydrate task group completion: %w", err)
+	}
+	s = usableStore(s)
+	planPath := filepath.Join(initiativeDir, ManifestFileName)
+	if _, err := os.Stat(planPath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("stat task group plan before hydration: %w", err)
+	}
+
+	var marked []string
+	_, err := s.withPlanLock(ctx, planPath, func() (CompletionResult, error) {
+		var hydrateErr error
+		marked, hydrateErr = s.hydrateCompletionLocked(ctx, initiativeDir, planPath, completedTaskGroupIDs)
+		return CompletionResult{}, hydrateErr
+	})
+	return marked, err
+}
+
+func (s *Store) hydrateCompletionLocked(
+	ctx context.Context,
+	initiativeDir, planPath string,
+	completedTaskGroupIDs []string,
+) ([]string, error) {
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read task group plan for hydration: %w", err)
+	}
+
+	ids := normalizedTaskGroupIDs(completedTaskGroupIDs)
+	rewritten := slices.Clone(content)
+	marked := make([]string, 0, len(ids))
+	for _, taskGroupID := range ids {
+		if err := context.Cause(ctx); err != nil {
+			return nil, fmt.Errorf("hydrate task group completion: %w", err)
+		}
+		result, rewriteErr := RewriteCompletion(rewritten, taskGroupID)
+		if rewriteErr != nil {
+			return nil, rewriteErr
+		}
+		rewritten = result.Content
+		if result.WriteRequired {
+			marked = append(marked, taskGroupID)
+		}
+	}
+	if len(marked) == 0 {
+		return nil, nil
+	}
+
+	mode, err := writablePlanMode(planPath, filepath.Base(initiativeDir), "")
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ops.write(planPath, rewritten, mode); err != nil {
+		return nil, fmt.Errorf("write hydrated task group plan: %w", err)
+	}
+	return marked, nil
+}
+
+func normalizedTaskGroupIDs(ids []string) []string {
+	unique := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed != "" {
+			unique[trimmed] = struct{}{}
+		}
+	}
+	normalized := make([]string, 0, len(unique))
+	for id := range unique {
+		normalized = append(normalized, id)
+	}
+	slices.Sort(normalized)
+	return normalized
+}
+
 func usableStore(store *Store) *Store {
 	if store == nil {
 		return NewStore()

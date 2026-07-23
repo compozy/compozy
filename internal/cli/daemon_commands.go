@@ -587,6 +587,7 @@ func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefault
 	cmd.AddCommand(
 		newTasksValidateCommand(),
 		newTasksRunCommandWithDefaults(dispatcher, defaults),
+		newTasksSyncCommand(),
 	)
 	return cmd
 }

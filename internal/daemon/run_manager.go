@@ -70,6 +70,8 @@ type syncWorkflowFunc func(
 	model.SyncConfig,
 ) (*corepkg.SyncResult, error)
 
+type hydratePlanCompletionFunc func(context.Context, string, string) ([]string, error)
+
 // RunManagerConfig wires the daemon-owned run manager dependencies.
 type RunManagerConfig struct {
 	GlobalDB               *globaldb.GlobalDB
@@ -103,6 +105,7 @@ type RunManager struct {
 	now                    func() time.Time
 	buildRunID             func(*model.RuntimeConfig) (string, error)
 	syncWorkflow           syncWorkflowFunc
+	hydratePlanCompletion  hydratePlanCompletionFunc
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -280,12 +283,15 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 	}
 
 	return &RunManager{
-		globalDB:               cfg.GlobalDB,
-		lifecycleCtx:           resolveRunManagerLifecycleContext(cfg.LifecycleContext),
-		homePaths:              homePaths,
-		now:                    resolveRunManagerNow(cfg.Now),
-		buildRunID:             resolveRunManagerBuildRunID(cfg.BuildRunID),
-		syncWorkflow:           resolveRunManagerSyncWorkflow(cfg.SyncWorkflow),
+		globalDB:     cfg.GlobalDB,
+		lifecycleCtx: resolveRunManagerLifecycleContext(cfg.LifecycleContext),
+		homePaths:    homePaths,
+		now:          resolveRunManagerNow(cfg.Now),
+		buildRunID:   resolveRunManagerBuildRunID(cfg.BuildRunID),
+		syncWorkflow: resolveRunManagerSyncWorkflow(cfg.SyncWorkflow),
+		hydratePlanCompletion: func(ctx context.Context, workspaceRoot, initiative string) ([]string, error) {
+			return corepkg.HydratePlanCompletionWithDB(ctx, cfg.GlobalDB, workspaceRoot, initiative)
+		},
 		openRunScope:           resolveRunManagerOpenRunScope(cfg.OpenRunScope),
 		prepare:                resolveRunManagerPrepare(cfg.Prepare),
 		execute:                resolveRunManagerExecute(cfg.Execute),
@@ -662,6 +668,7 @@ func (m *RunManager) resolveTaskGroupPreflightEvidence(
 	if err := requireWorkspacePathAvailable(workspace); err != nil {
 		return nil, err
 	}
+	m.hydrateTaskGroupPlanBestEffort(ctx, workspace.RootDir, ref.Initiative)
 	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, ref.String())
 	if err != nil {
 		return nil, err
@@ -2276,6 +2283,7 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 	if err := m.persistRuntimeIntegrity(detachContext(active.ctx), row.RunID, scope); err != nil {
 		slog.Default().Warn("daemon run integrity persistence failed", "run_id", row.RunID, "error", err)
 	}
+	m.hydrateTaskGroupCompletionAfterRun(detachContext(active.ctx), active, row)
 	if closeErr := closeRunScope(active.ctx, scope, active.currentCloseTimeout()); closeErr != nil {
 		// Best-effort teardown should not block the terminal row mirror.
 		_ = closeErr

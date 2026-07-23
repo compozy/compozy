@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -330,6 +333,143 @@ func syncCompletedTaskGroupInitiative(
 		return err
 	}
 	return nil
+}
+
+// HydratePlanCompletion projects authoritative globaldb completion into one
+// workspace plan without clearing any existing checkbox.
+func HydratePlanCompletion(
+	ctx context.Context,
+	workspaceRoot, initiative string,
+) (marked []string, err error) {
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		return nil, fmt.Errorf("resolve compozy home paths: %w", err)
+	}
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+		return nil, fmt.Errorf("ensure compozy home layout: %w", err)
+	}
+	db, err := globaldb.Open(ctx, homePaths.GlobalDBPath)
+	if err != nil {
+		return nil, fmt.Errorf("open completion hydration database: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close completion hydration database: %w", closeErr))
+		}
+	}()
+	return HydratePlanCompletionWithDB(ctx, db, workspaceRoot, initiative)
+}
+
+// HydratePlanCompletionWithDB projects completion using an existing globaldb
+// handle. Daemon callers use it so hydration shares their authoritative store.
+func HydratePlanCompletionWithDB(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceRoot, initiative string,
+) ([]string, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, fmt.Errorf("hydrate task group completion: %w", err)
+	}
+	if db == nil {
+		return nil, errors.New("hydrate task group completion: global database is required")
+	}
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	initiative = strings.TrimSpace(initiative)
+	if workspaceRoot == "" {
+		return nil, errors.New("hydrate task group completion: workspace root is required")
+	}
+	if initiative == "" {
+		return nil, errors.New("hydrate task group completion: initiative is required")
+	}
+
+	initiativeDir := filepath.Join(model.TasksBaseDirForWorkspace(workspaceRoot), initiative)
+	planPath := filepath.Join(initiativeDir, taskgroups.ManifestFileName)
+	if _, statErr := os.Stat(planPath); statErr != nil {
+		if errors.Is(statErr, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("inspect task group plan before hydration: %w", statErr)
+	}
+
+	completed, err := CompletedTaskGroupIDsWithDB(ctx, db, workspaceRoot, initiative)
+	if err != nil {
+		return nil, err
+	}
+	marked, err := taskgroups.NewStore().HydrateCompletion(ctx, initiativeDir, completed)
+	if err != nil {
+		return nil, fmt.Errorf("hydrate task group plan %s: %w", initiative, err)
+	}
+	return marked, nil
+}
+
+// CompletedTaskGroupIDsWithDB reads the authoritative completed IDs for one
+// initiative in one registered workspace.
+func CompletedTaskGroupIDsWithDB(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceRoot, initiative string,
+) ([]string, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, fmt.Errorf("read task group completion authority: %w", err)
+	}
+	if db == nil {
+		return nil, errors.New("read task group completion authority: global database is required")
+	}
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	initiative = strings.TrimSpace(initiative)
+	if workspaceRoot == "" {
+		return nil, errors.New("read task group completion authority: workspace root is required")
+	}
+	if initiative == "" {
+		return nil, errors.New("read task group completion authority: initiative is required")
+	}
+
+	workspace, err := db.Get(ctx, workspaceRoot)
+	if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
+		workspace, err = db.ResolveOrRegister(ctx, workspaceRoot)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve completion hydration workspace: %w", err)
+	}
+	workflows, err := db.ListWorkflows(ctx, globaldb.ListWorkflowsOptions{WorkspaceID: workspace.ID})
+	if err != nil {
+		return nil, fmt.Errorf("list completion hydration workflows: %w", err)
+	}
+	completed, err := completedTaskGroupIDsForInitiative(workflows, initiative)
+	if err != nil {
+		return nil, err
+	}
+	return completed, nil
+}
+
+func completedTaskGroupIDsForInitiative(
+	workflows []globaldb.Workflow,
+	initiative string,
+) ([]string, error) {
+	completed := make([]string, 0)
+	for index := range workflows {
+		workflow := &workflows[index]
+		if workflow.Kind != globaldb.WorkflowKindTaskGroup || !workflow.LifecycleCompleted {
+			continue
+		}
+		ref, err := taskgroups.ParseTaskGroupRef(workflow.Slug)
+		if err != nil {
+			return nil, fmt.Errorf("parse completed task group workflow %q: %w", workflow.Slug, err)
+		}
+		if ref.Initiative != initiative {
+			continue
+		}
+		if taskGroupID := strings.TrimSpace(workflow.TaskGroupID); taskGroupID != "" &&
+			taskGroupID != ref.TaskGroupID {
+			return nil, fmt.Errorf(
+				"completed workflow %q task group id %q does not match slug",
+				workflow.Slug,
+				taskGroupID,
+			)
+		}
+		completed = append(completed, ref.TaskGroupID)
+	}
+	return completed, nil
 }
 
 // CompleteTaskGroup invokes the production hidden completion bridge.
