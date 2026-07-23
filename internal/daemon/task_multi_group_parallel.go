@@ -63,6 +63,25 @@ func taskMultiGroupSelectionFingerprint(prepared *preparedTaskMulti) (string, er
 	return taskgroups.SelectionFingerprint(initiative, groupIDs, planChecksum), nil
 }
 
+// isRelaunchSettledRunStatus reports whether an existing run for a selection is
+// genuinely settled, so the relaunch gate routes it through the terminal-report
+// path (requiring --new) instead of re-attaching. It deliberately mirrors
+// globaldb's active-run predicate (status NOT IN completed/failed/canceled/crashed
+// in registry.go/runs.go): a `parked` run is a recoverable stall, not a terminal
+// outcome, so it must re-attach like an active run rather than being pushed toward
+// --new. Keeping this list identical to the globaldb predicate stops the two
+// classifiers from drifting. This is intentionally narrower than
+// isTerminalRunStatus, which treats `parked` as terminal for settlement/stall
+// bookkeeping.
+func isRelaunchSettledRunStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case runStatusCompleted, runStatusFailed, runStatusCancelled, runStatusCrashed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (m *RunManager) taskMultiGroupRelaunchGate(
 	ctx context.Context,
 	prepared *preparedTaskMulti,
@@ -79,7 +98,7 @@ func (m *RunManager) taskMultiGroupRelaunchGate(
 	if err != nil {
 		return apicore.Run{}, false, fmt.Errorf("find equivalent parallel task-group run: %w", err)
 	}
-	if !isTerminalRunStatus(row.Status) {
+	if !isRelaunchSettledRunStatus(row.Status) {
 		run, err := m.toCoreRun(ctx, row, "")
 		if err != nil {
 			return apicore.Run{}, false, err

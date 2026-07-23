@@ -824,6 +824,329 @@ func TestTaskMultiGroupParkedSettlementIT008(t *testing.T) {
 	}
 }
 
+// TestRunManagerTaskMultiGroupParallelRelaunchRecovery exercises the
+// US-001.EC-6 / ADR-008 re-launch recovery decision path end-to-end through
+// StartTaskRunMultiple: the selection-fingerprint gate, the completed/terminal
+// relaunch problems, and the --new bypass. E2E-012 is the CLI wrapper over these
+// same daemon behaviors (re-attach while active, refuse + --new after completion)
+// and is covered at the CLI layer outside this daemon file.
+func TestRunManagerTaskMultiGroupParallelRelaunchRecovery(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	t.Run("IT-022 active selection re-attaches without a second launch", func(t *testing.T) {
+		const (
+			initiative = "relaunch-active"
+			parentID   = "relaunch-active-parent"
+		)
+		var executed atomic.Int32
+		started := make(chan string, 2)
+		release := make(chan struct{})
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiGroupRunIDBuilder(parentID),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				executed.Add(1)
+				started <- taskMultiTaskGroupID(cfg.Name)
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				groupID := taskMultiTaskGroupID(cfg.Name)
+				return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" active\n")
+			},
+		})
+		writeIndependentTaskGroupFixture(t, env, initiative, 2)
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		first := startTaskMultiGroupParallelRun(
+			t, env, parentID, initiative, []string{"TG-001", "TG-002"}, 2,
+		)
+		// Both children are actively running (blocked below), so the parent run is
+		// not settled when the equivalent selection is re-issued.
+		waitForTaskMultiGroupStarts(t, started, 2)
+
+		existing, err := attemptTaskMultiGroupParallelRun(
+			t, env, parentID+"-again", initiative, []string{"TG-001", "TG-002"}, 2, false,
+		)
+		if err != nil {
+			t.Fatalf("IT-022 re-attach error = %v, want existing run", err)
+		}
+		if existing.RunID != first.RunID {
+			t.Fatalf("IT-022 re-attach run = %q, want existing %q", existing.RunID, first.RunID)
+		}
+
+		close(release)
+		row := waitForRun(t, env.globalDB, first.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("IT-022 parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+		}
+		if got := executed.Load(); got != 2 {
+			t.Fatalf("IT-022 executed children = %d, want 2 (no second launch)", got)
+		}
+		requireTaskMultiGroupSnapshot(t, env, first.RunID, 2)
+	})
+
+	t.Run("IT-023/IT-026 completed selection refuses re-attach; --new starts fresh", func(t *testing.T) {
+		const (
+			initiative = "relaunch-done"
+			parentID   = "relaunch-done-alpha"
+			freshID    = "relaunch-done-omega"
+		)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiGroupRunIDBuilder(parentID),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				groupID := taskMultiTaskGroupID(cfg.Name)
+				return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" done\n")
+			},
+		})
+		writeIndependentTaskGroupFixture(t, env, initiative, 2)
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		first := startTaskMultiGroupParallelRun(
+			t, env, parentID, initiative, []string{"TG-001", "TG-002"}, 2,
+		)
+		if row := waitForRun(t, env.globalDB, first.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		}); row.Status != runStatusCompleted {
+			t.Fatalf("IT-023 first parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+		}
+		firstItems := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, first.RunID, 2).Items)
+		firstBranches := make(map[string]string, 2)
+		firstSHAs := make(map[string]string, 2)
+		for _, groupID := range []string{"TG-001", "TG-002"} {
+			branch := strings.TrimSpace(firstItems[groupID].ResultBranch)
+			if branch == "" {
+				t.Fatalf("IT-023 %s completed without a branch: %#v", groupID, firstItems[groupID])
+			}
+			firstBranches[groupID] = branch
+			firstSHAs[branch] = runGitOutput(t, env.workspaceRoot, "rev-parse", branch)
+		}
+
+		// IT-023: re-issue without --new is refused with the completed record.
+		_, err := attemptTaskMultiGroupParallelRun(
+			t, env, parentID+"-dup", initiative, []string{"TG-001", "TG-002"}, 2, false,
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("IT-023 re-issue error = %v, want API problem", err)
+		}
+		if problem.Status != http.StatusConflict ||
+			problem.Code != "parallel_task_groups_selection_completed" {
+			t.Fatalf("IT-023 problem = %#v, want 409 parallel_task_groups_selection_completed", problem)
+		}
+		if required, ok := problem.Details["new_required"].(bool); !ok || !required {
+			t.Fatalf("IT-023 details = %#v, want new_required=true", problem.Details)
+		}
+		if branches, ok := problem.Details["result_branches"].([]string); !ok || len(branches) == 0 {
+			t.Fatalf("IT-023 details = %#v, want reported result_branches", problem.Details)
+		}
+
+		// IT-026: --new mints a fresh run and namespace without touching prior branches.
+		fresh, err := attemptTaskMultiGroupParallelRun(
+			t, env, freshID, initiative, []string{"TG-001", "TG-002"}, 2, true,
+		)
+		if err != nil {
+			t.Fatalf("IT-026 --new launch error = %v", err)
+		}
+		if fresh.RunID == first.RunID {
+			t.Fatalf("IT-026 --new run = %q, want a fresh run id", fresh.RunID)
+		}
+		if row := waitForRun(t, env.globalDB, fresh.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		}); row.Status != runStatusCompleted {
+			t.Fatalf("IT-026 fresh parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+		}
+		freshItems := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, fresh.RunID, 2).Items)
+		for _, groupID := range []string{"TG-001", "TG-002"} {
+			freshBranch := strings.TrimSpace(freshItems[groupID].ResultBranch)
+			if freshBranch == "" {
+				t.Fatalf("IT-026 %s fresh branch missing: %#v", groupID, freshItems[groupID])
+			}
+			if freshBranch == firstBranches[groupID] {
+				t.Fatalf("IT-026 %s reused prior branch %q, want fresh namespace", groupID, freshBranch)
+			}
+			if got := runGitOutput(
+				t, env.workspaceRoot, "rev-parse", firstBranches[groupID],
+			); got != firstSHAs[firstBranches[groupID]] {
+				t.Fatalf("IT-026 prior branch %q moved to %q", firstBranches[groupID], got)
+			}
+		}
+	})
+
+	t.Run("IT-024 partial-terminal selection reports the terminal record", func(t *testing.T) {
+		const (
+			initiative = "relaunch-partial"
+			parentID   = "relaunch-partial-parent"
+		)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiGroupRunIDBuilder(parentID),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				groupID := taskMultiTaskGroupID(cfg.Name)
+				if groupID == "TG-002" {
+					return errors.New("simulated TG-002 relaunch failure")
+				}
+				return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" ok\n")
+			},
+		})
+		writeIndependentTaskGroupFixture(t, env, initiative, 3)
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		first := startTaskMultiGroupParallelRun(
+			t, env, parentID, initiative, []string{"TG-001", "TG-002", "TG-003"}, 3,
+		)
+		if row := waitForRun(t, env.globalDB, first.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		}); row.Status != runStatusFailed {
+			t.Fatalf("IT-024 first parent status = %q, want failed (partial)", row.Status)
+		}
+
+		_, err := attemptTaskMultiGroupParallelRun(
+			t, env, parentID+"-dup", initiative, []string{"TG-001", "TG-002", "TG-003"}, 3, false,
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("IT-024 re-issue error = %v, want API problem", err)
+		}
+		if problem.Status != http.StatusConflict ||
+			problem.Code != "parallel_task_groups_selection_terminal" {
+			t.Fatalf("IT-024 problem = %#v, want 409 parallel_task_groups_selection_terminal", problem)
+		}
+		if failed, ok := problem.Details["failed"].([]string); !ok || !containsStringFragment(failed, "TG-002") {
+			t.Fatalf("IT-024 failed detail = %#v, want TG-002", problem.Details["failed"])
+		}
+		if succeeded, ok := problem.Details["succeeded"].([]string); !ok ||
+			!containsStringFragment(succeeded, "TG-001") {
+			t.Fatalf("IT-024 succeeded detail = %#v, want TG-001", problem.Details["succeeded"])
+		}
+		if preserved, ok := problem.Details["preserved_paths"].([]string); !ok ||
+			!containsStringFragment(preserved, "TG-002") {
+			t.Fatalf("IT-024 preserved_paths detail = %#v, want TG-002", problem.Details["preserved_paths"])
+		}
+	})
+
+	t.Run("IT-025 plan drift rejects the re-launch on the launch path", func(t *testing.T) {
+		const initiative = "relaunch-drift"
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiGroupRunIDBuilder(initiative + "-parent"),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				return errors.New("IT-025 must reject before executing any child")
+			},
+		})
+		writeIndependentTaskGroupFixture(t, env, initiative, 3)
+		// Plan drift: TG-002 now depends on the unselected, incomplete TG-003, so the
+		// {TG-001, TG-002} selection is no longer a mutually independent runnable set.
+		writeTaskGroupPlanFile(
+			t,
+			env,
+			initiative,
+			[]taskgroups.TaskGroup{
+				independentTaskGroupSpec("TG-001"),
+				independentTaskGroupSpec("TG-002"),
+				independentTaskGroupSpec("TG-003"),
+			},
+			[]taskgroups.Dependency{{
+				From:      "TG-003",
+				To:        "TG-002",
+				Rationale: "TG-002 now consumes TG-003 output after the plan changed",
+			}},
+		)
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		_, err := attemptTaskMultiGroupParallelRun(
+			t, env, initiative+"-parent", initiative, []string{"TG-001", "TG-002"}, 2, false,
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) {
+			t.Fatalf("IT-025 launch error = %v, want API problem", err)
+		}
+		if problem.Status != http.StatusConflict || problem.Code != "task_group_dependencies_unmet" {
+			t.Fatalf("IT-025 problem = %#v, want 409 task_group_dependencies_unmet", problem)
+		}
+		rejected, ok := problem.Details["rejected"].(map[string]any)
+		if !ok {
+			t.Fatalf("IT-025 details = %#v, want rejected map", problem.Details)
+		}
+		if _, found := rejected["TG-002"]; !found {
+			t.Fatalf("IT-025 rejected = %#v, want TG-002 rejected for the added dependency", rejected)
+		}
+	})
+}
+
+// TestRunManagerTaskMultiGroupParallelParkedSelectionReAttaches guards Issue 006:
+// a parked group-parallel run is a resumable stall (globaldb's active-run predicate
+// treats parked as active), so the relaunch gate must re-attach to it rather than
+// route it through the terminal-report / --new path.
+func TestRunManagerTaskMultiGroupParallelParkedSelectionReAttaches(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "relaunch-parked"
+		parentID   = "relaunch-parked-parent"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			groupID := taskMultiTaskGroupID(cfg.Name)
+			return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" parked\n")
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 2)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	first := startTaskMultiGroupParallelRun(
+		t, env, parentID, initiative, []string{"TG-001", "TG-002"}, 2,
+	)
+	waitForRun(t, env.globalDB, first.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+
+	// Drive the persisted parent into the resumable parked state.
+	ctx := context.Background()
+	row, err := env.globalDB.GetRun(ctx, first.RunID)
+	if err != nil {
+		t.Fatalf("GetRun(%q) error = %v", first.RunID, err)
+	}
+	if strings.TrimSpace(row.SelectionFingerprint) == "" {
+		t.Fatalf("parked run is missing its selection fingerprint: %#v", row)
+	}
+	row.Status = runStatusParked
+	if _, err := env.globalDB.UpdateRun(ctx, row); err != nil {
+		t.Fatalf("UpdateRun(parked) error = %v", err)
+	}
+
+	// Re-issuing the same selection must re-attach to the parked run, not refuse it.
+	existing, err := attemptTaskMultiGroupParallelRun(
+		t, env, parentID+"-reattach", initiative, []string{"TG-001", "TG-002"}, 2, false,
+	)
+	if err != nil {
+		var problem *apicore.Problem
+		if errors.As(err, &problem) {
+			t.Fatalf("parked re-issue returned terminal problem %q, want re-attach", problem.Code)
+		}
+		t.Fatalf("parked re-issue error = %v, want re-attach", err)
+	}
+	if existing.RunID != first.RunID {
+		t.Fatalf("parked re-issue run = %q, want re-attach to %q", existing.RunID, first.RunID)
+	}
+}
+
 func writeIndependentTaskGroupFixture(
 	t *testing.T,
 	env *runManagerTestEnv,
@@ -862,6 +1185,43 @@ func writeIndependentTaskGroupFixture(
 	writeCompozyTasksGitignore(t, env.workspaceRoot)
 }
 
+// independentTaskGroupSpec mirrors the group shape written by
+// writeIndependentTaskGroupFixture so callers can rewrite the plan with a single
+// group mutated (e.g. an added dependency) while keeping the rest identical.
+func independentTaskGroupSpec(groupID string) taskgroups.TaskGroup {
+	return taskgroups.TaskGroup{
+		ID:         groupID,
+		Title:      "Parallel group " + groupID,
+		Outcome:    "Produce isolated output for " + groupID,
+		Directory:  "_task_groups/" + groupID,
+		OwnedScope: []string{strings.ToLower(groupID) + ".txt"},
+	}
+}
+
+// writeTaskGroupPlanFile overwrites _task_groups.md with an explicit group set and
+// dependency graph, used to simulate plan drift between an initial launch and a
+// later re-launch. Dependency edges are rendered from Plan.Edges (each edge needs
+// a rationale), not from TaskGroup.Dependencies.
+func writeTaskGroupPlanFile(
+	t *testing.T,
+	env *runManagerTestEnv,
+	initiative string,
+	groups []taskgroups.TaskGroup,
+	edges []taskgroups.Dependency,
+) {
+	t.Helper()
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
+		Initiative:    initiative,
+		TaskGroups:    groups,
+		Edges:         edges,
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", string(plan))
+}
+
 func taskMultiGroupRunIDBuilder(parentRunID string) func(*model.RuntimeConfig) (string, error) {
 	return func(cfg *model.RuntimeConfig) (string, error) {
 		if cfg == nil {
@@ -877,6 +1237,61 @@ func taskMultiGroupRunIDBuilder(parentRunID string) func(*model.RuntimeConfig) (
 	}
 }
 
+// taskMultiGroupRequest builds a parallel task-group launch request. newRun sets
+// the --new bypass so the relaunch gate is skipped and a fresh namespace is minted.
+func taskMultiGroupRequest(
+	t *testing.T,
+	env *runManagerTestEnv,
+	runID string,
+	initiative string,
+	groupIDs []string,
+	limit int,
+	newRun bool,
+) apicore.TaskRunMultipleRequest {
+	t.Helper()
+	targets := make([]apicore.TaskRunTarget, 0, len(groupIDs))
+	for _, groupID := range groupIDs {
+		targets = append(targets, apicore.TaskRunTarget{
+			InitiativeSlug: initiative,
+			TaskGroupID:    groupID,
+		})
+	}
+	return apicore.TaskRunMultipleRequest{
+		Workspace:        env.workspaceRoot,
+		Targets:          targets,
+		Mode:             workspacecfg.TaskRunMultipleModeParallel,
+		ParallelLimit:    limit,
+		PresentationMode: defaultPresentationMode,
+		NewRun:           newRun,
+		RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
+		Execution: &apicore.TaskExecutionDescriptor{
+			Kind:          apicore.ExecutionKindTaskMultiGroupParallel,
+			Label:         "Parallel task groups",
+			UsesWorktrees: true,
+			Source:        "test",
+		},
+	}
+}
+
+// attemptTaskMultiGroupParallelRun launches a selection and returns the raw
+// result so callers can assert re-attach runs and relaunch-gate problems.
+func attemptTaskMultiGroupParallelRun(
+	t *testing.T,
+	env *runManagerTestEnv,
+	runID string,
+	initiative string,
+	groupIDs []string,
+	limit int,
+	newRun bool,
+) (apicore.Run, error) {
+	t.Helper()
+	return env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		taskMultiGroupRequest(t, env, runID, initiative, groupIDs, limit, newRun),
+	)
+}
+
 func startTaskMultiGroupParallelRun(
 	t *testing.T,
 	env *runManagerTestEnv,
@@ -886,28 +1301,11 @@ func startTaskMultiGroupParallelRun(
 	limit int,
 ) apicore.Run {
 	t.Helper()
-	targets := make([]apicore.TaskRunTarget, 0, len(groupIDs))
-	for _, groupID := range groupIDs {
-		targets = append(targets, apicore.TaskRunTarget{
-			InitiativeSlug: initiative,
-			TaskGroupID:    groupID,
-		})
-	}
-	request := apicore.TaskRunMultipleRequest{
-		Workspace:        env.workspaceRoot,
-		Targets:          targets,
-		Mode:             workspacecfg.TaskRunMultipleModeParallel,
-		ParallelLimit:    limit,
-		PresentationMode: defaultPresentationMode,
-		RuntimeOverrides: rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID)),
-		Execution: &apicore.TaskExecutionDescriptor{
-			Kind:          apicore.ExecutionKindTaskMultiGroupParallel,
-			Label:         "Parallel task groups",
-			UsesWorktrees: true,
-			Source:        "test",
-		},
-	}
-	run, err := env.manager.StartTaskRunMultiple(context.Background(), env.workspaceRoot, request)
+	run, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		taskMultiGroupRequest(t, env, runID, initiative, groupIDs, limit, false),
+	)
 	if err != nil {
 		t.Fatalf("StartTaskRunMultiple(task groups %v) error = %v", groupIDs, err)
 	}
