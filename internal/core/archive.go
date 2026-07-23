@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,7 +18,10 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
-const workflowStateNotSyncedReason = "workflow state not synced"
+const (
+	workflowStateNotSyncedReason = "workflow state not synced"
+	archiveMetadataFileName      = "_meta.md"
+)
 
 var (
 	ErrWorkflowForceRequired      = errors.New("core: workflow force required")
@@ -461,30 +465,7 @@ func archiveTaskGroupInitiative(
 				initiativeArchiveReason(state),
 			)
 		}
-		completedTasks, resolvedReviewIssues, forceErr := forceArchiveInitiative(ctx, workspace.RootDir, latestTarget)
-		if forceErr != nil {
-			return forceErr
-		}
-		result.Forced = true
-		result.CompletedTasks += completedTasks
-		result.ResolvedReviewIssues += resolvedReviewIssues
-		latestTarget, state, err = refreshInitiativeArchiveState(ctx, db, workspace, target.Ref.Initiative)
-		if err != nil {
-			return err
-		}
-		populateInitiativeArchiveResult(result, state)
-		if activeErr := activeInitiativeRunConflict(state); activeErr != nil {
-			return activeErr
-		}
-		if initiativeChildStateBlocked(state) {
-			return resolveInitiativeArchiveConflict(
-				result,
-				latestTarget.InitiativeDir,
-				true,
-				state,
-				initiativeArchiveReason(state),
-			)
-		}
+		return forceArchiveTaskGroupInitiative(ctx, db, workspace, latestTarget, result)
 	}
 
 	return persistArchivedWorkflowHierarchy(
@@ -495,6 +476,49 @@ func archiveTaskGroupInitiative(
 		latestTarget.Ref.Initiative,
 		state.Parent.ID,
 	)
+}
+
+func forceArchiveTaskGroupInitiative(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspace globaldb.Workspace,
+	target taskgroups.Target,
+	result *ArchiveResult,
+) error {
+	mutation, err := forceArchiveInitiative(ctx, workspace.RootDir, target)
+	if err != nil {
+		return err
+	}
+	latestTarget, state, err := refreshInitiativeArchiveState(ctx, db, workspace, target.Ref.Initiative)
+	if err != nil {
+		return mutation.rollback(err)
+	}
+	populateInitiativeArchiveResult(result, state)
+	if activeErr := activeInitiativeRunConflict(state); activeErr != nil {
+		return mutation.rollback(activeErr)
+	}
+	if initiativeChildStateBlocked(state) {
+		conflictErr := resolveInitiativeArchiveConflict(
+			result,
+			latestTarget.InitiativeDir,
+			true,
+			state,
+			initiativeArchiveReason(state),
+		)
+		return mutation.rollback(conflictErr)
+	}
+	if err := persistArchivedWorkflowHierarchy(
+		ctx,
+		db,
+		latestTarget.InitiativeDir,
+		result,
+		latestTarget.Ref.Initiative,
+		state.Parent.ID,
+	); err != nil {
+		return mutation.rollback(err)
+	}
+	mutation.apply(result)
+	return nil
 }
 
 func refreshInitiativeArchiveState(
@@ -678,32 +702,234 @@ func resolveInitiativeArchiveConflict(
 	return nil
 }
 
-func forceArchiveInitiative(ctx context.Context, workspaceRoot string, target taskgroups.Target) (int, int, error) {
+type archiveArtifactState struct {
+	content []byte
+	mode    os.FileMode
+}
+
+type initiativeArtifactTransaction struct {
+	roots  []string
+	before map[string]archiveArtifactState
+	after  map[string]archiveArtifactState
+}
+
+type initiativeArchiveMutation struct {
+	completedTasks       int
+	resolvedReviewIssues int
+	artifacts            *initiativeArtifactTransaction
+}
+
+func (m initiativeArchiveMutation) apply(result *ArchiveResult) {
+	result.Forced = true
+	result.CompletedTasks += m.completedTasks
+	result.ResolvedReviewIssues += m.resolvedReviewIssues
+}
+
+func (m initiativeArchiveMutation) rollback(cause error) error {
+	if m.artifacts == nil {
+		return cause
+	}
+	if err := m.artifacts.rollback(); err != nil {
+		return errors.Join(cause, fmt.Errorf("rollback forced initiative artifacts: %w", err))
+	}
+	return cause
+}
+
+var forceArchiveInitiative = forceArchiveInitiativeArtifacts
+
+func forceArchiveInitiativeArtifacts(
+	ctx context.Context,
+	workspaceRoot string,
+	target taskgroups.Target,
+) (initiativeArchiveMutation, error) {
 	resolver := taskgroups.TargetResolver{}
-	completedTasks := 0
-	resolvedReviewIssues := 0
+	childDirs := make([]string, 0, len(target.Plan.TaskGroups))
 	for taskGroupIndex := range target.Plan.TaskGroups {
 		taskGroup := &target.Plan.TaskGroups[taskGroupIndex]
 		childTarget, err := resolver.Resolve(ctx, workspaceRoot, target.Ref.Initiative+"/"+taskGroup.ID)
 		if err != nil {
-			return completedTasks, resolvedReviewIssues, fmt.Errorf(
+			return initiativeArchiveMutation{}, fmt.Errorf(
 				"resolve force archive task group %s: %w",
 				taskGroup.ID,
 				err,
 			)
 		}
-		completed, err := tasks.CompleteNonTerminalTasks(childTarget.TaskGroupDir)
-		if err != nil {
-			return completedTasks, resolvedReviewIssues, err
-		}
-		resolved, err := reviews.ResolveUnresolvedIssues(childTarget.TaskGroupDir)
-		if err != nil {
-			return completedTasks + completed, resolvedReviewIssues, err
-		}
-		completedTasks += completed
-		resolvedReviewIssues += resolved
+		childDirs = append(childDirs, childTarget.TaskGroupDir)
 	}
-	return completedTasks, resolvedReviewIssues, nil
+
+	artifacts, err := newInitiativeArtifactTransaction(childDirs)
+	if err != nil {
+		return initiativeArchiveMutation{}, err
+	}
+	mutation := initiativeArchiveMutation{artifacts: artifacts}
+	for childIndex := range childDirs {
+		childDir := childDirs[childIndex]
+		completed, err := tasks.CompleteNonTerminalTasks(childDir)
+		if err != nil {
+			return initiativeArchiveMutation{}, artifacts.rollbackAfter(err)
+		}
+		resolved, err := reviews.ResolveUnresolvedIssues(childDir)
+		if err != nil {
+			return initiativeArchiveMutation{}, artifacts.rollbackAfter(err)
+		}
+		mutation.completedTasks += completed
+		mutation.resolvedReviewIssues += resolved
+	}
+	if err := artifacts.seal(); err != nil {
+		return initiativeArchiveMutation{}, artifacts.rollbackAfter(err)
+	}
+	return mutation, nil
+}
+
+func newInitiativeArtifactTransaction(roots []string) (*initiativeArtifactTransaction, error) {
+	transaction := &initiativeArtifactTransaction{roots: append([]string(nil), roots...)}
+	before, err := captureForceMutableArtifacts(transaction.roots)
+	if err != nil {
+		return nil, fmt.Errorf("snapshot forced initiative artifacts: %w", err)
+	}
+	transaction.before = before
+	return transaction, nil
+}
+
+func (t *initiativeArtifactTransaction) seal() error {
+	after, err := captureForceMutableArtifacts(t.roots)
+	if err != nil {
+		return fmt.Errorf("capture forced initiative changes: %w", err)
+	}
+	t.after = after
+	return nil
+}
+
+func (t *initiativeArtifactTransaction) rollbackAfter(cause error) error {
+	if t.after == nil {
+		if err := t.seal(); err != nil {
+			return errors.Join(cause, err)
+		}
+	}
+	if err := t.rollback(); err != nil {
+		return errors.Join(cause, fmt.Errorf("rollback forced initiative artifacts: %w", err))
+	}
+	return cause
+}
+
+func (t *initiativeArtifactTransaction) rollback() error {
+	if t.after == nil {
+		return errors.New("forced initiative artifact transaction is not sealed")
+	}
+	paths := make(map[string]struct{}, len(t.before)+len(t.after))
+	for path := range t.before {
+		paths[path] = struct{}{}
+	}
+	for path := range t.after {
+		paths[path] = struct{}{}
+	}
+	orderedPaths := make([]string, 0, len(paths))
+	for path := range paths {
+		orderedPaths = append(orderedPaths, path)
+	}
+	sort.Strings(orderedPaths)
+
+	var rollbackErr error
+	for _, path := range orderedPaths {
+		before, existedBefore := t.before[path]
+		after, existedAfter := t.after[path]
+		if archiveArtifactStatesEqual(before, existedBefore, after, existedAfter) {
+			continue
+		}
+		current, currentExists, err := readArchiveArtifact(path)
+		if err != nil {
+			rollbackErr = errors.Join(rollbackErr, err)
+			continue
+		}
+		if !archiveArtifactStatesEqual(current, currentExists, after, existedAfter) {
+			rollbackErr = errors.Join(
+				rollbackErr,
+				fmt.Errorf("artifact changed concurrently: %s", path),
+			)
+			continue
+		}
+		if !existedBefore {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				rollbackErr = errors.Join(rollbackErr, fmt.Errorf("remove created artifact %s: %w", path, err))
+			}
+			continue
+		}
+		if err := os.WriteFile(path, before.content, before.mode.Perm()); err != nil {
+			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("restore artifact %s: %w", path, err))
+		}
+	}
+	return rollbackErr
+}
+
+func captureForceMutableArtifacts(roots []string) (map[string]archiveArtifactState, error) {
+	artifacts := make(map[string]archiveArtifactState)
+	for _, root := range roots {
+		rootFS, err := os.OpenRoot(root)
+		if err != nil {
+			return nil, fmt.Errorf("open artifact root %s: %w", root, err)
+		}
+		walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !forceArchiveMutableArtifact(entry.Name()) {
+				return nil
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+			relativePath, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			content, err := rootFS.ReadFile(relativePath)
+			if err != nil {
+				return err
+			}
+			artifacts[path] = archiveArtifactState{content: content, mode: info.Mode()}
+			return nil
+		})
+		closeErr := rootFS.Close()
+		if walkErr != nil || closeErr != nil {
+			return nil, fmt.Errorf("scan %s: %w", root, errors.Join(walkErr, closeErr))
+		}
+	}
+	return artifacts, nil
+}
+
+func forceArchiveMutableArtifact(name string) bool {
+	return name == archiveMetadataFileName ||
+		tasks.ExtractTaskNumber(name) > 0 ||
+		reviews.ExtractIssueNumber(name) > 0
+}
+
+func readArchiveArtifact(path string) (archiveArtifactState, bool, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return archiveArtifactState{}, false, nil
+	}
+	if err != nil {
+		return archiveArtifactState{}, false, fmt.Errorf("stat artifact %s: %w", path, err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return archiveArtifactState{}, false, fmt.Errorf("read artifact %s: %w", path, err)
+	}
+	return archiveArtifactState{content: content, mode: info.Mode()}, true, nil
+}
+
+func archiveArtifactStatesEqual(
+	left archiveArtifactState,
+	leftExists bool,
+	right archiveArtifactState,
+	rightExists bool,
+) bool {
+	return leftExists == rightExists &&
+		(!leftExists || left.mode.Perm() == right.mode.Perm() && bytes.Equal(left.content, right.content))
 }
 
 func initiativeTaskTotal(state initiativeArchiveState) int {

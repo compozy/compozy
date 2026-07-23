@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -387,6 +389,67 @@ func TestArchiveTaskGroupInitiativeForceArchivesPendingPlanAsOneRoot(t *testing.
 		filepath.Join(result.ArchivedPaths[0], "_task_groups", "TG-002", "task_01.md"),
 	); statErr != nil {
 		t.Fatalf("forced archive did not preserve child artifact: %v", statErr)
+	}
+}
+
+func TestArchiveTaskGroupInitiativeForceRollsBackArtifactsWhenChildRunStarts(t *testing.T) {
+	// Suite boundary
+	// IN: real initiative files, aggregate sync, durable child run insertion, and forced archive
+	// OUT: daemon scheduling and transport rendering
+	// Invariant: a forced archive rejected by a child run that starts after preflight leaves every
+	// task and review artifact byte-for-byte unchanged.
+	rootDir := archiveTestRoot(t)
+	initiativeDir := filepath.Join(rootDir, "initiative")
+	writeTaskGroupFixture(t, initiativeDir, map[string]string{
+		"TG-001": "pending",
+		"TG-002": "completed",
+	})
+	taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+	writeArchiveReviewRound(t, taskGroupDir, 1, []string{"pending"}, true)
+	if _, err := Sync(context.Background(), SyncConfig{TasksDir: initiativeDir}); err != nil {
+		t.Fatalf("Sync(task group initiative): %v", err)
+	}
+
+	taskPath := filepath.Join(taskGroupDir, "task_01.md")
+	issuePath := filepath.Join(reviews.ReviewDirectory(taskGroupDir, 1), "issue_001.md")
+	metaPath := tasks.MetaPath(taskGroupDir)
+	taskBefore, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task before archive: %v", err)
+	}
+	issueBefore, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read review issue before archive: %v", err)
+	}
+	if _, err := os.Stat(metaPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("task metadata before archive error = %v, want not exist", err)
+	}
+
+	originalForceArchiveInitiative := forceArchiveInitiative
+	forceArchiveInitiative = func(
+		ctx context.Context,
+		workspaceRoot string,
+		target taskgroups.Target,
+	) (initiativeArchiveMutation, error) {
+		insertActiveArchiveRun(t, target.InitiativeDir, "initiative/TG-001", "run-started-during-force")
+		return originalForceArchiveInitiative(ctx, workspaceRoot, target)
+	}
+	t.Cleanup(func() {
+		forceArchiveInitiative = originalForceArchiveInitiative
+	})
+
+	result, err := Archive(context.Background(), ArchiveConfig{TasksDir: initiativeDir, Force: true})
+	if !errors.Is(err, globaldb.ErrWorkflowHasActiveRuns) {
+		t.Fatalf("Archive(force) error = %v, want ErrWorkflowHasActiveRuns", err)
+	}
+	if result == nil || result.Archived != 0 || result.Forced || result.CompletedTasks != 0 ||
+		result.ResolvedReviewIssues != 0 {
+		t.Fatalf("unexpected archive result: %#v", result)
+	}
+	assertArchiveFileUnchanged(t, taskPath, taskBefore)
+	assertArchiveFileUnchanged(t, issuePath, issueBefore)
+	if _, err := os.Stat(metaPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("task metadata after blocked archive error = %v, want not exist", err)
 	}
 }
 
@@ -972,6 +1035,18 @@ func insertActiveArchiveRun(t *testing.T, target string, slug string, runID stri
 		StartedAt:        time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("PutRun(%s): %v", runID, err)
+	}
+}
+
+func assertArchiveFileUnchanged(t *testing.T, path string, before []byte) {
+	t.Helper()
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read artifact after blocked archive: %v", err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Fatalf("artifact %s changed after blocked archive\nbefore:\n%s\nafter:\n%s", path, before, after)
 	}
 }
 
