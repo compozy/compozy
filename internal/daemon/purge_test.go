@@ -456,6 +456,154 @@ func TestRunManagerPurgePreservesCommittedTaskWorktreeAndMetadata(t *testing.T) 
 	})
 }
 
+// TestRunManagerPurgeRemovesPreservedGroupWorktreeAndKeepsResultBranch covers
+// IT-027 / US-008.AC-1: after triaging a failed group that committed work onto
+// its result branch, purge removes the worktree while the committed result branch
+// survives. This is the defining branch-preservation guarantee of US-008.
+func TestRunManagerPurgeRemovesPreservedGroupWorktreeAndKeepsResultBranch(t *testing.T) {
+	t.Run(
+		"Should remove a preserved failed group worktree while keeping its committed result branch",
+		func(t *testing.T) {
+			requireGitForTaskMulti(t)
+			env := newRunManagerTestEnv(t, runManagerTestDeps{})
+			writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
+			commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+			workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+			if err != nil {
+				t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+			}
+			runID := "purge-preserved-result-branch"
+			seedTerminalRunForPurge(
+				t,
+				env.manager,
+				env.globalDB,
+				workspace.ID,
+				runID,
+				runStatusFailed,
+				time.Now().UTC().Add(-time.Hour),
+			)
+			allocation := allocatePurgeTaskWorktreeWithResultBranch(t, env, runID, "preserved", 1)
+			// The failed group committed real work onto its result branch, so the
+			// branch now carries commits beyond the base commit.
+			writeFileForTest(t, filepath.Join(allocation.Path, "task-output.txt"), "salvaged output\n")
+			runGitOutput(t, allocation.Path, "add", "-A")
+			runGitOutput(t, allocation.Path, "commit", "-q", "-m", "preserved group output")
+			appendPurgeRunEvent(
+				t,
+				env.manager,
+				runID,
+				eventspkg.EventKindTaskRunMultipleChildFailed,
+				kinds.TaskRunMultiplePayload{
+					RunID:          runID,
+					Slug:           "preserved",
+					WorktreePath:   allocation.Path,
+					BaseBranch:     allocation.BaseBranch,
+					BaseCommit:     allocation.BaseCommit,
+					ResultBranch:   allocation.ResultBranch,
+					WorktreeStatus: allocation.WorktreeStatus,
+				},
+			)
+
+			result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
+				KeepTerminalDays: 0,
+				KeepMax:          0,
+			})
+			if err != nil {
+				t.Fatalf("Purge() error = %v", err)
+			}
+			if got, want := result.PurgedRunIDs, []string{runID}; !equalStrings(got, want) {
+				t.Fatalf("purged run ids = %v, want %v", got, want)
+			}
+			if got, want := result.PurgedWorktreePaths, []string{allocation.Path}; !equalStrings(got, want) {
+				t.Fatalf("purged worktree paths = %v, want %v", got, want)
+			}
+			assertPathMissing(t, allocation.Path)
+			// US-008.AC-1: the committed result branch is preserved after its worktree
+			// is removed.
+			if branches := strings.TrimSpace(runGitOutput(
+				t,
+				env.workspaceRoot,
+				"branch",
+				"--list",
+				allocation.ResultBranch,
+				"--format=%(refname:short)",
+			)); branches != allocation.ResultBranch {
+				t.Fatalf("result branch after purge = %q, want %q preserved", branches, allocation.ResultBranch)
+			}
+			if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+				t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+			}
+		},
+	)
+}
+
+// TestRunManagerPurgeTreatsAlreadyRemovedTaskWorktreeAsNoOp covers IT-027 /
+// US-008.EC-1: purging a run whose task worktree was already removed out of band
+// is a no-op success — the run metadata is still purged, no error is raised, and
+// the already-absent path is not reported as a purged worktree.
+func TestRunManagerPurgeTreatsAlreadyRemovedTaskWorktreeAsNoOp(t *testing.T) {
+	t.Run("Should purge the run without error when its task worktree is already gone", func(t *testing.T) {
+		requireGitForTaskMulti(t)
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+		}
+		runID := "purge-already-removed-worktree"
+		seedTerminalRunForPurge(
+			t,
+			env.manager,
+			env.globalDB,
+			workspace.ID,
+			runID,
+			runStatusFailed,
+			time.Now().UTC().Add(-time.Hour),
+		)
+		allocation := allocatePurgeTaskWorktree(t, env, runID, "gone", 1)
+		appendPurgeRunEvent(
+			t,
+			env.manager,
+			runID,
+			eventspkg.EventKindTaskRunMultipleChildCompleted,
+			kinds.TaskRunMultiplePayload{
+				RunID:          runID,
+				Slug:           "gone",
+				WorktreePath:   allocation.Path,
+				BaseBranch:     allocation.BaseBranch,
+				BaseCommit:     allocation.BaseCommit,
+				WorktreeStatus: allocation.WorktreeStatus,
+			},
+		)
+		// Simulate a worktree that was already removed out of band before purge.
+		if err := os.RemoveAll(allocation.Path); err != nil {
+			t.Fatalf("remove worktree before purge: %v", err)
+		}
+		assertPathMissing(t, allocation.Path)
+
+		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
+			KeepTerminalDays: 0,
+			KeepMax:          0,
+		})
+		if err != nil {
+			t.Fatalf("Purge() error = %v", err)
+		}
+		if got, want := result.PurgedRunIDs, []string{runID}; !equalStrings(got, want) {
+			t.Fatalf("purged run ids = %v, want %v", got, want)
+		}
+		if len(result.PurgedWorktreePaths) != 0 {
+			t.Fatalf("purged worktree paths = %v, want none for already-removed worktree", result.PurgedWorktreePaths)
+		}
+		assertPathMissing(t, allocation.Path)
+		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+		}
+	})
+}
+
 func TestRunManagerPurgePreflightsAllTaskWorktreesBeforeRemovingAny(t *testing.T) {
 	t.Run("Should preflight all task worktrees before removing any", func(t *testing.T) {
 		requireGitForTaskMulti(t)
@@ -1006,6 +1154,43 @@ func allocatePurgeTaskWorktreeForRoot(
 		Slug:          slug,
 		Index:         taskNumber - 1,
 		TaskNumber:    taskNumber,
+		Base:          base,
+	})
+	if err != nil {
+		t.Fatalf("Allocate(%q) error = %v", slug, err)
+	}
+	return allocation
+}
+
+// allocatePurgeTaskWorktreeWithResultBranch allocates a task worktree on a real
+// named result branch via the production allocator, mirroring how a parallel task
+// group checks out its own branch. It is used to exercise the US-008.AC-1
+// branch-preservation path where a committed result branch must outlive its
+// worktree.
+func allocatePurgeTaskWorktreeWithResultBranch(
+	t *testing.T,
+	env *runManagerTestEnv,
+	runID string,
+	slug string,
+	taskNumber int,
+) taskMultiWorktreeAllocation {
+	t.Helper()
+
+	base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveBase() error = %v", err)
+	}
+	resultBranch, err := taskMultiResultBranch(runID, taskNumber-1, slug)
+	if err != nil {
+		t.Fatalf("taskMultiResultBranch(%q) error = %v", slug, err)
+	}
+	allocation, err := env.manager.worktreeAllocator.Allocate(context.Background(), taskMultiWorktreeSpec{
+		WorkspaceRoot: env.workspaceRoot,
+		ParentRunID:   runID,
+		Slug:          slug,
+		Index:         taskNumber - 1,
+		TaskNumber:    taskNumber,
+		ResultBranch:  resultBranch,
 		Base:          base,
 	})
 	if err != nil {

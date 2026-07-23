@@ -3961,7 +3961,7 @@ func TestLoadTaskGroupPickerLatestRunStatusesTreatsUnregisteredWorkspaceAsEmpty(
 	}
 }
 
-// E2E-005, E2E-007, E2E-008, E2E-009 and E2E-013: task group selection is
+// E2E-005, E2E-007, E2E-008 and E2E-009: task group selection is
 // explicit, cancellable, and advisory; it never mutates plan completion.
 func TestResolveTaskRunTargetRequiresExplicitTaskGroupSelection(t *testing.T) {
 	t.Parallel()
@@ -4065,7 +4065,7 @@ func TestResolveTaskRunTargetRequiresExplicitTaskGroupSelection(t *testing.T) {
 	})
 }
 
-// E2E-013 and IT-036: non-interactive dependency bypass is opt-in and its
+// IT-036: non-interactive dependency bypass is opt-in and its
 // local check does not substitute for the daemon's authoritative preflight.
 func TestResolveTaskRunTargetRequiresNonInteractiveDependencyOverride(t *testing.T) {
 	t.Parallel()
