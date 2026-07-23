@@ -948,6 +948,11 @@ func renderObservedRunStarted(event eventspkg.Event) string {
 	if !ok || payload.JobsTotal <= 0 {
 		return "run started\n"
 	}
+	// Surface the issue count alongside the job count so atomic grouping (several
+	// issues in one job) never reads as if an issue were skipped.
+	if payload.IssuesTotal > payload.JobsTotal {
+		return fmt.Sprintf("run started | jobs=%d issues=%d\n", payload.JobsTotal, payload.IssuesTotal)
+	}
 	return fmt.Sprintf("run started | jobs=%d\n", payload.JobsTotal)
 }
 

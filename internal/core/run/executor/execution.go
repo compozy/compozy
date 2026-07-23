@@ -234,6 +234,7 @@ func emitRunStart(
 			AccessMode:      internalCfg.AccessMode,
 			ArtifactsDir:    runArtifacts.RunDir,
 			JobsTotal:       len(internalJobs),
+			IssuesTotal:     countJobsIssues(internalJobs),
 		},
 	); err != nil {
 		return err

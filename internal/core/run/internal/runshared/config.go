@@ -218,3 +218,14 @@ func CountTotalIssues(job *Job) int {
 	}
 	return total
 }
+
+// CountJobsIssues sums the issues across every job. Atomic file grouping can
+// pack several issues into one job, so this run-level total is surfaced next to
+// the job count to make "1 job / 2 issues" unambiguous.
+func CountJobsIssues(jobs []Job) int {
+	total := 0
+	for i := range jobs {
+		total += CountTotalIssues(&jobs[i])
+	}
+	return total
+}

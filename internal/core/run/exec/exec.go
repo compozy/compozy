@@ -757,6 +757,7 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 			AccessMode:      cfg.AccessMode,
 			ArtifactsDir:    s.runArtifacts.RunDir,
 			JobsTotal:       1,
+			IssuesTotal:     1,
 		},
 	); err != nil {
 		return err

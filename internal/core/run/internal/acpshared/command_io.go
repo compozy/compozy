@@ -339,10 +339,16 @@ func createACPClient(
 	activity *activityMonitor,
 ) (agent.Client, error) {
 	ide := jobIDE(cfg, job)
-	var terminalActivityStarted, terminalActivityFinished func()
+	var terminalActivityStarted, terminalActivityFinished, recordActivity func()
 	if activity != nil {
-		terminalActivityStarted = activity.BeginActivity
-		terminalActivityFinished = activity.EndActivity
+		// Terminal start/exit and every other proof of life (inbound ACP
+		// notifications, terminal output) record a heartbeat rather than holding
+		// the watchdog blind: a terminal that keeps producing output stays alive,
+		// while one that wedges silently still trips the idle window near its
+		// configured timeout instead of hiding until the 45m absolute cap.
+		recordActivity = activity.RecordActivity
+		terminalActivityStarted = activity.RecordActivity
+		terminalActivityFinished = activity.RecordActivity
 	}
 	client, err := newAgentClient(ctx, agent.ClientConfig{
 		IDE:                      ide,
@@ -355,6 +361,7 @@ func createACPClient(
 		TerminalCommandTimeout:   cfg.Stall.TerminalCap,
 		TerminalActivityStarted:  terminalActivityStarted,
 		TerminalActivityFinished: terminalActivityFinished,
+		RecordActivity:           recordActivity,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create ACP client: %w", err)

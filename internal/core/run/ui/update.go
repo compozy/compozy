@@ -749,6 +749,16 @@ func (m *uiModel) settledJobs() int {
 	return m.completed + m.failed + m.parked
 }
 
+// totalIssues sums the issues across all jobs. Atomic file grouping can pack
+// several issues into one job, so this can exceed the job count.
+func (m *uiModel) totalIssues() int {
+	total := 0
+	for i := range m.jobs {
+		total += m.jobs[i].issues
+	}
+	return total
+}
+
 func (m *uiModel) isRunComplete() bool {
 	return isTerminalRunStatus(m.runStatus) || m.settledJobs() >= m.total
 }

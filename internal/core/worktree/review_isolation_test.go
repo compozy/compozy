@@ -116,6 +116,127 @@ func TestReviewIsolationAppliesIndependentJobChanges(t *testing.T) {
 	}
 }
 
+func TestRunGitMergeFileMergesAndDetectsConflicts(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	dir := t.TempDir()
+	base := "line1\nline2\nline3\n"
+	write := func(name, content string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		return path
+	}
+	basePath := write("base", base)
+
+	t.Run("Should merge non-overlapping edits to the same file", func(t *testing.T) {
+		ours := write("ours-clean", "line1-source\nline2\nline3\n")
+		theirs := write("theirs-clean", "line1\nline2\nline3-review\n")
+		conflicted, err := runGitMergeFile(context.Background(), dir, ours, basePath, theirs)
+		if err != nil {
+			t.Fatalf("runGitMergeFile() error = %v", err)
+		}
+		if conflicted {
+			t.Fatal("non-overlapping edits reported a conflict")
+		}
+		merged, readErr := os.ReadFile(ours)
+		if readErr != nil || string(merged) != "line1-source\nline2\nline3-review\n" {
+			t.Fatalf("merged = %q, error = %v, want both edits", merged, readErr)
+		}
+	})
+
+	t.Run("Should report a conflict for overlapping edits", func(t *testing.T) {
+		ours := write("ours-conflict", "line1-source\nline2\nline3\n")
+		theirs := write("theirs-conflict", "line1-review\nline2\nline3\n")
+		conflicted, err := runGitMergeFile(context.Background(), dir, ours, basePath, theirs)
+		if err != nil {
+			t.Fatalf("runGitMergeFile() error = %v", err)
+		}
+		if !conflicted {
+			t.Fatal("overlapping edits did not report a conflict")
+		}
+	})
+}
+
+func TestReviewIsolationMergesSharedSecondaryFileAcrossBatches(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	// A secondary file both batches edit even though their primary files differ —
+	// exactly the collision the ticket describes.
+	routes := "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\n"
+	if err := os.WriteFile(filepath.Join(repo, "routes.ts"), []byte(routes), 0o600); err != nil {
+		t.Fatalf("write shared secondary baseline: %v", err)
+	}
+	mustRunGit(t, repo, "add", "routes.ts")
+	mustRunGit(t, repo, "commit", "-q", "-m", "add shared secondary file")
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a", "batch-b"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	first, _ := isolation.Workspace(0)
+	second, _ := isolation.Workspace(1)
+
+	// batch-a fixes its primary file and edits line 1 of the shared secondary.
+	if err := os.WriteFile(filepath.Join(first.Root, "a.ts"), []byte("a\n"), 0o600); err != nil {
+		t.Fatalf("write batch-a primary: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(first.Root, "routes.ts"),
+		[]byte(strings.Replace(routes, "l1\n", "l1-a\n", 1)),
+		0o600,
+	); err != nil {
+		t.Fatalf("write batch-a shared edit: %v", err)
+	}
+	// batch-b fixes its primary file and edits line 10 of the shared secondary.
+	if err := os.WriteFile(filepath.Join(second.Root, "b.ts"), []byte("b\n"), 0o600); err != nil {
+		t.Fatalf("write batch-b primary: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(second.Root, "routes.ts"),
+		[]byte(strings.Replace(routes, "l10\n", "l10-b\n", 1)),
+		0o600,
+	); err != nil {
+		t.Fatalf("write batch-b shared edit: %v", err)
+	}
+
+	// Both batches integrate: batch-b's non-overlapping edit to the already-changed
+	// shared file merges instead of colliding on "patch does not apply".
+	if err := isolation.Apply(context.Background(), 0, false, "fix: batch a"); err != nil {
+		t.Fatalf("Apply(batch-a) error = %v", err)
+	}
+	if err := isolation.Apply(context.Background(), 1, false, "fix: batch b"); err != nil {
+		t.Fatalf("Apply(batch-b) error = %v", err)
+	}
+
+	wantRoutes := strings.Replace(strings.Replace(routes, "l1\n", "l1-a\n", 1), "l10\n", "l10-b\n", 1)
+	if body, readErr := os.ReadFile(filepath.Join(repo, "routes.ts")); readErr != nil || string(body) != wantRoutes {
+		t.Fatalf("merged shared secondary = %q, error = %v, want %q", body, readErr, wantRoutes)
+	}
+	for path, want := range map[string]string{
+		filepath.Join(repo, "a.ts"): "a\n",
+		filepath.Join(repo, "b.ts"): "b\n",
+	} {
+		if body, readErr := os.ReadFile(path); readErr != nil || string(body) != want {
+			t.Fatalf("integrated %s = %q, error = %v, want %q", path, body, readErr, want)
+		}
+	}
+}
+
 func TestReviewIsolationPreservesConflictingWorkspace(t *testing.T) {
 	t.Parallel()
 	requireScopeGit(t)
@@ -147,9 +268,15 @@ func TestReviewIsolationPreservesConflictingWorkspace(t *testing.T) {
 	if err := isolation.Apply(context.Background(), 0, false, "fix: first"); err != nil {
 		t.Fatalf("Apply(first) error = %v", err)
 	}
+	// batch-a and batch-b rewrite the same file to different content: a true
+	// overlapping-hunk conflict, which parks the second batch (its worktree is
+	// preserved for triage) instead of silently dropping it.
 	err = isolation.Apply(context.Background(), 1, false, "fix: second")
-	if err == nil || !strings.Contains(err.Error(), "source paths changed since review isolation began: README.md") {
-		t.Fatalf("Apply(second) error = %v, want touched-path drift rejection", err)
+	if err == nil || !errors.Is(err, ErrOverlappingReviewEdits) {
+		t.Fatalf("Apply(second) error = %v, want ErrOverlappingReviewEdits", err)
+	}
+	if !strings.Contains(err.Error(), "README.md") {
+		t.Fatalf("Apply(second) error = %v, want the conflicting path README.md", err)
 	}
 	if _, statErr := os.Stat(second.Root); statErr != nil {
 		t.Fatalf("conflicting worktree was not preserved: %v", statErr)
@@ -392,7 +519,7 @@ func TestReviewIsolationValidationFailureRestoresExactIndex(t *testing.T) {
 	}
 }
 
-func TestReviewIsolationRejectsTouchedSourcePathChangedAfterCreation(t *testing.T) {
+func TestReviewIsolationMergesNonConflictingSourceDrift(t *testing.T) {
 	t.Parallel()
 	requireScopeGit(t)
 	repo := initScopeGitRepo(t)
@@ -429,18 +556,20 @@ func TestReviewIsolationRejectsTouchedSourcePathChangedAfterCreation(t *testing.
 	}
 	headBefore := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD")))
 
-	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
-	if err == nil || !strings.Contains(err.Error(), "source paths changed since review isolation began: README.md") {
-		t.Fatalf("Apply(auto commit) error = %v, want touched-path drift rejection", err)
+	// The batch changed line 1 while the source drifted on line 10: non-overlapping
+	// edits to a shared file merge cleanly and commit both, instead of parking.
+	if err := isolation.Apply(context.Background(), 0, true, "fix: batch a"); err != nil {
+		t.Fatalf("Apply(auto commit) error = %v, want a clean 3-way merge", err)
 	}
-	if headAfter := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD"))); headAfter != headBefore {
-		t.Fatalf("source HEAD after rejected apply = %q, want %q", headAfter, headBefore)
+	merged := strings.Replace(externalResult, "one\n", "batch\n", 1)
+	if headAfter := strings.TrimSpace(string(mustRunGit(t, repo, "rev-parse", "HEAD"))); headAfter == headBefore {
+		t.Fatalf("source HEAD after merge = %q, want a new commit", headAfter)
 	}
-	if body, readErr := os.ReadFile(
-		filepath.Join(repo, "README.md"),
-	); readErr != nil ||
-		string(body) != externalResult {
-		t.Fatalf("source README after rejected apply = %q, error = %v, want external edit", body, readErr)
+	if body, readErr := os.ReadFile(filepath.Join(repo, "README.md")); readErr != nil || string(body) != merged {
+		t.Fatalf("source README after merge = %q, error = %v, want %q", body, readErr, merged)
+	}
+	if committed := string(mustRunGit(t, repo, "show", "HEAD:README.md")); committed != merged {
+		t.Fatalf("committed README after merge = %q, want %q", committed, merged)
 	}
 }
 
@@ -539,7 +668,7 @@ func TestRollbackReviewApplyPreservesConcurrentStaging(t *testing.T) {
 	}
 	mustRunGit(t, repo, "add", "concurrent.txt")
 
-	err = rollbackReviewApply(context.Background(), repo, patch, indexBackup, stagedIndex)
+	err = rollbackReviewApply(context.Background(), repo, patch, indexBackup, stagedIndex, nil)
 	if err == nil || !strings.Contains(err.Error(), "preserved concurrent index state") {
 		t.Fatalf("rollbackReviewApply() error = %v, want index conflict", err)
 	}

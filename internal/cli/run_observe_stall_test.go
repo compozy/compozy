@@ -17,6 +17,45 @@ func renderObservedPayload(t *testing.T, kind eventspkg.EventKind, payload any) 
 	return renderObservedRunEvent(eventspkg.Event{Kind: kind, Payload: raw})
 }
 
+// TestRenderObservedRunStartedSurfacesIssueCount pins the observe line so a run
+// where atomic grouping packs several issues into one job reads as "1 job / N
+// issues" and never looks as if an issue were dropped.
+func TestRenderObservedRunStartedSurfacesIssueCount(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		payload kinds.RunStartedPayload
+		want    string
+	}{
+		{
+			name:    "Should surface issues when a job packs several issues",
+			payload: kinds.RunStartedPayload{JobsTotal: 1, IssuesTotal: 2},
+			want:    "run started | jobs=1 issues=2\n",
+		},
+		{
+			name:    "Should show jobs only when issues equal jobs",
+			payload: kinds.RunStartedPayload{JobsTotal: 3, IssuesTotal: 3},
+			want:    "run started | jobs=3\n",
+		},
+		{
+			name:    "Should show jobs only when the issue total is absent",
+			payload: kinds.RunStartedPayload{JobsTotal: 2},
+			want:    "run started | jobs=2\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := renderObservedPayload(t, eventspkg.EventKindRunStarted, tc.payload)
+			if got != tc.want {
+				t.Fatalf("renderObservedRunEvent() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestRenderObservedTaskMultiSummaryLine pins the end-of-run summary line the
 // walked-away user reads: a batch with one recovered and one parked child, and a
 // clean batch that still closes with explicit zeroes.

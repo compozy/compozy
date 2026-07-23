@@ -2105,7 +2105,7 @@ func TestClientReleaseTerminalRetainsTrackingWhenWaitContextExpires(t *testing.T
 		sessionID: sessionID,
 		cancel:    func() {},
 		done:      done,
-		output:    newTerminalOutputBuffer(nil),
+		output:    newTerminalOutputBuffer(nil, nil),
 	}
 	client.storeTerminal(terminal)
 
@@ -2164,11 +2164,54 @@ func TestNewTerminalOutputBufferAppliesServerDefaultWhenLimitUnset(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			buffer := newTerminalOutputBuffer(tt.limit)
+			buffer := newTerminalOutputBuffer(tt.limit, nil)
 			if buffer.limit != tt.wantLimit {
 				t.Fatalf("buffer.limit = %d, want %d", buffer.limit, tt.wantLimit)
 			}
 		})
+	}
+}
+
+func TestTerminalOutputBufferRecordsActivityHeartbeat(t *testing.T) {
+	t.Parallel()
+	// A terminal command that keeps producing output must reset the stall
+	// watchdog, so each write records a liveness heartbeat.
+	beats := 0
+	buffer := newTerminalOutputBuffer(nil, func() { beats++ })
+	if _, err := buffer.Write([]byte("compiling module 1\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := buffer.Write([]byte("compiling module 2\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if beats != 2 {
+		t.Fatalf("activity heartbeats = %d, want one per write", beats)
+	}
+}
+
+func TestSessionUpdateRecordsActivityHeartbeat(t *testing.T) {
+	// A live agent proves it is alive by emitting ACP notifications. The heartbeat
+	// is recorded at the receipt boundary so even a session that is otherwise
+	// silent (no terminal, no consumed updates) is never misread as stalled.
+	sessionID := "sess-heartbeat"
+	session := newSession(sessionID)
+	beats := 0
+	client := &clientImpl{
+		sessions:       map[string]*sessionImpl{sessionID: session},
+		recordActivity: func() { beats++ },
+	}
+	notification := acp.SessionNotification{
+		SessionId: acp.SessionId(sessionID),
+		Update: acp.UpdateToolCall(
+			acp.ToolCallId("tool-1"),
+			acp.WithUpdateStatus(acp.ToolCallStatusCompleted),
+		),
+	}
+	if err := client.SessionUpdate(context.Background(), notification); err != nil {
+		t.Fatalf("SessionUpdate error = %v", err)
+	}
+	if beats != 1 {
+		t.Fatalf("activity heartbeats = %d, want 1 recorded at receipt", beats)
 	}
 }
 

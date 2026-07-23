@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -22,6 +23,21 @@ const (
 	reviewIsolationSeedMessage  = "compozy: seed isolated review workspace"
 	reviewIndexReconcileTimeout = 5 * time.Second
 )
+
+// ErrOverlappingReviewEdits marks a review batch that could not be integrated
+// because another concurrent batch already edited the same file in a way that
+// truly conflicts (overlapping hunks). Non-overlapping edits to a shared file
+// are merged automatically; only genuine conflicts surface this error, so the
+// job can be parked deterministically for triage instead of silently dropped.
+var ErrOverlappingReviewEdits = errors.New("overlapping review edits")
+
+// sourcePathContent is a pre-apply snapshot of one source path, used to restore
+// the source workspace atomically when a 3-way merge integration fails.
+type sourcePathContent struct {
+	data   []byte
+	mode   fs.FileMode
+	exists bool
+}
 
 // ReviewWorkspace identifies one private worktree used by a review batch.
 type ReviewWorkspace struct {
@@ -311,8 +327,10 @@ func (r *ReviewIsolation) Workspace(index int) (ReviewWorkspace, error) {
 }
 
 // Apply writes one isolated batch delta into the source workspace. Write-back
-// is serialized, and git apply is atomic: a conflicting batch remains in its
-// private worktree for triage without partially changing the source.
+// is serialized. Disjoint batches keep the original strict, atomic apply; when a
+// prior concurrent batch already changed a shared secondary file, this batch is
+// merged with a 3-way apply and only a true overlapping-hunk conflict parks the
+// job (leaving its private worktree intact for triage).
 func (r *ReviewIsolation) Apply(
 	ctx context.Context,
 	index int,
@@ -356,7 +374,10 @@ func (r *ReviewIsolation) Apply(
 	if err != nil {
 		return fmt.Errorf("build isolated review patch in %s: %w", workspace.Root, err)
 	}
-	if err := ensureSourcePathsUnchanged(ctx, r.sourceRoot, workspace.BaselineRef, paths); err != nil {
+	// Which patched paths a prior concurrent batch already changed in the source
+	// since this batch's baseline. Empty for disjoint batches (the common case).
+	drifted, err := driftedSourcePaths(ctx, r.sourceRoot, workspace.BaselineRef, paths)
+	if err != nil {
 		return err
 	}
 	var indexBackup gitIndexBackup
@@ -366,13 +387,231 @@ func (r *ReviewIsolation) Apply(
 			return fmt.Errorf("validate source index before integrating %s: %w", workspace.Root, err)
 		}
 	}
-	if err := runGitInput(ctx, r.sourceRoot, patch, "apply", "--binary", "--whitespace=nowarn"); err != nil {
-		return fmt.Errorf("apply isolated review changes from %s: %w", workspace.Root, err)
+	preApplySnapshot, err := r.prepareMergeSnapshot(workspace, paths, drifted)
+	if err != nil {
+		return err
+	}
+	if err := r.applyIsolatedPatch(ctx, workspace, patch, paths, drifted, preApplySnapshot); err != nil {
+		return err
 	}
 	if !autoCommit {
 		return nil
 	}
-	return r.commitReviewPatch(ctx, workspace, paths, patch, commitMessage, indexBackup)
+	return r.commitReviewPatch(
+		ctx,
+		workspace,
+		paths,
+		patch,
+		commitMessage,
+		indexBackup,
+		drifted,
+		preApplySnapshot,
+	)
+}
+
+// applyIsolatedPatch integrates one batch patch into the source workspace. It
+// tries the strict, atomic apply first; only when that fails and a prior batch
+// already changed one of the patched paths does it fall back to a per-path 3-way
+// merge. A true overlapping-hunk conflict restores the snapshot to keep the
+// source clean and returns ErrOverlappingReviewEdits so the caller can park the
+// job deterministically for triage.
+func (r *ReviewIsolation) applyIsolatedPatch(
+	ctx context.Context,
+	workspace ReviewWorkspace,
+	patch []byte,
+	paths []string,
+	drifted []string,
+	snapshot map[string]sourcePathContent,
+) error {
+	strictErr := runGitInput(ctx, r.sourceRoot, patch, "apply", "--binary", "--whitespace=nowarn")
+	if strictErr == nil {
+		return nil
+	}
+	if len(drifted) == 0 {
+		// No concurrent batch touched these paths, so a strict failure is a
+		// genuine failure rather than a mergeable overlap.
+		return fmt.Errorf("apply isolated review changes: %w", strictErr)
+	}
+	// A prior batch changed a shared secondary file. Merge every patched path with
+	// git merge-file, an index-independent 3-way text merge that works the same in
+	// auto-commit and working-tree-only runs and cleanly reports true conflicts.
+	conflicts, mergeErr := r.mergeIsolatedBatch(ctx, workspace, paths)
+	if mergeErr != nil {
+		restoreErr := restoreSourcePathContents(r.sourceRoot, snapshot)
+		return errors.Join(fmt.Errorf("merge isolated review changes: %w", mergeErr), restoreErr)
+	}
+	if len(conflicts) > 0 {
+		restoreErr := restoreSourcePathContents(r.sourceRoot, snapshot)
+		return errors.Join(
+			fmt.Errorf("%w on %s", ErrOverlappingReviewEdits, strings.Join(uniqueSorted(conflicts), ", ")),
+			restoreErr,
+		)
+	}
+	return nil
+}
+
+// mergeIsolatedBatch 3-way merges every patched path into the source workspace
+// and returns the paths that truly conflicted (overlapping hunks). Paths a prior
+// batch left untouched merge cleanly to the batch's version.
+func (r *ReviewIsolation) mergeIsolatedBatch(
+	ctx context.Context,
+	workspace ReviewWorkspace,
+	paths []string,
+) ([]string, error) {
+	conflicts := make([]string, 0)
+	for _, path := range paths {
+		conflicted, err := mergeSourcePathThreeWay(ctx, r.sourceRoot, workspace.Root, workspace.BaselineRef, path)
+		if err != nil {
+			return nil, err
+		}
+		if conflicted {
+			conflicts = append(conflicts, path)
+		}
+	}
+	return conflicts, nil
+}
+
+// mergeSourcePathThreeWay merges one path's batch edits into the source using
+// the isolated baseline as the merge ancestor. It handles additions and
+// deletions and reports whether the merge conflicted.
+func mergeSourcePathThreeWay(
+	ctx context.Context,
+	sourceRoot string,
+	workspaceRoot string,
+	baselineRef string,
+	path string,
+) (bool, error) {
+	oursAbs, err := safeWorkspacePath(sourceRoot, path)
+	if err != nil {
+		return false, err
+	}
+	theirsAbs, err := safeWorkspacePath(workspaceRoot, path)
+	if err != nil {
+		return false, err
+	}
+	_, theirsMode, theirsExists, err := readFileIfExists(theirsAbs)
+	if err != nil {
+		return false, err
+	}
+	baseContent, baseExists, err := readBaselineBlob(ctx, sourceRoot, baselineRef, path)
+	if err != nil {
+		return false, err
+	}
+	oursContent, _, oursExists, err := readFileIfExists(oursAbs)
+	if err != nil {
+		return false, err
+	}
+	if !theirsExists {
+		// The batch deleted this path.
+		if !oursExists {
+			return false, nil
+		}
+		if baseExists && bytes.Equal(oursContent, baseContent) {
+			if rmErr := os.Remove(oursAbs); rmErr != nil {
+				return false, fmt.Errorf("apply review deletion of %s: %w", path, rmErr)
+			}
+			return false, nil
+		}
+		// The source changed a path the batch deleted: a delete/modify conflict.
+		return true, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(oursAbs), 0o755); err != nil {
+		return false, fmt.Errorf("create parent for %s during review merge: %w", path, err)
+	}
+	if !oursExists {
+		if err := os.WriteFile(oursAbs, nil, theirsMode.Perm()); err != nil {
+			return false, fmt.Errorf("create %s during review merge: %w", path, err)
+		}
+	}
+	baseAbs, cleanup, err := writeTempMergeFile(baseContent)
+	if err != nil {
+		return false, err
+	}
+	defer cleanup()
+	return runGitMergeFile(ctx, sourceRoot, oursAbs, baseAbs, theirsAbs)
+}
+
+// runGitMergeFile performs an in-place 3-way merge of ours with theirs against
+// base, writing the result to ours. It returns true when the merge conflicted.
+// -q suppresses conflict warnings, so a non-zero exit with empty stderr is a
+// conflict, while a populated stderr is a genuine error.
+func runGitMergeFile(ctx context.Context, root string, oursAbs, baseAbs, theirsAbs string) (bool, error) {
+	cmd := gitenv.Command(
+		ctx,
+		root,
+		"merge-file", "-q",
+		"-L", "current source",
+		"-L", "review baseline",
+		"-L", "review batch",
+		oursAbs, baseAbs, theirsAbs,
+	)
+	cmd.Env = append(cmd.Env, "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() > 0 && strings.TrimSpace(stderr.String()) == "" {
+		return true, nil
+	}
+	return false, fmt.Errorf("git merge-file %s: %w (%s)", oursAbs, err, strings.TrimSpace(stderr.String()))
+}
+
+// readBaselineBlob returns the baseline content of path, reporting exists=false
+// when the path was added since the isolated baseline.
+func readBaselineBlob(ctx context.Context, root, baselineRef, path string) ([]byte, bool, error) {
+	if _, err := runGit(ctx, root, "cat-file", "-e", baselineRef+":"+path); err != nil {
+		return nil, false, nil
+	}
+	content, err := runGit(ctx, root, "cat-file", "blob", baselineRef+":"+path)
+	if err != nil {
+		return nil, false, fmt.Errorf("read review baseline blob %s: %w", path, err)
+	}
+	return content, true, nil
+}
+
+// readFileIfExists returns a path's content and mode, reporting exists=false for
+// a missing path rather than an error.
+func readFileIfExists(absPath string) ([]byte, fs.FileMode, bool, error) {
+	info, err := os.Stat(absPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, 0, false, nil
+	}
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("stat %s: %w", absPath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, 0, false, fmt.Errorf("unsupported path %s for review merge", absPath)
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("read %s: %w", absPath, err)
+	}
+	return data, info.Mode(), true, nil
+}
+
+// writeTempMergeFile materializes merge input content to a temp file and returns
+// a cleanup func for it.
+func writeTempMergeFile(content []byte) (string, func(), error) {
+	file, err := os.CreateTemp("", "compozy-review-merge-")
+	if err != nil {
+		return "", func() {}, fmt.Errorf("create review merge input: %w", err)
+	}
+	name := file.Name()
+	cleanup := func() { _ = os.Remove(name) }
+	if _, err := file.Write(content); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", func() {}, fmt.Errorf("write review merge input: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", func() {}, fmt.Errorf("close review merge input: %w", err)
+	}
+	return name, cleanup, nil
 }
 
 func (r *ReviewIsolation) commitReviewPatch(
@@ -382,6 +621,8 @@ func (r *ReviewIsolation) commitReviewPatch(
 	patch []byte,
 	commitMessage string,
 	indexBackup gitIndexBackup,
+	mergedPaths []string,
+	snapshot map[string]sourcePathContent,
 ) error {
 	message := strings.TrimSpace(commitMessage)
 	if message == "" {
@@ -391,12 +632,12 @@ func (r *ReviewIsolation) commitReviewPatch(
 	stageArgs = append(stageArgs, literalPathspecs(paths)...)
 	if _, err := runGit(ctx, r.sourceRoot, stageArgs...); err != nil {
 		cause := fmt.Errorf("stage integrated review changes from %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, indexBackup))
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, indexBackup, snapshot))
 	}
 	stagedIndex, err := captureGitIndex(ctx, r.sourceRoot)
 	if err != nil {
 		cause := fmt.Errorf("capture staged source index for %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewWorktree(ctx, r.sourceRoot, patch))
+		return errors.Join(cause, rollbackReviewWorktree(ctx, r.sourceRoot, patch, snapshot))
 	}
 	if err := validateStagedReviewIndex(
 		ctx,
@@ -404,15 +645,16 @@ func (r *ReviewIsolation) commitReviewPatch(
 		workspace.Root,
 		paths,
 		indexBackup,
+		mergedPaths,
 	); err != nil {
 		cause := fmt.Errorf("validate staged review changes from %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex))
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex, snapshot))
 	}
 	args := []string{"commit", "--only", "-m", message, "--"}
 	args = append(args, literalPathspecs(paths)...)
 	if _, err := runGit(ctx, r.sourceRoot, args...); err != nil {
 		cause := fmt.Errorf("commit integrated review changes from %s: %w", workspace.Root, err)
-		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex))
+		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex, snapshot))
 	}
 	r.sourceIndex = stagedIndex
 	r.sourceIndexPending = true
@@ -442,28 +684,32 @@ func (r *ReviewIsolation) reconcileSourceIndex(ctx context.Context) error {
 	return nil
 }
 
-func ensureSourcePathsUnchanged(
+// driftedSourcePaths returns the patched paths whose current source content
+// differs from this batch's isolated baseline — i.e. those a prior concurrent
+// batch already changed. The result drives the strict-vs-3way apply decision and
+// which paths are exempt from the source-equals-workspace integration check.
+func driftedSourcePaths(
 	ctx context.Context,
 	root string,
 	baselineRef string,
 	paths []string,
-) (err error) {
+) (changed []string, err error) {
 	tempRoot, err := os.MkdirTemp("", "compozy-review-index-")
 	if err != nil {
-		return fmt.Errorf("create temporary review index directory: %w", err)
+		return nil, fmt.Errorf("create temporary review index directory: %w", err)
 	}
 	defer func() {
 		err = errors.Join(err, removeTemporaryReviewIndex(tempRoot))
 	}()
 	indexPath := filepath.Join(tempRoot, "index")
 	if _, err := runGitWithIndex(ctx, root, indexPath, "read-tree", baselineRef); err != nil {
-		return fmt.Errorf("read review isolation baseline %s: %w", baselineRef, err)
+		return nil, fmt.Errorf("read review isolation baseline %s: %w", baselineRef, err)
 	}
 	pathspecs := literalPathspecs(paths)
 	args := []string{"ls-files", "--stage", "-z", "--"}
 	baselineRaw, err := runGitWithIndex(ctx, root, indexPath, append(args, pathspecs...)...)
 	if err != nil {
-		return fmt.Errorf("list review isolation baseline entries: %w", err)
+		return nil, fmt.Errorf("list review isolation baseline entries: %w", err)
 	}
 	baselineEntries := make(map[string]gitBaselineEntry, len(paths))
 	for len(baselineRaw) > 0 {
@@ -475,25 +721,173 @@ func ensureSourcePathsUnchanged(
 		}
 		baselineEntries[path] = gitBaselineEntry{mode: mode, objectID: objectID}
 	}
-	changed := make([]string, 0)
+	changed = make([]string, 0)
 	for _, path := range paths {
 		entry, tracked := baselineEntries[path]
 		matches, matchErr := sourcePathMatchesBaseline(ctx, root, path, entry, tracked)
 		if matchErr != nil {
-			return fmt.Errorf("compare source path %s with review isolation baseline: %w", path, matchErr)
+			return nil, fmt.Errorf("compare source path %s with review isolation baseline: %w", path, matchErr)
 		}
 		if !matches {
 			changed = append(changed, path)
 		}
 	}
-	changed = uniqueSorted(changed)
-	if len(changed) > 0 {
-		return fmt.Errorf(
+	return uniqueSorted(changed), nil
+}
+
+// prepareMergeSnapshot handles a batch whose patch touches paths a prior
+// concurrent batch already changed. It rejects an already-integrated retry with
+// the same signal a drifted baseline gives, and otherwise snapshots the source
+// so a failed 3-way merge can be rolled back atomically. Disjoint batches (no
+// drift) return a nil snapshot and take the strict, atomic apply path.
+func (r *ReviewIsolation) prepareMergeSnapshot(
+	workspace ReviewWorkspace,
+	paths []string,
+	drifted []string,
+) (map[string]sourcePathContent, error) {
+	if len(drifted) == 0 {
+		return nil, nil
+	}
+	integrated, err := batchAlreadyIntegrated(r.sourceRoot, workspace.Root, paths)
+	if err != nil {
+		return nil, err
+	}
+	if integrated {
+		return nil, fmt.Errorf(
 			"source paths changed since review isolation began: %s",
-			strings.Join(changed, ", "),
+			strings.Join(drifted, ", "),
 		)
 	}
-	return nil
+	snapshot, err := captureSourcePathContents(r.sourceRoot, paths)
+	if err != nil {
+		return nil, fmt.Errorf("snapshot source paths before merging %s: %w", workspace.Root, err)
+	}
+	return snapshot, nil
+}
+
+// batchAlreadyIntegrated reports whether every patched path in the source
+// already matches the isolated workspace result, meaning the batch has already
+// been applied (e.g. a retry after a committed batch whose post-commit index
+// refresh failed). It distinguishes that idempotent-retry case from a genuine
+// shared-secondary-file drift, where the source carries a different concurrent
+// batch's edit and must be merged.
+func batchAlreadyIntegrated(sourceRoot string, workspaceRoot string, paths []string) (bool, error) {
+	for _, path := range paths {
+		sourceAbs, err := safeWorkspacePath(sourceRoot, path)
+		if err != nil {
+			return false, err
+		}
+		workspaceAbs, err := safeWorkspacePath(workspaceRoot, path)
+		if err != nil {
+			return false, err
+		}
+		sourceData, _, sourceExists, err := readFileIfExists(sourceAbs)
+		if err != nil {
+			return false, err
+		}
+		workspaceData, _, workspaceExists, err := readFileIfExists(workspaceAbs)
+		if err != nil {
+			return false, err
+		}
+		if sourceExists != workspaceExists || !bytes.Equal(sourceData, workspaceData) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// captureSourcePathContents snapshots the current source content of paths so a
+// failed 3-way integration can restore them exactly, keeping the source clean
+// even after git apply --3way writes conflict markers.
+func captureSourcePathContents(root string, paths []string) (map[string]sourcePathContent, error) {
+	snapshot := make(map[string]sourcePathContent, len(paths))
+	for _, path := range paths {
+		absolutePath, err := safeWorkspacePath(root, path)
+		if err != nil {
+			return nil, err
+		}
+		info, err := os.Lstat(absolutePath)
+		if errors.Is(err, os.ErrNotExist) {
+			snapshot[path] = sourcePathContent{exists: false}
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("stat source path %s for review snapshot: %w", path, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, linkErr := os.Readlink(absolutePath)
+			if linkErr != nil {
+				return nil, fmt.Errorf("read source symlink %s for review snapshot: %w", path, linkErr)
+			}
+			snapshot[path] = sourcePathContent{data: []byte(target), mode: info.Mode(), exists: true}
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("unsupported source path %s for review merge snapshot", path)
+		}
+		data, readErr := os.ReadFile(absolutePath)
+		if readErr != nil {
+			return nil, fmt.Errorf("read source path %s for review snapshot: %w", path, readErr)
+		}
+		snapshot[path] = sourcePathContent{data: data, mode: info.Mode(), exists: true}
+	}
+	return snapshot, nil
+}
+
+// restoreSourcePathContents rewrites the snapshotted source paths to their
+// pre-apply state, removing any file the apply newly created.
+func restoreSourcePathContents(root string, snapshot map[string]sourcePathContent) error {
+	var result error
+	for path, content := range snapshot {
+		absolutePath, err := safeWorkspacePath(root, path)
+		if err != nil {
+			result = errors.Join(result, err)
+			continue
+		}
+		if err := os.RemoveAll(absolutePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			result = errors.Join(result, fmt.Errorf("clear source path %s for review rollback: %w", path, err))
+			continue
+		}
+		if !content.exists {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(absolutePath), 0o755); err != nil {
+			result = errors.Join(result, fmt.Errorf("create parent for %s during review rollback: %w", path, err))
+			continue
+		}
+		if content.mode&os.ModeSymlink != 0 {
+			if err := os.Symlink(string(content.data), absolutePath); err != nil {
+				result = errors.Join(
+					result,
+					fmt.Errorf("restore source symlink %s during review rollback: %w", path, err),
+				)
+			}
+			continue
+		}
+		if err := os.WriteFile(absolutePath, content.data, content.mode.Perm()); err != nil {
+			result = errors.Join(result, fmt.Errorf("restore source path %s during review rollback: %w", path, err))
+		}
+	}
+	return result
+}
+
+// subtractPaths returns paths with every entry in remove excluded.
+func subtractPaths(paths []string, remove []string) []string {
+	if len(remove) == 0 {
+		return paths
+	}
+	removeSet := make(map[string]struct{}, len(remove))
+	for _, path := range remove {
+		removeSet[path] = struct{}{}
+	}
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if _, ok := removeSet[path]; ok {
+			continue
+		}
+		out = append(out, path)
+	}
+	return out
 }
 
 func sourcePathMatchesBaseline(
@@ -619,6 +1013,7 @@ func validateStagedReviewIndex(
 	workspaceRoot string,
 	paths []string,
 	indexBackup gitIndexBackup,
+	mergedPaths []string,
 ) (err error) {
 	tempRoot, err := os.MkdirTemp("", "compozy-review-staged-index-")
 	if err != nil {
@@ -647,8 +1042,15 @@ func validateStagedReviewIndex(
 	if !bytes.Equal(actualEntries, expectedEntries) {
 		return errors.New("source git index changed during review integration")
 	}
+	// A merged path legitimately differs from the isolated workspace (it now also
+	// carries the earlier batch's edits), so the exact source-equals-workspace
+	// check only applies to the batch's disjoint paths.
+	comparePaths := subtractPaths(paths, mergedPaths)
+	if len(comparePaths) == 0 {
+		return nil
+	}
 	args := []string{"ls-files", "--stage", "-z", "--"}
-	args = append(args, literalPathspecs(paths)...)
+	args = append(args, literalPathspecs(comparePaths)...)
 	sourceEntries, err := runGit(ctx, sourceRoot, args...)
 	if err != nil {
 		return fmt.Errorf("inspect staged source entries: %w", err)
@@ -728,13 +1130,27 @@ func rollbackReviewApply(
 	patch []byte,
 	indexBackup gitIndexBackup,
 	expectedIndex gitIndexBackup,
+	snapshot map[string]sourcePathContent,
 ) error {
-	result := rollbackReviewWorktree(ctx, root, patch)
+	result := rollbackReviewWorktree(ctx, root, patch, snapshot)
 	result = errors.Join(result, restoreGitIndexCAS(indexBackup, expectedIndex))
 	return result
 }
 
-func rollbackReviewWorktree(ctx context.Context, root string, patch []byte) error {
+func rollbackReviewWorktree(
+	ctx context.Context,
+	root string,
+	patch []byte,
+	snapshot map[string]sourcePathContent,
+) error {
+	// A merged batch was applied with a 3-way merge, which a strict --reverse
+	// cannot faithfully undo; restore the exact pre-apply bytes instead.
+	if len(snapshot) > 0 {
+		if err := restoreSourcePathContents(root, snapshot); err != nil {
+			return fmt.Errorf("roll back merged review paths: %w", err)
+		}
+		return nil
+	}
 	if err := runGitInput(
 		context.WithoutCancel(ctx),
 		root,

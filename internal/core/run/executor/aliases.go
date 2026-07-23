@@ -18,6 +18,13 @@ import (
 
 type config = runshared.Config
 type job = runshared.Job
+
+// countJobsIssues sums the issues across all jobs so run-level events can report
+// the issue total next to the job total.
+func countJobsIssues(jobs []job) int {
+	return runshared.CountJobsIssues(jobs)
+}
+
 type failInfo = runshared.FailInfo
 type jobPhase = runshared.JobPhase
 type jobAttemptResult = runshared.JobAttemptResult

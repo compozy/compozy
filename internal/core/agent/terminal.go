@@ -53,6 +53,10 @@ type terminalOutputBuffer struct {
 	data      []byte
 	limit     int
 	truncated bool
+	// recordActivity records a stall-watchdog heartbeat on each write so a
+	// terminal command that keeps producing output is never misread as stalled,
+	// while one that goes silent still trips the idle window.
+	recordActivity func()
 }
 
 func (c *clientImpl) createTerminal(
@@ -83,7 +87,7 @@ func (c *clientImpl) createTerminal(
 	cmd := exec.CommandContext(terminalCtx, params.Command, params.Args...)
 	cmd.Dir = cwd
 	cmd.Env = terminalEnvironment(params.Env)
-	output := newTerminalOutputBuffer(params.OutputByteLimit)
+	output := newTerminalOutputBuffer(params.OutputByteLimit, c.recordActivity)
 	cmd.Stdout = output
 	cmd.Stderr = output
 
@@ -486,21 +490,26 @@ func cloneStringPtr(src *string) *string {
 	return &value
 }
 
-func newTerminalOutputBuffer(limit *int) *terminalOutputBuffer {
+func newTerminalOutputBuffer(limit *int, recordActivity func()) *terminalOutputBuffer {
 	resolvedLimit := defaultOutputByteLimit
 	if limit != nil && *limit > 0 {
 		resolvedLimit = *limit
 	}
-	return &terminalOutputBuffer{limit: resolvedLimit}
+	return &terminalOutputBuffer{limit: resolvedLimit, recordActivity: recordActivity}
 }
 
 func (b *terminalOutputBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.data = append(b.data, p...)
 	if b.limit > 0 && len(b.data) > b.limit {
 		b.data = trimUTF8Suffix(b.data, b.limit)
 		b.truncated = true
+	}
+	b.mu.Unlock()
+	// Record the heartbeat outside b.mu so we never nest the buffer lock inside
+	// the activity monitor's lock.
+	if b.recordActivity != nil {
+		b.recordActivity()
 	}
 	return len(p), nil
 }

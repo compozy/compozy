@@ -22,6 +22,10 @@ type RunStartedPayload struct {
 	AccessMode      string `json:"access_mode,omitempty"`
 	ArtifactsDir    string `json:"artifacts_dir,omitempty"`
 	JobsTotal       int    `json:"jobs_total,omitempty"`
+	// IssuesTotal is the number of issues across all jobs. Atomic file grouping
+	// can pack several issues into one job, so surfacing both counts keeps a run
+	// like "1 job / 2 issues" from looking as if an issue were dropped.
+	IssuesTotal int `json:"issues_total,omitempty"`
 }
 
 // RunCompletedPayload describes a completed run.
