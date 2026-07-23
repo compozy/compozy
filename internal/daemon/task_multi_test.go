@@ -18,6 +18,7 @@ import (
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/run/journal"
@@ -251,6 +252,78 @@ func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderTaskGroup(t *test
 			)
 		}
 	})
+}
+
+// INVARIANT: a multi-run child never starts from readiness or override evidence
+// that became stale during its final workflow sync.
+// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/task_multi_test.go.
+func TestRunManagerTaskRunMultipleRevalidatesTaskGroupAfterChildFinalSync(t *testing.T) {
+	const (
+		initiative  = "watcher"
+		parentRunID = "multi-task-group-final-sync"
+		childRunID  = "child-task-group-final-sync"
+	)
+	var env *runManagerTestEnv
+	var executed atomic.Bool
+	env = newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+			if cfg == nil {
+				return "", errors.New("runtime config is required")
+			}
+			if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+				return runID, nil
+			}
+			return childRunID, nil
+		},
+		syncWorkflow: func(
+			ctx context.Context,
+			db *globaldb.GlobalDB,
+			workspace globaldb.Workspace,
+			cfg model.SyncConfig,
+		) (*corepkg.SyncResult, error) {
+			writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+			return corepkg.SyncWithDB(ctx, db, workspace, cfg)
+		},
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			executed.Store(true)
+			return nil
+		},
+	})
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+
+	parent, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple() error = %v", err)
+	}
+	parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if parentRow.Status != runStatusFailed || !strings.Contains(parentRow.ErrorText, "plan changed") {
+		t.Fatalf(
+			"parent result = status:%q error:%q, want failed plan-change result",
+			parentRow.Status,
+			parentRow.ErrorText,
+		)
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), childRunID); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(%q) error = %v, want no child run created", childRunID, err)
+	}
+	if executed.Load() {
+		t.Fatal("Execute() called for task group child blocked after final sync")
+	}
 }
 
 func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {

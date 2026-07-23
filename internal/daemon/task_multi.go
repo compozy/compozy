@@ -52,11 +52,12 @@ type preparedTaskMulti struct {
 }
 
 type preparedTaskMultiItem struct {
-	slug         string
-	workflowID   *string
-	workflowRoot string
-	runtimeCfg   *model.RuntimeConfig
-	recovery     workspacecfg.AgentRecoveryConfig
+	slug               string
+	workflowID         *string
+	workflowRoot       string
+	runtimeCfg         *model.RuntimeConfig
+	recovery           workspacecfg.AgentRecoveryConfig
+	taskGroupPreflight *taskGroupPreflightEvidence
 }
 
 type preparedParallelTasks struct {
@@ -343,7 +344,13 @@ func (m *RunManager) prepareTaskMultiStart(
 		if err != nil {
 			return nil, err
 		}
-		if _, err := m.preflightTaskGroupTaskRun(ctx, workspaceRef, resolvedSlug, req.AllowOutOfOrder); err != nil {
+		taskGroupPreflight, err := m.preflightTaskGroupTaskRunWithEvidence(
+			ctx,
+			workspaceRef,
+			resolvedSlug,
+			req.AllowOutOfOrder,
+		)
+		if err != nil {
 			return nil, err
 		}
 		if idx == 0 {
@@ -351,11 +358,12 @@ func (m *RunManager) prepareTaskMultiStart(
 			presentationMode = childPresentationMode
 		}
 		items = append(items, preparedTaskMultiItem{
-			slug:         strings.TrimSpace(resolvedSlug),
-			workflowID:   cloneStringPtr(workflowID),
-			workflowRoot: strings.TrimSpace(runtimeCfg.TasksDir),
-			runtimeCfg:   runtimeCfg,
-			recovery:     recoveryCfg,
+			slug:               strings.TrimSpace(resolvedSlug),
+			workflowID:         cloneStringPtr(workflowID),
+			workflowRoot:       strings.TrimSpace(runtimeCfg.TasksDir),
+			runtimeCfg:         runtimeCfg,
+			recovery:           recoveryCfg,
+			taskGroupPreflight: taskGroupPreflight,
 		})
 	}
 	if len(items) == 0 {
@@ -1909,7 +1917,7 @@ func (m *RunManager) startTaskMultiChild(
 	index int,
 	total int,
 ) (apicore.Run, error) {
-	outOfOrderNeeded, err := m.preflightTaskGroupTaskRun(
+	taskGroupPreflight, err := m.preflightTaskGroupTaskRunWithEvidence(
 		detachContext(active.ctx),
 		prepared.workspace.RootDir,
 		item.slug,
@@ -1917,6 +1925,21 @@ func (m *RunManager) startTaskMultiChild(
 	)
 	if err != nil {
 		return apicore.Run{}, err
+	}
+	if taskGroupPreflight != nil && item.taskGroupPreflight != nil {
+		outOfOrderNeeded, err := taskGroupPreflightDecision(
+			taskGroupPreflight,
+			prepared.allowOutOfOrder,
+			item.taskGroupPreflight,
+		)
+		if err != nil {
+			return apicore.Run{}, err
+		}
+		taskGroupPreflight.outOfOrderNeeded = outOfOrderNeeded
+	}
+	outOfOrderNeeded := false
+	if taskGroupPreflight != nil {
+		outOfOrderNeeded = taskGroupPreflight.outOfOrderNeeded
 	}
 	runtimeCfg := item.runtimeCfg.Clone()
 	if runtimeCfg == nil {
@@ -1935,6 +1958,7 @@ func (m *RunManager) startTaskMultiChild(
 		recovery:            item.recovery,
 		outOfOrderRequested: prepared.allowOutOfOrder,
 		outOfOrderNeeded:    outOfOrderNeeded,
+		taskGroupPreflight:  taskGroupPreflight,
 	})
 	if err != nil {
 		return apicore.Run{}, err

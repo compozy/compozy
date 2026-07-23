@@ -623,24 +623,6 @@ func (m *RunManager) resolveTaskRunReference(
 	}
 }
 
-func (m *RunManager) preflightTaskGroupTaskRun(
-	ctx context.Context,
-	workspaceRef string,
-	workflowRef string,
-	allowOutOfOrder bool,
-) (bool, error) {
-	evidence, err := m.preflightTaskGroupTaskRunWithEvidence(
-		ctx,
-		workspaceRef,
-		workflowRef,
-		allowOutOfOrder,
-	)
-	if err != nil || evidence == nil {
-		return false, err
-	}
-	return evidence.outOfOrderNeeded, nil
-}
-
 func (m *RunManager) preflightTaskGroupTaskRunWithEvidence(
 	ctx context.Context,
 	workspaceRef string,
