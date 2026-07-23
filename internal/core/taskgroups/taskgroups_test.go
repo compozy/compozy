@@ -1028,6 +1028,76 @@ func TestCompletion(t *testing.T) {
 	})
 }
 
+func TestHydrateCompletion(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip an absent completed heading and still mark the rest", func(t *testing.T) {
+		t.Parallel()
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		content := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "One", outcome: "One outcome"},
+			{id: "TG-002", title: "Two", outcome: "Two outcome"},
+		}, nil)
+		writeTestFile(t, initiativeDir, ManifestFileName, string(content))
+
+		marked, err := NewStore().HydrateCompletion(
+			context.Background(),
+			initiativeDir,
+			[]string{"TG-001", "TG-404", "TG-002"},
+		)
+		if err != nil {
+			t.Fatalf("HydrateCompletion() error = %v, want nil for an absent heading", err)
+		}
+		if !slices.Equal(marked, []string{"TG-001", "TG-002"}) {
+			t.Fatalf("HydrateCompletion() marked = %v, want [TG-001 TG-002]", marked)
+		}
+		plan := mustParsePlan(t, mustReadFile(t, filepath.Join(initiativeDir, ManifestFileName)))
+		if !plan.IsComplete("TG-001") || !plan.IsComplete("TG-002") {
+			t.Fatalf("hydrated plan = %#v, want TG-001 and TG-002 complete", plan)
+		}
+	})
+
+	t.Run("Should surface a duplicated heading without writing a partial hydration", func(t *testing.T) {
+		t.Parallel()
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		base := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "One", outcome: "One outcome"},
+			{id: "TG-002", title: "Two", outcome: "Two outcome"},
+		}, nil)
+		duplicated := appendDuplicateHeading(t, base, "TG-002")
+		writeTestFile(t, initiativeDir, ManifestFileName, string(duplicated))
+
+		marked, err := NewStore().HydrateCompletion(
+			context.Background(),
+			initiativeDir,
+			[]string{"TG-002"},
+		)
+		assertDomainError(t, err, ErrCompletionConflict)
+		if marked != nil {
+			t.Fatalf("HydrateCompletion() marked = %v, want nil on an ambiguous heading", marked)
+		}
+		if got := mustReadFile(t, filepath.Join(initiativeDir, ManifestFileName)); !slices.Equal(got, duplicated) {
+			t.Fatalf("ambiguous hydration changed plan bytes\nwant %q\ngot  %q", duplicated, got)
+		}
+	})
+}
+
+// appendDuplicateHeading returns content with a second copy of taskGroupID's
+// stable heading, producing the ambiguous (>1) match hydration must reject.
+func appendDuplicateHeading(t *testing.T, content []byte, taskGroupID string) []byte {
+	t.Helper()
+	for _, match := range completionHeadingPattern.FindAllSubmatchIndex(content, -1) {
+		if string(content[match[4]:match[5]]) != taskGroupID {
+			continue
+		}
+		heading := slices.Clone(content[match[0]:match[1]])
+		duplicated := slices.Clone(content)
+		duplicated = append(duplicated, '\n', '\n')
+		return append(duplicated, heading...)
+	}
+	t.Fatalf("content missing stable heading for %s", taskGroupID)
+	return nil
+}
+
 type fixtureTaskGroup struct {
 	id        string
 	title     string

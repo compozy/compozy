@@ -96,6 +96,16 @@ type RewriteResult struct {
 
 // RewriteCompletion changes only the selected stable heading checkbox in content.
 func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error) {
+	result, _, err := rewriteCompletion(content, taskGroupID)
+	return result, err
+}
+
+// rewriteCompletion performs the single-heading rewrite and additionally reports
+// how many stable headings matched taskGroupID. Bulk callers use the count to
+// distinguish an absent heading (0 matches, safe to skip) from a genuinely
+// ambiguous one (>1 matches, an error) — a distinction the returned
+// ErrCompletionConflict alone cannot express.
+func rewriteCompletion(content []byte, taskGroupID string) (RewriteResult, int, error) {
 	matches := completionHeadingPattern.FindAllSubmatchIndex(content, -1)
 	selected := make([][]int, 0, 1)
 	for _, match := range matches {
@@ -105,7 +115,7 @@ func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error
 		}
 	}
 	if len(selected) != 1 {
-		return RewriteResult{}, newError(
+		return RewriteResult{}, len(selected), newError(
 			ErrCompletionConflict,
 			"",
 			taskGroupID,
@@ -114,15 +124,15 @@ func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error
 		)
 	}
 	if _, err := ParsePlan(string(content)); err != nil {
-		return RewriteResult{}, err
+		return RewriteResult{}, len(selected), err
 	}
 	match := selected[0]
 	if content[match[2]] == 'x' {
-		return RewriteResult{Content: slices.Clone(content), AlreadyCompleted: true}, nil
+		return RewriteResult{Content: slices.Clone(content), AlreadyCompleted: true}, len(selected), nil
 	}
 	rewritten := slices.Clone(content)
 	rewritten[match[2]] = 'x'
-	return RewriteResult{Content: rewritten, WriteRequired: true}, nil
+	return RewriteResult{Content: rewritten, WriteRequired: true}, len(selected), nil
 }
 
 // CompletionResult reports a durable completion mutation without any Git state.
@@ -203,8 +213,12 @@ func (s *Store) MarkCompleteValidated(
 	})
 }
 
-// HydrateCompletion marks every authoritative completion in one plan through
-// the same lock and atomic writer used by explicit completion.
+// HydrateCompletion marks every authoritative completion whose stable heading is
+// present in the plan, through the same lock and atomic writer used by explicit
+// completion. It is an additive, idempotent, best-effort projection: a completed
+// group whose heading is absent under plan drift is skipped so the remaining
+// groups still get marked, while a duplicated (ambiguous) heading surfaces as an
+// error.
 func (s *Store) HydrateCompletion(
 	ctx context.Context,
 	initiativeDir string,
@@ -251,8 +265,14 @@ func (s *Store) hydrateCompletionLocked(
 		if err := context.Cause(ctx); err != nil {
 			return nil, fmt.Errorf("hydrate task group completion: %w", err)
 		}
-		result, rewriteErr := RewriteCompletion(rewritten, taskGroupID)
+		result, headingMatches, rewriteErr := rewriteCompletion(rewritten, taskGroupID)
 		if rewriteErr != nil {
+			// Plan drift can drop a completed group's heading entirely. Hydration
+			// is an additive best-effort projection, so skip an absent heading and
+			// keep marking the rest; a duplicated (ambiguous) heading still aborts.
+			if headingMatches == 0 {
+				continue
+			}
 			return nil, rewriteErr
 		}
 		rewritten = result.Content
