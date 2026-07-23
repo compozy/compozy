@@ -962,6 +962,54 @@ func TestTaskMultiWorktreeAllocatorAllocateUnit(t *testing.T) {
 	})
 }
 
+func TestTaskMultiWorktreeAllocatorConcurrentAllocation(t *testing.T) {
+	t.Parallel()
+	// A parallel wave allocates one worktree per task at once through the shared
+	// allocator. Git is not safe under concurrent worktree operations on one repo
+	// (they race on .git/worktrees metadata), so the allocator must serialize them
+	// per repository. Run under -race: without the per-repo lock this races on both
+	// the lock registry and git's worktree metadata.
+	repo := initTaskMultiWorktreeRepo(t)
+	root := t.TempDir()
+	allocator := newTaskMultiWorktreeAllocator(root)
+	base, err := allocator.ResolveBase(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("ResolveBase() error = %v", err)
+	}
+
+	const children = 6
+	var wg sync.WaitGroup
+	errs := make([]error, children)
+	for i := 0; i < children; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			spec := taskMultiWorktreeSpec{
+				WorkspaceRoot: repo,
+				ParentRunID:   "task-multi-concurrent",
+				Slug:          fmt.Sprintf("task_%02d", index+1),
+				Index:         index,
+				TaskNumber:    index + 1,
+				Base:          base,
+			}
+			_, errs[index] = allocator.Allocate(context.Background(), spec)
+		}(i)
+	}
+	wg.Wait()
+
+	for i, allocErr := range errs {
+		if allocErr != nil {
+			t.Fatalf("concurrent Allocate[%d] error = %v (worktree metadata race?)", i, allocErr)
+		}
+	}
+	worktrees := runGitOutput(t, repo, "worktree", "list", "--porcelain")
+	for i := 0; i < children; i++ {
+		if !strings.Contains(worktrees, fmt.Sprintf("task_%02d", i+1)) {
+			t.Fatalf("worktree for task_%02d not registered:\n%s", i+1, worktrees)
+		}
+	}
+}
+
 func TestTaskMultiWorktreeAllocatorRealRepo(t *testing.T) {
 	t.Run("Should resolve the current branch and HEAD", func(t *testing.T) {
 		t.Parallel()

@@ -287,6 +287,10 @@ type stallHarnessOptions struct {
 	stallRetries  int
 	stallEnabled  bool
 	totalJobs     int
+	// concurrent is the batch parallelism. Zero (the default) runs jobs
+	// sequentially; >1 marks a genuinely concurrent shared workspace where a
+	// stall retry cannot safely reset the worktree.
+	concurrent int
 }
 
 func newStallHarness(t *testing.T, opts stallHarnessOptions, attempts ...jobAttemptResult) *stallHarness {
@@ -334,6 +338,7 @@ func newStallHarness(t *testing.T, opts stallHarnessOptions, attempts ...jobAtte
 		journal: runJournal,
 		cfg: &config{
 			MaxRetries:             opts.maxRetries,
+			Concurrent:             opts.concurrent,
 			RunArtifacts:           runArtifacts,
 			WorkspaceRoot:          root,
 			RetryBackoffMultiplier: 1.5,
@@ -662,14 +667,23 @@ func TestJobRunnerParksImmediatelyWhenCleanResetIsImpossible(t *testing.T) {
 		}
 	})
 
-	t.Run("Should park on the first stall when siblings share the workspace", func(t *testing.T) {
+	t.Run("Should park on the first stall when concurrent siblings share the workspace", func(t *testing.T) {
 		t.Parallel()
 		requireStallGit(t)
 
 		root := initStallGitRepo(t)
+		// Genuinely concurrent siblings (concurrent > 1) share one live workspace,
+		// so resetting a stalled job would clobber a sibling mid-flight: park instead.
 		harness := newStallHarness(
 			t,
-			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true, totalJobs: 2},
+			stallHarnessOptions{
+				workspaceRoot: root,
+				maxRetries:    0,
+				stallRetries:  1,
+				stallEnabled:  true,
+				totalJobs:     2,
+				concurrent:    2,
+			},
 			stallResult(&job{SafeName: "task_01"}, "tool-call-1"),
 		)
 
@@ -679,7 +693,43 @@ func TestJobRunnerParksImmediatelyWhenCleanResetIsImpossible(t *testing.T) {
 			t.Fatalf("job status = %q, want %q", got, runStatusParked)
 		}
 		if got := harness.runner.lifecycle.attempt; got != 1 {
-			t.Fatalf("attempts = %d, want 1 (resetting a shared workspace would clobber siblings)", got)
+			t.Fatalf("attempts = %d, want 1 (resetting a concurrent shared workspace would clobber siblings)", got)
+		}
+	})
+
+	t.Run("Should reset and retry a sequential multi-job run instead of parking", func(t *testing.T) {
+		t.Parallel()
+		requireStallGit(t)
+
+		root := initStallGitRepo(t)
+		// A task group runs its dependent tasks sequentially (totalJobs > 1 with no
+		// concurrency), so a stalled task can safely reset to its own per-attempt
+		// snapshot and retry — it never runs alongside a live sibling. This is the
+		// case that used to dead-end on "workspace is shared with sibling jobs".
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true, totalJobs: 2},
+		)
+
+		var calls int
+		harness.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
+			calls++
+			if calls == 1 {
+				if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
+					t.Errorf("write scratch: %v", err)
+				}
+				return stallResult(harness.job, "tool-call-1")
+			}
+			return successResult()
+		}
+
+		harness.runner.executeAttempts(context.Background())
+
+		if calls != 2 {
+			t.Fatalf("attempts = %d, want 2 (sequential job resets and retries)", calls)
+		}
+		if harness.job.Status != runStatusSucceeded {
+			t.Fatalf("job status = %q, want %q (retry, not park)", harness.job.Status, runStatusSucceeded)
 		}
 	})
 }

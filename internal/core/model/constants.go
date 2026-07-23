@@ -25,8 +25,15 @@ const (
 	DefaultDevinModel      = "anthropic/claude-opus-4-6"
 	DefaultActivityTimeout = 10 * time.Minute
 	// DefaultStallIdleTimeout is the default per-attempt idle window; any session
-	// update resets it. Applied by RuntimeConfig.ApplyDefaults.
+	// update resets it. Applied by RuntimeConfig.ApplyDefaults for low/medium
+	// reasoning tiers.
 	DefaultStallIdleTimeout = 3 * time.Minute
+	// DefaultStallIdleTimeoutHigh and DefaultStallIdleTimeoutXHigh widen the
+	// default idle window for high-reasoning tiers, whose long silent inference on
+	// large prompts a flat 3m window misreads as a stall. An explicit StallTimeout
+	// still overrides these.
+	DefaultStallIdleTimeoutHigh  = 6 * time.Minute
+	DefaultStallIdleTimeoutXHigh = 10 * time.Minute
 	// DefaultStallChildTimeout is the default daemon per-child backstop budget.
 	// It must stay strictly greater than DefaultStallIdleTimeout so the fast
 	// in-attempt watchdog gets the first chance to self-heal.

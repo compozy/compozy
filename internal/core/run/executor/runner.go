@@ -307,14 +307,28 @@ func (r *jobRunner) parkedLogPath() string {
 	return strings.TrimSpace(r.job.ErrLog)
 }
 
+// sharedWorktreeResetIsSafe reports whether discarding this job's workspace back
+// to its per-job pre-attempt snapshot cannot destroy a sibling's work. It is safe
+// when each job is isolated (review isolation), the run has a single job, or the
+// run executes jobs sequentially: a task group's dependent tasks run one at a
+// time, so a stalled task's snapshot already captures every prior sibling's
+// result and resetting it only discards this task's own attempt. Only a
+// genuinely concurrent shared workspace is unsafe to reset.
+func (r *jobRunner) sharedWorktreeResetIsSafe() bool {
+	return r.execCtx.total == 1 ||
+		r.execCtx.requiresOrderedWorkerExecution() ||
+		r.execCtx.reviewIsolation != nil
+}
+
 // canAttemptCleanReset reports whether a clean worktree reset is even conceivable
-// for this job. A run with sibling jobs shares one workspace, so resetting it
-// would discard a sibling's work; those jobs park on the first stall instead.
+// for this job. Only a concurrent shared workspace forbids it; sequential runs
+// (including task groups) reset per-job and retry instead of parking on the first
+// stall.
 func (r *jobRunner) canAttemptCleanReset() bool {
 	cfg := r.cfg
 	return r.stallRetries() > 0 &&
 		strings.TrimSpace(cfg.WorkspaceRoot) != "" &&
-		(r.execCtx.total == 1 || r.execCtx.reviewIsolation != nil)
+		r.sharedWorktreeResetIsSafe()
 }
 
 // resetWorktreeForStallRetry discards everything the stalled attempt produced so
@@ -326,8 +340,8 @@ func (r *jobRunner) resetWorktreeForStallRetry(ctx context.Context) error {
 	if root == "" {
 		return errors.New("workspace root is unknown")
 	}
-	if r.execCtx.total != 1 && r.execCtx.reviewIsolation == nil {
-		return errors.New("workspace is shared with sibling jobs")
+	if !r.sharedWorktreeResetIsSafe() {
+		return errors.New("workspace is shared with concurrent sibling jobs")
 	}
 	if err := worktree.Reset(ctx, root, r.preSnapshot); err != nil {
 		return err

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/core/gitenv"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
@@ -115,6 +116,13 @@ type taskMultiWorktreeGitRunner func(ctx context.Context, dir string, args ...st
 type taskMultiWorktreeAllocator struct {
 	worktreesRoot string
 	run           taskMultiWorktreeGitRunner
+	// git is not safe under concurrent worktree operations on one repository:
+	// parallel `git worktree add`/`remove` race on the shared .git/worktrees
+	// metadata (e.g. reading a sibling's commondir mid-write). A parallel wave
+	// allocates and tears down one worktree per task at once, so serialize those
+	// metadata operations per repository. Task execution stays parallel.
+	locksMu sync.Mutex
+	locks   map[string]*sync.Mutex
 }
 
 var _ WorktreeLifecycle = (*taskMultiWorktreeAllocator)(nil)
@@ -125,7 +133,26 @@ func newTaskMultiWorktreeAllocator(worktreesRoot string) *taskMultiWorktreeAlloc
 	return &taskMultiWorktreeAllocator{
 		worktreesRoot: strings.TrimSpace(worktreesRoot),
 		run:           runTaskMultiWorktreeGitCommand,
+		locks:         make(map[string]*sync.Mutex),
 	}
+}
+
+// lockWorktreeMeta serializes git worktree metadata operations for one repository
+// and returns the unlock func. Different repositories proceed independently.
+func (a *taskMultiWorktreeAllocator) lockWorktreeMeta(workspaceRoot string) func() {
+	key := strings.TrimSpace(workspaceRoot)
+	a.locksMu.Lock()
+	if a.locks == nil {
+		a.locks = make(map[string]*sync.Mutex)
+	}
+	mu, ok := a.locks[key]
+	if !ok {
+		mu = &sync.Mutex{}
+		a.locks[key] = mu
+	}
+	a.locksMu.Unlock()
+	mu.Lock()
+	return mu.Unlock
 }
 
 // ResolveBase resolves the parent workspace current branch and HEAD commit once.
@@ -186,6 +213,10 @@ func (a *taskMultiWorktreeAllocator) Allocate(
 	if err := ensureTaskMultiWorktreeTargetFree(path); err != nil {
 		return taskMultiWorktreeAllocation{}, err
 	}
+	// Serialize this repository's worktree metadata reads/writes so a parallel
+	// wave's concurrent allocations do not race on .git/worktrees.
+	unlock := a.lockWorktreeMeta(spec.WorkspaceRoot)
+	defer unlock()
 	stalePaths, err := a.staleCompozyWorktreeRegistrations(ctx, spec.WorkspaceRoot)
 	if err != nil {
 		return taskMultiWorktreeAllocation{}, err
@@ -715,6 +746,9 @@ func (a *taskMultiWorktreeAllocator) Remove(ctx context.Context, workspaceRoot s
 	} else if statErr != nil {
 		return fmt.Errorf("stat worktree %s: %w", worktreePath, statErr)
 	}
+	// Serialize teardown against concurrent allocations on the same repository.
+	unlock := a.lockWorktreeMeta(workspace)
+	defer unlock()
 	if _, err := run(ctx, workspace, "worktree", "remove", worktreePath); err != nil {
 		return fmt.Errorf("remove worktree %s: %w", worktreePath, err)
 	}
