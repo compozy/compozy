@@ -66,6 +66,37 @@ func TestApplyMigrationsIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestApplyMigrationsAddsSelectionFingerprintV10(t *testing.T) {
+	// Suite boundary
+	// IN: the registered global catalog migration chain against real SQLite
+	// OUT: run query behavior, covered by runs_test.go
+	// Invariant: migration v10 adds exactly one durable selection_fingerprint column and remains idempotent.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	if got := migrations[len(migrations)-1].version; got != 10 {
+		t.Fatalf("latest migration version = %d, want 10", got)
+	}
+	if err := applyMigrations(context.Background(), db.db, db.now); err != nil {
+		t.Fatalf("applyMigrations(second pass): %v", err)
+	}
+
+	var count int
+	if err := db.db.QueryRowContext(
+		context.Background(),
+		`SELECT COUNT(1) FROM pragma_table_info('runs') WHERE name = 'selection_fingerprint'`,
+	).Scan(&count); err != nil {
+		t.Fatalf("query runs selection_fingerprint column: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("selection_fingerprint column count = %d, want 1", count)
+	}
+}
+
 func TestApplyMigrationsUpgradesExistingCatalogWithWorkflowHierarchy(t *testing.T) {
 	// Suite boundary
 	// IN: a real v5 SQLite catalog upgraded through the registered migration chain
@@ -251,8 +282,8 @@ func TestApplyMigrationsUpgradesAppliedWorkPackageHierarchyToTaskGroups(t *testi
 	migrationRows := loadMigrationRows(t, sqlDB)
 	lastMigration := migrationRows[len(migrationRows)-1]
 	if got, want := lastMigration, (migrationRow{
-		Version:   9,
-		Name:      "work_package_to_task_group",
+		Version:   10,
+		Name:      "runs_selection_fingerprint",
 		AppliedAt: store.FormatTimestamp(fixedNow),
 	}); got != want {
 		t.Fatalf("last migration row = %#v, want %#v", got, want)

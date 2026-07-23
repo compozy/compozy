@@ -843,7 +843,9 @@ func formatTaskRunMultipleHandoffItem(item *apicore.TaskRunMultipleItem) string 
 	if branch := strings.TrimSpace(item.BaseBranch); branch != "" {
 		segments = append(segments, "base_branch="+branch)
 	}
-	if branch := strings.TrimSpace(item.ResultBranch); branch != "" {
+	if strings.TrimSpace(item.Status) == "no-changes" {
+		segments = append(segments, "result_branch=-", "nothing to open")
+	} else if branch := strings.TrimSpace(item.ResultBranch); branch != "" {
 		segments = append(segments, "result_branch="+branch)
 	}
 	if status := strings.TrimSpace(item.WorktreeStatus); status != "" {

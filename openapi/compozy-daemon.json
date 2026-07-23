@@ -1581,7 +1581,8 @@
                             "task_standard",
                             "task_parallel",
                             "task_multi_enqueued",
-                            "task_multi_parallel"
+                            "task_multi_parallel",
+                            "task_multi_group_parallel"
                         ],
                         "type": "string"
                     },
@@ -1657,7 +1658,14 @@
                         "type": "string"
                     },
                     "status": {
-                        "enum": ["queued", "running", "completed", "failed", "canceled"],
+                        "enum": [
+                            "queued",
+                            "running",
+                            "completed",
+                            "no-changes",
+                            "failed",
+                            "canceled"
+                        ],
                         "type": "string"
                     },
                     "worktree_path": {
@@ -1719,7 +1727,12 @@
             "TaskRunMultipleSnapshotResponse": {
                 "properties": {
                     "execution_kind": {
-                        "enum": ["task_parallel", "task_multi_enqueued", "task_multi_parallel"],
+                        "enum": [
+                            "task_parallel",
+                            "task_multi_enqueued",
+                            "task_multi_parallel",
+                            "task_multi_group_parallel"
+                        ],
                         "type": "string"
                     },
                     "incomplete": {

@@ -111,7 +111,11 @@ func buildEffectiveTaskRunConfig(
 		RunMultipleParallelLimit: cloneOptionalValue(
 			preferOverlay(global.RunMultipleParallelLimit, workspace.RunMultipleParallelLimit),
 		),
-		Parallel:         mergeParallelTasksConfig(global.Parallel, workspace.Parallel).ApplyDefaults(),
+		Parallel: mergeParallelTasksConfig(global.Parallel, workspace.Parallel).ApplyDefaults(),
+		ParallelTaskGroups: mergeParallelTaskGroupsConfig(
+			global.ParallelTaskGroups,
+			workspace.ParallelTaskGroups,
+		).ApplyDefaults(),
 		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		TaskRuntimeRules: mergeTaskRunRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}
@@ -259,6 +263,15 @@ func mergeParallelTasksConfig(base, overlay ParallelTasksConfig) ParallelTasksCo
 		Enabled:          cloneOptionalValue(preferOverlay(base.Enabled, overlay.Enabled)),
 		MaxConcurrency:   cloneOptionalValue(preferOverlay(base.MaxConcurrency, overlay.MaxConcurrency)),
 		ConflictResolver: mergeConflictResolverConfigPointer(base.ConflictResolver, overlay.ConflictResolver),
+	}
+}
+
+func mergeParallelTaskGroupsConfig(
+	base ParallelTaskGroupsConfig,
+	overlay ParallelTaskGroupsConfig,
+) ParallelTaskGroupsConfig {
+	return ParallelTaskGroupsConfig{
+		BranchTemplate: cloneOptionalValue(preferOverlay(base.BranchTemplate, overlay.BranchTemplate)),
 	}
 }
 

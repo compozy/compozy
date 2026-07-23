@@ -1024,7 +1024,7 @@ export interface components {
         };
         TaskExecutionDescriptor: {
             /** @enum {string} */
-            kind: "task_standard" | "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
+            kind: "task_standard" | "task_parallel" | "task_multi_enqueued" | "task_multi_parallel" | "task_multi_group_parallel";
             label: string;
             source: string;
             uses_worktrees: boolean;
@@ -1051,7 +1051,7 @@ export interface components {
             result_branch?: string;
             slug: string;
             /** @enum {string} */
-            status: "queued" | "running" | "completed" | "failed" | "canceled";
+            status: "queued" | "running" | "completed" | "no-changes" | "failed" | "canceled";
             worktree_path?: string;
             worktree_reason?: string;
             /** @enum {string} */
@@ -1073,7 +1073,7 @@ export interface components {
         };
         TaskRunMultipleSnapshotResponse: {
             /** @enum {string} */
-            execution_kind?: "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
+            execution_kind?: "task_parallel" | "task_multi_enqueued" | "task_multi_parallel" | "task_multi_group_parallel";
             incomplete?: boolean;
             incomplete_reasons?: string[];
             items?: components["schemas"]["TaskRunMultipleItem"][];

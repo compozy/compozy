@@ -38,6 +38,8 @@ type runtimeConfig struct {
 	parallel                                bool
 	parallelLimit                           int
 	parallelTasks                           bool
+	parallelTaskGroups                      bool
+	newRun                                  bool
 	allowOutOfOrder                         bool
 	parallelConflictResolverIDE             string
 	parallelConflictResolverModel           string

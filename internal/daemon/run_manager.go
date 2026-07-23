@@ -119,9 +119,10 @@ type RunManager struct {
 	watcherDebounce        time.Duration
 	runDBIdleTTL           time.Duration
 
-	mu                  sync.RWMutex
-	active              map[string]*activeRun
-	activeReviewWatches map[reviewWatchKey]string
+	mu                   sync.RWMutex
+	active               map[string]*activeRun
+	activeReviewWatches  map[reviewWatchKey]string
+	taskGroupSelectionMu sync.Mutex
 
 	runWG   sync.WaitGroup
 	runDBMu sync.Mutex
@@ -206,21 +207,22 @@ type reviewBatchingInput struct {
 }
 
 type startRunSpec struct {
-	workspace           globaldb.Workspace
-	workflowID          *string
-	workflowSlug        string
-	workflowRoot        string
-	mode                string
-	presentationMode    string
-	parentRunID         string
-	runtimeCfg          *model.RuntimeConfig
-	reviewWatch         *preparedReviewWatch
-	reviewWatchKey      *reviewWatchKey
-	taskMulti           *preparedTaskMulti
-	recovery            workspacecfg.AgentRecoveryConfig
-	outOfOrderRequested bool
-	outOfOrderNeeded    bool
-	taskGroupPreflight  *taskGroupPreflightEvidence
+	workspace            globaldb.Workspace
+	workflowID           *string
+	workflowSlug         string
+	workflowRoot         string
+	mode                 string
+	presentationMode     string
+	parentRunID          string
+	runtimeCfg           *model.RuntimeConfig
+	reviewWatch          *preparedReviewWatch
+	reviewWatchKey       *reviewWatchKey
+	taskMulti            *preparedTaskMulti
+	recovery             workspacecfg.AgentRecoveryConfig
+	outOfOrderRequested  bool
+	outOfOrderNeeded     bool
+	taskGroupPreflight   *taskGroupPreflightEvidence
+	selectionFingerprint string
 }
 
 type taskGroupPreflightEvidence struct {
@@ -1855,17 +1857,18 @@ func (m *RunManager) insertRunRow(
 	}
 
 	row, err := m.globalDB.PutRun(ctx, globaldb.Run{
-		RunID:               runID,
-		WorkspaceID:         spec.workspace.ID,
-		WorkflowID:          spec.workflowID,
-		ParentRunID:         parentRunIDForSpec(spec),
-		Mode:                spec.mode,
-		Status:              runStatusStarting,
-		PresentationMode:    spec.presentationMode,
-		StartedAt:           startedAt,
-		RequestID:           requestID,
-		OutOfOrderRequested: spec.outOfOrderRequested,
-		OutOfOrderNeeded:    spec.outOfOrderNeeded,
+		RunID:                runID,
+		WorkspaceID:          spec.workspace.ID,
+		WorkflowID:           spec.workflowID,
+		ParentRunID:          parentRunIDForSpec(spec),
+		Mode:                 spec.mode,
+		Status:               runStatusStarting,
+		PresentationMode:     spec.presentationMode,
+		StartedAt:            startedAt,
+		RequestID:            requestID,
+		OutOfOrderRequested:  spec.outOfOrderRequested,
+		OutOfOrderNeeded:     spec.outOfOrderNeeded,
+		SelectionFingerprint: spec.selectionFingerprint,
 	})
 	if err != nil {
 		cleanupRunDirectory(runArtifacts.RunDir)

@@ -43,9 +43,11 @@ Flags:
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --multiple string                  Comma-separated task workflow slugs to run through one daemon-owned parent queue
       --name string                      Task workflow slug (defaults to the positional slug)
+      --new                              Start a fresh parallel task-group run and branch namespace
       --no-recovery                      Disable agentic recovery for this invocation
       --parallel                         Run --multiple task workflows in parallel with git worktree isolation (overrides run_multiple_mode; valid only with --multiple)
       --parallel-limit int               Maximum number of child runs started at once in --parallel mode (overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple) (default 2)
+      --parallel-task-groups             Run selected dependency-independent task groups concurrently on isolated result branches
       --parallel-tasks                   Run this PRD task workflow in dependency-aware parallel task mode
       --reasoning-effort string          Reasoning effort for runtimes that advertise it (low, medium, high, xhigh, max, ultra). (default "medium")
       --recovery                         Enable agentic recovery for failed runs

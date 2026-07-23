@@ -71,8 +71,10 @@ type TaskMetadataRefreshedPayload struct {
 type TaskRunMultiplePayload struct {
 	RunID          string   `json:"run_id,omitempty"`
 	Mode           string   `json:"mode,omitempty"`
+	ExecutionKind  string   `json:"execution_kind,omitempty"`
 	Slug           string   `json:"slug,omitempty"`
 	Slugs          []string `json:"slugs,omitempty"`
+	TaskGroupID    string   `json:"task_group_id,omitempty"`
 	Index          int      `json:"index,omitempty"`
 	Total          int      `json:"total,omitempty"`
 	ParallelLimit  int      `json:"parallel_limit,omitempty"`

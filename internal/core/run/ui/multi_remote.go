@@ -31,6 +31,7 @@ const (
 	taskMultiStatusQueued    = "queued"
 	taskMultiStatusRunning   = "running"
 	taskMultiStatusCompleted = "completed"
+	taskMultiStatusNoChanges = "no-changes"
 	taskMultiStatusFailed    = "failed"
 	taskMultiStatusCanceled  = "canceled"
 
@@ -1295,6 +1296,9 @@ func (m *multiRunModel) applyTaskMultiItem(ev events.Event) {
 	tab := &m.tabs[idx]
 	if payload.Status != "" {
 		tab.status = strings.TrimSpace(payload.Status)
+		if tab.status == taskMultiStatusNoChanges {
+			tab.resultBranch = ""
+		}
 	}
 	if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
 		tab.runID = childRunID
@@ -2117,7 +2121,7 @@ func tabStatus(tab *multiRunTab) string {
 
 func isTerminalTaskMultiStatus(status string) bool {
 	switch strings.TrimSpace(status) {
-	case taskMultiStatusCompleted, taskMultiStatusFailed, taskMultiStatusCanceled:
+	case taskMultiStatusCompleted, taskMultiStatusNoChanges, taskMultiStatusFailed, taskMultiStatusCanceled:
 		return true
 	default:
 		return false

@@ -106,6 +106,7 @@ type taskMultiWorktreeAllocation struct {
 	WorktreeStatus string
 	WorktreeReason string
 	ResultBranch   string
+	NoChanges      bool
 }
 
 type taskMultiWorktreeGitRunner func(ctx context.Context, dir string, args ...string) (string, error)

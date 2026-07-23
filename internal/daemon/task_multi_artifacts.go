@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/worktree"
 )
 
@@ -40,6 +41,49 @@ func mirrorTaskMultiWorkflowArtifacts(sourceTaskDir, worktreeRoot, slug string) 
 		return err
 	}
 	return worktree.OverlayTree(source, destination)
+}
+
+// mirrorTaskMultiGroupArtifacts copies the initiative specification tree, which
+// includes the selected group's operational directory, into an isolated
+// worktree. Task-group sync validates both sides of ExecutionScope against the
+// child workspace, so copying only the leaf task directory would leave the PRD
+// and TechSpec outside that workspace.
+func mirrorTaskMultiGroupArtifacts(scope *model.ExecutionScope, worktreeRoot string) error {
+	if scope == nil {
+		return errors.New("daemon: task-group execution scope is required")
+	}
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(scope.WorkflowRef))
+	if err != nil {
+		return err
+	}
+	source := strings.TrimSpace(scope.SpecDir)
+	if source == "" {
+		return errors.New("daemon: task-group specification directory is required")
+	}
+	root := strings.TrimSpace(worktreeRoot)
+	if root == "" {
+		return errors.New("daemon: task-group destination worktree root is required")
+	}
+	if err := requireDirectory(source); err != nil {
+		return fmt.Errorf("mirror task-group artifacts for %q: specification directory %s: %w",
+			ref.String(), source, err)
+	}
+	destination := model.TaskDirectoryForWorkspace(root, ref.Initiative)
+	if err := requireTaskMultiArtifactDestination(destination); err != nil {
+		return err
+	}
+	if err := worktree.OverlayTree(source, destination); err != nil {
+		return err
+	}
+	operationalSource := strings.TrimSpace(scope.OperationalDir)
+	if operationalSource == "" {
+		return errors.New("daemon: task-group operational directory is required")
+	}
+	operationalDestination := model.TaskDirectoryForWorkspace(root, ref.String())
+	if err := requireTaskMultiArtifactDestination(operationalDestination); err != nil {
+		return err
+	}
+	return worktree.OverlayTree(operationalSource, operationalDestination)
 }
 
 func requireTaskMultiArtifactDestination(destination string) error {

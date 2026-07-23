@@ -636,6 +636,8 @@ type taskRunFlagOptions struct {
 
 const (
 	taskRunParallelTasksFlag                     = "parallel-tasks"
+	taskRunParallelTaskGroupsFlag                = "parallel-task-groups"
+	taskRunNewFlag                               = "new"
 	taskRunParallelConflictResolverIDEFlag       = "parallel-conflict-resolver-ide"
 	taskRunParallelConflictResolverModelFlag     = "parallel-conflict-resolver-model"
 	taskRunParallelConflictResolverReasoningFlag = "parallel-conflict-resolver-reasoning"
@@ -717,6 +719,18 @@ func addTaskRunParallelFlags(cmd *cobra.Command, state *commandState) {
 		taskRunParallelTasksFlag,
 		false,
 		"Run this PRD task workflow in dependency-aware parallel task mode",
+	)
+	cmd.Flags().BoolVar(
+		&state.parallelTaskGroups,
+		taskRunParallelTaskGroupsFlag,
+		false,
+		"Run selected dependency-independent task groups concurrently on isolated result branches",
+	)
+	cmd.Flags().BoolVar(
+		&state.newRun,
+		taskRunNewFlag,
+		false,
+		"Start a fresh parallel task-group run and branch namespace",
 	)
 	cmd.Flags().StringVar(&state.parallelConflictResolverIDE, taskRunParallelConflictResolverIDEFlag, "", "")
 	cmd.Flags().StringVar(&state.parallelConflictResolverModel, taskRunParallelConflictResolverModelFlag, "", "")
@@ -862,6 +876,14 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 			"--parallel-tasks cannot be combined with --multiple; use --parallel for slug multi-run mode",
 		))
 	}
+	if commandFlagChanged(cmd, "parallel") && s.parallelTaskGroups {
+		return withExitCode(1, errors.New(
+			"--parallel-task-groups selects parallel mode and cannot be combined with --parallel",
+		))
+	}
+	if s.newRun && !s.parallelTaskGroups {
+		return withExitCode(1, errors.New("--new requires --parallel-task-groups"))
+	}
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
@@ -878,6 +900,11 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	if err != nil {
 		return mapTaskGroupSelectionError(err)
 	}
+	if s.parallelTaskGroups && len(selection.Targets) != len(selection.items) {
+		return withExitCode(1, errors.New(
+			"--parallel-task-groups requires only initiative/TG-NNN targets",
+		))
+	}
 	if err := s.preflightTaskWorkflowSelection(ctx, cmd, selection); err != nil {
 		return err
 	}
@@ -891,21 +918,9 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		return withExitCode(2, err)
 	}
 	execution := s.resolveTaskRunMultipleExecution(cmd, mode)
-	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
+	parallelLimit, err := s.prepareTaskRunMultipleParallelLaunch(ctx, cmd, mode)
 	if err != nil {
-		return withExitCode(1, err)
-	}
-	// An explicit --parallel-limit has no effect in enqueued mode; reject it
-	// instead of silently discarding the value when mode resolves to enqueued.
-	if commandFlagChanged(cmd, "parallel-limit") && mode != workspacecfg.TaskRunMultipleModeParallel {
-		return withExitCode(2, errors.New(
-			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
-		))
-	}
-	if mode == workspacecfg.TaskRunMultipleModeParallel {
-		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
-			return err
-		}
+		return err
 	}
 	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
@@ -927,6 +942,7 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		Targets:          selection.Targets,
 		AllowOutOfOrder:  s.allowOutOfOrder,
 		Mode:             mode,
+		NewRun:           s.newRun,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
 		Execution:        &execution,
@@ -939,6 +955,30 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		return mapDaemonCommandError(err)
 	}
 	return handleStartedTaskRunMultiple(ctx, cmd, client, run)
+}
+
+func (s *commandState) prepareTaskRunMultipleParallelLaunch(
+	ctx context.Context,
+	cmd *cobra.Command,
+	mode string,
+) (int, error) {
+	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
+	if err != nil {
+		return 0, withExitCode(1, err)
+	}
+	// An explicit --parallel-limit has no effect in enqueued mode; reject it
+	// instead of silently discarding the value when mode resolves to enqueued.
+	if commandFlagChanged(cmd, "parallel-limit") && mode != workspacecfg.TaskRunMultipleModeParallel {
+		return 0, withExitCode(2, errors.New(
+			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
+		))
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
+			return 0, err
+		}
+	}
+	return parallelLimit, nil
 }
 
 type taskRunMultipleSelection struct {
@@ -1048,6 +1088,12 @@ func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
 	if commandFlagChanged(cmd, "parallel-limit") {
 		return errors.New("--parallel-limit is only valid with --multiple")
 	}
+	if commandFlagChanged(cmd, taskRunParallelTaskGroupsFlag) {
+		return errors.New("--parallel-task-groups is only valid with --multiple")
+	}
+	if commandFlagChanged(cmd, taskRunNewFlag) {
+		return errors.New("--new is only valid with --multiple --parallel-task-groups")
+	}
 	return nil
 }
 
@@ -1139,6 +1185,9 @@ func cliCleanContainmentPath(path string) (string, error) {
 // resolveTaskRunMultipleMode resolves the multi-run scheduling mode with
 // precedence: --parallel, then configured run_multiple_mode, then enqueued.
 func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, error) {
+	if s.parallelTaskGroups {
+		return workspacecfg.TaskRunMultipleModeParallel, nil
+	}
 	if commandFlagChanged(cmd, "parallel") {
 		if s.parallel {
 			return workspacecfg.TaskRunMultipleModeParallel, nil
@@ -1183,6 +1232,11 @@ func (s *commandState) resolveTaskRunMultipleExecution(
 	cmd *cobra.Command,
 	mode string,
 ) apicore.TaskExecutionDescriptor {
+	if s.parallelTaskGroups {
+		return apicore.NewTaskMultiGroupParallelExecutionDescriptor(
+			"--parallel-task-groups=true",
+		)
+	}
 	source := "built-in default"
 	if commandFlagChanged(cmd, "parallel") {
 		if mode == workspacecfg.TaskRunMultipleModeParallel {
@@ -1211,11 +1265,14 @@ func (s *commandState) resolveTaskRunMultipleExecution(
 
 // resolveTaskRunMultipleParallelLimit resolves the parallel fanout limit with
 // precedence: --parallel-limit, then configured run_multiple_parallel_limit,
-// then the default. It rejects zero and negative limits before daemon contact.
+// then the default. An explicit non-positive flag value is floored to one.
 func (s *commandState) resolveTaskRunMultipleParallelLimit(cmd *cobra.Command) (int, error) {
 	limit := s.projectConfig.Tasks.Run.EffectiveRunMultipleParallelLimit()
 	if commandFlagChanged(cmd, "parallel-limit") {
 		limit = s.parallelLimit
+		if limit < 1 {
+			return 1, nil
+		}
 	}
 	if limit <= 0 {
 		return 0, fmt.Errorf("--parallel-limit must be greater than 0 (got %d)", limit)

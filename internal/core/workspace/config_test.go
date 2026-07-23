@@ -1,8 +1,10 @@
 package workspace
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -152,7 +154,10 @@ func TestLoadConfigReturnsDefaultRecoveryWhenFileIsMissing(t *testing.T) {
 		t.Fatalf("unexpected config path: %q", path)
 	}
 	want := ProjectConfig{
-		Tasks:    TasksConfig{Run: TaskRunConfig{Parallel: DefaultParallelTasksConfig()}},
+		Tasks: TasksConfig{Run: TaskRunConfig{
+			Parallel:           DefaultParallelTasksConfig(),
+			ParallelTaskGroups: DefaultParallelTaskGroupsConfig(),
+		}},
 		Recovery: DefaultAgentRecoveryConfig(),
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -699,6 +704,65 @@ func TestLoadConfigAppliesParallelTaskDefaultsWhenUnset(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	assertParallelTasksConfig(t, cfg.Tasks.Run.Parallel, DefaultParallelTasksConfig())
+	assertParallelTaskGroupsConfig(t, cfg.Tasks.Run.ParallelTaskGroups, DefaultParallelTaskGroupsConfig())
+}
+
+func TestParallelTaskGroupsConfig(t *testing.T) {
+	t.Run("UT-050 Should default an unset branch template", func(t *testing.T) {
+		t.Parallel()
+		resolved := (ParallelTaskGroupsConfig{}).ApplyDefaults()
+		if resolved.BranchTemplate == nil ||
+			*resolved.BranchTemplate != DefaultParallelTaskGroupsBranchTemplate {
+			t.Fatalf(
+				"branch template = %#v, want %q",
+				resolved.BranchTemplate,
+				DefaultParallelTaskGroupsBranchTemplate,
+			)
+		}
+	})
+
+	t.Run("UT-051 Should parse a configured branch template", func(t *testing.T) {
+		root := t.TempDir()
+		writeWorkspaceConfig(t, root, `
+[tasks.run.parallel_task_groups]
+branch_template = "feat/{group_brief}"
+`)
+		cfg, _, err := loadConfigWithIsolatedHome(t, root)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if cfg.Tasks.Run.ParallelTaskGroups.BranchTemplate == nil ||
+			*cfg.Tasks.Run.ParallelTaskGroups.BranchTemplate != "feat/{group_brief}" {
+			t.Fatalf(
+				"branch template = %#v, want %q",
+				cfg.Tasks.Run.ParallelTaskGroups.BranchTemplate,
+				"feat/{group_brief}",
+			)
+		}
+	})
+}
+
+func TestLoadConfigWarnsWhenParallelTaskGroupsTemplateHasNoGroupToken(t *testing.T) {
+	previous := slog.Default()
+	var output bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewTextHandler(&output, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+	})
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[tasks.run.parallel_task_groups]
+branch_template = "compozy/{initiative}-{run}"
+`)
+	if _, _, err := loadConfigWithIsolatedHome(t, root); err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	warning := output.String()
+	if !strings.Contains(warning, "no per-group token") ||
+		!strings.Contains(warning, "compozy/{initiative}-{run}") {
+		t.Fatalf("warning = %q, want template-specific no-per-group-token warning", warning)
+	}
 }
 
 func TestLoadConfigMergesParallelTasksWorkspaceOverGlobalConfig(t *testing.T) {
@@ -2505,6 +2569,20 @@ func assertParallelTasksConfig(t *testing.T, got ParallelTasksConfig, want Paral
 			*want.ConflictResolver,
 		)
 	}
+}
+
+func assertParallelTaskGroupsConfig(
+	t *testing.T,
+	got ParallelTaskGroupsConfig,
+	want ParallelTaskGroupsConfig,
+) {
+	t.Helper()
+	assertOptionalString(
+		t,
+		"tasks.run.parallel_task_groups.branch_template",
+		got.BranchTemplate,
+		want.BranchTemplate,
+	)
 }
 
 func assertConflictResolverConfig(

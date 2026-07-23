@@ -10,11 +10,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/worktree"
 	"github.com/compozy/compozy/internal/daemon"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -283,6 +286,357 @@ func TestTasksRunMultipleParallelLimitOneEndToEnd(t *testing.T) {
 		}
 		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
 		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
+	})
+}
+
+func TestTasksRunParallelTaskGroupsEndToEndLaunchAndOutput(t *testing.T) {
+	requireGitForCLITests(t)
+
+	t.Run("E2E-001 E2E-002 launches isolated branches and reports group progress", func(t *testing.T) {
+		const initiative = "cli-groups"
+		client, paths, workspaceRoot := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		base := strings.TrimSpace(runGitOutputForCLITests(t, workspaceRoot, "rev-parse", "HEAD"))
+		branch := strings.TrimSpace(runGitOutputForCLITests(t, workspaceRoot, "branch", "--show-current"))
+
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run",
+			"--multiple", initiative+"/TG-001,"+initiative+"/TG-002",
+			"--parallel-task-groups",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("E2E-001 execute task groups: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(
+			stdout,
+			"task multi-run started:",
+			"task queue started | mode=parallel total=2",
+			initiative+"/TG-001",
+			initiative+"/TG-002",
+			"task multi-run handoff:",
+			"result_branch=",
+		) {
+			t.Fatalf("E2E-001 output missing progress/branches:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		if !containsAll(
+			stderr,
+			"kind=task_multi_group_parallel",
+			"worktrees=true",
+			"source=--parallel-task-groups=true",
+		) {
+			t.Fatalf("E2E-001 execution resolution:\n%s", stderr)
+		}
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if err != nil {
+			t.Fatalf("E2E-001 snapshot: %v", err)
+		}
+		if snapshot.ExecutionKind != apicore.ExecutionKindTaskMultiGroupParallel ||
+			snapshot.Run.Status != "completed" ||
+			len(snapshot.Items) != 2 {
+			t.Fatalf("E2E-001 snapshot = %#v", snapshot)
+		}
+		for _, item := range snapshot.Items {
+			groupID := pathBaseSlash(item.Slug)
+			if item.Status != "completed" ||
+				item.ResultBranch == "" ||
+				item.WorktreeStatus != "removed" ||
+				!strings.HasPrefix(item.WorktreePath, paths.WorktreesDir) {
+				t.Fatalf("E2E-002 item = %#v", item)
+			}
+			if got := strings.TrimSpace(runGitOutputForCLITests(
+				t, workspaceRoot, "show", item.ResultBranch+":"+strings.ToLower(groupID)+".txt",
+			)); got != groupID {
+				t.Fatalf("E2E-002 %s output = %q", groupID, got)
+			}
+			otherID := "TG-001"
+			if groupID == otherID {
+				otherID = "TG-002"
+			}
+			if _, showErr := runGitForCLIAllowFailure(
+				context.Background(),
+				workspaceRoot,
+				"show",
+				item.ResultBranch+":"+strings.ToLower(otherID)+".txt",
+			); showErr == nil {
+				t.Fatalf("E2E-002 %s branch contains sibling output", groupID)
+			}
+		}
+		if got := strings.TrimSpace(runGitOutputForCLITests(t, workspaceRoot, "rev-parse", "HEAD")); got != base {
+			t.Fatalf("E2E-001 checkout HEAD = %q, want %q", got, base)
+		}
+		if got := strings.TrimSpace(
+			runGitOutputForCLITests(t, workspaceRoot, "branch", "--show-current"),
+		); got != branch {
+			t.Fatalf("E2E-001 checkout branch = %q, want %q", got, branch)
+		}
+	})
+
+	t.Run("E2E-011 one selected group is a valid degenerate parallel run", func(t *testing.T) {
+		const initiative = "cli-single-group"
+		client, _, _ := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			1,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run",
+			"--multiple", initiative+"/TG-001",
+			"--parallel-task-groups",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("E2E-011 execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		snapshot, err := client.GetTaskRunMultipleSnapshot(
+			context.Background(),
+			taskMultiRunIDFromCLIOutput(t, stdout),
+		)
+		if err != nil {
+			t.Fatalf("E2E-011 snapshot: %v", err)
+		}
+		if len(snapshot.Items) != 1 ||
+			snapshot.Items[0].Status != "completed" ||
+			snapshot.Items[0].ResultBranch == "" {
+			t.Fatalf("E2E-011 snapshot items = %#v", snapshot.Items)
+		}
+	})
+}
+
+func TestTasksRunParallelTaskGroupsEndToEndFaultReporting(t *testing.T) {
+	requireGitForCLITests(t)
+
+	t.Run("E2E-003 partial success names branches failure and preserved path", func(t *testing.T) {
+		const initiative = "cli-partial-groups"
+		client, _, _ := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				if groupID == "TG-002" {
+					return errors.New("forced group failure")
+				}
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run",
+			"--multiple", initiative+"/TG-001,"+initiative+"/TG-002",
+			"--parallel-task-groups",
+			"--stream",
+			"--dry-run",
+		)
+		if err == nil {
+			t.Fatalf("E2E-003 error = nil\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		if !containsAll(
+			stdout,
+			"partial success",
+			initiative+"/TG-001 completed",
+			"result_branch=",
+			initiative+"/TG-002 failed",
+			"forced group failure",
+			"worktree_status=preserved",
+		) {
+			t.Fatalf("E2E-003 partial handoff:\n%s\nstderr:\n%s", stdout, stderr)
+		}
+		snapshot, snapshotErr := client.GetTaskRunMultipleSnapshot(
+			context.Background(),
+			taskMultiRunIDFromCLIOutput(t, stdout),
+		)
+		if snapshotErr != nil {
+			t.Fatalf("E2E-003 snapshot: %v", snapshotErr)
+		}
+		if !snapshot.Incomplete || len(snapshot.IncompleteReasons) == 0 {
+			t.Fatalf("E2E-003 incomplete = %v reasons=%#v",
+				snapshot.Incomplete, snapshot.IncompleteReasons)
+		}
+	})
+
+	t.Run("E2E-004 no-changes reports zero branch and nothing to open", func(t *testing.T) {
+		const initiative = "cli-no-change-group"
+		client, _, _ := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				if groupID == "TG-002" {
+					return nil
+				}
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run",
+			"--multiple", initiative+"/TG-001,"+initiative+"/TG-002",
+			"--parallel-task-groups",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("E2E-004 execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		if !containsAll(
+			stdout,
+			initiative+"/TG-002 no-changes",
+			"result_branch=-",
+			"nothing to open",
+			"worktree_status=removed",
+		) {
+			t.Fatalf("E2E-004 no-change handoff:\n%s", stdout)
+		}
+		snapshot, snapshotErr := client.GetTaskRunMultipleSnapshot(
+			context.Background(),
+			taskMultiRunIDFromCLIOutput(t, stdout),
+		)
+		if snapshotErr != nil {
+			t.Fatalf("E2E-004 snapshot: %v", snapshotErr)
+		}
+		for _, item := range snapshot.Items {
+			if strings.HasSuffix(item.Slug, "/TG-002") &&
+				(item.Status != "no-changes" || item.ResultBranch != "") {
+				t.Fatalf("E2E-004 no-change item = %#v", item)
+			}
+		}
+	})
+}
+
+func TestTasksRunParallelTaskGroupsEndToEndWorkspaceAndLimit(t *testing.T) {
+	requireGitForCLITests(t)
+
+	t.Run("E2E-005 checkout commit during run does not interfere", func(t *testing.T) {
+		const initiative = "cli-live-checkout"
+		started := make(chan struct{}, 2)
+		release := make(chan struct{})
+		client, _, workspaceRoot := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			2,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				started <- struct{}{}
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		type cliResult struct {
+			stdout string
+			stderr string
+			err    error
+		}
+		result := make(chan cliResult, 1)
+		go func() {
+			stdout, stderr, err := runParallelMultiRunCLI(
+				t,
+				"tasks", "run",
+				"--multiple", initiative+"/TG-001,"+initiative+"/TG-002",
+				"--parallel-task-groups",
+				"--stream",
+				"--dry-run",
+			)
+			result <- cliResult{stdout: stdout, stderr: stderr, err: err}
+		}()
+		for range 2 {
+			select {
+			case <-started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("E2E-005 groups did not start")
+			}
+		}
+		if err := os.WriteFile(filepath.Join(workspaceRoot, "user-change.txt"), []byte("user\n"), 0o600); err != nil {
+			t.Fatalf("E2E-005 write checkout change: %v", err)
+		}
+		runGitForCLITests(t, workspaceRoot, "add", "--", "user-change.txt")
+		runGitForCLITests(t, workspaceRoot, "commit", "-q", "-m", "user checkout commit")
+		userHead := strings.TrimSpace(runGitOutputForCLITests(t, workspaceRoot, "rev-parse", "HEAD"))
+		close(release)
+		got := <-result
+		if got.err != nil {
+			t.Fatalf("E2E-005 execute: %v\nstdout:\n%s\nstderr:\n%s", got.err, got.stdout, got.stderr)
+		}
+		snapshot, err := client.GetTaskRunMultipleSnapshot(
+			context.Background(),
+			taskMultiRunIDFromCLIOutput(t, got.stdout),
+		)
+		if err != nil || snapshot.Run.Status != "completed" {
+			t.Fatalf("E2E-005 snapshot = %#v error=%v", snapshot, err)
+		}
+		if gotHead := strings.TrimSpace(
+			runGitOutputForCLITests(t, workspaceRoot, "rev-parse", "HEAD"),
+		); gotHead != userHead {
+			t.Fatalf("E2E-005 checkout HEAD = %q, want user commit %q", gotHead, userHead)
+		}
+	})
+
+	t.Run("E2E-006 limit one is observable and produces all branches", func(t *testing.T) {
+		const initiative = "cli-limit-groups"
+		var (
+			current atomic.Int32
+			peak    atomic.Int32
+		)
+		client, _, _ := newParallelTaskGroupsCLIEnv(
+			t,
+			initiative,
+			3,
+			func(ctx context.Context, cfg *model.RuntimeConfig, groupID string) error {
+				active := current.Add(1)
+				defer current.Add(-1)
+				for {
+					seen := peak.Load()
+					if active <= seen || peak.CompareAndSwap(seen, active) {
+						break
+					}
+				}
+				return commitParallelTaskGroupCLIOutput(ctx, cfg.WorkspaceRoot, groupID)
+			},
+		)
+		stdout, stderr, err := runParallelMultiRunCLI(
+			t,
+			"tasks", "run",
+			"--multiple", initiative+"/TG-001,"+initiative+"/TG-002,"+initiative+"/TG-003",
+			"--parallel-task-groups",
+			"--parallel-limit", "1",
+			"--stream",
+			"--dry-run",
+		)
+		if err != nil {
+			t.Fatalf("E2E-006 execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		runID := taskMultiRunIDFromCLIOutput(t, stdout)
+		if got := taskMultiStartedParallelLimit(t, client, runID); got != 1 {
+			t.Fatalf("E2E-006 emitted limit = %d, want 1", got)
+		}
+		if got := peak.Load(); got != 1 {
+			t.Fatalf("E2E-006 peak = %d, want 1", got)
+		}
+		snapshot, snapshotErr := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+		if snapshotErr != nil {
+			t.Fatalf("E2E-006 snapshot: %v", snapshotErr)
+		}
+		for _, item := range snapshot.Items {
+			if item.Status != "completed" || item.ResultBranch == "" {
+				t.Fatalf("E2E-006 item = %#v", item)
+			}
+		}
 	})
 }
 
@@ -653,6 +1007,140 @@ func newParallelMultiRunCLIEnv(
 		},
 	})
 	return client, paths, workspaceRoot
+}
+
+func newParallelTaskGroupsCLIEnv(
+	t *testing.T,
+	initiative string,
+	count int,
+	executeGroup func(context.Context, *model.RuntimeConfig, string) error,
+) (*inProcessDaemonCommandClient, compozyconfig.HomePaths, string) {
+	t.Helper()
+
+	workspaceRoot := t.TempDir()
+	writeParallelTaskGroupsCLIWorkspace(t, workspaceRoot, initiative, count)
+	gitInitCommitCLIWorkspace(t, workspaceRoot)
+
+	prepareInProcessCLIDaemonHome(t)
+	paths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+	client := installInProcessCLIDaemonBootstrapWithConfigClient(t, daemon.RunManagerConfig{
+		WorktreesRoot: paths.WorktreesDir,
+		Prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		Execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg == nil || cfg.ExecutionScope == nil {
+				return errors.New("parallel task-group CLI child is missing execution scope")
+			}
+			groupID := pathBaseSlash(cfg.ExecutionScope.WorkflowRef)
+			if executeGroup == nil {
+				return nil
+			}
+			return executeGroup(ctx, cfg, groupID)
+		},
+	})
+	return client, paths, workspaceRoot
+}
+
+func writeParallelTaskGroupsCLIWorkspace(
+	t *testing.T,
+	workspaceRoot string,
+	initiative string,
+	count int,
+) {
+	t.Helper()
+	writeParallelTasksGitignoreForCLI(t, workspaceRoot)
+	initiativeRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", initiative)
+	if err := os.MkdirAll(initiativeRoot, 0o755); err != nil {
+		t.Fatalf("mkdir initiative root: %v", err)
+	}
+	groups := make([]taskgroups.TaskGroup, 0, count)
+	for index := 1; index <= count; index++ {
+		groupID := fmt.Sprintf("TG-%03d", index)
+		groupRoot := filepath.Join(initiativeRoot, "_task_groups", groupID)
+		if err := os.MkdirAll(groupRoot, 0o755); err != nil {
+			t.Fatalf("mkdir task group %s: %v", groupID, err)
+		}
+		groups = append(groups, taskgroups.TaskGroup{
+			ID:         groupID,
+			Title:      "CLI group " + groupID,
+			Outcome:    "Produce " + groupID,
+			Directory:  "_task_groups/" + groupID,
+			OwnedScope: []string{strings.ToLower(groupID) + ".txt"},
+		})
+		writeRawTaskFileForCLI(
+			t,
+			groupRoot,
+			"task_01.md",
+			cliTaskMarkdown(
+				[]string{
+					"status: pending",
+					"title: Execute " + groupID,
+					"type: backend",
+					"complexity: low",
+				},
+				"# Task 1: Execute "+groupID,
+			),
+		)
+	}
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
+		Initiative:    initiative,
+		TaskGroups:    groups,
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	writeRawTaskFileForCLI(t, initiativeRoot, "_prd.md", "# CLI task groups\n")
+	writeRawTaskFileForCLI(t, initiativeRoot, "_techspec.md", "# CLI task-group techspec\n")
+	writeRawTaskFileForCLI(t, initiativeRoot, "_task_groups.md", string(plan))
+}
+
+func commitParallelTaskGroupCLIOutput(
+	ctx context.Context,
+	worktreeRoot string,
+	groupID string,
+) error {
+	name := strings.ToLower(groupID) + ".txt"
+	if err := os.WriteFile(filepath.Join(worktreeRoot, name), []byte(groupID+"\n"), 0o600); err != nil {
+		return err
+	}
+	for _, args := range [][]string{
+		{"add", "--", name},
+		{
+			"-c", "user.name=CLI Task Group Agent",
+			"-c", "user.email=cli-agent@example.com",
+			"commit", "--no-verify", "-m", groupID + " CLI agent commit",
+		},
+	} {
+		if output, err := runGitForCLIAllowFailure(ctx, worktreeRoot, args...); err != nil {
+			return fmt.Errorf("git %v: %w: %s", args, err, output)
+		}
+	}
+	return nil
+}
+
+func runGitForCLIAllowFailure(
+	ctx context.Context,
+	dir string,
+	args ...string,
+) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(output)), err
+}
+
+func pathBaseSlash(value string) string {
+	trimmed := strings.Trim(strings.TrimSpace(value), "/")
+	if index := strings.LastIndex(trimmed, "/"); index >= 0 {
+		return trimmed[index+1:]
+	}
+	return trimmed
 }
 
 func newParallelTasksCLIEnv(

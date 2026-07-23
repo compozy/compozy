@@ -1013,6 +1013,7 @@ func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
 		AllowOutOfOrder:  body.AllowOutOfOrder,
 		Mode:             strings.TrimSpace(body.Mode),
 		ParallelLimit:    body.ParallelLimit,
+		NewRun:           body.NewRun,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
 		Execution:        body.Execution,

@@ -2281,6 +2281,79 @@ func TestResolveTaskMultiParallelLimit(t *testing.T) {
 	}
 }
 
+func TestValidateTaskMultiGroupWorktreeExecution(t *testing.T) {
+	t.Parallel()
+	scope := &model.ExecutionScope{WorkflowRef: "init/TG-001"}
+	tests := []struct {
+		name    string
+		kind    string
+		scope   *model.ExecutionScope
+		wantErr bool
+	}{
+		{
+			name:  "UT-030 Should allow scoped execution only for parallel task groups",
+			kind:  apicore.ExecutionKindTaskMultiGroupParallel,
+			scope: scope,
+		},
+		{
+			name:    "UT-031 Should reject scoped execution for workflow parallel mode",
+			kind:    apicore.ExecutionKindTaskMultiParallel,
+			scope:   scope,
+			wantErr: true,
+		},
+		{
+			name:  "Should allow any execution kind without a task group scope",
+			kind:  apicore.ExecutionKindTaskMultiParallel,
+			scope: nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateTaskMultiGroupWorktreeExecution(test.kind, test.scope)
+			if test.wantErr {
+				var problem *apicore.Problem
+				if !errors.As(err, &problem) ||
+					problem.Code != "task_group_git_mutation_forbidden" ||
+					problem.Status != http.StatusUnprocessableEntity {
+					t.Fatalf("problem = %#v error = %v, want forbidden 422", problem, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateTaskMultiGroupWorktreeExecution() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestTaskMultiGroupExecutionDescriptorValidation(t *testing.T) {
+	t.Parallel()
+	t.Run("UT-060 Should report worktree ownership for parallel task groups", func(t *testing.T) {
+		t.Parallel()
+		descriptor := apicore.NewTaskMultiGroupParallelExecutionDescriptor("--parallel-task-groups=true")
+		if descriptor.Kind != apicore.ExecutionKindTaskMultiGroupParallel || !descriptor.UsesWorktrees {
+			t.Fatalf("descriptor = %#v, want group-parallel kind with worktrees", descriptor)
+		}
+	})
+	t.Run("UT-061 Should reject a mismatched descriptor kind", func(t *testing.T) {
+		t.Parallel()
+		err := validateTaskExecutionDescriptor(
+			&apicore.TaskExecutionDescriptor{
+				Kind:          apicore.ExecutionKindTaskStandard,
+				UsesWorktrees: false,
+			},
+			apicore.ExecutionKindTaskMultiGroupParallel,
+			true,
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) || problem.Code != "task_execution_mismatch" {
+			t.Fatalf("problem = %#v error = %v, want task_execution_mismatch", problem, err)
+		}
+	})
+}
+
 func TestAggregateTaskMultiParallelResult(t *testing.T) {
 	t.Parallel()
 	items := []preparedTaskMultiItem{{slug: "alpha"}, {slug: "beta"}, {slug: "gamma"}}
@@ -3640,6 +3713,7 @@ func TestTaskRunMultipleItemStatusesMatchOpenAPIEnum(t *testing.T) {
 			taskMultiItemStatusQueued,
 			taskMultiItemStatusRunning,
 			taskMultiItemStatusCompleted,
+			taskMultiItemStatusNoChanges,
 			taskMultiItemStatusFailed,
 			taskMultiItemStatusCanceled,
 		}

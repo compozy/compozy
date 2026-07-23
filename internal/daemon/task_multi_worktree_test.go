@@ -964,6 +964,8 @@ func TestTaskMultiWorktreeAllocatorAllocateUnit(t *testing.T) {
 
 func TestTaskMultiWorktreeAllocatorConcurrentAllocation(t *testing.T) {
 	t.Parallel()
+	// IT-011: shared-repository allocations are serialized and leave
+	// .git/worktrees readable after the concurrent wave.
 	// A parallel wave allocates one worktree per task at once through the shared
 	// allocator. Git is not safe under concurrent worktree operations on one repo
 	// (they race on .git/worktrees metadata), so the allocator must serialize them

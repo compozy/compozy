@@ -14,10 +14,11 @@ import (
 const DaemonContractVersion = "1"
 
 const (
-	ExecutionKindTaskStandard      = "task_standard"
-	ExecutionKindTaskParallel      = "task_parallel"
-	ExecutionKindTaskMultiEnqueued = "task_multi_enqueued"
-	ExecutionKindTaskMultiParallel = "task_multi_parallel"
+	ExecutionKindTaskStandard           = "task_standard"
+	ExecutionKindTaskParallel           = "task_parallel"
+	ExecutionKindTaskMultiEnqueued      = "task_multi_enqueued"
+	ExecutionKindTaskMultiParallel      = "task_multi_parallel"
+	ExecutionKindTaskMultiGroupParallel = "task_multi_group_parallel"
 )
 
 type MutationAcceptedResponse struct {
@@ -64,6 +65,17 @@ type TaskExecutionDescriptor struct {
 	Source        string `json:"source"`
 }
 
+// NewTaskMultiGroupParallelExecutionDescriptor describes the isolated,
+// agent-commit execution path used by parallel task groups.
+func NewTaskMultiGroupParallelExecutionDescriptor(source string) TaskExecutionDescriptor {
+	return TaskExecutionDescriptor{
+		Kind:          ExecutionKindTaskMultiGroupParallel,
+		Label:         "Parallel task groups (isolated result branches)",
+		UsesWorktrees: true,
+		Source:        source,
+	}
+}
+
 type TaskRunMultipleRequest struct {
 	Workspace        string                   `json:"workspace"`
 	Slugs            []string                 `json:"slugs,omitempty"`
@@ -71,6 +83,7 @@ type TaskRunMultipleRequest struct {
 	AllowOutOfOrder  bool                     `json:"allow_out_of_order,omitempty"`
 	Mode             string                   `json:"mode,omitempty"`
 	ParallelLimit    int                      `json:"parallel_limit,omitempty"`
+	NewRun           bool                     `json:"new_run,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
 	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`

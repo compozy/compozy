@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -339,7 +340,27 @@ func loadConfigFile(
 	if err := cfg.validate(scope); err != nil {
 		return ProjectConfig{}, true, err
 	}
+	warnParallelTaskGroupsTemplate(scope, cfg.Tasks.Run.ParallelTaskGroups)
 	return cfg, true, nil
+}
+
+func warnParallelTaskGroupsTemplate(scope string, cfg ParallelTaskGroupsConfig) {
+	if cfg.BranchTemplate == nil {
+		return
+	}
+	template := *cfg.BranchTemplate
+	if strings.Contains(template, "{group}") ||
+		strings.Contains(template, "{group_brief}") ||
+		strings.Contains(template, "{index}") {
+		return
+	}
+	slog.Default().Warn(
+		"parallel task-group branch template has no per-group token; branch names will be adjusted for uniqueness",
+		"scope",
+		scope,
+		"branch_template",
+		template,
+	)
 }
 
 func strictMissingFields(err error) []string {

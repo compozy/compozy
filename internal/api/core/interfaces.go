@@ -412,11 +412,18 @@ type TaskRunMultipleItem = contract.TaskRunMultipleItem
 type TaskRunMultipleSnapshot = contract.TaskRunMultipleSnapshot
 
 const (
-	ExecutionKindTaskStandard      = contract.ExecutionKindTaskStandard
-	ExecutionKindTaskParallel      = contract.ExecutionKindTaskParallel
-	ExecutionKindTaskMultiEnqueued = contract.ExecutionKindTaskMultiEnqueued
-	ExecutionKindTaskMultiParallel = contract.ExecutionKindTaskMultiParallel
+	ExecutionKindTaskStandard           = contract.ExecutionKindTaskStandard
+	ExecutionKindTaskParallel           = contract.ExecutionKindTaskParallel
+	ExecutionKindTaskMultiEnqueued      = contract.ExecutionKindTaskMultiEnqueued
+	ExecutionKindTaskMultiParallel      = contract.ExecutionKindTaskMultiParallel
+	ExecutionKindTaskMultiGroupParallel = contract.ExecutionKindTaskMultiGroupParallel
 )
+
+// NewTaskMultiGroupParallelExecutionDescriptor returns the contract descriptor
+// for isolated parallel task-group execution.
+func NewTaskMultiGroupParallelExecutionDescriptor(source string) TaskExecutionDescriptor {
+	return contract.NewTaskMultiGroupParallelExecutionDescriptor(source)
+}
 
 type ReviewRunRequest = contract.ReviewRunRequest
 type SyncRequest = contract.SyncRequest

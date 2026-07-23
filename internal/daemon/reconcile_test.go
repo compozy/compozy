@@ -190,6 +190,9 @@ func TestLoadRunLifecycleSettingsPopulatesWorktreesRoot(t *testing.T) {
 
 func TestReconcileStartupCleansSafeWorktreesAndSurfacesPreviousHome(t *testing.T) {
 	t.Run("Should clean safe worktrees and surface previous home", func(t *testing.T) {
+		// IT-010 and IT-033: startup reconciliation discovers worktree metadata
+		// written before child start, removes empty orphans, and keeps completed
+		// result branches carrying agent commits.
 		requireGitForTaskMulti(t)
 		paths := mustHomePaths(t)
 		if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
@@ -224,6 +227,30 @@ func TestReconcileStartupCleansSafeWorktreesAndSurfacesPreviousHome(t *testing.T
 		}
 		appendReconcileTaskMultiEvent(t, paths, cleanRunID, allocation)
 
+		committedRunID := "reconcile-committed-worktree"
+		seedInterruptedRun(t, db, workspace.ID, committedRunID, runStatusRunning, time.Now().UTC())
+		committedBranch := "compozy/reconcile-committed"
+		committedAllocation, err := allocator.Allocate(context.Background(), taskMultiWorktreeSpec{
+			WorkspaceRoot: workspace.RootDir,
+			ParentRunID:   committedRunID,
+			Slug:          "committed",
+			Index:         0,
+			ResultBranch:  committedBranch,
+			Base:          base,
+		})
+		if err != nil {
+			t.Fatalf("Allocate(committed) error = %v", err)
+		}
+		if err := commitTaskMultiGroupAgentChange(
+			context.Background(),
+			committedAllocation.Path,
+			"TG-001",
+			"completed before restart\n",
+		); err != nil {
+			t.Fatalf("commit completed child branch: %v", err)
+		}
+		appendReconcileTaskMultiEvent(t, paths, committedRunID, committedAllocation)
+
 		oldHomeRunID := "reconcile-old-home-worktree"
 		seedInterruptedRun(t, db, workspace.ID, oldHomeRunID, runStatusRunning, time.Now().UTC())
 		appendReconcileTaskMultiEvent(t, paths, oldHomeRunID, taskMultiWorktreeAllocation{
@@ -240,8 +267,8 @@ func TestReconcileStartupCleansSafeWorktreesAndSurfacesPreviousHome(t *testing.T
 		if err != nil {
 			t.Fatalf("ReconcileStartup() error = %v", err)
 		}
-		if result.WorktreesRemoved != 1 {
-			t.Fatalf("WorktreesRemoved = %d, want 1", result.WorktreesRemoved)
+		if result.WorktreesRemoved != 2 {
+			t.Fatalf("WorktreesRemoved = %d, want 2", result.WorktreesRemoved)
 		}
 		if result.WorktreeCleanupDeferred != 1 || len(result.WorktreeCleanupWarnings) != 1 {
 			t.Fatalf("worktree cleanup result = %#v", result)
@@ -254,6 +281,20 @@ func TestReconcileStartupCleansSafeWorktreesAndSurfacesPreviousHome(t *testing.T
 		}
 		if got := runGitOutput(t, workspace.RootDir, "branch", "--list", branch); got != "" {
 			t.Fatalf("empty result branch remains: %q", got)
+		}
+		if _, err := os.Stat(committedAllocation.Path); !os.IsNotExist(err) {
+			t.Fatalf("committed worktree stat error = %v, want removed", err)
+		}
+		if got := runGitOutput(t, workspace.RootDir, "branch", "--list", committedBranch); got != committedBranch {
+			t.Fatalf("committed result branch lookup = %q, want %q", got, committedBranch)
+		}
+		if got := runGitOutput(
+			t,
+			workspace.RootDir,
+			"show",
+			committedBranch+":tg-001.txt",
+		); got != "completed before restart" {
+			t.Fatalf("committed branch output = %q", got)
 		}
 	})
 }

@@ -1393,7 +1393,7 @@ func TestResolveTaskRunMultipleParallelLimit(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject zero limit", func(t *testing.T) {
+	t.Run("UT-052 Should floor an explicit zero limit to one", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
@@ -1401,13 +1401,16 @@ func TestResolveTaskRunMultipleParallelLimit(t *testing.T) {
 		if err := cmd.Flags().Set("parallel-limit", "0"); err != nil {
 			t.Fatalf("set --parallel-limit: %v", err)
 		}
-		_, err := state.resolveTaskRunMultipleParallelLimit(cmd)
-		if err == nil || !strings.Contains(err.Error(), "must be greater than 0") {
-			t.Fatalf("expected zero-limit error, got %v", err)
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != 1 {
+			t.Fatalf("limit = %d, want 1", limit)
 		}
 	})
 
-	t.Run("Should reject negative limit", func(t *testing.T) {
+	t.Run("UT-052 Should floor an explicit negative limit to one", func(t *testing.T) {
 		t.Parallel()
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
@@ -1415,9 +1418,12 @@ func TestResolveTaskRunMultipleParallelLimit(t *testing.T) {
 		if err := cmd.Flags().Set("parallel-limit", "-1"); err != nil {
 			t.Fatalf("set --parallel-limit: %v", err)
 		}
-		_, err := state.resolveTaskRunMultipleParallelLimit(cmd)
-		if err == nil || !strings.Contains(err.Error(), "must be greater than 0") {
-			t.Fatalf("expected negative-limit error, got %v", err)
+		limit, err := state.resolveTaskRunMultipleParallelLimit(cmd)
+		if err != nil {
+			t.Fatalf("resolveTaskRunMultipleParallelLimit() error = %v", err)
+		}
+		if limit != 1 {
+			t.Fatalf("limit = %d, want 1", limit)
 		}
 	})
 }

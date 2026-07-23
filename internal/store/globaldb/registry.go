@@ -157,19 +157,20 @@ type WorkspaceCatalogStats struct {
 
 // Run captures one durable global run index row.
 type Run struct {
-	RunID               string
-	WorkspaceID         string
-	WorkflowID          *string
-	ParentRunID         string
-	Mode                string
-	Status              string
-	PresentationMode    string
-	StartedAt           time.Time
-	EndedAt             *time.Time
-	ErrorText           string
-	RequestID           string
-	OutOfOrderRequested bool
-	OutOfOrderNeeded    bool
+	RunID                string
+	WorkspaceID          string
+	WorkflowID           *string
+	ParentRunID          string
+	Mode                 string
+	Status               string
+	PresentationMode     string
+	StartedAt            time.Time
+	EndedAt              *time.Time
+	ErrorText            string
+	RequestID            string
+	OutOfOrderRequested  bool
+	OutOfOrderNeeded     bool
+	SelectionFingerprint string
 }
 
 // ActiveRunsError reports how many active runs blocked a workspace unregister.
@@ -631,6 +632,7 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
 	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
+	run.SelectionFingerprint = strings.TrimSpace(run.SelectionFingerprint)
 	run.Mode = strings.TrimSpace(run.Mode)
 	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
@@ -658,8 +660,8 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		`INSERT INTO runs (
 			run_id, workspace_id, workflow_id, mode, status, presentation_mode,
 			started_at, ended_at, error_text, parent_run_id, request_id,
-			out_of_order_requested, out_of_order_needed
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			out_of_order_requested, out_of_order_needed, selection_fingerprint
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.RunID,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -673,6 +675,7 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		strings.TrimSpace(run.RequestID),
 		run.OutOfOrderRequested,
 		run.OutOfOrderNeeded,
+		run.SelectionFingerprint,
 	)
 	if err != nil {
 		if isDuplicateRunError(err) {
@@ -693,6 +696,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
 	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
+	run.SelectionFingerprint = strings.TrimSpace(run.SelectionFingerprint)
 	run.Mode = strings.TrimSpace(run.Mode)
 	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
@@ -729,7 +733,8 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		     parent_run_id = ?,
 		     request_id = ?,
 		     out_of_order_requested = ?,
-		     out_of_order_needed = ?
+		     out_of_order_needed = ?,
+		     selection_fingerprint = ?
 		 WHERE run_id = ?`,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -743,6 +748,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		strings.TrimSpace(run.RequestID),
 		run.OutOfOrderRequested,
 		run.OutOfOrderNeeded,
+		run.SelectionFingerprint,
 		run.RunID,
 	)
 	if err != nil {
@@ -770,7 +776,7 @@ func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 		ctx,
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
 		        started_at, ended_at, error_text, parent_run_id, request_id,
-		        out_of_order_requested, out_of_order_needed
+		        out_of_order_requested, out_of_order_needed, selection_fingerprint
 		 FROM runs
 		 WHERE run_id = ?`,
 		strings.TrimSpace(runID),
@@ -799,7 +805,7 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 	query := `
 		SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
 		       started_at, ended_at, error_text, parent_run_id, request_id,
-		       out_of_order_requested, out_of_order_needed
+		       out_of_order_requested, out_of_order_needed, selection_fingerprint
 		FROM runs
 		WHERE 1 = 1`
 	args := make([]any, 0, 4)
@@ -848,6 +854,46 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 	}
 
 	return runs, nil
+}
+
+// FindRunBySelectionFingerprint returns the newest run for one workspace selection.
+func (g *GlobalDB) FindRunBySelectionFingerprint(
+	ctx context.Context,
+	workspaceID string,
+	fingerprint string,
+) (Run, error) {
+	if err := g.requireContext(ctx, "find run by selection fingerprint"); err != nil {
+		return Run{}, err
+	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	fingerprint = strings.TrimSpace(fingerprint)
+	if workspaceID == "" {
+		return Run{}, errors.New("globaldb: run workspace id is required")
+	}
+	if fingerprint == "" {
+		return Run{}, errors.New("globaldb: selection fingerprint is required")
+	}
+
+	row := g.db.QueryRowContext(
+		ctx,
+		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
+		        started_at, ended_at, error_text, parent_run_id, request_id,
+		        out_of_order_requested, out_of_order_needed, selection_fingerprint
+		 FROM runs
+		 WHERE workspace_id = ? AND selection_fingerprint = ?
+		 ORDER BY started_at DESC, run_id ASC
+		 LIMIT 1`,
+		workspaceID,
+		fingerprint,
+	)
+	run, err := scanRun(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Run{}, ErrRunNotFound
+		}
+		return Run{}, err
+	}
+	return run, nil
 }
 
 func (g *GlobalDB) registerResolvedWorkspace(
@@ -1280,6 +1326,7 @@ func scanRun(scanner rowScanner) (Run, error) {
 		&run.RequestID,
 		&run.OutOfOrderRequested,
 		&run.OutOfOrderNeeded,
+		&run.SelectionFingerprint,
 	); err != nil {
 		return Run{}, err
 	}
@@ -1303,6 +1350,7 @@ func scanRun(scanner rowScanner) (Run, error) {
 	run.ErrorText = strings.TrimSpace(run.ErrorText)
 	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
 	run.RequestID = strings.TrimSpace(run.RequestID)
+	run.SelectionFingerprint = strings.TrimSpace(run.SelectionFingerprint)
 
 	return run, nil
 }

@@ -450,12 +450,14 @@ kinds share one payload type, `kinds.TaskRunMultiplePayload`.
 
 - `run_id`: parent multi-run id
 - `mode`: scheduling mode, `enqueued` or `parallel`
+- `execution_kind`: resolved execution kind; parallel task-group runs use `task_multi_group_parallel`
 - `slug`: child workflow slug for item-scoped events
 - `slugs`: ordered child workflow slugs, emitted on the started event
+- `task_group_id`: canonical `TG-NNN` identifier for task-group item events
 - `index`: zero-based child index within the queue
 - `total`: total number of queued children
 - `parallel_limit`: resolved concurrent-child cap, emitted on the started event in parallel mode
-- `status`: item status, one of `queued`, `running`, `completed`, `failed`, or `canceled`
+- `status`: item status, one of `queued`, `running`, `completed`, `no-changes`, `failed`, or `canceled`
 - `child_run_id`: child task run id once the child run exists
 - `error`: actionable error text for failed or canceled items and the queue summary
 - `worktree_path`: child git worktree path in parallel mode

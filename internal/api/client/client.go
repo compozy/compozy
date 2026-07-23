@@ -210,6 +210,7 @@ func (c *Client) StartTaskRunMultiple(
 		AllowOutOfOrder:  req.AllowOutOfOrder,
 		Mode:             strings.TrimSpace(req.Mode),
 		ParallelLimit:    req.ParallelLimit,
+		NewRun:           req.NewRun,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
 		Execution:        cloneTaskExecutionDescriptor(req.Execution),

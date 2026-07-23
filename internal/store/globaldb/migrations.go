@@ -232,6 +232,16 @@ var migrations = []migration{
 		foreignKeysOff: true,
 		apply:          migrateWorkPackagesToTaskGroups,
 	},
+	{
+		version: 10,
+		name:    "runs_selection_fingerprint",
+		statements: []string{
+			`ALTER TABLE runs ADD COLUMN selection_fingerprint TEXT NOT NULL DEFAULT '';`,
+			`CREATE INDEX IF NOT EXISTS idx_runs_workspace_selection_fingerprint
+				ON runs(workspace_id, selection_fingerprint, started_at DESC)
+				WHERE selection_fingerprint <> '';`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

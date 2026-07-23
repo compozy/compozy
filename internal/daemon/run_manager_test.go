@@ -3619,8 +3619,8 @@ func TestRunManagerRejectsEscapedTaskGroupManifestBeforeTaskStarts(t *testing.T)
 
 func TestRunManagerTaskGroupWorktreeExecutionIsRejected(t *testing.T) {
 	// INVARIANT: task group lifecycle operations never delegate Git worktree
-	// creation or switching to the parallel task runner.
-	// OWNING_LAYER: service-integration. CONTRACT: IT-030.
+	// creation or switching to non-group parallel runners.
+	// OWNING_LAYER: service-integration. CONTRACT: UT-031, UT-032.
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	initiative := "watcher"
 	taskGroupRef := initiative + "/TG-001"
