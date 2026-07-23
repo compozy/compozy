@@ -114,6 +114,7 @@ type commandStateCallbacks struct {
 	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
 	runWorkflow            func(context.Context, core.Config) error
 	pickTaskGroup          func(*cobra.Command, taskGroupPickerInput) (string, error)
+	pickTaskGroups         func(*cobra.Command, taskGroupPickerInput) ([]string, error)
 	confirmTaskGroupRun    func(*cobra.Command, taskgroups.Target, taskgroups.Readiness) (bool, error)
 }
 
@@ -150,6 +151,7 @@ func defaultCommandStateDefaults() commandStateDefaults {
 			fetchReviewsFn:         core.FetchReviews,
 			runWorkflow:            core.Run,
 			pickTaskGroup:          defaultPickTaskGroup,
+			pickTaskGroups:         defaultPickTaskGroups,
 			confirmTaskGroupRun:    defaultConfirmTaskGroupRun,
 		},
 	}
@@ -190,6 +192,9 @@ func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	}
 	if result.pickTaskGroup == nil {
 		result.pickTaskGroup = builtin.pickTaskGroup
+	}
+	if result.pickTaskGroups == nil {
+		result.pickTaskGroups = builtin.pickTaskGroups
 	}
 	if result.confirmTaskGroupRun == nil {
 		result.confirmTaskGroupRun = builtin.confirmTaskGroupRun

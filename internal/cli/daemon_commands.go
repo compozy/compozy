@@ -758,6 +758,12 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if commandFlagChanged(cmd, "multiple") {
 		return s.runTaskWorkflowsMultiple(cmd, args)
 	}
+	// --parallel-task-groups without --multiple opens the interactive
+	// multi-select picker (ADR-006: the flag pairs with an explicit --multiple
+	// set OR the multi-select picker).
+	if commandFlagChanged(cmd, taskRunParallelTaskGroupsFlag) {
+		return s.runInteractiveParallelTaskGroups(cmd, args)
+	}
 	if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
 		return withExitCode(1, err)
 	}
@@ -797,6 +803,121 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 		return mapTaskGroupSelectionError(err)
 	}
 	return s.startPreparedTaskRun(ctx, cmd, target)
+}
+
+// runInteractiveParallelTaskGroups drives the --parallel-task-groups journey
+// when no explicit --multiple set is supplied: it collects a multi-selected set
+// of Task Groups and delegates to the shared multi-run pipeline so preflight,
+// mode/kind resolution, and reporting are reused unchanged.
+func (s *commandState) runInteractiveParallelTaskGroups(cmd *cobra.Command, args []string) error {
+	if err := rejectInteractiveParallelTaskGroupConflicts(cmd); err != nil {
+		return withExitCode(1, err)
+	}
+
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
+	}
+
+	refs, err := s.collectParallelTaskGroupRefs(ctx, cmd, args)
+	if errors.Is(err, errTaskGroupSelectionCanceled) {
+		return nil
+	}
+	if err != nil {
+		return mapTaskGroupSelectionError(err)
+	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+	return s.runTaskWorkflowsMultiplePrepared(ctx, cmd, refs)
+}
+
+// rejectInteractiveParallelTaskGroupConflicts rejects flags that cannot combine
+// with the picker-driven --parallel-task-groups path, mirroring the explicit
+// --multiple path's mutual-exclusion rules.
+func rejectInteractiveParallelTaskGroupConflicts(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") {
+		return errors.New("--parallel-task-groups selects parallel mode and cannot be combined with --parallel")
+	}
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+		return errors.New("--parallel-tasks cannot be combined with --parallel-task-groups")
+	}
+	return nil
+}
+
+// collectParallelTaskGroupRefs resolves the initiative target and returns the
+// initiative/TG-NNN references to launch. An initiative target opens the
+// multi-select picker; an explicit initiative/TG-NNN positional runs just that
+// group in parallel mode; any other target is rejected.
+func (s *commandState) collectParallelTaskGroupRefs(
+	ctx context.Context,
+	cmd *cobra.Command,
+	args []string,
+) ([]string, error) {
+	if err := s.resolveTaskWorkflowName(args); err != nil {
+		return nil, withExitCode(1, err)
+	}
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
+	if err != nil {
+		return nil, err
+	}
+	switch target.Mode {
+	case taskgroups.TargetModeInitiative:
+		return s.pickParallelTaskGroupRefs(cmd, target)
+	case taskgroups.TargetModeTaskGroup:
+		return []string{target.Ref.String()}, nil
+	default:
+		return nil, withExitCode(1, fmt.Errorf(
+			"--parallel-task-groups requires an initiative or initiative/TG-NNN target, not %q",
+			strings.TrimSpace(s.name),
+		))
+	}
+}
+
+// pickParallelTaskGroupRefs runs the multi-select picker for an initiative and
+// maps the chosen Task Group IDs to fully-qualified initiative/TG-NNN refs. It
+// preserves the swappable pickTaskGroups seam so tests can stub selection
+// without a TTY, mirroring resolveInteractiveTaskGroup.
+func (s *commandState) pickParallelTaskGroupRefs(
+	cmd *cobra.Command,
+	target taskgroups.Target,
+) ([]string, error) {
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		return nil, taskGroupSelectionRequiredError(target)
+	}
+	picker := s.pickTaskGroups
+	if picker == nil {
+		picker = defaultPickTaskGroups
+	}
+	ids, pickErr := picker(cmd, taskGroupPickerInput{
+		Target:           target,
+		WorkspaceRoot:    s.workspaceRoot,
+		RunMode:          s.taskGroupPickerRunMode(),
+		LockCompleted:    s.kind == commandKindTasksRun,
+		IncludeCompleted: s.includeCompleted,
+	})
+	if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errTaskGroupSelectionCanceled) {
+		return nil, errTaskGroupSelectionCanceled
+	}
+	if pickErr != nil {
+		return nil, fmt.Errorf("select task groups: %w", pickErr)
+	}
+	refs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		refs = append(refs, target.Ref.Initiative+"/"+id)
+	}
+	if len(refs) == 0 {
+		return nil, errTaskGroupSelectionCanceled
+	}
+	return refs, nil
 }
 
 func (s *commandState) startPreparedTaskRun(
@@ -1082,6 +1203,8 @@ func (s *commandState) preflightTaskWorkflowSelection(
 
 // rejectMultipleOnlyParallelFlags rejects --parallel and --parallel-limit when
 // they are used without --multiple, before any daemon contact.
+// --parallel-task-groups is intentionally not rejected here: runTaskWorkflow
+// routes it to the interactive multi-select picker before this check runs.
 func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
 	if commandFlagChanged(cmd, "parallel") {
 		return errors.New("--parallel is only valid with --multiple")
@@ -1089,11 +1212,8 @@ func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
 	if commandFlagChanged(cmd, "parallel-limit") {
 		return errors.New("--parallel-limit is only valid with --multiple")
 	}
-	if commandFlagChanged(cmd, taskRunParallelTaskGroupsFlag) {
-		return errors.New("--parallel-task-groups is only valid with --multiple")
-	}
 	if commandFlagChanged(cmd, taskRunNewFlag) {
-		return errors.New("--new is only valid with --multiple --parallel-task-groups")
+		return errors.New("--new is only valid with --parallel-task-groups")
 	}
 	return nil
 }

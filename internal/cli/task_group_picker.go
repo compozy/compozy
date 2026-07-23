@@ -61,12 +61,18 @@ func (s *commandState) taskGroupPickerRunMode() string {
 	}
 }
 
-func defaultPickTaskGroup(cmd *cobra.Command, input taskGroupPickerInput) (string, error) {
+// loadTaskGroupPickerOptions resolves the picker rows and the completion-lock
+// policy shared by the single-select and multi-select pickers, loading live run
+// statuses from the daemon when a run mode is set.
+func loadTaskGroupPickerOptions(
+	cmd *cobra.Command,
+	input taskGroupPickerInput,
+) ([]taskGroupPickerOption, bool, error) {
 	latestRunStatuses := map[string]string(nil)
 	if strings.TrimSpace(input.RunMode) != "" {
 		client, err := newCLIDaemonBootstrap().ensure(cmd.Context())
 		if err != nil {
-			return "", fmt.Errorf("prepare Task Group status picker: %w", err)
+			return nil, false, fmt.Errorf("prepare Task Group status picker: %w", err)
 		}
 		latestRunStatuses, err = loadTaskGroupPickerLatestRunStatuses(
 			cmd.Context(),
@@ -75,26 +81,28 @@ func defaultPickTaskGroup(cmd *cobra.Command, input taskGroupPickerInput) (strin
 			input.RunMode,
 		)
 		if err != nil {
-			return "", err
+			return nil, false, err
 		}
 	}
 
 	options, err := buildTaskGroupPickerOptions(input, latestRunStatuses)
 	if err != nil {
-		return "", err
+		return nil, false, err
 	}
-	if len(options) == 0 {
-		return "", errTaskGroupSelectionCanceled
-	}
-
-	huhOptions := make([]huh.Option[string], 0, len(options))
 	allowCompleted := !input.LockCompleted || input.IncludeCompleted
+	return options, allowCompleted, nil
+}
+
+func taskGroupPickerHuhOptions(options []taskGroupPickerOption) []huh.Option[string] {
+	huhOptions := make([]huh.Option[string], 0, len(options))
 	for index := range options {
 		option := &options[index]
 		huhOptions = append(huhOptions, huh.NewOption(taskGroupPickerOptionLabel(*option), option.Value))
 	}
-	selected := defaultTaskGroupPickerSelection(options, allowCompleted)
+	return huhOptions
+}
 
+func taskGroupPickerDescription(input taskGroupPickerInput, allowCompleted bool) string {
 	description := "Each row includes completion, live run status, dependency readiness, and task progress. " +
 		"[⊘] means dependency blocked; [!] means no tasks are complete."
 	if input.RunMode == daemonRunModeReview {
@@ -104,9 +112,23 @@ func defaultPickTaskGroup(cmd *cobra.Command, input taskGroupPickerInput) (strin
 		description = "Completed task groups stay visible with a check but stay locked. " +
 			"Rows include status and task progress; [⊘] means dependency blocked; [!] means no tasks are complete."
 	}
+	return description
+}
+
+func defaultPickTaskGroup(cmd *cobra.Command, input taskGroupPickerInput) (string, error) {
+	options, allowCompleted, err := loadTaskGroupPickerOptions(cmd, input)
+	if err != nil {
+		return "", err
+	}
+	if len(options) == 0 {
+		return "", errTaskGroupSelectionCanceled
+	}
+
+	huhOptions := taskGroupPickerHuhOptions(options)
+	selected := defaultTaskGroupPickerSelection(options, allowCompleted)
 	field := huh.NewSelect[string]().
 		Title("Select a Task Group").
-		Description(description).
+		Description(taskGroupPickerDescription(input, allowCompleted)).
 		Options(huhOptions...).
 		Validate(func(value string) error {
 			return validateTaskGroupPickerSelection(options, value, allowCompleted)
@@ -123,6 +145,42 @@ func defaultPickTaskGroup(cmd *cobra.Command, input taskGroupPickerInput) (strin
 		return "", err
 	}
 	return strings.TrimSpace(selected), nil
+}
+
+// defaultPickTaskGroups is the multi-select variant used by the
+// --parallel-task-groups interactive journey: it returns every chosen Task
+// Group ID so the launcher can run an independent set concurrently. It reuses
+// the same rows and completion-lock policy as the single-select picker.
+func defaultPickTaskGroups(cmd *cobra.Command, input taskGroupPickerInput) ([]string, error) {
+	options, allowCompleted, err := loadTaskGroupPickerOptions(cmd, input)
+	if err != nil {
+		return nil, err
+	}
+	if len(options) == 0 {
+		return nil, errTaskGroupSelectionCanceled
+	}
+
+	huhOptions := taskGroupPickerHuhOptions(options)
+	selected := []string(nil)
+	description := "Select one or more dependency-independent Task Groups to run in parallel on isolated " +
+		"result branches. [⊘] means dependency blocked; [!] means no tasks are complete; completed groups stay locked."
+	field := huh.NewMultiSelect[string]().
+		Title("Select Task Groups to run in parallel").
+		Description(description).
+		Options(huhOptions...).
+		Limit(len(huhOptions)).
+		Validate(func(values []string) error {
+			return validateTaskGroupPickerMultiSelection(options, values, allowCompleted)
+		}).
+		Value(&selected)
+	form := huh.NewForm(huh.NewGroup(field))
+	if err := form.Run(); err != nil {
+		return nil, err
+	}
+	if err := validateTaskGroupPickerMultiSelection(options, selected, allowCompleted); err != nil {
+		return nil, err
+	}
+	return normalizeTaskGroupSelections(selected), nil
 }
 
 func defaultTaskGroupPickerSelection(options []taskGroupPickerOption, allowCompleted bool) string {
@@ -422,6 +480,45 @@ func taskGroupPickerSelectedLabel(label string) string {
 	label = strings.Replace(label, taskGroupPickerUnselectedMarker, taskGroupPickerSelectedMarker, 1)
 	label = strings.Replace(label, taskGroupPickerNotStartedMarker, taskGroupPickerSelectedMarker, 1)
 	return strings.Replace(label, taskGroupPickerBlockedMarker, taskGroupPickerSelectedMarker, 1)
+}
+
+// normalizeTaskGroupSelections trims and drops empty entries while preserving
+// the picker's presentation order.
+func normalizeTaskGroupSelections(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		normalized = append(normalized, value)
+	}
+	return normalized
+}
+
+// validateTaskGroupPickerMultiSelection rejects an empty or duplicated set and
+// defers each entry to the single-select validator so blocked/completed rows
+// stay unselectable in multi-select mode too.
+func validateTaskGroupPickerMultiSelection(
+	options []taskGroupPickerOption,
+	selected []string,
+	allowCompleted bool,
+) error {
+	normalized := normalizeTaskGroupSelections(selected)
+	if len(normalized) == 0 {
+		return errTaskGroupSelectionCanceled
+	}
+	seen := make(map[string]struct{}, len(normalized))
+	for _, value := range normalized {
+		if _, duplicate := seen[value]; duplicate {
+			return fmt.Errorf("%s: selected more than once", value)
+		}
+		seen[value] = struct{}{}
+		if err := validateTaskGroupPickerSelection(options, value, allowCompleted); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateTaskGroupPickerSelection(

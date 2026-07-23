@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/huh/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -4095,6 +4096,203 @@ func TestResolveTaskRunTargetRequiresNonInteractiveDependencyOverride(t *testing
 	if target.Ref.String() != initiative+"/TG-002" || state.name != initiative || state.taskGroupID != "TG-002" {
 		t.Fatalf("resolved target/state = %#v name:%q task group:%q", target, state.name, state.taskGroupID)
 	}
+}
+
+// R2: the multi-select validator keeps blocked/completed rows unselectable and
+// rejects empty or duplicated sets for the --parallel-task-groups picker.
+func TestValidateTaskGroupPickerMultiSelection(t *testing.T) {
+	t.Parallel()
+
+	options := []taskGroupPickerOption{
+		{Value: "TG-001", Completed: true},
+		{Value: "TG-002"},
+		{Value: "TG-003", SelectionBlocked: true, SelectionBlockedReason: "dependency blocked"},
+		{Value: "TG-004"},
+	}
+
+	cases := []struct {
+		name           string
+		selected       []string
+		allowCompleted bool
+		wantCanceled   bool
+		wantErrSubstr  string
+	}{
+		{name: "Should cancel on empty selection", selected: nil, wantCanceled: true},
+		{name: "Should cancel on whitespace-only selection", selected: []string{" ", ""}, wantCanceled: true},
+		{name: "Should accept a single independent group", selected: []string{"TG-002"}},
+		{name: "Should accept multiple independent groups", selected: []string{"TG-002", "TG-004"}},
+		{
+			name:          "Should reject a dependency-blocked group",
+			selected:      []string{"TG-002", "TG-003"},
+			wantErrSubstr: "dependency blocked",
+		},
+		{
+			name:          "Should reject a locked completed group",
+			selected:      []string{"TG-001"},
+			wantErrSubstr: "completed Task Group is locked",
+		},
+		{name: "Should accept a completed group when unlocked", selected: []string{"TG-001"}, allowCompleted: true},
+		{name: "Should reject an unknown group", selected: []string{"TG-999"}, wantErrSubstr: "unknown Task Group"},
+		{
+			name:          "Should reject a duplicate selection",
+			selected:      []string{"TG-002", "TG-002"},
+			wantErrSubstr: "selected more than once",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateTaskGroupPickerMultiSelection(options, tc.selected, tc.allowCompleted)
+			switch {
+			case tc.wantCanceled:
+				if !errors.Is(err, errTaskGroupSelectionCanceled) {
+					t.Fatalf("err = %v, want canceled sentinel", err)
+				}
+			case tc.wantErrSubstr != "":
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrSubstr) {
+					t.Fatalf("err = %v, want substring %q", err, tc.wantErrSubstr)
+				}
+			default:
+				if err != nil {
+					t.Fatalf("err = %v, want nil", err)
+				}
+			}
+		})
+	}
+}
+
+// R2: the multi-select seam maps chosen Task Group IDs to initiative/TG-NNN refs,
+// honors the TTY gate, and forwards cancellation, mirroring the single-select seam.
+func TestPickParallelTaskGroupRefs(t *testing.T) {
+	t.Parallel()
+
+	initiative := "customer-management"
+	target := taskgroups.Target{
+		Mode: taskgroups.TargetModeInitiative,
+		Ref:  taskgroups.Ref{Initiative: initiative},
+	}
+
+	t.Run("non tty requires an explicit multiple set", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.isInteractive = func() bool { return false }
+		state.pickTaskGroups = func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+			t.Fatal("multi-select picker must not run outside a TTY")
+			return nil, nil
+		}
+		_, err := state.pickParallelTaskGroupRefs(newTaskRunPresentationCommand(state), target)
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(err, &taskGroupErr) || !errors.Is(err, taskgroups.ErrSelectionRequired) {
+			t.Fatalf("err = %v, want selection-required task group error", err)
+		}
+	})
+
+	t.Run("maps chosen ids to initiative refs and forwards lock policy", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.isInteractive = func() bool { return true }
+		state.pickTaskGroups = func(_ *cobra.Command, input taskGroupPickerInput) ([]string, error) {
+			if input.Target.Ref.Initiative != initiative {
+				t.Fatalf("picker initiative = %q, want %q", input.Target.Ref.Initiative, initiative)
+			}
+			if input.RunMode != daemonRunModeTask {
+				t.Fatalf("picker run mode = %q, want %q", input.RunMode, daemonRunModeTask)
+			}
+			if !input.LockCompleted {
+				t.Fatal("task picker must lock completed Task Groups")
+			}
+			return []string{"TG-002", " TG-004 "}, nil
+		}
+		refs, err := state.pickParallelTaskGroupRefs(newTaskRunPresentationCommand(state), target)
+		if err != nil {
+			t.Fatalf("pick refs: %v", err)
+		}
+		want := []string{initiative + "/TG-002", initiative + "/TG-004"}
+		if !slices.Equal(refs, want) {
+			t.Fatalf("refs = %v, want %v", refs, want)
+		}
+	})
+
+	t.Run("user abort forwards the cancellation sentinel", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.isInteractive = func() bool { return true }
+		state.pickTaskGroups = func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+			return nil, huh.ErrUserAborted
+		}
+		_, err := state.pickParallelTaskGroupRefs(newTaskRunPresentationCommand(state), target)
+		if !errors.Is(err, errTaskGroupSelectionCanceled) {
+			t.Fatalf("err = %v, want cancellation", err)
+		}
+	})
+
+	t.Run("empty selection cancels rather than launching nothing", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.isInteractive = func() bool { return true }
+		state.pickTaskGroups = func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+			return []string{"   "}, nil
+		}
+		_, err := state.pickParallelTaskGroupRefs(newTaskRunPresentationCommand(state), target)
+		if !errors.Is(err, errTaskGroupSelectionCanceled) {
+			t.Fatalf("err = %v, want cancellation", err)
+		}
+	})
+}
+
+// R2: --parallel-task-groups without --multiple resolves an initiative through the
+// picker and an explicit initiative/TG-NNN positional straight through, creating
+// nothing until the shared multi-run pipeline runs.
+func TestCollectParallelTaskGroupRefs(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "customer-management"
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
+
+	t.Run("initiative opens the multi-select picker", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative
+		state.isInteractive = func() bool { return true }
+		state.pickTaskGroups = func(_ *cobra.Command, input taskGroupPickerInput) ([]string, error) {
+			if input.Target.Mode != taskgroups.TargetModeInitiative {
+				t.Fatalf("picker target mode = %q, want initiative", input.Target.Mode)
+			}
+			return []string{"TG-001", "TG-002"}, nil
+		}
+		refs, err := state.collectParallelTaskGroupRefs(
+			context.Background(),
+			newTaskRunPresentationCommand(state),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("collect refs: %v", err)
+		}
+		want := []string{initiative + "/TG-001", initiative + "/TG-002"}
+		if !slices.Equal(refs, want) {
+			t.Fatalf("refs = %v, want %v", refs, want)
+		}
+	})
+
+	t.Run("explicit task group ref passes through without the picker", func(t *testing.T) {
+		state := newCommandState(commandKindTasksRun, "")
+		state.workspaceRoot = workspaceRoot
+		state.name = initiative + "/TG-001"
+		state.isInteractive = func() bool { return true }
+		state.pickTaskGroups = func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
+			t.Fatal("explicit target must not open the picker")
+			return nil, nil
+		}
+		refs, err := state.collectParallelTaskGroupRefs(
+			context.Background(),
+			newTaskRunPresentationCommand(state),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("collect refs: %v", err)
+		}
+		if !slices.Equal(refs, []string{initiative + "/TG-001"}) {
+			t.Fatalf("refs = %v, want single explicit ref", refs)
+		}
+	})
 }
 
 func writeCLITaskGroupPlan(t *testing.T, workspaceRoot string, initiative string, firstCompleted bool) string {
