@@ -696,7 +696,7 @@ func TestTasksRunParallelTaskGroupsEndToEndWorkspaceAndLimit(t *testing.T) {
 func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 	requireGitForCLITests(t)
 
-	t.Run("E2E-012 picker selection launches the parallel task-group journey", func(t *testing.T) {
+	t.Run("Should launch the parallel task-group journey from the interactive picker", func(t *testing.T) {
 		const initiative = "cli-interactive-groups"
 		client, paths, _ := newParallelTaskGroupsCLIEnv(
 			t,
@@ -721,10 +721,10 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 			"--dry-run",
 		)
 		if err != nil {
-			t.Fatalf("E2E-012 execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+			t.Fatalf("interactive picker execute: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 		}
 		if pickerCalls != 1 || pickerMode != taskgroups.TargetModeInitiative {
-			t.Fatalf("E2E-012 picker calls = %d mode = %q, want 1 call on the initiative target",
+			t.Fatalf("interactive picker calls = %d mode = %q, want 1 call on the initiative target",
 				pickerCalls, pickerMode)
 		}
 		if !containsAll(
@@ -734,7 +734,7 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 			initiative+"/TG-001",
 			initiative+"/TG-002",
 		) {
-			t.Fatalf("E2E-012 output missing interactive journey progress:\n%s\nstderr:\n%s", stdout, stderr)
+			t.Fatalf("interactive picker output missing interactive journey progress:\n%s\nstderr:\n%s", stdout, stderr)
 		}
 		if !containsAll(
 			stderr,
@@ -742,30 +742,30 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 			"worktrees=true",
 			"source=--parallel-task-groups=true",
 		) {
-			t.Fatalf("E2E-012 execution resolution:\n%s", stderr)
+			t.Fatalf("interactive picker execution resolution:\n%s", stderr)
 		}
 		snapshot, err := client.GetTaskRunMultipleSnapshot(
 			context.Background(),
 			taskMultiRunIDFromCLIOutput(t, stdout),
 		)
 		if err != nil {
-			t.Fatalf("E2E-012 snapshot: %v", err)
+			t.Fatalf("interactive picker snapshot: %v", err)
 		}
 		if snapshot.ExecutionKind != apicore.ExecutionKindTaskMultiGroupParallel ||
 			snapshot.Run.Status != "completed" ||
 			len(snapshot.Items) != 2 {
-			t.Fatalf("E2E-012 snapshot = %#v", snapshot)
+			t.Fatalf("interactive picker snapshot = %#v", snapshot)
 		}
 		for _, item := range snapshot.Items {
 			if item.Status != "completed" ||
 				item.ResultBranch == "" ||
 				!strings.HasPrefix(item.WorktreePath, paths.WorktreesDir) {
-				t.Fatalf("E2E-012 item = %#v", item)
+				t.Fatalf("interactive picker item = %#v", item)
 			}
 		}
 	})
 
-	t.Run("E2E-013 --parallel is rejected before any daemon contact", func(t *testing.T) {
+	t.Run("Should reject --parallel before any daemon contact", func(t *testing.T) {
 		const initiative = "cli-interactive-parallel-conflict"
 		newParallelTaskGroupsCLIEnv(
 			t,
@@ -778,7 +778,7 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 		stdout, stderr, err := runParallelTaskGroupsPickerCLI(
 			t,
 			func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
-				t.Fatal("E2E-013 picker must not run when a conflicting flag is rejected")
+				t.Fatal("--parallel conflict picker must not run when a conflicting flag is rejected")
 				return nil, nil
 			},
 			"tasks", "run", initiative,
@@ -792,14 +792,14 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 				err.Error(),
 				"--parallel-task-groups selects parallel mode and cannot be combined with --parallel",
 			) {
-			t.Fatalf("E2E-013 error = %v, want --parallel conflict rejection\nstderr:\n%s", err, stderr)
+			t.Fatalf("--parallel conflict error = %v, want --parallel conflict rejection\nstderr:\n%s", err, stderr)
 		}
 		if strings.Contains(stdout, "task multi-run started:") {
-			t.Fatalf("E2E-013 launched despite conflict:\n%s", stdout)
+			t.Fatalf("--parallel conflict launched despite conflict:\n%s", stdout)
 		}
 	})
 
-	t.Run("E2E-014 --parallel-tasks is rejected before any daemon contact", func(t *testing.T) {
+	t.Run("Should reject --parallel-tasks before any daemon contact", func(t *testing.T) {
 		const initiative = "cli-interactive-parallel-tasks-conflict"
 		newParallelTaskGroupsCLIEnv(
 			t,
@@ -812,7 +812,7 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 		stdout, stderr, err := runParallelTaskGroupsPickerCLI(
 			t,
 			func(*cobra.Command, taskGroupPickerInput) ([]string, error) {
-				t.Fatal("E2E-014 picker must not run when a conflicting flag is rejected")
+				t.Fatal("--parallel-tasks conflict picker must not run when a conflicting flag is rejected")
 				return nil, nil
 			},
 			"tasks", "run", initiative,
@@ -826,14 +826,18 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 				err.Error(),
 				"--parallel-tasks cannot be combined with --parallel-task-groups",
 			) {
-			t.Fatalf("E2E-014 error = %v, want --parallel-tasks conflict rejection\nstderr:\n%s", err, stderr)
+			t.Fatalf(
+				"--parallel-tasks conflict error = %v, want --parallel-tasks conflict rejection\nstderr:\n%s",
+				err,
+				stderr,
+			)
 		}
 		if strings.Contains(stdout, "task multi-run started:") {
-			t.Fatalf("E2E-014 launched despite conflict:\n%s", stdout)
+			t.Fatalf("--parallel-tasks conflict launched despite conflict:\n%s", stdout)
 		}
 	})
 
-	t.Run("E2E-015 aborted picker exits cleanly without launching", func(t *testing.T) {
+	t.Run("Should exit cleanly when the picker is aborted", func(t *testing.T) {
 		const initiative = "cli-interactive-abort"
 		newParallelTaskGroupsCLIEnv(
 			t,
@@ -854,11 +858,11 @@ func TestTasksRunParallelTaskGroupsInteractiveEndToEnd(t *testing.T) {
 			"--dry-run",
 		)
 		if err != nil {
-			t.Fatalf("E2E-015 aborted picker error = %v, want clean exit\nstdout:\n%s\nstderr:\n%s",
+			t.Fatalf("aborted picker error = %v, want clean exit\nstdout:\n%s\nstderr:\n%s",
 				err, stdout, stderr)
 		}
 		if strings.Contains(stdout, "task multi-run started:") {
-			t.Fatalf("E2E-015 launched despite user abort:\n%s", stdout)
+			t.Fatalf("aborted picker launched despite user abort:\n%s", stdout)
 		}
 	})
 }
