@@ -208,6 +208,72 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	}
 }
 
+func TestReviewIsolationReportsCommittedBatchWhenIndexRefreshFails(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	first, err := isolation.Workspace(0)
+	if err != nil {
+		t.Fatalf("Workspace(0) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(first.Root, "first.go"), []byte("package first\n"), 0o600); err != nil {
+		t.Fatalf("write first fix: %v", err)
+	}
+
+	captureSourceIndex := isolation.captureSourceIndex
+	refreshes := 0
+	refreshHadDeadline := false
+	refreshWasCanceled := false
+	applyCtx, cancelApply := context.WithCancel(context.Background())
+	isolation.captureSourceIndex = func(ctx context.Context, root string) (gitIndexBackup, error) {
+		refreshes++
+		if refreshes == 1 {
+			cancelApply()
+			_, refreshHadDeadline = ctx.Deadline()
+			refreshWasCanceled = ctx.Err() != nil
+			return gitIndexBackup{}, errors.New("forced post-commit index refresh failure")
+		}
+		return captureSourceIndex(ctx, root)
+	}
+
+	if err := isolation.Apply(applyCtx, 0, true, "fix: batch a"); err != nil {
+		t.Fatalf("Apply(first) error after commit = %v", err)
+	}
+	if !refreshHadDeadline || refreshWasCanceled {
+		t.Fatalf(
+			"post-commit refresh context: deadline=%t canceled=%t, want bounded and active",
+			refreshHadDeadline,
+			refreshWasCanceled,
+		)
+	}
+	if got := commitSubjectCount(t, repo, "fix: batch a"); got != 1 {
+		t.Fatalf("first batch commit count = %d, want 1", got)
+	}
+	err = isolation.Apply(context.Background(), 0, true, "fix: batch a")
+	if err == nil || !strings.Contains(err.Error(), "source paths changed since review isolation began: first.go") {
+		t.Fatalf("Apply(retry) error after reconciliation = %v, want committed-path rejection", err)
+	}
+	if got := commitSubjectCount(t, repo, "fix: batch a"); got != 1 {
+		t.Fatalf("first batch commit count after reconciliation = %d, want 1", got)
+	}
+}
+
 func TestReviewIsolationAutoCommitPreservesPreStagedWorkflowArtifact(t *testing.T) {
 	t.Parallel()
 	requireScopeGit(t)
@@ -570,4 +636,16 @@ func mustRunGit(t *testing.T, dir string, args ...string) []byte {
 		t.Fatalf("git %s: %v", strings.Join(args, " "), err)
 	}
 	return output
+}
+
+func commitSubjectCount(t *testing.T, dir string, subject string) int {
+	t.Helper()
+	lines := strings.Split(strings.TrimSpace(string(mustRunGit(t, dir, "log", "--format=%s"))), "\n")
+	count := 0
+	for _, line := range lines {
+		if line == subject {
+			count++
+		}
+	}
+	return count
 }

@@ -12,12 +12,16 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/compozy/compozy/internal/core/gitenv"
 )
 
-const reviewIsolationSeedMessage = "compozy: seed isolated review workspace"
+const (
+	reviewIsolationSeedMessage  = "compozy: seed isolated review workspace"
+	reviewIndexReconcileTimeout = 5 * time.Second
+)
 
 // ReviewWorkspace identifies one private worktree used by a review batch.
 type ReviewWorkspace struct {
@@ -29,10 +33,13 @@ type ReviewWorkspace struct {
 // ReviewIsolation owns the private worktrees for one concurrent review run and
 // serializes their write-back into the source workspace.
 type ReviewIsolation struct {
-	sourceRoot  string
-	workspaces  []ReviewWorkspace
-	sourceIndex gitIndexBackup
-	applyMu     sync.Mutex
+	sourceRoot         string
+	workspaces         []ReviewWorkspace
+	sourceIndex        gitIndexBackup
+	sourceIndexPending bool
+	sourceIndexErr     error
+	captureSourceIndex func(context.Context, string) (gitIndexBackup, error)
+	applyMu            sync.Mutex
 }
 
 type gitIndexBackup struct {
@@ -97,9 +104,10 @@ func NewReviewIsolation(
 	}
 
 	isolation := &ReviewIsolation{
-		sourceRoot:  source,
-		workspaces:  make([]ReviewWorkspace, 0, len(jobNames)),
-		sourceIndex: sourceIndex,
+		sourceRoot:         source,
+		workspaces:         make([]ReviewWorkspace, 0, len(jobNames)),
+		sourceIndex:        sourceIndex,
+		captureSourceIndex: captureGitIndex,
 	}
 	for index, name := range jobNames {
 		workspace, createErr := createReviewWorkspace(
@@ -317,6 +325,13 @@ func (r *ReviewIsolation) Apply(
 	}
 	r.applyMu.Lock()
 	defer r.applyMu.Unlock()
+	if err := r.reconcileSourceIndex(ctx); err != nil {
+		return fmt.Errorf(
+			"reconcile source index after committed review batch: %w",
+			errors.Join(r.sourceIndexErr, err),
+		)
+	}
+	r.sourceIndexErr = nil
 
 	if _, err := runGit(ctx, workspace.Root, "add", "-A"); err != nil {
 		return fmt.Errorf("stage isolated review changes in %s: %w", workspace.Root, err)
@@ -399,10 +414,31 @@ func (r *ReviewIsolation) commitReviewPatch(
 		cause := fmt.Errorf("commit integrated review changes from %s: %w", workspace.Root, err)
 		return errors.Join(cause, rollbackReviewApply(ctx, r.sourceRoot, patch, indexBackup, stagedIndex))
 	}
-	r.sourceIndex, err = captureGitIndex(ctx, r.sourceRoot)
-	if err != nil {
-		return fmt.Errorf("refresh source index after committing %s: %w", workspace.Root, err)
+	r.sourceIndex = stagedIndex
+	r.sourceIndexPending = true
+	r.sourceIndexErr = r.reconcileSourceIndex(ctx)
+	return nil
+}
+
+func (r *ReviewIsolation) reconcileSourceIndex(ctx context.Context) error {
+	if !r.sourceIndexPending {
+		return nil
 	}
+	reconcileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reviewIndexReconcileTimeout)
+	defer cancel()
+	current, err := r.captureSourceIndex(reconcileCtx, r.sourceRoot)
+	if err != nil {
+		return fmt.Errorf("capture source index: %w", err)
+	}
+	matches, err := gitIndexesMatch(reconcileCtx, r.sourceRoot, r.sourceIndex, current)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return errors.New("source git index changed after committed review integration")
+	}
+	r.sourceIndex = current
+	r.sourceIndexPending = false
 	return nil
 }
 
@@ -653,6 +689,37 @@ func captureGitIndex(ctx context.Context, root string) (gitIndexBackup, error) {
 		return gitIndexBackup{}, fmt.Errorf("read git index %s: %w", path, err)
 	}
 	return gitIndexBackup{path: path, content: content, mode: info.Mode()}, nil
+}
+
+func gitIndexesMatch(
+	ctx context.Context,
+	root string,
+	expected gitIndexBackup,
+	current gitIndexBackup,
+) (matches bool, err error) {
+	if expected.path == "" || expected.path != current.path {
+		return false, nil
+	}
+	tempRoot, err := os.MkdirTemp("", "compozy-review-reconcile-index-")
+	if err != nil {
+		return false, fmt.Errorf("create temporary index reconciliation directory: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, removeTemporaryReviewIndex(tempRoot))
+	}()
+	entries := make([][]byte, 0, 2)
+	for index, backup := range []gitIndexBackup{expected, current} {
+		indexPath := filepath.Join(tempRoot, fmt.Sprintf("index-%d", index))
+		if err := os.WriteFile(indexPath, backup.content, backup.mode.Perm()); err != nil {
+			return false, fmt.Errorf("write temporary source index: %w", err)
+		}
+		raw, err := runGitWithIndex(ctx, root, indexPath, "ls-files", "--stage", "-z")
+		if err != nil {
+			return false, fmt.Errorf("inspect source index entries: %w", err)
+		}
+		entries = append(entries, raw)
+	}
+	return bytes.Equal(entries[0], entries[1]), nil
 }
 
 func rollbackReviewApply(
