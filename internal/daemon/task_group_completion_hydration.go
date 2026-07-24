@@ -253,12 +253,9 @@ func (m *RunManager) taskGroupHydrationRoots(
 	}
 	seen := map[string]struct{}{canonicalRoot: {}}
 	owned := make([]string, 0)
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "worktree ") {
-			continue
-		}
-		path := filepath.Clean(strings.TrimSpace(strings.TrimPrefix(line, "worktree ")))
+	// Route the porcelain parse through the shared gitenv primitive; the daemon
+	// write fan-out keeps its home-owned ownership filter below (ADR-002, ADR-004).
+	for _, path := range gitenv.ParseWorktreeList(output) {
 		if path == canonicalRoot || !looksLikeCompozyWorktreePath(path) {
 			continue
 		}
