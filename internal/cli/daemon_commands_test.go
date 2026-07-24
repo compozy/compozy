@@ -1497,7 +1497,7 @@ func TestRejectMultipleOnlyParallelFlags(t *testing.T) {
 
 		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		cmd := newTaskRunFlagCommandForTest(t, state)
-		if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+		if err := state.rejectMultipleOnlyParallelFlags(cmd); err != nil {
 			t.Fatalf("rejectMultipleOnlyParallelFlags() error = %v", err)
 		}
 	})
@@ -1510,7 +1510,7 @@ func TestRejectMultipleOnlyParallelFlags(t *testing.T) {
 		if err := cmd.Flags().Set("parallel", "true"); err != nil {
 			t.Fatalf("set --parallel: %v", err)
 		}
-		err := rejectMultipleOnlyParallelFlags(cmd)
+		err := state.rejectMultipleOnlyParallelFlags(cmd)
 		if err == nil || !strings.Contains(err.Error(), "--parallel is only valid with --multiple") {
 			t.Fatalf("expected --parallel rejection, got %v", err)
 		}
@@ -1524,9 +1524,75 @@ func TestRejectMultipleOnlyParallelFlags(t *testing.T) {
 		if err := cmd.Flags().Set("parallel-limit", "3"); err != nil {
 			t.Fatalf("set --parallel-limit: %v", err)
 		}
-		err := rejectMultipleOnlyParallelFlags(cmd)
+		err := state.rejectMultipleOnlyParallelFlags(cmd)
 		if err == nil || !strings.Contains(err.Error(), "--parallel-limit is only valid with --multiple") {
 			t.Fatalf("expected --parallel-limit rejection, got %v", err)
+		}
+	})
+
+	t.Run("Should allow explicitly disabled --parallel=false", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "false"); err != nil {
+			t.Fatalf("set --parallel=false: %v", err)
+		}
+		if err := state.rejectMultipleOnlyParallelFlags(cmd); err != nil {
+			t.Fatalf("explicit --parallel=false should not be a conflict, got %v", err)
+		}
+	})
+
+	t.Run("Should allow explicitly disabled --new=false", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set(taskRunNewFlag, "false"); err != nil {
+			t.Fatalf("set --new=false: %v", err)
+		}
+		if err := state.rejectMultipleOnlyParallelFlags(cmd); err != nil {
+			t.Fatalf("explicit --new=false should not be a conflict, got %v", err)
+		}
+	})
+}
+
+func TestWantsInteractiveParallelTaskGroups(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should open the picker when --parallel-task-groups is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set(taskRunParallelTaskGroupsFlag, "true"); err != nil {
+			t.Fatalf("set --parallel-task-groups=true: %v", err)
+		}
+		if !wantsInteractiveParallelTaskGroups(cmd, state) {
+			t.Fatal("expected --parallel-task-groups=true to open the picker")
+		}
+	})
+
+	t.Run("Should not open the picker when --parallel-task-groups=false", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set(taskRunParallelTaskGroupsFlag, "false"); err != nil {
+			t.Fatalf("set --parallel-task-groups=false: %v", err)
+		}
+		if wantsInteractiveParallelTaskGroups(cmd, state) {
+			t.Fatal("explicit --parallel-task-groups=false must not open the picker")
+		}
+	})
+
+	t.Run("Should not open the picker when the flag is absent", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if wantsInteractiveParallelTaskGroups(cmd, state) {
+			t.Fatal("absent --parallel-task-groups must not open the picker")
 		}
 	})
 }

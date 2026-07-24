@@ -754,6 +754,14 @@ func hideTaskRunWizardFlag(cmd *cobra.Command, flagName string) {
 	flag.Hidden = true
 }
 
+// wantsInteractiveParallelTaskGroups reports whether the user explicitly asked
+// for the parallel-task-group picker. It gates on the flag VALUE, not merely
+// whether the flag was supplied, so that --parallel-task-groups=false performs
+// an ordinary single run instead of opening the picker.
+func wantsInteractiveParallelTaskGroups(cmd *cobra.Command, s *commandState) bool {
+	return commandFlagChanged(cmd, taskRunParallelTaskGroupsFlag) && s.parallelTaskGroups
+}
+
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
 	if commandFlagChanged(cmd, "multiple") {
 		return s.runTaskWorkflowsMultiple(cmd, args)
@@ -761,10 +769,10 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	// --parallel-task-groups without --multiple opens the interactive
 	// multi-select picker (ADR-006: the flag pairs with an explicit --multiple
 	// set OR the multi-select picker).
-	if commandFlagChanged(cmd, taskRunParallelTaskGroupsFlag) {
+	if wantsInteractiveParallelTaskGroups(cmd, s) {
 		return s.runInteractiveParallelTaskGroups(cmd, args)
 	}
-	if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+	if err := s.rejectMultipleOnlyParallelFlags(cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -1205,14 +1213,18 @@ func (s *commandState) preflightTaskWorkflowSelection(
 // they are used without --multiple, before any daemon contact.
 // --parallel-task-groups is intentionally not rejected here: runTaskWorkflow
 // routes it to the interactive multi-select picker before this check runs.
-func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
-	if commandFlagChanged(cmd, "parallel") {
+// Boolean flags are gated on their VALUE (not merely whether they were
+// supplied) so an explicit --parallel=false / --new=false is treated as "not
+// requested" instead of a conflict. --parallel-limit is an int with no "off"
+// value, so its mere presence without --multiple remains an error.
+func (s *commandState) rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") && s.parallel {
 		return errors.New("--parallel is only valid with --multiple")
 	}
 	if commandFlagChanged(cmd, "parallel-limit") {
 		return errors.New("--parallel-limit is only valid with --multiple")
 	}
-	if commandFlagChanged(cmd, taskRunNewFlag) {
+	if commandFlagChanged(cmd, taskRunNewFlag) && s.newRun {
 		return errors.New("--new is only valid with --parallel-task-groups")
 	}
 	return nil
