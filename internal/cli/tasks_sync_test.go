@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -104,17 +105,120 @@ func TestTasksSyncCommand(t *testing.T) {
 	})
 }
 
+// Suite: task-group completion sync across sibling git worktrees
+// Invariant: `tasks sync` inherits the read-side union, marking sibling
+// completions once while excluding unrelated repositories.
+// Boundary IN: real Cobra command, real on-disk git worktrees, real SQLite home DB.
+// Boundary OUT: daemon preflight dispatch (covered in task_03).
+func TestTasksSyncCommandSiblingUnion(t *testing.T) {
+	t.Run("E2E-001 sibling completion marks once and re-sync is a no-op", func(t *testing.T) {
+		t.Setenv(compozyconfig.HomeEnvVar, t.TempDir())
+		repoParent := t.TempDir()
+		primaryA := filepath.Join(repoParent, "A")
+		if err := os.MkdirAll(primaryA, 0o755); err != nil {
+			t.Fatalf("create primary workspace: %v", err)
+		}
+		initTasksSyncGitRepo(t, primaryA)
+		writeTasksSyncPlan(t, primaryA, "initiative", []string{"TG-001", "TG-002"})
+		siblingB := filepath.Join(repoParent, "B")
+		runTasksSyncGit(t, primaryA, "worktree", "add", "--detach", siblingB)
+		// A registers lazily on read; only sibling B carries the TG-002 completion.
+		seedTasksSyncCompletion(t, siblingB, "initiative", []string{"TG-002"})
+		t.Chdir(primaryA)
+
+		planPath := filepath.Join(
+			model.TasksBaseDirForWorkspace(primaryA), "initiative", taskgroups.ManifestFileName)
+		firstOutput := executeTasksSyncArgs(t, "initiative")
+		for _, want := range []string{"Newly marked: 1", "initiative: marked TG-002"} {
+			if !strings.Contains(firstOutput, want) {
+				t.Fatalf("first sync output = %q, want %q", firstOutput, want)
+			}
+		}
+		assertTasksSyncCompletion(t, primaryA, "initiative", []string{"TG-002"})
+		afterFirst := mustReadTasksSyncFile(t, planPath)
+
+		secondOutput := executeTasksSyncArgs(t, "initiative")
+		for _, want := range []string{"Newly marked: 0", "initiative: up to date"} {
+			if !strings.Contains(secondOutput, want) {
+				t.Fatalf("second sync output = %q, want %q", secondOutput, want)
+			}
+		}
+		if got := mustReadTasksSyncFile(t, planPath); got != afterFirst {
+			t.Fatalf("second sync changed the plan file")
+		}
+	})
+
+	t.Run("E2E-002 unrelated repository never leaks into the plan", func(t *testing.T) {
+		t.Setenv(compozyconfig.HomeEnvVar, t.TempDir())
+		primaryA := filepath.Join(t.TempDir(), "A")
+		if err := os.MkdirAll(primaryA, 0o755); err != nil {
+			t.Fatalf("create primary workspace: %v", err)
+		}
+		initTasksSyncGitRepo(t, primaryA)
+		writeTasksSyncPlan(t, primaryA, "initiative", []string{"TG-001", "TG-002"})
+		// An unrelated, separately-initialized repository reusing the initiative name.
+		unrelated := filepath.Join(t.TempDir(), "other")
+		if err := os.MkdirAll(unrelated, 0o755); err != nil {
+			t.Fatalf("create unrelated workspace: %v", err)
+		}
+		initTasksSyncGitRepo(t, unrelated)
+		seedTasksSyncCompletion(t, unrelated, "initiative", []string{"TG-002"})
+		t.Chdir(primaryA)
+
+		output := executeTasksSyncArgs(t, "initiative")
+		if !strings.Contains(output, "Newly marked: 0") {
+			t.Fatalf("sync output = %q, want no newly marked task groups", output)
+		}
+		assertTasksSyncCompletion(t, primaryA, "initiative", nil)
+	})
+}
+
 func executeTasksSyncCommand(t *testing.T) string {
+	t.Helper()
+	return executeTasksSyncArgs(t)
+}
+
+func executeTasksSyncArgs(t *testing.T, args ...string) string {
 	t.Helper()
 	var output bytes.Buffer
 	command := newTasksSyncCommand()
-	command.SetArgs([]string{})
+	command.SetArgs(args)
 	command.SetOut(&output)
 	command.SetErr(&output)
 	if err := command.Execute(); err != nil {
-		t.Fatalf("tasks sync error = %v\noutput:\n%s", err, output.String())
+		t.Fatalf("tasks sync %v error = %v\noutput:\n%s", args, err, output.String())
 	}
 	return output.String()
+}
+
+func runTasksSyncGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmdArgs := append([]string{"-C", dir}, args...)
+	cmd := exec.CommandContext(context.Background(), "git", cmdArgs...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v in %s failed: %v\n%s", args, dir, err, strings.TrimSpace(string(output)))
+	}
+}
+
+func initTasksSyncGitRepo(t *testing.T, root string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("sync fixture\n"), 0o600); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	runTasksSyncGit(t, root, "init", "--initial-branch=main")
+	runTasksSyncGit(t, root, "config", "user.email", "sync@example.com")
+	runTasksSyncGit(t, root, "config", "user.name", "Sync Test")
+	runTasksSyncGit(t, root, "add", "README.md")
+	runTasksSyncGit(t, root, "commit", "-m", "initial")
+}
+
+func mustReadTasksSyncFile(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return string(content)
 }
 
 func writeTasksSyncPlan(
