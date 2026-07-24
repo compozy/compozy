@@ -427,6 +427,9 @@ type SessionIdentity struct {
 	ACPSessionID   string `json:"acp_session_id"`
 	AgentSessionID string `json:"agent_session_id,omitempty"`
 	Resumed        bool   `json:"resumed,omitempty"`
+	// Model is the model the runtime accepted, which differs from the requested
+	// one when an inherited model falls back to the runtime default.
+	Model string `json:"model,omitempty"`
 }
 
 // SessionOutcome mirrors the terminal session outcome payload.

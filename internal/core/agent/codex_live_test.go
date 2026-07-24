@@ -25,9 +25,12 @@ func TestLiveCodexModelAvailability(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
+		// The point of this check is that the requested model is available, so it
+		// must fail rather than fall back to whatever the runtime offers.
 		client, err := NewClient(ctx, ClientConfig{
 			IDE:             model.IDECodex,
 			Model:           modelName,
+			ModelExplicit:   true,
 			ReasoningEffort: reasoningEffort,
 			ShutdownTimeout: 5 * time.Second,
 		})
