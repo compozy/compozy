@@ -62,7 +62,6 @@ describe("frontend verification contract", () => {
       "lint",
       "test",
       "go-build",
-      "verify-extensions",
       "frontend-e2e",
     ]);
   });

@@ -1,35 +1,3 @@
-## 0.2.15 - 2026-07-17
-
-### 🎉 Features
-
-- Cy-capture-decisions — skill-only extension for durable decision capture (#237)
-### 🐛 Bug Fixes
-
-- Recover stalled and wedged multi-runs (#230)- Share parallel task status enum (#241)- Surface progress and bound the reviews-fix daemon start (#236)- Package cy-qa-workflow as a module and make host.tasks.create v2-aware (#234)- Correct Kiro CLI ACP model handling (#226)- Isolate sync tests and clarify ignore checks (#248)- Isolate task artifacts and add complexity runtime defaults (#250)
-### 📚 Documentation
-
-- Add v0.2.15 release highlights
-
-### Release Notes
-
-#### Features
-
-##### Durable architecture decisions
-The new cy-capture-decisions skill-only extension reconciles accepted ADRs against the code and review outcome, then promotes only proven, cross-feature decisions into a compact project index with detailed records on demand. The log survives workflow archival and is safe to rerun. (PR #237)
-
-##### Runtime defaults by task complexity
-Workspace defaults can now select IDE, model, and reasoning effort for low, medium, high, and critical tasks, with field-wise workspace merging and complexity to type to task-ID precedence while preserving explicit CLI choices. Parallel child snapshots also stop reporting mirrored runtime task artifacts as agent output. (PR #250)
-
-#### Fixes
-
-##### More reliable task and review workflows
-QA task injection now supports compozy.tasks/v2 graphs and the cy-qa-workflow extension ships as a verified standalone module. Kiro ACP runs use a valid bootstrap model, slow reviews fix startup is visible and bounded, and parallel task settlement uses one canonical status contract. Test isolation and decision-log ignore guidance were tightened as well. (PRs #234, #226, #236, #241, #248)
-
-#### Highlights
-
-##### Runs that recover instead of hanging
-Compozy now detects silent ACP stalls, retries once from a clean worktree, and parks persistent failures with journals and worktrees preserved for triage. Parallel parents can reap wedged children, terminal commands are cancellable and bounded, and the UI reports stalled, retrying, recovered, and parked outcomes. (PR #230)
-
 ## 0.2.14 - 2026-07-15
 
 ### 🐛 Bug Fixes
@@ -53,6 +21,7 @@ Compozy now detects silent ACP stalls, retries once from a clean worktree, and p
 #### Features
 
 ##### GPT-5.6, Claude Fable 5, and ACP session model negotiation
+
 Compozy now negotiates model, reasoning, and permission mode from the options advertised by ACP `session/new` / `session/load`, and applies the resolved configuration **before the first prompt** on both new and resumed sessions.
 
 ### New models and defaults
@@ -72,6 +41,7 @@ The preferred Codex ACP package is now `@agentclientprotocol/codex-acp` (GPT-5.6
 #### Fixes
 
 ##### Safer parallel task and multi-run worktree lifecycle
+
 Parallel execution no longer surprises you with worktrees or silent merges. Activation is explicit, results are retained on named branches, and cleanup refuses to delete uncommitted or unretained output.
 
 ### Explicit activation for `--parallel-tasks`
@@ -105,9 +75,11 @@ The CLI prints the resolved execution kind, whether worktrees are used, and the 
 ### 🎉 Features
 
 - Agentic runs (#212)- Simplify repo-level default setup overrides (#90)- Support COMPOZY_HOME env override for home directory (#216)
+
 ### 🐛 Bug Fixes
 
 - Parallel execution (#217)- Specifying the model on ACP (#215)- Worktree management (#223)- Restore run TUI elapsed timer across retry, failure, cancel, and remote paths (#221)
+
 ### 📚 Documentation
 
 - Update skills- Add v0.2.11 release notes
@@ -117,6 +89,7 @@ The CLI prints the resolved execution kind, whether worktrees are used, and the 
 #### Features
 
 ##### Agentic recovery for failed runs
+
 Run-producing commands can now **automatically remediate and restart a failed run** with a dedicated recovery agent. When enabled, a failed run is handed to the recovery agent, which diagnoses and attempts a fix, then the run is restarted — up to a bounded number of attempts — instead of stopping at the first failure.
 
 ### Enabling recovery
@@ -162,6 +135,7 @@ max_attempts = 1
 Recovery config is resolved fresh for each invocation and is **not** persisted into run or exec metadata; the flags above always override `[recovery]` for a single command.
 
 ##### Dependency-aware parallel task execution
+
 `compozy tasks run <slug> --parallel-tasks` now executes the pending task files of a single PRD workflow **in dependency-aware waves** instead of one task at a time. Independent tasks in the same wave run concurrently, each in its own isolated git worktree, and dependent tasks wait for their prerequisites to finish.
 
 ### Starting a parallel-tasks run
@@ -197,6 +171,7 @@ When concurrent task worktrees are squash-merged back and collide, a bounded **c
 - Worktree isolation means concurrent tasks never edit the same checkout; merges back to the workspace are serialized deterministically.
 
 ##### Isolated Compozy homes with COMPOZY_HOME
+
 Compozy now honors a `COMPOZY_HOME` environment variable as an opt-in override for the home root that everything home-scoped resolves against. When set to a non-empty value, Compozy uses that path instead of the implicit `$HOME/.compozy`.
 
 ### Why
@@ -226,6 +201,7 @@ The override is honored consistently across every home-scoped consumer, not just
 This delivers the isolation escape hatch; a dedicated CLI `--home` flag and true parallel runs across workspaces inside a single daemon are intentionally out of scope and can layer on top later.
 
 ##### Repo-level default overrides in compozy setup
+
 `compozy setup` can now save repo-level runtime defaults for you, so you no longer have to hand-edit `.compozy/config.toml` to change the built-in defaults for a project.
 
 ### What changed
@@ -252,6 +228,7 @@ reasoning_effort = "..."
 #### Fixes
 
 ##### ACP runs consistently apply the selected model
+
 ACP-backed runs now apply the selected model reliably for both newly created and resumed sessions. Previously the chosen model could fail to take effect on some session paths, so an agent could run against the wrong model.
 
 ### What changed
@@ -262,6 +239,7 @@ ACP-backed runs now apply the selected model reliably for both newly created and
 This makes `--model` (and the resolved workspace default) behave consistently across every ACP runtime, whether a run is started fresh or resumed.
 
 ##### Run TUI elapsed timer restored across all terminal outcomes
+
 The run TUI's elapsed **timer no longer disappears after a retried job succeeds**, and the fix now covers every terminal outcome — success, failure, and cancel — as well as remote tabs that attach after a job has already finished.
 
 ### What was wrong
@@ -277,6 +255,7 @@ The UI derived a job's elapsed time from a locally tracked start timestamp that 
 The result is a correct timer for every job across retry, failure, cancel, and remote-attach paths, with no persistence or schema migration required.
 
 ##### Safer worktree management for parallel runs
+
 This release hardens the git-worktree machinery that backs parallel runs (`--parallel-tasks` and `--multiple --parallel`), closing several ways a run could start in an unsafe state or leave worktrees behind.
 
 ### Preflight guards
@@ -300,18 +279,22 @@ Git subprocesses now **ignore inherited repository-scoped Git environment variab
 
 ## 0.2.10 - 2026-06-18
 
-### ♻️  Refactoring
+### ♻️ Refactoring
 
 - Tui redesign (#201)
+
 ### 🎉 Features
 
 - Worktree-backed parallel multi-run for tasks run --multiple (#200)- Add Devin CLI agent support (#204)
+
 ### 🐛 Bug Fixes
 
 - Reviews watch bug
+
 ### 📚 Documentation
 
 - Release notes
+
 ### 📦 Build System
 
 - Skeeper config (#206)- Converge skeeper sidecar lock to main branch
@@ -321,6 +304,7 @@ Git subprocesses now **ignore inherited repository-scoped Git environment variab
 #### Features
 
 ##### Devin CLI agent support
+
 Compozy now supports [Devin CLI](https://devin.ai/cli) as a first-class ACP execution runtime, alongside Claude Code, Codex, Copilot, Cursor, Droid, OpenCode, and the others.
 
 ### Usage
@@ -339,6 +323,7 @@ Compozy launches it via `devin acp`. Skill installation (`compozy setup`) and th
 - The default model recorded for the runtime is `anthropic/claude-opus-4-6`.
 
 ##### Parallel multi-run with git worktree isolation
+
 `compozy tasks run --multiple` can now execute the batched task workflows **in parallel**, each in its own isolated git worktree, instead of running them one at a time. This builds on the `--multiple` queue introduced in 0.2.8 and is fully additive — the default behavior (enqueued, one-at-a-time) is unchanged.
 
 ### Starting a parallel run
@@ -370,6 +355,7 @@ The mode and fanout limit can be set per workspace under `[tasks.run]`:
 - **Contract aligned.** Multi-run item status now reports `running` (matching the daemon and `docs/events.md`) instead of the stale `active` that leaked into the OpenAPI schema and generated TypeScript client; a contract test now pins the runtime constants to the published enum so they can't drift again.
 
 ##### Steer running agents — pause, message, and resume
+
 You can now interrupt a running agent mid-task and steer it without killing the run. While a job is active in the run TUI, press `p` to pause it. Pausing happens at a safe boundary between ACP prompt turns — the current turn finishes, then the job holds.
 
 ### How it works
@@ -385,6 +371,7 @@ The daemon exposes new run-job control endpoints (`PauseRunJob`, `SendRunJobMess
 #### Fixes
 
 ##### Reviews watch reliability and clearer ACP setup failures
+
 `compozy reviews watch` could fail a remediation round on a transient agent startup stall, and the resulting error gave little to go on. This release fixes the reliability gap and makes ACP session-setup failures diagnosable across every command, not just reviews watch.
 
 ### What was wrong
@@ -402,6 +389,7 @@ The daemon exposes new run-job control endpoints (`PauseRunJob`, `SendRunJobMess
 #### Highlights
 
 ##### Redesigned run TUI
+
 The interactive terminal UI for `compozy tasks run`, `compozy exec`, and `compozy reviews watch` has been rebuilt from the ground up. The wizard (workspace/agent/model selection and validation) and the live execution view now share a single, consistent layout system with a redesigned sidebar, timeline, and run summary.
 
 ### What changed
@@ -425,6 +413,7 @@ This is a visual and structural overhaul of the entire run experience. Existing 
 #### Fixes
 
 ##### ACP agents now record token usage
+
 Token usage from ACP-backed agents (Claude Code, Codex, and other ACP runtimes) is now recorded and surfaced. Previously the engine discarded the usage payload returned with each prompt response, so run journals and the Compozy UI always reported zero tokens for ACP agents. Usage is now converted after every prompt response and published as a session update, so it reaches the run journal and the live event stream.
 
 ### What gets reported
@@ -455,6 +444,7 @@ This change upgrades the ACP SDK (`github.com/coder/acp-go-sdk`) to v0.13.5. The
 ### 🎉 Features
 
 - Warn when tasks run starts beside active runs in other workspaces (#190)
+
 ### 🐛 Bug Fixes
 
 - Keep multi-run task timers ticking (#179)- Treat model auto as runtime default (#181)- Pin claude model via ANTHROPIC_MODEL instead of unsupported session/set_model (#187)- Restart stale daemon when CLI and daemon versions mismatch (#191)- Surface ACP session setup errors in job logs and fail runs fast (#192)- Reviews watch (#196)
@@ -464,6 +454,7 @@ This change upgrades the ACP SDK (`github.com/coder/acp-go-sdk`) to v0.13.5. The
 #### Features
 
 ##### Run multiple task workflows from one command
+
 `compozy tasks run` now accepts a `--multiple` flag that enqueues several task workflows through a single daemon-owned parent run, with one TUI tab per requested slug. The single-workflow path (`compozy tasks run <slug>`) is unchanged — `--multiple` is purely additive, so existing habits, scripts, and CI invocations keep working byte-for-byte.
 
 ### Starting a multi-run
@@ -540,15 +531,19 @@ The quit dialog applies to the parent queue:
 ### 🎉 Features
 
 - Add zsh task completion plugin docs and script (#149)- Add kiro-cli as supported ACP execution runtime (#160)- Discover task files recursively in nested subdirectories (#153)
+
 ### 🐛 Bug Fixes
 
 - Homebrew formula- Emit one task slug per compozy completion candidate (#159)- Run managed upgrade commands (#158)
+
 ### 📚 Documentation
 
 - Add star history on readme- Release notes
+
 ### 🔧 CI/CD
 
 - Release fix
+
 ### 🧪 Testing
 
 - Internal test fix
@@ -558,6 +553,7 @@ The quit dialog applies to the parent queue:
 #### Features
 
 ##### Kiro CLI as a supported ACP execution runtime
+
 Compozy now ships first-class support for the Kiro CLI as an ACP execution runtime, alongside Claude, Codex, Cursor, and Droid. Selecting `--ide kiro` (or persisting it in workspace config) is enough — Compozy locates `kiro-cli`, probes the ACP adapter, and wires the correct bootstrap arguments per session.
 
 ### What's new
@@ -592,6 +588,7 @@ Install the Kiro CLI and ensure `kiro-cli acp` is reachable on `PATH`. Compozy's
 | Kiro CLI | `--ide kiro` | `anthropic/claude-opus-4-6` | `kiro-cli acp` |
 
 ##### Recursive task discovery for nested workflow directories
+
 `compozy tasks run` can now discover `task_NNN.md` files in nested subdirectories under `.compozy/tasks/<slug>/`, so multi-feature workflows can be organized by area instead of flattened into a single root. The behavior is opt-in via a new `--recursive` / `-r` flag — existing flat workflows are byte-identical to before.
 
 ### Enabling recursion
@@ -655,6 +652,7 @@ Path sanitization (`sanitizeTaskMemoryRelpath` / `validateTaskMemoryRelpath` in 
 - Skip-list directories cannot currently be customized per workspace.
 
 ##### Zsh task-completion plugin for `compozy tasks run`
+
 Compozy now ships a self-contained zsh completion plugin that completes task slugs for `compozy tasks run` from the nearest `.compozy/tasks` directory relative to your shell's `$PWD`. It works across worktrees and repository copies — no global config needed.
 
 ### What it completes
@@ -705,6 +703,7 @@ End result: `compozy tasks run <TAB>` shows each available task slug exactly onc
 #### Fixes
 
 ##### Homebrew distribution switched from cask to formula
+
 Compozy's Homebrew distribution moves from a cask to a proper formula. This simplifies installation (no separate `brew tap` step), enables `brew test`-driven smoke checks, and aligns the upgrade flow with how CLI tools are normally distributed on Homebrew.
 
 ### Install command
@@ -761,12 +760,15 @@ Existing users on the cask should reinstall via the formula path; both can't coe
 ### 🎉 Features
 
 - Add qa extension (#138)
+
 ### 🐛 Bug Fixes
 
 - Workspace register (#140)- Workspace discover path- Prevent false task completion via prompt kickoff + worktree diff-check (#144) (#145)
+
 ### 📚 Documentation
 
 - Update- Release notes
+
 ### 📦 Build System
 
 - Release tool
@@ -776,6 +778,7 @@ Existing users on the cask should reinstall via the formula path; both can't coe
 #### Features
 
 ##### Force-confirmation when archiving non-terminal workflows
+
 Archiving a workflow that still has open work no longer silently succeeds. The daemon now returns a typed `workflow_force_required` error when the target workflow has non-terminal tasks or unresolved review issues, and the dashboard surfaces it as an inline confirmation dialog so you can either resolve the open items first or explicitly archive with `force = true`.
 
 ### What changed
@@ -836,6 +839,7 @@ HTTP 409
 Workflows whose state is already clean continue to archive on the first call with no prompt — the gate only fires when there is genuinely open work.
 
 ##### Built-in QA workflow extension
+
 Compozy now ships a built-in `cy-qa-workflow` extension that automatically attaches QA-planning and QA-execution tasks to any PRD-driven workflow, with curated runtimes per task. The extension lives at `extensions/cy-qa-workflow/` and follows the same on-disk contract as user extensions, so it can be customized or replaced project-by-project.
 
 When enabled, every `compozy tasks run <slug>` over a PRD-mode workflow ends up with two extra tasks at the tail of `_tasks.md`:
@@ -909,6 +913,7 @@ required = true
 #### Fixes
 
 ##### Workspace register/resolve path fixes
+
 Two long-standing workspace-discovery papercuts are fixed. `compozy workspaces register` and `resolve` now accept relative paths the same way every other Compozy command does, and workspace auto-discovery no longer treats the home-scoped `~/.compozy/` runtime directory as a project-local workspace marker.
 
 Closes #139.

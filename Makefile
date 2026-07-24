@@ -14,14 +14,10 @@ GOFMT=gofmt -s -w
 BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
-# Standalone Go extension modules (own go.mod, excluded from the root ./...).
-EXTENSION_GO_MODULES=extensions/cy-qa-workflow
 GOLANGCI_LINT_VERSION=v2.11.4
 GOTESTSUM_VERSION=v1.13.0
 LINTCMD=$(GOCMD) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOTESTSUMCMD=$(GOCMD) run gotest.tools/gotestsum@$(GOTESTSUM_VERSION)
-COMPOZY_EVAL_IDE ?= codex
-COMPOZY_EVAL_REASONING_EFFORT ?= medium
 
 # Colors for output
 RED := \033[0;31m
@@ -43,7 +39,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build verify-extensions frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev eval-cy-capture-decisions
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -158,32 +154,8 @@ frontend-verify: frontend-lint frontend-typecheck frontend-test frontend-build
 # -----------------------------------------------------------------------------
 # Verification Pipeline (BLOCKING GATE for any change)
 # -----------------------------------------------------------------------------
-verify: frontend-verify fmt lint test go-build verify-extensions frontend-e2e
+verify: frontend-verify fmt lint test go-build frontend-e2e
 	@echo "$(GREEN)All verification checks passed$(NC)"
-
-# Standalone extension modules ship their own go.mod and are excluded from the
-# root ./..., so build/test/lint them here to keep them covered by verify.
-verify-extensions:
-	@for dir in $(EXTENSION_GO_MODULES); do \
-		echo "Verifying extension module $$dir"; \
-		( cd $$dir && \
-			$(GOBUILD) -o /dev/null ./... && \
-			$(GOTEST) -race ./... && \
-			$(LINTCMD) run ) || exit 1; \
-	done
-	@echo "$(GREEN)Extension modules verified$(NC)"
-
-# Opt-in because every matrix trial invokes a paid model. The harness defaults
-# to three repetitions and installs the extension into an isolated Compozy home.
-eval-cy-capture-decisions: build
-	@if [ -z "$(COMPOZY_EVAL_MODEL)" ]; then \
-		echo "$(RED)Error: COMPOZY_EVAL_MODEL is required$(NC)"; \
-		exit 1; \
-	fi
-	$(GOCMD) run ./extensions/cy-capture-decisions/evals/cmd/cy-capture-decisions-eval \
-		--ide "$(COMPOZY_EVAL_IDE)" \
-		--model "$(COMPOZY_EVAL_MODEL)" \
-		--reasoning-effort "$(COMPOZY_EVAL_REASONING_EFFORT)"
 
 # -----------------------------------------------------------------------------
 # Development & Dependencies
@@ -234,7 +206,6 @@ help:
 	@echo "  make lint           - Run golangci-lint"
 	@echo "  make fmt            - Format code"
 	@echo "  make verify         - Run frontend verification, Go verification, and daemon-served Playwright"
-	@echo "  make eval-cy-capture-decisions - Run the opt-in 3x model-backed decision-capture matrix"
 	@echo "  make deps           - Install development dependencies"
 	@echo "  make tidy           - Tidy Go modules"
 	@echo "  make clean          - Remove build artifacts"

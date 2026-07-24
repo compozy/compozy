@@ -58,7 +58,6 @@ jobs:
               - 'cmd/**'
               - 'command/**'
               - 'internal/**'
-              - 'extensions/**'
               - 'skills/**'
 
   verify:

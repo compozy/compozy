@@ -76,15 +76,9 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 	if err != nil {
 		return nil, err
 	}
-
-	index, err := o.loadTaskIndexState(tasksDir)
-	if err != nil {
-		return nil, err
-	}
-
 	var indexUpdate *taskIndexUpdate
 	if req.UpdateIndex {
-		indexUpdate, err = o.buildTaskIndexUpdate(req.Workflow, index, number, title, meta)
+		indexUpdate, err = o.prepareTaskIndexUpdate(req.Workflow, tasksDir, number, title, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +86,13 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 	taskName := fmt.Sprintf("task_%02d.md", number)
 	taskPath := filepath.Join(tasksDir, taskName)
 	taskBody := buildTaskBody(number, title, req.Body)
-	content, err := renderHostTaskFile(index.graph, title, meta, taskBody)
+	content, err := frontmatter.Format(model.TaskFileMeta{
+		Status:       meta.Status,
+		Title:        title,
+		TaskType:     meta.Type,
+		Complexity:   meta.Complexity,
+		Dependencies: meta.Dependencies,
+	}, taskBody)
 	if err != nil {
 		return nil, fmt.Errorf("format task file %s: %w", taskPath, err)
 	}
@@ -342,90 +342,39 @@ type taskIndexUpdate struct {
 	content      []byte
 }
 
-// taskIndexState captures the workflow task index (_tasks.md) once so a single
-// read drives both the task-file rendering and the index update. graph is true
-// for a compozy.tasks/v2 frontmatter-graph manifest and false for the legacy
-// Markdown-table list (or a missing index).
-type taskIndexState struct {
-	scoped  scopedPath
-	content string
-	exists  bool
-	graph   bool
-}
-
-func (o *defaultKernelOps) loadTaskIndexState(tasksDir string) (taskIndexState, error) {
-	indexPath := filepath.Join(tasksDir, "_tasks.md")
-	scoped, err := o.resolveScopedPath("host.tasks.create", indexPath)
-	if err != nil {
-		return taskIndexState{}, err
-	}
-	content, err := os.ReadFile(scoped.absolute)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return taskIndexState{scoped: scoped}, nil
-		}
-		return taskIndexState{}, fmt.Errorf("read task index %s: %w", scoped.absolute, err)
-	}
-	return taskIndexState{
-		scoped:  scoped,
-		content: string(content),
-		exists:  true,
-		graph:   tasks.IsTaskGraphManifestContent(string(content)),
-	}, nil
-}
-
-// renderHostTaskFile formats the new task file. compozy.tasks/v2 task files
-// carry only task-owned metadata (no dependencies key, which the graph
-// validator rejects); the legacy layout keeps dependencies in the file.
-func renderHostTaskFile(graph bool, title string, meta TaskFrontmatter, body string) (string, error) {
-	if graph {
-		return tasks.RenderTaskGraphTaskFile(meta.Status, title, meta.Type, meta.Complexity, body)
-	}
-	return frontmatter.Format(model.TaskFileMeta{
-		Status:       meta.Status,
-		Title:        title,
-		TaskType:     meta.Type,
-		Complexity:   meta.Complexity,
-		Dependencies: meta.Dependencies,
-	}, body)
-}
-
-func (o *defaultKernelOps) buildTaskIndexUpdate(
+func (o *defaultKernelOps) prepareTaskIndexUpdate(
 	workflow string,
-	index taskIndexState,
+	tasksDir string,
 	number int,
 	title string,
 	meta TaskFrontmatter,
 ) (*taskIndexUpdate, error) {
-	if index.graph {
-		id := fmt.Sprintf("task_%02d", number)
-		file := fmt.Sprintf("task_%02d.md", number)
-		updated, err := tasks.AppendTaskGraphNode(index.content, id, file, meta.Dependencies)
-		if err != nil {
-			return nil, fmt.Errorf("update task graph manifest %s: %w", index.scoped.absolute, err)
-		}
-		return &taskIndexUpdate{
-			absolutePath: index.scoped.absolute,
-			relativePath: index.scoped.relative,
-			content:      []byte(updated),
-		}, nil
+	indexPath := filepath.Join(tasksDir, "_tasks.md")
+	scoped, err := o.resolveScopedPath("host.tasks.create", indexPath)
+	if err != nil {
+		return nil, err
 	}
 
 	row := formatTaskIndexRow(number, title, meta)
-	if !index.exists {
-		return &taskIndexUpdate{
-			absolutePath: index.scoped.absolute,
-			relativePath: index.scoped.relative,
-			content:      []byte(newTaskIndexContent(workflow, row)),
-		}, nil
-	}
-	updated, err := appendTaskIndexRow(index.content, row)
+	content, err := os.ReadFile(scoped.absolute)
 	if err != nil {
-		return nil, fmt.Errorf("update task index %s: %w", index.scoped.absolute, err)
+		if errors.Is(err, os.ErrNotExist) {
+			return &taskIndexUpdate{
+				absolutePath: scoped.absolute,
+				relativePath: scoped.relative,
+				content:      []byte(newTaskIndexContent(workflow, row)),
+			}, nil
+		}
+		return nil, fmt.Errorf("read task index %s: %w", scoped.absolute, err)
+	}
+
+	updated, err := appendTaskIndexRow(string(content), row)
+	if err != nil {
+		return nil, fmt.Errorf("update task index %s: %w", scoped.absolute, err)
 	}
 	return &taskIndexUpdate{
-		absolutePath: index.scoped.absolute,
-		relativePath: index.scoped.relative,
+		absolutePath: scoped.absolute,
+		relativePath: scoped.relative,
 		content:      []byte(updated),
 	}, nil
 }

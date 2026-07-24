@@ -10,16 +10,6 @@ web/dist/*
 RELEASE_NOTES.md
 coverage.out
 coverage.html
-
-# Go workspace files: used locally to develop the standalone extension modules
-# against the working-tree SDK. Never committed — installed extensions resolve
-# the SDK from their pinned go.mod require, not a workspace.
-go.work
-go.work.sum
-
-# Compiled binary from `go build .` in the cy-qa-workflow extension module
-# (the extension runs via `go run .`, so a checked-in binary is never wanted).
-/extensions/cy-qa-workflow/cy-qa-workflow
 .codex/CONTINUITY*
 .peer-reviews/
 .resources/

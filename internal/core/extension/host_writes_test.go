@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/core/kernel/commands"
 	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -199,117 +198,6 @@ func TestHostTasksCreateUpdateIndexAppendsTaskListRow(t *testing.T) {
 	want := "| 02 | QA execution \\| validation | pending | critical | task_01 |"
 	if !strings.Contains(string(updated), want) {
 		t.Fatalf("_tasks.md = %q, want row %q", string(updated), want)
-	}
-}
-
-func TestHostTasksCreateUpdateIndexAppendsTaskGraphNode(t *testing.T) {
-	t.Parallel()
-
-	rt := newHostRuntime(t, []Capability{CapabilityTasksCreate}, nil, "")
-	tasksDir := filepath.Join(rt.root, ".compozy", "tasks", "extensibility")
-	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(tasks dir) error = %v", err)
-	}
-	manifest := strings.Join([]string{
-		"---",
-		`schema_version: "compozy.tasks/v2"`,
-		"workflow: extensibility",
-		"graph:",
-		"  nodes:",
-		"    - id: task_01",
-		"      file: task_01.md",
-		"  edges: []",
-		"---",
-		"",
-		"# Extensibility Tasks",
-		"",
-	}, "\n")
-	if err := os.WriteFile(filepath.Join(tasksDir, "_tasks.md"), []byte(manifest), 0o600); err != nil {
-		t.Fatalf("WriteFile(_tasks.md) error = %v", err)
-	}
-	taskOne := strings.Join([]string{
-		"---",
-		"status: pending",
-		"title: Existing task",
-		"type: backend",
-		"complexity: low",
-		"---",
-		"",
-		"# Task 01: Existing task",
-		"",
-		"Body.",
-		"",
-	}, "\n")
-	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(taskOne), 0o600); err != nil {
-		t.Fatalf("WriteFile(task_01.md) error = %v", err)
-	}
-
-	result, err := rt.router.Handle(context.Background(), "ext", "host.tasks.create", mustJSON(t, TaskCreateRequest{
-		Workflow:    "extensibility",
-		Title:       "QA plan and regression artifacts",
-		Body:        "Run the QA report task.",
-		UpdateIndex: true,
-		Frontmatter: TaskFrontmatter{
-			Status:       "pending",
-			Type:         "docs",
-			Complexity:   "high",
-			Dependencies: []string{"task_01"},
-		},
-	}))
-	if err != nil {
-		t.Fatalf("Handle() error = %v", err)
-	}
-	task, ok := result.(*Task)
-	if !ok {
-		t.Fatalf("result type = %T, want *Task", result)
-	}
-	if task.Number != 2 {
-		t.Fatalf("task.Number = %d, want 2", task.Number)
-	}
-
-	// The created v2 task file must not carry a dependencies key: the graph
-	// validator rejects dependencies stored in individual task front matter.
-	taskTwo, err := os.ReadFile(filepath.Join(tasksDir, "task_02.md"))
-	if err != nil {
-		t.Fatalf("ReadFile(task_02.md) error = %v", err)
-	}
-	if strings.Contains(string(taskTwo), "dependencies") {
-		t.Fatalf("task_02.md must not contain a dependencies key:\n%s", taskTwo)
-	}
-
-	// The manifest must gain a node for task_02 plus an edge task_01 -> task_02
-	// and remain a valid v2 graph the runner can load.
-	updatedManifest, err := os.ReadFile(filepath.Join(tasksDir, "_tasks.md"))
-	if err != nil {
-		t.Fatalf("ReadFile(_tasks.md) error = %v", err)
-	}
-	if !tasks.IsTaskGraphManifestContent(string(updatedManifest)) {
-		t.Fatalf("_tasks.md is no longer a v2 manifest:\n%s", updatedManifest)
-	}
-	loaded, taskFiles, err := tasks.LoadValidatedTaskGraphManifest(context.Background(), tasksDir, "extensibility")
-	if err != nil {
-		t.Fatalf("LoadValidatedTaskGraphManifest() error = %v", err)
-	}
-	if len(taskFiles) != 2 {
-		t.Fatalf("task file count = %d, want 2", len(taskFiles))
-	}
-	foundNode := false
-	for _, node := range loaded.Graph.Nodes {
-		if node.ID == "task_02" && node.File == "task_02.md" {
-			foundNode = true
-		}
-	}
-	if !foundNode {
-		t.Fatalf("manifest nodes = %#v, want task_02 node", loaded.Graph.Nodes)
-	}
-	foundEdge := false
-	for _, edge := range loaded.Graph.Edges {
-		if edge.From == "task_01" && edge.To == "task_02" {
-			foundEdge = true
-		}
-	}
-	if !foundEdge {
-		t.Fatalf("manifest edges = %#v, want task_01->task_02", loaded.Graph.Edges)
 	}
 }
 

@@ -699,24 +699,9 @@ func newShortCLITestHomeDir(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("MkdirTemp(home) error = %v", err)
 	}
-	registered := false
 	t.Cleanup(func() {
-		// Once the home is registered, reap it daemon-aware: stop any daemon still
-		// running there before deleting the directory, so the package guardian is
-		// never left with a missing daemon.json for a still-live daemon. Fall back
-		// to a blind removal only when guardian registration never completed.
-		if registered {
-			if err := reapValidateTasksGuardianHome(homeDir); err != nil {
-				t.Errorf("reap guardian home %s: %v", homeDir, err)
-			}
-			return
-		}
-		if err := os.RemoveAll(homeDir); err != nil {
-			t.Errorf("RemoveAll(%s) error = %v", homeDir, err)
-		}
+		_ = os.RemoveAll(homeDir)
 	})
-	registerValidateTasksGuardianHome(t, homeDir)
-	registered = true
 	return homeDir
 }
 
