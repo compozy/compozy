@@ -3957,7 +3957,10 @@ func TestReviewFixPickerShowsOlderPendingIssueForOrdinaryWorkflow(t *testing.T) 
 	if err != nil {
 		t.Fatalf("build review target picker options: %v", err)
 	}
-	wantLabel := "[ ] ordinary — Review round 2 — 1 issue pending"
+	// The pending issue lives in round 1 while round 2 is fully resolved, so the
+	// label must advertise round 1 — the round dispatch will actually reach — not
+	// round 2, which the daemon would resolve to and then exit having done nothing.
+	wantLabel := "[ ] ordinary — Review round 1 — 1 issue pending"
 	if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
 		return option.Value == workflow && option.Label == wantLabel
 	}) {
@@ -3996,7 +3999,9 @@ func TestReviewFixPickerShowsOlderPendingIssueForTaskGroup(t *testing.T) {
 		t.Fatalf("build review target picker options: %v", err)
 	}
 	reference := initiative + "/TG-001"
-	wantLabel := "[ ] TG-001 — Foundation — Review round 2 — 1 issue pending"
+	// Pending lives in round 1; round 2 is resolved. The label must point at the
+	// reachable round 1 so the picker and the dispatched round agree.
+	wantLabel := "[ ] TG-001 — Foundation — Review round 1 — 1 issue pending"
 	if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
 		return option.Value == reference && option.Label == wantLabel
 	}) {
@@ -4033,6 +4038,147 @@ func TestReviewFixInitiativeRootRequiresActionableTaskGroup(t *testing.T) {
 			!strings.Contains(err.Error(), "review target has no pending issues") {
 			t.Fatalf("zero-pending selection error for %s = %v, want no-pending guidance", reference, err)
 		}
+	}
+}
+
+// Regression for issue 010: when pending issues live in an older round and the
+// newest round is fully resolved, the round the picker advertises must be the
+// same round a flagless `compozy reviews fix` dispatches, so the advertised
+// issues are actually reachable.
+func TestReviewFixPickerLabelAgreesWithDispatchedRound(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	workflow := "ordinary"
+	workflowRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", workflow)
+	if err := os.MkdirAll(workflowRoot, 0o755); err != nil {
+		t.Fatalf("create ordinary workflow: %v", err)
+	}
+	writeFormTaskFile(t, workflowRoot, "task_001.md", "completed")
+	for round, title := range map[int]string{1: "Pending issue", 2: "Resolved issue"} {
+		reviewDir := filepath.Join(workflowRoot, reviews.RoundDirName(round))
+		if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+			Provider:  "manual",
+			Round:     round,
+			CreatedAt: time.Date(2026, 7, 20, 16, 40+round, 0, 0, time.UTC),
+		}, []provider.ReviewItem{{
+			Title: title, File: "ordinary.go", Line: round, Body: title + ".",
+		}}); err != nil {
+			t.Fatalf("write review round %d: %v", round, err)
+		}
+	}
+	resolveCLIReviewIssue(t, filepath.Join(workflowRoot, "reviews-002", "issue_001.md"))
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options: %v", err)
+	}
+	wantLabel := "[ ] ordinary — Review round 1 — 1 issue pending"
+	if !slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == workflow && option.Label == wantLabel
+	}) {
+		t.Fatalf("review target options = %#v, missing %q => %q", options, workflow, wantLabel)
+	}
+	if err := validateTaskGroupPickerSelection(options, workflow, true); err != nil {
+		t.Fatalf("older pending round is not selectable: %v", err)
+	}
+
+	// The picker summary and the daemon's round resolution must resolve to the
+	// same round from the same review root.
+	summary, err := reviewDispatchRoundSummary(workflowRoot)
+	if err != nil {
+		t.Fatalf("dispatch round summary: %v", err)
+	}
+	dispatchRound, ok, err := latestLocalReviewRoundInDir(workflowRoot)
+	if err != nil {
+		t.Fatalf("latest local review round: %v", err)
+	}
+	if !ok || dispatchRound != 1 {
+		t.Fatalf("dispatched round = (%d, %v), want round 1", dispatchRound, ok)
+	}
+	if summary.Round != dispatchRound {
+		t.Fatalf("picker round %d != dispatched round %d", summary.Round, dispatchRound)
+	}
+	if summary.PendingIssueCount != 1 {
+		t.Fatalf("dispatch round pending count = %d, want 1", summary.PendingIssueCount)
+	}
+}
+
+// Regression for issue 011: a single workflow with a malformed review issue file
+// must not sink the whole picker. The broken target degrades to a blocked row
+// carrying the parse error while every healthy target still lists selectably.
+func TestReviewFixPickerDegradesOnMalformedIssueFile(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	healthyRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", "healthy")
+	if err := os.MkdirAll(healthyRoot, 0o755); err != nil {
+		t.Fatalf("create healthy workflow: %v", err)
+	}
+	writeFormTaskFile(t, healthyRoot, "task_001.md", "completed")
+	if err := reviews.WriteRound(filepath.Join(healthyRoot, "reviews-001"), model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 20, 16, 41, 0, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title: "Pending issue", File: "healthy.go", Line: 1, Body: "Fix it.",
+	}}); err != nil {
+		t.Fatalf("write healthy review round: %v", err)
+	}
+
+	brokenRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", "broken")
+	brokenRoundDir := filepath.Join(brokenRoot, "reviews-001")
+	if err := os.MkdirAll(brokenRoundDir, 0o755); err != nil {
+		t.Fatalf("create broken workflow: %v", err)
+	}
+	writeFormTaskFile(t, brokenRoot, "task_001.md", "completed")
+	// Front matter present but no status: ParseReviewContext rejects it with
+	// "review front matter missing status".
+	if err := os.WriteFile(
+		filepath.Join(brokenRoundDir, "issue_001.md"),
+		[]byte("---\nprovider: manual\nfile: broken.go\n---\n\n# Broken issue\n"),
+		0o644,
+	); err != nil {
+		t.Fatalf("write malformed issue file: %v", err)
+	}
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options must not fail on one bad slug: %v", err)
+	}
+
+	healthyIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == "healthy"
+	})
+	if healthyIndex < 0 {
+		t.Fatalf("healthy target is missing from options = %#v", options)
+	}
+	if options[healthyIndex].SelectionBlocked {
+		t.Fatalf("healthy target is blocked: %#v", options[healthyIndex])
+	}
+	if err := validateTaskGroupPickerSelection(options, "healthy", true); err != nil {
+		t.Fatalf("healthy target is not selectable: %v", err)
+	}
+
+	brokenIndex := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == "broken"
+	})
+	if brokenIndex < 0 {
+		t.Fatalf("broken target is missing from options = %#v", options)
+	}
+	broken := options[brokenIndex]
+	if !broken.SelectionBlocked {
+		t.Fatalf("broken target should be blocked: %#v", broken)
+	}
+	if !strings.HasPrefix(broken.Label, taskGroupPickerBlockedMarker+" broken — ") {
+		t.Fatalf("broken target label = %q, want blocked marker and slug", broken.Label)
+	}
+	if !strings.Contains(broken.SelectionBlockedReason, "review front matter missing status") {
+		t.Fatalf("broken target reason = %q, want parse error detail", broken.SelectionBlockedReason)
+	}
+	if err := validateTaskGroupPickerSelection(options, "broken", true); err == nil ||
+		!strings.Contains(err.Error(), "review front matter missing status") {
+		t.Fatalf("broken target selection error = %v, want parse error guidance", err)
 	}
 }
 

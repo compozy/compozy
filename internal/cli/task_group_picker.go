@@ -25,6 +25,7 @@ const (
 	reviewImplementationBlockedReason  = "review is blocked until at least one implementation task is complete"
 	reviewNoPendingIssuesReason        = "review target has no pending issues"
 	reviewNoActionableTaskGroupsReason = "review target has no Task Groups with pending issues that can be fixed"
+	reviewTargetUnavailableReason      = "review target is unavailable"
 )
 
 type taskGroupPickerInput struct {
@@ -244,54 +245,93 @@ func buildReviewFixTargetPickerOptions(
 	baseDir := model.TasksBaseDirForWorkspace(workspaceRoot)
 	slugs := listTaskSubdirs(baseDir)
 	options := make([]taskGroupPickerOption, 0, len(slugs))
-	resolver := taskgroups.TargetResolver{}
 	for _, slug := range slugs {
-		target, err := resolver.Resolve(ctx, workspaceRoot, slug)
+		rows, err := buildReviewFixTargetPickerRowsForSlug(ctx, workspaceRoot, baseDir, slug, latestRunStatuses)
 		if err != nil {
-			return nil, fmt.Errorf("resolve review target %s: %w", slug, err)
-		}
-		if target.Mode != taskgroups.TargetModeInitiative {
-			option, err := buildOrdinaryReviewFixTargetPickerOption(baseDir, slug, latestRunStatuses[slug])
-			if err != nil {
-				return nil, err
-			}
-			options = append(options, option)
+			// A single malformed plan or issue file must not sink the whole
+			// picker: surface the offending target as a blocked row carrying the
+			// error so every healthy target still lists, mirroring the task-run
+			// wizard's per-slug degradation instead of aborting all workflows.
+			options = append(options, reviewFixTargetErrorRow(slug, err))
 			continue
 		}
-
-		input := taskGroupPickerInput{Target: target, RunMode: daemonRunModeReview}
-		children := make([]taskGroupPickerOption, 0, len(target.Plan.TaskGroups))
-		hasActionableTaskGroup := false
-		for index := range target.Plan.TaskGroups {
-			taskGroup := target.Plan.TaskGroups[index]
-			reference := target.Ref.Initiative + "/" + taskGroup.ID
-			option, err := buildTaskGroupPickerOption(
-				input,
-				baseDir,
-				taskGroup,
-				reference,
-				taskGroup.ID,
-				latestRunStatuses,
-			)
-			if err != nil {
-				return nil, err
-			}
-			option.Depth = 1
-			children = append(children, option)
-			hasActionableTaskGroup = hasActionableTaskGroup || !option.SelectionBlocked
-		}
-		root := taskGroupPickerOption{
-			Value: slug,
-			Label: taskGroupPickerUnselectedMarker + " " + slug,
-		}
-		if !hasActionableTaskGroup {
-			root.SelectionBlocked = true
-			root.SelectionBlockedReason = reviewNoActionableTaskGroupsReason
-		}
-		options = append(options, root)
-		options = append(options, children...)
+		options = append(options, rows...)
 	}
 	return options, nil
+}
+
+// buildReviewFixTargetPickerRowsForSlug resolves and renders the picker rows for
+// a single workflow slug: one ordinary row, or an initiative root followed by its
+// Task Group children. Every failure is returned to the caller so it can degrade
+// just this slug to a blocked row rather than failing the entire picker.
+func buildReviewFixTargetPickerRowsForSlug(
+	ctx context.Context,
+	workspaceRoot string,
+	baseDir string,
+	slug string,
+	latestRunStatuses map[string]string,
+) ([]taskGroupPickerOption, error) {
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, workspaceRoot, slug)
+	if err != nil {
+		return nil, fmt.Errorf("resolve review target %s: %w", slug, err)
+	}
+	if target.Mode != taskgroups.TargetModeInitiative {
+		option, err := buildOrdinaryReviewFixTargetPickerOption(baseDir, slug, latestRunStatuses[slug])
+		if err != nil {
+			return nil, err
+		}
+		return []taskGroupPickerOption{option}, nil
+	}
+
+	input := taskGroupPickerInput{Target: target, RunMode: daemonRunModeReview}
+	children := make([]taskGroupPickerOption, 0, len(target.Plan.TaskGroups))
+	hasActionableTaskGroup := false
+	for index := range target.Plan.TaskGroups {
+		taskGroup := target.Plan.TaskGroups[index]
+		reference := target.Ref.Initiative + "/" + taskGroup.ID
+		option, err := buildTaskGroupPickerOption(
+			input,
+			baseDir,
+			taskGroup,
+			reference,
+			taskGroup.ID,
+			latestRunStatuses,
+		)
+		if err != nil {
+			return nil, err
+		}
+		option.Depth = 1
+		children = append(children, option)
+		hasActionableTaskGroup = hasActionableTaskGroup || !option.SelectionBlocked
+	}
+	root := taskGroupPickerOption{
+		Value: slug,
+		Label: taskGroupPickerUnselectedMarker + " " + slug,
+	}
+	if !hasActionableTaskGroup {
+		root.SelectionBlocked = true
+		root.SelectionBlockedReason = reviewNoActionableTaskGroupsReason
+	}
+	rows := make([]taskGroupPickerOption, 0, len(children)+1)
+	rows = append(rows, root)
+	rows = append(rows, children...)
+	return rows, nil
+}
+
+// reviewFixTargetErrorRow renders a slug whose rows could not be built as a
+// visible but unselectable row, carrying the underlying plan/parse error as the
+// selection-blocked reason so the user knows which target to repair.
+func reviewFixTargetErrorRow(slug string, err error) taskGroupPickerOption {
+	reason := reviewTargetUnavailableReason
+	if detail := strings.TrimSpace(err.Error()); detail != "" {
+		reason = reviewTargetUnavailableReason + ": " + detail
+	}
+	return taskGroupPickerOption{
+		Value:                  slug,
+		Label:                  taskGroupPickerBlockedMarker + " " + slug + " — " + reason,
+		SelectionBlocked:       true,
+		SelectionBlockedReason: reason,
+	}
 }
 
 func buildTaskGroupPickerOption(
@@ -320,7 +360,7 @@ func buildTaskGroupPickerOption(
 	}
 
 	if input.RunMode == daemonRunModeReview {
-		summary, err := reviewRoundPickerSummaryAcrossRounds(filepath.Join(
+		summary, err := reviewDispatchRoundSummary(filepath.Join(
 			target.InitiativeDir,
 			filepath.FromSlash(taskGroup.Directory),
 		))
@@ -356,7 +396,7 @@ func buildOrdinaryReviewFixTargetPickerOption(
 ) (taskGroupPickerOption, error) {
 	workflowOption := taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus)
 	workflowOption.Status = reviewFixPickerStatus(latestRunStatus)
-	summary, err := reviewRoundPickerSummaryAcrossRounds(filepath.Join(baseDir, slug))
+	summary, err := reviewDispatchRoundSummary(filepath.Join(baseDir, slug))
 	if err != nil {
 		return taskGroupPickerOption{}, err
 	}
@@ -399,13 +439,24 @@ func reviewFixPickerStatus(latestRunStatus string) taskRunWizardWorkflowStatus {
 	return taskRunWizardStatus(false, false, latestRunStatus)
 }
 
-func reviewRoundPickerSummaryAcrossRounds(reviewRoot string) (reviewRoundPickerSummary, error) {
+// reviewDispatchRoundSummary reports the review round that a flagless
+// `compozy reviews fix` will actually dispatch for a review root, together with
+// that round's issue and pending counts. Rounds are inspected newest-first: the
+// newest round that still has pending issues wins, so a user who selects the row
+// reaches those issues; once every round is fully resolved the newest round with
+// any issues is returned so the row reads as completed. The daemon's
+// resolveReviewRound resolves the same round through latestLocalReviewRoundInDir,
+// so the round the picker advertises and the round the run targets stay in
+// lockstep instead of the label pointing at an all-resolved round dispatch cannot
+// act on.
+func reviewDispatchRoundSummary(reviewRoot string) (reviewRoundPickerSummary, error) {
 	rounds, err := reviews.DiscoverRounds(reviewRoot)
 	if err != nil {
 		return reviewRoundPickerSummary{}, err
 	}
-	summary := reviewRoundPickerSummary{}
-	for _, round := range rounds {
+	newestWithIssues := reviewRoundPickerSummary{}
+	for index := len(rounds) - 1; index >= 0; index-- {
+		round := rounds[index]
 		roundSummary, err := readReviewRoundPickerSummary(
 			filepath.Join(reviewRoot, reviews.RoundDirName(round)),
 			round,
@@ -416,11 +467,14 @@ func reviewRoundPickerSummaryAcrossRounds(reviewRoot string) (reviewRoundPickerS
 		if roundSummary.IssueCount == 0 {
 			continue
 		}
-		summary.Round = round
-		summary.IssueCount += roundSummary.IssueCount
-		summary.PendingIssueCount += roundSummary.PendingIssueCount
+		if newestWithIssues.Round == 0 {
+			newestWithIssues = roundSummary
+		}
+		if roundSummary.PendingIssueCount > 0 {
+			return roundSummary, nil
+		}
 	}
-	return summary, nil
+	return newestWithIssues, nil
 }
 
 func readReviewRoundPickerSummary(reviewDir string, round int) (reviewRoundPickerSummary, error) {

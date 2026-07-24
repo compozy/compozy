@@ -1781,65 +1781,22 @@ func latestLocalReviewRound(workspaceRoot string, workflowSlug string) (int, boo
 	return latestLocalReviewRoundInDir(filepathJoin(workspaceRoot, ".compozy", "tasks", workflowSlug))
 }
 
+// latestLocalReviewRoundInDir resolves the review round a flagless
+// `compozy reviews fix` should dispatch for a review root: the newest round that
+// still has pending issues, falling back to the newest round with any issues once
+// every round is resolved. It shares reviewDispatchRoundSummary with the
+// review-fix picker so the round the picker advertises and the round resolved here
+// stay identical, instead of the picker pointing at pending issues in an older
+// round that dispatch could not reach.
 func latestLocalReviewRoundInDir(reviewsDir string) (int, bool, error) {
 	if strings.TrimSpace(reviewsDir) == "" {
 		return 0, false, nil
 	}
-	entries, err := os.ReadDir(reviewsDir)
-	if os.IsNotExist(err) {
-		return 0, false, nil
-	}
+	summary, err := reviewDispatchRoundSummary(reviewsDir)
 	if err != nil {
-		return 0, false, fmt.Errorf("read review workflow directory %s: %w", reviewsDir, err)
+		return 0, false, err
 	}
-
-	latest := 0
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		round, ok := parseReviewRoundDirName(entry.Name())
-		if !ok {
-			continue
-		}
-		hasIssueFile, err := reviewRoundHasIssueFile(filepath.Join(reviewsDir, entry.Name()))
-		if err != nil {
-			return 0, false, err
-		}
-		if hasIssueFile && round > latest {
-			latest = round
-		}
-	}
-	return latest, latest > 0, nil
-}
-
-func parseReviewRoundDirName(name string) (int, bool) {
-	trimmed := strings.TrimSpace(name)
-	if !strings.HasPrefix(trimmed, "reviews-") {
-		return 0, false
-	}
-	round, err := strconv.Atoi(strings.TrimPrefix(trimmed, "reviews-"))
-	if err != nil || round <= 0 {
-		return 0, false
-	}
-	return round, true
-}
-
-func reviewRoundHasIssueFile(reviewDir string) (bool, error) {
-	entries, err := os.ReadDir(reviewDir)
-	if err != nil {
-		return false, fmt.Errorf("read review round directory %s: %w", reviewDir, err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, "issue_") && strings.HasSuffix(name, ".md") {
-			return true, nil
-		}
-	}
-	return false, nil
+	return summary.Round, summary.Round > 0, nil
 }
 
 func reviewRoundDirForWorkflow(workspaceRoot string, workflowSlug string, round int) string {

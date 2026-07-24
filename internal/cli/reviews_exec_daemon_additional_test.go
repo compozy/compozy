@@ -1279,11 +1279,15 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 				t.Fatalf("mkdir %s: %v", dir, err)
 			}
 		}
+		// Round selection now parses issue status to prefer the newest round with
+		// pending issues, so these fixtures carry valid pending front matter rather
+		// than a status-less placeholder.
+		pendingIssue := "---\nprovider: manual\nstatus: pending\n---\n\n# issue\n"
 		for _, issuePath := range []string{
 			filepath.Join(workflowDir, "reviews-001", "issue_001.md"),
 			filepath.Join(workflowDir, "reviews-003", "issue_001.md"),
 		} {
-			if err := os.WriteFile(issuePath, []byte("# issue\n"), 0o644); err != nil {
+			if err := os.WriteFile(issuePath, []byte(pendingIssue), 0o644); err != nil {
 				t.Fatalf("write issue file %s: %v", issuePath, err)
 			}
 		}
@@ -1311,7 +1315,7 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 		}
 		if err := os.WriteFile(
 			filepath.Join(roundDir, "issue_001.md"),
-			[]byte("# issue\n"),
+			[]byte("---\nprovider: manual\nstatus: pending\n---\n\n# issue\n"),
 			0o644,
 		); err != nil {
 			t.Fatalf("write task group issue file: %v", err)
