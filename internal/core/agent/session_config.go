@@ -141,6 +141,10 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 // not a statement about which runtime the session lands on, so a cross-runtime
 // value must not fail the session. An explicitly pinned model stays a hard error:
 // running a model other than the one requested is worse than failing.
+//
+// ModelExplicit only distinguishes a --model flag from everything else, while
+// RuntimeForTask gives type and id task rules authority over that flag. Such a
+// rule is therefore correctable here even though it outranks the flag upstream.
 func (c *clientImpl) inheritedModelFallback(
 	option *acp.SessionConfigOptionSelect,
 	requested string,
@@ -148,6 +152,8 @@ func (c *clientImpl) inheritedModelFallback(
 	if c.cfg.ModelExplicit || option == nil {
 		return "", false
 	}
+	// A current value the runtime does not list among its own options cannot be a
+	// safer choice than the request, so leave the original error in place.
 	current := strings.TrimSpace(string(option.CurrentValue))
 	if current == "" || strings.EqualFold(current, strings.TrimSpace(requested)) {
 		return "", false
