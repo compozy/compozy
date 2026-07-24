@@ -40,7 +40,17 @@ func EvaluateReadiness(plan Plan, taskGroupID string) (Readiness, error) {
 
 	direct := make([]Dependency, 0)
 	for _, dependency := range selected.Dependencies {
-		if !taskGroups[dependency.From].Completed {
+		prerequisite, exists := taskGroups[dependency.From]
+		if !exists {
+			return Readiness{}, newError(
+				ErrInvalidPlan,
+				plan.Initiative,
+				taskGroupID,
+				plan.Path,
+				[]Issue{{Field: "graph.edges", Message: fmt.Sprintf("unknown prerequisite %q", dependency.From)}},
+			)
+		}
+		if !prerequisite.Completed {
 			direct = append(direct, dependency)
 		}
 	}
@@ -54,6 +64,23 @@ func EvaluateReadiness(plan Plan, taskGroupID string) (Readiness, error) {
 	}, nil
 }
 
+// dependencyPathLink records the reverse-graph BFS predecessor used to
+// reconstruct one representative path from the selected group to an unmet
+// transitive ancestor.
+type dependencyPathLink struct {
+	edge Dependency
+	from string
+}
+
+// unmetTransitivePaths returns one representative path per incomplete transitive
+// ancestor of the selected group. A breadth-first walk over reverse edges keeps
+// this O(V+E): an earlier revision enumerated every simple path, which is
+// exponential in graph density (a plan where TG-k depends on every TG-j records
+// 2^(N-1)-N paths) and could wedge the daemon list path. Direct prerequisites
+// are surfaced separately via DirectUnmet, so only ancestors reached at depth
+// >= 2 are recorded here. The union of blockers and the Eligible verdict are
+// preserved: every incomplete reverse-reachable ancestor is still covered
+// (directly or as a path endpoint).
 func unmetTransitivePaths(plan Plan, taskGroups map[string]*TaskGroup, selected string) []DependencyPath {
 	incoming := make(map[string][]Dependency, len(taskGroups))
 	for _, edge := range plan.Edges {
@@ -62,56 +89,55 @@ func unmetTransitivePaths(plan Plan, taskGroups map[string]*TaskGroup, selected 
 	for id := range incoming {
 		slices.SortFunc(incoming[id], compareDependency)
 	}
-	paths := make(map[string]DependencyPath)
-	var visit func(current string, edges []Dependency, ids []string, ancestors map[string]struct{})
-	visit = func(current string, edges []Dependency, ids []string, ancestors map[string]struct{}) {
+	directPrerequisites := make(map[string]struct{}, len(incoming[selected]))
+	for _, edge := range incoming[selected] {
+		directPrerequisites[edge.From] = struct{}{}
+	}
+	parents := make(map[string]dependencyPathLink, len(taskGroups))
+	visited := map[string]struct{}{selected: {}}
+	queue := []string{selected}
+	paths := make([]DependencyPath, 0)
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
 		for _, edge := range incoming[current] {
-			if _, seen := ancestors[edge.From]; seen {
+			ancestor := edge.From
+			if _, seen := visited[ancestor]; seen {
 				continue
 			}
-			nextEdges := append(slices.Clone(edges), edge)
-			nextIDs := append(slices.Clone(ids), edge.From)
-			if len(nextEdges) > 1 && !taskGroups[edge.From].Completed {
-				reversedIDs := reverseStrings(nextIDs)
-				reversedEdges := reverseDependencies(nextEdges)
-				reversedEdges = reversedEdges[:len(reversedEdges)-1]
-				key := strings.Join(reversedIDs, "\x00")
-				paths[key] = DependencyPath{TaskGroupIDs: reversedIDs, Edges: reversedEdges}
+			visited[ancestor] = struct{}{}
+			parents[ancestor] = dependencyPathLink{edge: edge, from: current}
+			queue = append(queue, ancestor)
+			if _, isDirect := directPrerequisites[ancestor]; isDirect {
+				continue
 			}
-			nextAncestors := make(map[string]struct{}, len(ancestors)+1)
-			for id := range ancestors {
-				nextAncestors[id] = struct{}{}
+			if taskGroups[ancestor].Completed {
+				continue
 			}
-			nextAncestors[edge.From] = struct{}{}
-			visit(edge.From, nextEdges, nextIDs, nextAncestors)
+			paths = append(paths, buildDependencyPath(ancestor, selected, parents))
 		}
 	}
-	visit(selected, nil, []string{selected}, map[string]struct{}{selected: {}})
-	result := make([]DependencyPath, 0, len(paths))
-	for _, path := range paths {
-		result = append(result, path)
-	}
-	slices.SortFunc(result, compareDependencyPath)
-	return result
+	slices.SortFunc(paths, compareDependencyPath)
+	return paths
 }
 
-func reverseStrings(values []string) []string {
-	result := make([]string, len(values))
-	for index := range values {
-		result[len(values)-1-index] = values[index]
+// buildDependencyPath reconstructs the reverse-BFS chain from an unmet ancestor
+// back to (but excluding) the selected group. TaskGroupIDs runs from the deepest
+// ancestor down to the selected group's direct prerequisite; Edges connects each
+// consecutive pair, excluding the final edge into the selected group.
+func buildDependencyPath(ancestor, selected string, parents map[string]dependencyPathLink) DependencyPath {
+	ids := make([]string, 0)
+	edges := make([]Dependency, 0)
+	node := ancestor
+	for node != selected {
+		ids = append(ids, node)
+		link := parents[node]
+		if link.from != selected {
+			edges = append(edges, link.edge)
+		}
+		node = link.from
 	}
-	if len(result) > 0 {
-		result = result[:len(result)-1]
-	}
-	return result
-}
-
-func reverseDependencies(values []Dependency) []Dependency {
-	result := make([]Dependency, len(values))
-	for index := range values {
-		result[len(values)-1-index] = values[index]
-	}
-	return result
+	return DependencyPath{TaskGroupIDs: ids, Edges: edges}
 }
 
 func compareDependencyPath(left, right DependencyPath) int {

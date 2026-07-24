@@ -615,6 +615,95 @@ func TestReadiness(t *testing.T) {
 			t.Fatalf("readiness = %#v, error = %v", readiness, err)
 		}
 	})
+
+	t.Run("UT-038 records one representative path per transitive blocker", func(t *testing.T) {
+		t.Parallel()
+		// Diamond: TG-001 reaches TG-004 via both TG-002 and TG-003. Enumerating
+		// every simple path once emitted two redundant paths for TG-001; the
+		// reverse-BFS keeps a single representative path per unmet ancestor.
+		plan := mustParsePlan(t, taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "Root"},
+			{id: "TG-002", title: "Left"},
+			{id: "TG-003", title: "Right"},
+			{id: "TG-004", title: "Sink"},
+		}, []Dependency{
+			{From: "TG-001", To: "TG-002", Rationale: "root before left"},
+			{From: "TG-001", To: "TG-003", Rationale: "root before right"},
+			{From: "TG-002", To: "TG-004", Rationale: "left before sink"},
+			{From: "TG-003", To: "TG-004", Rationale: "right before sink"},
+		}))
+		readiness, err := EvaluateReadiness(plan, "TG-004")
+		if err != nil {
+			t.Fatalf("EvaluateReadiness() error = %v", err)
+		}
+		if len(readiness.DirectUnmet) != 2 ||
+			readiness.DirectUnmet[0].From != "TG-002" || readiness.DirectUnmet[1].From != "TG-003" {
+			t.Fatalf("DirectUnmet = %#v, want TG-002 and TG-003", readiness.DirectUnmet)
+		}
+		if len(readiness.TransitiveUnmet) != 1 ||
+			!slices.Equal(readiness.TransitiveUnmet[0].TaskGroupIDs, []string{"TG-001", "TG-002"}) {
+			t.Fatalf("TransitiveUnmet = %#v, want one path [TG-001 TG-002]", readiness.TransitiveUnmet)
+		}
+		blockers := unmetDependencyBlockers(plan, readiness)
+		if !slices.Equal(blockers, []string{"TG-001", "TG-002", "TG-003"}) {
+			t.Fatalf("blockers = %#v, want all three ancestors", blockers)
+		}
+	})
+
+	t.Run("UT-039 evaluates dense plans in bounded time", func(t *testing.T) {
+		t.Parallel()
+		// A fully connected DAG where TG-k depends on every TG-j (j<k) once made
+		// each recursion enumerate 2^(N-1)-N simple paths, wedging the daemon.
+		// Reverse-BFS is O(V+E); this test completing is the regression guard.
+		const count = 25
+		plan := Plan{SchemaVersion: SchemaVersion, Initiative: "dense"}
+		for k := 1; k <= count; k++ {
+			id := fmt.Sprintf("TG-%03d", k)
+			group := TaskGroup{ID: id, Title: id, Outcome: id + " outcome", Directory: "_task_groups/" + id}
+			for j := 1; j < k; j++ {
+				dependency := Dependency{From: fmt.Sprintf("TG-%03d", j), To: id, Rationale: "prerequisite"}
+				group.Dependencies = append(group.Dependencies, dependency)
+				plan.Edges = append(plan.Edges, dependency)
+			}
+			plan.TaskGroups = append(plan.TaskGroups, group)
+		}
+		readiness, err := EvaluateReadiness(plan, fmt.Sprintf("TG-%03d", count))
+		if err != nil {
+			t.Fatalf("EvaluateReadiness() error = %v", err)
+		}
+		if readiness.Eligible {
+			t.Fatalf("dense plan Eligible = true, want false")
+		}
+		if len(readiness.DirectUnmet) != count-1 {
+			t.Fatalf("DirectUnmet = %d, want %d", len(readiness.DirectUnmet), count-1)
+		}
+		if blockers := unmetDependencyBlockers(plan, readiness); len(blockers) != count-1 {
+			t.Fatalf("blockers = %d, want %d", len(blockers), count-1)
+		}
+	})
+
+	t.Run("UT-040 returns ErrInvalidPlan when a dependency target is missing", func(t *testing.T) {
+		t.Parallel()
+		// The graph.edges guard cannot see selected.Dependencies; a dependency
+		// pointing at an absent group must surface a typed error, not a nil deref.
+		plan := Plan{
+			SchemaVersion: SchemaVersion,
+			Initiative:    "demo",
+			TaskGroups: []TaskGroup{
+				{ID: "TG-001", Title: "One", Outcome: "One outcome", Directory: "_task_groups/TG-001"},
+				{
+					ID:           "TG-002",
+					Title:        "Two",
+					Outcome:      "Two outcome",
+					Directory:    "_task_groups/TG-002",
+					Dependencies: []Dependency{{From: "TG-999", To: "TG-002", Rationale: "missing prerequisite"}},
+				},
+			},
+		}
+		_, err := EvaluateReadiness(plan, "TG-002")
+		assertDomainError(t, err, ErrInvalidPlan)
+		assertIssueContains(t, err, "graph.edges")
+	})
 }
 
 func TestValidateIndependentSet(t *testing.T) {
