@@ -18,6 +18,10 @@ import (
 
 var completionHeadingPattern = regexp.MustCompile(`(?m)^## \[([ x])\] (TG-[0-9]{3}) —[ \t]*[^ \t\r\n][^\r\n]*`)
 
+// frontmatterDelimiter opens and closes the YAML frontmatter block that
+// completionBodyOffset skips before scanning for stable task-group headings.
+const frontmatterDelimiter = "---"
+
 // CompletionBlockReason identifies why completion cannot be recorded.
 type CompletionBlockReason string
 
@@ -106,10 +110,17 @@ func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error
 // ambiguous one (>1 matches, an error) — a distinction the returned
 // ErrCompletionConflict alone cannot express.
 func rewriteCompletion(content []byte, taskGroupID string) (RewriteResult, int, error) {
-	matches := completionHeadingPattern.FindAllSubmatchIndex(content, -1)
+	// Scan only the post-frontmatter body so this reader agrees with
+	// parseMarkdownTaskGroups, which validates against frontmatter.Parse's body.
+	// A heading-shaped line inside the frontmatter (e.g. a YAML comment) would
+	// otherwise inflate the match count and yield a spurious conflict. Match
+	// indices are body-relative, so offset them back into content before flipping.
+	bodyStart := completionBodyOffset(content)
+	body := content[bodyStart:]
+	matches := completionHeadingPattern.FindAllSubmatchIndex(body, -1)
 	selected := make([][]int, 0, 1)
 	for _, match := range matches {
-		id := string(content[match[4]:match[5]])
+		id := string(body[match[4]:match[5]])
 		if id == taskGroupID {
 			selected = append(selected, match)
 		}
@@ -126,13 +137,45 @@ func rewriteCompletion(content []byte, taskGroupID string) (RewriteResult, int, 
 	if _, err := ParsePlan(string(content)); err != nil {
 		return RewriteResult{}, len(selected), err
 	}
-	match := selected[0]
-	if content[match[2]] == 'x' {
+	checkboxIndex := bodyStart + selected[0][2]
+	if content[checkboxIndex] == 'x' {
 		return RewriteResult{Content: slices.Clone(content), AlreadyCompleted: true}, len(selected), nil
 	}
 	rewritten := slices.Clone(content)
-	rewritten[match[2]] = 'x'
+	rewritten[checkboxIndex] = 'x'
 	return RewriteResult{Content: rewritten, WriteRequired: true}, len(selected), nil
+}
+
+// completionBodyOffset returns the byte index in content at which the Markdown
+// body begins — immediately after the closing "---" frontmatter delimiter. It
+// mirrors frontmatter.splitContent so completion heading scans see exactly the
+// body that parseMarkdownTaskGroups validates. When content has no complete
+// frontmatter block it returns 0, leaving the whole content to be scanned and
+// the malformed plan to be rejected by the subsequent ParsePlan call.
+func completionBodyOffset(content []byte) int {
+	line, offset := completionNextLine(content, 0)
+	if strings.TrimSpace(string(line)) != frontmatterDelimiter {
+		return 0
+	}
+	for offset < len(content) {
+		line, next := completionNextLine(content, offset)
+		if strings.TrimSpace(string(line)) == frontmatterDelimiter {
+			return next
+		}
+		offset = next
+	}
+	return 0
+}
+
+// completionNextLine returns the line at start (without its trailing newline)
+// and the index at which the following line begins.
+func completionNextLine(content []byte, start int) ([]byte, int) {
+	relative := bytes.IndexByte(content[start:], '\n')
+	if relative < 0 {
+		return content[start:], len(content)
+	}
+	end := start + relative
+	return content[start:end], end + 1
 }
 
 // CompletionResult reports a durable completion mutation without any Git state.

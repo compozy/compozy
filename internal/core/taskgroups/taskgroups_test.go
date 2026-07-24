@@ -880,6 +880,28 @@ func TestCompletion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should ignore a heading-shaped line inside YAML frontmatter", func(t *testing.T) {
+		t.Parallel()
+		// A heading-shaped YAML comment in the frontmatter must not be counted as a
+		// stable task-group heading: parseMarkdownTaskGroups only scans the body, so
+		// RewriteCompletion must agree and scan the body alone. Otherwise the two
+		// readers disagree and a valid plan yields a spurious ErrCompletionConflict.
+		content := withFrontmatterHeadingDecoy(t, twoTaskGroupPlan(t), "TG-001")
+		if _, err := ParsePlan(string(content)); err != nil {
+			t.Fatalf("ParsePlan() rejected a plan with a frontmatter comment: %v", err)
+		}
+		rewrite, err := RewriteCompletion(content, "TG-001")
+		if err != nil {
+			t.Fatalf("RewriteCompletion() error = %v, want the frontmatter decoy ignored", err)
+		}
+		if !rewrite.WriteRequired || !bytes.Contains(rewrite.Content, []byte("## [x] TG-001 — Persistence")) {
+			t.Fatalf("rewrite = %#v, want only the TG-001 body checkbox flipped", rewrite)
+		}
+		if !bytes.Contains(rewrite.Content, []byte("## [ ] TG-001 — frontmatter decoy heading")) {
+			t.Fatalf("rewrite mutated the frontmatter decoy line: %q", rewrite.Content)
+		}
+	})
+
 	t.Run("Should restore the plan when completion evidence changes during the write", func(t *testing.T) {
 		t.Parallel()
 		initiativeDir := filepath.Join(t.TempDir(), "demo")
@@ -1079,6 +1101,46 @@ func TestHydrateCompletion(t *testing.T) {
 			t.Fatalf("ambiguous hydration changed plan bytes\nwant %q\ngot  %q", duplicated, got)
 		}
 	})
+
+	t.Run("Should hydrate despite a heading-shaped frontmatter comment", func(t *testing.T) {
+		t.Parallel()
+		// The frontmatter decoy is invisible to the body parser, so hydration must
+		// treat TG-001 as a single body heading (mark it) rather than an ambiguous
+		// pair that aborts the whole batch.
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		base := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "One", outcome: "One outcome"},
+			{id: "TG-002", title: "Two", outcome: "Two outcome"},
+		}, nil)
+		content := withFrontmatterHeadingDecoy(t, base, "TG-001")
+		writeTestFile(t, initiativeDir, ManifestFileName, string(content))
+
+		marked, err := NewStore().HydrateCompletion(context.Background(), initiativeDir, []string{"TG-001", "TG-002"})
+		if err != nil {
+			t.Fatalf("HydrateCompletion() error = %v, want the frontmatter decoy ignored", err)
+		}
+		if !slices.Equal(marked, []string{"TG-001", "TG-002"}) {
+			t.Fatalf("HydrateCompletion() marked = %v, want [TG-001 TG-002]", marked)
+		}
+		plan := mustParsePlan(t, mustReadFile(t, filepath.Join(initiativeDir, ManifestFileName)))
+		if !plan.IsComplete("TG-001") || !plan.IsComplete("TG-002") {
+			t.Fatalf("hydrated plan = %#v, want TG-001 and TG-002 complete", plan)
+		}
+	})
+}
+
+// withFrontmatterHeadingDecoy inserts a heading-shaped YAML comment into the
+// plan frontmatter. The line parses as a YAML comment (it starts with '#'), so
+// the body is untouched, but it matches completionHeadingPattern when the whole
+// file is scanned — reproducing the frontmatter/body disagreement.
+func withFrontmatterHeadingDecoy(t *testing.T, content []byte, taskGroupID string) []byte {
+	t.Helper()
+	anchor := []byte("initiative: demo\n")
+	if !bytes.Contains(content, anchor) {
+		t.Fatalf("plan frontmatter missing %q anchor: %q", anchor, content)
+	}
+	decoy := append(slices.Clone(anchor), []byte("## [ ] "+taskGroupID+" — frontmatter decoy heading\n")...)
+	return bytes.Replace(content, anchor, decoy, 1)
 }
 
 // appendDuplicateHeading returns content with a second copy of taskGroupID's
