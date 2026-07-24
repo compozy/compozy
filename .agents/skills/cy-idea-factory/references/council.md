@@ -19,10 +19,13 @@ Run the council as a real embedded subagent workflow, not as inline roleplay. Th
 Use the first mechanism that works. Never simulate an advisor inline, on any runtime.
 
 1. **Host `run_agent` tool.** The normal path. Compozy injects the reserved `compozy` MCP server into every ACP session it creates, so `run_agent` is present on every supported runtime — Claude, Codex, Droid, Cursor alike. Absence of the tool means the session was not created by Compozy, not that the runtime lacks the capability.
-2. **`compozy exec --agent <id>`.** Use when the session has no `run_agent` tool, which happens when the skill is invoked from a runtime session Compozy did not start. Pass `--ide` matching the current runtime and omit `--model` so the runtime's own default applies:
+2. **`compozy exec --agent <id>`.** Use when the session has no `run_agent` tool, which happens when the skill is invoked from a runtime session Compozy did not start.
+
+   Mechanism 1 inherits the parent session's runtime, so this path has to reproduce it by hand or the advisors silently run on unrelated workspace defaults. Pass `--ide` and `--reasoning-effort` matching the current session, and omit `--model` so the runtime's own default applies:
 
    ```bash
-   compozy exec --agent product-mind --ide codex --access-mode default --format text "Council prompt..."
+   compozy exec --agent product-mind --ide codex --reasoning-effort xhigh \
+     --access-mode default --format text "Council prompt..."
    ```
 
    This path costs one extra runtime process per advisor and carries none of `run_agent`'s depth or cycle guards, so prefer mechanism 1 whenever it is available.
