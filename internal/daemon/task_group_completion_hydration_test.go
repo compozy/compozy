@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/gofrs/flock"
 )
 
 // Suite: daemon task-group completion hydration
@@ -277,6 +278,97 @@ func TestRunManagerTaskGroupCompletionHydration(t *testing.T) {
 			"initiative",
 			[]string{"TG-003", "TG-004"},
 		)
+	})
+
+	t.Run("IT-033 contended plan lock aborts hydration under deadline", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		initializeHydrationGitRepository(t, env.workspaceRoot)
+		writeHydrationPeerPlan(t, env.workspaceRoot, "initiative")
+		seedDaemonCompletionRows(t, env.globalDB, env.workspaceRoot, "initiative", []string{"TG-003"})
+		workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister(workspace) error = %v", err)
+		}
+
+		// Hold the plan lock from a sibling handle so the daemon's TryLockContext spins.
+		planLockPath := filepath.Join(
+			model.TasksBaseDirForWorkspace(env.workspaceRoot),
+			"initiative",
+			taskgroups.ManifestFileName,
+		) + ".lock"
+		heldLock := flock.New(planLockPath)
+		locked, err := heldLock.TryLock()
+		if err != nil {
+			t.Fatalf("TryLock(plan lock) error = %v", err)
+		}
+		if !locked {
+			t.Fatal("failed to acquire plan lock for contention setup")
+		}
+		t.Cleanup(func() {
+			_ = heldLock.Unlock()
+			_ = heldLock.Close()
+		})
+
+		restore := taskGroupHydrationTimeout
+		taskGroupHydrationTimeout = 500 * time.Millisecond
+		t.Cleanup(func() { taskGroupHydrationTimeout = restore })
+
+		// finishRun hands hydration a context.WithoutCancel context; without the
+		// bounded deadline this call would block forever on the held lock.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			env.manager.hydrateTaskGroupCompletionAfterRun(
+				context.WithoutCancel(context.Background()),
+				&activeRun{
+					workspaceRoot: env.workspaceRoot,
+					workflowSlug:  "initiative/TG-003",
+				},
+				globaldb.Run{RunID: "task-group-complete-TG-003", WorkspaceID: workspace.ID},
+			)
+		}()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("hydrateTaskGroupCompletionAfterRun blocked under a contended plan lock")
+		}
+		// Hydration is best-effort: on deadline it bails out and self-heals later.
+		assertDaemonHydrationPlanState(t, env.workspaceRoot, "initiative", nil)
+	})
+
+	t.Run("IT-034 canonical-root lookup failure hydrates the repository", func(t *testing.T) {
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		initializeHydrationGitRepository(t, env.workspaceRoot)
+		writeHydrationPeerPlan(t, env.workspaceRoot, "initiative")
+
+		childRoot := filepath.Join(env.paths.WorktreesDir, "repo", "tg-003")
+		runGitOutput(t, env.workspaceRoot, "worktree", "add", "--detach", childRoot, "HEAD")
+		writeHydrationPeerPlan(t, childRoot, "initiative")
+		seedDaemonCompletionRows(t, env.globalDB, childRoot, "initiative", []string{"TG-003"})
+		seedDaemonCompletionRows(t, env.globalDB, env.workspaceRoot, "initiative", nil)
+
+		child, err := env.globalDB.Get(context.Background(), childRoot)
+		if err != nil {
+			t.Fatalf("Get(child workspace) error = %v", err)
+		}
+
+		// The parent run is absent, so the canonical-root lookup fails. The fix must
+		// resolve the real repository root from the child worktree rather than falling
+		// back to the ephemeral worktree, so the repository plan records completion.
+		env.manager.hydrateTaskGroupCompletionAfterRun(
+			context.Background(),
+			&activeRun{
+				workspaceRoot: childRoot,
+				workflowSlug:  "initiative/TG-003",
+			},
+			globaldb.Run{
+				RunID:       "task-group-complete-TG-003",
+				WorkspaceID: child.ID,
+				ParentRunID: "missing-parent-run",
+			},
+		)
+
+		assertDaemonHydrationPlanState(t, env.workspaceRoot, "initiative", []string{"TG-003"})
 	})
 }
 

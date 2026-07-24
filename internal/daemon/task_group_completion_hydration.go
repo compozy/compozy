@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/gitenv"
@@ -17,6 +18,17 @@ import (
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
+
+// taskGroupHydrationTimeout bounds the best-effort completion hydration that runs
+// on the run-terminal path. finishRun hands this work a context.WithoutCancel
+// context (no deadline, never canceled), and the downstream plan lock
+// (taskgroups.Store.withPlanLock -> flock.TryLockContext) retries acquisition until
+// its context completes. Without a deadline, a plan lock held by a sibling
+// worktree's `task-groups complete` bridge would block finishRun forever. Bailing
+// out on expiry is safe: hydration is an additive projection that self-heals on the
+// next resolveTaskGroupPreflightEvidence read. Declared as a var so tests can
+// shorten it; production never reassigns it.
+var taskGroupHydrationTimeout = 10 * time.Second
 
 func (m *RunManager) hydrateTaskGroupPlanBestEffort(
 	ctx context.Context,
@@ -53,6 +65,10 @@ func (m *RunManager) hydrateTaskGroupCompletionAfterRun(
 	if active == nil {
 		return
 	}
+	// Bound the detached run-terminal context so a contended plan lock cannot wedge
+	// finishRun; see taskGroupHydrationTimeout.
+	ctx, cancel := context.WithTimeout(ctx, taskGroupHydrationTimeout)
+	defer cancel()
 	ref, err := taskgroups.ParseTaskGroupRef(active.workflowSlug)
 	if err != nil {
 		return
@@ -84,7 +100,22 @@ func (m *RunManager) hydrateTaskGroupCompletionAfterRun(
 			"initiative", ref.Initiative,
 			"error", err,
 		)
-		canonicalRoot = active.workspaceRoot
+		// A group-parallel child's workspaceRoot is its ephemeral worktree, not the
+		// repository. Falling back to it would leave taskGroupHydrationRoots targeting
+		// only worktrees that cleanupSettledTaskWorktree is about to remove, so the
+		// user's repository plan never records the completion. Resolve the canonical
+		// repository root from the worktree's git common dir instead; skip the fan-out
+		// entirely if even that fails, since hydration self-heals on the next preflight.
+		canonicalRoot, err = repositoryRootFromWorktree(ctx, active.workspaceRoot)
+		if err != nil {
+			slog.Default().Warn(
+				"daemon: resolve repository root for task group hydration",
+				"run_id", row.RunID,
+				"initiative", ref.Initiative,
+				"error", err,
+			)
+			return
+		}
 	}
 	roots, err := m.taskGroupHydrationRoots(ctx, canonicalRoot)
 	if err != nil {
@@ -237,6 +268,28 @@ func (m *RunManager) taskGroupHydrationCanonicalRoot(
 		return "", fmt.Errorf("load parent run workspace: %w", err)
 	}
 	return workspace.RootDir, nil
+}
+
+// repositoryRootFromWorktree resolves the canonical repository root that owns the
+// given worktree via git's common directory. Compozy runs group-parallel children
+// inside ephemeral worktrees under the home worktrees dir; completion hydration must
+// project into the user's real repository, whose root is the parent of the git
+// common dir reported from any of its worktrees. The main worktree resolves to
+// itself, so this is also correct for non-parallel runs.
+func repositoryRootFromWorktree(ctx context.Context, worktreeRoot string) (string, error) {
+	cleaned := filepath.Clean(strings.TrimSpace(worktreeRoot))
+	if cleaned == "." || cleaned == "" {
+		return "", errors.New("daemon: worktree root is required to resolve repository root")
+	}
+	output, err := gitenv.Run(ctx, cleaned, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("resolve repository git common dir: %w", err)
+	}
+	commonDir := filepath.Clean(strings.TrimSpace(output))
+	if commonDir == "." || commonDir == "" {
+		return "", errors.New("daemon: empty git common dir for repository root")
+	}
+	return filepath.Dir(commonDir), nil
 }
 
 func (m *RunManager) taskGroupHydrationRoots(
