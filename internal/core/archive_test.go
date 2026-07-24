@@ -462,8 +462,8 @@ func TestArchiveTaskWorkflowRefreshesStaleEmptyCatalogForReviewOnlyWorkflows(t *
 	}
 }
 
-func TestArchiveTaskWorkflowKeepsTrulyEmptyWorkflowNotArchivableAfterRefresh(t *testing.T) {
-	t.Run("Should keep truly empty workflow not archivable after refresh", func(t *testing.T) {
+func TestArchiveTaskWorkflowArchivesEmptyWorkflowAfterRefresh(t *testing.T) {
+	t.Run("Should archive empty workflow after refreshing its synced state", func(t *testing.T) {
 		rootDir := archiveTestRoot(t)
 		workflowDir := filepath.Join(rootDir, "action-gaps")
 		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
@@ -472,18 +472,20 @@ func TestArchiveTaskWorkflowKeepsTrulyEmptyWorkflowNotArchivableAfterRefresh(t *
 		mustSyncArchiveWorkflow(t, workflowDir)
 
 		result, err := Archive(context.Background(), ArchiveConfig{TasksDir: workflowDir})
-		if !errors.Is(err, globaldb.ErrWorkflowNotArchivable) {
-			t.Fatalf("Archive(empty workflow) error = %v, want ErrWorkflowNotArchivable", err)
+		if err != nil {
+			t.Fatalf("Archive(empty workflow) error = %v", err)
 		}
-		var notArchivable globaldb.WorkflowNotArchivableError
-		if !errors.As(err, &notArchivable) {
-			t.Fatalf("Archive(empty workflow) error = %T, want WorkflowNotArchivableError", err)
-		}
-		if result == nil || result.WorkflowsScanned != 1 || result.Archived != 0 {
+		if result == nil || result.WorkflowsScanned != 1 || result.Archived != 1 {
 			t.Fatalf("unexpected archive result for empty workflow: %#v", result)
 		}
-		if _, statErr := os.Stat(workflowDir); statErr != nil {
-			t.Fatalf("expected empty workflow dir to remain: %v", statErr)
+		if len(result.ArchivedPaths) != 1 {
+			t.Fatalf("ArchivedPaths = %#v, want one path", result.ArchivedPaths)
+		}
+		if _, statErr := os.Stat(workflowDir); !os.IsNotExist(statErr) {
+			t.Fatalf("expected empty workflow to leave active root, got err=%v", statErr)
+		}
+		if info, statErr := os.Stat(result.ArchivedPaths[0]); statErr != nil || !info.IsDir() {
+			t.Fatalf("expected archived empty workflow directory, info=%#v err=%v", info, statErr)
 		}
 	})
 }

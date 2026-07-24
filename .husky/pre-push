@@ -1,5 +1,0 @@
-# Skeeper: verify the sidecar lock before pushing the main repo.
-# Graceful — runs only if the skeeper binary is installed; never blocks pushes.
-if command -v skeeper >/dev/null 2>&1; then
-  skeeper internal pre-push
-fi

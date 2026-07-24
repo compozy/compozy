@@ -433,8 +433,8 @@ func prepareArchiveWorkflow(
 }
 
 func archiveEligibilityNeedsFilesystemRefresh(eligibility globaldb.WorkflowArchiveEligibility) bool {
-	// Keep this aligned with WorkflowArchiveEligibility.SkipReason's empty
-	// catalog branch: no active runs, no task files, and no review issues.
+	// Refresh an apparently empty catalog before archiving so task or review
+	// files added since the last sync still participate in eligibility.
 	return eligibility.ActiveRuns == 0 &&
 		eligibility.TaskTotal == 0 &&
 		eligibility.ReviewIssueTotal == 0

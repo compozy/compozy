@@ -306,11 +306,11 @@ func TestWorkflowArchiveEligibilityHelpersAndErrors(t *testing.T) {
 	t.Parallel()
 
 	eligibility := WorkflowArchiveEligibility{}
-	if eligibility.Archivable() {
-		t.Fatal("Archivable() = true, want false for no-task workflow")
+	if !eligibility.Archivable() {
+		t.Fatal("Archivable() = false, want true for empty workflow")
 	}
-	if got := eligibility.SkipReason(); got != "no task files present" {
-		t.Fatalf("SkipReason() = %q, want no task files present", got)
+	if got := eligibility.SkipReason(); got != "" {
+		t.Fatalf("SkipReason() = %q, want empty", got)
 	}
 
 	eligible := WorkflowArchiveEligibility{
@@ -365,8 +365,11 @@ func TestWorkflowArchiveEligibilityNoTasksAndArchivedLookupNotFound(t *testing.T
 	if err != nil {
 		t.Fatalf("GetWorkflowArchiveEligibility() error = %v", err)
 	}
-	if got := eligibility.SkipReason(); got != "no task files present" {
-		t.Fatalf("SkipReason() = %q, want no task files present", got)
+	if !eligibility.Archivable() {
+		t.Fatalf("Archivable() = false for empty workflow: %#v", eligibility)
+	}
+	if got := eligibility.SkipReason(); got != "" {
+		t.Fatalf("SkipReason() = %q, want empty", got)
 	}
 	if _, err := db.GetLatestArchivedWorkflowBySlug(
 		context.Background(),

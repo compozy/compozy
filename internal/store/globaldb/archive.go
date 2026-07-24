@@ -22,7 +22,6 @@ var (
 
 const (
 	archiveReasonActiveRuns        = "workflow has active runs"
-	archiveReasonNoTaskFiles       = "no task files present"
 	archiveReasonTasksIncomplete   = "task workflow not fully completed"
 	archiveReasonReviewsUnresolved = "review rounds not fully resolved"
 )
@@ -121,8 +120,6 @@ func (e WorkflowArchiveEligibility) SkipReason() string {
 		return archiveReasonTasksIncomplete
 	case e.UnresolvedReviewIssues > 0:
 		return archiveReasonReviewsUnresolved
-	case e.TaskTotal == 0 && e.ReviewIssueTotal == 0:
-		return archiveReasonNoTaskFiles
 	default:
 		return ""
 	}
