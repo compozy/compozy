@@ -42,6 +42,14 @@ const (
 // alongside the event-driven wait on the child's done channel.
 const taskMultiChildPollInterval = 100 * time.Millisecond
 
+// taskMultiChildSettleTimeout bounds how long a parallel failure path waits for a
+// cancel-requested child to reach a terminal status before it inspects and removes
+// the child's worktree. Removal must never race a live child subprocess, so a
+// child that has not settled within this window keeps its worktree; the wait
+// normally returns as soon as the child closes its done channel, well inside the
+// bound.
+const taskMultiChildSettleTimeout = 30 * time.Second
+
 type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
 	mode             string
@@ -1733,11 +1741,15 @@ func (m *RunManager) runTaskMultiParallelChild(
 	runIDOut *string,
 ) error {
 	child, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
-	if err != nil {
-		return m.settleTaskMultiParallelStartFailure(active, prepared, item, index, total, child.Allocation, err)
-	}
-	if runIDOut != nil {
+	// Record the child run id before dispatching to any settle path: a start failure
+	// can still return a launched child (the child_started emit failed after the run
+	// began), and losing that id drops the child from childRunIDs, the recovery
+	// summary denominator, and any operator or CLI cancellation path.
+	if runIDOut != nil && strings.TrimSpace(child.Run.RunID) != "" {
 		*runIDOut = child.Run.RunID
+	}
+	if err != nil {
+		return m.settleTaskMultiParallelStartFailure(active, prepared, item, index, total, child, err)
 	}
 	childRow, err := m.waitForTaskMultiChild(active.ctx, child.Run.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
@@ -1768,24 +1780,27 @@ func (m *RunManager) settleTaskMultiParallelStartFailure(
 	item preparedTaskMultiItem,
 	index int,
 	total int,
-	allocation taskMultiWorktreeAllocation,
+	child taskWorktreeChildRun,
 	startErr error,
 ) error {
-	if strings.TrimSpace(allocation.Path) != "" {
-		allocation = m.cleanupSettledTaskWorktree(
-			context.WithoutCancel(active.ctx),
-			prepared.workspace.RootDir,
-			allocation,
-			taskMultiParallelCleanupPolicy(prepared),
-		)
-	}
+	// A start failure can still leave a launched-but-unacknowledged child running
+	// (e.g. the child_started journal write failed after startRun cancels the child
+	// asynchronously). Gate worktree removal on that child settling, and carry its
+	// run id in the failure payload so operators, cancellation, and the recovery
+	// summary can still find it.
+	allocation := m.cleanupSettledTaskMultiChildWorktree(
+		context.WithoutCancel(active.ctx),
+		prepared,
+		child,
+		taskMultiChildSettleTimeout,
+	)
 	emitErr := m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleChildFailed,
 		taskMultiWorktreeItemPayload(
 			item,
 			index,
 			total,
 			taskMultiItemStatusFailed,
-			"",
+			child.Run.RunID,
 			startErr.Error(),
 			allocation,
 		),
@@ -1813,11 +1828,15 @@ func (m *RunManager) settleTaskMultiParallelWaitFailure(
 	if !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded) {
 		childCancelErr = m.Cancel(detachContext(active.ctx), child.Run.RunID)
 	}
-	allocation := m.cleanupSettledTaskWorktree(
+	// Cancel only requests teardown; it does not wait. Removing the worktree now
+	// would race a child that is still tearing down (a parent cancel or a transient
+	// GetRun error both land here while the child may keep running), so gate removal
+	// on the child actually settling first.
+	allocation := m.cleanupSettledTaskMultiChildWorktree(
 		context.WithoutCancel(active.ctx),
-		prepared.workspace.RootDir,
-		child.Allocation,
-		taskMultiParallelCleanupPolicy(prepared),
+		prepared,
+		child,
+		taskMultiChildSettleTimeout,
 	)
 	emitErr := m.emitTaskMultiEvent(
 		active,
@@ -2710,6 +2729,94 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 		}
 	}
 	return allocation
+}
+
+// cleanupSettledTaskMultiChildWorktree removes a parallel child's worktree only
+// after the child has actually settled, so cleanup never races a live child
+// subprocess. A child that has not reached a terminal status within the bounded
+// settle window keeps its worktree (status preserved) instead of having the
+// directory removed out from under a running agent. A start failure that never
+// produced a child run (empty run id) has nothing live to race and cleans up
+// immediately, preserving the pre-existing allocation-failure behavior.
+func (m *RunManager) cleanupSettledTaskMultiChildWorktree(
+	ctx context.Context,
+	prepared *preparedTaskMulti,
+	child taskWorktreeChildRun,
+	settleTimeout time.Duration,
+) taskMultiWorktreeAllocation {
+	if strings.TrimSpace(child.Allocation.Path) == "" {
+		return child.Allocation
+	}
+	if !m.waitForSettledTaskMultiChild(ctx, child.Run.RunID, settleTimeout) {
+		allocation := child.Allocation
+		allocation.WorktreeStatus = taskMultiWorktreeStatusPreserved
+		allocation.WorktreeReason = fmt.Sprintf(
+			"worktree preserved: child run %s did not settle within %s; not removed while it may still be running",
+			strings.TrimSpace(child.Run.RunID),
+			settleTimeout,
+		)
+		return allocation
+	}
+	return m.cleanupSettledTaskWorktree(
+		ctx,
+		prepared.workspace.RootDir,
+		child.Allocation,
+		taskMultiParallelCleanupPolicy(prepared),
+	)
+}
+
+// waitForSettledTaskMultiChild blocks until the child run reaches a terminal
+// status, the child closes its done channel, or the bounded timeout elapses, and
+// reports whether the child settled. The context is detached so a parent
+// cancellation never aborts the wait: the whole point is to let a cancel-requested
+// child finish tearing down before its worktree is touched. An empty run id (a
+// start failure that never launched a child) settles immediately.
+func (m *RunManager) waitForSettledTaskMultiChild(
+	ctx context.Context,
+	runID string,
+	timeout time.Duration,
+) bool {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return true
+	}
+	waitCtx := detachContext(ctx)
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		waitCtx, cancel = context.WithTimeout(waitCtx, timeout)
+		defer cancel()
+	}
+	if m.taskMultiChildSettled(waitCtx, trimmedRunID) {
+		return true
+	}
+	var done <-chan struct{}
+	if active := m.getActive(trimmedRunID); active != nil {
+		done = active.done
+	}
+	ticker := time.NewTicker(taskMultiChildPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-waitCtx.Done():
+			// Re-check on a fresh context so a child that settled right at the
+			// deadline is still recognized before we decide to preserve.
+			return m.taskMultiChildSettled(detachContext(ctx), trimmedRunID)
+		case <-done:
+			return true
+		case <-ticker.C:
+			if m.taskMultiChildSettled(waitCtx, trimmedRunID) {
+				return true
+			}
+		}
+	}
+}
+
+// taskMultiChildSettled reports whether the child run's durable status is
+// terminal. A load error is treated as not-yet-settled so callers preserve the
+// worktree rather than remove it on incomplete evidence.
+func (m *RunManager) taskMultiChildSettled(ctx context.Context, runID string) bool {
+	row, err := m.globalDB.GetRun(ctx, strings.TrimSpace(runID))
+	return err == nil && isTerminalRunStatus(row.Status)
 }
 
 // waitForTaskMultiChild blocks until one child run settles. A child normally
