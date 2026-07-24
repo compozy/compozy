@@ -22,21 +22,27 @@ const (
 	reasoningEffortUltra           = "ultra"
 )
 
+// configureSession applies the model, reasoning, and mode configuration to a new
+// or resumed session and reports the model the runtime accepted, which can differ
+// from the requested one when an inherited model falls back.
 func (c *clientImpl) configureSession(
 	ctx context.Context,
 	sessionID acp.SessionId,
 	requestedModel string,
 	options []acp.SessionConfigOption,
 	modes *acp.SessionModeState,
-) error {
+) (string, error) {
 	effectiveModel, err := c.configureSessionModel(ctx, sessionID, requestedModel, options)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := c.configureSessionReasoning(ctx, sessionID, options); err != nil {
-		return err
+		return "", err
 	}
-	return c.configureSessionMode(ctx, sessionID, effectiveModel, modes)
+	if err := c.configureSessionMode(ctx, sessionID, effectiveModel, modes); err != nil {
+		return "", err
+	}
+	return effectiveModel, nil
 }
 
 func (c *clientImpl) configureSessionModel(

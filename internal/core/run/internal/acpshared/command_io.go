@@ -313,6 +313,7 @@ func emitSessionStartedEvent(
 			ACPSessionID:   identity.ACPSessionID,
 			AgentSessionID: identity.AgentSessionID,
 			Resumed:        identity.Resumed,
+			Model:          identity.Model,
 		},
 	)
 	if err != nil {

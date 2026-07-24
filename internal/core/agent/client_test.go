@@ -748,6 +748,11 @@ func TestClientCreateSessionFallsBackWhenInheritedModelIsFromAnotherRuntime(t *t
 	if err != nil {
 		t.Fatalf("create session with inherited cross-runtime model: %v", err)
 	}
+	// The substitution has to be recoverable from run artifacts; a warning log is
+	// silent in headless exec.
+	if got := session.Identity().Model; got != "gpt-5.6-sol[reasoning=medium]" {
+		t.Fatalf("session identity model = %q, want the runtime default it fell back to", got)
+	}
 	collectSessionUpdates(t, session)
 }
 
