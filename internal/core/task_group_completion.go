@@ -402,8 +402,12 @@ func HydratePlanCompletionWithDB(
 	return marked, nil
 }
 
-// CompletedTaskGroupIDsWithDB reads the authoritative completed IDs for one
-// initiative in one registered workspace.
+// CompletedTaskGroupIDsWithDB reads the authoritative completed task-group IDs
+// for one initiative as a union across the sibling git worktrees of the querying
+// repository. The primary workspace read is a hard error preserving the original
+// single-workspace behavior; the sibling union is additive, best-effort, and
+// read-only against the registry, so the result is always a superset of the
+// single-workspace read and never regresses it on any sibling-side failure.
 func CompletedTaskGroupIDsWithDB(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
@@ -424,21 +428,20 @@ func CompletedTaskGroupIDsWithDB(
 		return nil, errors.New("read task group completion authority: initiative is required")
 	}
 
-	workspace, err := db.Get(ctx, workspaceRoot)
-	if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
-		workspace, err = db.ResolveOrRegister(ctx, workspaceRoot)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("resolve completion hydration workspace: %w", err)
-	}
-	workflows, err := db.ListWorkflows(ctx, globaldb.ListWorkflowsOptions{WorkspaceID: workspace.ID})
-	if err != nil {
-		return nil, fmt.Errorf("list completion hydration workflows: %w", err)
-	}
-	completed, err := completedTaskGroupIDsForInitiative(workflows, initiative)
+	primaryID, completed, err := completedIDsForWorkspaceRoot(ctx, db, workspaceRoot, initiative)
 	if err != nil {
 		return nil, err
 	}
+	// Best-effort sibling union. An enumeration failure (non-git workspace,
+	// missing git binary, canceled context) degrades to the single-workspace
+	// result with no error, never a partial set.
+	roots, gerr := siblingWorktreeRoots(ctx, workspaceRoot)
+	if gerr != nil {
+		return completed, nil
+	}
+	seenWorkspace := map[string]struct{}{primaryID: {}}
+	seenID := newTaskGroupIDSet(completed)
+	completed = unionSiblingCompletions(ctx, db, roots, initiative, completed, seenWorkspace, seenID)
 	return completed, nil
 }
 
