@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestReviewIsolationAppliesIndependentJobChanges(t *testing.T) {
@@ -158,6 +159,22 @@ func TestRunGitMergeFileMergesAndDetectsConflicts(t *testing.T) {
 			t.Fatal("overlapping edits did not report a conflict")
 		}
 	})
+
+	t.Run("Should error on binary inputs instead of reporting a conflict", func(t *testing.T) {
+		// git merge-file returns 255 on a binary-merge error; the classifier must
+		// treat that as a hard error, not a mergeable conflict (which would discard
+		// a completed batch as a phantom overlapping edit).
+		binaryBase := write("base-binary", "x\x00base\n")
+		ours := write("ours-binary", "x\x00ours\n")
+		theirs := write("theirs-binary", "x\x00theirs\n")
+		conflicted, err := runGitMergeFile(context.Background(), dir, ours, binaryBase, theirs)
+		if err == nil {
+			t.Fatal("binary merge did not surface an error")
+		}
+		if conflicted {
+			t.Fatal("binary merge error was misclassified as a conflict")
+		}
+	})
 }
 
 func TestReviewIsolationMergesSharedSecondaryFileAcrossBatches(t *testing.T) {
@@ -287,6 +304,15 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	t.Parallel()
 	requireScopeGit(t)
 	repo := initScopeGitRepo(t)
+	// Model the real workspace: .compozy artifacts are gitignored in the source.
+	// The review commit must carry only the code fix and must never force the
+	// ignored artifacts into history, while still mirroring the resolved issue
+	// file into the source working tree.
+	if err := os.WriteFile(filepath.Join(repo, ".gitignore"), []byte(".compozy/\n"), 0o600); err != nil {
+		t.Fatalf("write gitignore: %v", err)
+	}
+	mustRunGit(t, repo, "add", ".gitignore")
+	mustRunGit(t, repo, "commit", "-q", "-m", "ignore compozy artifacts")
 	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
 	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
 		t.Fatalf("mkdir reviews: %v", err)
@@ -324,11 +350,22 @@ func TestReviewIsolationCommitsExactIntegratedBatch(t *testing.T) {
 	if err := isolation.Apply(context.Background(), 0, true, "fix: batch a"); err != nil {
 		t.Fatalf("Apply(auto commit) error = %v", err)
 	}
-	if got := strings.TrimSpace(string(mustRunGit(t, repo, "rev-list", "--count", "HEAD"))); got != "2" {
-		t.Fatalf("source commit count = %q, want 2", got)
+	if got := strings.TrimSpace(string(mustRunGit(t, repo, "rev-list", "--count", "HEAD"))); got != "3" {
+		t.Fatalf("source commit count = %q, want 3", got)
 	}
 	if got := strings.TrimSpace(string(mustRunGit(t, repo, "log", "-1", "--format=%s"))); got != "fix: batch a" {
 		t.Fatalf("source commit subject = %q, want fix: batch a", got)
+	}
+	if got := strings.TrimSpace(string(mustRunGit(t, repo, "log", "-1", "--name-only", "--format="))); got != "fix.go" {
+		t.Fatalf("committed paths = %q, want only fix.go", got)
+	}
+	// The gitignored artifacts must never be tracked or committed.
+	if tracked := strings.TrimSpace(string(mustRunGit(t, repo, "ls-files", "--", ".compozy"))); tracked != "" {
+		t.Fatalf("tracked .compozy artifacts = %q, want none", tracked)
+	}
+	// The resolved issue still reaches the source working tree.
+	if body, readErr := os.ReadFile(issuePath); readErr != nil || string(body) != "status: resolved\n" {
+		t.Fatalf("source issue after commit = %q, error = %v, want resolved", body, readErr)
 	}
 	if status := strings.TrimSpace(string(mustRunGit(t, repo, "status", "--porcelain"))); status != "" {
 		t.Fatalf("source status after exact batch commit = %q, want clean", status)
@@ -755,6 +792,178 @@ func TestReviewIsolationRejectsUncommittedSourceCode(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), "changes outside") {
 		t.Fatalf("NewReviewIsolation() error = %v, want dirty-source rejection", err)
+	}
+}
+
+func TestReviewIsolationMirrorsNewArtifactFileWithoutCommitting(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	if err := os.WriteFile(filepath.Join(repo, ".gitignore"), []byte(".compozy/\n"), 0o600); err != nil {
+		t.Fatalf("write gitignore: %v", err)
+	}
+	mustRunGit(t, repo, "add", ".gitignore")
+	mustRunGit(t, repo, "commit", "-q", "-m", "ignore compozy artifacts")
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, err := isolation.Workspace(0)
+	if err != nil {
+		t.Fatalf("Workspace(0) error = %v", err)
+	}
+	// A brand-new artifact file (e.g. a workflow memory note) that Git ignores in
+	// the source. It must ride the batch delta into the source working tree even
+	// though it never existed at the isolated baseline.
+	memoryDir := filepath.Join(filepath.Dir(workspace.ReviewsDir), "memory")
+	if err := os.MkdirAll(memoryDir, 0o755); err != nil {
+		t.Fatalf("mkdir workspace memory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(memoryDir, "context.md"), []byte("remember\n"), 0o600); err != nil {
+		t.Fatalf("write workspace memory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace.Root, "fix.go"), []byte("package fix\n"), 0o600); err != nil {
+		t.Fatalf("write fix: %v", err)
+	}
+
+	if err := isolation.Apply(context.Background(), 0, true, "fix: batch a"); err != nil {
+		t.Fatalf("Apply(auto commit) error = %v", err)
+	}
+	mirrored := filepath.Join(repo, ".compozy", "tasks", "demo", "memory", "context.md")
+	if body, readErr := os.ReadFile(mirrored); readErr != nil || string(body) != "remember\n" {
+		t.Fatalf("mirrored memory = %q, error = %v, want remember", body, readErr)
+	}
+	if tracked := strings.TrimSpace(string(mustRunGit(t, repo, "ls-files", "--", ".compozy"))); tracked != "" {
+		t.Fatalf("tracked .compozy artifacts = %q, want none", tracked)
+	}
+	if got := strings.TrimSpace(string(mustRunGit(t, repo, "log", "-1", "--name-only", "--format="))); got != "fix.go" {
+		t.Fatalf("committed paths = %q, want only fix.go", got)
+	}
+	if status := strings.TrimSpace(string(mustRunGit(t, repo, "status", "--porcelain"))); status != "" {
+		t.Fatalf("source status = %q, want clean", status)
+	}
+}
+
+func TestRequireUnchangedGitIndexToleratesStatRefresh(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if err := os.WriteFile(filepath.Join(repo, name), []byte(name+"\n"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	mustRunGit(t, repo, "add", "a.txt", "b.txt")
+	mustRunGit(t, repo, "commit", "-q", "-m", "add tracked files")
+	expected, err := captureGitIndex(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("captureGitIndex(expected) error = %v", err)
+	}
+	// A benign stat-cache refresh (what an editor's `git status` poll triggers)
+	// rewrites the raw index bytes without changing any staged entry.
+	future := time.Now().Add(2 * time.Second)
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if err := os.Chtimes(filepath.Join(repo, name), future, future); err != nil {
+			t.Fatalf("touch %s: %v", name, err)
+		}
+	}
+	mustRunGit(t, repo, "update-index", "-q", "--refresh")
+	refreshed, err := os.ReadFile(expected.path)
+	if err != nil {
+		t.Fatalf("read refreshed index: %v", err)
+	}
+	if bytes.Equal(refreshed, expected.content) {
+		t.Skip("git did not rewrite the index on stat refresh; nothing to assert")
+	}
+
+	current, err := requireUnchangedGitIndex(context.Background(), repo, expected)
+	if err != nil {
+		t.Fatalf("requireUnchangedGitIndex() error = %v, want tolerance of a benign stat refresh", err)
+	}
+	if !bytes.Equal(current.content, refreshed) {
+		t.Fatal("returned rollback payload is not the current (refreshed) index bytes")
+	}
+}
+
+func TestReviewIsolationPropagatesExecutableBitThroughMerge(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+	repo := initScopeGitRepo(t)
+	mustRunGit(t, repo, "config", "core.fileMode", "true")
+	sharedBaseline := "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\n"
+	if err := os.WriteFile(filepath.Join(repo, "shared.txt"), []byte(sharedBaseline), 0o600); err != nil {
+		t.Fatalf("write shared baseline: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "setup.sh"), []byte("#!/bin/sh\necho hi\n"), 0o644); err != nil {
+		t.Fatalf("write setup baseline: %v", err)
+	}
+	mustRunGit(t, repo, "add", "shared.txt", "setup.sh")
+	mustRunGit(t, repo, "commit", "-q", "-m", "add shared file and script")
+	reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+
+	isolation, err := NewReviewIsolation(
+		context.Background(),
+		repo,
+		reviewsDir,
+		filepath.Dir(reviewsDir),
+		filepath.Join(t.TempDir(), "worktrees"),
+		[]string{"batch-a"},
+	)
+	if err != nil {
+		t.Fatalf("NewReviewIsolation() error = %v", err)
+	}
+	workspace, _ := isolation.Workspace(0)
+	// The batch's only change to setup.sh is the executable bit; it also edits
+	// line 5 of the shared file.
+	batchShared := strings.Replace(sharedBaseline, "l5\n", "BATCH\n", 1)
+	if err := os.WriteFile(filepath.Join(workspace.Root, "shared.txt"), []byte(batchShared), 0o600); err != nil {
+		t.Fatalf("write batch shared edit: %v", err)
+	}
+	if err := os.Chmod(filepath.Join(workspace.Root, "setup.sh"), 0o755); err != nil {
+		t.Fatalf("chmod batch setup.sh: %v", err)
+	}
+	// The source drifts on line 2 of the shared file — non-adjacent to the batch's
+	// line-5 edit (so the 3-way merge is clean) but inside the batch hunk's context
+	// (so the strict apply fails and the whole batch takes the 3-way merge path, the
+	// path on which the executable bit was previously dropped).
+	sourceShared := strings.Replace(sharedBaseline, "l2\n", "SOURCE\n", 1)
+	if err := os.WriteFile(filepath.Join(repo, "shared.txt"), []byte(sourceShared), 0o600); err != nil {
+		t.Fatalf("write source drift: %v", err)
+	}
+
+	if err := isolation.Apply(context.Background(), 0, true, "fix: batch a"); err != nil {
+		t.Fatalf("Apply(auto commit) error = %v, want a clean merge that carries the mode change", err)
+	}
+	info, statErr := os.Stat(filepath.Join(repo, "setup.sh"))
+	if statErr != nil {
+		t.Fatalf("stat merged setup.sh: %v", statErr)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("merged setup.sh mode = %v, want the executable bit set", info.Mode().Perm())
+	}
+	fields := strings.Fields(string(mustRunGit(t, repo, "ls-tree", "HEAD", "--", "setup.sh")))
+	if len(fields) == 0 || fields[0] != "100755" {
+		t.Fatalf("committed setup.sh mode = %v, want 100755", fields)
+	}
+	wantShared := strings.Replace(sourceShared, "l5\n", "BATCH\n", 1)
+	if body, readErr := os.ReadFile(filepath.Join(repo, "shared.txt")); readErr != nil ||
+		string(body) != wantShared {
+		t.Fatalf("merged shared = %q, error = %v, want %q", body, readErr, wantShared)
 	}
 }
 

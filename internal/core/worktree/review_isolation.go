@@ -50,6 +50,7 @@ type ReviewWorkspace struct {
 // serializes their write-back into the source workspace.
 type ReviewIsolation struct {
 	sourceRoot         string
+	artifactRel        string
 	workspaces         []ReviewWorkspace
 	sourceIndex        gitIndexBackup
 	sourceIndexPending bool
@@ -121,6 +122,7 @@ func NewReviewIsolation(
 
 	isolation := &ReviewIsolation{
 		sourceRoot:         source,
+		artifactRel:        artifactRel,
 		workspaces:         make([]ReviewWorkspace, 0, len(jobNames)),
 		sourceIndex:        sourceIndex,
 		captureSourceIndex: captureGitIndex,
@@ -354,6 +356,9 @@ func (r *ReviewIsolation) Apply(
 	if _, err := runGit(ctx, workspace.Root, "add", "-A"); err != nil {
 		return fmt.Errorf("stage isolated review changes in %s: %w", workspace.Root, err)
 	}
+	if err := r.stageWorkspaceArtifacts(ctx, workspace); err != nil {
+		return err
+	}
 	pathsRaw, err := runGit(
 		ctx,
 		workspace.Root,
@@ -397,16 +402,61 @@ func (r *ReviewIsolation) Apply(
 	if !autoCommit {
 		return nil
 	}
+	committable := r.committablePaths(paths)
+	if len(committable) == 0 {
+		// The batch only touched workflow artifacts (e.g. every issue was triaged
+		// invalid). They are mirrored into the source working tree by the applied
+		// patch above but are never committed, so there is nothing to commit here.
+		return nil
+	}
 	return r.commitReviewPatch(
 		ctx,
 		workspace,
-		paths,
+		committable,
 		patch,
 		commitMessage,
 		indexBackup,
 		drifted,
 		preApplySnapshot,
 	)
+}
+
+// stageWorkspaceArtifacts force-stages the workflow artifact tree inside the
+// isolated worktree so that new artifact files Git would otherwise ignore (e.g.
+// freshly written memory notes) are still captured in the batch delta and thus
+// mirrored back to the source working tree. Artifact paths are excluded from the
+// source commit by committablePaths, so this never leaks ignored files into
+// history.
+func (r *ReviewIsolation) stageWorkspaceArtifacts(ctx context.Context, workspace ReviewWorkspace) error {
+	if strings.TrimSpace(r.artifactRel) == "" {
+		return nil
+	}
+	if _, err := runGit(ctx, workspace.Root, "add", "-f", "-A", "--", r.artifactRel); err != nil {
+		return fmt.Errorf("stage isolated review artifacts in %s: %w", workspace.Root, err)
+	}
+	return nil
+}
+
+// committablePaths drops workflow-artifact paths from the batch delta before it
+// is staged and committed into the source. Everything under artifactRel (issue
+// statuses, memory, specs) is workspace-local review state that is ignored in the
+// source; it is still written to the source working tree by the applied patch,
+// but must never be tracked or committed there. The code fix always lives outside
+// artifactRel, so the resulting commit carries only the fix.
+func (r *ReviewIsolation) committablePaths(paths []string) []string {
+	artifactRel := strings.TrimSpace(r.artifactRel)
+	if artifactRel == "" {
+		return paths
+	}
+	prefix := artifactRel + "/"
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path == artifactRel || strings.HasPrefix(path, prefix) {
+			continue
+		}
+		out = append(out, path)
+	}
+	return out
 }
 
 // applyIsolatedPatch integrates one batch patch into the source workspace. It
@@ -502,18 +552,7 @@ func mergeSourcePathThreeWay(
 		return false, err
 	}
 	if !theirsExists {
-		// The batch deleted this path.
-		if !oursExists {
-			return false, nil
-		}
-		if baseExists && bytes.Equal(oursContent, baseContent) {
-			if rmErr := os.Remove(oursAbs); rmErr != nil {
-				return false, fmt.Errorf("apply review deletion of %s: %w", path, rmErr)
-			}
-			return false, nil
-		}
-		// The source changed a path the batch deleted: a delete/modify conflict.
-		return true, nil
+		return mergeDeletedSourcePath(oursAbs, path, oursContent, baseContent, baseExists, oursExists)
 	}
 	if err := os.MkdirAll(filepath.Dir(oursAbs), 0o755); err != nil {
 		return false, fmt.Errorf("create parent for %s during review merge: %w", path, err)
@@ -528,18 +567,59 @@ func mergeSourcePathThreeWay(
 		return false, err
 	}
 	defer cleanup()
-	return runGitMergeFile(ctx, sourceRoot, oursAbs, baseAbs, theirsAbs)
+	conflicted, err := runGitMergeFile(ctx, sourceRoot, oursAbs, baseAbs, theirsAbs)
+	if err != nil {
+		return false, err
+	}
+	if !conflicted {
+		// git merge-file rewrites content in place and preserves ours' mode, so a
+		// mode-only change carried by the batch (e.g. chmod +x) would be lost.
+		// Propagate theirs' mode after a clean merge; on a conflict the path is
+		// rolled back, so mode is only applied when the merge integrates cleanly.
+		if err := os.Chmod(oursAbs, theirsMode.Perm()); err != nil {
+			return false, fmt.Errorf("apply review mode change to %s: %w", path, err)
+		}
+	}
+	return conflicted, nil
+}
+
+// mergeDeletedSourcePath integrates a batch that deleted path. It removes an
+// unchanged source copy and reports a delete/modify conflict when the source
+// diverged from the isolated baseline.
+func mergeDeletedSourcePath(
+	oursAbs string,
+	path string,
+	oursContent []byte,
+	baseContent []byte,
+	baseExists bool,
+	oursExists bool,
+) (bool, error) {
+	if !oursExists {
+		return false, nil
+	}
+	if baseExists && bytes.Equal(oursContent, baseContent) {
+		if err := os.Remove(oursAbs); err != nil {
+			return false, fmt.Errorf("apply review deletion of %s: %w", path, err)
+		}
+		return false, nil
+	}
+	// The source changed a path the batch deleted: a delete/modify conflict.
+	return true, nil
 }
 
 // runGitMergeFile performs an in-place 3-way merge of ours with theirs against
 // base, writing the result to ours. It returns true when the merge conflicted.
-// -q suppresses conflict warnings, so a non-zero exit with empty stderr is a
-// conflict, while a populated stderr is a genuine error.
+// git merge-file returns the conflict count (capped at 127) on a successful but
+// conflicted merge, and 255 (or any code above 127) on a hard error such as an
+// attempt to merge binary files, so only the conflict-count range is a mergeable
+// conflict; every other non-zero code is a genuine failure. -q is intentionally
+// omitted so the diagnostic for a hard error (e.g. "Cannot merge binary files")
+// reaches stderr; ordinary text conflicts stay silent on stderr regardless.
 func runGitMergeFile(ctx context.Context, root string, oursAbs, baseAbs, theirsAbs string) (bool, error) {
 	cmd := gitenv.Command(
 		ctx,
 		root,
-		"merge-file", "-q",
+		"merge-file",
 		"-L", "current source",
 		"-L", "review baseline",
 		"-L", "review batch",
@@ -554,8 +634,10 @@ func runGitMergeFile(ctx context.Context, root string, oursAbs, baseAbs, theirsA
 		return false, nil
 	}
 	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() > 0 && strings.TrimSpace(stderr.String()) == "" {
-		return true, nil
+	if errors.As(err, &exitErr) {
+		if code := exitErr.ExitCode(); code >= 1 && code <= 127 {
+			return true, nil
+		}
 	}
 	return false, fmt.Errorf("git merge-file %s: %w (%s)", oursAbs, err, strings.TrimSpace(stderr.String()))
 }
@@ -1001,7 +1083,17 @@ func requireUnchangedGitIndex(
 	if err != nil {
 		return gitIndexBackup{}, err
 	}
-	if current.path != expected.path || !bytes.Equal(current.content, expected.content) {
+	// Compare semantically: Git rewrites the raw index whenever it refreshes its
+	// stat cache (e.g. a benign `git status` from an editor), which changes the
+	// bytes without changing any entry. A byte compare would abort valid batches;
+	// gitIndexesMatch compares the staged entries instead. The freshly captured
+	// byte snapshot is still returned as the rollback payload for
+	// restoreGitIndexCAS.
+	matches, err := gitIndexesMatch(ctx, root, expected, current)
+	if err != nil {
+		return gitIndexBackup{}, err
+	}
+	if !matches {
 		return gitIndexBackup{}, errors.New("source git index changed since review isolation began")
 	}
 	return current, nil
