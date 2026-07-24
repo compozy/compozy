@@ -1597,6 +1597,64 @@ func TestWantsInteractiveParallelTaskGroups(t *testing.T) {
 	})
 }
 
+func TestRejectInteractiveParallelTaskGroupConflicts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow the picker path without conflicting flags", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := state.rejectInteractiveParallelTaskGroupConflicts(cmd); err != nil {
+			t.Fatalf("rejectInteractiveParallelTaskGroupConflicts() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject --parallel with the picker path", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "true"); err != nil {
+			t.Fatalf("set --parallel: %v", err)
+		}
+		err := state.rejectInteractiveParallelTaskGroupConflicts(cmd)
+		if err == nil || !strings.Contains(err.Error(), "cannot be combined with --parallel") {
+			t.Fatalf("expected --parallel rejection, got %v", err)
+		}
+	})
+
+	t.Run("Should reject --parallel-tasks with the picker path", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set(taskRunParallelTasksFlag, "true"); err != nil {
+			t.Fatalf("set --parallel-tasks: %v", err)
+		}
+		err := state.rejectInteractiveParallelTaskGroupConflicts(cmd)
+		if err == nil || !strings.Contains(err.Error(), "--parallel-tasks cannot be combined") {
+			t.Fatalf("expected --parallel-tasks rejection, got %v", err)
+		}
+	})
+
+	t.Run("Should allow explicitly disabled --parallel=false and --parallel-tasks=false", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
+		cmd := newTaskRunFlagCommandForTest(t, state)
+		if err := cmd.Flags().Set("parallel", "false"); err != nil {
+			t.Fatalf("set --parallel=false: %v", err)
+		}
+		if err := cmd.Flags().Set(taskRunParallelTasksFlag, "false"); err != nil {
+			t.Fatalf("set --parallel-tasks=false: %v", err)
+		}
+		if err := state.rejectInteractiveParallelTaskGroupConflicts(cmd); err != nil {
+			t.Fatalf("explicitly disabled flags should not conflict, got %v", err)
+		}
+	})
+}
+
 func TestRenderObservedTaskMultiLifecycle(t *testing.T) {
 	t.Parallel()
 

@@ -818,7 +818,7 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 // of Task Groups and delegates to the shared multi-run pipeline so preflight,
 // mode/kind resolution, and reporting are reused unchanged.
 func (s *commandState) runInteractiveParallelTaskGroups(cmd *cobra.Command, args []string) error {
-	if err := rejectInteractiveParallelTaskGroupConflicts(cmd); err != nil {
+	if err := s.rejectInteractiveParallelTaskGroupConflicts(cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -843,11 +843,11 @@ func (s *commandState) runInteractiveParallelTaskGroups(cmd *cobra.Command, args
 // rejectInteractiveParallelTaskGroupConflicts rejects flags that cannot combine
 // with the picker-driven --parallel-task-groups path, mirroring the explicit
 // --multiple path's mutual-exclusion rules.
-func rejectInteractiveParallelTaskGroupConflicts(cmd *cobra.Command) error {
-	if commandFlagChanged(cmd, "parallel") {
+func (s *commandState) rejectInteractiveParallelTaskGroupConflicts(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") && s.parallel {
 		return errors.New("--parallel-task-groups selects parallel mode and cannot be combined with --parallel")
 	}
-	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) && s.parallelTasks {
 		return errors.New("--parallel-tasks cannot be combined with --parallel-task-groups")
 	}
 	return nil
@@ -1001,12 +1001,12 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) && s.parallelTasks {
 		return withExitCode(1, errors.New(
 			"--parallel-tasks cannot be combined with --multiple; use --parallel for slug multi-run mode",
 		))
 	}
-	if commandFlagChanged(cmd, "parallel") && s.parallelTaskGroups {
+	if commandFlagChanged(cmd, "parallel") && s.parallel && s.parallelTaskGroups {
 		return withExitCode(1, errors.New(
 			"--parallel-task-groups selects parallel mode and cannot be combined with --parallel",
 		))
