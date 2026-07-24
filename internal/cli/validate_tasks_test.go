@@ -100,7 +100,8 @@ func TestValidateTasksCommandAllValid(t *testing.T) {
 func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 	t.Parallel()
 
-	t.Run("accepts canonical plan and declared task group suite", func(t *testing.T) {
+	t.Run("Should accept canonical plan and declared task group suite", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
 
@@ -120,7 +121,8 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts public workflow reference for direct task group directory", func(t *testing.T) {
+	t.Run("Should accept public workflow reference for direct task group directory", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
 		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
@@ -141,7 +143,8 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects direct task group when canonical plan is missing", func(t *testing.T) {
+	t.Run("Should reject direct task group when canonical plan is missing", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		planPath := writeTaskGroupWorkflowForCLI(t, tasksDir, false)
 		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
@@ -165,7 +168,8 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects direct task group with unknown stable ID", func(t *testing.T) {
+	t.Run("Should reject direct task group with unknown stable ID", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
 		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
@@ -187,7 +191,8 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects valid stable ID mapped to another directory", func(t *testing.T) {
+	t.Run("Should reject valid stable ID mapped to another directory", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
 		orphanDir := filepath.Join(tasksDir, "_task_groups", "002-api")
@@ -213,7 +218,8 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects physical directory basename as task group workflow", func(t *testing.T) {
+	t.Run("Should reject physical directory basename as task group workflow", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
 		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
@@ -248,7 +254,8 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects YAML node without canonical Markdown heading", func(t *testing.T) {
+	t.Run("Should reject YAML node without canonical Markdown heading", func(t *testing.T) {
+		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 		planPath := writeTaskGroupWorkflowForCLI(t, tasksDir, true)
 
