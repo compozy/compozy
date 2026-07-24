@@ -218,6 +218,32 @@ func TestClaudeSpecSelectsModelAtLaunchViaEnv(t *testing.T) {
 	})
 }
 
+func TestKiroSpecSelectsModelAtBootstrap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pin the requested Kiro model in the launch command", func(t *testing.T) {
+		t.Parallel()
+
+		spec, err := lookupAgentSpec(model.IDEKiro)
+		if err != nil {
+			t.Fatalf("lookup Kiro spec: %v", err)
+		}
+		if !spec.UsesBootstrapModel {
+			t.Fatal("Kiro spec must use a bootstrap model so sessions never update the model at runtime")
+		}
+		if spec.DefaultModel != "claude-opus-4.6" {
+			t.Fatalf("Kiro default model = %q, want supported model %q", spec.DefaultModel, "claude-opus-4.6")
+		}
+
+		const requestedModel = "claude-sonnet-4.6"
+		got := spec.launchCommand(requestedModel, "", nil, model.AccessModeDefault)
+		want := []string{"kiro-cli", "acp", "--model", requestedModel}
+		if !slices.Equal(got, want) {
+			t.Fatalf("Kiro launch command = %v, want %v", got, want)
+		}
+	})
+}
+
 func TestLaunchModelEnv(t *testing.T) {
 	t.Parallel()
 

@@ -2,7 +2,7 @@
 name = "cy-qa-workflow"
 version = "0.1.0"
 description = "Adds Compozy QA report and QA execution tasks to workflow runs"
-min_compozy_version = "0.1.10"
+min_compozy_version = "0.2.14"
 
 [subprocess]
 command = "go"

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestSyncTransportService_ShouldResolveTargetsAndHandleUnavailableBranches(t *testing.T) {
@@ -15,6 +16,7 @@ func TestSyncTransportService_ShouldResolveTargetsAndHandleUnavailableBranches(t
 		t.Helper()
 
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		t.Setenv(compozyconfig.HomeEnvVar, env.paths.HomeDir)
 		env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Sync task"))
 		return env, newTransportSyncService(env.globalDB)
 	}

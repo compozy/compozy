@@ -266,8 +266,12 @@ var (
 			Command:        "kiro-cli",
 			FixedArgs:      []string{"acp"},
 			ProbeArgs:      []string{"acp", "--help"},
-			DocsURL:        "https://kiro.dev/docs/cli/acp",
-			InstallHint:    "Install Kiro CLI and expose `kiro-cli` on PATH so `kiro-cli acp` works.",
+			// kiro-cli resolves its model from the --model launch flag and does not
+			// implement session/set_config_option, so the requested model must be
+			// pinned at bootstrap rather than switched at runtime.
+			UsesBootstrapModel: true,
+			DocsURL:            "https://kiro.dev/docs/cli/acp",
+			InstallHint:        "Install Kiro CLI and expose `kiro-cli` on PATH so `kiro-cli acp` works.",
 			BootstrapArgs: func(modelName, _ string, _ []string, accessMode string) []string {
 				var args []string
 				if strings.TrimSpace(modelName) != "" {
