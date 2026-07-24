@@ -245,6 +245,14 @@ func (s *Store) HydrateCompletion(
 	return marked, err
 }
 
+// hydrateCompletionLocked projects completion state into the plan file. The
+// plan (_task_groups.md) is a gitignored, regenerable projection whose
+// authoritative completion state lives in globaldb (ADR-009); the daemon owns
+// it. Callers are serialized by withPlanLock, so the read-modify-write below is
+// safe against other Store callers. It is intentionally NOT guarded against a
+// concurrent external edit (a hand-edit while the daemon runs): that is not a
+// supported workflow, and the worst case is a projection overwrite that the
+// next hydration re-derives — no authoritative state is lost.
 func (s *Store) hydrateCompletionLocked(
 	ctx context.Context,
 	initiativeDir, planPath string,
