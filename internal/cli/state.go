@@ -602,6 +602,17 @@ func commandFlagChanged(cmd *cobra.Command, name string) bool {
 	return flags.Changed(name)
 }
 
+// boolFlagEnabled reports whether a boolean flag was explicitly supplied with a
+// true value. Unlike commandFlagChanged it gates on the VALUE, so --flag=false is
+// treated as "not requested" rather than "flag present". Returns an error only
+// when the named flag exists but is not a bool flag.
+func boolFlagEnabled(cmd *cobra.Command, name string) (bool, error) {
+	if !commandFlagChanged(cmd, name) {
+		return false, nil
+	}
+	return cmd.Flags().GetBool(name)
+}
+
 func (s *commandState) assertPersistedExecCompatibility(
 	cmd *cobra.Command,
 	cfg core.Config,

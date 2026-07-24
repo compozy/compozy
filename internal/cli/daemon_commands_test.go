@@ -2400,6 +2400,42 @@ func TestResolveTaskPresentationModeUsesInjectedInteractiveCheck(t *testing.T) {
 				state.attachMode = attachModeUI
 			},
 		},
+		{
+			name:        "detach=false does not switch to detach mode",
+			interactive: false,
+			wantMode:    attachModeStream,
+			configure: func(t *testing.T, _ *commandState, cmd *cobra.Command) {
+				t.Helper()
+				if err := cmd.Flags().Set("detach", "false"); err != nil {
+					t.Fatalf("set detach: %v", err)
+				}
+			},
+		},
+		{
+			name:        "detach=true still resolves to detach mode",
+			interactive: true,
+			wantMode:    attachModeDetach,
+			configure: func(t *testing.T, _ *commandState, cmd *cobra.Command) {
+				t.Helper()
+				if err := cmd.Flags().Set("detach", "true"); err != nil {
+					t.Fatalf("set detach: %v", err)
+				}
+			},
+		},
+		{
+			name:        "ui=false with stream selects stream without conflict",
+			interactive: false,
+			wantMode:    attachModeStream,
+			configure: func(t *testing.T, _ *commandState, cmd *cobra.Command) {
+				t.Helper()
+				if err := cmd.Flags().Set("ui", "false"); err != nil {
+					t.Fatalf("set ui: %v", err)
+				}
+				if err := cmd.Flags().Set("stream", "true"); err != nil {
+					t.Fatalf("set stream: %v", err)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

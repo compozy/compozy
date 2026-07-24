@@ -846,7 +846,11 @@ func (s *commandState) resolveExecPresentationMode(cmd *cobra.Command) (string, 
 
 func (s *commandState) resolveReviewWatchPresentationMode(cmd *cobra.Command) (string, error) {
 	if isJSONOutputFormat(s.outputFormat) {
-		if commandFlagChanged(cmd, "ui") ||
+		uiRequested, err := boolFlagEnabled(cmd, "ui")
+		if err != nil {
+			return "", err
+		}
+		if uiRequested ||
 			(commandFlagChanged(cmd, "attach") && strings.TrimSpace(s.attachMode) == attachModeUI) {
 			return "", fmt.Errorf("%s cannot combine json output with ui attach mode", cmd.CommandPath())
 		}

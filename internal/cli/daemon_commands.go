@@ -1974,7 +1974,15 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 		{name: "detach", value: attachModeDetach},
 		{name: "background", value: attachModeDetach},
 	} {
-		if !commandFlagChanged(cmd, item.name) {
+		// These are real bool flags, so gate on the VALUE rather than mere
+		// presence: --ui=false / --detach=false must not switch modes or count
+		// toward the mutual-exclusion check (mirrors the value-gating applied to
+		// --parallel / --parallel-tasks / --parallel-task-groups / --new).
+		enabled, err := boolFlagEnabled(cmd, item.name)
+		if err != nil {
+			return "", err
+		}
+		if !enabled {
 			continue
 		}
 		mode = item.value

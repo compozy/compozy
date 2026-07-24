@@ -2476,3 +2476,49 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 		}
 	})
 }
+
+func TestResolveReviewWatchPresentationModeValueGatesUIFlag(t *testing.T) {
+	t.Parallel()
+
+	newWatchCmd := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "compozy reviews watch"}
+		cmd.Flags().String("attach", attachModeAuto, "attach mode")
+		cmd.Flags().Bool("ui", false, "ui mode")
+		cmd.Flags().Bool("stream", false, "stream mode")
+		cmd.Flags().Bool("detach", false, "detach mode")
+		return cmd
+	}
+
+	t.Run("json output with --ui=false resolves to stream", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindWatchReviews, core.ModePRReview)
+		state.outputFormat = string(core.OutputFormatJSON)
+		cmd := newWatchCmd()
+		if err := cmd.Flags().Set("ui", "false"); err != nil {
+			t.Fatalf("set ui: %v", err)
+		}
+		mode, err := state.resolveReviewWatchPresentationMode(cmd)
+		if err != nil {
+			t.Fatalf("resolveReviewWatchPresentationMode() error = %v", err)
+		}
+		if mode != attachModeStream {
+			t.Fatalf("mode = %q, want %q", mode, attachModeStream)
+		}
+	})
+
+	t.Run("json output with --ui rejects ui attach mode", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindWatchReviews, core.ModePRReview)
+		state.outputFormat = string(core.OutputFormatJSON)
+		cmd := newWatchCmd()
+		if err := cmd.Flags().Set("ui", "true"); err != nil {
+			t.Fatalf("set ui: %v", err)
+		}
+		if _, err := state.resolveReviewWatchPresentationMode(cmd); err == nil ||
+			!strings.Contains(err.Error(), "cannot combine json output with ui attach mode") {
+			t.Fatalf("resolveReviewWatchPresentationMode() error = %v, want ui conflict", err)
+		}
+	})
+}
