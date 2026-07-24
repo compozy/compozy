@@ -219,7 +219,7 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+	if err := s.collectReviewInteractiveParamsForArgs(cmd, args); err != nil {
 		return err
 	}
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
@@ -353,6 +353,19 @@ func (s *commandState) showReviewsDaemon(cmd *cobra.Command, args []string) erro
 	return nil
 }
 
+// collectReviewInteractiveParamsForArgs opens the interactive form only when no
+// target was supplied. A bare positional slug is invisible to
+// maybeCollectInteractiveParams' NFlag() guard, so without this check the form
+// would pre-select a different workflow and resolveWorkflowNameArg would then
+// discard args[0] — starting a run (and, for fix, an auto-commit) against the
+// wrong workflow. This mirrors the guard used by runReviewWatchDaemon.
+func (s *commandState) collectReviewInteractiveParamsForArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 0 || strings.TrimSpace(s.name) != "" {
+		return nil
+	}
+	return s.maybeCollectInteractiveParams(cmd)
+}
+
 func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string) error {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
@@ -362,7 +375,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
 	defer cleanup()
-	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+	if err := s.collectReviewInteractiveParamsForArgs(cmd, args); err != nil {
 		return err
 	}
 	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {

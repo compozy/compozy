@@ -441,6 +441,79 @@ func TestReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest(t *testing.T
 	}
 }
 
+func TestReviewsFixCommandPositionalSlugSurvivesInteractiveTerminal(t *testing.T) {
+	t.Run("Should keep the typed slug and skip the form on a TTY", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir: %v", err)
+		}
+		withWorkingDir(t, workspaceRoot)
+
+		client := &reviewExecCaptureClient{
+			stubDaemonCommandClient: &stubDaemonCommandClient{
+				health: apicore.DaemonHealth{Ready: true},
+				reviewLatest: apicore.ReviewSummary{
+					WorkflowSlug: "demo",
+					RoundNumber:  7,
+					Provider:     "ext-review",
+					PRRef:        "259",
+				},
+				reviewRun: apicore.Run{
+					RunID:            "review-run-demo",
+					Mode:             "review",
+					Status:           "starting",
+					PresentationMode: attachModeUI,
+					StartedAt:        time.Date(2026, 4, 18, 12, 2, 0, 0, time.UTC),
+				},
+			},
+		}
+		installTestCLIReadyDaemonBootstrap(t, client)
+		var attachedRunID string
+		installTestCLIRunObservers(
+			t,
+			func(_ context.Context, _ daemonCommandClient, runID string) error {
+				attachedRunID = runID
+				return nil
+			},
+			nil,
+		)
+
+		defaults := testReviewExecCommandDefaults()
+		defaults.isInteractive = func() bool { return true }
+		var collectFormCalls int
+		// A bare positional slug must suppress the interactive form. If the form
+		// runs it would overwrite state.name with a different workflow, and
+		// resolveWorkflowNameArg would then discard the typed slug.
+		defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+			collectFormCalls++
+			state.name = "wrong-workflow"
+			return nil
+		}
+
+		output, err := executeCommandCombinedOutput(
+			newReviewsCommandWithDefaults(defaults),
+			nil,
+			"fix",
+			"demo",
+		)
+		if err != nil {
+			t.Fatalf("execute reviews fix positional slug: %v\noutput:\n%s", err, output)
+		}
+		if collectFormCalls != 0 {
+			t.Fatalf("expected no interactive form call for a positional slug, got %d", collectFormCalls)
+		}
+		if client.startReviewSlug != "demo" {
+			t.Fatalf("review run slug = %q, want demo (the typed positional slug must survive)", client.startReviewSlug)
+		}
+		if client.latestSlug != "demo" {
+			t.Fatalf("latest lookup slug = %q, want demo", client.latestSlug)
+		}
+		if attachedRunID != "review-run-demo" {
+			t.Fatalf("attached run id = %q, want review-run-demo", attachedRunID)
+		}
+	})
+}
+
 func TestReviewsFixCommandAutoAttachStreamsWhenNonInteractive(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
