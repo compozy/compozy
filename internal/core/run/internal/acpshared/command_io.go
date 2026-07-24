@@ -336,6 +336,7 @@ func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Lo
 	client, err := newAgentClient(ctx, agent.ClientConfig{
 		IDE:                    ide,
 		Model:                  jobModel(cfg, job),
+		ModelExplicit:          cfg.ModelExplicit,
 		AddDirs:                append([]string(nil), cfg.AddDirs...),
 		ReasoningEffort:        jobReasoningEffort(cfg, job),
 		AccessMode:             cfg.AccessMode,

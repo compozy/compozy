@@ -1,6 +1,6 @@
 # Council of Advisors Reference
 
-Run the council as a real embedded subagent workflow, not as inline roleplay. The facilitator remains inside `cy-idea-factory`, but every advisor is dispatched through the host-owned `run_agent` tool using canonical reusable-agent ids.
+Run the council as a real embedded subagent workflow, not as inline roleplay. The facilitator remains inside `cy-idea-factory`, and every advisor runs as a real subagent resolved from a canonical reusable-agent id.
 
 ## Runtime Contract
 
@@ -13,7 +13,29 @@ Run the council as a real embedded subagent workflow, not as inline roleplay. Th
   - `product-mind`
   - `devils-advocate`
   - `the-thinker`
-- If `run_agent` is unavailable or any selected advisor cannot be resolved, stop and tell the user to run `compozy setup`.
+
+### Dispatch Order
+
+Use the first mechanism that works. Never simulate an advisor inline, on any runtime.
+
+1. **Host `run_agent` tool.** The normal path. Compozy injects the reserved `compozy` MCP server into every ACP session it creates, so `run_agent` is present on every supported runtime — Claude, Codex, Droid, Cursor alike. Absence of the tool means the session was not created by Compozy, not that the runtime lacks the capability.
+2. **`compozy exec --agent <id>`.** Use when the session has no `run_agent` tool, which happens when the skill is invoked from a runtime session Compozy did not start. Pass `--ide` matching the current runtime and omit `--model` so the runtime's own default applies:
+
+   ```bash
+   compozy exec --agent product-mind --ide codex --access-mode default --format text "Council prompt..."
+   ```
+
+   This path costs one extra runtime process per advisor and carries none of `run_agent`'s depth or cycle guards, so prefer mechanism 1 whenever it is available.
+
+### When Dispatch Fails
+
+If neither mechanism produces advisor output, stop and report precisely what failed. Do not fabricate advisors to keep the workflow moving.
+
+Diagnose before blaming setup:
+
+- Run `compozy agents list` and name the advisors that failed to resolve.
+- Recommend `compozy setup` **only** when advisor profiles are genuinely missing from that listing. If the roster resolves, setup is not the problem and rerunning it will not help.
+- If the roster resolves but both dispatch mechanisms failed, report that directly, with the error from each attempt.
 
 ## When to Use
 
@@ -46,7 +68,7 @@ Selection rules:
 
 ## Phase 1: Opening Statements
 
-Dispatch all selected advisors through `run_agent`. Run them in parallel when the runtime supports parallel tool calls.
+Dispatch all selected advisors through the dispatch order above. Run them in parallel when the runtime supports parallel tool calls.
 
 Each advisor receives:
 
@@ -72,7 +94,7 @@ Read the openings and identify 2-4 genuine tensions. A real tension has Side A, 
 
 For each tension:
 
-1. Re-dispatch the opposing advisors through `run_agent`
+1. Re-dispatch the opposing advisors through the same mechanism used for the opening statements
 2. Require steel-manning first
 3. Then require a rebuttal plus one of: concede, partially concede, hold firm
 

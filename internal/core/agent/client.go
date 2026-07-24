@@ -42,6 +42,7 @@ type Client interface {
 type ClientConfig struct {
 	IDE             string
 	Model           string
+	ModelExplicit   bool // Model was pinned by the caller, not inherited
 	AddDirs         []string
 	ReasoningEffort string
 	AccessMode      string

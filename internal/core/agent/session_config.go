@@ -104,14 +104,18 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 	}
 	resolvedModel, err := resolveSessionSelectValue(modelOption, effectiveModel, "model")
 	if err != nil {
-		if c.spec.ID == model.IDECursor {
-			err = fmt.Errorf(
-				"%w; Cursor CLI --list-models entries can differ from ACP model IDs; "+
-					"use an ACP name or value from the valid choices",
-				err,
-			)
+		fallback, ok := c.inheritedModelFallback(modelOption, effectiveModel)
+		if !ok {
+			if c.spec.ID == model.IDECursor {
+				err = fmt.Errorf(
+					"%w; Cursor CLI --list-models entries can differ from ACP model IDs; "+
+						"use an ACP name or value from the valid choices",
+					err,
+				)
+			}
+			return "", wrapSessionSetupError(SessionSetupStageSetModel, err)
 		}
-		return "", wrapSessionSetupError(SessionSetupStageSetModel, err)
+		resolvedModel = fallback
 	}
 	if err := c.setSessionConfigValue(
 		ctx,
@@ -124,6 +128,33 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 		return "", err
 	}
 	return resolvedModel, nil
+}
+
+// inheritedModelFallback resolves a model the runtime does not advertise down to
+// that runtime's own current default. A workspace, task-rule, or agent default is
+// not a statement about which runtime the session lands on, so a cross-runtime
+// value must not fail the session. An explicitly pinned model stays a hard error:
+// running a model other than the one requested is worse than failing.
+func (c *clientImpl) inheritedModelFallback(
+	option *acp.SessionConfigOptionSelect,
+	requested string,
+) (string, bool) {
+	if c.cfg.ModelExplicit || option == nil {
+		return "", false
+	}
+	current := strings.TrimSpace(string(option.CurrentValue))
+	if current == "" || strings.EqualFold(current, strings.TrimSpace(requested)) {
+		return "", false
+	}
+	if c.logger != nil {
+		c.logger.Warn(
+			"inherited model is not available on this runtime; falling back to the runtime default",
+			"runtime", c.spec.ID,
+			"requested_model", requested,
+			"resolved_model", current,
+		)
+	}
+	return current, true
 }
 
 func (c *clientImpl) configureSessionReasoning(

@@ -72,6 +72,7 @@ You MUST create a task for each phase and complete them in order:
      4. **User expectations:** `"{feature} UX patterns OR user experience best practices"` (if relevant)
      5. **Pricing/cost:** `"{service/API} pricing OR cost comparison 2025 2026"` (if relevant)
    - After both agents complete, merge findings and present a research summary to the user:
+
      ```
      **Codebase findings:**
      - {Relevant existing feature/pattern}
@@ -112,8 +113,9 @@ You MUST create a task for each phase and complete them in order:
      - **Risks:** What could go wrong? What are the hidden dependencies?
      - **10x Challenge:** Is this truly high-leverage or just incremental? Is there a more ambitious version worth exploring? Could a simpler version deliver disproportionate value?
    - Follow the council session structure from the reference: Opening Statements, Tensions & Debate, Position Evolution, Synthesis.
-   - Use real reusable subagents through `run_agent`. Do NOT simulate the advisors inline. The canonical council roster is: `pragmatic-engineer`, `architect-advisor`, `security-advocate`, `product-mind`, `devils-advocate`, `the-thinker`.
-   - If `run_agent` is unavailable or the council archetypes cannot be resolved, stop with an actionable error that tells the user to run `compozy setup`.
+   - Use real reusable subagents. Do NOT simulate the advisors inline. The canonical council roster is: `pragmatic-engineer`, `architect-advisor`, `security-advocate`, `product-mind`, `devils-advocate`, `the-thinker`.
+   - Follow the dispatch order in `references/council.md`: the host `run_agent` tool first, then `compozy exec --agent <id>` when the session has no `run_agent`.
+   - If both dispatch mechanisms fail, stop and report what each attempt returned. Check `compozy agents list` first, and recommend `compozy setup` only when advisor profiles are actually missing from that listing.
    - Select 3-5 advisors based on dilemma complexity.
    - Extract: key trade-offs, recommended approach, items for out-of-scope (V1), optional stretch goal for V2+.
    - After the debate, create an ADR for the scope decision:

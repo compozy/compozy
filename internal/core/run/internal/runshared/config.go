@@ -21,6 +21,7 @@ type Config struct {
 	BatchSize              int
 	IDE                    string
 	Model                  string
+	ModelExplicit          bool // Model was pinned by the user, not inherited
 	AddDirs                []string
 	TailLines              int
 	ReasoningEffort        string
@@ -132,6 +133,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		BatchSize:              src.BatchSize,
 		IDE:                    src.IDE,
 		Model:                  src.Model,
+		ModelExplicit:          src.ExplicitRuntime.Model,
 		AddDirs:                append([]string(nil), src.AddDirs...),
 		TailLines:              src.TailLines,
 		ReasoningEffort:        src.ReasoningEffort,
