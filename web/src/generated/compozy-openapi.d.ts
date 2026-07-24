@@ -730,6 +730,7 @@ export interface components {
             batching?: {
                 [key: string]: unknown;
             };
+            task_group_id?: string;
             presentation_mode?: string;
             runtime_overrides?: {
                 [key: string]: unknown;
@@ -755,6 +756,8 @@ export interface components {
             error_text?: string;
             mode: string;
             parent_run_id?: string;
+            out_of_order_needed?: boolean;
+            out_of_order_requested?: boolean;
             presentation_mode: string;
             request_id?: string;
             run_id: string;
@@ -1021,18 +1024,24 @@ export interface components {
         };
         TaskExecutionDescriptor: {
             /** @enum {string} */
-            kind: "task_standard" | "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
+            kind: "task_standard" | "task_parallel" | "task_multi_enqueued" | "task_multi_parallel" | "task_multi_group_parallel";
             label: string;
             source: string;
             uses_worktrees: boolean;
         };
         TaskRunRequest: {
+            allow_out_of_order?: boolean;
             execution?: components["schemas"]["TaskExecutionDescriptor"];
+            task_group_id?: string;
             presentation_mode?: string;
             runtime_overrides?: {
                 [key: string]: unknown;
             };
             workspace?: string;
+        };
+        TaskRunTarget: {
+            initiative_slug: string;
+            task_group_id: string;
         };
         TaskRunMultipleItem: {
             base_branch?: string;
@@ -1042,13 +1051,14 @@ export interface components {
             result_branch?: string;
             slug: string;
             /** @enum {string} */
-            status: "queued" | "running" | "completed" | "failed" | "canceled";
+            status: "queued" | "running" | "completed" | "no-changes" | "failed" | "canceled";
             worktree_path?: string;
             worktree_reason?: string;
             /** @enum {string} */
             worktree_status?: "active" | "removed" | "preserved";
         };
         TaskRunMultipleRequest: {
+            allow_out_of_order?: boolean;
             execution?: components["schemas"]["TaskExecutionDescriptor"];
             /** @enum {string} */
             mode?: "enqueued" | "parallel";
@@ -1057,12 +1067,13 @@ export interface components {
             runtime_overrides?: {
                 [key: string]: unknown;
             };
-            slugs: string[];
+            slugs?: string[];
+            targets?: components["schemas"]["TaskRunTarget"][];
             workspace?: string;
         };
         TaskRunMultipleSnapshotResponse: {
             /** @enum {string} */
-            execution_kind?: "task_parallel" | "task_multi_enqueued" | "task_multi_parallel";
+            execution_kind?: "task_parallel" | "task_multi_enqueued" | "task_multi_parallel" | "task_multi_group_parallel";
             incomplete?: boolean;
             incomplete_reasons?: string[];
             items?: components["schemas"]["TaskRunMultipleItem"][];
@@ -1129,15 +1140,18 @@ export interface components {
             workflow: components["schemas"]["WorkflowOverviewPayload"];
         };
         WorkflowRefRequest: {
+            task_group_id?: string;
             workspace?: string;
         };
         WorkflowArchiveRequest: {
             force?: boolean;
+            task_group_id?: string;
             workspace?: string;
         };
         WorkflowSpecDocument: {
             adrs?: components["schemas"]["MarkdownDocument"][];
             prd?: components["schemas"]["MarkdownDocument"];
+            plan_excerpt?: components["schemas"]["MarkdownDocument"];
             techspec?: components["schemas"]["MarkdownDocument"];
             workflow: components["schemas"]["WorkflowSummary"];
             workspace: components["schemas"]["Workspace"];
@@ -1151,13 +1165,51 @@ export interface components {
             /** Format: date-time */
             archived_at?: string;
             can_start_run?: boolean;
+            display_title?: string;
             id: string;
             /** Format: date-time */
             last_synced_at?: string;
+            kind?: string;
+            lifecycle_complete?: boolean;
+            outcome?: string;
+            task_group_id?: string;
+            parent_workflow_id?: string;
             slug: string;
             start_block_reason?: string;
             task_counts?: components["schemas"]["WorkflowTaskCounts"];
+            task_groups?: components["schemas"]["TaskGroupSummary"][];
             workspace_id: string;
+        };
+        TaskGroupSummary: {
+            active_runs?: number;
+            archive_eligible?: boolean;
+            archive_reason?: string;
+            can_start_run?: boolean;
+            dependencies?: components["schemas"]["TaskGroupDependency"][];
+            independently_eligible?: boolean;
+            latest_review?: components["schemas"]["ReviewSummary"];
+            lifecycle_complete: boolean;
+            outcome: string;
+            task_group_id: string;
+            reference: string;
+            requires_start_confirmation?: boolean;
+            start_block_reason?: string;
+            task_counts?: components["schemas"]["WorkflowTaskCounts"];
+            title: string;
+            unmet_dependency_count?: number;
+            unmet_dependencies?: components["schemas"]["TaskGroupDependency"][];
+            unmet_dependency_paths?: components["schemas"]["TaskGroupDependencyPath"][];
+            unresolved_reviews?: number;
+            workflow_id: string;
+        };
+        TaskGroupDependency: {
+            task_group_id: string;
+            rationale: string;
+            title: string;
+        };
+        TaskGroupDependencyPath: {
+            dependencies: components["schemas"]["TaskGroupDependency"][];
+            task_group_ids: string[];
         };
         WorkflowTaskCounts: {
             completed: number;
@@ -1215,6 +1267,7 @@ export interface components {
             };
             presentation_mode?: string;
             max_rounds?: number;
+            task_group_id?: string;
             poll_interval?: string;
             pr_ref: string;
             provider?: string;
@@ -1312,6 +1365,8 @@ export interface components {
         LastEventID: string;
         /** @description Maximum number of runs to return. */
         Limit: number;
+        /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+        TaskGroupIDQuery: string;
         /** @description Review round number. */
         Round: number;
         /** @description Run identifier. */
@@ -1413,7 +1468,10 @@ export interface operations {
     };
     getLatestReview: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1488,7 +1546,10 @@ export interface operations {
     };
     getReviewRound: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1520,7 +1581,10 @@ export interface operations {
     };
     listReviewIssues: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1552,7 +1616,10 @@ export interface operations {
     };
     getReviewIssue: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -1968,7 +2035,10 @@ export interface operations {
     };
     getWorkflow: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2033,7 +2103,10 @@ export interface operations {
     };
     getWorkflowBoard: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2062,7 +2135,10 @@ export interface operations {
     };
     getWorkflowTask: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2093,7 +2169,10 @@ export interface operations {
     };
     listWorkflowMemoryFiles: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2122,7 +2201,10 @@ export interface operations {
     };
     getWorkflowMemoryFile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];
@@ -2189,7 +2271,10 @@ export interface operations {
     };
     getWorkflowSpec: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional stable Task Group ID selected beneath the initiative route slug. */
+                task_group_id?: components["parameters"]["TaskGroupIDQuery"];
+            };
             header: {
                 /** @description Active workspace identifier for browser-scoped daemon requests. */
                 "X-Compozy-Workspace-ID": components["parameters"]["ActiveWorkspaceHeader"];

@@ -31,6 +31,21 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormIntro())
 	inputs := newFormInputsFromState(state)
 	builder := newFormBuilder(cmd, state)
+	if state != nil && state.kind == commandKindFixReviews {
+		ctx := commandContextOrBackground(cmd)
+		client, err := newCLIDaemonBootstrap().ensure(ctx)
+		if err != nil {
+			return fmt.Errorf("prepare review target picker: %w", err)
+		}
+		builder.reviewFixTargetOptions, err = loadReviewFixTargetPickerOptions(
+			ctx,
+			client,
+			state.workspaceRoot,
+		)
+		if err != nil {
+			return fmt.Errorf("load review target picker: %w", err)
+		}
+	}
 	inputs.register(builder)
 	if err := builder.build().Run(); err != nil {
 		return fmt.Errorf("form canceled or error: %w", err)
@@ -185,11 +200,12 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 }
 
 type formBuilder struct {
-	cmd             *cobra.Command
-	state           *commandState
-	fields          []huh.Field
-	nameFromDirList bool
-	tasksBaseDir    string
+	cmd                    *cobra.Command
+	state                  *commandState
+	fields                 []huh.Field
+	nameFromDirList        bool
+	tasksBaseDir           string
+	reviewFixTargetOptions []taskGroupPickerOption
 }
 
 func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
@@ -201,7 +217,11 @@ func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
 }
 
 func (fb *formBuilder) build() *huh.Form {
-	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(darkHuhTheme())
+	theme := darkHuhTheme()
+	if len(fb.reviewFixTargetOptions) > 0 {
+		theme = reviewTaskGroupPickerHuhTheme()
+	}
+	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(theme)
 }
 
 func (fb *formBuilder) hasFlag(flag string) bool {
@@ -249,6 +269,36 @@ func (fb *formBuilder) hideField(flag string) bool {
 
 func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
+		if fb.state.kind == commandKindFixReviews && len(fb.reviewFixTargetOptions) > 0 {
+			fb.nameFromDirList = true
+			if strings.TrimSpace(*target) == "" {
+				for index := range fb.reviewFixTargetOptions {
+					option := &fb.reviewFixTargetOptions[index]
+					if !option.SelectionBlocked {
+						*target = option.Value
+						break
+					}
+				}
+			}
+			options := make([]huh.Option[string], 0, len(fb.reviewFixTargetOptions))
+			for index := range fb.reviewFixTargetOptions {
+				option := &fb.reviewFixTargetOptions[index]
+				options = append(options, huh.NewOption(taskGroupPickerOptionLabel(*option), option.Value))
+			}
+			return huh.NewSelect[string]().
+				Key("name").
+				Title("Review Target").
+				Description(
+					"Select a workflow or Task Group. " +
+						"Rows without pending issues stay visible but stay locked; " +
+						"[⊘] means no implementation tasks are complete and review is blocked.",
+				).
+				Options(options...).
+				Validate(func(value string) error {
+					return validateTaskGroupPickerSelection(fb.reviewFixTargetOptions, value, true)
+				}).
+				Value(target)
+		}
 		title, description, dirs := fb.nameFieldOptions()
 		if len(dirs) > 0 {
 			fb.nameFromDirList = true

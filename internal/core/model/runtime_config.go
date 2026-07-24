@@ -25,6 +25,7 @@ type RuntimeConfig struct {
 	Provider                   string
 	PR                         string
 	Nitpicks                   bool
+	ExecutionScope             *ExecutionScope `json:"-"`
 	ReviewsDir                 string
 	TasksDir                   string
 	DryRun                     bool
@@ -150,6 +151,21 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	cfg.applyStallDefaults()
 }
 
+// defaultStallIdleTimeout returns the on-by-default idle window scaled to the
+// reasoning effort. High-reasoning tiers spend longer in silent inference on
+// large prompts, so a flat window misreads that thinking as a stall; the window
+// widens with the tier. An explicit StallTimeout always overrides this.
+func defaultStallIdleTimeout(reasoningEffort string) time.Duration {
+	switch strings.ToLower(strings.TrimSpace(reasoningEffort)) {
+	case "xhigh", "max":
+		return DefaultStallIdleTimeoutXHigh
+	case "high":
+		return DefaultStallIdleTimeoutHigh
+	default:
+		return DefaultStallIdleTimeout
+	}
+}
+
 // applyStallDefaults resolves the stall-detection policy to safe, on-by-default
 // values and enforces the child-timeout > idle-timeout invariant. The parked
 // alert sound defaults unconditionally because the parked alert is part of the
@@ -160,7 +176,7 @@ func (cfg *RuntimeConfig) applyStallDefaults() {
 		cfg.StallEnabled = &enabled
 	}
 	if cfg.StallTimeout <= 0 {
-		cfg.StallTimeout = DefaultStallIdleTimeout
+		cfg.StallTimeout = defaultStallIdleTimeout(cfg.ReasoningEffort)
 	}
 	if cfg.ChildStallTimeout <= 0 {
 		cfg.ChildStallTimeout = DefaultStallChildTimeout

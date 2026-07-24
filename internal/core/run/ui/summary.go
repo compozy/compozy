@@ -38,7 +38,10 @@ func (m *uiModel) renderSummaryMainBox(boxW int) string {
 	innerW := panelContentWidth(boxW)
 	borderColor := colorBorderFocus
 	headerColor := colorSuccess
-	if m.failed > 0 || m.parked > 0 {
+	if isFailedRunStatus(m.runStatus) {
+		borderColor = colorError
+		headerColor = colorError
+	} else if m.failed > 0 || m.parked > 0 {
 		borderColor = colorWarning
 		headerColor = colorWarning
 	}
@@ -68,6 +71,12 @@ func (m *uiModel) renderSummaryMainBox(boxW int) string {
 // stays a plain success line for a clean run and names recovered and parked jobs
 // only when there were any.
 func (m *uiModel) summaryHeaderText() string {
+	switch strings.TrimSpace(m.runStatus) {
+	case remoteRunStatusFailed:
+		return fmt.Sprintf("Workflow Failed: %d/%d succeeded", m.completed, m.total)
+	case remoteRunStatusCrashed:
+		return fmt.Sprintf("Workflow Crashed: %d/%d succeeded", m.completed, m.total)
+	}
 	if m.failed == 0 && m.parked == 0 {
 		if m.recovered > 0 {
 			return fmt.Sprintf(
@@ -181,19 +190,30 @@ func parkedProgressValue(seq uint64) string {
 }
 
 func (m *uiModel) renderSummaryFailBox(boxW int) string {
-	lines := []string{renderOwnedLineKnownOwned(panelContentWidth(boxW), renderTechLabel("run.failures"))}
+	innerW := panelContentWidth(boxW)
+	lines := []string{renderOwnedLineKnownOwned(innerW, renderTechLabel("run.failures"))}
 	for _, f := range m.failures {
+		label := strings.TrimSpace(f.CodeFile)
+		if label == "" {
+			label = "RUN"
+		}
 		entry := lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colorError).
-			Render("FAIL " + f.CodeFile)
+			Render("FAIL " + label)
 		entry += styleDimText.Render(fmt.Sprintf("  EXIT %d", f.ExitCode))
-		lines = append(lines, renderOwnedLineKnownOwned(panelContentWidth(boxW), entry))
+		lines = append(lines, renderOwnedLineKnownOwned(innerW, entry))
+		if f.Err != nil {
+			reason := strings.TrimSpace(f.Err.Error())
+			for _, line := range wrapViewportLines(strings.Split(reason, "\n"), max(innerW-2, 1)) {
+				lines = append(lines, renderOwnedLineKnownOwned(innerW, styleBodyText.Render("  "+line)))
+			}
+		}
 		if f.OutLog != "" {
 			lines = append(
 				lines,
 				renderOwnedLineKnownOwned(
-					panelContentWidth(boxW),
+					innerW,
 					styleMutedText.Render("  "+f.OutLog),
 				),
 			)

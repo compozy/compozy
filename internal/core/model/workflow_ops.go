@@ -36,10 +36,11 @@ type MigrationResult struct {
 }
 
 type SyncConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
+	WorkspaceRoot  string
+	RootDir        string
+	Name           string
+	TasksDir       string
+	ExecutionScope *ExecutionScope
 }
 
 type ArchiveConfig struct {
@@ -64,6 +65,9 @@ type SyncResult struct {
 	LegacyArtifactsRemoved int
 	SyncedPaths            []string
 	PrunedWorkflows        []string
+	TaskGroupChildIDs      []string
+	MissingTaskGroups      []string
+	Partial                bool
 	Warnings               []string
 }
 
@@ -80,4 +84,6 @@ type ArchiveResult struct {
 	ArchivedPaths        []string          `json:"archived_paths,omitempty"`
 	SkippedPaths         []string          `json:"skipped_paths,omitempty"`
 	SkippedReasons       map[string]string `json:"skipped_reasons,omitempty"`
+	TaskGroupChildIDs    []string          `json:"task_group_child_ids,omitempty"`
+	PendingTaskGroups    []string          `json:"pending_task_groups,omitempty"`
 }

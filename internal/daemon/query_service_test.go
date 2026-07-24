@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,6 +96,192 @@ func TestMemoryFileIDStableAndOpaque(t *testing.T) {
 	}
 	if strings.Contains(first, "task_01.md") || strings.Contains(first, "memory/task_01.md") {
 		t.Fatalf("memoryFileID() leaked path content: %q", first)
+	}
+}
+
+func TestQueryServiceTaskGroupSpecUsesInitiativeDocumentsAndSelectedExcerpt(t *testing.T) {
+	// INVARIANT: a task group reads canonical initiative specifications plus only its own plan excerpt.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-057.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group foundation task"),
+	)
+	env.writeWorkflowFile(t, initiative, filepath.Join("adrs", "adr-001.md"), "# Canonical ADR\n")
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
+
+	service := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
+	spec, err := service.WorkflowSpec(context.Background(), env.workspaceRoot, initiative+"/TG-001")
+	if err != nil {
+		t.Fatalf("WorkflowSpec(task group) error = %v", err)
+	}
+	if spec.Workflow.Slug != initiative+"/TG-001" {
+		t.Fatalf("WorkflowSpec(task group).Workflow.Slug = %q", spec.Workflow.Slug)
+	}
+	if spec.PRD == nil || spec.PRD.Title != "Canonical PRD" ||
+		spec.TechSpec == nil || spec.TechSpec.Title != "Canonical TechSpec" ||
+		len(spec.ADRs) != 1 || spec.ADRs[0].Title != "Canonical ADR" {
+		t.Fatalf("WorkflowSpec(task group) canonical documents = %#v", spec)
+	}
+	if spec.PlanExcerpt == nil || !strings.Contains(spec.PlanExcerpt.Markdown, "TG-001 — Foundation") {
+		t.Fatalf("WorkflowSpec(task group).PlanExcerpt = %#v", spec.PlanExcerpt)
+	}
+	if strings.Contains(spec.PlanExcerpt.Markdown, "TG-002 — Delivery") {
+		t.Fatalf("WorkflowSpec(task group) leaked sibling excerpt: %q", spec.PlanExcerpt.Markdown)
+	}
+}
+
+func TestQueryServicesIsolateTaskGroupTasksMemoryAndReviews(t *testing.T) {
+	// INVARIANT: repeated child identifiers resolve only inside the selected task group workflow.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-055, IT-056, IT-058, IT-059, IT-063.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+	for _, fixture := range []struct {
+		taskGroupID string
+		title       string
+		severity    string
+	}{
+		{taskGroupID: "TG-001", title: "Foundation child task", severity: "high"},
+		{taskGroupID: "TG-002", title: "Delivery child task", severity: "low"},
+	} {
+		taskGroupRoot := filepath.Join("_task_groups", fixture.taskGroupID)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join(taskGroupRoot, "task_01.md"),
+			daemonTaskBody("pending", fixture.title),
+		)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join(taskGroupRoot, "memory", "MEMORY.md"),
+			"# "+fixture.taskGroupID+" Memory\n",
+		)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join(taskGroupRoot, "reviews-001", "_meta.md"),
+			daemonReviewRoundMetaBody("manual", fixture.taskGroupID, 1),
+		)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join(taskGroupRoot, "reviews-001", "issue_001.md"),
+			daemonReviewIssueBody("pending", fixture.severity),
+		)
+	}
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
+
+	query := NewQueryService(QueryServiceConfig{GlobalDB: env.globalDB, RunManager: env.manager})
+	taskService := newTransportTaskService(env.globalDB, env.manager, query)
+	workflows, err := taskService.ListWorkflows(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ListWorkflows(initiative) error = %v", err)
+	}
+	if len(workflows) != 1 || len(workflows[0].TaskGroups) != 2 ||
+		workflows[0].TaskGroups[0].TaskGroupID != "TG-001" ||
+		workflows[0].TaskGroups[1].TaskGroupID != "TG-002" {
+		t.Fatalf("ListWorkflows(initiative) hierarchy = %#v", workflows)
+	}
+	blockedTaskGroup := workflows[0].TaskGroups[1]
+	if blockedTaskGroup.UnmetDependencyCount != 1 || blockedTaskGroup.CanStartRun == nil ||
+		!*blockedTaskGroup.CanStartRun || blockedTaskGroup.StartBlockReason != "" ||
+		!blockedTaskGroup.RequiresStartConfirmation || len(blockedTaskGroup.UnmetDependencies) != 1 ||
+		blockedTaskGroup.UnmetDependencies[0].TaskGroupID != "TG-001" ||
+		blockedTaskGroup.UnmetDependencies[0].Title != "Foundation" ||
+		blockedTaskGroup.UnmetDependencies[0].Rationale != "Foundation must be complete first" {
+		t.Fatalf("TG-002 readiness = %#v", workflows[0].TaskGroups[1])
+	}
+	parentOverview, err := query.WorkflowOverview(context.Background(), env.workspaceRoot, initiative)
+	if err != nil {
+		t.Fatalf("WorkflowOverview(parent) error = %v", err)
+	}
+	childOverview, err := query.WorkflowOverview(
+		context.Background(),
+		env.workspaceRoot,
+		initiative+"/TG-001",
+	)
+	if err != nil {
+		t.Fatalf("WorkflowOverview(task group) error = %v", err)
+	}
+	if parentOverview.Workflow.Slug != initiative || childOverview.Workflow.Slug != initiative+"/TG-001" {
+		t.Fatalf("overview identities = %q / %q", parentOverview.Workflow.Slug, childOverview.Workflow.Slug)
+	}
+
+	for _, fixture := range []struct {
+		taskGroupID string
+		title       string
+	}{
+		{taskGroupID: "TG-001", title: "Foundation child task"},
+		{taskGroupID: "TG-002", title: "Delivery child task"},
+	} {
+		ref := initiative + "/" + fixture.taskGroupID
+		board, boardErr := query.TaskBoard(context.Background(), env.workspaceRoot, ref)
+		if boardErr != nil {
+			t.Fatalf("TaskBoard(%s) error = %v", ref, boardErr)
+		}
+		if len(board.Lanes) != 1 || len(board.Lanes[0].Items) != 1 || board.Lanes[0].Items[0].Title != fixture.title {
+			t.Fatalf("TaskBoard(%s) = %#v", ref, board.Lanes)
+		}
+		detail, detailErr := query.TaskDetail(context.Background(), env.workspaceRoot, ref, "task_01")
+		if detailErr != nil || detail.Task.Title != fixture.title {
+			t.Fatalf("TaskDetail(%s) = %#v, %v", ref, detail, detailErr)
+		}
+	}
+
+	taskGroup1Memory, err := query.WorkflowMemoryIndex(
+		context.Background(), env.workspaceRoot, initiative+"/TG-001",
+	)
+	if err != nil || len(taskGroup1Memory.Entries) != 1 {
+		t.Fatalf("WorkflowMemoryIndex(TG-001) = %#v, %v", taskGroup1Memory, err)
+	}
+	taskGroup2Memory, err := query.WorkflowMemoryIndex(
+		context.Background(), env.workspaceRoot, initiative+"/TG-002",
+	)
+	if err != nil || len(taskGroup2Memory.Entries) != 1 {
+		t.Fatalf("WorkflowMemoryIndex(TG-002) = %#v, %v", taskGroup2Memory, err)
+	}
+	if taskGroup1Memory.Entries[0].FileID == taskGroup2Memory.Entries[0].FileID {
+		t.Fatalf("sibling memory ids collided: %q", taskGroup1Memory.Entries[0].FileID)
+	}
+	if _, err := query.WorkflowMemoryFile(
+		context.Background(), env.workspaceRoot, initiative+"/TG-002", taskGroup1Memory.Entries[0].FileID,
+	); !errors.Is(err, ErrStaleDocumentReference) {
+		t.Fatalf("WorkflowMemoryFile(sibling id) error = %v, want stale reference", err)
+	}
+
+	reviews := newTransportReviewService(env.globalDB, env.manager, query)
+	for _, fixture := range []struct {
+		taskGroupID string
+		severity    string
+	}{
+		{taskGroupID: "TG-001", severity: "high"},
+		{taskGroupID: "TG-002", severity: "low"},
+	} {
+		ref := initiative + "/" + fixture.taskGroupID
+		summary, summaryErr := reviews.GetLatest(context.Background(), env.workspaceRoot, ref)
+		if summaryErr != nil || summary.WorkflowSlug != ref {
+			t.Fatalf("GetLatest(%s) = %#v, %v", ref, summary, summaryErr)
+		}
+		round, roundErr := reviews.GetRound(context.Background(), env.workspaceRoot, ref, 1)
+		if roundErr != nil || round.WorkflowSlug != ref {
+			t.Fatalf("GetRound(%s) = %#v, %v", ref, round, roundErr)
+		}
+		issues, issuesErr := reviews.ListIssues(context.Background(), env.workspaceRoot, ref, 1)
+		if issuesErr != nil || len(issues) != 1 || issues[0].Severity != fixture.severity {
+			t.Fatalf("ListIssues(%s) = %#v, %v", ref, issues, issuesErr)
+		}
+		detail, detailErr := reviews.ReviewDetail(
+			context.Background(), env.workspaceRoot, ref, 1, "1",
+		)
+		if detailErr != nil || detail.Issue.Severity != fixture.severity {
+			t.Fatalf("ReviewDetail(%s) = %#v, %v", ref, detail, detailErr)
+		}
 	}
 }
 

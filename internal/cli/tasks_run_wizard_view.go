@@ -26,7 +26,7 @@ const (
 	wizardNestedDescIndent = 8
 )
 
-var wizardStepLabels = []string{"Workflows", "Runtime", "Execution", "Overrides", "Review"}
+var wizardStepLabels = []string{"Targets", "Runtime", "Execution", "Overrides", "Review"}
 
 // wizardChromeStyle frames the whole wizard. width is the full terminal width;
 // lipgloss Width() here is the total output width, so the inner content area is

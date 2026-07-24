@@ -16,6 +16,8 @@ type jobRunner struct {
 	index     int
 	job       *job
 	execCtx   *jobExecutionContext
+	cfg       *config
+	cwd       string
 	lifecycle *jobLifecycle
 	// runAttempt is the seam through which one attempt is dispatched. Production
 	// wires it to executeAttempt; tests script attempt outcomes through it.
@@ -45,10 +47,13 @@ func (b *attemptBudget) exhaustedStallReason() string {
 }
 
 func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
+	cfg, cwd := execCtx.runtimeForJob(index)
 	runner := &jobRunner{
 		index:     index,
 		job:       jb,
 		execCtx:   execCtx,
+		cfg:       cfg,
+		cwd:       cwd,
 		lifecycle: newJobLifecycle(index, jb, execCtx),
 	}
 	runner.runAttempt = runner.executeAttempt
@@ -57,7 +62,7 @@ func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
 
 func (r *jobRunner) run(ctx context.Context) {
 	r.lifecycle.schedule()
-	if r.execCtx.cfg.DryRun {
+	if r.cfg.DryRun {
 		r.preSnapshot = r.captureWorkspaceSnapshot(ctx)
 	}
 	if err := r.dispatchPreExecuteHook(ctx); err != nil {
@@ -71,7 +76,7 @@ func (r *jobRunner) run(ctx context.Context) {
 		return
 	}
 	defer r.dispatchPostExecuteHook(ctx)
-	if r.execCtx.cfg.DryRun {
+	if r.cfg.DryRun {
 		r.completeDryRun(ctx)
 		return
 	}
@@ -85,11 +90,11 @@ func (r *jobRunner) run(ctx context.Context) {
 func (r *jobRunner) executeAttempts(ctx context.Context) {
 	r.preSnapshot = r.captureWorkspaceSnapshot(ctx)
 	budget := attemptBudget{
-		ordinary: r.execCtx.cfg.MaxRetries,
+		ordinary: r.cfg.MaxRetries,
 		stall:    r.stallRetries(),
-		total:    atLeastOne(r.execCtx.cfg.MaxRetries + 1),
+		total:    atLeastOne(r.cfg.MaxRetries + 1),
 	}
-	timeout := r.execCtx.cfg.Timeout
+	timeout := r.cfg.Timeout
 	for attempt := 1; ; attempt++ {
 		if ctx.Err() != nil {
 			r.lifecycle.markCanceled(exitCodeCanceled)
@@ -127,7 +132,7 @@ func (r *jobRunner) executeAttempts(ctx context.Context) {
 // stallRetries is the one-shot recovery budget for a frozen agent, read from the
 // resolved stall policy rather than MaxRetries.
 func (r *jobRunner) stallRetries() int {
-	cfg := r.execCtx.cfg
+	cfg := r.cfg
 	if cfg == nil || !cfg.Stall.Enabled || cfg.Stall.Retries <= 0 {
 		return 0
 	}
@@ -135,7 +140,7 @@ func (r *jobRunner) stallRetries() int {
 }
 
 func (r *jobRunner) completeDryRun(ctx context.Context) {
-	if r.execCtx.cfg.Mode == model.ExecutionModePRDTasks {
+	if r.cfg.Mode == model.ExecutionModePRDTasks {
 		_, captured, err := r.execCtx.captureTaskWorktreeScope(ctx, r.job, r.preSnapshot)
 		if err == nil && !captured {
 			err = errors.New("capture dry-run task worktree scope")
@@ -155,7 +160,7 @@ func (r *jobRunner) completeDryRun(ctx context.Context) {
 }
 
 func (r *jobRunner) runPostSuccessHook(ctx context.Context) error {
-	return r.execCtx.afterJobSuccess(ctx, r.job, r.preSnapshot)
+	return r.execCtx.afterJobSuccessForRuntime(ctx, r.index, r.job, r.cfg, r.preSnapshot)
 }
 
 // captureWorkspaceSnapshot fingerprints the workspace before the agent is
@@ -164,29 +169,29 @@ func (r *jobRunner) runPostSuccessHook(ctx context.Context) error {
 // any code, and the stall retry resets the worktree back to it. Capture's cost is
 // skipped entirely when neither consumer can use the result.
 func (r *jobRunner) captureWorkspaceSnapshot(ctx context.Context) worktree.Snapshot {
-	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+	if r == nil || r.execCtx == nil || r.cfg == nil {
 		return worktree.Snapshot{}
 	}
-	if r.execCtx.cfg.Mode != model.ExecutionModePRDTasks && !r.canAttemptCleanReset() {
+	if r.cfg.Mode != model.ExecutionModePRDTasks && !r.canAttemptCleanReset() {
 		return worktree.Snapshot{}
 	}
 	var (
 		snap worktree.Snapshot
 		err  error
 	)
-	if r.execCtx.cfg.Mode == model.ExecutionModePRDTasks {
+	if r.cfg.Mode == model.ExecutionModePRDTasks {
 		snap, err = worktree.CaptureExcluding(
 			ctx,
-			r.execCtx.cfg.WorkspaceRoot,
-			r.execCtx.cfg.TasksDir,
+			r.cfg.WorkspaceRoot,
+			r.cfg.TasksDir,
 		)
 	} else {
-		snap, err = worktree.Capture(ctx, r.execCtx.cfg.WorkspaceRoot)
+		snap, err = worktree.Capture(ctx, r.cfg.WorkspaceRoot)
 	}
 	if err != nil {
 		r.execCtx.runtimeLogger().Warn(
 			"failed to capture pre-run workspace snapshot; falling back to legacy completion behavior",
-			"workspace_root", r.execCtx.cfg.WorkspaceRoot,
+			"workspace_root", r.cfg.WorkspaceRoot,
 			"error", err,
 		)
 		return worktree.Snapshot{}
@@ -290,7 +295,7 @@ func (r *jobRunner) parkJob(failure failInfo, result jobAttemptResult, reason st
 		Reason:          reason,
 		LastToolCall:    result.LastToolCall,
 		LastProgressSeq: r.execCtx.journal.LastSequence(),
-		WorktreePath:    r.execCtx.cfg.WorkspaceRoot,
+		WorktreePath:    r.cfg.WorkspaceRoot,
 		LogPath:         r.parkedLogPath(),
 	})
 }
@@ -302,27 +307,41 @@ func (r *jobRunner) parkedLogPath() string {
 	return strings.TrimSpace(r.job.ErrLog)
 }
 
+// sharedWorktreeResetIsSafe reports whether discarding this job's workspace back
+// to its per-job pre-attempt snapshot cannot destroy a sibling's work. It is safe
+// when each job is isolated (review isolation), the run has a single job, or the
+// run executes jobs sequentially: a task group's dependent tasks run one at a
+// time, so a stalled task's snapshot already captures every prior sibling's
+// result and resetting it only discards this task's own attempt. Only a
+// genuinely concurrent shared workspace is unsafe to reset.
+func (r *jobRunner) sharedWorktreeResetIsSafe() bool {
+	return r.execCtx.total == 1 ||
+		r.execCtx.requiresOrderedWorkerExecution() ||
+		r.execCtx.reviewIsolation != nil
+}
+
 // canAttemptCleanReset reports whether a clean worktree reset is even conceivable
-// for this job. A run with sibling jobs shares one workspace, so resetting it
-// would discard a sibling's work; those jobs park on the first stall instead.
+// for this job. Only a concurrent shared workspace forbids it; sequential runs
+// (including task groups) reset per-job and retry instead of parking on the first
+// stall.
 func (r *jobRunner) canAttemptCleanReset() bool {
-	cfg := r.execCtx.cfg
+	cfg := r.cfg
 	return r.stallRetries() > 0 &&
 		strings.TrimSpace(cfg.WorkspaceRoot) != "" &&
-		r.execCtx.total == 1
+		r.sharedWorktreeResetIsSafe()
 }
 
 // resetWorktreeForStallRetry discards everything the stalled attempt produced so
 // the retry runs the task fresh and cannot double-apply a side effect. Any error
 // means the reset is not possible and the caller must park (ADR-005 fallback).
 func (r *jobRunner) resetWorktreeForStallRetry(ctx context.Context) error {
-	cfg := r.execCtx.cfg
+	cfg := r.cfg
 	root := strings.TrimSpace(cfg.WorkspaceRoot)
 	if root == "" {
 		return errors.New("workspace root is unknown")
 	}
-	if r.execCtx.total != 1 {
-		return errors.New("workspace is shared with sibling jobs")
+	if !r.sharedWorktreeResetIsSafe() {
+		return errors.New("workspace is shared with concurrent sibling jobs")
 	}
 	if err := worktree.Reset(ctx, root, r.preSnapshot); err != nil {
 		return err
@@ -351,9 +370,9 @@ func (r *jobRunner) ensureFailure(result jobAttemptResult, fallback string) fail
 func (r *jobRunner) executeAttempt(ctx context.Context, timeout time.Duration) jobAttemptResult {
 	return executeJobWithTimeout(
 		ctx,
-		r.execCtx.cfg,
+		r.cfg,
 		r.job,
-		r.execCtx.cwd,
+		r.cwd,
 		r.execCtx.ui != nil,
 		r.index,
 		timeout,
@@ -368,7 +387,7 @@ func (r *jobRunner) nextTimeout(current time.Duration) time.Duration {
 	if current <= 0 {
 		return current
 	}
-	next := time.Duration(float64(current) * r.execCtx.cfg.RetryBackoffMultiplier)
+	next := time.Duration(float64(current) * r.cfg.RetryBackoffMultiplier)
 	const maxTimeout = 30 * time.Minute
 	if next > maxTimeout {
 		return maxTimeout
@@ -380,7 +399,7 @@ func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration
 	if r.execCtx.ui != nil {
 		return
 	}
-	if !r.execCtx.cfg.HumanOutputEnabled() {
+	if !r.cfg.HumanOutputEnabled() {
 		return
 	}
 	fmt.Fprintf(
@@ -396,17 +415,17 @@ func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration
 }
 
 func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
-	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+	if r == nil || r.execCtx == nil || r.cfg == nil {
 		return nil
 	}
 
 	before := hookModelJob(r.job)
 	payload, err := model.DispatchMutableHook(
 		ctx,
-		r.execCtx.cfg.RuntimeManager,
+		r.cfg.RuntimeManager,
 		"job.pre_execute",
 		jobPreExecutePayload{
-			RunID: r.execCtx.cfg.RunArtifacts.RunID,
+			RunID: r.cfg.RunArtifacts.RunID,
 			Job:   hookModelJob(r.job),
 		},
 	)
@@ -421,16 +440,16 @@ func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
 }
 
 func (r *jobRunner) dispatchPostExecuteHook(ctx context.Context) {
-	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+	if r == nil || r.execCtx == nil || r.cfg == nil {
 		return
 	}
 
 	model.DispatchObserverHook(
 		ctx,
-		r.execCtx.cfg.RuntimeManager,
+		r.cfg.RuntimeManager,
 		"job.post_execute",
 		jobPostExecutePayload{
-			RunID:  r.execCtx.cfg.RunArtifacts.RunID,
+			RunID:  r.cfg.RunArtifacts.RunID,
 			Job:    hookModelJob(r.job),
 			Result: r.hookJobResult(),
 		},
@@ -442,17 +461,17 @@ func (r *jobRunner) dispatchPreRetryHook(
 	attempt int,
 	result jobAttemptResult,
 ) (jobPreRetryPayload, error) {
-	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+	if r == nil || r.execCtx == nil || r.cfg == nil {
 		return jobPreRetryPayload{}, nil
 	}
 
 	failure := r.ensureFailure(result, "job failed")
 	payload, err := model.DispatchMutableHook(
 		ctx,
-		r.execCtx.cfg.RuntimeManager,
+		r.cfg.RuntimeManager,
 		"job.pre_retry",
 		jobPreRetryPayload{
-			RunID:     r.execCtx.cfg.RunArtifacts.RunID,
+			RunID:     r.cfg.RunArtifacts.RunID,
 			Job:       hookModelJob(r.job),
 			Attempt:   attempt,
 			LastError: failure.Err.Error(),

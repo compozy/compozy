@@ -24,6 +24,7 @@ type BatchParams struct {
 	BatchGroups map[string][]model.IssueEntry `json:"batch_groups,omitempty"`
 	AutoCommit  bool                          `json:"auto_commit,omitempty"`
 	Mode        model.ExecutionMode           `json:"mode,omitempty"`
+	Scope       *model.ExecutionScope         `json:"-"`
 	Memory      *WorkflowMemoryContext        `json:"memory,omitempty"`
 	Context     context.Context               `json:"-"`
 	RunID       string                        `json:"-"`
@@ -59,9 +60,12 @@ func Build(p BatchParams) (string, error) {
 
 	var rendered string
 	if p.Mode == model.ExecutionModePRDTasks {
-		rendered = buildPRDTasksPrompt(p)
+		rendered, err = buildPRDTasksPromptWithScope(p)
 	} else {
-		rendered = buildCodeReviewPrompt(p)
+		rendered, err = buildCodeReviewPromptWithScope(p)
+	}
+	if err != nil {
+		return "", err
 	}
 	return dispatchPromptPostBuild(p, rendered)
 }
@@ -223,7 +227,7 @@ func NormalizeForPrompt(absPath string) string {
 	return resolvedPath
 }
 
-func buildPRDTasksPrompt(p BatchParams) string {
+func buildPRDTasksPromptWithScope(p BatchParams) (string, error) {
 	var task model.IssueEntry
 	for _, items := range p.BatchGroups {
 		if len(items) > 0 {
@@ -231,7 +235,7 @@ func buildPRDTasksPrompt(p BatchParams) string {
 			break
 		}
 	}
-	return buildPRDTaskPrompt(task, p.AutoCommit, p.Memory)
+	return buildPRDTaskPromptWithScope(task, p.AutoCommit, p.Memory, p.Scope)
 }
 
 func batchIssueRange(batchIssues []model.IssueEntry) (int, int, bool) {

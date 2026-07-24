@@ -173,6 +173,374 @@ func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
 	}
 }
 
+func TestCreatePRDUserStoriesTemplateRequiresAuthorizationCoverage(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-prd", "references", "user-stories-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"## Authorization Rule Pack",
+		"`create`, `read`, `update`, `delete`, `transition`, and `replay`",
+		"Data classification",
+		"Actor / role / capability",
+		"`allow`, `deny`, `redact`, or `ignore`",
+		"Permitted side effects",
+		"complete matrix",
+		"documented pairwise coverage",
+		"without a negative test",
+		"client-controlled sensitive field",
+		"protected state remains unchanged",
+		"field-level read redaction",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
+func TestCreatePRDUserStoriesTemplateRequiresUnknownOutcomeRecovery(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-prd", "references", "user-stories-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"## Uncertain-Outcome Recovery",
+		"May execution begin or repeat?",
+		"Client response",
+		"Durable evidence",
+		"Retry after restart or transport failure",
+		"`no record`",
+		"`pending / incomplete`",
+		"`completed success`",
+		"`completed failure`",
+		"`fingerprint mismatch`",
+		"`corrupt / unreadable`",
+		"deterministic completed-result replay",
+		"documented incomplete-record recovery",
+		"mismatch rejection without execution or replay",
+		"transport loss after commit",
+		"process restart",
+		"`UNKNOWN_OUTCOME` only when durable evidence cannot determine the result",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
+func TestCreateTechSpecTemplateRequiresOperationalEventContracts(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: every mandated operational event has a complete contract and matching test cases.
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-techspec", "references", "techspec-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	required := []string{
+		"machine-readable YAML contract",
+		"event_contracts:",
+		"requirement: \"<required|optional>\"",
+		"privacy: \"<privacy classification>\"",
+		"request_id:",
+		"correlation_id:",
+		"actor_id:",
+		"resource_id:",
+		"allowed_outcomes:",
+		"success:",
+		"rejection:",
+		"replay:",
+		"stale_command:",
+		"delivery_semantics:",
+		"sink_failure:",
+		"blocking product decision",
+		"Never infer",
+		"required fields and outcome enums",
+		"forbidden payload fields",
+		"event-sink failures",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(text, snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
+func TestCreateTechSpecTestsTemplateRequiresQuantitativeVerification(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-techspec", "references", "tests-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"## Quantitative Verification",
+		"| Source | Metric | Target value | Measurement method | Test environment | Category | Owning test ID |",
+		"`correctness`, `capacity`, or `performance`",
+		"repeat and use the exact quantity or threshold",
+		"deterministic and reproducible",
+		"Block `_tests.md` generation",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
+func TestCreateTechSpecTestsTemplateRequiresAtomicityVerification(t *testing.T) {
+	t.Parallel()
+
+	templatePath := filepath.Join(
+		repoRoot(t),
+		"skills",
+		"cy-create-techspec",
+		"references",
+		"tests-template.md",
+	)
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	required := []string{
+		"multi-write atomicity requirement",
+		"`A` fails before any later write",
+		"`A` succeeds and `B` fails",
+		"`A` and `B` succeed and `C` fails",
+		"transaction commit fails",
+		"database constraints",
+		"transaction callbacks",
+		"dedicated test seams",
+		"production-only flags",
+		"domain, ledger, and event state",
+		"nested or bound transaction scopes",
+		"retry after rollback",
+		"at least one failure-injection test ID",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), snippet) {
+				t.Fatalf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+}
+
+func TestTechSpecTemplateRequiresContractRolloutPlanning(t *testing.T) {
+	t.Parallel()
+
+	templatePath := filepath.Join(
+		repoRoot(t),
+		"skills",
+		"cy-create-techspec",
+		"references",
+		"techspec-template.md",
+	)
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	requiredInstructions := []string{
+		"### Contract Change Analysis",
+		"Derive known consumers from repository analysis.",
+		"Contract diff:",
+		"Active consumers:",
+		"choose exactly one of atomic consumer updates, backward compatibility, versioning, content negotiation, feature flag, or temporary adapter",
+		"same implementation task or a coordinated task linked by a declared dependency",
+		"owner, cleanup condition, and removal task",
+		"Block TechSpec generation when an active consumer exists and no rollout strategy is defined.",
+	}
+	for _, instruction := range requiredInstructions {
+		t.Run(instruction, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(string(content), instruction) {
+				t.Fatalf("expected %s to include %q", templatePath, instruction)
+			}
+		})
+	}
+}
+
+func TestTaskTemplateRequiresObservablePersistenceCriteria(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-tasks", "references", "task-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	normalizedText := strings.Join(strings.Fields(text), " ")
+	requiredPhrases := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "Should require a property, target, and runtime measurement for every persistence constraint",
+			want: "Every persistence constraint MUST name its observable property, target operation or query, and runtime measurement mechanism.",
+		},
+		{
+			name: "Should separate correctness and consistency criteria",
+			want: "### Persistence Correctness and Consistency",
+		},
+		{name: "Should separate performance criteria", want: "### Persistence Performance"},
+		{
+			name: "Should support exact or bounded statement counts",
+			want: "exact or bounded executed SQL statement counts",
+		},
+		{name: "Should support one-snapshot reads", want: "reads share one snapshot transaction"},
+		{name: "Should support shared row and total predicates", want: "row and total queries use the same predicates"},
+		{name: "Should support generated query-plan checks", want: "generated query-plan checks"},
+		{name: "Should support statement-observer evidence", want: "statement-observer evidence"},
+		{
+			name: "Should reject criteria without observable assertions",
+			want: "Reject a persistence criterion that lacks an observable assertion",
+		},
+		{
+			name: "Should reject tests of implementation constants without database execution",
+			want: "implementation constants without executing the database behavior",
+		},
+	}
+	for _, testCase := range requiredPhrases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(normalizedText, testCase.want) {
+				t.Fatalf("expected %s to include %q", templatePath, testCase.want)
+			}
+		})
+	}
+
+	criterionPattern := regexp.MustCompile(`(?m)^- Property: \[[^\n]+\]; Target: \[[^\n]+\]; Measurement: \[[^\n]+\]$`)
+	if matches := criterionPattern.FindAllString(text, -1); len(matches) != 2 {
+		t.Fatalf(
+			"expected %s to define two property/target/measurement criterion shapes, got %d",
+			templatePath,
+			len(matches),
+		)
+	}
+}
+
+func TestTaskTemplateTracksEachAssignedTestIndependently(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: every catalog-backed test assignment has one stable ID, one owner, and one checkbox.
+	templatePath := filepath.Join(
+		repoRoot(t),
+		"skills",
+		"cy-create-tasks",
+		"references",
+		"task-template.md",
+	)
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	normalizedText := strings.Join(strings.Fields(text), " ")
+	required := []string{
+		"Model every catalog-backed assignment as one structured record",
+		"The containing task's qualified ID is the record's sole owner",
+		"Group headings are plain bullets, never checkboxes",
+		"Preserve each unchanged ID's existing checkbox status during regeneration",
+		"name every missing or duplicate ID directly",
+		"multiple owners",
+	}
+	for _, snippet := range required {
+		snippet := snippet
+		t.Run(snippet, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(normalizedText, snippet) {
+				t.Errorf("expected %s to include %q", templatePath, snippet)
+			}
+		})
+	}
+
+	groupedAssignment := regexp.MustCompile(
+		`(?m)^\s*- \[[ xX]\].*(?:UT|IT|E2E)-[A-Z0-9]+\s*,\s*(?:UT|IT|E2E)-[A-Z0-9]+`,
+	)
+	if match := groupedAssignment.FindString(text); match != "" {
+		t.Fatalf("expected %s to assign one test ID per checkbox, found %q", templatePath, match)
+	}
+}
+
+func TestCreateTasksTemplateClassifiesAndValidatesFilePaths(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	templatePath := filepath.Join(root, "skills", "cy-create-tasks", "references", "task-template.md")
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", templatePath, err)
+	}
+
+	text := string(content)
+	required := []string{
+		"`existing`",
+		"`proposed`",
+		"`generated`",
+		"`possible`",
+		"Every path MUST use exactly one classification",
+		"missing or renamed `existing` path as a blocking error",
+		"Treat `proposed` and `possible` paths as advisory",
+		"derive `Dependent Files` from repository analysis",
+		"outcomes, not advisory filenames",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(text, snippet) {
+			t.Errorf("expected %s to include %q", templatePath, snippet)
+		}
+	}
+}
+
 func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
 	t.Parallel()
 

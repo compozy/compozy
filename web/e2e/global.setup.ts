@@ -7,6 +7,7 @@ import type { FullConfig } from "@playwright/test";
 import {
   PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG,
   PLAYWRIGHT_RUN_SEED_WORKFLOW_SLUG,
+  PLAYWRIGHT_NESTED_WORKFLOW_SLUG,
   PLAYWRIGHT_SOURCE_WORKFLOW_SLUGS,
   PLAYWRIGHT_START_WORKFLOW_SLUG,
   PLAYWRIGHT_WORKFLOW_SLUGS,
@@ -82,7 +83,11 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
     }
   );
 
-  for (const slug of [...PLAYWRIGHT_WORKFLOW_SLUGS, PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG]) {
+  for (const slug of [
+    ...PLAYWRIGHT_WORKFLOW_SLUGS,
+    PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG,
+    PLAYWRIGHT_NESTED_WORKFLOW_SLUG,
+  ]) {
     await runCLI(
       paths.commandLogFile,
       paths.binaryPath,
@@ -167,6 +172,77 @@ async function createWorkspaceFixture(repoRoot: string, fixtureRoot: string): Pr
   );
   await createRunnableWorkflow(fixtureRoot, PLAYWRIGHT_START_WORKFLOW_SLUG, "Start Runnable Task");
   await createArchiveReadyWorkflow(fixtureRoot);
+  await createNestedWorkflow(fixtureRoot);
+}
+
+async function createNestedWorkflow(fixtureRoot: string): Promise<void> {
+  const workflowDir = path.join(fixtureRoot, ".compozy", "tasks", PLAYWRIGHT_NESTED_WORKFLOW_SLUG);
+  await mkdir(workflowDir, { recursive: true });
+
+  const nodes: string[] = [];
+  const sections: string[] = ["# Nested Fixture Task Groups", ""];
+  for (let index = 1; index <= 100; index += 1) {
+    const taskGroupId = `TG-${String(index).padStart(3, "0")}`;
+    const taskGroupDir = path.join(workflowDir, "_task_groups", taskGroupId);
+    await mkdir(path.join(taskGroupDir, "memory"), { recursive: true });
+    nodes.push(`    - id: ${taskGroupId}`, `      directory: _task_groups/${taskGroupId}`);
+    sections.push(
+      `## [ ] ${taskGroupId} — Task Group ${String(index).padStart(3, "0")}`,
+      "",
+      `- Reference: \`${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}/${taskGroupId}\``,
+      `- Outcome: Deliver fixture scope ${index}.`,
+      "- Owns:",
+      `  - fixture scope ${index}`,
+      ...(index === 2
+        ? ["- Dependencies:", "  - `TG-001` — Foundation must complete first"]
+        : ["- Dependencies: None"]),
+      ""
+    );
+    await writeFile(
+      path.join(taskGroupDir, "task_001.md"),
+      [
+        "---",
+        "status: pending",
+        `title: Shared child task ${taskGroupId}`,
+        "type: frontend",
+        "complexity: low",
+        "---",
+        "",
+        `# Shared child task ${taskGroupId}`,
+        "",
+        "Task Group-isolated fixture task.",
+        "",
+      ].join("\n"),
+      "utf8"
+    );
+    await writeFile(
+      path.join(taskGroupDir, "memory", "MEMORY.md"),
+      `# ${taskGroupId} Memory\n\nTaskGroup-isolated memory.\n`,
+      "utf8"
+    );
+  }
+
+  await writeFile(
+    path.join(workflowDir, "_task_groups.md"),
+    [
+      "---",
+      "schema_version: compozy.task-groups/v1",
+      `initiative: ${PLAYWRIGHT_NESTED_WORKFLOW_SLUG}`,
+      "graph:",
+      "  nodes:",
+      ...nodes,
+      "  edges:",
+      "    - from: TG-001",
+      "      to: TG-002",
+      "      rationale: Foundation must complete first",
+      "---",
+      "",
+      ...sections,
+    ].join("\n"),
+    "utf8"
+  );
+  await writeFile(path.join(workflowDir, "_prd.md"), "# Nested Fixture PRD\n", "utf8");
+  await writeFile(path.join(workflowDir, "_techspec.md"), "# Nested Fixture TechSpec\n", "utf8");
 }
 
 async function copySourceWorkflow(

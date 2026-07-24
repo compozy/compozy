@@ -89,8 +89,13 @@ func (m *uiModel) sidebarStatusText() string {
 		return m.shutdownHeaderLabel()
 	}
 	progress := fmt.Sprintf("%d/%d", m.settledJobs(), m.total)
-	segments := make([]string, 0, 3)
+	segments := make([]string, 0, 4)
 	segments = append(segments, progress)
+	// Show the issue total when atomic grouping packed more issues than jobs, so
+	// "1 job / 2 issues" never reads as if an issue were dropped.
+	if issues := m.totalIssues(); issues > m.total {
+		segments = append(segments, fmt.Sprintf("%d issues", issues))
+	}
 	if m.failed > 0 {
 		segments = append(segments, fmt.Sprintf("%d FAIL", m.failed))
 	}

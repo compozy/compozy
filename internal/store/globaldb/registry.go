@@ -55,13 +55,46 @@ const workspaceSelectColumns = `
 	COALESCE((SELECT COUNT(1) FROM workflows wf WHERE wf.workspace_id = w.id), 0) AS workflow_count,
 	COALESCE((SELECT COUNT(1) FROM runs r WHERE r.workspace_id = w.id), 0) AS run_count`
 
+const workflowSelectColumns = `
+	id,
+	workspace_id,
+	slug,
+	kind,
+	parent_workflow_id,
+	task_group_id,
+	display_title,
+	outcome,
+	lifecycle_completed,
+	missing,
+	dependencies_json,
+	archived_at,
+	last_synced_at,
+	created_at,
+	updated_at`
+
 const (
+	// WorkflowKindOrdinary identifies legacy workflow rows.
+	WorkflowKindOrdinary WorkflowKind = "ordinary"
+	// WorkflowKindInitiative identifies an opted-in Task Group root row.
+	WorkflowKindInitiative WorkflowKind = "initiative"
+	// WorkflowKindTaskGroup identifies a hidden Task Group child row.
+	WorkflowKindTaskGroup WorkflowKind = "task_group"
+
 	// WorkspaceFilesystemStatePresent means the workspace root exists on disk.
 	WorkspaceFilesystemStatePresent = "present"
 	// WorkspaceFilesystemStateMissing means the registry row is retained only
 	// because durable catalog data still exists in global.db.
 	WorkspaceFilesystemStateMissing = "missing"
 )
+
+// WorkflowKind describes the persistence role of a workflow row.
+type WorkflowKind string
+
+// WorkflowDependency is a task group prerequisite projected for catalog reads.
+type WorkflowDependency struct {
+	TaskGroupID string `json:"task_group_id"`
+	Rationale   string `json:"rationale"`
+}
 
 // Workspace captures one durable workspace registration.
 type Workspace struct {
@@ -82,9 +115,19 @@ type Workspace struct {
 
 // Workflow captures one durable workflow identity row.
 type Workflow struct {
-	ID           string
-	WorkspaceID  string
-	Slug         string
+	ID                 string
+	WorkspaceID        string
+	Slug               string
+	Kind               WorkflowKind
+	ParentWorkflowID   string
+	TaskGroupID        string
+	DisplayTitle       string
+	Outcome            string
+	LifecycleCompleted bool
+	// Missing marks a placeholder row seeded for a declared task group whose
+	// directory is absent on disk. Present, materialized rows leave it false.
+	Missing      bool
+	Dependencies []WorkflowDependency
 	ArchivedAt   *time.Time
 	LastSyncedAt *time.Time
 	CreatedAt    time.Time
@@ -114,17 +157,20 @@ type WorkspaceCatalogStats struct {
 
 // Run captures one durable global run index row.
 type Run struct {
-	RunID            string
-	WorkspaceID      string
-	WorkflowID       *string
-	ParentRunID      string
-	Mode             string
-	Status           string
-	PresentationMode string
-	StartedAt        time.Time
-	EndedAt          *time.Time
-	ErrorText        string
-	RequestID        string
+	RunID                string
+	WorkspaceID          string
+	WorkflowID           *string
+	ParentRunID          string
+	Mode                 string
+	Status               string
+	PresentationMode     string
+	StartedAt            time.Time
+	EndedAt              *time.Time
+	ErrorText            string
+	RequestID            string
+	OutOfOrderRequested  bool
+	OutOfOrderNeeded     bool
+	SelectionFingerprint string
 }
 
 // ActiveRunsError reports how many active runs blocked a workspace unregister.
@@ -450,7 +496,7 @@ func (g *GlobalDB) GetWorkflow(ctx context.Context, id string) (Workflow, error)
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE id = ?`,
 		strings.TrimSpace(id),
@@ -473,7 +519,7 @@ func (g *GlobalDB) GetActiveWorkflowBySlug(ctx context.Context, workspaceID stri
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE workspace_id = ? AND slug = ? AND archived_at IS NULL`,
 		strings.TrimSpace(workspaceID),
@@ -501,7 +547,7 @@ func (g *GlobalDB) ListWorkflows(ctx context.Context, opts ListWorkflowsOptions)
 	}
 
 	query := `
-		SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		SELECT ` + workflowSelectColumns + `
 		FROM workflows
 		WHERE workspace_id = ?`
 	args := []any{workspaceID}
@@ -533,6 +579,50 @@ func (g *GlobalDB) ListWorkflows(ctx context.Context, opts ListWorkflowsOptions)
 	return workflows, nil
 }
 
+// ListChildWorkflows returns child rows for one initiative in stable task group order.
+func (g *GlobalDB) ListChildWorkflows(
+	ctx context.Context,
+	parentWorkflowID string,
+	includeArchived bool,
+) ([]Workflow, error) {
+	if err := g.requireContext(ctx, "list child workflows"); err != nil {
+		return nil, err
+	}
+	parentWorkflowID = strings.TrimSpace(parentWorkflowID)
+	if parentWorkflowID == "" {
+		return nil, errors.New("globaldb: parent workflow id is required")
+	}
+	query := `SELECT ` + workflowSelectColumns + `
+		FROM workflows
+		WHERE parent_workflow_id = ?`
+	args := []any{parentWorkflowID}
+	if !includeArchived {
+		query += ` AND archived_at IS NULL`
+	}
+	query += ` ORDER BY task_group_id ASC, created_at ASC, id ASC`
+
+	rows, err := g.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query child workflows: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	children := make([]Workflow, 0)
+	for rows.Next() {
+		child, scanErr := scanWorkflow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		children = append(children, child)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("globaldb: iterate child workflows: %w", err)
+	}
+	return children, nil
+}
+
 // PutRun inserts one durable run index row.
 func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 	if err := g.requireContext(ctx, "put run"); err != nil {
@@ -542,6 +632,7 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
 	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
+	run.SelectionFingerprint = strings.TrimSpace(run.SelectionFingerprint)
 	run.Mode = strings.TrimSpace(run.Mode)
 	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
@@ -568,8 +659,9 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		ctx,
 		`INSERT INTO runs (
 			run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-			started_at, ended_at, error_text, parent_run_id, request_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			started_at, ended_at, error_text, parent_run_id, request_id,
+			out_of_order_requested, out_of_order_needed, selection_fingerprint
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.RunID,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -581,6 +673,9 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 		strings.TrimSpace(run.ErrorText),
 		run.ParentRunID,
 		strings.TrimSpace(run.RequestID),
+		run.OutOfOrderRequested,
+		run.OutOfOrderNeeded,
+		run.SelectionFingerprint,
 	)
 	if err != nil {
 		if isDuplicateRunError(err) {
@@ -601,6 +696,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
 	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
+	run.SelectionFingerprint = strings.TrimSpace(run.SelectionFingerprint)
 	run.Mode = strings.TrimSpace(run.Mode)
 	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
@@ -635,7 +731,10 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		     ended_at = ?,
 		     error_text = ?,
 		     parent_run_id = ?,
-		     request_id = ?
+		     request_id = ?,
+		     out_of_order_requested = ?,
+		     out_of_order_needed = ?,
+		     selection_fingerprint = ?
 		 WHERE run_id = ?`,
 		run.WorkspaceID,
 		store.NullableString(stringValue(run.WorkflowID)),
@@ -647,6 +746,9 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		strings.TrimSpace(run.ErrorText),
 		run.ParentRunID,
 		strings.TrimSpace(run.RequestID),
+		run.OutOfOrderRequested,
+		run.OutOfOrderNeeded,
+		run.SelectionFingerprint,
 		run.RunID,
 	)
 	if err != nil {
@@ -673,7 +775,8 @@ func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		        started_at, ended_at, error_text, parent_run_id, request_id
+		        started_at, ended_at, error_text, parent_run_id, request_id,
+		        out_of_order_requested, out_of_order_needed, selection_fingerprint
 		 FROM runs
 		 WHERE run_id = ?`,
 		strings.TrimSpace(runID),
@@ -701,7 +804,8 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 
 	query := `
 		SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
-		       started_at, ended_at, error_text, parent_run_id, request_id
+		       started_at, ended_at, error_text, parent_run_id, request_id,
+		       out_of_order_requested, out_of_order_needed, selection_fingerprint
 		FROM runs
 		WHERE 1 = 1`
 	args := make([]any, 0, 4)
@@ -750,6 +854,46 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 	}
 
 	return runs, nil
+}
+
+// FindRunBySelectionFingerprint returns the newest run for one workspace selection.
+func (g *GlobalDB) FindRunBySelectionFingerprint(
+	ctx context.Context,
+	workspaceID string,
+	fingerprint string,
+) (Run, error) {
+	if err := g.requireContext(ctx, "find run by selection fingerprint"); err != nil {
+		return Run{}, err
+	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	fingerprint = strings.TrimSpace(fingerprint)
+	if workspaceID == "" {
+		return Run{}, errors.New("globaldb: run workspace id is required")
+	}
+	if fingerprint == "" {
+		return Run{}, errors.New("globaldb: selection fingerprint is required")
+	}
+
+	row := g.db.QueryRowContext(
+		ctx,
+		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
+		        started_at, ended_at, error_text, parent_run_id, request_id,
+		        out_of_order_requested, out_of_order_needed, selection_fingerprint
+		 FROM runs
+		 WHERE workspace_id = ? AND selection_fingerprint = ?
+		 ORDER BY started_at DESC, run_id ASC
+		 LIMIT 1`,
+		workspaceID,
+		fingerprint,
+	)
+	run, err := scanRun(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Run{}, ErrRunNotFound
+		}
+		return Run{}, err
+	}
+	return run, nil
 }
 
 func (g *GlobalDB) registerResolvedWorkspace(
@@ -934,8 +1078,10 @@ func normalizeWorkspaceFilesystemState(value string) (string, error) {
 }
 
 func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workflow, error) {
-	workflow.WorkspaceID = strings.TrimSpace(workflow.WorkspaceID)
-	workflow.Slug = strings.TrimSpace(workflow.Slug)
+	workflow, dependenciesJSON, err := normalizeWorkflow(workflow)
+	if err != nil {
+		return Workflow{}, err
+	}
 	if workflow.WorkspaceID == "" {
 		return Workflow{}, errors.New("globaldb: workflow workspace id is required")
 	}
@@ -952,14 +1098,24 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 		workflow.UpdatedAt = workflow.CreatedAt
 	}
 
-	_, err := g.db.ExecContext(
+	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO workflows (
-			id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			id, workspace_id, slug, kind, parent_workflow_id, task_group_id,
+			display_title, outcome, lifecycle_completed, missing, dependencies_json,
+			archived_at, last_synced_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workflow.ID,
 		workflow.WorkspaceID,
 		workflow.Slug,
+		workflow.Kind,
+		store.NullableString(workflow.ParentWorkflowID),
+		workflow.TaskGroupID,
+		workflow.DisplayTitle,
+		workflow.Outcome,
+		workflow.LifecycleCompleted,
+		workflow.Missing,
+		dependenciesJSON,
 		nullableTimestamp(workflow.ArchivedAt),
 		nullableTimestamp(workflow.LastSyncedAt),
 		store.FormatTimestamp(workflow.CreatedAt),
@@ -976,9 +1132,10 @@ func (g *GlobalDB) insertWorkflow(ctx context.Context, workflow Workflow) (Workf
 }
 
 func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workflow, error) {
-	workflow.ID = strings.TrimSpace(workflow.ID)
-	workflow.WorkspaceID = strings.TrimSpace(workflow.WorkspaceID)
-	workflow.Slug = strings.TrimSpace(workflow.Slug)
+	workflow, dependenciesJSON, err := normalizeWorkflow(workflow)
+	if err != nil {
+		return Workflow{}, err
+	}
 	if workflow.ID == "" {
 		return Workflow{}, errors.New("globaldb: workflow id is required")
 	}
@@ -995,10 +1152,20 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE workflows
-		 SET workspace_id = ?, slug = ?, archived_at = ?, last_synced_at = ?, updated_at = ?
+		 SET workspace_id = ?, slug = ?, kind = ?, parent_workflow_id = ?, task_group_id = ?,
+		     display_title = ?, outcome = ?, lifecycle_completed = ?, missing = ?, dependencies_json = ?,
+		     archived_at = ?, last_synced_at = ?, updated_at = ?
 		 WHERE id = ?`,
 		workflow.WorkspaceID,
 		workflow.Slug,
+		workflow.Kind,
+		store.NullableString(workflow.ParentWorkflowID),
+		workflow.TaskGroupID,
+		workflow.DisplayTitle,
+		workflow.Outcome,
+		workflow.LifecycleCompleted,
+		workflow.Missing,
+		dependenciesJSON,
 		nullableTimestamp(workflow.ArchivedAt),
 		nullableTimestamp(workflow.LastSyncedAt),
 		store.FormatTimestamp(workflow.UpdatedAt),
@@ -1024,22 +1191,45 @@ func (g *GlobalDB) updateWorkflow(ctx context.Context, workflow Workflow) (Workf
 
 func scanWorkflow(scanner rowScanner) (Workflow, error) {
 	var (
-		workflow        Workflow
-		archivedAtRaw   sql.NullString
-		lastSyncedAtRaw sql.NullString
-		createdAtRaw    string
-		updatedAtRaw    string
+		workflow            Workflow
+		kind                string
+		parentWorkflowIDRaw sql.NullString
+		lifecycleCompleted  int
+		missing             int
+		dependenciesJSON    string
+		archivedAtRaw       sql.NullString
+		lastSyncedAtRaw     sql.NullString
+		createdAtRaw        string
+		updatedAtRaw        string
 	)
 	if err := scanner.Scan(
 		&workflow.ID,
 		&workflow.WorkspaceID,
 		&workflow.Slug,
+		&kind,
+		&parentWorkflowIDRaw,
+		&workflow.TaskGroupID,
+		&workflow.DisplayTitle,
+		&workflow.Outcome,
+		&lifecycleCompleted,
+		&missing,
+		&dependenciesJSON,
 		&archivedAtRaw,
 		&lastSyncedAtRaw,
 		&createdAtRaw,
 		&updatedAtRaw,
 	); err != nil {
 		return Workflow{}, err
+	}
+	workflow.Kind = WorkflowKind(strings.TrimSpace(kind))
+	workflow.ParentWorkflowID = strings.TrimSpace(parentWorkflowIDRaw.String)
+	workflow.TaskGroupID = strings.TrimSpace(workflow.TaskGroupID)
+	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
+	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
+	workflow.LifecycleCompleted = lifecycleCompleted != 0
+	workflow.Missing = missing != 0
+	if err := json.Unmarshal([]byte(dependenciesJSON), &workflow.Dependencies); err != nil {
+		return Workflow{}, fmt.Errorf("globaldb: decode workflow dependencies: %w", err)
 	}
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
@@ -1071,6 +1261,50 @@ func scanWorkflow(scanner rowScanner) (Workflow, error) {
 	return workflow, nil
 }
 
+func normalizeWorkflow(workflow Workflow) (Workflow, string, error) {
+	workflow.ID = strings.TrimSpace(workflow.ID)
+	workflow.WorkspaceID = strings.TrimSpace(workflow.WorkspaceID)
+	workflow.Slug = strings.TrimSpace(workflow.Slug)
+	workflow.Kind = WorkflowKind(strings.TrimSpace(string(workflow.Kind)))
+	workflow.ParentWorkflowID = strings.TrimSpace(workflow.ParentWorkflowID)
+	workflow.TaskGroupID = strings.TrimSpace(workflow.TaskGroupID)
+	workflow.DisplayTitle = strings.TrimSpace(workflow.DisplayTitle)
+	workflow.Outcome = strings.TrimSpace(workflow.Outcome)
+	if workflow.Kind == "" {
+		workflow.Kind = WorkflowKindOrdinary
+	}
+	if workflow.Kind != WorkflowKindOrdinary &&
+		workflow.Kind != WorkflowKindInitiative &&
+		workflow.Kind != WorkflowKindTaskGroup {
+		return Workflow{}, "", fmt.Errorf("globaldb: invalid workflow kind %q", workflow.Kind)
+	}
+	if workflow.Kind == WorkflowKindTaskGroup {
+		if workflow.ParentWorkflowID == "" {
+			return Workflow{}, "", errors.New("globaldb: child workflow parent id is required")
+		}
+		if workflow.TaskGroupID == "" {
+			return Workflow{}, "", errors.New("globaldb: child workflow task group id is required")
+		}
+	} else if workflow.ParentWorkflowID != "" || workflow.TaskGroupID != "" {
+		return Workflow{}, "", errors.New("globaldb: only child workflows may have parent or task group identity")
+	}
+	dependencies := make([]WorkflowDependency, 0, len(workflow.Dependencies))
+	for _, dependency := range workflow.Dependencies {
+		dependency.TaskGroupID = strings.TrimSpace(dependency.TaskGroupID)
+		dependency.Rationale = strings.TrimSpace(dependency.Rationale)
+		if dependency.TaskGroupID == "" || dependency.Rationale == "" {
+			return Workflow{}, "", errors.New("globaldb: workflow dependency task group id and rationale are required")
+		}
+		dependencies = append(dependencies, dependency)
+	}
+	workflow.Dependencies = dependencies
+	dependenciesJSON, err := json.Marshal(dependencies)
+	if err != nil {
+		return Workflow{}, "", fmt.Errorf("globaldb: encode workflow dependencies: %w", err)
+	}
+	return workflow, string(dependenciesJSON), nil
+}
+
 func scanRun(scanner rowScanner) (Run, error) {
 	var (
 		run           Run
@@ -1090,6 +1324,9 @@ func scanRun(scanner rowScanner) (Run, error) {
 		&run.ErrorText,
 		&run.ParentRunID,
 		&run.RequestID,
+		&run.OutOfOrderRequested,
+		&run.OutOfOrderNeeded,
+		&run.SelectionFingerprint,
 	); err != nil {
 		return Run{}, err
 	}
@@ -1113,6 +1350,7 @@ func scanRun(scanner rowScanner) (Run, error) {
 	run.ErrorText = strings.TrimSpace(run.ErrorText)
 	run.ParentRunID = strings.TrimSpace(run.ParentRunID)
 	run.RequestID = strings.TrimSpace(run.RequestID)
+	run.SelectionFingerprint = strings.TrimSpace(run.SelectionFingerprint)
 
 	return run, nil
 }

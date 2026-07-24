@@ -140,30 +140,35 @@ func resolveExtensionBridgeWorkspaceRoot(ctx context.Context, workspaceRoot stri
 }
 
 func (b *extensionBridge) startTaskRun(ctx context.Context, runtimeCfg *model.RuntimeConfig) (string, error) {
-	slug := strings.TrimSpace(runtimeCfg.Name)
-	if slug == "" {
+	workflowRef := extensionWorkflowReference(runtimeCfg)
+	if workflowRef == "" {
 		return "", fmt.Errorf("daemon: child task run workflow name is required")
 	}
-	if strings.TrimSpace(runtimeCfg.TasksDir) == "" {
-		runtimeCfg.TasksDir = model.TaskDirectoryForWorkspace(runtimeCfg.WorkspaceRoot, slug)
-	}
-	if err := requireDirectory(runtimeCfg.TasksDir); err != nil {
-		return "", err
-	}
 
-	workspaceRow, workflowID, _, err := b.runManager.resolveWorkflowContext(
+	workspaceRow, workflowID, _, executionScope, err := b.runManager.resolveLifecycleWorkflowContext(
 		detachContext(ctx),
 		runtimeCfg.WorkspaceRoot,
-		slug,
+		workflowRef,
 	)
 	if err != nil {
+		return "", err
+	}
+	if executionScope != nil {
+		runtimeCfg.ExecutionScope = executionScope
+		runtimeCfg.Name = executionScope.WorkflowRef
+		runtimeCfg.WorkflowName = executionScope.WorkflowRef
+		runtimeCfg.TasksDir = executionScope.TasksDir
+	} else if strings.TrimSpace(runtimeCfg.TasksDir) == "" {
+		runtimeCfg.TasksDir = model.TaskDirectoryForWorkspace(runtimeCfg.WorkspaceRoot, workflowRef)
+	}
+	if err := requireDirectory(runtimeCfg.TasksDir); err != nil {
 		return "", err
 	}
 
 	run, err := b.runManager.startRun(ctx, startRunSpec{
 		workspace:        workspaceRow,
 		workflowID:       workflowID,
-		workflowSlug:     slug,
+		workflowSlug:     workflowRef,
 		workflowRoot:     runtimeCfg.TasksDir,
 		mode:             runModeTask,
 		presentationMode: daemonExtensionPresentationMode,
@@ -176,33 +181,38 @@ func (b *extensionBridge) startTaskRun(ctx context.Context, runtimeCfg *model.Ru
 }
 
 func (b *extensionBridge) startReviewRun(ctx context.Context, runtimeCfg *model.RuntimeConfig) (string, error) {
-	slug := strings.TrimSpace(runtimeCfg.Name)
-	if slug == "" {
+	workflowRef := extensionWorkflowReference(runtimeCfg)
+	if workflowRef == "" {
 		return "", fmt.Errorf("daemon: child review run workflow name is required")
 	}
 	if runtimeCfg.Round <= 0 {
 		return "", fmt.Errorf("daemon: child review run round must be positive")
 	}
-	if strings.TrimSpace(runtimeCfg.ReviewsDir) == "" {
-		runtimeCfg.ReviewsDir = reviewDirForWorkflow(runtimeCfg.WorkspaceRoot, slug, runtimeCfg.Round)
-	}
-	if err := requireDirectory(runtimeCfg.ReviewsDir); err != nil {
-		return "", err
-	}
 
-	workspaceRow, workflowID, _, err := b.runManager.resolveWorkflowContext(
+	workspaceRow, workflowID, _, executionScope, err := b.runManager.resolveLifecycleWorkflowContext(
 		detachContext(ctx),
 		runtimeCfg.WorkspaceRoot,
-		slug,
+		workflowRef,
 	)
 	if err != nil {
+		return "", err
+	}
+	if executionScope != nil {
+		runtimeCfg.ExecutionScope = executionScope
+		runtimeCfg.Name = executionScope.WorkflowRef
+		runtimeCfg.WorkflowName = executionScope.WorkflowRef
+		runtimeCfg.ReviewsDir = executionScope.ReviewDir(runtimeCfg.Round)
+	} else if strings.TrimSpace(runtimeCfg.ReviewsDir) == "" {
+		runtimeCfg.ReviewsDir = reviewDirForWorkflow(runtimeCfg.WorkspaceRoot, workflowRef, runtimeCfg.Round)
+	}
+	if err := requireDirectory(runtimeCfg.ReviewsDir); err != nil {
 		return "", err
 	}
 
 	run, err := b.runManager.startRun(ctx, startRunSpec{
 		workspace:        workspaceRow,
 		workflowID:       workflowID,
-		workflowSlug:     slug,
+		workflowSlug:     workflowRef,
 		workflowRoot:     filepath.Dir(runtimeCfg.ReviewsDir),
 		mode:             runModeReview,
 		presentationMode: daemonExtensionPresentationMode,
@@ -212,6 +222,16 @@ func (b *extensionBridge) startReviewRun(ctx context.Context, runtimeCfg *model.
 		return "", err
 	}
 	return strings.TrimSpace(run.RunID), nil
+}
+
+func extensionWorkflowReference(runtimeCfg *model.RuntimeConfig) string {
+	if runtimeCfg == nil {
+		return ""
+	}
+	if runtimeCfg.ExecutionScope != nil && strings.TrimSpace(runtimeCfg.ExecutionScope.WorkflowRef) != "" {
+		return strings.TrimSpace(runtimeCfg.ExecutionScope.WorkflowRef)
+	}
+	return strings.TrimSpace(runtimeCfg.Name)
 }
 
 func (b *extensionBridge) startExecRun(ctx context.Context, runtimeCfg *model.RuntimeConfig) (string, error) {

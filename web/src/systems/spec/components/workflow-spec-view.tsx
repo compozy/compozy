@@ -22,7 +22,7 @@ export interface WorkflowSpecViewProps {
   isRefreshing: boolean;
 }
 
-type SpecTabKey = "prd" | "techspec" | "adrs";
+type SpecTabKey = "task-group" | "prd" | "techspec" | "adrs";
 
 interface SpecTab {
   key: SpecTabKey;
@@ -34,7 +34,7 @@ interface SpecTab {
 
 export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
   const { spec, isRefreshing } = props;
-  const { workflow, workspace, prd, techspec, adrs } = spec;
+  const { workflow, workspace, prd, techspec, adrs, plan_excerpt: planExcerpt } = spec;
   const tabs = buildTabs(spec);
   const [active, setActive] = useState<SpecTabKey>(initialTab(tabs));
 
@@ -107,6 +107,19 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
       {active === "prd" ? (
         <div aria-labelledby="workflow-spec-tab-prd" id="workflow-spec-panel-prd" role="tabpanel">
           <DocumentCard document={prd} kind="PRD" testId="workflow-spec-prd" />
+        </div>
+      ) : null}
+      {active === "task-group" ? (
+        <div
+          aria-labelledby="workflow-spec-tab-task-group"
+          id="workflow-spec-panel-task-group"
+          role="tabpanel"
+        >
+          <DocumentCard
+            document={planExcerpt}
+            kind="Selected Task Group"
+            testId="workflow-spec-task-group"
+          />
         </div>
       ) : null}
       {active === "techspec" ? (
@@ -230,6 +243,16 @@ function AdrList({ adrs }: { adrs: MarkdownDocument[] }): ReactElement {
 function buildTabs(spec: WorkflowSpecDocument): SpecTab[] {
   const adrs = spec.adrs ?? [];
   return [
+    ...(spec.plan_excerpt
+      ? [
+          {
+            key: "task-group" as const,
+            label: "Task Group",
+            testId: "workflow-spec-tab-task-group",
+            present: true,
+          },
+        ]
+      : []),
     {
       key: "prd",
       label: "PRD",
@@ -258,7 +281,11 @@ function initialTab(tabs: SpecTab[]): SpecTabKey {
 }
 
 function latestUpdate(spec: WorkflowSpecDocument): string | undefined {
-  const candidates = [spec.prd?.updated_at, spec.techspec?.updated_at];
+  const candidates = [
+    spec.prd?.updated_at,
+    spec.techspec?.updated_at,
+    spec.plan_excerpt?.updated_at,
+  ];
   for (const adr of spec.adrs ?? []) {
     candidates.push(adr.updated_at);
   }

@@ -123,6 +123,73 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 	}
 }
 
+func TestTransportReviewServiceTaskGroupMutationsUseChildReviewsAndParentSpecs(t *testing.T) {
+	// INVARIANT: task group fetch/fix mutations write child review state while lifecycle scope retains parent specs.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-064.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
+	)
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
+	recordPath := filepath.Join(t.TempDir(), "sdk-review-task-group-records.jsonl")
+	installSDKReviewProviderExtension(t, env.homeDir, env.workspaceRoot, recordPath)
+
+	service := newTransportReviewService(env.globalDB, env.manager)
+	fetched, err := service.Fetch(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.ReviewFetchRequest{Provider: "sdk-review", PRRef: "task-group-1"},
+	)
+	if err != nil {
+		t.Fatalf("Fetch(task group) error = %v", err)
+	}
+	if fetched.Summary.WorkflowSlug != taskGroupRef || fetched.Summary.RoundNumber != 1 {
+		t.Fatalf("Fetch(task group) summary = %#v", fetched.Summary)
+	}
+	childIssue := filepath.Join(
+		env.workflowDir(initiative),
+		"_task_groups",
+		"TG-001",
+		"reviews-001",
+		"issue_001.md",
+	)
+	if _, err := os.Stat(childIssue); err != nil {
+		t.Fatalf("task group review issue stat error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(env.workflowDir(initiative), "reviews-001")); !os.IsNotExist(err) {
+		t.Fatalf("initiative review directory stat = %v, want not exist", err)
+	}
+
+	run, err := service.StartRun(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		1,
+		apicore.ReviewRunRequest{
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"review-task-group-fix","dry_run":true}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartRun(task group) error = %v", err)
+	}
+	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if run.WorkflowSlug != taskGroupRef || row.Mode != runModeReview {
+		t.Fatalf("task group review-fix run = %#v / %#v", run, row)
+	}
+}
+
 func TestTransportReviewServiceFetchSyncsNoMetaRoundAfterLegacyReview(t *testing.T) {
 	t.Run("Should sync a no-meta round after a legacy review round", func(t *testing.T) {
 		env := newRunManagerTestEnv(t, runManagerTestDeps{})

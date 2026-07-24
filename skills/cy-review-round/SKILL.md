@@ -7,31 +7,44 @@ description: Performs a comprehensive code review of a PRD implementation and ge
 
 Perform a structured code review of a PRD implementation and produce a review round directory that the `cy-fix-reviews` workflow can process.
 
+When reviewing `<initiative>/TG-NNN`, read
+`references/review-criteria.md` for task group scope and
+`../cy-create-tasks/references/task-group-planning.md` for the artifact
+contract. The selected task group is review boundary; sibling mutable artifacts
+are context exclusions, not additional scope.
+
 ## Required Inputs
 
-- Feature name identifying the `.compozy/tasks/<name>/` directory.
+- Feature name identifying the `.compozy/tasks/<name>/` directory, or an
+  `<initiative>/TG-NNN` reference selecting a single Task Group. Its physical
+  directory comes from the matching `_task_groups.md` graph node, normally
+  `.compozy/tasks/<initiative>/_task_groups/NNN-<brief>/` for a new plan.
 - Optional: specific files or directories to scope the review.
 
 ## Workflow
 
-1. Determine the review round directory.
-   - Derive the PRD directory from the feature name: `.compozy/tasks/<name>/`.
-   - Verify the PRD directory exists. If it does not, stop and report the missing directory.
-   - List existing `reviews-NNN/` subdirectories to determine the next round number. If none exist, use round 1.
+1. Resolve the review target, then its round directory.
+   - Classify the feature name **before any directory existence check or round lookup**. A name of the form `<initiative>/TG-NNN` is a Task Group target; any other name is an ordinary workflow.
+   - For a Task Group target, set `SpecDir` to the initiative root `.compozy/tasks/<initiative>/`. Validate `_task_groups.md`, find the graph node whose stable ID is `TG-NNN`, and resolve its contained `directory` as `OperationalDir` (which is also the `ReviewsDir`). New plans normally use `_task_groups/NNN-<brief>/`; legacy `_task_groups/TG-NNN/` remains valid. Verify `OperationalDir` exists; if the marker, node, or directory is missing, stop and report the exact path or stable ID. A present but empty or malformed marker is an invalid opt-in, not an ordinary fallback — stop and report it rather than resolving to a root review.
+   - For an ordinary workflow, set both `SpecDir` and `ReviewsDir` to `.compozy/tasks/<name>/`. Verify `SpecDir` exists; if it does not, stop and report the missing directory.
+   - List existing `reviews-NNN/` subdirectories inside `ReviewsDir` to determine the next round number. If none exist, use round 1. For a Task Group this discovers only the selected manifest-declared task group directory's prior rounds, never a sibling task group's or the initiative root's rounds.
    - If prior review rounds exist, read their issue files to build a list of already-known issues. The current round must only contain NEW issues not already tracked in prior rounds. Do not re-flag issues that are pending, valid, or resolved in earlier rounds.
-   - Determine the review round directory path: `.compozy/tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits. Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
+   - Determine the review round directory path: `<ReviewsDir>/reviews-NNN/` with the round number zero-padded to 3 digits (for a Task Group this is `<OperationalDir>/reviews-NNN/`). Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
 
 2. Identify the review scope.
-   - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why, plus the contract catalogs `_user_stories.md` and `_tests.md` when present.
-   - Read ADRs from `.compozy/tasks/<name>/adrs/` for architectural decision context.
+   - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from `SpecDir` (resolved in step 1) to understand what was implemented and why, plus the contract catalogs `_user_stories.md` and `_tests.md` when present. For a Task Group the `_tasks.md` manifest instead lives in `OperationalDir` — see the task group rule below.
+   - Read ADRs from `SpecDir`'s `adrs/` directory for architectural decision context.
    - If `_prd.md` and `_techspec.md` are both missing, warn that the review will lack requirements context but proceed with a code-quality-only review.
    - If the user provided specific files or directories, scope the review to those paths.
    - If no explicit scope was provided, run `git diff main...HEAD --name-only` to discover all files created or modified on the current branch. If the diff is empty or unhelpful, ask the user to specify files.
    - Spawn an Agent tool call to explore the identified files, their imports, and their dependencies to build a map of the implementation.
+   - Read mutable artifacts using the `SpecDir` and `OperationalDir` already resolved in step 1 (do not re-derive them here). For a task group, read the canonical `_prd.md`, `_techspec.md`, `_user_stories.md`, `_tests.md`, ADRs, and root `_task_groups.md` from `SpecDir`; use only the selected manifest-declared directory's `_tasks.md`, task files, memory, and review rounds under `OperationalDir`. Do not read sibling task group tasks, memory, or review issues as owned scope, and do not use copied task group specifications.
+   - Review the branch diff against the selected task group outcome, owned scope, dependency rationale, and task manifest. Report changes attributable only to a sibling task group as a sibling-scope warning with affected paths; do not reset, discard, silently ignore, or reassign those changes.
+   - An ordinary workflow without `_task_groups.md` follows the existing scope and artifact discovery unchanged. A present invalid marker is a plan error, not ordinary fallback.
 
 3. Perform the code review.
    - Read `references/review-criteria.md` for severity definitions and evaluation areas.
-   - **Prioritize the review scope.** If the scope contains more than 15 files, triage before deep-reading: identify the core implementation files (new packages, new exported APIs, files with the most additions) and review those in full first. Review remaining files (tests, minor edits, config changes) for obvious issues only. This prevents shallow reviews spread across too many files.
+   - **Prioritize the review scope.** If the scope contains more than 15 files, triage before deep-reading: identify the core implementation files (new task groups, new exported APIs, files with the most additions) and review those in full first. Review remaining files (tests, minor edits, config changes) for obvious issues only. This prevents shallow reviews spread across too many files.
    - Read every file in the prioritized scope completely before forming conclusions.
    - **Requirements validation**: If `_prd.md` or `_techspec.md` were available in step 2, cross-check the implementation against every stated requirement, acceptance criterion, and architectural decision — including every acceptance criterion and edge case in `_user_stories.md` when it exists. Flag any requirement that is missing, partially implemented, or implemented differently than specified. These are correctness issues — assign severity based on the gap's impact (critical if a core feature is missing, high if behavior deviates from spec, medium if an edge case from the spec is unhandled).
    - **Test-contract parity**: If `_tests.md` exists, verify that every test ID assigned in completed tasks' `## Tests` sections is implemented in the suite and asserts the behavior the contract specifies. A missing case, or a hollow one that exists without asserting the contracted behavior, is an issue — assign severity based on the impact of the behavior left unverified.
@@ -43,7 +56,10 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Skip issues that linters or formatters already catch. Run `make lint` first to filter these out.
    - **Focus on signal, not volume.** Aim for fewer, higher-quality issues rather than an exhaustive list. If you find more than 20 issues, re-evaluate: keep all critical and high issues, but prune medium and low issues to only the most impactful. A review with 8 precise issues is more useful than one with 30 that includes marginal concerns.
    - Also note well-implemented aspects of the code. These observations inform the summary but do not produce issue files.
-   - If no issues are found after a thorough review, report that the implementation looks clean and skip steps 4 through 6. Do not create the review round directory.
+   - A task group review is `review_clean=true` only when this round adds no issue, every prior issue in the selected task group is `resolved`, and `cy-final-verify` passes. Keep review evidence and completion state separate.
+   - After those gates, invoke exactly the hidden bridge `compozy internal task-groups complete <initiative>/TG-NNN --verification-passed`. The `--verification-passed` flag asserts the `cy-final-verify` gate succeeded; the bridge defaults it to `false` and refuses to record completion (`verification_failed`) when it is omitted, so the flag is mandatory here. Do not edit `_task_groups.md` directly, expose the bridge as a new public lifecycle step, perform Git/branch/PR operations, or start another task group.
+   - Report bridge outcomes separately: `review_clean`, `completion_recorded`, and `sync_pending`. A missing/malformed/read-only plan or completion conflict preserves the clean review evidence and reports `completion_recorded=false`; it never claims lifecycle completion. An already checked stable ID is an idempotent success with no duplicate write.
+   - If no issues are found after a thorough review, report a clean round and skip issue-file generation. For a Task Group, continue the final-verification and completion gates below; do not create an empty review round directory.
 
 4. Generate issue files.
    - Create the review round directory determined in step 1.
@@ -100,6 +116,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Read back each generated issue file and verify the frontmatter parses correctly.
    - Verify every issue file in the round has matching `provider`, `pr`, `round`, and `round_created_at` values.
    - Confirm the review round directory follows the `reviews-NNN` naming convention.
+   - For a Task Group review, verify that step 1 classified the `<initiative>/TG-NNN` target, that round discovery used only the manifest-declared `<OperationalDir>/reviews-NNN/`, and that the generated round directory was written inside that same task group `OperationalDir` — never the initiative root or a sibling task group. Then verify selected-root scope, sibling warning coverage, clean-review gates, hidden bridge invocation, idempotent already-checked behavior, and separate completion/sync fields before reporting the round complete.
 
 ## Critical Rules
 
@@ -113,7 +130,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 ## Error Handling
 
-- If the PRD directory does not exist, stop and report the missing directory.
+- If the resolved target directory does not exist, stop and report the missing path: for a Task Group that is the initiative root or its manifest-declared operational directory; for an ordinary workflow it is `.compozy/tasks/<name>/`.
 - If no files can be identified for review and the user did not provide explicit paths, ask the user to specify files.
 - If both `_prd.md` and `_techspec.md` are missing, warn about the lack of requirements context but proceed with code-quality-only review.
 - If the review round directory cannot be created, stop and report the filesystem error.

@@ -12,6 +12,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -1191,6 +1192,104 @@ func TestRunChipStatusUsesAggregateRunStatus(t *testing.T) {
 			t.Fatalf("runChipStatus() label = %q, want CRASHED", label)
 		}
 	})
+}
+
+func TestRunTerminalFailurePayloadOpensSummaryBeforeJobsSettle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		kind       eventspkg.EventKind
+		payload    any
+		wantStatus string
+		wantError  string
+	}{
+		{
+			name:       "failed run",
+			kind:       eventspkg.EventKindRunFailed,
+			payload:    kinds.RunFailedPayload{Error: "prepare workflow: invalid task graph"},
+			wantStatus: remoteRunStatusFailed,
+			wantError:  "prepare workflow: invalid task graph",
+		},
+		{
+			name:       "crashed run",
+			kind:       eventspkg.EventKindRunCrashed,
+			payload:    kinds.RunCrashedPayload{Error: "reconcile daemon state: journal unavailable"},
+			wantStatus: remoteRunStatusCrashed,
+			wantError:  "reconcile daemon state: journal unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			msg, ok := translateRunEvent(mustRuntimeEventUITest(t, tt.kind, tt.payload))
+			if !ok {
+				t.Fatalf("translateRunEvent(%s) did not produce a message", tt.kind)
+			}
+			status, ok := msg.(runStatusMsg)
+			if !ok {
+				t.Fatalf("translateRunEvent(%s) message = %T, want runStatusMsg", tt.kind, msg)
+			}
+			if status.Err == nil || status.Err.Error() != tt.wantError {
+				t.Fatalf("translateRunEvent(%s) error = %v, want %q", tt.kind, status.Err, tt.wantError)
+			}
+
+			m := newUIModel(3)
+			m.applyUIMsg(status)
+
+			if m.runStatus != tt.wantStatus {
+				t.Fatalf("run status = %q, want %q", m.runStatus, tt.wantStatus)
+			}
+			if m.settledJobs() != 0 {
+				t.Fatalf("pre-job failure settled %d jobs, want 0", m.settledJobs())
+			}
+			if m.currentView != uiViewSummary {
+				t.Fatalf("current view = %q, want failure summary", m.currentView)
+			}
+			if len(m.failures) != 1 || m.failures[0].Err == nil || m.failures[0].Err.Error() != tt.wantError {
+				t.Fatalf("run failures = %#v, want terminal error %q", m.failures, tt.wantError)
+			}
+			view := xansi.Strip(m.View().Content)
+			if !strings.Contains(view, tt.wantError) {
+				t.Fatalf("failure summary omitted terminal error %q: %q", tt.wantError, view)
+			}
+		})
+	}
+}
+
+func TestRunFailureSummaryExplainsDirtyReviewIsolationRecovery(t *testing.T) {
+	t.Parallel()
+
+	const failure = "prepare concurrent review worktrees: review isolation requires source changes outside " +
+		".compozy/tasks/nested-workflows to be committed first: internal/core/run/ui/model.go, README.md"
+	msg, ok := translateRunEvent(mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindRunFailed,
+		kinds.RunFailedPayload{Error: failure},
+	))
+	if !ok {
+		t.Fatal("translateRunEvent(run.failed) did not produce a message")
+	}
+
+	m := newUIModel(2)
+	m.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.applyUIMsg(msg)
+	view := xansi.Strip(m.View().Content)
+
+	for _, want := range []string{
+		"prepare concurrent review worktrees",
+		"Blocking paths: internal/core/run/ui/model.go, README.md",
+		"committed HEAD",
+		"commit or stash",
+		"--concurrent 1",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("failure summary omitted %q: %q", want, view)
+		}
+	}
 }
 
 func TestEmbeddedChildOmitsBrandHeaderRow(t *testing.T) {

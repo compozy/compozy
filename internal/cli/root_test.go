@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -780,6 +781,162 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 	}
 	if cfg.AccessMode != core.AccessModeDefault {
 		t.Fatalf("expected access mode in config, got %q", cfg.AccessMode)
+	}
+}
+
+func TestRootCommandRegistersHiddenTaskGroupCompletionBridge(t *testing.T) {
+	// INVARIANT: final-review automation has one non-public, deterministic
+	// completion bridge rather than a user-visible lifecycle command.
+	// OWNING_LAYER: unit. EXISTING_SUITE: internal/cli/root_test.go.
+	root := NewRootCommand()
+	command, _, err := root.Find([]string{"internal", "task-groups", "complete"})
+	if err != nil {
+		t.Fatalf("Find(hidden completion bridge): %v", err)
+	}
+	if command == nil || !command.Hidden || command.Use != "complete <initiative>/TG-NNN" {
+		t.Fatalf("hidden completion command = %#v", command)
+	}
+	if command.Flags().Lookup("verification-passed") == nil {
+		t.Fatal("hidden completion bridge is missing final verification gate flag")
+	}
+}
+
+func TestInternalCompleteBridgeRecordsDocumentedCleanTaskGroup(t *testing.T) {
+	// INVARIANT: the exact command the cy-review-round skill documents —
+	// `compozy internal task-groups complete <initiative>/TG-NNN
+	// --verification-passed` — must record completion for a clean task group, and
+	// omitting the flag must be refused. This guards the doc/flag contract that
+	// TestRootCommandRegistersHiddenTaskGroupCompletionBridge cannot, since it
+	// only asserts the flag exists rather than that the documented invocation
+	// works. The fail-closed default is why the docs must carry the flag.
+	// OWNING_LAYER: cli command. EXISTING_SUITE: internal/cli/root_test.go.
+	t.Run("Should record completion when the documented flag is passed", func(t *testing.T) {
+		workspaceRoot := writeCleanCompletionWorkspace(t)
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		t.Chdir(workspaceRoot)
+
+		out, err := runInternalCompletion(t, "initiative/TG-001", "--verification-passed")
+		if err != nil {
+			t.Fatalf("documented completion invocation failed: %v\noutput: %s", err, out.String())
+		}
+		result := decodeCompletionResult(t, out.Bytes())
+		if !result.ReviewClean || !result.CompletionRecorded || result.AlreadyCompleted || result.SyncPending {
+			t.Fatalf("documented invocation result = %#v, want a recorded clean completion", result)
+		}
+	})
+
+	t.Run("Should refuse completion when the flag is omitted", func(t *testing.T) {
+		workspaceRoot := writeCleanCompletionWorkspace(t)
+		t.Setenv("COMPOZY_HOME", t.TempDir())
+		t.Chdir(workspaceRoot)
+
+		out, err := runInternalCompletion(t, "initiative/TG-001")
+		if err == nil {
+			t.Fatalf("expected verification_failed without --verification-passed, output: %s", out.String())
+		}
+		if !strings.Contains(err.Error(), "verification_failed") {
+			t.Fatalf("error = %v, want verification_failed", err)
+		}
+		result := decodeCompletionResult(t, out.Bytes())
+		if result.CompletionRecorded || result.ReviewClean {
+			t.Fatalf("flag-omitted result = %#v, want no completion recorded", result)
+		}
+	})
+}
+
+// runInternalCompletion drives the real root command with the documented
+// completion argv so the test exercises production flag wiring, not a
+// reconstructed command.
+func runInternalCompletion(t *testing.T, reference string, flags ...string) (*bytes.Buffer, error) {
+	t.Helper()
+	out := &bytes.Buffer{}
+	root := NewRootCommand()
+	root.SetOut(out)
+	root.SetErr(out)
+	args := append([]string{"internal", "task-groups", "complete", reference}, flags...)
+	root.SetArgs(args)
+	return out, root.Execute()
+}
+
+func decodeCompletionResult(t *testing.T, output []byte) core.TaskGroupCompletionResult {
+	t.Helper()
+	// The bridge encodes its JSON result before any error text, so decode the
+	// first JSON value and ignore trailing cobra error output.
+	var result core.TaskGroupCompletionResult
+	if err := json.NewDecoder(bytes.NewReader(output)).Decode(&result); err != nil {
+		t.Fatalf("decode completion result from %q: %v", string(output), err)
+	}
+	return result
+}
+
+// writeCleanCompletionWorkspace builds the minimal workspace whose single
+// dependency-free task group satisfies every completion gate: canonical
+// specifications, a terminal task, no dependencies, and no unresolved reviews.
+// It returns the workspace root the hidden bridge should discover.
+func writeCleanCompletionWorkspace(t *testing.T) string {
+	t.Helper()
+	workspaceRoot := t.TempDir()
+	initiativeDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "initiative")
+	writeCompletionFixtureFile(t, initiativeDir, "_prd.md", "# Initiative\n")
+	writeCompletionFixtureFile(t, initiativeDir, "_techspec.md", "# Initiative Techspec\n")
+	writeCompletionFixtureFile(t, initiativeDir, "_task_groups.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.task-groups/v1",
+		"initiative: initiative",
+		"graph:",
+		"  nodes:",
+		"    - id: TG-001",
+		"      directory: _task_groups/TG-001",
+		"  edges: []",
+		"---",
+		"",
+		"# Initiative Task Groups",
+		"",
+		"## [ ] TG-001 — Persistence",
+		"",
+		"- Reference: `initiative/TG-001`",
+		"- Outcome: Persist the parent workflow.",
+		"- Owns:",
+		"  - persistence",
+		"- Dependencies: None",
+		"",
+	}, "\n"))
+	taskGroupDir := filepath.Join(initiativeDir, "_task_groups", "TG-001")
+	writeCompletionFixtureFile(t, taskGroupDir, "_tasks.md", strings.Join([]string{
+		"---",
+		"schema_version: compozy.tasks/v2",
+		"workflow: initiative/TG-001",
+		"graph:",
+		"  nodes:",
+		"    - id: task_01",
+		"      file: task_01.md",
+		"  edges: []",
+		"---",
+		"",
+		"# Initiative TG-001 Tasks",
+		"",
+	}, "\n"))
+	writeCompletionFixtureFile(t, taskGroupDir, "task_01.md", strings.Join([]string{
+		"---",
+		"status: completed",
+		"title: TG-001 task",
+		"type: backend",
+		"complexity: low",
+		"---",
+		"",
+		"# TG-001 task",
+		"",
+	}, "\n"))
+	return workspaceRoot
+}
+
+func writeCompletionFixtureFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", filepath.Join(dir, name), err)
 	}
 }
 

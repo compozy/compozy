@@ -2,6 +2,8 @@ package prompt
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -223,6 +225,86 @@ complexity: medium
 	}
 	if !strings.Contains(withoutAutoCommit, "Do not create an automatic commit for this run.") {
 		t.Fatalf("expected no-auto-commit prompt to mention disabled automatic commits")
+	}
+}
+
+func TestBuildScopedPromptsUseCurrentInitiativeSpecificationsAndExcludeSiblingArtifacts(t *testing.T) {
+	// INVARIANT: a task group prompt contains fresh root specifications and the
+	// selected task group context, never sibling mutable artifacts.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/core/prompt/prompt_test.go.
+	root := t.TempDir()
+	taskGroupDir := filepath.Join(root, "_task_groups", "TG-001")
+	siblingDir := filepath.Join(root, "_task_groups", "TG-002")
+	for path, content := range map[string]string{
+		filepath.Join(root, "_prd.md"):         "# Canonical PRD\ncurrent requirement\n",
+		filepath.Join(root, "_techspec.md"):    "# Canonical TechSpec\ncurrent protocol\n",
+		filepath.Join(root, "_task_groups.md"): "# Task Group Plan\nTG-001 owns this work\n",
+		filepath.Join(taskGroupDir, "task_01.md"): `---
+status: pending
+title: Task Group task
+type: backend
+complexity: low
+---
+
+# Selected task group task
+`,
+		filepath.Join(taskGroupDir, "memory", "MEMORY.md"):       "selected task group memory\n",
+		filepath.Join(siblingDir, "task_01.md"):                  "SIBLING TASK SECRET\n",
+		filepath.Join(siblingDir, "memory", "MEMORY.md"):         "SIBLING MEMORY SECRET\n",
+		filepath.Join(siblingDir, "reviews-001", "issue_001.md"): "SIBLING REVIEW SECRET\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+	taskPath := filepath.Join(taskGroupDir, "task_01.md")
+	taskContent, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	scope := &model.ExecutionScope{
+		SpecDir:        root,
+		OperationalDir: taskGroupDir,
+		WorkflowRef:    "initiative/TG-001",
+		TasksDir:       taskGroupDir,
+		ReviewsDir:     taskGroupDir,
+		MemoryDir:      filepath.Join(taskGroupDir, "memory"),
+	}
+	promptText, err := Build(BatchParams{
+		Name:  "initiative/TG-001",
+		Mode:  model.ExecutionModePRDTasks,
+		Scope: scope,
+		BatchGroups: map[string][]model.IssueEntry{
+			"task_01.md": {{Name: "task_01.md", AbsPath: taskPath, Content: string(taskContent)}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	for _, want := range []string{"current requirement", "current protocol", "TG-001 owns this work", "Selected task group task"} {
+		if !strings.Contains(promptText, want) {
+			t.Fatalf("IT-023/IT-037 prompt missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"SIBLING TASK SECRET", "SIBLING MEMORY SECRET", "SIBLING REVIEW SECRET"} {
+		if strings.Contains(promptText, forbidden) {
+			t.Fatalf("IT-024/IT-037 prompt leaked %q", forbidden)
+		}
+	}
+
+	if err := os.Remove(filepath.Join(root, "_techspec.md")); err != nil {
+		t.Fatalf("remove canonical techspec: %v", err)
+	}
+	if _, err := Build(BatchParams{
+		Name: "initiative/TG-001", Mode: model.ExecutionModePRDTasks, Scope: scope,
+		BatchGroups: map[string][]model.IssueEntry{
+			"task_01.md": {{Name: "task_01.md", AbsPath: taskPath, Content: string(taskContent)}},
+		},
+	}); err == nil || !strings.Contains(err.Error(), "_techspec.md") {
+		t.Fatalf("IT-038 Build() error = %v, want inaccessible canonical techspec", err)
 	}
 }
 

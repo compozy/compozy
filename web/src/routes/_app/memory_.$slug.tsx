@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
+import { taskGroupSearchSchema } from "@/lib/task-group-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import {
   WorkflowMemoryView,
@@ -13,13 +14,15 @@ import {
 
 export const Route = createFileRoute("/_app/memory_/$slug")({
   component: WorkflowMemoryRoute,
+  validateSearch: taskGroupSearchSchema,
 });
 
 function WorkflowMemoryRoute(): ReactElement {
   const { slug } = useParams({ from: "/_app/memory_/$slug" });
+  const { task_group_id: taskGroupId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
-  const indexQuery = useWorkflowMemoryIndex(activeWorkspace.id, slug);
+  const indexQuery = useWorkflowMemoryIndex(activeWorkspace.id, slug, taskGroupId);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   const entries = useMemo(() => indexQuery.data?.entries ?? [], [indexQuery.data?.entries]);
@@ -39,7 +42,7 @@ function WorkflowMemoryRoute(): ReactElement {
     });
   }, [entries]);
 
-  const fileQuery = useWorkflowMemoryFile(activeWorkspace.id, slug, selectedFileId);
+  const fileQuery = useWorkflowMemoryFile(activeWorkspace.id, slug, selectedFileId, taskGroupId);
 
   return (
     <AppShellLayout

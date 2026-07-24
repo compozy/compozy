@@ -18,6 +18,7 @@ import (
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/run/journal"
@@ -119,6 +120,210 @@ func TestRunManagerTaskRunMultipleRunsChildrenSequentially(t *testing.T) {
 			eventspkg.EventKindTaskRunMultipleQueueCompleted,
 		)
 	})
+}
+
+func TestRunManagerTaskRunMultipleUsesStructuredTaskGroupTarget(t *testing.T) {
+	// E2E-017: a multi-run task group target is structured at the API boundary and
+	// executes the daemon-resolved child workflow, never a slash route value.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+			if cfg == nil {
+				return "", errors.New("runtime config is required")
+			}
+			if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+				return runID, nil
+			}
+			return "child-task-group-target", nil
+		},
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+	})
+	initiative := "watcher"
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+
+	parent, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-multi-task-group-target"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple(task group target) error = %v", err)
+	}
+	_ = waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+
+	snapshot, err := env.manager.RunMultipleSnapshot(context.Background(), parent.RunID)
+	if err != nil {
+		t.Fatalf("RunMultipleSnapshot() error = %v", err)
+	}
+	assertTaskMultiItems(t, snapshot.Items, []apicore.TaskRunMultipleItem{{
+		Slug:   "watcher/TG-002",
+		Status: taskMultiItemStatusCompleted,
+		RunID:  "child-task-group-target",
+	}})
+}
+
+// INVARIANT: an incomplete task group starts through a multi-run only when the
+// caller explicitly authorizes out-of-order execution, and its child run
+// records both the requested authorization and why it was needed.
+// OWNING_LAYER: service-integration. CONTRACT: IT-036.
+func TestRunManagerTaskRunMultiplePreflightAuthorizesOutOfOrderTaskGroup(t *testing.T) {
+	const (
+		initiative  = "watcher"
+		parentRunID = "multi-task-group-override"
+		childRunID  = "child-task-group-override"
+	)
+
+	newEnv := func(t *testing.T) *runManagerTestEnv {
+		t.Helper()
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+				if cfg == nil {
+					return "", errors.New("runtime config is required")
+				}
+				if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+					return runID, nil
+				}
+				return childRunID, nil
+			},
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+		})
+		writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+		return env
+	}
+
+	t.Run("Should reject an incomplete task group without authorization", func(t *testing.T) {
+		env := newEnv(t)
+
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
+			},
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) || problem.Code != "task_group_dependencies_unmet" {
+			t.Fatalf("StartTaskRunMultiple() error = %#v (%v), want dependency problem", problem, err)
+		}
+		if _, err := env.globalDB.GetRun(context.Background(), parentRunID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want no parent run", parentRunID, err)
+		}
+	})
+
+	t.Run("Should start an incomplete task group with authorization and persist metadata", func(t *testing.T) {
+		env := newEnv(t)
+
+		parent, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
+				AllowOutOfOrder:  true,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("StartTaskRunMultiple() error = %v", err)
+		}
+		_ = waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+		child := requireTaskMultiChildRow(t, env, childRunID, parent.RunID, runStatusCompleted)
+		if !child.OutOfOrderRequested || !child.OutOfOrderNeeded {
+			t.Fatalf(
+				"child override metadata = requested:%t needed:%t, want both true",
+				child.OutOfOrderRequested,
+				child.OutOfOrderNeeded,
+			)
+		}
+	})
+}
+
+// INVARIANT: a multi-run child never starts from readiness or override evidence
+// that became stale during its final workflow sync.
+// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/task_multi_test.go.
+func TestRunManagerTaskRunMultipleRevalidatesTaskGroupAfterChildFinalSync(t *testing.T) {
+	const (
+		initiative  = "watcher"
+		parentRunID = "multi-task-group-final-sync"
+		childRunID  = "child-task-group-final-sync"
+	)
+	var env *runManagerTestEnv
+	var executed atomic.Bool
+	env = newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+			if cfg == nil {
+				return "", errors.New("runtime config is required")
+			}
+			if runID := strings.TrimSpace(cfg.RunID); runID != "" {
+				return runID, nil
+			}
+			return childRunID, nil
+		},
+		syncWorkflow: func(
+			ctx context.Context,
+			db *globaldb.GlobalDB,
+			workspace globaldb.Workspace,
+			cfg model.SyncConfig,
+		) (*corepkg.SyncResult, error) {
+			writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+			return corepkg.SyncWithDB(ctx, db, workspace, cfg)
+		},
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			executed.Store(true)
+			return nil
+		},
+	})
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+
+	parent, err := env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Targets:          []apicore.TaskRunTarget{{InitiativeSlug: initiative, TaskGroupID: "TG-002"}},
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"`+parentRunID+`"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRunMultiple() error = %v", err)
+	}
+	parentRow := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if parentRow.Status != runStatusFailed || !strings.Contains(parentRow.ErrorText, "plan changed") {
+		t.Fatalf(
+			"parent result = status:%q error:%q, want failed plan-change result",
+			parentRow.Status,
+			parentRow.ErrorText,
+		)
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), childRunID); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(%q) error = %v, want no child run created", childRunID, err)
+	}
+	if executed.Load() {
+		t.Fatal("Execute() called for task group child blocked after final sync")
+	}
 }
 
 func TestRunManagerTaskRunMultipleStopsOnFirstChildFailure(t *testing.T) {
@@ -2076,6 +2281,79 @@ func TestResolveTaskMultiParallelLimit(t *testing.T) {
 	}
 }
 
+func TestValidateTaskMultiGroupWorktreeExecution(t *testing.T) {
+	t.Parallel()
+	scope := &model.ExecutionScope{WorkflowRef: "init/TG-001"}
+	tests := []struct {
+		name    string
+		kind    string
+		scope   *model.ExecutionScope
+		wantErr bool
+	}{
+		{
+			name:  "UT-030 Should allow scoped execution only for parallel task groups",
+			kind:  apicore.ExecutionKindTaskMultiGroupParallel,
+			scope: scope,
+		},
+		{
+			name:    "UT-031 Should reject scoped execution for workflow parallel mode",
+			kind:    apicore.ExecutionKindTaskMultiParallel,
+			scope:   scope,
+			wantErr: true,
+		},
+		{
+			name:  "Should allow any execution kind without a task group scope",
+			kind:  apicore.ExecutionKindTaskMultiParallel,
+			scope: nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateTaskMultiGroupWorktreeExecution(test.kind, test.scope)
+			if test.wantErr {
+				var problem *apicore.Problem
+				if !errors.As(err, &problem) ||
+					problem.Code != "task_group_git_mutation_forbidden" ||
+					problem.Status != http.StatusUnprocessableEntity {
+					t.Fatalf("problem = %#v error = %v, want forbidden 422", problem, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateTaskMultiGroupWorktreeExecution() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestTaskMultiGroupExecutionDescriptorValidation(t *testing.T) {
+	t.Parallel()
+	t.Run("UT-060 Should report worktree ownership for parallel task groups", func(t *testing.T) {
+		t.Parallel()
+		descriptor := apicore.NewTaskMultiGroupParallelExecutionDescriptor("--parallel-task-groups=true")
+		if descriptor.Kind != apicore.ExecutionKindTaskMultiGroupParallel || !descriptor.UsesWorktrees {
+			t.Fatalf("descriptor = %#v, want group-parallel kind with worktrees", descriptor)
+		}
+	})
+	t.Run("UT-061 Should reject a mismatched descriptor kind", func(t *testing.T) {
+		t.Parallel()
+		err := validateTaskExecutionDescriptor(
+			&apicore.TaskExecutionDescriptor{
+				Kind:          apicore.ExecutionKindTaskStandard,
+				UsesWorktrees: false,
+			},
+			apicore.ExecutionKindTaskMultiGroupParallel,
+			true,
+		)
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) || problem.Code != "task_execution_mismatch" {
+			t.Fatalf("problem = %#v error = %v, want task_execution_mismatch", problem, err)
+		}
+	})
+}
+
 func TestAggregateTaskMultiParallelResult(t *testing.T) {
 	t.Parallel()
 	items := []preparedTaskMultiItem{{slug: "alpha"}, {slug: "beta"}, {slug: "gamma"}}
@@ -3435,6 +3713,7 @@ func TestTaskRunMultipleItemStatusesMatchOpenAPIEnum(t *testing.T) {
 			taskMultiItemStatusQueued,
 			taskMultiItemStatusRunning,
 			taskMultiItemStatusCompleted,
+			taskMultiItemStatusNoChanges,
 			taskMultiItemStatusFailed,
 			taskMultiItemStatusCanceled,
 		}

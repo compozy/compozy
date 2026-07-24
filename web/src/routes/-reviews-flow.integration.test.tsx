@@ -260,6 +260,132 @@ describe("reviews flow integration", () => {
     await screen.findByTestId("reviews-index-empty");
   });
 
+  it("Should preserve task group scope through review round, issue, and fix-run paths", async () => {
+    // CONTRACT: IT-063, IT-064.
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2?task_group_id=TG-002"),
+        status: 200,
+        body: {
+          round: { ...reviewRoundPayload.round, workflow_slug: "alpha/TG-002" },
+        },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?task_group_id=TG-002"),
+        status: 200,
+        body: issuesPayload,
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues/issue_004?task_group_id=TG-002"),
+        status: 200,
+        body: {
+          review: {
+            ...reviewDetailPayload.review,
+            workflow: { ...workflowSummary, slug: "alpha/TG-002", task_group_id: "TG-002" },
+          },
+        },
+      },
+      {
+        matcher: matchUrl("/api/reviews/alpha/rounds/2/runs", "POST"),
+        status: 201,
+        body: reviewRunResponse,
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/reviews/alpha/2?task_group_id=TG-002");
+
+    const issueLink = await screen.findByTestId("review-round-issue-link-alpha-issue_004");
+    expect((issueLink as HTMLAnchorElement).getAttribute("href")).toBe(
+      "/reviews/alpha/2/issue_004?task_group_id=TG-002"
+    );
+    await userEvent.click(issueLink);
+    await screen.findByTestId("review-detail-view");
+    await userEvent.click(screen.getByTestId("review-detail-dispatch-fix"));
+    await screen.findByTestId("review-detail-dispatch-success");
+
+    const postedCall = stub.calls.find(call => call.method === "POST");
+    expect(JSON.parse(postedCall?.body ?? "{}")).toMatchObject({
+      workspace: "ws-1",
+      task_group_id: "TG-002",
+    });
+    expect(stub.calls.some(call => call.url.includes("alpha/TG-002"))).toBe(false);
+  });
+
+  it("Should reach a task group review round from the reviews index without a deep link", async () => {
+    const dashboardWithTaskGroup = {
+      dashboard: {
+        ...dashboardPayload.dashboard,
+        pending_reviews: 6,
+        workflows: [
+          {
+            workflow: {
+              ...workflowSummary,
+              kind: "initiative",
+              task_groups: [
+                {
+                  workflow_id: "wf-1-tg-002",
+                  task_group_id: "TG-002",
+                  reference: "alpha/TG-002",
+                  title: "Providers",
+                  outcome: "Ship providers",
+                  lifecycle_complete: false,
+                  latest_review: { ...latestReview, workflow_slug: "alpha/TG-002" },
+                },
+              ],
+            },
+            active_runs: 0,
+            task_total: 0,
+            task_completed: 0,
+            task_pending: 0,
+            review_round_count: 1,
+            latest_review: latestReview,
+          },
+        ],
+      },
+    };
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/ui/dashboard"),
+        status: 200,
+        body: dashboardWithTaskGroup,
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2?task_group_id=TG-002"),
+        status: 200,
+        body: { round: { ...reviewRoundPayload.round, workflow_slug: "alpha/TG-002" } },
+      },
+      {
+        matcher: matchPath("/api/reviews/alpha/rounds/2/issues?task_group_id=TG-002"),
+        status: 200,
+        body: issuesPayload,
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/reviews");
+    await screen.findByTestId("reviews-index-view");
+    // The parent round and the task group round are both discoverable in the index.
+    await screen.findByTestId("reviews-index-card-alpha");
+    const taskGroupLink = await screen.findByTestId("reviews-index-round-link-alpha-TG-002");
+    expect((taskGroupLink as HTMLAnchorElement).getAttribute("href")).toBe(
+      "/reviews/alpha/2?task_group_id=TG-002"
+    );
+    await userEvent.click(taskGroupLink);
+    await screen.findByTestId("review-round-detail-view");
+    expect(
+      stub.calls.some(call => call.url.endsWith("/api/reviews/alpha/rounds/2?task_group_id=TG-002"))
+    ).toBe(true);
+  });
+
   it("Should return to workspace selection when the reviews index reports stale workspace context", async () => {
     const stub = installFetchStub([
       {

@@ -17,7 +17,7 @@ func Verify(cfg VerifyConfig) (VerifyResult, error) {
 		return VerifyResult{}, err
 	}
 
-	scope, entries := selectVerificationEntries(inputs.projectEntries, inputs.globalEntries)
+	scope, entries := selectVerificationEntries(inputs.projectEntries, inputs.globalEntries, cfg.ScopeHint)
 	skills, err := verifyEntries(cfg.Bundle, scope, entries)
 	if err != nil {
 		return VerifyResult{}, err
@@ -96,7 +96,15 @@ func loadVerificationInputs(cfg VerifyConfig) (verificationInputs, error) {
 func selectVerificationEntries(
 	projectEntries []verificationEntry,
 	globalEntries []verificationEntry,
+	scopeHint InstallScope,
 ) (InstallScope, []verificationEntry) {
+	switch scopeHint {
+	case InstallScopeProject:
+		return InstallScopeProject, projectEntries
+	case InstallScopeGlobal:
+		return InstallScopeGlobal, globalEntries
+	}
+
 	switch {
 	case hasAnyInstalledSkill(projectEntries):
 		return InstallScopeProject, projectEntries

@@ -186,6 +186,9 @@ type WorkspaceRegisterResult = contract.WorkspaceRegisterResult
 type WorkspaceUpdateInput = contract.WorkspaceUpdateInput
 type WorkspaceSyncResult = contract.WorkspaceSyncResult
 type WorkflowSummary = contract.WorkflowSummary
+type TaskGroupSummary = contract.TaskGroupSummary
+type TaskGroupDependency = contract.TaskGroupDependency
+type TaskGroupDependencyPath = contract.TaskGroupDependencyPath
 type TaskItem = contract.TaskItem
 type ValidationSuccess = contract.ValidationSuccess
 type ArchiveRequest = contract.WorkflowArchiveRequest
@@ -282,11 +285,12 @@ type MarkdownDocument struct {
 
 // WorkflowSpecDocument captures the canonical workflow spec artifacts.
 type WorkflowSpecDocument struct {
-	Workspace Workspace          `json:"workspace"`
-	Workflow  WorkflowSummary    `json:"workflow"`
-	PRD       *MarkdownDocument  `json:"prd,omitempty"`
-	TechSpec  *MarkdownDocument  `json:"techspec,omitempty"`
-	ADRs      []MarkdownDocument `json:"adrs,omitempty"`
+	Workspace   Workspace          `json:"workspace"`
+	Workflow    WorkflowSummary    `json:"workflow"`
+	PRD         *MarkdownDocument  `json:"prd,omitempty"`
+	TechSpec    *MarkdownDocument  `json:"techspec,omitempty"`
+	ADRs        []MarkdownDocument `json:"adrs,omitempty"`
+	PlanExcerpt *MarkdownDocument  `json:"plan_excerpt,omitempty"`
 }
 
 // WorkflowMemoryIndex lists workflow memory files using opaque daemon-issued identifiers.
@@ -403,15 +407,23 @@ type RunEventPage = contract.RunEventPage
 type TaskRunRequest = contract.TaskRunRequest
 type TaskExecutionDescriptor = contract.TaskExecutionDescriptor
 type TaskRunMultipleRequest = contract.TaskRunMultipleRequest
+type TaskRunTarget = contract.TaskRunTarget
 type TaskRunMultipleItem = contract.TaskRunMultipleItem
 type TaskRunMultipleSnapshot = contract.TaskRunMultipleSnapshot
 
 const (
-	ExecutionKindTaskStandard      = contract.ExecutionKindTaskStandard
-	ExecutionKindTaskParallel      = contract.ExecutionKindTaskParallel
-	ExecutionKindTaskMultiEnqueued = contract.ExecutionKindTaskMultiEnqueued
-	ExecutionKindTaskMultiParallel = contract.ExecutionKindTaskMultiParallel
+	ExecutionKindTaskStandard           = contract.ExecutionKindTaskStandard
+	ExecutionKindTaskParallel           = contract.ExecutionKindTaskParallel
+	ExecutionKindTaskMultiEnqueued      = contract.ExecutionKindTaskMultiEnqueued
+	ExecutionKindTaskMultiParallel      = contract.ExecutionKindTaskMultiParallel
+	ExecutionKindTaskMultiGroupParallel = contract.ExecutionKindTaskMultiGroupParallel
 )
+
+// NewTaskMultiGroupParallelExecutionDescriptor returns the contract descriptor
+// for isolated parallel task-group execution.
+func NewTaskMultiGroupParallelExecutionDescriptor(source string) TaskExecutionDescriptor {
+	return contract.NewTaskMultiGroupParallelExecutionDescriptor(source)
+}
 
 type ReviewRunRequest = contract.ReviewRunRequest
 type SyncRequest = contract.SyncRequest

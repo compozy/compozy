@@ -1400,6 +1400,10 @@ func projectJobState(item events.Event) (JobStateRow, bool, error) {
 		return projectJobAttemptFinishedState(item)
 	case events.EventKindJobRetryScheduled:
 		return projectJobRetryScheduledState(item)
+	case events.EventKindJobStalled:
+		return projectJobStalledState(item)
+	case events.EventKindJobParked:
+		return projectJobParkedState(item)
 	case events.EventKindJobPausing:
 		return projectJobPausingState(item)
 	case events.EventKindJobPaused:
@@ -1548,7 +1552,7 @@ func projectJobQueuedState(item events.Event) (JobStateRow, bool, error) {
 	}
 	return newJobStateRow(
 		item,
-		jobIDFromIndex(payload.Index, payload.SafeName),
+		jobIDFromIndex(payload.Index),
 		firstNonEmpty(payload.SafeName, payload.TaskTitle, payload.CodeFile),
 		"queued",
 		payload.IDE,
@@ -1560,7 +1564,7 @@ func projectJobStartedState(item events.Event) (JobStateRow, bool, error) {
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job started payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "started", payload.IDE), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "started", payload.IDE), true, nil
 }
 
 func projectJobAttemptStartedState(item events.Event) (JobStateRow, bool, error) {
@@ -1568,7 +1572,7 @@ func projectJobAttemptStartedState(item events.Event) (JobStateRow, bool, error)
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job attempt started payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "attempt_started", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "attempt_started", ""), true, nil
 }
 
 func projectJobAttemptFinishedState(item events.Event) (JobStateRow, bool, error) {
@@ -1577,7 +1581,7 @@ func projectJobAttemptFinishedState(item events.Event) (JobStateRow, bool, error
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job attempt finished payload: %w", err)
 	}
 	status := firstNonEmpty(strings.TrimSpace(payload.Status), "attempt_finished")
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", status, ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", status, ""), true, nil
 }
 
 func projectJobRetryScheduledState(item events.Event) (JobStateRow, bool, error) {
@@ -1585,7 +1589,23 @@ func projectJobRetryScheduledState(item events.Event) (JobStateRow, bool, error)
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job retry payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "retry_scheduled", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "retry_scheduled", ""), true, nil
+}
+
+func projectJobStalledState(item events.Event) (JobStateRow, bool, error) {
+	var payload kinds.JobStalledPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return JobStateRow{}, false, fmt.Errorf("rundb: decode job stalled payload: %w", err)
+	}
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "stalled", ""), true, nil
+}
+
+func projectJobParkedState(item events.Event) (JobStateRow, bool, error) {
+	var payload kinds.JobParkedPayload
+	if err := json.Unmarshal(item.Payload, &payload); err != nil {
+		return JobStateRow{}, false, fmt.Errorf("rundb: decode job parked payload: %w", err)
+	}
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "parked", ""), true, nil
 }
 
 func projectJobPausingState(item events.Event) (JobStateRow, bool, error) {
@@ -1593,7 +1613,7 @@ func projectJobPausingState(item events.Event) (JobStateRow, bool, error) {
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job pausing payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "pausing", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "pausing", ""), true, nil
 }
 
 func projectJobPausedState(item events.Event) (JobStateRow, bool, error) {
@@ -1601,7 +1621,7 @@ func projectJobPausedState(item events.Event) (JobStateRow, bool, error) {
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job paused payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "paused", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "paused", ""), true, nil
 }
 
 func projectJobResumedState(item events.Event) (JobStateRow, bool, error) {
@@ -1609,7 +1629,7 @@ func projectJobResumedState(item events.Event) (JobStateRow, bool, error) {
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job resumed payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "running", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "running", ""), true, nil
 }
 
 func projectJobCompletedState(item events.Event) (JobStateRow, bool, error) {
@@ -1617,7 +1637,7 @@ func projectJobCompletedState(item events.Event) (JobStateRow, bool, error) {
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job completed payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "completed", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "completed", ""), true, nil
 }
 
 func projectJobFailedState(item events.Event) (JobStateRow, bool, error) {
@@ -1627,7 +1647,7 @@ func projectJobFailedState(item events.Event) (JobStateRow, bool, error) {
 	}
 	return newJobStateRow(
 		item,
-		jobIDFromIndex(payload.Index, ""),
+		jobIDFromIndex(payload.Index),
 		strings.TrimSpace(payload.CodeFile),
 		"failed",
 		"",
@@ -1639,7 +1659,7 @@ func projectJobCancelledState(item events.Event) (JobStateRow, bool, error) {
 	if err := json.Unmarshal(item.Payload, &payload); err != nil {
 		return JobStateRow{}, false, fmt.Errorf("rundb: decode job canceled payload: %w", err)
 	}
-	return newJobStateRow(item, jobIDFromIndex(payload.Index, ""), "", "canceled", ""), true, nil
+	return newJobStateRow(item, jobIDFromIndex(payload.Index), "", "canceled", ""), true, nil
 }
 
 func newJobStateRow(item events.Event, jobID, taskID, status, agentName string) JobStateRow {
@@ -1665,13 +1685,12 @@ func newTokenUsageRow(turnID string, usage kinds.Usage, timestamp time.Time) Tok
 
 func eventJobIDFromQueuedPayload(payload json.RawMessage) string {
 	var envelope struct {
-		Index    int    `json:"index"`
-		SafeName string `json:"safe_name"`
+		Index int `json:"index"`
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return ""
 	}
-	return jobIDFromIndex(envelope.Index, envelope.SafeName)
+	return jobIDFromIndex(envelope.Index)
 }
 
 func payloadIndex(payload json.RawMessage) (int, bool) {
@@ -1692,6 +1711,8 @@ func eventJobID(item events.Event) string {
 		events.EventKindJobAttemptStarted,
 		events.EventKindJobAttemptFinished,
 		events.EventKindJobRetryScheduled,
+		events.EventKindJobStalled,
+		events.EventKindJobParked,
 		events.EventKindJobPausing,
 		events.EventKindJobPaused,
 		events.EventKindJobResumed,
@@ -1705,7 +1726,7 @@ func eventJobID(item events.Event) string {
 		events.EventKindUsageUpdated:
 		index, ok := payloadIndex(item.Payload)
 		if ok {
-			return jobIDFromIndex(index, "")
+			return jobIDFromIndex(index)
 		}
 	}
 	return ""
@@ -1721,10 +1742,7 @@ func eventStepKey(item events.Event) string {
 	return ""
 }
 
-func jobIDFromIndex(index int, safeName string) string {
-	if trimmed := strings.TrimSpace(safeName); trimmed != "" {
-		return trimmed
-	}
+func jobIDFromIndex(index int) string {
 	if index >= 0 {
 		return fmt.Sprintf("job-%03d", index)
 	}

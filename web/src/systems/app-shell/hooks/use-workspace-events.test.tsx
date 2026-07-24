@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { useQuery } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import { createTestQueryClient, withQuery } from "@/test/utils";
@@ -135,6 +136,138 @@ describe("useWorkspaceEvents", () => {
       expect(queryClient.getQueryState(memoryIndexKey)?.isInvalidated).toBe(true);
       expect(queryClient.getQueryState(reviewSummaryKey)?.isInvalidated).toBe(true);
       expect(queryClient.getQueryState(reviewIssuesKey)?.isInvalidated).toBe(true);
+    });
+  });
+
+  it("Should refetch only the selected task group spec when its plan changes", async () => {
+    const queryClient = createTestQueryClient();
+    const harness = createWorkspaceStreamHarness();
+    const selectedKey = specKeys.workflow("workspace-1", "demo", "TG-002");
+    const initiativeKey = specKeys.workflow("workspace-1", "demo");
+    const siblingKey = specKeys.workflow("workspace-1", "demo", "TG-001");
+    let selectedFetches = 0;
+    let initiativeFetches = 0;
+    let siblingFetches = 0;
+
+    function useObservedSpecs() {
+      useWorkspaceEvents({ workspaceId: "workspace-1", factory: harness.factory });
+      const selected = useQuery({
+        queryKey: selectedKey,
+        queryFn: async () => ++selectedFetches,
+      });
+      const initiative = useQuery({
+        queryKey: initiativeKey,
+        queryFn: async () => ++initiativeFetches,
+      });
+      const sibling = useQuery({
+        queryKey: siblingKey,
+        queryFn: async () => ++siblingFetches,
+      });
+      return { selected, initiative, sibling };
+    }
+
+    const { result } = renderHook(useObservedSpecs, { wrapper: withQuery(queryClient) });
+
+    await waitFor(() => {
+      expect(result.current.selected.data).toBe(1);
+      expect(result.current.initiative.data).toBe(1);
+      expect(result.current.sibling.data).toBe(1);
+    });
+
+    act(() => {
+      harness.controllers[0]!.emit({
+        type: "event",
+        eventId: "2",
+        payload: workspaceEvent({
+          kind: "artifact.changed",
+          workflow_slug: "demo/TG-002",
+          paths: ["_task_groups.md"],
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.selected.data).toBe(2);
+      expect(result.current.initiative.data).toBe(1);
+      expect(result.current.sibling.data).toBe(1);
+    });
+  });
+
+  it("Should invalidate every task group from initiative workflow events", async () => {
+    const queryClient = createTestQueryClient();
+    const taskGroupId = "TG-002";
+    const boardKey = workflowKeys.board("workspace-1", "demo", taskGroupId);
+    const tasksKey = workflowKeys.tasks("workspace-1", "demo", taskGroupId);
+    const specKey = specKeys.workflow("workspace-1", "demo", taskGroupId);
+    const memoryIndexKey = memoryKeys.index("workspace-1", "demo", taskGroupId);
+    const reviewSummaryKey = reviewKeys.summary("workspace-1", "demo", taskGroupId);
+    // Initiative-scoped siblings must still invalidate alongside the task group views.
+    const initiativeBoardKey = workflowKeys.board("workspace-1", "demo");
+    for (const key of [
+      boardKey,
+      tasksKey,
+      specKey,
+      memoryIndexKey,
+      reviewSummaryKey,
+      initiativeBoardKey,
+    ]) {
+      queryClient.setQueryData(key, { ok: true });
+    }
+
+    invalidateWorkspaceEvent(
+      queryClient,
+      "workspace-1",
+      workspaceEvent({ kind: "workflow.sync_completed" })
+    );
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(boardKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(tasksKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(specKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(memoryIndexKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(reviewSummaryKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(initiativeBoardKey)?.isInvalidated).toBe(true);
+    });
+  });
+
+  it("Should normalize composite task-group workflow references before invalidation", async () => {
+    const queryClient = createTestQueryClient();
+    const taskGroupId = "TG-002";
+    const matchingKeys = [
+      workflowKeys.board("workspace-1", "demo", taskGroupId),
+      workflowKeys.tasks("workspace-1", "demo", taskGroupId),
+      specKeys.workflow("workspace-1", "demo", taskGroupId),
+      memoryKeys.index("workspace-1", "demo", taskGroupId),
+      memoryKeys.file("workspace-1", "demo", "MEMORY.md", taskGroupId),
+      reviewKeys.summary("workspace-1", "demo", taskGroupId),
+      reviewKeys.issues("workspace-1", "demo", 1, taskGroupId),
+    ];
+    const unrelatedKeys = [
+      workflowKeys.board("workspace-1", "demo"),
+      workflowKeys.board("workspace-1", "demo", "TG-001"),
+      memoryKeys.file("workspace-1", "demo", "MEMORY.md", "TG-001"),
+      reviewKeys.issues("workspace-1", "demo", 1, "TG-001"),
+    ];
+    for (const key of [...matchingKeys, ...unrelatedKeys]) {
+      queryClient.setQueryData(key, { ok: true });
+    }
+
+    invalidateWorkspaceEvent(
+      queryClient,
+      "workspace-1",
+      workspaceEvent({
+        kind: "workflow.sync_completed",
+        workflow_slug: "demo/TG-002",
+      })
+    );
+
+    await waitFor(() => {
+      for (const key of matchingKeys) {
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+      }
+      for (const key of unrelatedKeys) {
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+      }
     });
   });
 

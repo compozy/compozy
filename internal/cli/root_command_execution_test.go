@@ -1217,6 +1217,7 @@ func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
 			"run",
 			"--multiple",
 			"alpha,beta",
+			"--allow-out-of-order",
 			"--detach",
 			"--dry-run",
 			"--include-completed",
@@ -1232,6 +1233,9 @@ func TestTasksRunMultipleCommandDetachSendsOrderedSlugs(t *testing.T) {
 		}
 		if !slices.Equal(readyClient.startMultipleRequest.Slugs, []string{"alpha", "beta"}) {
 			t.Fatalf("unexpected multi-run slugs: %#v", readyClient.startMultipleRequest.Slugs)
+		}
+		if !readyClient.startMultipleRequest.AllowOutOfOrder {
+			t.Fatalf("multi-run request = %#v, want out-of-order authorization", readyClient.startMultipleRequest)
 		}
 		resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
 		if err != nil {
@@ -3179,6 +3183,167 @@ func TestReviewsFixCommandNoFlagsUsesInteractiveForm(t *testing.T) {
 	}
 	if stdout != "" || stderr != "" {
 		t.Fatalf("expected quiet reviews fix form flow before ui attach, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestReviewsFixCommandNoFlagsUsesFirstScreenTaskGroupSelection(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	initiative := "foods-new-form-consistency"
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
+	reviewDir := filepath.Join(
+		workspaceRoot,
+		".compozy",
+		"tasks",
+		initiative,
+		"_task_groups",
+		"TG-001",
+		"reviews-001",
+	)
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 20, 16, 41, 35, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title: "Locale switching can leave RouteBackLink labels stale",
+		File:  "apps/web/src/components/ui/RouteBackLink.tsx",
+		Line:  27,
+		Body:  "Make RouteBackLink reactively consume the root locale.",
+	}}); err != nil {
+		t.Fatalf("write task group review round: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{
+		stubDaemonCommandClient: &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			reviewRun: apicore.Run{
+				RunID:            "run-review-task-group-form-001",
+				Mode:             string(core.ModePRReview),
+				Status:           "running",
+				PresentationMode: attachModeUI,
+				StartedAt:        time.Date(2026, 7, 20, 16, 45, 0, 0, time.UTC),
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+		state.name = initiative + "/TG-001"
+		return nil
+	}
+	defaults.pickTaskGroup = func(*cobra.Command, taskGroupPickerInput) (string, error) {
+		t.Fatal("first-screen Task Group selection must avoid a second picker")
+		return "", nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "reviews", "fix")
+	if err != nil {
+		t.Fatalf("execute interactive task group reviews fix: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if client.startReviewSlug != initiative || client.startReviewRound != 1 ||
+		client.startReviewReq.TaskGroupID != "TG-001" {
+		t.Fatalf(
+			"review run target = slug:%q round:%d task group:%q",
+			client.startReviewSlug,
+			client.startReviewRound,
+			client.startReviewReq.TaskGroupID,
+		)
+	}
+	if attachedRunID != "run-review-task-group-form-001" {
+		t.Fatalf("attached run id = %q, want run-review-task-group-form-001", attachedRunID)
+	}
+	if stdout != "" || stderr != "" {
+		t.Fatalf("expected quiet task group form flow before ui attach, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestReviewsFixCommandWithNoPendingIssuesSkipsRun(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	initiative := "foods-new-form-consistency"
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, true)
+	reviewDir := filepath.Join(
+		workspaceRoot,
+		".compozy",
+		"tasks",
+		initiative,
+		"_task_groups",
+		"TG-001",
+		"reviews-001",
+	)
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 20, 16, 41, 35, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title: "Resolved issue",
+		File:  "internal/app/service.go",
+		Line:  42,
+		Body:  "This issue was already resolved.",
+	}}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
+	issuePath := filepath.Join(reviewDir, "issue_001.md")
+	issueContent, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read review issue: %v", err)
+	}
+	resolvedContent := strings.Replace(string(issueContent), "status: pending", "status: resolved", 1)
+	if err := os.WriteFile(issuePath, []byte(resolvedContent), 0o600); err != nil {
+		t.Fatalf("resolve review issue: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{stubDaemonCommandClient: &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+	}}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	output, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+		nil,
+		"fix",
+		initiative+"/TG-001",
+		"--detach",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews fix without pending issues: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "No pending review issues for "+initiative+"/TG-001 in round 001.") {
+		t.Fatalf("unexpected no-pending output: %q", output)
+	}
+	if client.startReviewSlug != "" {
+		t.Fatalf("review run started for %q, want no run", client.startReviewSlug)
+	}
+
+	jsonOutput, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+		nil,
+		"fix",
+		initiative+"/TG-001",
+		"--detach",
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute JSON reviews fix without pending issues: %v\noutput:\n%s", err, jsonOutput)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(jsonOutput), &payload); err != nil {
+		t.Fatalf("decode no-pending JSON: %v\noutput:\n%s", err, jsonOutput)
+	}
+	if payload["status"] != "no_pending_review_issues" || payload["workflow"] != initiative+"/TG-001" ||
+		payload["pending_issues"] != float64(0) || payload["total_issues"] != float64(1) {
+		t.Fatalf("unexpected no-pending JSON: %#v", payload)
 	}
 }
 

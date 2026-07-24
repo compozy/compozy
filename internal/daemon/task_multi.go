@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/core/worktree"
@@ -31,6 +32,7 @@ const (
 	taskMultiItemStatusQueued    = "queued"
 	taskMultiItemStatusRunning   = "running"
 	taskMultiItemStatusCompleted = "completed"
+	taskMultiItemStatusNoChanges = "no-changes"
 	taskMultiItemStatusFailed    = "failed"
 	taskMultiItemStatusCanceled  = "canceled"
 )
@@ -44,17 +46,21 @@ type preparedTaskMulti struct {
 	workspace        globaldb.Workspace
 	mode             string
 	presentationMode string
+	allowOutOfOrder  bool
 	parallelLimit    int
+	executionKind    string
 	items            []preparedTaskMultiItem
 	parallelTasks    *preparedParallelTasks
+	taskGroupLaunch  *preparedTaskMultiGroupLaunch
 }
 
 type preparedTaskMultiItem struct {
-	slug         string
-	workflowID   *string
-	workflowRoot string
-	runtimeCfg   *model.RuntimeConfig
-	recovery     workspacecfg.AgentRecoveryConfig
+	slug               string
+	workflowID         *string
+	workflowRoot       string
+	runtimeCfg         *model.RuntimeConfig
+	recovery           workspacecfg.AgentRecoveryConfig
+	taskGroupPreflight *taskGroupPreflightEvidence
 }
 
 type preparedParallelTasks struct {
@@ -74,13 +80,18 @@ type taskWorktreeChildRun struct {
 	RuntimeConfig *model.RuntimeConfig
 }
 
+type taskMultiWorktreeCleanupPolicy struct {
+	preserve        bool
+	reportNoChanges bool
+}
+
 // StartTaskRunMultiple starts one daemon-owned parent for an ordered task queue.
 func (m *RunManager) StartTaskRunMultiple(
 	ctx context.Context,
 	workspaceRef string,
 	req apicore.TaskRunMultipleRequest,
 ) (apicore.Run, error) {
-	slugs, err := normalizeTaskMultiSlugs(req.Slugs)
+	slugs, err := normalizeTaskMultiRequest(req)
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -88,16 +99,15 @@ func (m *RunManager) StartTaskRunMultiple(
 	if err != nil {
 		return apicore.Run{}, err
 	}
-	expectedKind := apicore.ExecutionKindTaskMultiEnqueued
-	usesWorktrees := false
-	if mode == workspacecfg.TaskRunMultipleModeParallel {
-		expectedKind = apicore.ExecutionKindTaskMultiParallel
-		usesWorktrees = true
-	}
-	if err := validateTaskExecutionDescriptor(req.Execution, expectedKind, usesWorktrees); err != nil {
+	expectedKind, err := resolveTaskMultiExecutionKind(mode, req.Execution)
+	if err != nil {
 		return apicore.Run{}, err
 	}
 	childOverrides, err := taskMultiChildRuntimeOverrides(req.RuntimeOverrides)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	taskGroupLaunch, err := m.prepareTaskMultiGroupLaunchIfNeeded(detachContext(ctx), expectedKind, workspaceRef, slugs)
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -105,17 +115,100 @@ func (m *RunManager) StartTaskRunMultiple(
 	if err != nil {
 		return apicore.Run{}, err
 	}
+	prepared.executionKind = expectedKind
+	prepared.taskGroupLaunch = taskGroupLaunch
+	if err := validateTaskMultiGroupWorktreeExecutions(mode, expectedKind, prepared); err != nil {
+		return apicore.Run{}, err
+	}
+	selectionFingerprint := ""
+	if expectedKind == apicore.ExecutionKindTaskMultiGroupParallel {
+		selectionFingerprint, err = taskMultiGroupSelectionFingerprint(prepared)
+		if err != nil {
+			return apicore.Run{}, err
+		}
+		if !req.NewRun {
+			m.taskGroupSelectionMu.Lock()
+			defer m.taskGroupSelectionMu.Unlock()
+
+			existing, found, gateErr := m.taskMultiGroupRelaunchGate(
+				detachContext(ctx),
+				prepared,
+				selectionFingerprint,
+			)
+			if gateErr != nil {
+				return apicore.Run{}, gateErr
+			}
+			if found {
+				return existing, nil
+			}
+		}
+	}
 	runtimeCfg, err := taskMultiParentRuntimeConfig(req.RuntimeOverrides, prepared.workspace.RootDir)
 	if err != nil {
 		return apicore.Run{}, err
 	}
 	return m.startRun(ctx, startRunSpec{
-		workspace:        prepared.workspace,
-		mode:             runModeTaskMulti,
-		presentationMode: prepared.presentationMode,
-		runtimeCfg:       runtimeCfg,
-		taskMulti:        prepared,
+		workspace:            prepared.workspace,
+		mode:                 runModeTaskMulti,
+		presentationMode:     prepared.presentationMode,
+		runtimeCfg:           runtimeCfg,
+		taskMulti:            prepared,
+		selectionFingerprint: selectionFingerprint,
 	})
+}
+
+// resolveTaskMultiExecutionKind resolves the expected execution kind for a
+// multi-run request and validates the descriptor against it. Parallel mode runs
+// each child in its own git worktree; enqueued mode does not.
+func resolveTaskMultiExecutionKind(
+	mode string,
+	execution *apicore.TaskExecutionDescriptor,
+) (string, error) {
+	expectedKind := apicore.ExecutionKindTaskMultiEnqueued
+	usesWorktrees := false
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		expectedKind = resolveTaskMultiParallelExecutionKind(execution)
+		usesWorktrees = true
+	}
+	if err := validateTaskExecutionDescriptor(execution, expectedKind, usesWorktrees); err != nil {
+		return "", err
+	}
+	return expectedKind, nil
+}
+
+// prepareTaskMultiGroupLaunchIfNeeded prepares the parallel task-group launch
+// context for the group-parallel kind, and returns nil for every other kind.
+func (m *RunManager) prepareTaskMultiGroupLaunchIfNeeded(
+	ctx context.Context,
+	expectedKind, workspaceRef string,
+	slugs []string,
+) (*preparedTaskMultiGroupLaunch, error) {
+	if expectedKind != apicore.ExecutionKindTaskMultiGroupParallel {
+		return nil, nil
+	}
+	return m.prepareTaskMultiGroupLaunch(ctx, workspaceRef, slugs)
+}
+
+// validateTaskMultiGroupWorktreeExecutions rejects any prepared item whose
+// execution scope is not permitted for the resolved kind. It is a no-op outside
+// parallel mode.
+func validateTaskMultiGroupWorktreeExecutions(
+	mode string,
+	expectedKind string,
+	prepared *preparedTaskMulti,
+) error {
+	if mode != workspacecfg.TaskRunMultipleModeParallel {
+		return nil
+	}
+	for _, item := range prepared.items {
+		if item.runtimeCfg == nil {
+			continue
+		}
+		if err := validateTaskMultiGroupWorktreeExecution(expectedKind, item.runtimeCfg.ExecutionScope); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *RunManager) startParallelTaskRunIfEnabled(
@@ -134,6 +227,9 @@ func (m *RunManager) startParallelTaskRunIfEnabled(
 	parallelCfg = parallelCfg.ApplyDefaults()
 	if parallelCfg.Enabled == nil || !*parallelCfg.Enabled {
 		return apicore.Run{}, false, nil
+	}
+	if runtimeCfg.ExecutionScope != nil {
+		return apicore.Run{}, true, taskGroupWorktreeExecutionProblem(runtimeCfg.ExecutionScope)
 	}
 	waves, taskSpecs, err := buildDaemonParallelTaskPlan(
 		ctx,
@@ -254,13 +350,19 @@ func (m *RunManager) RunMultipleSnapshot(ctx context.Context, runID string) (api
 			return apicore.TaskRunMultipleSnapshot{}, err
 		}
 	}
+	items := builder.snapshotItems()
+	executionKind := taskMultiExecutionKind(eventRows.Events)
+	var outcomeReasons []string
+	if executionKind == apicore.ExecutionKindTaskMultiGroupParallel {
+		outcomeReasons = taskMultiOutcomeIncompleteReasons(items)
+	}
 	snapshot := apicore.TaskRunMultipleSnapshot{
 		Run:               runView,
-		Items:             builder.snapshotItems(),
-		ExecutionKind:     taskMultiExecutionKind(eventRows.Events),
+		Items:             items,
+		ExecutionKind:     executionKind,
 		LifecycleEvents:   taskMultiLifecycleEvents(eventRows.Events),
-		Incomplete:        integrity.Incomplete,
-		IncompleteReasons: append([]string(nil), integrity.Reasons...),
+		Incomplete:        integrity.Incomplete || len(outcomeReasons) > 0,
+		IncompleteReasons: append(append([]string(nil), integrity.Reasons...), outcomeReasons...),
 	}
 	if lastEvent != nil {
 		cursor := apicore.CursorFromEvent(*lastEvent)
@@ -277,7 +379,13 @@ func taskMultiExecutionKind(events []eventspkg.Event) string {
 			return apicore.ExecutionKindTaskParallel
 		case eventspkg.EventKindTaskRunMultipleStarted:
 			payload, err := decodeTaskMultiPayload(event)
-			if err == nil && strings.TrimSpace(payload.Mode) != "" {
+			if err != nil {
+				continue
+			}
+			if kind := strings.TrimSpace(payload.ExecutionKind); kind != "" {
+				return kind
+			}
+			if strings.TrimSpace(payload.Mode) != "" {
 				mode = strings.TrimSpace(payload.Mode)
 			}
 		}
@@ -314,10 +422,14 @@ func (m *RunManager) prepareTaskMultiStart(
 	var workspaceRow globaldb.Workspace
 	var presentationMode string
 	for idx, slug := range slugs {
+		resolvedSlug, err := m.resolveTaskRunReference(ctx, workspaceRef, slug, "")
+		if err != nil {
+			return nil, err
+		}
 		row, workflowID, runtimeCfg, recoveryCfg, _, childPresentationMode, err := m.prepareTaskStart(
 			ctx,
 			workspaceRef,
-			slug,
+			resolvedSlug,
 			apicore.TaskRunRequest{
 				Workspace:        req.Workspace,
 				PresentationMode: req.PresentationMode,
@@ -327,16 +439,26 @@ func (m *RunManager) prepareTaskMultiStart(
 		if err != nil {
 			return nil, err
 		}
+		taskGroupPreflight, err := m.preflightTaskGroupTaskRunWithEvidence(
+			ctx,
+			workspaceRef,
+			resolvedSlug,
+			req.AllowOutOfOrder,
+		)
+		if err != nil {
+			return nil, err
+		}
 		if idx == 0 {
 			workspaceRow = row
 			presentationMode = childPresentationMode
 		}
 		items = append(items, preparedTaskMultiItem{
-			slug:         strings.TrimSpace(slug),
-			workflowID:   cloneStringPtr(workflowID),
-			workflowRoot: strings.TrimSpace(runtimeCfg.TasksDir),
-			runtimeCfg:   runtimeCfg,
-			recovery:     recoveryCfg,
+			slug:               strings.TrimSpace(resolvedSlug),
+			workflowID:         cloneStringPtr(workflowID),
+			workflowRoot:       strings.TrimSpace(runtimeCfg.TasksDir),
+			runtimeCfg:         runtimeCfg,
+			recovery:           recoveryCfg,
+			taskGroupPreflight: taskGroupPreflight,
 		})
 	}
 	if len(items) == 0 {
@@ -361,6 +483,7 @@ func (m *RunManager) prepareTaskMultiStart(
 		workspace:        workspaceRow,
 		mode:             mode,
 		presentationMode: presentationMode,
+		allowOutOfOrder:  req.AllowOutOfOrder,
 		parallelLimit:    parallelLimit,
 		items:            items,
 	}, nil
@@ -397,6 +520,13 @@ func resolveTaskMultiParallelLimit(requestLimit, configuredLimit int) int {
 		return workspacecfg.DefaultRunMultipleParallelLimit
 	}
 	return configuredLimit
+}
+
+func validateTaskMultiGroupWorktreeExecution(kind string, scope *model.ExecutionScope) error {
+	if scope == nil || strings.TrimSpace(kind) == apicore.ExecutionKindTaskMultiGroupParallel {
+		return nil
+	}
+	return taskGroupWorktreeExecutionProblem(scope)
 }
 
 func taskMultiParentRuntimeConfig(raw json.RawMessage, workspaceRoot string) (*model.RuntimeConfig, error) {
@@ -567,6 +697,44 @@ func normalizeTaskMultiSlugs(values []string) ([]string, error) {
 	return slugs, nil
 }
 
+func normalizeTaskMultiRequest(req apicore.TaskRunMultipleRequest) ([]string, error) {
+	if len(req.Targets) == 0 {
+		return normalizeTaskMultiSlugs(req.Slugs)
+	}
+	if len(req.Slugs) > 0 {
+		return nil, taskMultiValidationProblem(
+			"task_targets_ambiguous",
+			"use either legacy slugs or structured targets",
+			"targets",
+		)
+	}
+	seen := make(map[string]struct{}, len(req.Targets))
+	refs := make([]string, 0, len(req.Targets))
+	for index, target := range req.Targets {
+		initiative := strings.TrimSpace(target.InitiativeSlug)
+		taskGroupID := strings.TrimSpace(target.TaskGroupID)
+		if taskGroupID == "" {
+			return nil, apicore.NewProblem(
+				http.StatusUnprocessableEntity,
+				"task_group_selection_required",
+				"structured task targets require task_group_id",
+				map[string]any{"field": "targets", "index": index},
+				taskgroups.ErrSelectionRequired,
+			)
+		}
+		ref, err := taskgroups.ParseTaskGroupRef(initiative + "/" + taskGroupID)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[ref.String()]; exists {
+			return nil, taskMultiValidationProblem("target_duplicate", "targets must not contain duplicates", "targets")
+		}
+		seen[ref.String()] = struct{}{}
+		refs = append(refs, ref.String())
+	}
+	return refs, nil
+}
+
 func resolveTaskMultiMode(raw string) (string, error) {
 	switch strings.TrimSpace(raw) {
 	case "", workspacecfg.TaskRunMultipleModeEnqueued:
@@ -640,9 +808,12 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 		return err
 	}
 	var runErr error
-	if prepared.parallelTasks != nil {
+	switch {
+	case prepared.parallelTasks != nil:
 		runErr = m.runTaskMultiParallelTasks(active, prepared, total)
-	} else {
+	case prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel:
+		runErr = m.runTaskMultiGroupParallel(active, prepared, total)
+	default:
 		switch prepared.mode {
 		case workspacecfg.TaskRunMultipleModeParallel:
 			// Parallel mode re-emits item_queued with worktree metadata per child as it
@@ -668,6 +839,7 @@ func (m *RunManager) runTaskMultiCoordinator(active *activeRun) error {
 func (m *RunManager) emitTaskMultiQueueStarted(active *activeRun, prepared *preparedTaskMulti, total int) error {
 	return m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleStarted, kinds.TaskRunMultiplePayload{
 		Mode:          prepared.mode,
+		ExecutionKind: prepared.executionKind,
 		Status:        runStatusRunning,
 		Slugs:         preparedTaskMultiSlugs(prepared.items),
 		Total:         total,
@@ -1448,11 +1620,12 @@ func (m *RunManager) emitTaskMultiQueueSettlement(
 		}
 	}
 	return m.emitTaskMultiEvent(active, kind, kinds.TaskRunMultiplePayload{
-		Mode:   prepared.mode,
-		Status: status,
-		Slugs:  preparedTaskMultiSlugs(prepared.items),
-		Total:  total,
-		Error:  errorString(runErr),
+		Mode:          prepared.mode,
+		ExecutionKind: prepared.executionKind,
+		Status:        status,
+		Slugs:         preparedTaskMultiSlugs(prepared.items),
+		Total:         total,
+		Error:         errorString(runErr),
 	})
 }
 
@@ -1561,55 +1734,14 @@ func (m *RunManager) runTaskMultiParallelChild(
 ) error {
 	child, err := m.startTaskMultiWorktreeChild(active, prepared, item, index, total, base)
 	if err != nil {
-		allocation := child.Allocation
-		if strings.TrimSpace(allocation.Path) != "" {
-			allocation = m.cleanupSettledTaskWorktree(
-				context.WithoutCancel(active.ctx),
-				prepared.workspace.RootDir,
-				allocation,
-			)
-		}
-		emitErr := m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleChildFailed,
-			taskMultiWorktreeItemPayload(
-				item,
-				index,
-				total,
-				taskMultiItemStatusFailed,
-				"",
-				err.Error(),
-				allocation,
-			),
-		)
-		return errors.Join(fmt.Errorf("start child %s: %w", item.slug, err), emitErr)
+		return m.settleTaskMultiParallelStartFailure(active, prepared, item, index, total, child.Allocation, err)
 	}
 	if runIDOut != nil {
 		*runIDOut = child.Run.RunID
 	}
 	childRow, err := m.waitForTaskMultiChild(active.ctx, child.Run.RunID, childStallPolicy(item.runtimeCfg))
 	if err != nil {
-		var childCancelErr error
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			childCancelErr = m.Cancel(detachContext(active.ctx), child.Run.RunID)
-		}
-		allocation := m.cleanupSettledTaskWorktree(
-			context.WithoutCancel(active.ctx),
-			prepared.workspace.RootDir,
-			child.Allocation,
-		)
-		emitErr := m.emitTaskMultiEvent(
-			active,
-			eventspkg.EventKindTaskRunMultipleItemCanceled,
-			taskMultiWorktreeItemPayload(
-				item,
-				index,
-				total,
-				taskMultiItemStatusCanceled,
-				child.Run.RunID,
-				err.Error(),
-				allocation,
-			),
-		)
-		return errors.Join(fmt.Errorf("await child %s: %w", item.slug, err), childCancelErr, emitErr)
+		return m.settleTaskMultiParallelWaitFailure(active, prepared, item, index, total, child, err)
 	}
 	if emitErr := m.finishTaskMultiWorktreeChild(
 		active,
@@ -1622,26 +1754,143 @@ func (m *RunManager) runTaskMultiParallelChild(
 	); emitErr != nil {
 		return emitErr
 	}
-	return taskMultiChildTerminalError(childRow, item.slug)
+	return taskMultiChildTerminalError(
+		childRow,
+		item.slug,
+		prepared,
+		child.Allocation,
+	)
+}
+
+func (m *RunManager) settleTaskMultiParallelStartFailure(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	allocation taskMultiWorktreeAllocation,
+	startErr error,
+) error {
+	if strings.TrimSpace(allocation.Path) != "" {
+		allocation = m.cleanupSettledTaskWorktree(
+			context.WithoutCancel(active.ctx),
+			prepared.workspace.RootDir,
+			allocation,
+			taskMultiParallelCleanupPolicy(prepared),
+		)
+	}
+	emitErr := m.emitTaskMultiEvent(active, eventspkg.EventKindTaskRunMultipleChildFailed,
+		taskMultiWorktreeItemPayload(
+			item,
+			index,
+			total,
+			taskMultiItemStatusFailed,
+			"",
+			startErr.Error(),
+			allocation,
+		),
+	)
+	return errors.Join(
+		taskMultiPreservedChildError(
+			fmt.Errorf("start child %s: %w", item.slug, startErr),
+			prepared,
+			allocation,
+		),
+		emitErr,
+	)
+}
+
+func (m *RunManager) settleTaskMultiParallelWaitFailure(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	child taskWorktreeChildRun,
+	waitErr error,
+) error {
+	var childCancelErr error
+	if !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded) {
+		childCancelErr = m.Cancel(detachContext(active.ctx), child.Run.RunID)
+	}
+	allocation := m.cleanupSettledTaskWorktree(
+		context.WithoutCancel(active.ctx),
+		prepared.workspace.RootDir,
+		child.Allocation,
+		taskMultiParallelCleanupPolicy(prepared),
+	)
+	emitErr := m.emitTaskMultiEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleItemCanceled,
+		taskMultiWorktreeItemPayload(
+			item,
+			index,
+			total,
+			taskMultiItemStatusCanceled,
+			child.Run.RunID,
+			waitErr.Error(),
+			allocation,
+		),
+	)
+	return errors.Join(
+		taskMultiPreservedChildError(
+			fmt.Errorf("await child %s: %w", item.slug, waitErr),
+			prepared,
+			allocation,
+		),
+		childCancelErr,
+		emitErr,
+	)
+}
+
+func taskMultiParallelCleanupPolicy(prepared *preparedTaskMulti) taskMultiWorktreeCleanupPolicy {
+	preserve := prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel
+	return taskMultiWorktreeCleanupPolicy{
+		preserve:        preserve,
+		reportNoChanges: preserve,
+	}
 }
 
 // taskMultiChildTerminalError maps a settled child's run status to the error the
 // aggregate parent result reports: nil for a completion, a typed error otherwise.
-func taskMultiChildTerminalError(childRow globaldb.Run, slug string) error {
+func taskMultiChildTerminalError(
+	childRow globaldb.Run,
+	slug string,
+	prepared *preparedTaskMulti,
+	allocation taskMultiWorktreeAllocation,
+) error {
 	switch childRow.Status {
 	case runStatusCompleted:
 		return nil
 	case runStatusCancelled:
-		return fmt.Errorf("task multi child run %s for %s was canceled", childRow.RunID, slug)
+		return taskMultiPreservedChildError(fmt.Errorf(
+			"task multi child run %s for %s was canceled",
+			childRow.RunID,
+			slug,
+		), prepared, allocation)
 	default:
-		return fmt.Errorf(
+		return taskMultiPreservedChildError(fmt.Errorf(
 			"task multi child run %s for %s ended with status %s: %s",
 			childRow.RunID,
 			slug,
 			childRow.Status,
 			childRow.ErrorText,
-		)
+		), prepared, allocation)
 	}
+}
+
+func taskMultiPreservedChildError(
+	err error,
+	prepared *preparedTaskMulti,
+	allocation taskMultiWorktreeAllocation,
+) error {
+	if err == nil ||
+		prepared == nil ||
+		prepared.executionKind != apicore.ExecutionKindTaskMultiGroupParallel ||
+		strings.TrimSpace(allocation.Path) == "" {
+		return err
+	}
+	return fmt.Errorf("%w; worktree preserved at %s", err, allocation.Path)
 }
 
 // finalizeTaskMultiParallel computes the terminal parent result after every
@@ -1723,8 +1972,13 @@ func aggregateTaskMultiParallelResult(items []preparedTaskMultiItem, childErrs [
 	if len(errs) == 0 {
 		return nil
 	}
+	prefix := "parallel multi-run failed"
+	if len(errs) < len(childErrs) {
+		prefix = "parallel multi-run partial success"
+	}
 	return fmt.Errorf(
-		"parallel multi-run failed for %d of %d children (%s): %w",
+		"%s; failed for %d of %d children (%s): %w",
+		prefix,
 		len(errs),
 		len(childErrs),
 		strings.Join(failedSlugs, ", "),
@@ -1851,21 +2105,48 @@ func (m *RunManager) startTaskMultiChild(
 	index int,
 	total int,
 ) (apicore.Run, error) {
+	taskGroupPreflight, err := m.preflightTaskGroupTaskRunWithEvidence(
+		detachContext(active.ctx),
+		prepared.workspace.RootDir,
+		item.slug,
+		prepared.allowOutOfOrder,
+	)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	if taskGroupPreflight != nil && item.taskGroupPreflight != nil {
+		outOfOrderNeeded, err := taskGroupPreflightDecision(
+			taskGroupPreflight,
+			prepared.allowOutOfOrder,
+			item.taskGroupPreflight,
+		)
+		if err != nil {
+			return apicore.Run{}, err
+		}
+		taskGroupPreflight.outOfOrderNeeded = outOfOrderNeeded
+	}
+	outOfOrderNeeded := false
+	if taskGroupPreflight != nil {
+		outOfOrderNeeded = taskGroupPreflight.outOfOrderNeeded
+	}
 	runtimeCfg := item.runtimeCfg.Clone()
 	if runtimeCfg == nil {
 		return apicore.Run{}, errors.New("task multi child runtime config is required")
 	}
 	runtimeCfg.ParentRunID = active.runID
 	childRun, err := m.startRun(active.ctx, startRunSpec{
-		workspace:        prepared.workspace,
-		workflowID:       cloneStringPtr(item.workflowID),
-		workflowSlug:     item.slug,
-		workflowRoot:     item.workflowRoot,
-		mode:             runModeTask,
-		presentationMode: prepared.presentationMode,
-		parentRunID:      active.runID,
-		runtimeCfg:       runtimeCfg,
-		recovery:         item.recovery,
+		workspace:           prepared.workspace,
+		workflowID:          cloneStringPtr(item.workflowID),
+		workflowSlug:        item.slug,
+		workflowRoot:        item.workflowRoot,
+		mode:                runModeTask,
+		presentationMode:    prepared.presentationMode,
+		parentRunID:         active.runID,
+		runtimeCfg:          runtimeCfg,
+		recovery:            item.recovery,
+		outOfOrderRequested: prepared.allowOutOfOrder,
+		outOfOrderNeeded:    outOfOrderNeeded,
+		taskGroupPreflight:  taskGroupPreflight,
 	})
 	if err != nil {
 		return apicore.Run{}, err
@@ -1904,11 +2185,19 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 	if m.worktreeAllocator == nil {
 		return taskWorktreeChildRun{}, errors.New("daemon: task multi worktree allocator is not configured")
 	}
+	taskGroupPreflight, outOfOrderNeeded, err := m.revalidateTaskMultiGroupChildStart(
+		active,
+		prepared,
+		item,
+	)
+	if err != nil {
+		return taskWorktreeChildRun{}, err
+	}
 	allocation, err := m.allocateTaskMultiWorktree(active, prepared, item, index, base)
 	if err != nil {
 		return taskWorktreeChildRun{}, err
 	}
-	if err := mirrorTaskMultiWorkflowArtifacts(item.workflowRoot, allocation.Path, item.slug); err != nil {
+	if err := mirrorTaskMultiChildArtifacts(prepared, item, allocation.Path); err != nil {
 		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	if err := m.emitTaskMultiEvent(
@@ -1937,36 +2226,68 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
 	childRun, err := m.startRun(active.ctx, startRunSpec{
-		workspace:        workspaceRow,
-		workflowID:       workflowID,
-		workflowSlug:     item.slug,
-		workflowRoot:     tasksDir,
-		mode:             runModeTask,
-		presentationMode: prepared.presentationMode,
-		parentRunID:      active.runID,
-		runtimeCfg:       runtimeCfg,
-		recovery:         item.recovery,
+		workspace:           workspaceRow,
+		workflowID:          workflowID,
+		workflowSlug:        item.slug,
+		workflowRoot:        tasksDir,
+		mode:                runModeTask,
+		presentationMode:    prepared.presentationMode,
+		parentRunID:         active.runID,
+		runtimeCfg:          runtimeCfg,
+		recovery:            item.recovery,
+		outOfOrderRequested: prepared.allowOutOfOrder,
+		outOfOrderNeeded:    outOfOrderNeeded,
+		taskGroupPreflight:  taskGroupPreflight,
 	})
 	if err != nil {
 		return taskWorktreeChildRun{Allocation: allocation, RuntimeConfig: runtimeCfg}, err
 	}
-	if err := m.emitTaskMultiEvent(
-		active,
-		eventspkg.EventKindTaskRunMultipleChildStarted,
-		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusRunning, childRun.RunID, "", allocation),
-	); err != nil {
-		cancelErr := m.Cancel(detachContext(active.ctx), childRun.RunID)
+	if err := m.emitTaskMultiWorktreeChildStarted(active, item, index, total, childRun, allocation); err != nil {
 		return taskWorktreeChildRun{
 			Run:           childRun,
 			Allocation:    allocation,
 			RuntimeConfig: runtimeCfg,
-		}, errors.Join(err, cancelErr)
+		}, err
 	}
 	return taskWorktreeChildRun{
 		Run:           childRun,
 		Allocation:    allocation,
 		RuntimeConfig: runtimeCfg,
 	}, nil
+}
+
+func (m *RunManager) emitTaskMultiWorktreeChildStarted(
+	active *activeRun,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRun apicore.Run,
+	allocation taskMultiWorktreeAllocation,
+) error {
+	if err := m.emitTaskMultiEvent(
+		active,
+		eventspkg.EventKindTaskRunMultipleChildStarted,
+		taskMultiWorktreeItemPayload(item, index, total, taskMultiItemStatusRunning, childRun.RunID, "", allocation),
+	); err != nil {
+		cancelErr := m.Cancel(detachContext(active.ctx), childRun.RunID)
+		return errors.Join(err, cancelErr)
+	}
+	return nil
+}
+
+func mirrorTaskMultiChildArtifacts(
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	worktreePath string,
+) error {
+	if prepared != nil &&
+		prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel {
+		if item.runtimeCfg == nil {
+			return errors.New("daemon: task-group child runtime config is required")
+		}
+		return mirrorTaskMultiGroupArtifacts(item.runtimeCfg.ExecutionScope, worktreePath)
+	}
+	return mirrorTaskMultiWorkflowArtifacts(item.workflowRoot, worktreePath, item.slug)
 }
 
 func (m *RunManager) allocateTaskMultiWorktree(
@@ -1976,9 +2297,21 @@ func (m *RunManager) allocateTaskMultiWorktree(
 	index int,
 	base taskMultiWorktreeBase,
 ) (taskMultiWorktreeAllocation, error) {
-	resultBranch, err := taskMultiResultBranch(active.runID, index, item.slug)
-	if err != nil {
-		return taskMultiWorktreeAllocation{}, err
+	resultBranch := ""
+	if prepared != nil && prepared.taskGroupLaunch != nil {
+		resultBranch = strings.TrimSpace(prepared.taskGroupLaunch.resultBranches[item.slug])
+		if resultBranch == "" {
+			return taskMultiWorktreeAllocation{}, fmt.Errorf(
+				"parallel task group %s has no rendered result branch",
+				item.slug,
+			)
+		}
+	} else {
+		var err error
+		resultBranch, err = taskMultiResultBranch(active.runID, index, item.slug)
+		if err != nil {
+			return taskMultiWorktreeAllocation{}, err
+		}
 	}
 	allocation, err := m.worktreeAllocator.Allocate(active.ctx, taskMultiWorktreeSpec{
 		WorkspaceRoot: prepared.workspace.RootDir,
@@ -2132,7 +2465,38 @@ func remapTaskMultiChildRuntime(
 	remapped.WorkflowName = trimmedSlug
 	remapped.ParentRunID = strings.TrimSpace(parentRunID)
 	remapped.RunID = ""
+	remapTaskMultiExecutionScope(remapped.ExecutionScope, base.WorkspaceRoot, trimmedPath)
 	return remapped, nil
+}
+
+func remapTaskMultiExecutionScope(
+	scope *model.ExecutionScope,
+	sourceRoot string,
+	worktreeRoot string,
+) {
+	if scope == nil {
+		return
+	}
+	scope.SpecDir = remapTaskMultiExecutionScopePath(scope.SpecDir, sourceRoot, worktreeRoot)
+	scope.OperationalDir = remapTaskMultiExecutionScopePath(scope.OperationalDir, sourceRoot, worktreeRoot)
+	scope.TasksDir = remapTaskMultiExecutionScopePath(scope.TasksDir, sourceRoot, worktreeRoot)
+	scope.ReviewsDir = remapTaskMultiExecutionScopePath(scope.ReviewsDir, sourceRoot, worktreeRoot)
+	scope.MemoryDir = remapTaskMultiExecutionScopePath(scope.MemoryDir, sourceRoot, worktreeRoot)
+}
+
+func remapTaskMultiExecutionScopePath(path string, sourceRoot string, worktreeRoot string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" || !filepath.IsAbs(trimmed) {
+		return path
+	}
+	rel, err := filepath.Rel(filepath.Clean(sourceRoot), filepath.Clean(trimmed))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return path
+	}
+	if rel == "." {
+		return filepath.Clean(worktreeRoot)
+	}
+	return filepath.Join(worktreeRoot, rel)
 }
 
 // requireTaskMultiWorktreeTaskDir resolves and validates the slug task directory
@@ -2166,6 +2530,7 @@ func taskMultiWorktreeItemPayload(
 ) kinds.TaskRunMultiplePayload {
 	return kinds.TaskRunMultiplePayload{
 		Slug:           item.slug,
+		TaskGroupID:    taskMultiTaskGroupID(item.slug),
 		Index:          index,
 		Total:          total,
 		Status:         status,
@@ -2240,8 +2605,17 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 		context.WithoutCancel(active.ctx),
 		prepared.workspace.RootDir,
 		allocation,
+		taskMultiWorktreeCleanupPolicy{
+			preserve: prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel &&
+				childRow.Status != runStatusCompleted,
+			reportNoChanges: prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel,
+		},
 	)
-	kind, status, errorText := taskMultiChildSettlement(childRow)
+	kind, status, errorText := taskMultiChildSettlement(
+		childRow,
+		allocation,
+		prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel,
+	)
 	return m.emitTaskMultiEvent(
 		active,
 		kind,
@@ -2249,9 +2623,16 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 	)
 }
 
-func taskMultiChildSettlement(row globaldb.Run) (eventspkg.EventKind, string, string) {
+func taskMultiChildSettlement(
+	row globaldb.Run,
+	allocation taskMultiWorktreeAllocation,
+	reportNoChanges bool,
+) (eventspkg.EventKind, string, string) {
 	switch row.Status {
 	case runStatusCompleted:
+		if reportNoChanges && allocation.NoChanges {
+			return eventspkg.EventKindTaskRunMultipleChildCompleted, taskMultiItemStatusNoChanges, ""
+		}
 		return eventspkg.EventKindTaskRunMultipleChildCompleted, taskMultiItemStatusCompleted, ""
 	case runStatusCancelled:
 		return eventspkg.EventKindTaskRunMultipleItemCanceled, taskMultiItemStatusCanceled, row.ErrorText
@@ -2264,8 +2645,17 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 	ctx context.Context,
 	workspaceRoot string,
 	allocation taskMultiWorktreeAllocation,
+	policies ...taskMultiWorktreeCleanupPolicy,
 ) taskMultiWorktreeAllocation {
+	policy := taskMultiWorktreeCleanupPolicy{}
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
 	allocation.WorktreeStatus = taskMultiWorktreeStatusPreserved
+	if policy.preserve {
+		allocation.WorktreeReason = "preserved after unsuccessful parallel task-group child"
+		return allocation
+	}
 	path, owned, err := cleanOwnedWorktreePath(m.homePaths.WorktreesDir, allocation.Path)
 	if err != nil {
 		allocation.WorktreeReason = fmt.Sprintf("validate worktree ownership: %v", err)
@@ -2302,17 +2692,21 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 	allocation.WorktreeStatus = taskMultiWorktreeStatusRemoved
 	allocation.WorktreeReason = inspection.Reason
 	if inspection.DeleteResultBranch {
-		if _, err := m.worktreeAllocator.DeleteBranchIfAt(
+		deleted, err := m.worktreeAllocator.DeleteBranchIfAt(
 			ctx,
 			workspaceRoot,
 			allocation.ResultBranch,
 			allocation.BaseCommit,
-		); err != nil {
+		)
+		if err != nil {
 			allocation.WorktreeReason = fmt.Sprintf(
 				"%s; empty result branch cleanup failed: %v",
 				inspection.Reason,
 				err,
 			)
+		} else if deleted && policy.reportNoChanges {
+			allocation.NoChanges = true
+			allocation.ResultBranch = ""
 		}
 	}
 	return allocation
@@ -2501,12 +2895,13 @@ func (m *RunManager) emitTaskMultiItemEvent(
 	errorText string,
 ) error {
 	return m.emitTaskMultiEvent(active, kind, kinds.TaskRunMultiplePayload{
-		Slug:       item.slug,
-		Index:      index,
-		Total:      total,
-		Status:     status,
-		ChildRunID: strings.TrimSpace(childRunID),
-		Error:      strings.TrimSpace(errorText),
+		Slug:        item.slug,
+		TaskGroupID: taskMultiTaskGroupID(item.slug),
+		Index:       index,
+		Total:       total,
+		Status:      status,
+		ChildRunID:  strings.TrimSpace(childRunID),
+		Error:       strings.TrimSpace(errorText),
 	})
 }
 
@@ -2653,6 +3048,9 @@ func (b *taskMultiSnapshotBuilder) applyEvent(event eventspkg.Event) error {
 func applyTaskMultiItemMetadata(item *apicore.TaskRunMultipleItem, payload kinds.TaskRunMultiplePayload) {
 	if status := strings.TrimSpace(payload.Status); status != "" {
 		item.Status = status
+		if status == taskMultiItemStatusNoChanges {
+			item.ResultBranch = ""
+		}
 	}
 	if childRunID := strings.TrimSpace(payload.ChildRunID); childRunID != "" {
 		item.RunID = childRunID

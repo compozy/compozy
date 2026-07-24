@@ -225,7 +225,8 @@ func (g *GlobalDB) WorkflowArchiveEligibilityByIDs(
 
 	result := make(map[string]WorkflowArchiveEligibility, len(workflows))
 	workflowIDs := make([]string, 0, len(workflows))
-	for _, workflow := range workflows {
+	for workflowIndex := range workflows {
+		workflow := &workflows[workflowIndex]
 		workflowID := strings.TrimSpace(workflow.ID)
 		if workflowID == "" {
 			continue
@@ -233,8 +234,9 @@ func (g *GlobalDB) WorkflowArchiveEligibilityByIDs(
 		if _, ok := result[workflowID]; ok {
 			continue
 		}
-		workflow.ID = workflowID
-		result[workflowID] = WorkflowArchiveEligibility{Workflow: workflow}
+		workflowSnapshot := *workflow
+		workflowSnapshot.ID = workflowID
+		result[workflowID] = WorkflowArchiveEligibility{Workflow: workflowSnapshot}
 		workflowIDs = append(workflowIDs, workflowID)
 	}
 	if len(workflowIDs) == 0 {
@@ -363,7 +365,7 @@ func (g *GlobalDB) GetLatestArchivedWorkflowBySlug(
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT id, workspace_id, slug, archived_at, last_synced_at, created_at, updated_at
+		`SELECT `+workflowSelectColumns+`
 		 FROM workflows
 		 WHERE workspace_id = ? AND slug = ? AND archived_at IS NOT NULL
 		 ORDER BY archived_at DESC, created_at DESC, id DESC
@@ -432,4 +434,182 @@ func (g *GlobalDB) MarkWorkflowArchived(
 	}
 
 	return g.GetWorkflow(ctx, workflow.ID)
+}
+
+// MarkWorkflowHierarchyArchived marks an initiative and every active direct
+// child atomically after the initiative root has moved to the archive.
+func (g *GlobalDB) MarkWorkflowHierarchyArchived(
+	ctx context.Context,
+	parentWorkflowID string,
+	archivedAt time.Time,
+) (workflows []Workflow, retErr error) {
+	if err := g.requireContext(ctx, "mark workflow hierarchy archived"); err != nil {
+		return nil, err
+	}
+	parent, err := g.GetWorkflow(ctx, parentWorkflowID)
+	if err != nil {
+		return nil, err
+	}
+	if parent.ArchivedAt != nil {
+		return nil, WorkflowArchivedError{WorkspaceID: parent.WorkspaceID, Slug: parent.Slug}
+	}
+	if archivedAt.IsZero() {
+		archivedAt = g.now()
+	}
+	archivedAt = archivedAt.UTC()
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: begin archive hierarchy: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = errors.Join(
+				retErr,
+				fmt.Errorf("globaldb: rollback archive hierarchy %q: %w", parent.ID, rollbackErr),
+			)
+		}
+	}()
+
+	// Enforce the no-active-run invariant inside the transaction so a run that
+	// starts between the caller's pre-flight validation and this mutation cannot be
+	// archived mid-flight.
+	if err := ensureNoActiveHierarchyRunsTx(ctx, tx, parent); err != nil {
+		return nil, err
+	}
+
+	result, err := tx.ExecContext(
+		ctx,
+		`UPDATE workflows
+		 SET archived_at = ?, updated_at = ?
+		 WHERE archived_at IS NULL
+		   AND (id = ? OR parent_workflow_id = ?)`,
+		store.FormatTimestamp(archivedAt),
+		store.FormatTimestamp(archivedAt),
+		parent.ID,
+		parent.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: mark workflow hierarchy archived %q: %w", parent.ID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: rows affected for archived hierarchy %q: %w", parent.ID, err)
+	}
+	if affected == 0 {
+		return nil, WorkflowArchivedError{WorkspaceID: parent.WorkspaceID, Slug: parent.Slug}
+	}
+	// Snapshot the archived rows inside the transaction so any read failure
+	// (context cancellation, driver error) rolls the mutation back instead of
+	// committing it and then reporting failure. The filesystem caller renames
+	// the archive directory back only when this returns an error, so returning
+	// an error after a durable commit would strand an active directory over an
+	// archived catalog hierarchy. Commit must be the last fallible operation.
+	updatedParent, children, err := readArchivedHierarchySnapshot(ctx, tx, parent.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("globaldb: commit archive hierarchy %q: %w", parent.ID, err)
+	}
+	committed = true
+
+	workflows = make([]Workflow, 0, affected)
+	workflows = append(workflows, updatedParent)
+	workflows = append(workflows, children...)
+	return workflows, nil
+}
+
+// ensureNoActiveHierarchyRunsTx rejects archiving a hierarchy whose parent row or
+// any direct child still has an active run. The aggregate count spans the exact
+// rows the archive UPDATE touches (id = parent OR parent_workflow_id = parent), so
+// an ordinary workflow promoted in place with a live parent run and a pruning-
+// retained child with a live run are both caught.
+func ensureNoActiveHierarchyRunsTx(ctx context.Context, tx *sql.Tx, parent Workflow) error {
+	activeRuns, err := countActiveRunsForWorkflowAggregateTx(ctx, tx, parent.ID)
+	if err != nil {
+		return err
+	}
+	if activeRuns > 0 {
+		return WorkflowActiveRunsError{
+			WorkspaceID: parent.WorkspaceID,
+			WorkflowID:  parent.ID,
+			Slug:        parent.Slug,
+			ActiveRuns:  activeRuns,
+		}
+	}
+	return nil
+}
+
+// readArchivedHierarchySnapshot loads the archived initiative root and its
+// children inside the open transaction. It is a package variable so durability
+// regressions can inject a post-mutation read failure and prove that the whole
+// transaction rolls back rather than committing an archive the caller then
+// reports as failed. Callers must invoke it before tx.Commit so the mutation is
+// still reversible when a read fails.
+var readArchivedHierarchySnapshot = func(
+	ctx context.Context,
+	tx *sql.Tx,
+	parentID string,
+) (Workflow, []Workflow, error) {
+	parent, err := scanArchivedWorkflowInTx(ctx, tx, parentID)
+	if err != nil {
+		return Workflow{}, nil, err
+	}
+	children, err := listArchivedChildWorkflowsInTx(ctx, tx, parentID)
+	if err != nil {
+		return Workflow{}, nil, err
+	}
+	return parent, children, nil
+}
+
+func scanArchivedWorkflowInTx(ctx context.Context, tx *sql.Tx, workflowID string) (Workflow, error) {
+	row := tx.QueryRowContext(
+		ctx,
+		`SELECT `+workflowSelectColumns+`
+		 FROM workflows
+		 WHERE id = ?`,
+		strings.TrimSpace(workflowID),
+	)
+	workflow, err := scanWorkflow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Workflow{}, ErrWorkflowNotFound
+		}
+		return Workflow{}, err
+	}
+	return workflow, nil
+}
+
+func listArchivedChildWorkflowsInTx(ctx context.Context, tx *sql.Tx, parentID string) ([]Workflow, error) {
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT `+workflowSelectColumns+`
+		 FROM workflows
+		 WHERE parent_workflow_id = ?
+		 ORDER BY task_group_id ASC, created_at ASC, id ASC`,
+		strings.TrimSpace(parentID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query archived child workflows: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	children := make([]Workflow, 0)
+	for rows.Next() {
+		child, scanErr := scanWorkflow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		children = append(children, child)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("globaldb: iterate archived child workflows: %w", err)
+	}
+	return children, nil
 }

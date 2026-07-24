@@ -70,17 +70,55 @@ func (s *commandState) verifyRequiredSkillState(
 		return requiredSkillState{}, err
 	}
 	bundledSkillNames := skillNames(bundledSkills)
+	resolver := preflightResolverOptions(setup.ResolverOptions{}, s.workspaceRoot)
 
+	verifyState, err := s.verifyRequiredSkillStateAtScope(
+		resolver,
+		agentName,
+		bundledSkillNames,
+		extensionPacks,
+		setup.InstallScopeUnknown,
+	)
+	if err != nil {
+		return requiredSkillState{}, err
+	}
+	if verifyState.Scope() != setup.InstallScopeProject || !verifyState.HasBlockingMissing() {
+		return verifyState, nil
+	}
+
+	globalState, err := s.verifyRequiredSkillStateAtScope(
+		resolver,
+		agentName,
+		bundledSkillNames,
+		extensionPacks,
+		setup.InstallScopeGlobal,
+	)
+	if err != nil {
+		return requiredSkillState{}, err
+	}
+	if !globalState.HasBlockingMissing() {
+		return globalState, nil
+	}
+	return verifyState, nil
+}
+
+func (s *commandState) verifyRequiredSkillStateAtScope(
+	resolver setup.ResolverOptions,
+	agentName string,
+	bundledSkillNames []string,
+	extensionPacks []setup.SkillPackSource,
+	scopeHint setup.InstallScope,
+) (requiredSkillState, error) {
 	verifyBundledSkills := s.verifyBundledSkills
 	if verifyBundledSkills == nil {
 		verifyBundledSkills = setup.VerifyBundledSkills
 	}
-	resolver := preflightResolverOptions(setup.ResolverOptions{}, s.workspaceRoot)
 
 	bundledResult, err := verifyBundledSkills(setup.VerifyConfig{
 		ResolverOptions: resolver,
 		AgentName:       agentName,
 		SkillNames:      bundledSkillNames,
+		ScopeHint:       scopeHint,
 	})
 	if err != nil {
 		return requiredSkillState{}, err
@@ -235,6 +273,7 @@ func ensureBundledSkillsCurrent(
 		ResolverOptions: resolver,
 		AgentName:       verifyState.AgentName,
 		SkillNames:      verifyState.BundledSkillNames,
+		ScopeHint:       verifyState.Scope(),
 	})
 	if err != nil {
 		return fmt.Errorf("re-verify bundled skills: %w", err)

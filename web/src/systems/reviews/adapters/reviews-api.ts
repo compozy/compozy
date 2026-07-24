@@ -14,15 +14,21 @@ function workspaceHeader(workspaceId: string) {
   return { header: { [ACTIVE_WORKSPACE_HEADER]: workspaceId } } as const;
 }
 
+function taskGroupQuery(taskGroupId: string | undefined) {
+  return taskGroupId ? { query: { task_group_id: taskGroupId } } : {};
+}
+
 export interface ReviewSummaryParams {
   workspaceId: string;
   slug: string;
+  taskGroupId?: string;
 }
 
 export async function getLatestReview(params: ReviewSummaryParams): Promise<ReviewSummary> {
   const { data, error, response } = await daemonApiClient.GET("/api/reviews/{slug}", {
     params: {
       path: { slug: params.slug },
+      ...taskGroupQuery(params.taskGroupId),
       ...workspaceHeader(params.workspaceId),
     },
   });
@@ -39,6 +45,7 @@ export interface ReviewRoundParams {
   workspaceId: string;
   slug: string;
   round: number;
+  taskGroupId?: string;
 }
 
 export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewRound> {
@@ -47,6 +54,7 @@ export async function getReviewRound(params: ReviewRoundParams): Promise<ReviewR
     {
       params: {
         path: { slug: params.slug, round: params.round },
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -64,6 +72,7 @@ export interface ReviewIssuesParams {
   workspaceId: string;
   slug: string;
   round: number;
+  taskGroupId?: string;
 }
 
 export async function listReviewIssues(params: ReviewIssuesParams): Promise<ReviewIssue[]> {
@@ -72,6 +81,7 @@ export async function listReviewIssues(params: ReviewIssuesParams): Promise<Revi
     {
       params: {
         path: { slug: params.slug, round: params.round },
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -90,6 +100,7 @@ export interface ReviewIssueParams {
   slug: string;
   round: number;
   issueId: string;
+  taskGroupId?: string;
 }
 
 export async function getReviewIssue(params: ReviewIssueParams): Promise<ReviewDetailPayload> {
@@ -98,6 +109,7 @@ export async function getReviewIssue(params: ReviewIssueParams): Promise<ReviewD
     {
       params: {
         path: { slug: params.slug, round: params.round, issue_id: params.issueId },
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }
@@ -115,6 +127,7 @@ export interface StartReviewRunParams {
   workspaceId: string;
   slug: string;
   round: number;
+  taskGroupId?: string;
   body?: ReviewRunRequest;
 }
 
@@ -128,6 +141,7 @@ export async function startReviewRun(params: StartReviewRunParams): Promise<Run>
       },
       body: {
         ...params.body,
+        ...(params.taskGroupId ? { task_group_id: params.taskGroupId } : {}),
         workspace: params.workspaceId,
       },
     }

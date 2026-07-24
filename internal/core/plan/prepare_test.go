@@ -478,6 +478,77 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	}
 }
 
+func TestPrepareJobsForReviewModeKeepsFileGroupsAtomic(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "reviews-atomic-groups-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	reviewsDir := t.TempDir()
+	serviceFile := "internal/app/service.go"
+	handlerFile := "internal/app/handler.go"
+	groups := map[string][]model.IssueEntry{
+		serviceFile: {
+			{
+				Name:    "issue_001.md",
+				AbsPath: filepath.Join(reviewsDir, "issue_001.md"),
+				Content: "---\nstatus: pending\nfile: internal/app/service.go\n---\n\n# Issue 1\n",
+			},
+			{
+				Name:    "issue_003.md",
+				AbsPath: filepath.Join(reviewsDir, "issue_003.md"),
+				Content: "---\nstatus: pending\nfile: internal/app/service.go\n---\n\n# Issue 3\n",
+			},
+		},
+		handlerFile: {
+			{
+				Name:    "issue_002.md",
+				AbsPath: filepath.Join(reviewsDir, "issue_002.md"),
+				Content: "---\nstatus: pending\nfile: internal/app/handler.go\n---\n\n# Issue 2\n",
+			},
+		},
+	}
+
+	jobs, err := prepareJobs(context.Background(), &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		ReviewsDir:    reviewsDir,
+		BatchSize:     1,
+		Concurrent:    2,
+		Mode:          model.ExecutionModePRReview,
+	}, groups, runArtifacts, nil, nil)
+	if err != nil {
+		t.Fatalf("prepareJobs: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected one job per file group, got %d", len(jobs))
+	}
+
+	wantIssueCounts := map[string]int{
+		serviceFile: 2,
+		handlerFile: 1,
+	}
+	for _, job := range jobs {
+		if len(job.CodeFiles) != 1 {
+			t.Fatalf("expected batch size one to produce single-group jobs, got %#v", job.CodeFiles)
+		}
+		codeFile := job.CodeFiles[0]
+		want, ok := wantIssueCounts[codeFile]
+		if !ok {
+			t.Fatalf("unexpected code-file group %q", codeFile)
+		}
+		if got := len(job.Groups[codeFile]); got != want {
+			t.Fatalf("issue count for %s = %d, want %d", codeFile, got, want)
+		}
+		delete(wantIssueCounts, codeFile)
+	}
+	if len(wantIssueCounts) != 0 {
+		t.Fatalf("missing code-file groups: %#v", wantIssueCounts)
+	}
+}
+
 func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 

@@ -1025,13 +1025,71 @@ func translateRunEvent(ev events.Event) (uiMsg, bool) {
 	case events.EventKindRunCompleted:
 		return runStatusMsg{Status: remoteRunStatusCompleted}, true
 	case events.EventKindRunFailed:
-		return runStatusMsg{Status: remoteRunStatusFailed}, true
+		payload, _ := decodeUIEventPayload[kinds.RunFailedPayload](ev)
+		return runStatusMsg{
+			Status: remoteRunStatusFailed,
+			Err:    runTerminalError(remoteRunStatusFailed, payload.Error),
+		}, true
 	case events.EventKindRunCancelled:
 		return runStatusMsg{Status: remoteRunStatusCanceled}, true
 	case events.EventKindRunCrashed:
-		return runStatusMsg{Status: remoteRunStatusCrashed}, true
+		payload, _ := decodeUIEventPayload[kinds.RunCrashedPayload](ev)
+		return runStatusMsg{
+			Status: remoteRunStatusCrashed,
+			Err:    runTerminalError(remoteRunStatusCrashed, payload.Error),
+		}, true
 	default:
 		return nil, false
+	}
+}
+
+func runTerminalError(status string, message string) error {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		switch status {
+		case remoteRunStatusFailed:
+			message = "run failed before completion"
+		case remoteRunStatusCrashed:
+			message = "run crashed before completion"
+		default:
+			return nil
+		}
+	}
+	return errors.New(withReviewIsolationRecovery(message))
+}
+
+func withReviewIsolationRecovery(message string) string {
+	const (
+		dirtyIsolationMarker   = "review isolation requires source changes outside "
+		blockingPathsSeparator = " to be committed first: "
+	)
+	markerIndex := strings.Index(message, dirtyIsolationMarker)
+	if markerIndex < 0 {
+		return message
+	}
+	detail := message[markerIndex+len(dirtyIsolationMarker):]
+	separatorIndex := strings.Index(detail, blockingPathsSeparator)
+	if separatorIndex < 0 {
+		return message
+	}
+	blockingPaths := strings.TrimSpace(detail[separatorIndex+len(blockingPathsSeparator):])
+	if blockingPaths == "" {
+		return message
+	}
+	return message +
+		"\n\nParallel review jobs branch from committed HEAD; uncommitted source changes are not copied " +
+		"into isolated worktrees." +
+		"\nBlocking paths: " + blockingPaths +
+		"\nRecovery: commit or stash these changes before retrying parallel mode, or rerun serially " +
+		"with --concurrent 1."
+}
+
+func isFailedRunStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case remoteRunStatusFailed, remoteRunStatusCrashed:
+		return true
+	default:
+		return false
 	}
 }
 

@@ -127,6 +127,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
 - `compozy tasks run <slug>` is the canonical single-workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior. Add `--parallel-tasks` to explicitly opt into dependency-aware parallel execution using per-task worktrees and an integration branch.
 - `compozy tasks run --multiple alpha,beta` starts one daemon-owned queue for several task workflows. Use `tasks run --multiple` when the same flags and runtime defaults should apply to an ordered batch; keep using `tasks run <slug>` for one workflow or scripts that expect one run ID per invocation. Add `--parallel` to run the batch concurrently — each child runs in its own isolated git worktree, bounded by `--parallel-limit` (default `2`).
+- `compozy tasks run --multiple init/TG-001,init/TG-002 --parallel-task-groups` runs dependency-independent task groups concurrently. Each group keeps the agent-authored commits on its own local result branch; Compozy does not merge those branches into the checkout.
 - Independent `compozy tasks run` invocations from different workspaces run concurrently on the shared home-scoped daemon. When another workspace already has an active run, the CLI prints a warning with the busy workspace and run ID before starting the new run.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
 - `compozy reviews fetch|list|show|fix` is the canonical review command family.
@@ -146,7 +147,7 @@ dependencies:
 ---
 ```
 
-Validate task files at any time with `compozy tasks validate --name <feature>`. `compozy tasks run <feature>` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
+Validate workflow artifacts at any time with `compozy tasks validate --name <feature>`. For Task Group initiatives this includes the root `_task_groups.md` plan and every declared child task suite. `compozy tasks run <feature>` runs its execution preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
 
 ## ⚙️ Config Files
 
@@ -219,6 +220,11 @@ concurrent = 2
 batch_size = 3
 include_resolved = false
 
+[fix_reviews.stall]
+timeout = "45s"
+terminal_command_timeout = "8m"
+retries = 4
+
 [fetch_reviews]
 provider = "coderabbit"
 nitpicks = false
@@ -226,13 +232,13 @@ nitpicks = false
 
 Supported sections:
 
-- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`; `[defaults.stall]` controls progress-aware idle detection, terminal command caps, and clean-state retry budget
 - `[defaults.by_complexity.low|medium|high|critical]` for per-task `ide`, `model`, and `reasoning_effort` defaults used by PRD task runs
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`, `run_multiple_mode`, and `run_multiple_parallel_limit`
 - `[tasks.run.parallel]` for options used after dependency-aware parallel execution is explicitly selected for one PRD task workflow, including `max_concurrency` and the conflict-resolver agent under `[tasks.run.parallel.conflict_resolver]`; `enabled` remains parseable for compatibility but is not authorization to create worktrees
-- `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
+- `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`; `[fix_reviews.stall]` overrides the global stall policy for review-fix runs
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[recovery]` for agentic recovery defaults used by run-producing commands: `enabled`, `ide`, `model`, `reasoning_effort`, and `max_attempts`
 - `[sound]` for optional run-completion audio presets or absolute file paths
@@ -446,6 +452,7 @@ compozy tasks run user-auth --ide claude
 compozy tasks run user-auth --parallel-tasks
 compozy tasks run --multiple user-auth,cleanup --ide claude
 compozy tasks run --multiple user-auth,cleanup --parallel --parallel-limit 2
+compozy tasks run --multiple user-auth/TG-001,user-auth/TG-002 --parallel-task-groups
 ```
 
 Each pending task is processed sequentially through the shared daemon — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
@@ -639,13 +646,13 @@ The daemon lazily registers workspaces on first use, but the `workspaces` family
 </details>
 
 <details>
-<summary><code>compozy tasks validate</code> — Validate task metadata before execution</summary>
+<summary><code>compozy tasks validate</code> — Validate task workflow artifacts before execution</summary>
 
 ```bash
 compozy tasks validate [--name my-feature | --tasks-dir .compozy/tasks/my-feature] [--format text|json]
 ```
 
-Use `tasks validate` to check every `task_*.md` file in a workflow directory against the v2 task metadata schema before you run `tasks run`.
+Use `tasks validate` to check task metadata and graph manifests before `tasks run`. When `_task_groups.md` is present, it also validates that canonical root plan and every manifest-declared Task Group suite.
 
 </details>
 
@@ -664,6 +671,7 @@ The CLI resolves workspace defaults locally, validates the task metadata, auto-s
 | `--multiple`              |               | Comma-separated workflow slugs to run through one daemon-owned parent queue                      |
 | `--parallel`              | `false`       | Run `--multiple` workflows concurrently in isolated git worktrees (valid only with `--multiple`) |
 | `--parallel-limit`        | `2`           | Max children started at once in `--parallel` mode; must be `> 0` (valid only with `--multiple`)  |
+| `--parallel-task-groups`  | `false`       | Run dependency-independent `initiative/TG-NNN` targets on isolated local result branches         |
 | `--parallel-tasks`        | `false`       | Use per-task worktrees plus an integration branch for dependency-aware waves                     |
 | `--include-completed`     | `false`       | Re-run completed tasks                                                                           |
 | `--recursive`, `-r`       | `false`       | Discover `task_NNN.md` files in nested subdirectories of the workflow root                       |
@@ -697,6 +705,14 @@ The `--multiple` flag takes one comma-separated slug list:
 compozy tasks run --multiple alpha,beta --ide codex --model gpt-5.6-sol
 compozy tasks run --multiple alpha,beta --stream
 compozy tasks run --multiple alpha,beta --detach
+```
+
+For dependency-independent task groups, the distinct `--parallel-task-groups`
+route preserves the task-group agent-commit model and delivers one local branch
+per group without invoking the runner-owned merge path:
+
+```bash
+compozy tasks run --multiple init/TG-001,init/TG-002 --parallel-task-groups
 ```
 
 Scheduling is controlled by the `--parallel`/`--parallel-limit` flags or by `.compozy/config.toml` / `~/.compozy/config.toml`:

@@ -25,6 +25,8 @@ var (
 	ErrDaemonContextRequired = errors.New("daemon request context is required")
 	// ErrWorkflowSlugRequired reports that a workflow slug argument was blank.
 	ErrWorkflowSlugRequired = errors.New("workflow slug is required")
+	// ErrWorkflowRouteSegmentInvalid reports an attempt to encode a child reference in a route parameter.
+	ErrWorkflowRouteSegmentInvalid = errors.New("workflow route slug must be one segment")
 	// ErrRunIDRequired reports that a run identifier argument was blank.
 	ErrRunIDRequired = errors.New("run id is required")
 	// ErrJobIDRequired reports that a run job identifier argument was blank.
@@ -156,13 +158,15 @@ func (c *Client) StartTaskRun(
 	if c == nil {
 		return apicore.Run{}, ErrDaemonClientRequired
 	}
-	slug = strings.TrimSpace(slug)
-	if slug == "" {
-		return apicore.Run{}, ErrWorkflowSlugRequired
+	slug, err := normalizeClientRouteSlug(slug)
+	if err != nil {
+		return apicore.Run{}, err
 	}
 
 	body := contract.TaskRunRequest{
 		Workspace:        strings.TrimSpace(req.Workspace),
+		TaskGroupID:      strings.TrimSpace(req.TaskGroupID),
+		AllowOutOfOrder:  req.AllowOutOfOrder,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
 		Execution:        cloneTaskExecutionDescriptor(req.Execution),
@@ -184,7 +188,17 @@ func (c *Client) StartTaskRunMultiple(
 	if c == nil {
 		return apicore.Run{}, ErrDaemonClientRequired
 	}
-	slugs, err := normalizeClientSlugs(req.Slugs)
+	if len(req.Targets) > 0 && len(req.Slugs) > 0 {
+		return apicore.Run{}, errors.New("use either legacy slugs or structured task targets")
+	}
+	slugs := []string(nil)
+	targets := []contract.TaskRunTarget(nil)
+	var err error
+	if len(req.Targets) > 0 {
+		targets, err = normalizeClientTaskTargets(req.Targets)
+	} else {
+		slugs, err = normalizeClientSlugs(req.Slugs)
+	}
 	if err != nil {
 		return apicore.Run{}, err
 	}
@@ -192,8 +206,11 @@ func (c *Client) StartTaskRunMultiple(
 	body := contract.TaskRunMultipleRequest{
 		Workspace:        strings.TrimSpace(req.Workspace),
 		Slugs:            slugs,
+		Targets:          targets,
+		AllowOutOfOrder:  req.AllowOutOfOrder,
 		Mode:             strings.TrimSpace(req.Mode),
 		ParallelLimit:    req.ParallelLimit,
+		NewRun:           req.NewRun,
 		PresentationMode: strings.TrimSpace(req.PresentationMode),
 		RuntimeOverrides: req.RuntimeOverrides,
 		Execution:        cloneTaskExecutionDescriptor(req.Execution),
@@ -225,13 +242,52 @@ func normalizeClientSlugs(values []string) ([]string, error) {
 	}
 	slugs := make([]string, 0, len(values))
 	for _, value := range values {
-		slug := strings.TrimSpace(value)
-		if slug == "" {
-			return nil, ErrWorkflowSlugRequired
+		slug, err := normalizeClientRouteSlug(value)
+		if err != nil {
+			return nil, err
 		}
 		slugs = append(slugs, slug)
 	}
 	return slugs, nil
+}
+
+func normalizeClientTaskTargets(values []apicore.TaskRunTarget) ([]contract.TaskRunTarget, error) {
+	if len(values) == 0 {
+		return nil, ErrWorkflowSlugRequired
+	}
+	seen := make(map[string]struct{}, len(values))
+	targets := make([]contract.TaskRunTarget, 0, len(values))
+	for _, value := range values {
+		initiative, err := normalizeClientRouteSlug(value.InitiativeSlug)
+		if err != nil {
+			return nil, err
+		}
+		taskGroupID := strings.TrimSpace(value.TaskGroupID)
+		if taskGroupID == "" {
+			return nil, errors.New("structured task target task_group_id is required")
+		}
+		key := initiative + "/" + taskGroupID
+		if _, exists := seen[key]; exists {
+			return nil, errors.New("structured task targets must not contain duplicates")
+		}
+		seen[key] = struct{}{}
+		targets = append(targets, contract.TaskRunTarget{
+			InitiativeSlug: initiative,
+			TaskGroupID:    taskGroupID,
+		})
+	}
+	return targets, nil
+}
+
+func normalizeClientRouteSlug(value string) (string, error) {
+	slug := strings.TrimSpace(value)
+	if slug == "" {
+		return "", ErrWorkflowSlugRequired
+	}
+	if strings.Contains(slug, "/") {
+		return "", ErrWorkflowRouteSegmentInvalid
+	}
+	return slug, nil
 }
 
 func (c *Client) doJSON(

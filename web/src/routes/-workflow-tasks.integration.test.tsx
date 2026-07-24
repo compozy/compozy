@@ -19,6 +19,37 @@ const workspaceOne = {
 
 const workflow = { id: "wf-1", slug: "alpha", workspace_id: "ws-1" };
 
+const initiativeWithBlockedTaskGroup = {
+  id: "wf-initiative",
+  kind: "initiative",
+  slug: "customer-management",
+  workspace_id: "ws-1",
+  can_start_run: false,
+  start_block_reason: "select a task group",
+  task_groups: [
+    {
+      workflow_id: "wf-task-group-2",
+      task_group_id: "TG-002",
+      reference: "customer-management/TG-002",
+      title: "Interface",
+      outcome: "Render customer records.",
+      lifecycle_complete: false,
+      unmet_dependency_count: 1,
+      unmet_dependencies: [
+        {
+          task_group_id: "TG-001",
+          title: "Persistence",
+          rationale: "API contract first",
+        },
+      ],
+      independently_eligible: false,
+      task_counts: { total: 1, completed: 0, pending: 1 },
+      can_start_run: true,
+      requires_start_confirmation: true,
+    },
+  ],
+};
+
 const boardPayload = {
   board: {
     workspace: workspaceOne,
@@ -208,6 +239,58 @@ describe("workflow tasks integration", () => {
     await screen.findByTestId("task-board-empty");
   });
 
+  it("Should isolate task group board and detail reads with query state", async () => {
+    // CONTRACT: IT-058.
+    const taskGroupWorkflow = { ...workflow, slug: "alpha/TG-002", task_group_id: "TG-002" };
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/tasks/alpha/board?task_group_id=TG-002"),
+        status: 200,
+        body: {
+          board: {
+            ...boardPayload.board,
+            workflow: taskGroupWorkflow,
+            lanes: [
+              {
+                ...boardPayload.board.lanes[0],
+                items: [{ ...boardPayload.board.lanes[0]!.items[0]!, title: "TG-002 task" }],
+              },
+            ],
+          },
+        },
+      },
+      {
+        matcher: matchUrl("/api/tasks/alpha/items/task_01?task_group_id=TG-002"),
+        status: 200,
+        body: {
+          task: {
+            ...taskDetailPayload.task,
+            workflow: taskGroupWorkflow,
+            task: { ...taskDetailPayload.task.task, title: "TG-002 task" },
+            related_runs: [],
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/workflows/alpha/tasks?task_group_id=TG-002");
+
+    expect(await screen.findByTestId("task-board-view")).toHaveTextContent("alpha/TG-002");
+    const taskLink = (await screen.findByTestId("task-board-link-task_01")) as HTMLAnchorElement;
+    expect(taskLink.getAttribute("href")).toBe(
+      "/workflows/alpha/tasks/task_01?task_group_id=TG-002"
+    );
+    await userEvent.click(taskLink);
+    expect(await screen.findByTestId("task-detail-view")).toHaveTextContent("TG-002 task");
+    expect(stub.calls.some(call => call.url.includes("task_group_id=TG-002"))).toBe(true);
+    expect(stub.calls.some(call => call.url.includes("/tasks/alpha/TG-002"))).toBe(false);
+  });
+
   it("Should render the board error state when the daemon returns not-found", async () => {
     const stub = installFetchStub([
       {
@@ -349,5 +432,81 @@ describe("workflow tasks integration", () => {
       "workflow-inventory-start-success-link"
     ) as HTMLAnchorElement;
     expect(runLink.getAttribute("href")).toBe("/runs/run-new");
+  });
+
+  it("Should authorize one out-of-order task group run only after dependency confirmation", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/tasks", "GET"),
+        status: 200,
+        body: { workflows: [initiativeWithBlockedTaskGroup] },
+      },
+      {
+        matcher: matchUrl("/api/tasks/customer-management/runs", "POST"),
+        status: 201,
+        body: {
+          run: {
+            run_id: "run-task-group",
+            mode: "task",
+            presentation_mode: "text",
+            workspace_id: "ws-1",
+            started_at: "2026-01-01T00:00:00Z",
+            status: "queued",
+            workflow_slug: "customer-management/TG-002",
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/workflows");
+    const startButton = await screen.findByTestId(
+      "workflow-task-group-start-customer-management-TG-002"
+    );
+
+    await userEvent.click(startButton);
+    expect(
+      screen.getByTestId("workflow-task-group-dependency-confirmation-customer-management-TG-002")
+    ).toHaveTextContent("Persistence");
+    expect(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-dependencies-customer-management-TG-002"
+      )
+    ).toHaveTextContent("API contract first");
+    await userEvent.click(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-cancel-customer-management-TG-002"
+      )
+    );
+    expect(
+      stub.calls.filter(
+        call => call.url.includes("/api/tasks/customer-management/runs") && call.method === "POST"
+      )
+    ).toHaveLength(0);
+
+    await userEvent.click(startButton);
+    await userEvent.click(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-confirm-customer-management-TG-002"
+      )
+    );
+    await screen.findByTestId("workflow-inventory-start-success");
+    const startCalls = stub.calls.filter(
+      call => call.url.includes("/api/tasks/customer-management/runs") && call.method === "POST"
+    );
+    expect(startCalls).toHaveLength(1);
+    expect(JSON.parse(startCalls[0]?.body ?? "{}")).toMatchObject({
+      workspace: "ws-1",
+      task_group_id: "TG-002",
+      allow_out_of_order: true,
+      presentation_mode: "detach",
+    });
+    expect(screen.getByTestId("workflow-task-group-readiness-TG-002")).toHaveTextContent(
+      "1 unmet dependency"
+    );
   });
 });

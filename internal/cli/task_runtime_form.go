@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/core/tasks"
 )
 
@@ -46,7 +48,11 @@ func readTaskRuntimeFormEntries(tasksDir string, includeCompleted, recursive boo
 	return tasks.ReadTaskEntries(tasksDir, includeCompleted)
 }
 
-func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRunRuntimeForm, error) {
+func newTaskRunRuntimeFormForSlugs(
+	ctx context.Context,
+	state *commandState,
+	slugs []string,
+) (*taskRunRuntimeForm, error) {
 	if state == nil {
 		return nil, nil
 	}
@@ -61,7 +67,7 @@ func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRu
 		if workflow == "" {
 			continue
 		}
-		tasksDir, err := resolveTaskWorkflowDir(state.workspaceRoot, workflow, state.tasksDir)
+		tasksDir, err := resolveTaskRuntimeFormTasksDir(ctx, state, workflow)
 		if err != nil {
 			return nil, err
 		}
@@ -78,6 +84,23 @@ func newTaskRunRuntimeFormForSlugs(state *commandState, slugs []string) (*taskRu
 	}
 	form.ensureEditors()
 	return form, nil
+}
+
+func resolveTaskRuntimeFormTasksDir(ctx context.Context, state *commandState, workflow string) (string, error) {
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, state.workspaceRoot, workflow)
+	if err != nil {
+		return "", err
+	}
+	switch target.Mode {
+	case taskgroups.TargetModeOrdinary:
+		return resolveTaskWorkflowDir(state.workspaceRoot, target.Ref.Initiative, state.tasksDir)
+	case taskgroups.TargetModeTaskGroup:
+		return target.TasksDir, nil
+	case taskgroups.TargetModeInitiative:
+		return "", taskGroupSelectionRequiredError(target)
+	default:
+		return "", fmt.Errorf("unsupported task group target mode %q", target.Mode)
+	}
 }
 
 func indexTaskRuntimeRules(

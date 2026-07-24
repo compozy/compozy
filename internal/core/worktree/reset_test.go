@@ -66,6 +66,40 @@ func TestReset(t *testing.T) {
 		}
 	})
 
+	t.Run("Should restore a clean baseline captured with exclusions", func(t *testing.T) {
+		t.Parallel()
+		requireScopeGit(t)
+
+		root := initScopeGitRepo(t)
+		tasksDir := filepath.Join(root, ".compozy", "tasks", "demo")
+		baseline, err := CaptureExcluding(context.Background(), root, tasksDir)
+		if err != nil {
+			t.Fatalf("CaptureExcluding baseline: %v", err)
+		}
+
+		if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# rewritten\n"), 0o600); err != nil {
+			t.Fatalf("rewrite README: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
+			t.Fatalf("write scratch: %v", err)
+		}
+
+		if err := Reset(context.Background(), root, baseline); err != nil {
+			t.Fatalf("Reset: %v", err)
+		}
+
+		final, err := CaptureExcluding(context.Background(), root, tasksDir)
+		if err != nil {
+			t.Fatalf("CaptureExcluding final: %v", err)
+		}
+		if !final.Equal(baseline) {
+			t.Fatalf("final snapshot does not match excluded baseline: head=%s want=%s", final.Head(), baseline.Head())
+		}
+		if _, err := os.Stat(filepath.Join(root, "scratch.txt")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("expected scratch.txt to be removed, stat err = %v", err)
+		}
+	})
+
 	t.Run("Should leave ignored files alone", func(t *testing.T) {
 		t.Parallel()
 		requireScopeGit(t)
@@ -106,9 +140,13 @@ func TestReset(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, "pre-existing.txt"), []byte("user work"), 0o600); err != nil {
 			t.Fatalf("write pre-existing: %v", err)
 		}
-		baseline, err := Capture(context.Background(), root)
+		baseline, err := CaptureExcluding(
+			context.Background(),
+			root,
+			filepath.Join(root, ".compozy", "tasks", "demo"),
+		)
 		if err != nil {
-			t.Fatalf("Capture baseline: %v", err)
+			t.Fatalf("CaptureExcluding baseline: %v", err)
 		}
 
 		err = Reset(context.Background(), root, baseline)

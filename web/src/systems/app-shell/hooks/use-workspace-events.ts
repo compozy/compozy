@@ -104,6 +104,13 @@ interface WorkflowInvalidationOptions {
   paths?: string[];
 }
 
+interface WorkflowQueryReference {
+  workflowSlug: string;
+  taskGroupId?: string;
+}
+
+const taskGroupReferencePattern = /^([^/]+)\/(TG-[0-9]{3})$/;
+
 function invalidateWorkflowQueries(
   queryClient: QueryClient,
   workspaceId: string,
@@ -121,25 +128,55 @@ function invalidateWorkflowQueries(
     return;
   }
 
-  void queryClient.invalidateQueries({ queryKey: workflowKeys.board(workspaceId, workflowSlug) });
-  void queryClient.invalidateQueries({ queryKey: workflowKeys.tasks(workspaceId, workflowSlug) });
+  const reference = parseWorkflowQueryReference(workflowSlug);
+  const queryScope = reference.taskGroupId
+    ? [workspaceId, reference.workflowSlug, reference.taskGroupId]
+    : [workspaceId, reference.workflowSlug];
+
+  // An initiative event stops before the task-group slot and invalidates every child.
+  // A composite initiative/TG-NNN event includes that slot and invalidates only its child.
+  void queryClient.invalidateQueries({
+    queryKey: [...workflowKeys.workflows(), ...queryScope],
+  });
 
   if (options.allArtifacts || shouldInvalidateSpec(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: specKeys.workflow(workspaceId, workflowSlug) });
+    void queryClient.invalidateQueries({ queryKey: [...specKeys.all, ...queryScope] });
   }
   if (options.allArtifacts || shouldInvalidateMemory(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: memoryKeys.index(workspaceId, workflowSlug) });
-    void queryClient.invalidateQueries({ queryKey: memoryKeys.files() });
+    void queryClient.invalidateQueries({
+      queryKey: [...memoryKeys.indexes(), ...queryScope],
+    });
+    void queryClient.invalidateQueries({ queryKey: [...memoryKeys.files(), ...queryScope] });
   }
   if (options.allArtifacts || shouldInvalidateReviews(options.paths)) {
-    void queryClient.invalidateQueries({ queryKey: reviewKeys.summary(workspaceId, workflowSlug) });
-    void queryClient.invalidateQueries({ queryKey: reviewKeys.rounds() });
+    void queryClient.invalidateQueries({
+      queryKey: [...reviewKeys.summaries(), ...queryScope],
+    });
+    void queryClient.invalidateQueries({ queryKey: [...reviewKeys.rounds(), ...queryScope] });
   }
+}
+
+function parseWorkflowQueryReference(reference: string): WorkflowQueryReference {
+  const match = taskGroupReferencePattern.exec(reference);
+  if (!match) {
+    return { workflowSlug: reference };
+  }
+  const workflowSlug = match[1];
+  const taskGroupId = match[2];
+  if (!workflowSlug || !taskGroupId) {
+    return { workflowSlug: reference };
+  }
+  return { workflowSlug, taskGroupId };
 }
 
 function shouldInvalidateSpec(paths: string[] | undefined): boolean {
   return (paths ?? []).some(path => {
-    return path === "_prd.md" || path === "_techspec.md" || path.startsWith("adrs/");
+    return (
+      path === "_prd.md" ||
+      path === "_techspec.md" ||
+      path === "_task_groups.md" ||
+      path.startsWith("adrs/")
+    );
   });
 }
 

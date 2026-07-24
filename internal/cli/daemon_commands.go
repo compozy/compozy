@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/huh/v2"
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -21,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/core/gitenv"
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/daemon"
@@ -37,8 +39,10 @@ const (
 
 	defaultDaemonStartupTimeout = 10 * time.Second
 	defaultDaemonPollInterval   = 100 * time.Millisecond
-	taskRunGuardRunListLimit    = 1000
+	taskRunGuardRunListLimit    = apicore.MaxPageLimit
 )
+
+var errTaskGroupSelectionCanceled = errors.New("task group selection canceled")
 
 var (
 	resolveCLIDaemonHomePaths  = compozyconfig.ResolveHomePaths
@@ -583,6 +587,7 @@ func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefault
 	cmd.AddCommand(
 		newTasksValidateCommand(),
 		newTasksRunCommandWithDefaults(dispatcher, defaults),
+		newTasksSyncCommand(),
 	)
 	return cmd
 }
@@ -632,6 +637,8 @@ type taskRunFlagOptions struct {
 
 const (
 	taskRunParallelTasksFlag                     = "parallel-tasks"
+	taskRunParallelTaskGroupsFlag                = "parallel-task-groups"
+	taskRunNewFlag                               = "new"
 	taskRunParallelConflictResolverIDEFlag       = "parallel-conflict-resolver-ide"
 	taskRunParallelConflictResolverModelFlag     = "parallel-conflict-resolver-model"
 	taskRunParallelConflictResolverReasoningFlag = "parallel-conflict-resolver-reasoning"
@@ -648,37 +655,7 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		"",
 		"Comma-separated task workflow slugs to run through one daemon-owned parent queue",
 	)
-	cmd.Flags().BoolVar(
-		&state.parallel,
-		"parallel",
-		false,
-		"Run --multiple task workflows in parallel with git worktree isolation "+
-			"(overrides run_multiple_mode; valid only with --multiple)",
-	)
-	cmd.Flags().IntVar(
-		&state.parallelLimit,
-		"parallel-limit",
-		workspacecfg.DefaultRunMultipleParallelLimit,
-		"Maximum number of child runs started at once in --parallel mode "+
-			"(overrides run_multiple_parallel_limit; must be greater than 0; valid only with --multiple)",
-	)
-	cmd.Flags().BoolVar(
-		&state.parallelTasks,
-		taskRunParallelTasksFlag,
-		false,
-		"Run this PRD task workflow in dependency-aware parallel task mode",
-	)
-	cmd.Flags().StringVar(&state.parallelConflictResolverIDE, taskRunParallelConflictResolverIDEFlag, "", "")
-	cmd.Flags().StringVar(&state.parallelConflictResolverModel, taskRunParallelConflictResolverModelFlag, "", "")
-	cmd.Flags().StringVar(
-		&state.parallelConflictResolverReasoningEffort,
-		taskRunParallelConflictResolverReasoningFlag,
-		"",
-		"",
-	)
-	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverIDEFlag)
-	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverModelFlag)
-	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverReasoningFlag)
+	addTaskRunParallelFlags(cmd, state)
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	cmd.Flags().BoolVarP(
 		&state.recursive,
@@ -701,6 +678,12 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 		false,
 		"Continue after task metadata validation fails in non-interactive mode",
 	)
+	cmd.Flags().BoolVar(
+		&state.allowOutOfOrder,
+		"allow-out-of-order",
+		false,
+		"Authorize this one task group run when declared dependencies are not complete",
+	)
 	cmd.Flags().StringVar(
 		&state.attachMode,
 		"attach",
@@ -717,6 +700,52 @@ func addTaskRunFlags(cmd *cobra.Command, state *commandState, opts taskRunFlagOp
 	)
 }
 
+func addTaskRunParallelFlags(cmd *cobra.Command, state *commandState) {
+	cmd.Flags().BoolVar(
+		&state.parallel,
+		"parallel",
+		false,
+		"Run --multiple task workflows in parallel with git worktree isolation "+
+			"(overrides run_multiple_mode; valid only with --multiple)",
+	)
+	cmd.Flags().IntVar(
+		&state.parallelLimit,
+		"parallel-limit",
+		workspacecfg.DefaultRunMultipleParallelLimit,
+		"Maximum number of child runs started at once in --parallel mode "+
+			"(overrides run_multiple_parallel_limit; a value of 0 or less is treated as 1; valid only with --multiple)",
+	)
+	cmd.Flags().BoolVar(
+		&state.parallelTasks,
+		taskRunParallelTasksFlag,
+		false,
+		"Run this PRD task workflow in dependency-aware parallel task mode",
+	)
+	cmd.Flags().BoolVar(
+		&state.parallelTaskGroups,
+		taskRunParallelTaskGroupsFlag,
+		false,
+		"Run selected dependency-independent task groups concurrently on isolated result branches",
+	)
+	cmd.Flags().BoolVar(
+		&state.newRun,
+		taskRunNewFlag,
+		false,
+		"Start a fresh parallel task-group run and branch namespace",
+	)
+	cmd.Flags().StringVar(&state.parallelConflictResolverIDE, taskRunParallelConflictResolverIDEFlag, "", "")
+	cmd.Flags().StringVar(&state.parallelConflictResolverModel, taskRunParallelConflictResolverModelFlag, "", "")
+	cmd.Flags().StringVar(
+		&state.parallelConflictResolverReasoningEffort,
+		taskRunParallelConflictResolverReasoningFlag,
+		"",
+		"",
+	)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverIDEFlag)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverModelFlag)
+	hideTaskRunWizardFlag(cmd, taskRunParallelConflictResolverReasoningFlag)
+}
+
 func hideTaskRunWizardFlag(cmd *cobra.Command, flagName string) {
 	flag := cmd.Flags().Lookup(flagName)
 	if flag == nil {
@@ -725,11 +754,25 @@ func hideTaskRunWizardFlag(cmd *cobra.Command, flagName string) {
 	flag.Hidden = true
 }
 
+// wantsInteractiveParallelTaskGroups reports whether the user explicitly asked
+// for the parallel-task-group picker. It gates on the flag VALUE, not merely
+// whether the flag was supplied, so that --parallel-task-groups=false performs
+// an ordinary single run instead of opening the picker.
+func wantsInteractiveParallelTaskGroups(cmd *cobra.Command, s *commandState) bool {
+	return commandFlagChanged(cmd, taskRunParallelTaskGroupsFlag) && s.parallelTaskGroups
+}
+
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {
 	if commandFlagChanged(cmd, "multiple") {
 		return s.runTaskWorkflowsMultiple(cmd, args)
 	}
-	if err := rejectMultipleOnlyParallelFlags(cmd); err != nil {
+	// --parallel-task-groups without --multiple opens the interactive
+	// multi-select picker (ADR-006: the flag pairs with an explicit --multiple
+	// set OR the multi-select picker).
+	if wantsInteractiveParallelTaskGroups(cmd, s) {
+		return s.runInteractiveParallelTaskGroups(cmd, args)
+	}
+	if err := s.rejectMultipleOnlyParallelFlags(cmd); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -760,7 +803,141 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 		return withExitCode(1, err)
 	}
 
-	resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, s.name, "")
+	target, err := s.resolveTaskRunTarget(ctx, cmd)
+	if errors.Is(err, errTaskGroupSelectionCanceled) {
+		return nil
+	}
+	if err != nil {
+		return mapTaskGroupSelectionError(err)
+	}
+	return s.startPreparedTaskRun(ctx, cmd, target)
+}
+
+// runInteractiveParallelTaskGroups drives the --parallel-task-groups journey
+// when no explicit --multiple set is supplied: it collects a multi-selected set
+// of Task Groups and delegates to the shared multi-run pipeline so preflight,
+// mode/kind resolution, and reporting are reused unchanged.
+func (s *commandState) runInteractiveParallelTaskGroups(cmd *cobra.Command, args []string) error {
+	if err := s.rejectInteractiveParallelTaskGroupConflicts(cmd); err != nil {
+		return withExitCode(1, err)
+	}
+
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
+	}
+
+	refs, err := s.collectParallelTaskGroupRefs(ctx, cmd, args)
+	if errors.Is(err, errTaskGroupSelectionCanceled) {
+		return nil
+	}
+	if err != nil {
+		return mapTaskGroupSelectionError(err)
+	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
+	return s.runTaskWorkflowsMultiplePrepared(ctx, cmd, refs)
+}
+
+// rejectInteractiveParallelTaskGroupConflicts rejects flags that cannot combine
+// with the picker-driven --parallel-task-groups path, mirroring the explicit
+// --multiple path's mutual-exclusion rules.
+func (s *commandState) rejectInteractiveParallelTaskGroupConflicts(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") && s.parallel {
+		return errors.New("--parallel-task-groups selects parallel mode and cannot be combined with --parallel")
+	}
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) && s.parallelTasks {
+		return errors.New("--parallel-tasks cannot be combined with --parallel-task-groups")
+	}
+	return nil
+}
+
+// collectParallelTaskGroupRefs resolves the initiative target and returns the
+// initiative/TG-NNN references to launch. An initiative target opens the
+// multi-select picker; an explicit initiative/TG-NNN positional runs just that
+// group in parallel mode; any other target is rejected.
+func (s *commandState) collectParallelTaskGroupRefs(
+	ctx context.Context,
+	cmd *cobra.Command,
+	args []string,
+) ([]string, error) {
+	if err := s.resolveTaskWorkflowName(args); err != nil {
+		return nil, withExitCode(1, err)
+	}
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
+	if err != nil {
+		return nil, err
+	}
+	switch target.Mode {
+	case taskgroups.TargetModeInitiative:
+		return s.pickParallelTaskGroupRefs(cmd, target)
+	case taskgroups.TargetModeTaskGroup:
+		return []string{target.Ref.String()}, nil
+	default:
+		return nil, withExitCode(1, fmt.Errorf(
+			"--parallel-task-groups requires an initiative or initiative/TG-NNN target, not %q",
+			strings.TrimSpace(s.name),
+		))
+	}
+}
+
+// pickParallelTaskGroupRefs runs the multi-select picker for an initiative and
+// maps the chosen Task Group IDs to fully-qualified initiative/TG-NNN refs. It
+// preserves the swappable pickTaskGroups seam so tests can stub selection
+// without a TTY, mirroring resolveInteractiveTaskGroup.
+func (s *commandState) pickParallelTaskGroupRefs(
+	cmd *cobra.Command,
+	target taskgroups.Target,
+) ([]string, error) {
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		return nil, taskGroupSelectionRequiredError(target)
+	}
+	picker := s.pickTaskGroups
+	if picker == nil {
+		picker = defaultPickTaskGroups
+	}
+	ids, pickErr := picker(cmd, taskGroupPickerInput{
+		Target:           target,
+		WorkspaceRoot:    s.workspaceRoot,
+		RunMode:          s.taskGroupPickerRunMode(),
+		LockCompleted:    s.kind == commandKindTasksRun,
+		IncludeCompleted: s.includeCompleted,
+	})
+	if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errTaskGroupSelectionCanceled) {
+		return nil, errTaskGroupSelectionCanceled
+	}
+	if pickErr != nil {
+		return nil, fmt.Errorf("select task groups: %w", pickErr)
+	}
+	refs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		refs = append(refs, target.Ref.Initiative+"/"+id)
+	}
+	if len(refs) == 0 {
+		return nil, errTaskGroupSelectionCanceled
+	}
+	return refs, nil
+}
+
+func (s *commandState) startPreparedTaskRun(
+	ctx context.Context,
+	cmd *cobra.Command,
+	target taskgroups.Target,
+) error {
+	resolvedTasksDir := target.TasksDir
+	var err error
+	if target.Mode == taskgroups.TargetModeOrdinary {
+		resolvedTasksDir, err = resolveTaskWorkflowDir(s.workspaceRoot, s.name, "")
+	}
 	if err != nil {
 		return withExitCode(2, err)
 	}
@@ -771,12 +948,15 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 	if err != nil {
 		return withExitCode(2, err)
 	}
+	if target.Mode == taskgroups.TargetModeTaskGroup {
+		cfg.Name = target.Ref.String()
+	}
 	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
 		return err
 	}
 	execution := s.resolveSingleTaskExecution(cmd)
 	if execution.Kind == apicore.ExecutionKindTaskParallel {
-		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
+		if err := s.preflightParallelWorktreeMode(ctx, cmd); err != nil {
 			return err
 		}
 	}
@@ -801,6 +981,8 @@ func (s *commandState) runTaskWorkflowPrepared(ctx context.Context, cmd *cobra.C
 
 	run, err := client.StartTaskRun(ctx, s.name, apicore.TaskRunRequest{
 		Workspace:        s.workspaceRoot,
+		TaskGroupID:      s.taskGroupID,
+		AllowOutOfOrder:  s.allowOutOfOrder,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
 		Execution:        &execution,
@@ -819,10 +1001,18 @@ func (s *commandState) runTaskWorkflowsMultiple(cmd *cobra.Command, args []strin
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	if commandFlagChanged(cmd, taskRunParallelTasksFlag) {
+	if commandFlagChanged(cmd, taskRunParallelTasksFlag) && s.parallelTasks {
 		return withExitCode(1, errors.New(
 			"--parallel-tasks cannot be combined with --multiple; use --parallel for slug multi-run mode",
 		))
+	}
+	if commandFlagChanged(cmd, "parallel") && s.parallel && s.parallelTaskGroups {
+		return withExitCode(1, errors.New(
+			"--parallel-task-groups selects parallel mode and cannot be combined with --parallel",
+		))
+	}
+	if s.newRun && !s.parallelTaskGroups {
+		return withExitCode(1, errors.New("--new requires --parallel-task-groups"))
 	}
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
@@ -836,7 +1026,16 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 	cmd *cobra.Command,
 	slugs []string,
 ) error {
-	if err := s.preflightTaskWorkflowSlugs(ctx, cmd, slugs); err != nil {
+	selection, err := s.resolveTaskRunMultipleSelection(ctx, slugs)
+	if err != nil {
+		return mapTaskGroupSelectionError(err)
+	}
+	if s.parallelTaskGroups && len(selection.Targets) != len(selection.items) {
+		return withExitCode(1, errors.New(
+			"--parallel-task-groups requires only initiative/TG-NNN targets",
+		))
+	}
+	if err := s.preflightTaskWorkflowSelection(ctx, cmd, selection); err != nil {
 		return err
 	}
 
@@ -849,21 +1048,9 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		return withExitCode(2, err)
 	}
 	execution := s.resolveTaskRunMultipleExecution(cmd, mode)
-	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
+	parallelLimit, err := s.prepareTaskRunMultipleParallelLaunch(ctx, cmd, mode)
 	if err != nil {
-		return withExitCode(1, err)
-	}
-	// An explicit --parallel-limit has no effect in enqueued mode; reject it
-	// instead of silently discarding the value when mode resolves to enqueued.
-	if commandFlagChanged(cmd, "parallel-limit") && mode != workspacecfg.TaskRunMultipleModeParallel {
-		return withExitCode(2, errors.New(
-			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
-		))
-	}
-	if mode == workspacecfg.TaskRunMultipleModeParallel {
-		if err := s.preflightParallelWorktreeMode(ctx); err != nil {
-			return err
-		}
+		return err
 	}
 	runtimeOverrides, err := s.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
@@ -881,8 +1068,11 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 
 	request := apicore.TaskRunMultipleRequest{
 		Workspace:        s.workspaceRoot,
-		Slugs:            slugs,
+		Slugs:            selection.Slugs,
+		Targets:          selection.Targets,
+		AllowOutOfOrder:  s.allowOutOfOrder,
 		Mode:             mode,
+		NewRun:           s.newRun,
 		PresentationMode: presentationMode,
 		RuntimeOverrides: runtimeOverrides,
 		Execution:        &execution,
@@ -895,6 +1085,85 @@ func (s *commandState) runTaskWorkflowsMultiplePrepared(
 		return mapDaemonCommandError(err)
 	}
 	return handleStartedTaskRunMultiple(ctx, cmd, client, run)
+}
+
+func (s *commandState) prepareTaskRunMultipleParallelLaunch(
+	ctx context.Context,
+	cmd *cobra.Command,
+	mode string,
+) (int, error) {
+	parallelLimit, err := s.resolveTaskRunMultipleParallelLimit(cmd)
+	if err != nil {
+		return 0, withExitCode(1, err)
+	}
+	// An explicit --parallel-limit has no effect in enqueued mode; reject it
+	// instead of silently discarding the value when mode resolves to enqueued.
+	if commandFlagChanged(cmd, "parallel-limit") && mode != workspacecfg.TaskRunMultipleModeParallel {
+		return 0, withExitCode(2, errors.New(
+			`--parallel-limit requires parallel mode; pass --parallel or set run_multiple_mode = "parallel"`,
+		))
+	}
+	if mode == workspacecfg.TaskRunMultipleModeParallel {
+		if err := s.preflightParallelWorktreeMode(ctx, cmd); err != nil {
+			return 0, err
+		}
+	}
+	return parallelLimit, nil
+}
+
+type taskRunMultipleSelection struct {
+	Slugs   []string
+	Targets []apicore.TaskRunTarget
+	items   []taskRunMultipleSelectionItem
+}
+
+type taskRunMultipleSelectionItem struct {
+	workflowRef string
+	tasksDir    string
+}
+
+func (s *commandState) resolveTaskRunMultipleSelection(
+	ctx context.Context,
+	values []string,
+) (taskRunMultipleSelection, error) {
+	selection := taskRunMultipleSelection{items: make([]taskRunMultipleSelectionItem, 0, len(values))}
+	for _, value := range values {
+		target, err := (taskgroups.TargetResolver{}).Resolve(ctx, s.workspaceRoot, value)
+		if err != nil {
+			return taskRunMultipleSelection{}, err
+		}
+		switch target.Mode {
+		case taskgroups.TargetModeOrdinary:
+			tasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, target.Ref.Initiative, "")
+			if err != nil {
+				return taskRunMultipleSelection{}, err
+			}
+			selection.Slugs = append(selection.Slugs, target.Ref.Initiative)
+			selection.items = append(selection.items, taskRunMultipleSelectionItem{
+				workflowRef: target.Ref.Initiative,
+				tasksDir:    tasksDir,
+			})
+		case taskgroups.TargetModeTaskGroup:
+			selection.Targets = append(selection.Targets, apicore.TaskRunTarget{
+				InitiativeSlug: target.Ref.Initiative,
+				TaskGroupID:    target.TaskGroup.ID,
+			})
+			selection.items = append(selection.items, taskRunMultipleSelectionItem{
+				workflowRef: target.Ref.String(),
+				tasksDir:    target.TasksDir,
+			})
+		case taskgroups.TargetModeInitiative:
+			return taskRunMultipleSelection{}, taskGroupSelectionRequiredError(target)
+		default:
+			return taskRunMultipleSelection{}, fmt.Errorf("unsupported task group target mode %q", target.Mode)
+		}
+	}
+	if len(selection.Slugs) > 0 && len(selection.Targets) > 0 {
+		return taskRunMultipleSelection{}, errors.New(
+			"--multiple cannot mix ordinary workflow slugs and Task Group targets; run them separately",
+		)
+	}
+	return selection, nil
 }
 
 func (s *commandState) resolveTaskWorkflowSlugList(args []string) ([]string, error) {
@@ -911,7 +1180,11 @@ func (s *commandState) resolveTaskWorkflowSlugList(args []string) ([]string, err
 	return slugs, nil
 }
 
-func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobra.Command, slugs []string) error {
+func (s *commandState) preflightTaskWorkflowSelection(
+	ctx context.Context,
+	cmd *cobra.Command,
+	selection taskRunMultipleSelection,
+) error {
 	cfg, err := s.buildConfig()
 	if err != nil {
 		return withExitCode(2, err)
@@ -924,15 +1197,11 @@ func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobr
 		s.tasksDir = originalTasksDir
 	}()
 
-	for _, slug := range slugs {
-		resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, slug, "")
-		if err != nil {
-			return withExitCode(2, err)
-		}
-		s.name = slug
-		s.tasksDir = resolvedTasksDir
-		cfg.Name = slug
-		cfg.TasksDir = resolvedTasksDir
+	for _, item := range selection.items {
+		s.name = item.workflowRef
+		s.tasksDir = item.tasksDir
+		cfg.Name = item.workflowRef
+		cfg.TasksDir = item.tasksDir
 		if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
 			return err
 		}
@@ -942,17 +1211,26 @@ func (s *commandState) preflightTaskWorkflowSlugs(ctx context.Context, cmd *cobr
 
 // rejectMultipleOnlyParallelFlags rejects --parallel and --parallel-limit when
 // they are used without --multiple, before any daemon contact.
-func rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
-	if commandFlagChanged(cmd, "parallel") {
+// --parallel-task-groups is intentionally not rejected here: runTaskWorkflow
+// routes it to the interactive multi-select picker before this check runs.
+// Boolean flags are gated on their VALUE (not merely whether they were
+// supplied) so an explicit --parallel=false / --new=false is treated as "not
+// requested" instead of a conflict. --parallel-limit is an int with no "off"
+// value, so its mere presence without --multiple remains an error.
+func (s *commandState) rejectMultipleOnlyParallelFlags(cmd *cobra.Command) error {
+	if commandFlagChanged(cmd, "parallel") && s.parallel {
 		return errors.New("--parallel is only valid with --multiple")
 	}
 	if commandFlagChanged(cmd, "parallel-limit") {
 		return errors.New("--parallel-limit is only valid with --multiple")
 	}
+	if commandFlagChanged(cmd, taskRunNewFlag) && s.newRun {
+		return errors.New("--new is only valid with --parallel-task-groups")
+	}
 	return nil
 }
 
-func (s *commandState) preflightParallelWorktreeMode(ctx context.Context) error {
+func (s *commandState) preflightParallelWorktreeMode(ctx context.Context, cmd *cobra.Command) error {
 	root := strings.TrimSpace(s.workspaceRoot)
 	if root == "" {
 		return withExitCode(2, errors.New("parallel worktree-backed task runs require a workspace root"))
@@ -997,7 +1275,29 @@ func (s *commandState) preflightParallelWorktreeMode(ctx context.Context) error 
 			),
 		)
 	}
+	// ADR-010 / R3 (US-001.EC-3): parallel worktree branches are cut from the
+	// current commit, so uncommitted work in the checkout is excluded from the
+	// child runs. Warn and proceed rather than block; the changes stay in place.
+	status, statusErr := runTaskRunGitPreflight(ctx, root, "status", "--porcelain")
+	if statusErr == nil && strings.TrimSpace(status) != "" {
+		writeParallelDirtyWorktreeWarning(cmd, root)
+	}
 	return nil
+}
+
+// writeParallelDirtyWorktreeWarning advises that uncommitted changes in the
+// workspace are excluded from parallel worktree child runs (ADR-010 / R3). The
+// run proceeds regardless; the warning is advisory, so a closed stderr must not
+// prevent starting the run.
+func writeParallelDirtyWorktreeWarning(cmd *cobra.Command, root string) {
+	if _, err := fmt.Fprintf(
+		cmd.ErrOrStderr(),
+		"Warning: workspace %s has uncommitted changes; parallel worktree branches are cut from the "+
+			"last commit, so those changes stay in this checkout and are excluded from the child runs.\n",
+		root,
+	); err != nil {
+		return
+	}
 }
 
 func runTaskRunGitPreflight(ctx context.Context, workspaceRoot string, args ...string) (string, error) {
@@ -1040,6 +1340,9 @@ func cliCleanContainmentPath(path string) (string, error) {
 // resolveTaskRunMultipleMode resolves the multi-run scheduling mode with
 // precedence: --parallel, then configured run_multiple_mode, then enqueued.
 func (s *commandState) resolveTaskRunMultipleMode(cmd *cobra.Command) (string, error) {
+	if s.parallelTaskGroups {
+		return workspacecfg.TaskRunMultipleModeParallel, nil
+	}
 	if commandFlagChanged(cmd, "parallel") {
 		if s.parallel {
 			return workspacecfg.TaskRunMultipleModeParallel, nil
@@ -1084,6 +1387,11 @@ func (s *commandState) resolveTaskRunMultipleExecution(
 	cmd *cobra.Command,
 	mode string,
 ) apicore.TaskExecutionDescriptor {
+	if s.parallelTaskGroups {
+		return apicore.NewTaskMultiGroupParallelExecutionDescriptor(
+			"--parallel-task-groups=true",
+		)
+	}
 	source := "built-in default"
 	if commandFlagChanged(cmd, "parallel") {
 		if mode == workspacecfg.TaskRunMultipleModeParallel {
@@ -1112,11 +1420,14 @@ func (s *commandState) resolveTaskRunMultipleExecution(
 
 // resolveTaskRunMultipleParallelLimit resolves the parallel fanout limit with
 // precedence: --parallel-limit, then configured run_multiple_parallel_limit,
-// then the default. It rejects zero and negative limits before daemon contact.
+// then the default. An explicit non-positive flag value is floored to one.
 func (s *commandState) resolveTaskRunMultipleParallelLimit(cmd *cobra.Command) (int, error) {
 	limit := s.projectConfig.Tasks.Run.EffectiveRunMultipleParallelLimit()
 	if commandFlagChanged(cmd, "parallel-limit") {
 		limit = s.parallelLimit
+		if limit < 1 {
+			return 1, nil
+		}
 	}
 	if limit <= 0 {
 		return 0, fmt.Errorf("--parallel-limit must be greater than 0 (got %d)", limit)
@@ -1484,6 +1795,166 @@ func (s *commandState) resolveTaskWorkflowName(args []string) error {
 	return nil
 }
 
+func (s *commandState) resolveTaskRunTarget(ctx context.Context, cmd *cobra.Command) (taskgroups.Target, error) {
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, s.workspaceRoot, strings.TrimSpace(s.name))
+	if err != nil {
+		return taskgroups.Target{}, err
+	}
+	if target.Mode == taskgroups.TargetModeInitiative {
+		target, err = s.resolveInteractiveTaskGroup(ctx, cmd, target)
+		if err != nil {
+			return taskgroups.Target{}, err
+		}
+	}
+	if target.Mode != taskgroups.TargetModeTaskGroup {
+		s.taskGroupID = ""
+		return target, nil
+	}
+	readiness, err := taskgroups.EvaluateReadiness(target.Plan, target.TaskGroup.ID)
+	if err != nil {
+		return taskgroups.Target{}, err
+	}
+	if err := s.authorizeTaskGroupRun(cmd, target, readiness); err != nil {
+		return taskgroups.Target{}, err
+	}
+	s.name = target.Ref.Initiative
+	s.taskGroupID = target.TaskGroup.ID
+	return target, nil
+}
+
+func (s *commandState) resolveInteractiveTaskGroup(
+	ctx context.Context,
+	cmd *cobra.Command,
+	target taskgroups.Target,
+) (taskgroups.Target, error) {
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		return taskgroups.Target{}, taskGroupSelectionRequiredError(target)
+	}
+	picker := s.pickTaskGroup
+	if picker == nil {
+		picker = defaultPickTaskGroup
+	}
+	taskGroupID, pickErr := picker(cmd, taskGroupPickerInput{
+		Target:           target,
+		WorkspaceRoot:    s.workspaceRoot,
+		RunMode:          s.taskGroupPickerRunMode(),
+		LockCompleted:    s.kind == commandKindTasksRun,
+		IncludeCompleted: s.includeCompleted,
+	})
+	if errors.Is(pickErr, huh.ErrUserAborted) || errors.Is(pickErr, errTaskGroupSelectionCanceled) {
+		return taskgroups.Target{}, errTaskGroupSelectionCanceled
+	}
+	if pickErr != nil {
+		return taskgroups.Target{}, fmt.Errorf("select task group: %w", pickErr)
+	}
+	return (taskgroups.TargetResolver{}).ResolveTaskGroup(
+		ctx,
+		s.workspaceRoot,
+		target.Ref.Initiative+"/"+strings.TrimSpace(taskGroupID),
+	)
+}
+
+func (s *commandState) authorizeTaskGroupRun(
+	cmd *cobra.Command,
+	target taskgroups.Target,
+	readiness taskgroups.Readiness,
+) error {
+	if readiness.Eligible {
+		return nil
+	}
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		if !s.allowOutOfOrder {
+			return taskGroupDependenciesUnmetError(target, readiness)
+		}
+		return nil
+	}
+	confirm := s.confirmTaskGroupRun
+	if confirm == nil {
+		confirm = defaultConfirmTaskGroupRun
+	}
+	confirmed, confirmErr := confirm(cmd, target, readiness)
+	if errors.Is(confirmErr, huh.ErrUserAborted) || errors.Is(confirmErr, errTaskGroupSelectionCanceled) {
+		return errTaskGroupSelectionCanceled
+	}
+	if confirmErr != nil {
+		return fmt.Errorf("confirm out-of-order task group run: %w", confirmErr)
+	}
+	if !confirmed {
+		return errTaskGroupSelectionCanceled
+	}
+	s.allowOutOfOrder = true
+	return nil
+}
+
+func taskGroupSelectionRequiredError(target taskgroups.Target) error {
+	return &taskgroups.Error{
+		Cause:             taskgroups.ErrSelectionRequired,
+		Initiative:        target.Ref.Initiative,
+		PlanPath:          target.Plan.Path,
+		ValidTaskGroupIDs: target.Plan.TaskGroupIDs(),
+		Issues: []taskgroups.Issue{{
+			Field:   "task_group_id",
+			Message: "a complete initiative/TG-NNN reference is required",
+		}},
+	}
+}
+
+func taskGroupDependenciesUnmetError(target taskgroups.Target, readiness taskgroups.Readiness) error {
+	return apicore.NewProblem(
+		http.StatusConflict,
+		"task_group_dependencies_unmet",
+		"task group dependencies are not complete; pass --allow-out-of-order to authorize this run",
+		map[string]any{
+			"initiative_slug":  target.Ref.Initiative,
+			"task_group_id":    target.TaskGroup.ID,
+			"direct_unmet":     readiness.DirectUnmet,
+			"transitive_unmet": readiness.TransitiveUnmet,
+		},
+		taskgroups.ErrDependenciesUnmet,
+	)
+}
+
+func defaultConfirmTaskGroupRun(
+	_ *cobra.Command,
+	target taskgroups.Target,
+	readiness taskgroups.Readiness,
+) (bool, error) {
+	lines := make([]string, 0, len(readiness.DirectUnmet)+len(readiness.TransitiveUnmet)+1)
+	for _, dependency := range readiness.DirectUnmet {
+		lines = append(lines, fmt.Sprintf("%s: %s", dependency.From, dependency.Rationale))
+	}
+	for _, dependency := range readiness.TransitiveUnmet {
+		lines = append(lines, "transitive: "+strings.Join(dependency.TaskGroupIDs, " -> "))
+	}
+	confirmed := false
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("Run out of dependency order?").
+			Description(
+				fmt.Sprintf(
+					"%s has unmet dependencies:\n%s\nThis affects only this run and does not change completion checkboxes.",
+					target.Ref.String(),
+					strings.Join(lines, "\n"),
+				),
+			).
+			Affirmative("Continue this run").
+			Negative("Cancel").
+			Value(&confirmed),
+	))
+	if err := form.Run(); err != nil {
+		return false, err
+	}
+	return confirmed, nil
+}
+
 func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, error) {
 	mode := strings.TrimSpace(s.attachMode)
 	if mode == "" {
@@ -1702,15 +2173,63 @@ func mapDaemonCommandError(err error) error {
 
 	var remoteErr *apiclient.RemoteError
 	if errors.As(err, &remoteErr) {
+		mappedErr := decorateTaskGroupError(remoteErr)
 		switch remoteErr.StatusCode {
 		case http.StatusConflict, http.StatusUnprocessableEntity:
-			return withExitCode(1, remoteErr)
+			return withExitCode(1, mappedErr)
 		default:
-			return withExitCode(2, remoteErr)
+			return withExitCode(2, mappedErr)
 		}
 	}
 
 	return withExitCode(2, err)
+}
+
+func mapTaskGroupSelectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return withExitCode(1, decorateTaskGroupError(err))
+}
+
+func decorateTaskGroupError(err error) error {
+	if err == nil || strings.HasPrefix(err.Error(), "task_group_") {
+		return err
+	}
+	code := taskGroupErrorCode(err)
+	if code == "" {
+		return err
+	}
+	return fmt.Errorf("%s: %w", code, err)
+}
+
+func taskGroupErrorCode(err error) string {
+	var problem *apicore.Problem
+	if errors.As(err, &problem) && strings.HasPrefix(strings.TrimSpace(problem.Code), "task_group_") {
+		return strings.TrimSpace(problem.Code)
+	}
+	var remoteErr *apiclient.RemoteError
+	if errors.As(err, &remoteErr) && strings.HasPrefix(strings.TrimSpace(remoteErr.Envelope.Code), "task_group_") {
+		return strings.TrimSpace(remoteErr.Envelope.Code)
+	}
+	switch {
+	case errors.Is(err, taskgroups.ErrTaskGroupNotFound), errors.Is(err, taskgroups.ErrInitiativeNotFound):
+		return "task_group_not_found"
+	case errors.Is(err, taskgroups.ErrDependenciesUnmet):
+		return "task_group_dependencies_unmet"
+	case errors.Is(err, taskgroups.ErrCompletionConflict):
+		return "task_group_completion_conflict"
+	case errors.Is(err, taskgroups.ErrInvalidPlan):
+		return "task_group_plan_invalid"
+	case errors.Is(err, taskgroups.ErrSelectionRequired):
+		return "task_group_selection_required"
+	case errors.Is(err, taskgroups.ErrPlanReadOnly):
+		return "task_group_plan_read_only"
+	case errors.Is(err, taskgroups.ErrInvalidReference), errors.Is(err, taskgroups.ErrContainment):
+		return "task_group_invalid_reference"
+	default:
+		return ""
+	}
 }
 
 func cliDaemonHealthError(health apicore.DaemonHealth) error {

@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/core/reviews"
 	runpkg "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -69,6 +70,8 @@ type syncWorkflowFunc func(
 	model.SyncConfig,
 ) (*corepkg.SyncResult, error)
 
+type hydratePlanCompletionFunc func(context.Context, string, string) ([]string, error)
+
 // RunManagerConfig wires the daemon-owned run manager dependencies.
 type RunManagerConfig struct {
 	GlobalDB               *globaldb.GlobalDB
@@ -102,6 +105,7 @@ type RunManager struct {
 	now                    func() time.Time
 	buildRunID             func(*model.RuntimeConfig) (string, error)
 	syncWorkflow           syncWorkflowFunc
+	hydratePlanCompletion  hydratePlanCompletionFunc
 	openRunScope           func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	prepare                func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute                func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
@@ -118,9 +122,10 @@ type RunManager struct {
 	watcherDebounce        time.Duration
 	runDBIdleTTL           time.Duration
 
-	mu                  sync.RWMutex
-	active              map[string]*activeRun
-	activeReviewWatches map[reviewWatchKey]string
+	mu                   sync.RWMutex
+	active               map[string]*activeRun
+	activeReviewWatches  map[reviewWatchKey]string
+	taskGroupSelectionMu sync.Mutex
 
 	runWG   sync.WaitGroup
 	runDBMu sync.Mutex
@@ -149,6 +154,7 @@ type activeRun struct {
 	cancel         context.CancelFunc
 	done           chan struct{}
 	workflowRoot   string
+	executionScope *model.ExecutionScope
 	watcher        *workflowWatcher
 	reviewWatch    *preparedReviewWatch
 	reviewWatchKey *reviewWatchKey
@@ -204,18 +210,30 @@ type reviewBatchingInput struct {
 }
 
 type startRunSpec struct {
-	workspace        globaldb.Workspace
-	workflowID       *string
-	workflowSlug     string
-	workflowRoot     string
-	mode             string
-	presentationMode string
-	parentRunID      string
-	runtimeCfg       *model.RuntimeConfig
-	reviewWatch      *preparedReviewWatch
-	reviewWatchKey   *reviewWatchKey
-	taskMulti        *preparedTaskMulti
-	recovery         workspacecfg.AgentRecoveryConfig
+	workspace            globaldb.Workspace
+	workflowID           *string
+	workflowSlug         string
+	workflowRoot         string
+	mode                 string
+	presentationMode     string
+	parentRunID          string
+	runtimeCfg           *model.RuntimeConfig
+	reviewWatch          *preparedReviewWatch
+	reviewWatchKey       *reviewWatchKey
+	taskMulti            *preparedTaskMulti
+	recovery             workspacecfg.AgentRecoveryConfig
+	outOfOrderRequested  bool
+	outOfOrderNeeded     bool
+	taskGroupPreflight   *taskGroupPreflightEvidence
+	selectionFingerprint string
+}
+
+type taskGroupPreflightEvidence struct {
+	initiativeSlug   string
+	taskGroupID      string
+	planChecksum     string
+	readiness        taskgroups.Readiness
+	outOfOrderNeeded bool
 }
 
 type terminalState struct {
@@ -265,12 +283,15 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 	}
 
 	return &RunManager{
-		globalDB:               cfg.GlobalDB,
-		lifecycleCtx:           resolveRunManagerLifecycleContext(cfg.LifecycleContext),
-		homePaths:              homePaths,
-		now:                    resolveRunManagerNow(cfg.Now),
-		buildRunID:             resolveRunManagerBuildRunID(cfg.BuildRunID),
-		syncWorkflow:           resolveRunManagerSyncWorkflow(cfg.SyncWorkflow),
+		globalDB:     cfg.GlobalDB,
+		lifecycleCtx: resolveRunManagerLifecycleContext(cfg.LifecycleContext),
+		homePaths:    homePaths,
+		now:          resolveRunManagerNow(cfg.Now),
+		buildRunID:   resolveRunManagerBuildRunID(cfg.BuildRunID),
+		syncWorkflow: resolveRunManagerSyncWorkflow(cfg.SyncWorkflow),
+		hydratePlanCompletion: func(ctx context.Context, workspaceRoot, initiative string) ([]string, error) {
+			return corepkg.HydratePlanCompletionWithDB(ctx, cfg.GlobalDB, workspaceRoot, initiative)
+		},
 		openRunScope:           resolveRunManagerOpenRunScope(cfg.OpenRunScope),
 		prepare:                resolveRunManagerPrepare(cfg.Prepare),
 		execute:                resolveRunManagerExecute(cfg.Execute),
@@ -478,10 +499,19 @@ func (m *RunManager) StartTaskRun(
 	workflowSlug string,
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
-	workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, err := m.prepareTaskStart(
+	resolvedWorkflowRef, err := m.resolveTaskRunReference(
 		ctx,
 		workspaceRef,
 		workflowSlug,
+		req.TaskGroupID,
+	)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, err := m.prepareTaskStart(
+		ctx,
+		workspaceRef,
+		resolvedWorkflowRef,
 		req,
 	)
 	if err != nil {
@@ -496,12 +526,25 @@ func (m *RunManager) StartTaskRun(
 	if err := validateTaskExecutionDescriptor(req.Execution, expectedExecutionKind, expectedWorktrees); err != nil {
 		return apicore.Run{}, err
 	}
+	taskGroupPreflight, err := m.preflightTaskGroupTaskRunWithEvidence(
+		ctx,
+		workspaceRef,
+		resolvedWorkflowRef,
+		req.AllowOutOfOrder,
+	)
+	if err != nil {
+		return apicore.Run{}, err
+	}
+	outOfOrderNeeded := false
+	if taskGroupPreflight != nil {
+		outOfOrderNeeded = taskGroupPreflight.outOfOrderNeeded
+	}
 
 	if run, routed, err := m.startParallelTaskRunIfEnabled(
 		ctx,
 		workspaceRow,
 		workflowID,
-		workflowSlug,
+		resolvedWorkflowRef,
 		runtimeCfg,
 		recoveryCfg,
 		parallelCfg,
@@ -511,15 +554,178 @@ func (m *RunManager) StartTaskRun(
 	}
 
 	return m.startRun(ctx, startRunSpec{
-		workspace:        workspaceRow,
-		workflowID:       workflowID,
-		workflowSlug:     strings.TrimSpace(workflowSlug),
-		workflowRoot:     strings.TrimSpace(runtimeCfg.TasksDir),
-		mode:             runModeTask,
-		presentationMode: presentationMode,
-		runtimeCfg:       runtimeCfg,
-		recovery:         recoveryCfg,
+		workspace:           workspaceRow,
+		workflowID:          workflowID,
+		workflowSlug:        strings.TrimSpace(resolvedWorkflowRef),
+		workflowRoot:        strings.TrimSpace(runtimeCfg.TasksDir),
+		mode:                runModeTask,
+		presentationMode:    presentationMode,
+		runtimeCfg:          runtimeCfg,
+		recovery:            recoveryCfg,
+		outOfOrderRequested: req.AllowOutOfOrder,
+		outOfOrderNeeded:    outOfOrderNeeded,
+		taskGroupPreflight:  taskGroupPreflight,
 	})
+}
+
+func (m *RunManager) resolveTaskRunReference(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+	taskGroupID string,
+) (string, error) {
+	reference := strings.TrimSpace(workflowSlug)
+	selectedTaskGroup := strings.TrimSpace(taskGroupID)
+	if selectedTaskGroup != "" {
+		if strings.Contains(reference, "/") {
+			parsed, err := taskgroups.ParseTaskGroupRef(reference)
+			if err != nil {
+				return "", err
+			}
+			if parsed.TaskGroupID != selectedTaskGroup {
+				return "", apicore.NewProblem(
+					http.StatusUnprocessableEntity,
+					"task_group_target_mismatch",
+					"task_group_id does not match the selected workflow reference",
+					map[string]any{
+						"initiative_slug": parsed.Initiative,
+						"task_group_id":   selectedTaskGroup,
+					},
+					nil,
+				)
+			}
+			return parsed.String(), nil
+		}
+		parsed, err := taskgroups.ParseTaskGroupRef(reference + "/" + selectedTaskGroup)
+		if err != nil {
+			return "", err
+		}
+		return parsed.String(), nil
+	}
+	if strings.Contains(reference, "/") {
+		return reference, nil
+	}
+	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
+	if err != nil {
+		return "", err
+	}
+	if err := requireWorkspacePathAvailable(workspace); err != nil {
+		return "", err
+	}
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, workspace.RootDir, reference)
+	if err != nil {
+		return "", err
+	}
+	if target.Mode != taskgroups.TargetModeInitiative {
+		return reference, nil
+	}
+	return "", &taskgroups.Error{
+		Cause:             taskgroups.ErrSelectionRequired,
+		Initiative:        target.Ref.Initiative,
+		PlanPath:          target.Plan.Path,
+		ValidTaskGroupIDs: target.Plan.TaskGroupIDs(),
+		Issues: []taskgroups.Issue{{
+			Field:   "task_group_id",
+			Message: "a complete initiative/TG-NNN reference is required",
+		}},
+	}
+}
+
+func (m *RunManager) preflightTaskGroupTaskRunWithEvidence(
+	ctx context.Context,
+	workspaceRef string,
+	workflowRef string,
+	allowOutOfOrder bool,
+) (*taskGroupPreflightEvidence, error) {
+	evidence, err := m.resolveTaskGroupPreflightEvidence(ctx, workspaceRef, workflowRef)
+	if err != nil || evidence == nil {
+		return evidence, err
+	}
+	outOfOrderNeeded, err := taskGroupPreflightDecision(evidence, allowOutOfOrder, nil)
+	if err != nil {
+		return nil, err
+	}
+	evidence.outOfOrderNeeded = outOfOrderNeeded
+	return evidence, nil
+}
+
+func (m *RunManager) resolveTaskGroupPreflightEvidence(
+	ctx context.Context,
+	workspaceRef string,
+	workflowRef string,
+) (*taskGroupPreflightEvidence, error) {
+	if !strings.Contains(strings.TrimSpace(workflowRef), "/") {
+		return nil, nil
+	}
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(workflowRef))
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireWorkspacePathAvailable(workspace); err != nil {
+		return nil, err
+	}
+	m.hydrateTaskGroupPlanBestEffort(ctx, workspace.RootDir, ref.Initiative)
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, ref.String())
+	if err != nil {
+		return nil, err
+	}
+	readiness, err := taskgroups.EvaluateReadiness(target.Plan, ref.TaskGroupID)
+	if err != nil {
+		return nil, err
+	}
+	return &taskGroupPreflightEvidence{
+		initiativeSlug: target.Ref.Initiative,
+		taskGroupID:    target.TaskGroup.ID,
+		planChecksum:   target.Plan.Checksum,
+		readiness:      readiness,
+	}, nil
+}
+
+func taskGroupPreflightDecision(
+	evidence *taskGroupPreflightEvidence,
+	allowOutOfOrder bool,
+	previous *taskGroupPreflightEvidence,
+) (bool, error) {
+	if evidence.readiness.Eligible {
+		return false, nil
+	}
+	if previous != nil && evidence.planChecksum != previous.planChecksum {
+		return false, taskGroupDependenciesProblem(evidence, previous)
+	}
+	if allowOutOfOrder {
+		return true, nil
+	}
+	return false, taskGroupDependenciesProblem(evidence, nil)
+}
+
+func taskGroupDependenciesProblem(
+	evidence *taskGroupPreflightEvidence,
+	previous *taskGroupPreflightEvidence,
+) error {
+	details := map[string]any{
+		"initiative_slug":  evidence.initiativeSlug,
+		"task_group_id":    evidence.taskGroupID,
+		"direct_unmet":     evidence.readiness.DirectUnmet,
+		"transitive_unmet": evidence.readiness.TransitiveUnmet,
+	}
+	message := "task group dependencies are not complete"
+	if previous != nil {
+		details["plan_changed"] = true
+		details["preflight_plan_checksum"] = previous.planChecksum
+		details["current_plan_checksum"] = evidence.planChecksum
+		message = "task group plan changed and dependencies are not complete; retry against the current plan"
+	}
+	return apicore.NewProblem(
+		http.StatusConflict,
+		"task_group_dependencies_unmet",
+		message,
+		details,
+		taskgroups.ErrDependenciesUnmet,
+	)
 }
 
 func validateTaskExecutionDescriptor(
@@ -544,6 +750,24 @@ func validateTaskExecutionDescriptor(
 			"received_kind":           strings.TrimSpace(descriptor.Kind),
 			"received_uses_worktrees": descriptor.UsesWorktrees,
 		},
+		nil,
+	)
+}
+
+// taskGroupWorktreeExecutionProblem keeps task group lifecycle execution out of the
+// worktree runner. That runner creates and switches Git worktrees as part of
+// its existing ownership model, whereas a task group must leave Git flow to
+// the user.
+func taskGroupWorktreeExecutionProblem(scope *model.ExecutionScope) error {
+	workflowRef := "task group"
+	if scope != nil && strings.TrimSpace(scope.WorkflowRef) != "" {
+		workflowRef = strings.TrimSpace(scope.WorkflowRef)
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"task_group_git_mutation_forbidden",
+		"task group execution cannot use the Git worktree runner",
+		map[string]any{"workflow": workflowRef},
 		nil,
 	)
 }
@@ -960,7 +1184,8 @@ func (m *RunManager) prepareTaskStart(
 	string,
 	error,
 ) {
-	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, workflowID, projectCfg, executionScope, err :=
+		m.resolveLifecycleWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
@@ -982,8 +1207,8 @@ func (m *RunManager) prepareTaskStart(
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 
-	tasksDir := model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug)
-	if err := requireDirectory(tasksDir); err != nil {
+	tasksDir, err := resolveTaskOperationalDirectory(workspaceRow.RootDir, workflowSlug, executionScope)
+	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	runtimeCfg := &model.RuntimeConfig{
@@ -991,6 +1216,7 @@ func (m *RunManager) prepareTaskStart(
 		Name:                       strings.TrimSpace(workflowSlug),
 		WorkflowName:               strings.TrimSpace(workflowSlug),
 		TasksDir:                   tasksDir,
+		ExecutionScope:             executionScope,
 		Mode:                       model.ExecutionModePRDTasks,
 		EnableExecutableExtensions: true,
 	}
@@ -1023,6 +1249,43 @@ func (m *RunManager) prepareTaskStart(
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, workspacecfg.ParallelTasksConfig{}, "", err
 	}
 	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, parallelCfg, presentationMode, nil
+}
+
+func resolveTaskOperationalDirectory(
+	workspaceRoot string,
+	workflowSlug string,
+	scope *model.ExecutionScope,
+) (string, error) {
+	tasksDir := model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+	if scope != nil {
+		tasksDir = scope.TasksDir
+	}
+	if err := requireDirectory(tasksDir); err != nil {
+		return "", err
+	}
+	if scope != nil {
+		if err := requireTaskGroupExecutableTasks(tasksDir, scope.WorkflowRef); err != nil {
+			return "", err
+		}
+	}
+	return tasksDir, nil
+}
+
+func requireTaskGroupExecutableTasks(tasksDir string, workflowRef string) error {
+	meta, err := taskscore.SnapshotTaskMeta(tasksDir)
+	if err != nil {
+		return fmt.Errorf("inspect task group tasks for %s: %w", strings.TrimSpace(workflowRef), err)
+	}
+	if meta.Total > 0 {
+		return nil
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"task_group_no_executable_tasks",
+		"task group has no executable tasks",
+		map[string]any{"workflow": strings.TrimSpace(workflowRef)},
+		nil,
+	)
 }
 
 func (m *RunManager) rejectCompletedTaskWorkflow(
@@ -1083,17 +1346,12 @@ func (m *RunManager) prepareReviewStart(
 	round int,
 	req apicore.ReviewRunRequest,
 ) (globaldb.Workspace, *string, *model.RuntimeConfig, workspacecfg.AgentRecoveryConfig, string, error) {
-	if round <= 0 {
-		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", apicore.NewProblem(
-			http.StatusUnprocessableEntity,
-			"round_invalid",
-			"round must be a positive integer",
-			map[string]any{"field": "round"},
-			nil,
-		)
+	if err := validateReviewRound(round); err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
-	workspaceRow, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, workflowID, projectCfg, executionScope, err :=
+		m.resolveLifecycleWorkflowContext(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
@@ -1115,11 +1373,13 @@ func (m *RunManager) prepareReviewStart(
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
-	reviewDir := filepath.Join(
-		model.TaskDirectoryForWorkspace(workspaceRow.RootDir, workflowSlug),
-		reviews.RoundDirName(round),
+	reviewDir, err := resolveReviewOperationalDirectory(
+		workspaceRow.RootDir,
+		workflowSlug,
+		round,
+		executionScope,
 	)
-	if err := requireDirectory(reviewDir); err != nil {
+	if err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
 
@@ -1128,6 +1388,7 @@ func (m *RunManager) prepareReviewStart(
 		Name:                       strings.TrimSpace(workflowSlug),
 		Round:                      round,
 		ReviewsDir:                 reviewDir,
+		ExecutionScope:             executionScope,
 		Mode:                       model.ExecutionModePRReview,
 		EnableExecutableExtensions: true,
 	}
@@ -1139,7 +1400,9 @@ func (m *RunManager) prepareReviewStart(
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
-	applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews)
+	if err := applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews); err != nil {
+		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
+	}
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, workspacecfg.AgentRecoveryConfig{}, "", err
 	}
@@ -1154,6 +1417,36 @@ func (m *RunManager) prepareReviewStart(
 	return workspaceRow, workflowID, runtimeCfg, recoveryCfg, presentationMode, nil
 }
 
+func validateReviewRound(round int) error {
+	if round > 0 {
+		return nil
+	}
+	return apicore.NewProblem(
+		http.StatusUnprocessableEntity,
+		"round_invalid",
+		"round must be a positive integer",
+		map[string]any{"field": "round"},
+		nil,
+	)
+}
+
+func resolveReviewOperationalDirectory(
+	workspaceRoot string,
+	workflowSlug string,
+	round int,
+	scope *model.ExecutionScope,
+) (string, error) {
+	reviewRoot := model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+	if scope != nil {
+		reviewRoot = scope.ReviewsDir
+	}
+	reviewDir := filepath.Join(reviewRoot, reviews.RoundDirName(round))
+	if err := requireDirectory(reviewDir); err != nil {
+		return "", err
+	}
+	return reviewDir, nil
+}
+
 func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, spec startRunSpec) error {
 	if strings.TrimSpace(spec.workflowRoot) == "" {
 		return nil
@@ -1162,7 +1455,7 @@ func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, spec startRunSpe
 		ctx,
 		m.globalDB,
 		spec.workspace,
-		model.SyncConfig{TasksDir: spec.workflowRoot},
+		model.SyncConfig{TasksDir: spec.workflowRoot, ExecutionScope: spec.runtimeCfg.ExecutionScope},
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: sync workflow %s before run: %w", spec.workflowRoot, err)
@@ -1294,6 +1587,83 @@ func (m *RunManager) resolveWorkflowContext(
 	return workspaceRow, workflowID, projectCfg, nil
 }
 
+func (m *RunManager) resolveLifecycleWorkflowContext(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+) (globaldb.Workspace, *string, workspacecfg.ProjectConfig, *model.ExecutionScope, error) {
+	if !strings.Contains(strings.TrimSpace(workflowSlug), "/") {
+		workspace, workflowID, projectCfg, err := m.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+		return workspace, workflowID, projectCfg, nil, err
+	}
+
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(workflowSlug))
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	workspace, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if err := requireWorkspacePathAvailable(workspace); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	projectCfg, err := m.loadProjectConfig(ctx, workspace.RootDir)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspace.RootDir, ref.String())
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if err := taskgroups.ValidateTaskGroupManifestContainment(ctx, target); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	scope, err := taskgroups.BuildExecutionScope(target)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if err := ensureCurrentTaskGroupSpecifications(scope); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	if _, err := corepkg.SyncWithDB(ctx, m.globalDB, workspace, model.SyncConfig{ExecutionScope: &scope}); err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, fmt.Errorf(
+			"sync task group lifecycle target %s: %w",
+			scope.WorkflowRef,
+			err,
+		)
+	}
+	workflow, err := m.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, scope.WorkflowRef)
+	if err != nil {
+		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, nil, err
+	}
+	workflowID := workflow.ID
+	return workspace, &workflowID, projectCfg, &scope, nil
+}
+
+func ensureCurrentTaskGroupSpecifications(scope model.ExecutionScope) error {
+	for _, name := range []string{"_prd.md", "_techspec.md"} {
+		path := filepath.Join(scope.SpecDir, name)
+		if _, err := os.ReadFile(path); err != nil {
+			// A missing canonical spec is a client-actionable state (the task group
+			// exists but its initiative is incomplete), not an internal fault, so
+			// emit a typed 422 with a stable code instead of leaking the absolute
+			// SpecDir path through the generic error mapping.
+			if errors.Is(err, os.ErrNotExist) {
+				return apicore.NewProblem(
+					http.StatusUnprocessableEntity,
+					"task_group_specification_missing",
+					fmt.Sprintf("canonical specification %s is missing for %s", name, scope.WorkflowRef),
+					map[string]any{"specification": name, "workflow": scope.WorkflowRef},
+					err,
+				)
+			}
+			return fmt.Errorf("read current canonical specification %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
 func (m *RunManager) ensureWorkflowIdentity(
 	ctx context.Context,
 	workspaceID string,
@@ -1355,6 +1725,9 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	if err := m.syncWorkflowBeforeRun(ctx, spec); err != nil {
 		return apicore.Run{}, err
 	}
+	if err := m.revalidateTaskGroupPreflight(ctx, &spec); err != nil {
+		return apicore.Run{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return apicore.Run{}, err
 	}
@@ -1401,6 +1774,28 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	started = true
 
 	return m.toCoreRun(runCtx, row, active.workflowSlug)
+}
+
+func (m *RunManager) revalidateTaskGroupPreflight(ctx context.Context, spec *startRunSpec) error {
+	if spec.taskGroupPreflight == nil {
+		return nil
+	}
+	current, err := m.resolveTaskGroupPreflightEvidence(ctx, spec.workspace.RootDir, spec.workflowSlug)
+	if err != nil {
+		return err
+	}
+	outOfOrderNeeded, err := taskGroupPreflightDecision(
+		current,
+		spec.outOfOrderRequested,
+		spec.taskGroupPreflight,
+	)
+	if err != nil {
+		return err
+	}
+	current.outOfOrderNeeded = outOfOrderNeeded
+	spec.outOfOrderNeeded = outOfOrderNeeded
+	spec.taskGroupPreflight = current
+	return nil
 }
 
 func (m *RunManager) prepareRunRow(
@@ -1469,15 +1864,18 @@ func (m *RunManager) insertRunRow(
 	}
 
 	row, err := m.globalDB.PutRun(ctx, globaldb.Run{
-		RunID:            runID,
-		WorkspaceID:      spec.workspace.ID,
-		WorkflowID:       spec.workflowID,
-		ParentRunID:      parentRunIDForSpec(spec),
-		Mode:             spec.mode,
-		Status:           runStatusStarting,
-		PresentationMode: spec.presentationMode,
-		StartedAt:        startedAt,
-		RequestID:        requestID,
+		RunID:                runID,
+		WorkspaceID:          spec.workspace.ID,
+		WorkflowID:           spec.workflowID,
+		ParentRunID:          parentRunIDForSpec(spec),
+		Mode:                 spec.mode,
+		Status:               runStatusStarting,
+		PresentationMode:     spec.presentationMode,
+		StartedAt:            startedAt,
+		RequestID:            requestID,
+		OutOfOrderRequested:  spec.outOfOrderRequested,
+		OutOfOrderNeeded:     spec.outOfOrderNeeded,
+		SelectionFingerprint: spec.selectionFingerprint,
 	})
 	if err != nil {
 		cleanupRunDirectory(runArtifacts.RunDir)
@@ -1629,6 +2027,7 @@ func newActiveRun(
 		done:           make(chan struct{}),
 		closeTimeout:   defaultRunCloseTimeout,
 		workflowRoot:   strings.TrimSpace(spec.workflowRoot),
+		executionScope: cloneExecutionScope(spec.runtimeCfg.ExecutionScope),
 		reviewWatch:    spec.reviewWatch,
 		reviewWatchKey: cloneReviewWatchKey(spec.reviewWatchKey),
 		taskMulti:      spec.taskMulti,
@@ -1672,7 +2071,7 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 				ctx,
 				m.globalDB,
 				globaldb.Workspace{ID: active.workspaceID, RootDir: active.workspaceRoot},
-				model.SyncConfig{TasksDir: workflowRoot},
+				model.SyncConfig{TasksDir: workflowRoot, ExecutionScope: active.executionScope},
 			)
 			return err
 		},
@@ -1690,6 +2089,14 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 	}
 	active.setWatcher(watcher)
 	return nil
+}
+
+func cloneExecutionScope(scope *model.ExecutionScope) *model.ExecutionScope {
+	if scope == nil {
+		return nil
+	}
+	cloned := *scope
+	return &cloned
 }
 
 func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *model.RuntimeConfig) {
@@ -1876,6 +2283,7 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 	if err := m.persistRuntimeIntegrity(detachContext(active.ctx), row.RunID, scope); err != nil {
 		slog.Default().Warn("daemon run integrity persistence failed", "run_id", row.RunID, "error", err)
 	}
+	m.hydrateTaskGroupCompletionAfterRun(detachContext(active.ctx), active, row)
 	if closeErr := closeRunScope(active.ctx, scope, active.currentCloseTimeout()); closeErr != nil {
 		// Best-effort teardown should not block the terminal row mirror.
 		_ = closeErr
@@ -1918,16 +2326,18 @@ func (m *RunManager) toCoreRun(
 	fallbackWorkflowSlug string,
 ) (apicore.Run, error) {
 	run := apicore.Run{
-		RunID:            row.RunID,
-		WorkspaceID:      row.WorkspaceID,
-		ParentRunID:      row.ParentRunID,
-		Mode:             row.Mode,
-		Status:           row.Status,
-		PresentationMode: row.PresentationMode,
-		StartedAt:        row.StartedAt,
-		EndedAt:          row.EndedAt,
-		ErrorText:        row.ErrorText,
-		RequestID:        row.RequestID,
+		RunID:               row.RunID,
+		WorkspaceID:         row.WorkspaceID,
+		ParentRunID:         row.ParentRunID,
+		Mode:                row.Mode,
+		Status:              row.Status,
+		PresentationMode:    row.PresentationMode,
+		StartedAt:           row.StartedAt,
+		EndedAt:             row.EndedAt,
+		ErrorText:           row.ErrorText,
+		RequestID:           row.RequestID,
+		OutOfOrderRequested: row.OutOfOrderRequested,
+		OutOfOrderNeeded:    row.OutOfOrderNeeded,
 	}
 
 	if row.WorkflowID != nil {
@@ -3067,10 +3477,14 @@ func applyTaskProjectConfig(
 	cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(rules)
 }
 
-func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) {
+func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) error {
 	if cfg == nil {
-		return
+		return nil
 	}
+	if err := applyStallDurations(cfg, projectCfg.Stall, "fix_reviews"); err != nil {
+		return err
+	}
+	applyStallScalars(cfg, projectCfg.Stall)
 	applyOptionalOutputFormat(cfg, projectCfg.OutputFormat)
 	if projectCfg.Concurrent != nil {
 		cfg.Concurrent = *projectCfg.Concurrent
@@ -3081,6 +3495,7 @@ func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.
 	if projectCfg.IncludeResolved != nil {
 		cfg.IncludeResolved = *projectCfg.IncludeResolved
 	}
+	return nil
 }
 
 func applyExecProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.ExecConfig) error {

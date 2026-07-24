@@ -14,10 +14,11 @@ import (
 const DaemonContractVersion = "1"
 
 const (
-	ExecutionKindTaskStandard      = "task_standard"
-	ExecutionKindTaskParallel      = "task_parallel"
-	ExecutionKindTaskMultiEnqueued = "task_multi_enqueued"
-	ExecutionKindTaskMultiParallel = "task_multi_parallel"
+	ExecutionKindTaskStandard           = "task_standard"
+	ExecutionKindTaskParallel           = "task_parallel"
+	ExecutionKindTaskMultiEnqueued      = "task_multi_enqueued"
+	ExecutionKindTaskMultiParallel      = "task_multi_parallel"
+	ExecutionKindTaskMultiGroupParallel = "task_multi_group_parallel"
 )
 
 type MutationAcceptedResponse struct {
@@ -38,16 +39,20 @@ type WorkspaceResolveRequest struct {
 }
 
 type WorkflowRefRequest struct {
-	Workspace string `json:"workspace"`
+	Workspace   string `json:"workspace"`
+	TaskGroupID string `json:"task_group_id,omitempty"`
 }
 
 type WorkflowArchiveRequest struct {
-	Workspace string `json:"workspace"`
-	Force     bool   `json:"force,omitempty"`
+	Workspace   string `json:"workspace"`
+	TaskGroupID string `json:"task_group_id,omitempty"`
+	Force       bool   `json:"force,omitempty"`
 }
 
 type TaskRunRequest struct {
 	Workspace        string                   `json:"workspace"`
+	TaskGroupID      string                   `json:"task_group_id,omitempty"`
+	AllowOutOfOrder  bool                     `json:"allow_out_of_order,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
 	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`
@@ -60,14 +65,38 @@ type TaskExecutionDescriptor struct {
 	Source        string `json:"source"`
 }
 
+// NewTaskMultiGroupParallelExecutionDescriptor describes the isolated,
+// agent-commit execution path used by parallel task groups.
+func NewTaskMultiGroupParallelExecutionDescriptor(source string) TaskExecutionDescriptor {
+	return TaskExecutionDescriptor{
+		Kind:          ExecutionKindTaskMultiGroupParallel,
+		Label:         "Parallel task groups (isolated result branches)",
+		UsesWorktrees: true,
+		Source:        source,
+	}
+}
+
 type TaskRunMultipleRequest struct {
 	Workspace        string                   `json:"workspace"`
-	Slugs            []string                 `json:"slugs"`
+	Slugs            []string                 `json:"slugs,omitempty"`
+	Targets          []TaskRunTarget          `json:"targets,omitempty"`
+	AllowOutOfOrder  bool                     `json:"allow_out_of_order,omitempty"`
 	Mode             string                   `json:"mode,omitempty"`
 	ParallelLimit    int                      `json:"parallel_limit,omitempty"`
+	NewRun           bool                     `json:"new_run,omitempty"`
 	PresentationMode string                   `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage          `json:"runtime_overrides,omitempty"`
 	Execution        *TaskExecutionDescriptor `json:"execution,omitempty"`
+}
+
+// TaskRunTarget identifies one explicit execution target without overloading a
+// workflow route segment with a child reference.
+type TaskRunTarget struct {
+	InitiativeSlug string `json:"initiative_slug"`
+	// TaskGroupID is always required: runtime normalization rejects a blank value
+	// with task_group_selection_required, so it is not tagged omitempty and the
+	// transport schema marks it required with a TG-NNN pattern.
+	TaskGroupID string `json:"task_group_id"`
 }
 
 type TaskRunMultipleItem struct {
@@ -94,14 +123,16 @@ type TaskRunMultipleSnapshot struct {
 }
 
 type ReviewFetchRequest struct {
-	Workspace string `json:"workspace"`
-	Provider  string `json:"provider,omitempty"`
-	PRRef     string `json:"pr_ref,omitempty"`
-	Round     *int   `json:"round,omitempty"`
+	Workspace   string `json:"workspace"`
+	TaskGroupID string `json:"task_group_id,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	PRRef       string `json:"pr_ref,omitempty"`
+	Round       *int   `json:"round,omitempty"`
 }
 
 type ReviewRunRequest struct {
 	Workspace        string          `json:"workspace"`
+	TaskGroupID      string          `json:"task_group_id,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
 	Batching         json.RawMessage `json:"batching,omitempty"`
@@ -109,6 +140,7 @@ type ReviewRunRequest struct {
 
 type ReviewWatchRequest struct {
 	Workspace        string          `json:"workspace"`
+	TaskGroupID      string          `json:"task_group_id,omitempty"`
 	PresentationMode string          `json:"presentation_mode,omitempty"`
 	Provider         string          `json:"provider,omitempty"`
 	PRRef            string          `json:"pr_ref"`
@@ -240,16 +272,60 @@ type WorkspaceSyncResult struct {
 }
 
 type WorkflowSummary struct {
-	ID               string              `json:"id"`
-	WorkspaceID      string              `json:"workspace_id"`
-	Slug             string              `json:"slug"`
-	ArchivedAt       *time.Time          `json:"archived_at,omitempty"`
-	LastSyncedAt     *time.Time          `json:"last_synced_at,omitempty"`
-	TaskCounts       *WorkflowTaskCounts `json:"task_counts,omitempty"`
-	CanStartRun      *bool               `json:"can_start_run,omitempty"`
-	StartBlockReason string              `json:"start_block_reason,omitempty"`
-	ArchiveEligible  *bool               `json:"archive_eligible,omitempty"`
-	ArchiveReason    string              `json:"archive_reason,omitempty"`
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id"`
+	Slug              string              `json:"slug"`
+	ArchivedAt        *time.Time          `json:"archived_at,omitempty"`
+	LastSyncedAt      *time.Time          `json:"last_synced_at,omitempty"`
+	TaskCounts        *WorkflowTaskCounts `json:"task_counts,omitempty"`
+	CanStartRun       *bool               `json:"can_start_run,omitempty"`
+	StartBlockReason  string              `json:"start_block_reason,omitempty"`
+	ArchiveEligible   *bool               `json:"archive_eligible,omitempty"`
+	ArchiveReason     string              `json:"archive_reason,omitempty"`
+	Kind              string              `json:"kind,omitempty"`
+	ParentWorkflowID  string              `json:"parent_workflow_id,omitempty"`
+	TaskGroupID       string              `json:"task_group_id,omitempty"`
+	DisplayTitle      string              `json:"display_title,omitempty"`
+	Outcome           string              `json:"outcome,omitempty"`
+	LifecycleComplete bool                `json:"lifecycle_complete,omitempty"`
+	TaskGroups        []TaskGroupSummary  `json:"task_groups,omitempty"`
+}
+
+// TaskGroupSummary is the nested read projection for one hidden child workflow.
+type TaskGroupSummary struct {
+	WorkflowID                string                    `json:"workflow_id"`
+	TaskGroupID               string                    `json:"task_group_id"`
+	Reference                 string                    `json:"reference"`
+	Title                     string                    `json:"title"`
+	Outcome                   string                    `json:"outcome"`
+	LifecycleComplete         bool                      `json:"lifecycle_complete"`
+	Dependencies              []TaskGroupDependency     `json:"dependencies,omitempty"`
+	UnmetDependencies         []TaskGroupDependency     `json:"unmet_dependencies,omitempty"`
+	UnmetDependencyPaths      []TaskGroupDependencyPath `json:"unmet_dependency_paths,omitempty"`
+	TaskCounts                *WorkflowTaskCounts       `json:"task_counts,omitempty"`
+	UnresolvedReviews         int                       `json:"unresolved_reviews,omitempty"`
+	LatestReview              *ReviewSummary            `json:"latest_review,omitempty"`
+	UnmetDependencyCount      int                       `json:"unmet_dependency_count,omitempty"`
+	IndependentlyEligible     bool                      `json:"independently_eligible,omitempty"`
+	ActiveRuns                int                       `json:"active_runs,omitempty"`
+	CanStartRun               *bool                     `json:"can_start_run,omitempty"`
+	RequiresStartConfirmation bool                      `json:"requires_start_confirmation,omitempty"`
+	StartBlockReason          string                    `json:"start_block_reason,omitempty"`
+	ArchiveEligible           *bool                     `json:"archive_eligible,omitempty"`
+	ArchiveReason             string                    `json:"archive_reason,omitempty"`
+}
+
+// TaskGroupDependency identifies one declared prerequisite and its rationale.
+type TaskGroupDependency struct {
+	TaskGroupID string `json:"task_group_id"`
+	Title       string `json:"title"`
+	Rationale   string `json:"rationale"`
+}
+
+// TaskGroupDependencyPath explains an unmet prerequisite that is transitive.
+type TaskGroupDependencyPath struct {
+	TaskGroupIDs []string              `json:"task_group_ids"`
+	Dependencies []TaskGroupDependency `json:"dependencies"`
 }
 
 type WorkflowTaskCounts struct {
@@ -281,6 +357,8 @@ type ArchiveResult struct {
 	Forced               bool       `json:"forced,omitempty"`
 	CompletedTasks       int        `json:"completed_tasks,omitempty"`
 	ResolvedReviewIssues int        `json:"resolved_review_issues,omitempty"`
+	TaskGroupChildIDs    []string   `json:"task_group_child_ids,omitempty"`
+	PendingTaskGroups    []string   `json:"pending_task_groups,omitempty"`
 }
 
 type ReviewFetchResult struct {
@@ -398,18 +476,20 @@ type SessionViewSnapshot struct {
 }
 
 type Run struct {
-	RunID            string     `json:"run_id"`
-	WorkspaceID      string     `json:"workspace_id"`
-	WorkflowID       *string    `json:"workflow_id,omitempty"`
-	WorkflowSlug     string     `json:"workflow_slug,omitempty"`
-	ParentRunID      string     `json:"parent_run_id,omitempty"`
-	Mode             string     `json:"mode"`
-	Status           string     `json:"status"`
-	PresentationMode string     `json:"presentation_mode"`
-	StartedAt        time.Time  `json:"started_at"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorText        string     `json:"error_text,omitempty"`
-	RequestID        string     `json:"request_id,omitempty"`
+	RunID               string     `json:"run_id"`
+	WorkspaceID         string     `json:"workspace_id"`
+	WorkflowID          *string    `json:"workflow_id,omitempty"`
+	WorkflowSlug        string     `json:"workflow_slug,omitempty"`
+	ParentRunID         string     `json:"parent_run_id,omitempty"`
+	Mode                string     `json:"mode"`
+	Status              string     `json:"status"`
+	PresentationMode    string     `json:"presentation_mode"`
+	StartedAt           time.Time  `json:"started_at"`
+	EndedAt             *time.Time `json:"ended_at,omitempty"`
+	ErrorText           string     `json:"error_text,omitempty"`
+	RequestID           string     `json:"request_id,omitempty"`
+	OutOfOrderRequested bool       `json:"out_of_order_requested,omitempty"`
+	OutOfOrderNeeded    bool       `json:"out_of_order_needed,omitempty"`
 }
 
 type RunJobSummary struct {
@@ -575,6 +655,9 @@ type SyncResult struct {
 	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
 	SyncedPaths            []string   `json:"synced_paths,omitempty"`
 	PrunedWorkflows        []string   `json:"pruned_workflows,omitempty"`
+	TaskGroupChildIDs      []string   `json:"task_group_child_ids,omitempty"`
+	MissingTaskGroups      []string   `json:"missing_task_groups,omitempty"`
+	Partial                bool       `json:"partial,omitempty"`
 	Warnings               []string   `json:"warnings,omitempty"`
 }
 

@@ -23,6 +23,8 @@ const (
 
 	DefaultParallelTasksEnabled        = false
 	DefaultParallelTasksMaxConcurrency = 4
+
+	DefaultParallelTaskGroupsBranchTemplate = "compozy/{initiative}-{group_brief}-{run}"
 )
 
 type Context struct {
@@ -130,6 +132,7 @@ type TaskRunConfig struct {
 	RunMultipleMode          *string                  `toml:"run_multiple_mode"`
 	RunMultipleParallelLimit *int                     `toml:"run_multiple_parallel_limit"`
 	Parallel                 ParallelTasksConfig      `toml:"parallel"`
+	ParallelTaskGroups       ParallelTaskGroupsConfig `toml:"parallel_task_groups"`
 	TUI                      *bool                    `toml:"tui"`
 	TaskRuntimeRules         *[]model.TaskRuntimeRule `toml:"task_runtime_rules"`
 }
@@ -188,17 +191,34 @@ func (cfg ParallelTasksConfig) ApplyDefaults() ParallelTasksConfig {
 	return cfg
 }
 
+type ParallelTaskGroupsConfig struct {
+	BranchTemplate *string `toml:"branch_template" json:"branch_template,omitempty"`
+}
+
+func DefaultParallelTaskGroupsConfig() ParallelTaskGroupsConfig {
+	branchTemplate := DefaultParallelTaskGroupsBranchTemplate
+	return ParallelTaskGroupsConfig{BranchTemplate: &branchTemplate}
+}
+
+func (cfg ParallelTaskGroupsConfig) ApplyDefaults() ParallelTaskGroupsConfig {
+	if cfg.BranchTemplate == nil {
+		cfg.BranchTemplate = DefaultParallelTaskGroupsConfig().BranchTemplate
+	}
+	return cfg
+}
+
 type TasksConfig struct {
 	Types *[]string     `toml:"types,omitempty"`
 	Run   TaskRunConfig `toml:"run,omitempty"`
 }
 
 type FixReviewsConfig struct {
-	Concurrent      *int    `toml:"concurrent"`
-	BatchSize       *int    `toml:"batch_size"`
-	IncludeResolved *bool   `toml:"include_resolved"`
-	OutputFormat    *string `toml:"output_format"`
-	TUI             *bool   `toml:"tui"`
+	Concurrent      *int           `toml:"concurrent"`
+	BatchSize       *int           `toml:"batch_size"`
+	IncludeResolved *bool          `toml:"include_resolved"`
+	OutputFormat    *string        `toml:"output_format"`
+	TUI             *bool          `toml:"tui"`
+	Stall           StallOverrides `toml:"stall,omitempty"`
 }
 
 type FetchReviewsConfig struct {

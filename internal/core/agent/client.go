@@ -51,6 +51,17 @@ type ClientConfig struct {
 	// terminal command as a last-resort backstop. Zero falls back to the
 	// resolved stall-policy default.
 	TerminalCommandTimeout time.Duration
+	// TerminalActivityStarted and TerminalActivityFinished record a liveness
+	// heartbeat when a terminal command starts and exits. They no longer hold a
+	// terminal open as "active" indefinitely — a running-but-silent command must
+	// still be able to trip the stall watchdog near the idle window.
+	TerminalActivityStarted  func()
+	TerminalActivityFinished func()
+	// RecordActivity records a liveness heartbeat for the stall watchdog on any
+	// proof the agent is alive that is not a terminal lifecycle transition:
+	// inbound ACP session notifications (before backpressure can drop them) and
+	// terminal output bytes. Nil disables the extra heartbeats.
+	RecordActivity func()
 }
 
 // SessionRequest contains the parameters for creating a new ACP session.
@@ -312,20 +323,23 @@ type clientImpl struct {
 	// the deadline (used by focused tests that build the struct directly).
 	handlerDeadline time.Duration
 
-	mu             sync.Mutex
-	process        *subprocess.Process
-	conn           *acp.ClientSideConnection
-	started        bool
-	closed         bool
-	startModel     string
-	startCommand   []string
-	sessions       map[string]*sessionImpl
-	pendingCreates int
-	pendingUpdates map[string][]model.SessionUpdate
-	loadSupported  bool
-	terminalMu     sync.Mutex
-	terminalNext   int
-	terminals      map[string]*terminalProcess
+	mu                       sync.Mutex
+	process                  *subprocess.Process
+	conn                     *acp.ClientSideConnection
+	started                  bool
+	closed                   bool
+	startModel               string
+	startCommand             []string
+	sessions                 map[string]*sessionImpl
+	pendingCreates           int
+	pendingUpdates           map[string][]model.SessionUpdate
+	loadSupported            bool
+	terminalMu               sync.Mutex
+	terminalNext             int
+	terminals                map[string]*terminalProcess
+	terminalActivityStarted  func()
+	terminalActivityFinished func()
+	recordActivity           func()
 
 	wg sync.WaitGroup
 }
@@ -346,13 +360,16 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 	}
 
 	return &clientImpl{
-		spec:                   spec,
-		cfg:                    cfg,
-		logger:                 cfg.Logger,
-		shutdownTimeout:        shutdownTimeout,
-		terminalCommandTimeout: cfg.TerminalCommandTimeout,
-		handlerDeadline:        defaultAgentHandlerDeadline,
-		sessions:               make(map[string]*sessionImpl),
+		spec:                     spec,
+		cfg:                      cfg,
+		logger:                   cfg.Logger,
+		shutdownTimeout:          shutdownTimeout,
+		terminalCommandTimeout:   cfg.TerminalCommandTimeout,
+		terminalActivityStarted:  cfg.TerminalActivityStarted,
+		terminalActivityFinished: cfg.TerminalActivityFinished,
+		recordActivity:           cfg.RecordActivity,
+		handlerDeadline:          defaultAgentHandlerDeadline,
+		sessions:                 make(map[string]*sessionImpl),
 	}, nil
 }
 
@@ -771,6 +788,13 @@ func (c *clientImpl) SessionUpdate(ctx context.Context, params acp.SessionNotifi
 	update, err := convertACPUpdate(c.spec.ID, params.Update)
 	if err != nil {
 		return err
+	}
+
+	// Every inbound notification is proof the agent is alive and working. Record
+	// the heartbeat here, at the receipt boundary, before session backpressure can
+	// drop the update — so a live-but-chatty session is never misread as stalled.
+	if c.recordActivity != nil {
+		c.recordActivity()
 	}
 
 	session, bufferPending := c.lookupSessionForUpdate(string(params.SessionId))

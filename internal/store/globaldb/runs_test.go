@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -329,6 +330,135 @@ func TestRunParentRunIDRoundTripsThroughDurableQueries(t *testing.T) {
 	}
 	if updated.ParentRunID != "" {
 		t.Fatalf("updated child ParentRunID = %q, want empty", updated.ParentRunID)
+	}
+}
+
+func TestRunSelectionFingerprintRoundTripsThroughDurableQueries(t *testing.T) {
+	// Suite boundary
+	// IN: real SQLite run persistence and every scanRun-backed durable query
+	// OUT: daemon re-launch policy, covered by task_multi_group_parallel_test.go
+	// Invariant: a normalized selection fingerprint survives every durable run read path unchanged.
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	startedAt := time.Date(2026, 7, 23, 18, 0, 0, 0, time.UTC)
+	const fingerprint = "fingerprint-001"
+	inserted, err := db.PutRun(context.Background(), Run{
+		RunID:                "run-selection-fingerprint",
+		WorkspaceID:          workspace.ID,
+		Mode:                 "task_multi",
+		Status:               "running",
+		PresentationMode:     "stream",
+		StartedAt:            startedAt,
+		SelectionFingerprint: " " + fingerprint + " ",
+	})
+	if err != nil {
+		t.Fatalf("PutRun() error = %v", err)
+	}
+	if inserted.SelectionFingerprint != fingerprint {
+		t.Fatalf("PutRun().SelectionFingerprint = %q, want %q", inserted.SelectionFingerprint, fingerprint)
+	}
+
+	got, err := db.GetRun(context.Background(), inserted.RunID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if got.SelectionFingerprint != fingerprint {
+		t.Fatalf("GetRun().SelectionFingerprint = %q, want %q", got.SelectionFingerprint, fingerprint)
+	}
+
+	found, err := db.FindRunBySelectionFingerprint(context.Background(), workspace.ID, fingerprint)
+	if err != nil {
+		t.Fatalf("FindRunBySelectionFingerprint() error = %v", err)
+	}
+	if found.RunID != inserted.RunID || found.SelectionFingerprint != fingerprint {
+		t.Fatalf("FindRunBySelectionFingerprint() = %#v, want run %q", found, inserted.RunID)
+	}
+
+	listed, err := db.ListRuns(context.Background(), ListRunsOptions{
+		WorkspaceID: workspace.ID,
+		Status:      "running",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if row := findRunByID(listed, inserted.RunID); row == nil || row.SelectionFingerprint != fingerprint {
+		t.Fatalf("ListRuns() row = %#v, want fingerprint %q", row, fingerprint)
+	}
+
+	interrupted, err := db.ListInterruptedRuns(context.Background())
+	if err != nil {
+		t.Fatalf("ListInterruptedRuns() error = %v", err)
+	}
+	if row := findRunByID(interrupted, inserted.RunID); row == nil || row.SelectionFingerprint != fingerprint {
+		t.Fatalf("ListInterruptedRuns() row = %#v, want fingerprint %q", row, fingerprint)
+	}
+
+	completedAt := startedAt.Add(time.Minute)
+	got.Status = "completed"
+	got.EndedAt = &completedAt
+	updated, err := db.UpdateRun(context.Background(), got)
+	if err != nil {
+		t.Fatalf("UpdateRun() error = %v", err)
+	}
+	if updated.SelectionFingerprint != fingerprint {
+		t.Fatalf("UpdateRun().SelectionFingerprint = %q, want %q", updated.SelectionFingerprint, fingerprint)
+	}
+
+	terminal, err := db.listTerminalRuns(context.Background())
+	if err != nil {
+		t.Fatalf("listTerminalRuns() error = %v", err)
+	}
+	if row := findRunByID(terminal, inserted.RunID); row == nil || row.SelectionFingerprint != fingerprint {
+		t.Fatalf("listTerminalRuns() row = %#v, want fingerprint %q", row, fingerprint)
+	}
+}
+
+func TestFindRunBySelectionFingerprintReturnsNewestAndNotFound(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	startedAt := time.Date(2026, 7, 23, 19, 0, 0, 0, time.UTC)
+	for index, runID := range []string{"older-run", "newer-run"} {
+		if _, err := db.PutRun(context.Background(), Run{
+			RunID:                runID,
+			WorkspaceID:          workspace.ID,
+			Mode:                 "task_multi",
+			Status:               "completed",
+			PresentationMode:     "stream",
+			StartedAt:            startedAt.Add(time.Duration(index) * time.Second),
+			SelectionFingerprint: "shared-fingerprint",
+		}); err != nil {
+			t.Fatalf("PutRun(%q) error = %v", runID, err)
+		}
+	}
+
+	found, err := db.FindRunBySelectionFingerprint(
+		context.Background(),
+		workspace.ID,
+		"shared-fingerprint",
+	)
+	if err != nil {
+		t.Fatalf("FindRunBySelectionFingerprint() error = %v", err)
+	}
+	if found.RunID != "newer-run" {
+		t.Fatalf("FindRunBySelectionFingerprint().RunID = %q, want newer-run", found.RunID)
+	}
+
+	_, err = db.FindRunBySelectionFingerprint(context.Background(), workspace.ID, "missing")
+	if !errors.Is(err, ErrRunNotFound) {
+		t.Fatalf("FindRunBySelectionFingerprint(missing) error = %v, want ErrRunNotFound", err)
 	}
 }
 

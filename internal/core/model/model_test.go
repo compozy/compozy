@@ -157,6 +157,46 @@ func TestRuntimeConfigStallDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("Should widen the default idle window for high-reasoning tiers", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name            string
+			reasoningEffort string
+			wantIdle        time.Duration
+		}{
+			{"low stays at the base window", "low", model.DefaultStallIdleTimeout},
+			{"medium stays at the base window", "medium", model.DefaultStallIdleTimeout},
+			{"high widens the window", "high", model.DefaultStallIdleTimeoutHigh},
+			{"xhigh widens the window further", "xhigh", model.DefaultStallIdleTimeoutXHigh},
+			{"max matches xhigh", "max", model.DefaultStallIdleTimeoutXHigh},
+		}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				cfg := &model.RuntimeConfig{ReasoningEffort: tc.reasoningEffort}
+				cfg.ApplyDefaults()
+				policy := cfg.StallPolicy()
+				if policy.IdleTimeout != tc.wantIdle {
+					t.Fatalf("idle timeout = %s, want %s", policy.IdleTimeout, tc.wantIdle)
+				}
+				// The daemon backstop must always stay above the idle window.
+				if policy.ChildTimeout <= policy.IdleTimeout {
+					t.Fatalf("child timeout %s must exceed idle timeout %s", policy.ChildTimeout, policy.IdleTimeout)
+				}
+			})
+		}
+	})
+
+	t.Run("Should let an explicit StallTimeout override the reasoning tier", func(t *testing.T) {
+		t.Parallel()
+		cfg := &model.RuntimeConfig{ReasoningEffort: "xhigh", StallTimeout: 90 * time.Second}
+		cfg.ApplyDefaults()
+		if policy := cfg.StallPolicy(); policy.IdleTimeout != 90*time.Second {
+			t.Fatalf("idle timeout = %s, want explicit 90s to override the xhigh default", policy.IdleTimeout)
+		}
+	})
+
 	t.Run("Should correct child timeout to exceed idle timeout", func(t *testing.T) {
 		t.Parallel()
 

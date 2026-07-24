@@ -111,6 +111,83 @@ func TestRunManagerReviewWatchCreatesReviewOnlyWorkflowDirectory(t *testing.T) {
 	})
 }
 
+func TestRunManagerReviewWatchRejectsAutoPushForTaskGroups(t *testing.T) {
+	// INVARIANT: a task group lifecycle cannot acquire Git branch or remote
+	// ownership through the review-watch auto-push option.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/review_watch_test.go.
+	env := newReviewWatchTestEnv(
+		t,
+		&fakeReviewWatchProvider{},
+		&fakeReviewWatchGit{},
+		runManagerTestDeps{},
+	)
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
+	)
+
+	req := reviewWatchRequest(`{"run_id":"task-group-auto-push"}`)
+	req.AutoPush = true
+	req.PushRemote = "origin"
+	req.PushBranch = "feature/task-group"
+	_, _, _, _, err := env.manager.prepareReviewWatchStart(context.Background(), env.workspaceRoot, taskGroupRef, req)
+	if err == nil || !strings.Contains(err.Error(), "cannot push") {
+		t.Fatalf("IT-029 task group auto-push error = %v, want Git mutation rejection", err)
+	}
+}
+
+func TestRunManagerReviewWatchUsesStructuredTaskGroupScope(t *testing.T) {
+	// INVARIANT: a task group watch run keeps the public reference structured and never writes parent reviews.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-064.
+	reviewProvider := &fakeReviewWatchProvider{
+		statuses: []provider.WatchStatus{currentWatchStatus("head-1")},
+		fetches:  [][]provider.ReviewItem{{}},
+	}
+	env := newReviewWatchTestEnv(
+		t,
+		reviewProvider,
+		&fakeReviewWatchGit{states: []ReviewWatchGitState{{HeadSHA: "head-1"}}},
+		runManagerTestDeps{},
+	)
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
+	)
+
+	run, err := env.manager.StartReviewWatch(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		reviewWatchRequest(`{"run_id":"review-watch-task-group"}`),
+	)
+	if err != nil {
+		t.Fatalf("StartReviewWatch(task group) error = %v", err)
+	}
+	row := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	if run.WorkflowSlug != taskGroupRef || row.Mode != runModeReviewWatch {
+		t.Fatalf("task group review-watch run = %#v / %#v", run, row)
+	}
+	if _, err := os.Stat(filepath.Join(env.workflowDir(initiative), "reviews-001")); !os.IsNotExist(err) {
+		t.Fatalf("initiative review directory stat = %v, want not exist", err)
+	}
+}
+
 func TestRunManagerReviewWatchRequiresExistingDirectoryForExplicitWorkflowName(t *testing.T) {
 	t.Run("Should not create arbitrary missing workflow directory", func(t *testing.T) {
 		reviewProvider := &fakeReviewWatchProvider{

@@ -25,6 +25,7 @@ import (
 	runpkg "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/run/recovery"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -2064,6 +2065,95 @@ func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
 	}
 }
 
+func TestExtensionBridgeTaskGroupRunsResolveChildScope(t *testing.T) {
+	// INVARIANT: extension-created task group runs retain the selected child
+	// identity and ignore caller-provided sibling operational directories.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-019, IT-024.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	taskGroupDir := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-001")
+	siblingDir := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-002")
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "reviews-001", "issue_001.md"),
+		daemonReviewIssueBody("pending", "high"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
+		"sibling artifact must not be read\n",
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-002", "reviews-001", "issue_001.md"),
+		"sibling review must not be read\n",
+	)
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+	taskHandle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Name:          taskGroupRef,
+		TasksDir:      siblingDir,
+		Mode:          model.ExecutionModePRDTasks,
+		ParentRunID:   "parent-task-group-task",
+	})
+	if err != nil {
+		t.Fatalf("StartRun(task group task) error = %v", err)
+	}
+	taskRun := waitForRun(t, env.globalDB, taskHandle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	child, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, taskGroupRef)
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug(task group): %v", err)
+	}
+	if taskRun.WorkflowID == nil || *taskRun.WorkflowID != child.ID {
+		t.Fatalf("IT-019 task WorkflowID = %v, want child %q", taskRun.WorkflowID, child.ID)
+	}
+
+	reviewHandle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Name:          taskGroupRef,
+		Round:         1,
+		ReviewsDir:    filepath.Join(siblingDir, "reviews-001"),
+		Mode:          model.ExecutionModePRReview,
+		ParentRunID:   "parent-task-group-review",
+	})
+	if err != nil {
+		t.Fatalf("StartRun(task group review) error = %v", err)
+	}
+	reviewRun := waitForRun(t, env.globalDB, reviewHandle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if reviewRun.WorkflowID == nil || *reviewRun.WorkflowID != child.ID {
+		t.Fatalf("IT-022 review WorkflowID = %v, want child %q", reviewRun.WorkflowID, child.ID)
+	}
+	if _, err := os.Stat(filepath.Join(taskGroupDir, "reviews-001", "issue_001.md")); err != nil {
+		t.Fatalf("selected task group review artifact was not retained: %v", err)
+	}
+}
+
 func TestExtensionBridgeStartRunCreatesDetachedReviewRun(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	env.createReviewRound(t, 1)
@@ -2378,12 +2468,29 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			OutputFormat:     stringPtr(string(model.OutputFormatRawJSON)),
 			TaskRuntimeRules: &rules,
 		})
-		applyReviewProjectConfig(cfg, workspacecfg.FixReviewsConfig{
+		if err := applyReviewProjectConfig(cfg, workspacecfg.FixReviewsConfig{
 			Concurrent:      intPtr(4),
 			BatchSize:       intPtr(2),
 			IncludeResolved: boolPtr(true),
 			OutputFormat:    stringPtr(string(model.OutputFormatJSON)),
-		})
+			Stall: workspacecfg.StallOverrides{
+				Timeout:                stringPtr("45s"),
+				TerminalCommandTimeout: stringPtr("8m"),
+				Retries:                intPtr(4),
+			},
+		}); err != nil {
+			t.Fatalf("applyReviewProjectConfig() error = %v", err)
+		}
+		if cfg.StallTimeout != 45*time.Second || cfg.TerminalCommandTimeout != 8*time.Minute {
+			t.Fatalf(
+				"review stall durations = %v / %v, want 45s / 8m",
+				cfg.StallTimeout,
+				cfg.TerminalCommandTimeout,
+			)
+		}
+		if cfg.StallRetries == nil || *cfg.StallRetries != 4 {
+			t.Fatalf("review stall retries = %#v, want 4", cfg.StallRetries)
+		}
 		if err := applyExecProjectConfig(cfg, workspacecfg.ExecConfig{
 			RuntimeOverrides: workspacecfg.RuntimeOverrides{
 				Timeout: stringPtr("3m"),
@@ -2549,6 +2656,14 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			)
 		}
 		assertProblemStatus(t, terminalErr, 422)
+
+		reviewErr := applyReviewProjectConfig(cfg, workspacecfg.FixReviewsConfig{
+			Stall: workspacecfg.StallOverrides{Timeout: stringPtr("invalid-review-timeout")},
+		})
+		if reviewErr == nil {
+			t.Fatal("applyReviewProjectConfig(invalid stall.timeout) error = nil, want non-nil")
+		}
+		assertProblemStatus(t, reviewErr, 422)
 	})
 
 	t.Run("Should resolve the parked sound override", func(t *testing.T) {
@@ -2573,6 +2688,10 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			"child_timeout = \"9m\"\n" +
 			"terminal_command_timeout = \"30m\"\n" +
 			"retries = 2\n\n" +
+			"[fix_reviews.stall]\n" +
+			"timeout = \"45s\"\n" +
+			"terminal_command_timeout = \"8m\"\n" +
+			"retries = 4\n\n" +
 			"[sound]\n" +
 			"on_parked = \"ping\"\n"
 		if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o600); err != nil {
@@ -2593,17 +2712,20 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		); err != nil {
 			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
 		}
+		if err := applyReviewProjectConfig(cfg, projectCfg.FixReviews); err != nil {
+			t.Fatalf("applyReviewProjectConfig() error = %v", err)
+		}
 		cfg.ApplyDefaults()
 
 		policy := cfg.StallPolicy()
 		if !policy.Enabled {
 			t.Fatalf("expected enabled-by-default when unset, got %#v", policy)
 		}
-		if policy.IdleTimeout != 2*time.Minute || policy.ChildTimeout != 9*time.Minute {
-			t.Fatalf("resolved timeouts = %v / %v, want 2m / 9m", policy.IdleTimeout, policy.ChildTimeout)
+		if policy.IdleTimeout != 45*time.Second || policy.ChildTimeout != 9*time.Minute {
+			t.Fatalf("resolved timeouts = %v / %v, want 45s / 9m", policy.IdleTimeout, policy.ChildTimeout)
 		}
-		if policy.TerminalCap != 30*time.Minute || policy.Retries != 2 {
-			t.Fatalf("resolved cap/retries = %v / %d, want 30m / 2", policy.TerminalCap, policy.Retries)
+		if policy.TerminalCap != 8*time.Minute || policy.Retries != 4 {
+			t.Fatalf("resolved cap/retries = %v / %d, want 8m / 4", policy.TerminalCap, policy.Retries)
 		}
 		if cfg.SoundOnParked != "ping" {
 			t.Fatalf("resolved parked sound = %q, want ping", cfg.SoundOnParked)
@@ -3116,6 +3238,537 @@ func TestRunManagerReviewRunWatcherSyncsOwnedWorkflowArtifacts(t *testing.T) {
 	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
 		return row.Status == runStatusCancelled
 	})
+}
+
+func TestRunManagerTaskGroupLifecycleUsesChildScopeForTaskAndReviewPreparation(t *testing.T) {
+	// INVARIANT: task group task and review preparation retain the public child
+	// workflow identity while all mutable inputs resolve under that task group.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	taskGroupDir := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-001")
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
+		"sibling artifact must not be read\n",
+	)
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "reviews-001", "issue_001.md"),
+		daemonReviewIssueBody("pending", "high"),
+	)
+
+	_, workflowID, taskCfg, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
+	)
+	if err != nil {
+		t.Fatalf("prepareTaskStart(task group): %v", err)
+	}
+	canonicalTaskGroupDir, err := filepath.EvalSymlinks(taskGroupDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(task group): %v", err)
+	}
+	if workflowID == nil || taskCfg.ExecutionScope == nil || taskCfg.Name != taskGroupRef ||
+		taskCfg.WorkflowName != taskGroupRef ||
+		taskCfg.TasksDir != taskCfg.ExecutionScope.TasksDir ||
+		taskCfg.ExecutionScope.OperationalDir != canonicalTaskGroupDir {
+		t.Fatalf("IT-017/IT-019 task task group config = %#v workflowID=%v", taskCfg, workflowID)
+	}
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(workspace): %v", err)
+	}
+	workflow, err := env.globalDB.GetActiveWorkflowBySlug(context.Background(), workspace.ID, taskGroupRef)
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug(task group): %v", err)
+	}
+	if workflow.ID != *workflowID || workflow.Kind != globaldb.WorkflowKindTaskGroup {
+		t.Fatalf("child workflow = %#v, want task group child %q", workflow, *workflowID)
+	}
+
+	_, reviewWorkflowID, reviewCfg, _, _, err := env.manager.prepareReviewStart(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		1,
+		apicore.ReviewRunRequest{Workspace: env.workspaceRoot},
+	)
+	if err != nil {
+		t.Fatalf("prepareReviewStart(task group): %v", err)
+	}
+	if reviewWorkflowID == nil || *reviewWorkflowID != *workflowID || reviewCfg.ExecutionScope == nil ||
+		reviewCfg.ReviewsDir != reviewCfg.ExecutionScope.ReviewDir(1) {
+		t.Fatalf("IT-022/IT-041 review task group config = %#v workflowID=%v", reviewCfg, reviewWorkflowID)
+	}
+	if err := os.Remove(filepath.Join(env.workflowDir(initiative), "_techspec.md")); err != nil {
+		t.Fatalf("remove canonical techspec: %v", err)
+	}
+	if _, _, _, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
+	); err == nil || !strings.Contains(err.Error(), "_techspec.md") {
+		t.Fatalf("IT-038 prepareTaskStart() error = %v, want inaccessible canonical techspec", err)
+	}
+}
+
+// IT-015, IT-016, IT-033, IT-034, IT-035 and IT-036: the daemon owns the
+// final task group readiness decision and persists why a one-run override was
+// requested and whether it was actually required.
+func TestRunManagerTaskRunPreflightUsesCurrentTaskGroupReadinessAndRecordsOverride(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+	})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-002"
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			TaskGroupID:      "TG-002",
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-blocked"}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
+		problem.Code != "task_group_dependencies_unmet" {
+		t.Fatalf("blocked task group error = %#v (%v), want 409 dependency problem", problem, err)
+	}
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"task-group-blocked",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(task-group-blocked) error = %v, want no durable run", err)
+	}
+
+	run, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			TaskGroupID:      "TG-002",
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-override-needed"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRun(override) error = %v", err)
+	}
+	_ = waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	row, err := env.globalDB.GetRun(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("GetRun(%q) error = %v", run.RunID, err)
+	}
+	if !row.OutOfOrderRequested || !row.OutOfOrderNeeded {
+		t.Fatalf(
+			"override metadata = requested:%t needed:%t, want both true",
+			row.OutOfOrderRequested,
+			row.OutOfOrderNeeded,
+		)
+	}
+
+	// Change the source plan after the prior run. A new start must re-resolve
+	// this state rather than reuse the earlier blocked readiness result.
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+	run, err = env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			TaskGroupID:      "TG-002",
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-override-unneeded"}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRun(current plan) error = %v", err)
+	}
+	_ = waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	row, err = env.globalDB.GetRun(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("GetRun(%q) error = %v", run.RunID, err)
+	}
+	if !row.OutOfOrderRequested || row.OutOfOrderNeeded {
+		t.Fatalf(
+			"current-plan metadata = requested:%t needed:%t, want true/false",
+			row.OutOfOrderRequested,
+			row.OutOfOrderNeeded,
+		)
+	}
+	if run.WorkflowSlug != taskGroupRef {
+		t.Fatalf("run workflow = %q, want %q", run.WorkflowSlug, taskGroupRef)
+	}
+}
+
+func TestRunManagerTaskRunRequiresFreshOverrideAfterFinalSyncPlanChange(t *testing.T) {
+	// INVARIANT: an override evaluated against one plan cannot authorize unmet dependencies introduced after preflight.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
+	const initiative = "watcher"
+	const runID = "task-group-final-sync-blocked"
+	var env *runManagerTestEnv
+	var executed atomic.Bool
+	env = newRunManagerTestEnv(t, runManagerTestDeps{
+		syncWorkflow: func(
+			ctx context.Context,
+			db *globaldb.GlobalDB,
+			workspace globaldb.Workspace,
+			cfg model.SyncConfig,
+		) (*corepkg.SyncResult, error) {
+			writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+			return corepkg.SyncWithDB(ctx, db, workspace, cfg)
+		},
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			executed.Store(true)
+			return nil
+		},
+	})
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		initiative,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			TaskGroupID:      "TG-002",
+			AllowOutOfOrder:  true,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`"}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
+		problem.Code != "task_group_dependencies_unmet" {
+		t.Fatalf(
+			"StartTaskRun(final sync changed readiness) error = %#v (%v), want 409 dependency problem",
+			problem,
+			err,
+		)
+	}
+	if planChanged, ok := problem.Details["plan_changed"].(bool); !ok || !planChanged {
+		t.Fatalf("dependency problem details = %#v, want plan_changed=true", problem.Details)
+	}
+	if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+		t.Fatalf("GetRun(%q) error = %v, want no durable run", runID, err)
+	}
+	if executed.Load() {
+		t.Fatal("Execute() called for task group blocked at final readiness check")
+	}
+}
+
+func writeDaemonDependentTaskGroupFixture(
+	t *testing.T,
+	env *runManagerTestEnv,
+	initiative string,
+	firstTaskGroupCompleted bool,
+) {
+	t.Helper()
+	plan, err := taskgroups.RenderPlan(taskgroups.Plan{
+		SchemaVersion: taskgroups.SchemaVersion,
+		Initiative:    initiative,
+		TaskGroups: []taskgroups.TaskGroup{
+			{
+				ID:         "TG-001",
+				Title:      "Foundation",
+				Outcome:    "Provide the prerequisite",
+				Directory:  "_task_groups/TG-001",
+				Completed:  firstTaskGroupCompleted,
+				OwnedScope: []string{"foundation"},
+			},
+			{
+				ID:         "TG-002",
+				Title:      "Delivery",
+				Outcome:    "Use the prerequisite",
+				Directory:  "_task_groups/TG-002",
+				OwnedScope: []string{"delivery"},
+			},
+		},
+		Edges: []taskgroups.Dependency{{
+			From:      "TG-001",
+			To:        "TG-002",
+			Rationale: "Foundation must be complete first",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("RenderPlan() error = %v", err)
+	}
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", string(plan))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-002", "task_01.md"),
+		daemonTaskBody("pending", "Task Group delivery task"),
+	)
+}
+
+func TestRunManagerRejectsEscapedTaskGroupManifestBeforeTaskStarts(t *testing.T) {
+	// INVARIANT: task group task starts never accept graph nodes that resolve outside the selected task group.
+	// OWNING_LAYER: service-integration. EXISTING_SUITE: internal/daemon/run_manager_test.go.
+	newEscapedTaskGroup := func(t *testing.T) (*runManagerTestEnv, string) {
+		t.Helper()
+
+		env := newRunManagerTestEnv(t, runManagerTestDeps{})
+		initiative := "watcher"
+		taskGroupRef := initiative + "/TG-002"
+		writeDaemonDependentTaskGroupFixture(t, env, initiative, true)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_task_groups", "TG-001", "task_01.md"),
+			daemonTaskBody("pending", "Sibling task group task"),
+		)
+		env.writeWorkflowFile(
+			t,
+			initiative,
+			filepath.Join("_task_groups", "TG-002", "_tasks.md"),
+			strings.Replace(
+				taskGroupTaskGraphManifest(taskGroupRef),
+				"file: task_01.md",
+				"file: ../TG-001/task_01.md",
+				1,
+			),
+		)
+		return env, taskGroupRef
+	}
+
+	assertContainmentFailure := func(t *testing.T, err error) {
+		t.Helper()
+
+		var taskGroupErr *taskgroups.Error
+		if !errors.As(err, &taskGroupErr) || !errors.Is(err, taskgroups.ErrInvalidPlan) {
+			t.Fatalf("task group start error = %v, want invalid task group manifest", err)
+		}
+		if len(taskGroupErr.Issues) != 1 || !strings.Contains(taskGroupErr.Issues[0].Message, "sibling-ownership") {
+			t.Fatalf("task group containment issues = %#v", taskGroupErr.Issues)
+		}
+	}
+
+	t.Run("Should reject an escaped manifest on a single task run", func(t *testing.T) {
+		t.Parallel()
+
+		env, taskGroupRef := newEscapedTaskGroup(t)
+		const runID = "task-group-escaped-single"
+		_, err := env.manager.StartTaskRun(
+			context.Background(),
+			env.workspaceRoot,
+			taskGroupRef,
+			apicore.TaskRunRequest{
+				Workspace:        env.workspaceRoot,
+				PresentationMode: defaultPresentationMode,
+				RuntimeOverrides: rawJSON(t, `{"run_id":"`+runID+`","dry_run":true}`),
+			},
+		)
+		assertContainmentFailure(t, err)
+		if _, err := env.globalDB.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want no run created", runID, err)
+		}
+	})
+
+	t.Run("Should reject an escaped manifest on a multiple task run", func(t *testing.T) {
+		t.Parallel()
+
+		env, _ := newEscapedTaskGroup(t)
+		_, err := env.manager.StartTaskRunMultiple(
+			context.Background(),
+			env.workspaceRoot,
+			apicore.TaskRunMultipleRequest{
+				Workspace:        env.workspaceRoot,
+				Targets:          []apicore.TaskRunTarget{{InitiativeSlug: "watcher", TaskGroupID: "TG-002"}},
+				PresentationMode: defaultPresentationMode,
+			},
+		)
+		assertContainmentFailure(t, err)
+	})
+}
+
+func TestRunManagerTaskGroupWorktreeExecutionIsRejected(t *testing.T) {
+	// INVARIANT: task group lifecycle operations never delegate Git worktree
+	// creation or switching to non-group parallel runners.
+	// OWNING_LAYER: service-integration. CONTRACT: UT-031, UT-032.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("pending", "Task Group task"),
+	)
+
+	assertTaskGroupGitMutationForbidden := func(t *testing.T, err error) {
+		t.Helper()
+		var problem *apicore.Problem
+		if !errors.As(err, &problem) || problem.Status != http.StatusUnprocessableEntity ||
+			problem.Code != "task_group_git_mutation_forbidden" {
+			t.Fatalf("problem = %#v error = %v, want 422 task_group_git_mutation_forbidden", problem, err)
+		}
+		if got := problem.Details["workflow"]; got != taskGroupRef {
+			t.Fatalf("problem workflow = %#v, want %q", got, taskGroupRef)
+		}
+	}
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-parallel-task","parallel_tasks":{"enabled":true}}`),
+		},
+	)
+	assertTaskGroupGitMutationForbidden(t, err)
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"task-group-parallel-task",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(task-group-parallel-task) error = %v, want no run created", err)
+	}
+
+	_, err = env.manager.StartTaskRunMultiple(
+		context.Background(),
+		env.workspaceRoot,
+		apicore.TaskRunMultipleRequest{
+			Workspace:        env.workspaceRoot,
+			Slugs:            []string{taskGroupRef},
+			Mode:             workspacecfg.TaskRunMultipleModeParallel,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-parallel-multi"}`),
+		},
+	)
+	assertTaskGroupGitMutationForbidden(t, err)
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"task-group-parallel-multi",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(task-group-parallel-multi) error = %v, want no run created", err)
+	}
+}
+
+func TestRunManagerTaskGroupEmptyTaskSuiteFailsBeforeRunCreation(t *testing.T) {
+	// INVARIANT: an opted-in task group with no executable task file never starts
+	// an agent session or creates a durable run.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-018.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(t, initiative, filepath.Join("_task_groups", "TG-001", "_tasks.md"), "# Empty task group\n")
+
+	_, err := env.manager.StartTaskRun(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: rawJSON(t, `{"run_id":"task-group-empty-suite"}`),
+		},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusUnprocessableEntity ||
+		problem.Code != "task_group_no_executable_tasks" {
+		t.Fatalf("IT-018 problem = %#v error = %v", problem, err)
+	}
+	if _, err := env.globalDB.GetRun(
+		context.Background(),
+		"task-group-empty-suite",
+	); !errors.Is(
+		err,
+		globaldb.ErrRunNotFound,
+	) {
+		t.Fatalf("GetRun(task-group-empty-suite) error = %v, want no run created", err)
+	}
+}
+
+func TestRunManagerTaskGroupRerunUsesExistingCompletionPolicy(t *testing.T) {
+	// INVARIANT: task group runs use the established include-completed policy and
+	// never rewrite the completion checkbox while applying it.
+	// OWNING_LAYER: service-integration. CONTRACT: IT-014, IT-017.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "watcher"
+	taskGroupRef := initiative + "/TG-001"
+	env.writeWorkflowFile(t, initiative, "_prd.md", "# Canonical PRD\n")
+	env.writeWorkflowFile(t, initiative, "_techspec.md", "# Canonical TechSpec\n")
+	env.writeWorkflowFile(t, initiative, "_task_groups.md", daemonTaskGroupPlan(" "))
+	env.writeWorkflowFile(
+		t,
+		initiative,
+		filepath.Join("_task_groups", "TG-001", "task_01.md"),
+		daemonTaskBody("completed", "Completed task group task"),
+	)
+
+	_, _, _, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.TaskRunRequest{Workspace: env.workspaceRoot},
+	)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) || problem.Status != http.StatusConflict ||
+		problem.Code != "workflow_no_pending_tasks" {
+		t.Fatalf("IT-017 completed task group problem = %#v error = %v", problem, err)
+	}
+
+	_, _, runtimeCfg, _, _, _, err := env.manager.prepareTaskStart(
+		context.Background(),
+		env.workspaceRoot,
+		taskGroupRef,
+		apicore.TaskRunRequest{
+			Workspace:        env.workspaceRoot,
+			RuntimeOverrides: rawJSON(t, `{"include_completed":true}`),
+		},
+	)
+	if err != nil || runtimeCfg == nil || !runtimeCfg.IncludeCompleted || runtimeCfg.ExecutionScope == nil {
+		t.Fatalf("IT-014 include-completed task group config = %#v error = %v", runtimeCfg, err)
+	}
 }
 
 func TestRunManagerTaskRunWatchersStayIsolatedAcrossWorkflows(t *testing.T) {
@@ -3652,6 +4305,35 @@ func submitEvent(
 	}
 }
 
+const (
+	// waitForRunBudget bounds how long the run-lifecycle poll helpers wait for
+	// their predicate to hold. It is generous enough to absorb Git worktree and
+	// race-detector contention when the full daemon suite runs with
+	// -race -parallel (a fixed few-second budget proved flaky there), yet short
+	// enough to fail fast on a genuine regression.
+	waitForRunBudget = 60 * time.Second
+	// waitForRunDeadlineMargin keeps the poll deadline strictly inside the
+	// test's own deadline so an expiry surfaces a diagnostic Fatalf before the
+	// `go test` harness force-kills the binary with an opaque timeout panic.
+	waitForRunDeadlineMargin = 2 * time.Second
+)
+
+// waitDeadlineContext derives a poll context bounded by the smaller of a
+// generous fixed budget and the test's own deadline (minus a safety margin).
+// Tying the ceiling to t.Deadline() keeps the wait proportional to how long the
+// test is actually allowed to run instead of an arbitrary wall-clock guess that
+// is unrelated to suite load.
+func waitDeadlineContext(t *testing.T) (context.Context, context.CancelFunc) {
+	t.Helper()
+	deadline := time.Now().Add(waitForRunBudget)
+	if testDeadline, ok := t.Deadline(); ok {
+		if capped := testDeadline.Add(-waitForRunDeadlineMargin); capped.Before(deadline) {
+			deadline = capped
+		}
+	}
+	return context.WithDeadline(context.Background(), deadline)
+}
+
 func waitForRun(
 	t *testing.T,
 	db *globaldb.GlobalDB,
@@ -3660,20 +4342,36 @@ func waitForRun(
 ) globaldb.Run {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := waitDeadlineContext(t)
 	defer cancel()
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
+	var (
+		lastRow globaldb.Run
+		lastErr error
+		seen    bool
+	)
 	for {
 		row, err := db.GetRun(context.Background(), runID)
-		if err == nil && predicate(row) {
-			return row
+		if err == nil {
+			lastRow, seen = row, true
+			if predicate(row) {
+				return row
+			}
+		} else {
+			lastErr = err
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("timed out waiting for run %q: last err=%v", runID, err)
+			if seen {
+				t.Fatalf(
+					"timed out waiting for run %q: last status=%q error_text=%q last_read_err=%v",
+					runID, lastRow.Status, lastRow.ErrorText, lastErr,
+				)
+			}
+			t.Fatalf("timed out waiting for run %q: no row observed, last_read_err=%v", runID, lastErr)
 		case <-ticker.C:
 		}
 	}
@@ -3688,24 +4386,36 @@ func waitForRunCount(
 ) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := waitDeadlineContext(t)
 	defer cancel()
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
+	var (
+		lastCount int
+		lastErr   error
+	)
 	for {
 		runs, err := manager.List(context.Background(), apicore.RunListQuery{
 			Workspace: workspace,
 			Status:    status,
 			Limit:     10,
 		})
-		if err == nil && len(runs) == want {
-			return
+		if err == nil {
+			lastCount = len(runs)
+			if lastCount == want {
+				return
+			}
+		} else {
+			lastErr = err
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("timed out waiting for %d run(s) with status %q", want, status)
+			t.Fatalf(
+				"timed out waiting for %d run(s) with status %q: last observed count=%d last_list_err=%v",
+				want, status, lastCount, lastErr,
+			)
 		case <-ticker.C:
 		}
 	}

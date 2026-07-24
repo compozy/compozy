@@ -4,19 +4,22 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
+import { taskGroupSearchSchema } from "@/lib/task-group-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import { useRunTranscript } from "@/systems/runs";
 import { TaskDetailView, useWorkflowTask, type TaskRelatedRun } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/workflows_/$slug/tasks_/$taskId")({
   component: WorkflowTaskDetailRoute,
+  validateSearch: taskGroupSearchSchema,
 });
 
 function WorkflowTaskDetailRoute(): ReactElement {
   const { slug, taskId } = useParams({ from: "/_app/workflows_/$slug/tasks_/$taskId" });
+  const { task_group_id: taskGroupId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
-  const taskQuery = useWorkflowTask(activeWorkspace.id, slug, taskId);
+  const taskQuery = useWorkflowTask(activeWorkspace.id, slug, taskId, taskGroupId);
   const transcriptRunId = selectTranscriptRunId(taskQuery.data?.related_runs ?? []);
   const transcriptQuery = useRunTranscript(transcriptRunId);
 
@@ -30,7 +33,13 @@ function WorkflowTaskDetailRoute(): ReactElement {
           <button
             className="text-xs font-medium text-primary transition-colors hover:text-foreground"
             data-testid="task-detail-back"
-            onClick={() => void navigate({ to: "/workflows/$slug/tasks", params: { slug } })}
+            onClick={() =>
+              void navigate({
+                to: "/workflows/$slug/tasks",
+                params: { slug },
+                search: taskGroupId ? { task_group_id: taskGroupId } : {},
+              })
+            }
             type="button"
           >
             ← Back to {slug} board
@@ -57,6 +66,7 @@ function WorkflowTaskDetailRoute(): ReactElement {
           isLoadingRunTranscript={transcriptQuery.isLoading}
           isRunTranscriptError={transcriptQuery.isError}
           payload={taskQuery.data}
+          taskGroupId={taskGroupId}
           runTranscript={transcriptQuery.data}
           runTranscriptError={
             transcriptQuery.error
@@ -64,6 +74,7 @@ function WorkflowTaskDetailRoute(): ReactElement {
               : null
           }
           runTranscriptRunId={transcriptRunId}
+          workflowSlug={slug}
         />
       ) : null}
     </AppShellLayout>

@@ -15,17 +15,27 @@ function ReviewsIndexRoute(): ReactElement {
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
   const dashboardQuery = useDashboard(activeWorkspace.id);
 
-  const reviewableWorkflows = useMemo(() => {
+  const cards: ReviewRoundCard[] = useMemo(() => {
     const workflows = dashboardQuery.data?.workflows ?? [];
-    return workflows
-      .filter(card => Boolean(card.latest_review))
-      .map(card => ({ slug: card.workflow.slug, review: card.latest_review! }));
+    const rounds: ReviewRoundCard[] = [];
+    for (const card of workflows) {
+      if (card.latest_review) {
+        rounds.push({ slug: card.workflow.slug, review: card.latest_review });
+      }
+      // Task Group rounds route through the parent initiative slug plus task_group_id,
+      // matching the task-group-aware review routes.
+      for (const taskGroup of card.workflow.task_groups ?? []) {
+        if (taskGroup.latest_review) {
+          rounds.push({
+            slug: card.workflow.slug,
+            review: taskGroup.latest_review,
+            taskGroupId: taskGroup.task_group_id,
+          });
+        }
+      }
+    }
+    return rounds;
   }, [dashboardQuery.data?.workflows]);
-
-  const cards: ReviewRoundCard[] = reviewableWorkflows.map(entry => ({
-    slug: entry.slug,
-    review: entry.review,
-  }));
 
   return (
     <AppShellLayout

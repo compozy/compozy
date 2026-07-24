@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -32,6 +32,56 @@ const workflows: WorkflowSummary[] = [
     archived_at: "2026-02-01T00:00:00Z",
   },
 ];
+
+const initiativeWorkflow: WorkflowSummary = {
+  id: "wf-initiative",
+  kind: "initiative",
+  slug: "customer-management",
+  workspace_id: "ws-1",
+  can_start_run: false,
+  start_block_reason: "select a task group",
+  task_groups: [
+    {
+      workflow_id: "wf-task-group-1",
+      task_group_id: "TG-001",
+      reference: "customer-management/TG-001",
+      title: "Persistence",
+      outcome: "Persist customer records.",
+      lifecycle_complete: true,
+      unmet_dependency_count: 0,
+      independently_eligible: false,
+      task_counts: { total: 2, completed: 2, pending: 0 },
+      can_start_run: false,
+    },
+    {
+      workflow_id: "wf-task-group-2",
+      task_group_id: "TG-002",
+      reference: "customer-management/TG-002",
+      title: "Interface",
+      outcome: "Render customer records.",
+      lifecycle_complete: false,
+      unmet_dependency_count: 1,
+      independently_eligible: false,
+      dependencies: [
+        {
+          task_group_id: "TG-001",
+          title: "Persistence",
+          rationale: "API contract first",
+        },
+      ],
+      unmet_dependencies: [
+        {
+          task_group_id: "TG-001",
+          title: "Persistence",
+          rationale: "API contract first",
+        },
+      ],
+      task_counts: { total: 3, completed: 1, pending: 2 },
+      can_start_run: false,
+      start_block_reason: "1 unmet dependency",
+    },
+  ],
+};
 
 const defaults = {
   archiveConfirmation: null,
@@ -113,6 +163,199 @@ describe("WorkflowInventoryView", () => {
       workflows: [],
     });
     expect(screen.getByTestId("workflow-inventory-empty")).toBeInTheDocument();
+  });
+
+  it("Should render and filter accessible Task Groups only beneath their initiative", async () => {
+    // CONTRACT: IT-055, E2E-004, E2E-006.
+    const onStartRun = vi.fn();
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [initiativeWorkflow],
+    });
+
+    expect(screen.getByTestId("workflow-row-customer-management")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-task-groups-customer-management")).toHaveTextContent(
+      "Task Groups · 2"
+    );
+    expect(screen.queryByTestId("workflow-row-customer-management/TG-001")).not.toBeInTheDocument();
+    const taskGroupLink = screen.getByRole("link", {
+      name: /TG-002, Interface.*lifecycle incomplete.*1 unmet dependency/i,
+    }) as HTMLAnchorElement;
+    expect(taskGroupLink.getAttribute("href")).toBe(
+      "/workflows/customer-management/tasks?task_group_id=TG-002"
+    );
+    expect(screen.getByTestId("workflow-task-group-lifecycle-TG-001")).toHaveTextContent(
+      "Git integration is not tracked"
+    );
+    expect(screen.getByTestId("workflow-task-group-dependencies-TG-002")).toHaveTextContent(
+      "API contract first"
+    );
+
+    const filter = screen.getByTestId("workflow-task-groups-filter-customer-management");
+    await userEvent.type(filter, "TG-002");
+    expect(
+      screen.queryByTestId("workflow-task-group-customer-management-TG-001")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("workflow-task-group-customer-management-TG-002")
+    ).toBeInTheDocument();
+
+    expect(screen.getByText("1 unmet dependency")).toBeInTheDocument();
+    expect(onStartRun).not.toHaveBeenCalled();
+  });
+
+  it("Should require task group selection before starting an initiative run", async () => {
+    const onStartRun = vi.fn();
+    const readyTaskGroup = {
+      workflow_id: "wf-task-group-3",
+      task_group_id: "TG-003",
+      reference: "customer-management/TG-003",
+      title: "Notifications",
+      outcome: "Send customer notifications.",
+      lifecycle_complete: false,
+      unmet_dependency_count: 0,
+      independently_eligible: false,
+      task_counts: { total: 1, completed: 0, pending: 1 },
+      can_start_run: true,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [{ ...initiativeWorkflow, task_groups: [readyTaskGroup] }],
+    });
+
+    expect(screen.queryByTestId("workflow-start-customer-management")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-start-blocked-customer-management")).toHaveTextContent(
+      "select a task group"
+    );
+    await userEvent.click(
+      screen.getByTestId("workflow-task-group-start-customer-management-TG-003")
+    );
+    expect(onStartRun).toHaveBeenCalledWith("customer-management", { taskGroupId: "TG-003" });
+  });
+
+  it("Should require a single explicit dependency override without changing task group readiness", async () => {
+    let resolveStart: (() => void) | undefined;
+    const onStartRun = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolveStart = resolve;
+        })
+    );
+    const blockedTaskGroup = {
+      ...initiativeWorkflow.task_groups![1]!,
+      can_start_run: true,
+      requires_start_confirmation: true,
+      start_block_reason: undefined,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [{ ...initiativeWorkflow, task_groups: [blockedTaskGroup] }],
+    });
+
+    const startButton = screen.getByTestId("workflow-task-group-start-customer-management-TG-002");
+    await userEvent.click(startButton);
+    expect(onStartRun).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("workflow-task-group-dependency-confirmation-customer-management-TG-002")
+    ).toHaveTextContent("Persistence");
+    expect(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-dependencies-customer-management-TG-002"
+      )
+    ).toHaveTextContent("API contract first");
+
+    await userEvent.click(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-cancel-customer-management-TG-002"
+      )
+    );
+    expect(onStartRun).not.toHaveBeenCalled();
+
+    await userEvent.click(startButton);
+    const confirmButton = screen.getByTestId(
+      "workflow-task-group-dependency-confirmation-confirm-customer-management-TG-002"
+    );
+    await userEvent.click(confirmButton);
+    expect(onStartRun).toHaveBeenCalledWith("customer-management", {
+      taskGroupId: "TG-002",
+      allowOutOfOrder: true,
+    });
+    expect(confirmButton).toBeDisabled();
+    await userEvent.click(confirmButton);
+    expect(onStartRun).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByTestId("workflow-task-group-readiness-TG-002")).toHaveTextContent(
+      "1 unmet dependency"
+    );
+    expect(screen.getByTestId("workflow-task-group-dependencies-TG-002")).toHaveTextContent(
+      "API contract first"
+    );
+    resolveStart?.();
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId(
+          "workflow-task-group-dependency-confirmation-customer-management-TG-002"
+        )
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("Should include transitive dependency context before authorizing a task group run", async () => {
+    const onStartRun = vi.fn();
+    const transitiveTaskGroup = {
+      ...initiativeWorkflow.task_groups![1]!,
+      can_start_run: true,
+      requires_start_confirmation: true,
+      unmet_dependencies: [],
+      unmet_dependency_paths: [
+        {
+          task_group_ids: ["TG-001", "TG-002"],
+          dependencies: [
+            {
+              task_group_id: "TG-001",
+              title: "Persistence",
+              rationale: "API contract first",
+            },
+          ],
+        },
+      ],
+      start_block_reason: undefined,
+    };
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun,
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      workflows: [{ ...initiativeWorkflow, task_groups: [transitiveTaskGroup] }],
+    });
+
+    await userEvent.click(
+      screen.getByTestId("workflow-task-group-start-customer-management-TG-002")
+    );
+    expect(onStartRun).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-dependencies-customer-management-TG-002"
+      )
+    ).toHaveTextContent("Transitive path: TG-001 → TG-002");
+    expect(
+      screen.getByTestId(
+        "workflow-task-group-dependency-confirmation-dependencies-customer-management-TG-002"
+      )
+    ).toHaveTextContent("Persistence");
   });
 
   it("Should fire sync-all, start-run, sync-one, and archive handlers", async () => {

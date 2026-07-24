@@ -9,6 +9,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	corepkg "github.com/compozy/compozy/internal/core"
 	extensions "github.com/compozy/compozy/internal/core/extension"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
@@ -54,7 +55,11 @@ func (s *transportReviewService) Fetch(
 		return apicore.ReviewFetchResult{}, reviewTransportUnavailable("review fetch")
 	}
 
-	workspaceRow, _, projectCfg, err := s.runManager.resolveWorkflowContext(ctx, workspaceRef, workflowSlug)
+	workspaceRow, _, projectCfg, executionScope, err := s.runManager.resolveLifecycleWorkflowContext(
+		ctx,
+		workspaceRef,
+		workflowSlug,
+	)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
@@ -69,13 +74,13 @@ func (s *transportReviewService) Fetch(
 	}
 	defer cleanup()
 
-	fetchCfg := reviewFetchConfig(workspaceRow.RootDir, workflowSlug, projectCfg, req)
+	fetchCfg := reviewFetchConfig(workspaceRow.RootDir, workflowSlug, projectCfg, req, executionScope)
 
 	result, err := corepkg.FetchReviewsWithRegistryDirect(ctx, fetchCfg, registry)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
-	roundRow, err := s.syncFetchedReviewRound(ctx, workspaceRow, workflowSlug, result)
+	roundRow, err := s.syncFetchedReviewRound(ctx, workspaceRow, workflowSlug, executionScope, result)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
 	}
@@ -90,13 +95,15 @@ func reviewFetchConfig(
 	workflowSlug string,
 	projectCfg workspacecfg.ProjectConfig,
 	req apicore.ReviewFetchRequest,
+	executionScope *model.ExecutionScope,
 ) corepkg.Config {
 	fetchCfg := corepkg.Config{
-		WorkspaceRoot: workspaceRoot,
-		Name:          strings.TrimSpace(workflowSlug),
-		Provider:      resolveFetchProvider(projectCfg, req.Provider),
-		PR:            strings.TrimSpace(req.PRRef),
-		Nitpicks:      resolveFetchNitpicks(projectCfg),
+		WorkspaceRoot:  workspaceRoot,
+		Name:           strings.TrimSpace(workflowSlug),
+		Provider:       resolveFetchProvider(projectCfg, req.Provider),
+		PR:             strings.TrimSpace(req.PRRef),
+		Nitpicks:       resolveFetchNitpicks(projectCfg),
+		ExecutionScope: executionScope,
 	}
 	if req.Round != nil {
 		fetchCfg.Round = *req.Round
@@ -108,12 +115,14 @@ func (s *transportReviewService) syncFetchedReviewRound(
 	ctx context.Context,
 	workspaceRow globaldb.Workspace,
 	workflowSlug string,
+	executionScope *model.ExecutionScope,
 	result *corepkg.FetchResult,
 ) (globaldb.ReviewRound, error) {
 	slug := strings.TrimSpace(workflowSlug)
 	syncResult, err := corepkg.SyncWithDB(ctx, s.globalDB, workspaceRow, corepkg.SyncConfig{
-		WorkspaceRoot: workspaceRow.RootDir,
-		Name:          slug,
+		WorkspaceRoot:  workspaceRow.RootDir,
+		Name:           slug,
+		ExecutionScope: executionScope,
 	})
 	if err != nil {
 		return globaldb.ReviewRound{}, reviewFetchPostWriteProblem(
@@ -260,6 +269,15 @@ func (s *transportReviewService) resolveReviewWorkflow(
 	if err != nil {
 		return globaldb.Workflow{}, err
 	}
+	if err := validateTaskGroupTransportReference(
+		ctx,
+		s.globalDB,
+		workspaceRow.ID,
+		workspaceRow.RootDir,
+		workflowSlug,
+	); err != nil {
+		return globaldb.Workflow{}, err
+	}
 	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, workflowSlug)
 	if err == nil {
 		return workflow, nil
@@ -279,6 +297,22 @@ func (s *transportReviewService) ReviewDetail(
 ) (apicore.ReviewDetailPayload, error) {
 	if s == nil || s.query == nil {
 		return apicore.ReviewDetailPayload{}, reviewTransportUnavailable("review detail")
+	}
+	if s.globalDB == nil {
+		return apicore.ReviewDetailPayload{}, reviewTransportUnavailable("review detail")
+	}
+	workspace, err := resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
+	if err != nil {
+		return apicore.ReviewDetailPayload{}, err
+	}
+	if err := validateTaskGroupTransportReference(
+		ctx,
+		s.globalDB,
+		workspace.ID,
+		workspace.RootDir,
+		workflowSlug,
+	); err != nil {
+		return apicore.ReviewDetailPayload{}, err
 	}
 
 	payload, err := s.query.ReviewDetail(ctx, workspaceRef, workflowSlug, round, issueRef)

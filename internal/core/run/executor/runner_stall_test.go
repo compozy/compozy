@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -90,6 +94,185 @@ func initStallGitRepo(t *testing.T) string {
 	return root
 }
 
+func TestConcurrentReviewPlanningKeepsFileGroupsInSingleWorktrees(t *testing.T) {
+	t.Parallel()
+	requireStallGit(t)
+	root := initStallGitRepo(t)
+	reviewsDir := filepath.Join(root, model.TasksBaseDir(), "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewsDir, model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{Title: "First README issue", File: "README.md", Body: "Fix the first behavior."},
+		{Title: "Second README issue", File: "README.md", Body: "Fix the second behavior."},
+		{Title: "Docs issue", File: "docs/guide.md", Body: "Fix the documentation behavior."},
+	}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "reviews-atomic-worktrees-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: root,
+		ReviewsDir:    reviewsDir,
+		IDE:           model.IDECodex,
+		DryRun:        true,
+		Mode:          model.ExecutionModePRReview,
+		BatchSize:     1,
+		Concurrent:    2,
+	}
+	prep, err := plan.Prepare(
+		context.Background(),
+		cfg,
+		&model.BaseRunScope{Artifacts: runArtifacts},
+	)
+	if err != nil {
+		t.Fatalf("prepare concurrent review: %v", err)
+	}
+	if len(prep.Jobs) != 2 {
+		t.Fatalf("prepared jobs = %d, want one per file group", len(prep.Jobs))
+	}
+
+	runtimeCfg := newConfig(cfg, runArtifacts)
+	runtimeCfg.DryRun = false
+	execCtx, err := newJobExecutionContext(
+		context.Background(),
+		newJobs(prep.Jobs),
+		runtimeCfg,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("newJobExecutionContext() error = %v", err)
+	}
+	if execCtx.reviewIsolation == nil {
+		t.Fatal("concurrent review jobs did not enable worktree isolation")
+	}
+	defer func() {
+		for index := range execCtx.jobs {
+			if cleanupErr := execCtx.reviewIsolation.Cleanup(context.Background(), index); cleanupErr != nil {
+				t.Errorf("cleanup review worktree %d: %v", index, cleanupErr)
+			}
+		}
+	}()
+
+	groupWorktrees := make(map[string]string)
+	for index := range execCtx.jobs {
+		worktreeRoot := execCtx.jobCWDs[index]
+		for codeFile, entries := range execCtx.jobs[index].Groups {
+			if previous, exists := groupWorktrees[codeFile]; exists && previous != worktreeRoot {
+				t.Fatalf("code-file group %q split across worktrees %q and %q", codeFile, previous, worktreeRoot)
+			}
+			groupWorktrees[codeFile] = worktreeRoot
+			if codeFile == "README.md" && len(entries) != 2 {
+				t.Fatalf("README.md issue count = %d, want 2 in one worktree", len(entries))
+			}
+		}
+	}
+	if len(groupWorktrees) != 2 {
+		t.Fatalf("worktree group count = %d, want 2", len(groupWorktrees))
+	}
+	if groupWorktrees["README.md"] == groupWorktrees["docs/guide.md"] {
+		t.Fatalf("distinct file groups unexpectedly share worktree %q", groupWorktrees["README.md"])
+	}
+}
+
+func TestConcurrentReviewJobsUseResettableIsolatedWorktrees(t *testing.T) {
+	t.Parallel()
+	root := initStallGitRepo(t)
+	workflowDir := filepath.Join(root, ".compozy", "tasks", "demo")
+	operationalDir := filepath.Join(workflowDir, "task-groups", "backend")
+	reviewsDir := filepath.Join(operationalDir, "reviews-001")
+	if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviews: %v", err)
+	}
+	techspecPath := filepath.Join(workflowDir, "_techspec.md")
+	if err := os.WriteFile(techspecPath, []byte("# parent spec\n"), 0o600); err != nil {
+		t.Fatalf("write parent techspec: %v", err)
+	}
+	jobs := make([]job, 2)
+	for index := range jobs {
+		issuePath := filepath.Join(reviewsDir, fmt.Sprintf("issue_%03d.md", index+1))
+		if err := os.WriteFile(issuePath, []byte("status: pending\n"), 0o600); err != nil {
+			t.Fatalf("write issue %d: %v", index+1, err)
+		}
+		jobs[index] = job{
+			SafeName: fmt.Sprintf("batch-%d", index+1),
+			Groups: map[string][]model.IssueEntry{
+				"README.md": {{Name: filepath.Base(issuePath), AbsPath: issuePath, Content: "status: pending\n"}},
+			},
+			Prompt: []byte("review " + issuePath),
+		}
+	}
+	cfg := &config{
+		WorkspaceRoot: root,
+		ReviewsDir:    reviewsDir,
+		Mode:          model.ExecutionModePRReview,
+		Concurrent:    2,
+		RunArtifacts:  model.RunArtifacts{RunDir: filepath.Join(t.TempDir(), "run")},
+		ExecutionScope: &model.ExecutionScope{
+			SpecDir:        workflowDir,
+			OperationalDir: operationalDir,
+			TasksDir:       filepath.Join(operationalDir, "tasks"),
+			ReviewsDir:     operationalDir,
+			MemoryDir:      filepath.Join(operationalDir, "memory"),
+		},
+		Stall: model.StallPolicy{
+			Enabled: true,
+			Retries: 1,
+		},
+	}
+	execCtx, err := newJobExecutionContext(context.Background(), jobs, cfg, nil, nil)
+	if err != nil {
+		t.Fatalf("newJobExecutionContext() error = %v", err)
+	}
+	if execCtx.reviewIsolation == nil {
+		t.Fatal("concurrent review jobs did not enable worktree isolation")
+	}
+	defer func() {
+		for index := range jobs {
+			if cleanupErr := execCtx.reviewIsolation.Cleanup(context.Background(), index); cleanupErr != nil {
+				t.Errorf("cleanup review worktree %d: %v", index, cleanupErr)
+			}
+		}
+	}()
+	first := newJobRunner(0, &execCtx.jobs[0], execCtx)
+	second := newJobRunner(1, &execCtx.jobs[1], execCtx)
+	if first.cfg.WorkspaceRoot == second.cfg.WorkspaceRoot || first.cfg.WorkspaceRoot == root {
+		t.Fatalf(
+			"review workspaces are shared: source=%q first=%q second=%q",
+			root,
+			first.cfg.WorkspaceRoot,
+			second.cfg.WorkspaceRoot,
+		)
+	}
+	mappedSpec := filepath.Join(first.cfg.WorkspaceRoot, ".compozy", "tasks", "demo", "_techspec.md")
+	if body, readErr := os.ReadFile(mappedSpec); readErr != nil || string(body) != "# parent spec\n" {
+		t.Fatalf("isolated parent techspec = %q, error = %v", body, readErr)
+	}
+	if first.cfg.ExecutionScope == cfg.ExecutionScope || first.cfg.ExecutionScope.SpecDir != filepath.Dir(mappedSpec) {
+		t.Fatalf("execution scope was not independently remapped: %#v", first.cfg.ExecutionScope)
+	}
+	if !first.canAttemptCleanReset() || !second.canAttemptCleanReset() {
+		t.Fatal("isolated sibling jobs must allow clean stall resets")
+	}
+	first.preSnapshot = first.captureWorkspaceSnapshot(context.Background())
+	partial := filepath.Join(first.cfg.WorkspaceRoot, "partial.txt")
+	if err := os.WriteFile(partial, []byte("partial\n"), 0o600); err != nil {
+		t.Fatalf("write partial attempt: %v", err)
+	}
+	if err := first.resetWorktreeForStallRetry(context.Background()); err != nil {
+		t.Fatalf("resetWorktreeForStallRetry() error = %v", err)
+	}
+	if _, err := os.Stat(partial); !os.IsNotExist(err) {
+		t.Fatalf("stall reset left partial output: %v", err)
+	}
+}
+
 type stallHarness struct {
 	execCtx *jobExecutionContext
 	job     *job
@@ -104,6 +287,10 @@ type stallHarnessOptions struct {
 	stallRetries  int
 	stallEnabled  bool
 	totalJobs     int
+	// concurrent is the batch parallelism. Zero (the default) runs jobs
+	// sequentially; >1 marks a genuinely concurrent shared workspace where a
+	// stall retry cannot safely reset the worktree.
+	concurrent int
 }
 
 func newStallHarness(t *testing.T, opts stallHarnessOptions, attempts ...jobAttemptResult) *stallHarness {
@@ -151,6 +338,7 @@ func newStallHarness(t *testing.T, opts stallHarnessOptions, attempts ...jobAtte
 		journal: runJournal,
 		cfg: &config{
 			MaxRetries:             opts.maxRetries,
+			Concurrent:             opts.concurrent,
 			RunArtifacts:           runArtifacts,
 			WorkspaceRoot:          root,
 			RetryBackoffMultiplier: 1.5,
@@ -388,6 +576,50 @@ func TestJobRunnerStallRetryRunsFromACleanWorktree(t *testing.T) {
 			t.Fatalf("job status = %q, want %q", harness.job.Status, runStatusSucceeded)
 		}
 	})
+
+	t.Run("Should retry a PRD task when TasksDir is excluded from the baseline", func(t *testing.T) {
+		root := initStallGitRepo(t)
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true},
+		)
+		harness.execCtx.cfg.Mode = model.ExecutionModePRDTasks
+		harness.execCtx.cfg.TasksDir = filepath.Join(root, ".compozy", "tasks", "demo")
+
+		var secondAttemptDirty []string
+		var calls int
+		harness.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
+			calls++
+			if calls == 1 {
+				if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# stalled\n"), 0o600); err != nil {
+					t.Errorf("rewrite README: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
+					t.Errorf("write scratch: %v", err)
+				}
+				return stallResult(harness.job, "tool-call-1")
+			}
+
+			secondAttemptDirty = dirtyPaths(t, root)
+			return ordinaryFailureResult(harness.job)
+		}
+
+		harness.runner.executeAttempts(context.Background())
+
+		if calls != 2 {
+			t.Fatalf("attempts = %d, want 2", calls)
+		}
+		if len(secondAttemptDirty) != 0 {
+			t.Fatalf("PRD stall retry started with a dirty worktree: %v", secondAttemptDirty)
+		}
+		evs := harness.drain(t, 4)
+		if !hasEvent(evs, eventspkg.EventKindJobRetryScheduled) {
+			t.Fatalf("missing job.retry_scheduled in %v", eventKinds(evs))
+		}
+		if hasEvent(evs, eventspkg.EventKindJobParked) {
+			t.Fatalf("unexpected job.parked in %v", eventKinds(evs))
+		}
+	})
 }
 
 func dirtyPaths(t *testing.T, root string) []string {
@@ -435,14 +667,23 @@ func TestJobRunnerParksImmediatelyWhenCleanResetIsImpossible(t *testing.T) {
 		}
 	})
 
-	t.Run("Should park on the first stall when siblings share the workspace", func(t *testing.T) {
+	t.Run("Should park on the first stall when concurrent siblings share the workspace", func(t *testing.T) {
 		t.Parallel()
 		requireStallGit(t)
 
 		root := initStallGitRepo(t)
+		// Genuinely concurrent siblings (concurrent > 1) share one live workspace,
+		// so resetting a stalled job would clobber a sibling mid-flight: park instead.
 		harness := newStallHarness(
 			t,
-			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true, totalJobs: 2},
+			stallHarnessOptions{
+				workspaceRoot: root,
+				maxRetries:    0,
+				stallRetries:  1,
+				stallEnabled:  true,
+				totalJobs:     2,
+				concurrent:    2,
+			},
 			stallResult(&job{SafeName: "task_01"}, "tool-call-1"),
 		)
 
@@ -452,7 +693,43 @@ func TestJobRunnerParksImmediatelyWhenCleanResetIsImpossible(t *testing.T) {
 			t.Fatalf("job status = %q, want %q", got, runStatusParked)
 		}
 		if got := harness.runner.lifecycle.attempt; got != 1 {
-			t.Fatalf("attempts = %d, want 1 (resetting a shared workspace would clobber siblings)", got)
+			t.Fatalf("attempts = %d, want 1 (resetting a concurrent shared workspace would clobber siblings)", got)
+		}
+	})
+
+	t.Run("Should reset and retry a sequential multi-job run instead of parking", func(t *testing.T) {
+		t.Parallel()
+		requireStallGit(t)
+
+		root := initStallGitRepo(t)
+		// A task group runs its dependent tasks sequentially (totalJobs > 1 with no
+		// concurrency), so a stalled task can safely reset to its own per-attempt
+		// snapshot and retry — it never runs alongside a live sibling. This is the
+		// case that used to dead-end on "workspace is shared with sibling jobs".
+		harness := newStallHarness(
+			t,
+			stallHarnessOptions{workspaceRoot: root, maxRetries: 0, stallRetries: 1, stallEnabled: true, totalJobs: 2},
+		)
+
+		var calls int
+		harness.runner.runAttempt = func(context.Context, time.Duration) jobAttemptResult {
+			calls++
+			if calls == 1 {
+				if err := os.WriteFile(filepath.Join(root, "scratch.txt"), []byte("junk"), 0o600); err != nil {
+					t.Errorf("write scratch: %v", err)
+				}
+				return stallResult(harness.job, "tool-call-1")
+			}
+			return successResult()
+		}
+
+		harness.runner.executeAttempts(context.Background())
+
+		if calls != 2 {
+			t.Fatalf("attempts = %d, want 2 (sequential job resets and retries)", calls)
+		}
+		if harness.job.Status != runStatusSucceeded {
+			t.Fatalf("job status = %q, want %q (retry, not park)", harness.job.Status, runStatusSucceeded)
 		}
 	})
 }

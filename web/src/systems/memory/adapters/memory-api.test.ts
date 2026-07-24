@@ -56,6 +56,19 @@ describe("memory api adapter", () => {
     expect(stub.calls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
   });
 
+  it("Should encode a selected task group as a query field", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/tasks/alpha/memory?task_group_id=TG-002"),
+        status: 200,
+        body: { memory: { entries: [] } },
+      },
+    ]);
+    restore = stub.restore;
+    await getWorkflowMemoryIndex({ workspaceId: "ws-1", slug: "alpha", taskGroupId: "TG-002" });
+    expect(stub.calls[0]?.url).toContain("task_group_id=TG-002");
+  });
+
   it("Should GET a memory file by opaque file_id", async () => {
     const stub = installFetchStub([
       {

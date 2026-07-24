@@ -12,6 +12,7 @@ import {
   useSyncWorkflows,
   useWorkflows,
   WorkflowInventoryView,
+  type WorkflowRunRequest,
 } from "@/systems/workflows";
 
 export const Route = createFileRoute("/_app/workflows")({
@@ -118,21 +119,26 @@ function WorkflowsRoute(): ReactElement {
     }
   }
 
-  async function handleStartRun(slug: string) {
+  async function handleStartRun(slug: string, request?: WorkflowRunRequest) {
     setActionMessage(null);
     setActionError(null);
     setStartedRun(null);
     setArchiveConfirmation(null);
-    setPendingStartSlug(slug);
+    const reference = request?.taskGroupId ? `${slug}/${request.taskGroupId}` : slug;
+    setPendingStartSlug(reference);
     try {
       const run = await startRun.mutateAsync({
         workspaceId: activeWorkspace.id,
         slug,
-        body: { presentation_mode: "detach" },
+        body: {
+          presentation_mode: "detach",
+          ...(request?.taskGroupId ? { task_group_id: request.taskGroupId } : {}),
+          ...(request?.allowOutOfOrder ? { allow_out_of_order: true } : {}),
+        },
       });
       setStartedRun(run);
     } catch (error) {
-      setActionError(apiErrorMessage(error, `Failed to start run for ${slug}`));
+      setActionError(apiErrorMessage(error, `Failed to start run for ${reference}`));
     } finally {
       setPendingStartSlug(null);
     }

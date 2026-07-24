@@ -9,9 +9,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
@@ -85,15 +88,35 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 	}
 	visibleRuns := dashboardVisibleRuns(runs)
 
-	cards := make([]WorkflowCard, 0, len(workflows))
+	parents, childrenByParentID := groupDashboardWorkflows(workflows)
+
+	cards := make([]WorkflowCard, 0, len(parents))
 	pendingReviews := 0
-	for _, workflow := range workflows {
-		card, err := s.buildWorkflowCard(ctx, workflow, visibleRuns)
+	for parentIndex := range parents {
+		workflow := parents[parentIndex]
+		card, err := s.buildWorkflowCard(ctx, *workflow, visibleRuns)
 		if err != nil {
+			return WorkspaceDashboard{}, err
+		}
+		if err := s.attachDashboardTaskGroups(
+			ctx,
+			workspace,
+			&card,
+			childrenByParentID[workflow.ID],
+			visibleRuns,
+		); err != nil {
 			return WorkspaceDashboard{}, err
 		}
 		if card.LatestReview != nil {
 			pendingReviews += card.LatestReview.UnresolvedCount
+		}
+		// Task Group rounds are separate workflows, so their unresolved counts are
+		// invisible to the parent card. Add each task group's latest-round unresolved
+		// count to keep the dashboard total consistent with per-task-group review state.
+		for pkgIndex := range card.Workflow.TaskGroups {
+			if pkgReview := card.Workflow.TaskGroups[pkgIndex].LatestReview; pkgReview != nil {
+				pendingReviews += pkgReview.UnresolvedCount
+			}
 		}
 		cards = append(cards, card)
 	}
@@ -115,6 +138,59 @@ func (s *queryService) Dashboard(ctx context.Context, workspaceRef string) (Work
 		ActiveRuns:     activeRuns,
 		PendingReviews: pendingReviews,
 	}, nil
+}
+
+func groupDashboardWorkflows(workflows []globaldb.Workflow) ([]*globaldb.Workflow, map[string][]*globaldb.Workflow) {
+	childrenByParentID := make(map[string][]*globaldb.Workflow)
+	parents := make([]*globaldb.Workflow, 0, len(workflows))
+	for workflowIndex := range workflows {
+		workflow := &workflows[workflowIndex]
+		if workflow.ParentWorkflowID == "" {
+			parents = append(parents, workflow)
+			continue
+		}
+		childrenByParentID[workflow.ParentWorkflowID] = append(childrenByParentID[workflow.ParentWorkflowID], workflow)
+	}
+	return parents, childrenByParentID
+}
+
+func (s *queryService) attachDashboardTaskGroups(
+	ctx context.Context,
+	workspace globaldb.Workspace,
+	card *WorkflowCard,
+	children []*globaldb.Workflow,
+	visibleRuns []apicore.Run,
+) error {
+	if card.Workflow.Kind != string(globaldb.WorkflowKindInitiative) {
+		return nil
+	}
+	readinessByTaskGroupID, err := projectTaskGroupReadiness(children)
+	if err != nil {
+		return err
+	}
+	for childIndex := range children {
+		child := children[childIndex]
+		childCard, err := s.buildWorkflowCard(ctx, *child, visibleRuns)
+		if err != nil {
+			return err
+		}
+		childEligibility, err := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, child.Slug)
+		if err != nil {
+			return err
+		}
+		card.Workflow.TaskGroups = append(card.Workflow.TaskGroups, transportTaskGroupSummary(
+			*child,
+			WorkflowTaskCounts{
+				Total:     childCard.TaskTotal,
+				Completed: childCard.TaskCompleted,
+				Pending:   childCard.TaskPending,
+			},
+			childEligibility,
+			readinessByTaskGroupID[child.TaskGroupID],
+			childCard.LatestReview,
+		))
+	}
+	return nil
 }
 
 func (s *queryService) WorkflowOverview(
@@ -208,6 +284,10 @@ func (s *queryService) WorkflowSpec(
 	}
 	workspace := target.workspace
 	workflow := target.workflow
+	specTarget, err := s.resolveSpecificationReadTarget(ctx, target)
+	if err != nil {
+		return WorkflowSpecDocument{}, err
+	}
 
 	spec := WorkflowSpecDocument{
 		Workspace: transportWorkspace(workspace),
@@ -216,7 +296,7 @@ func (s *queryService) WorkflowSpec(
 
 	if prdDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		target,
+		specTarget,
 		"_prd.md",
 		markdownDocumentKindPRD,
 		markdownDocumentKindPRD,
@@ -227,7 +307,7 @@ func (s *queryService) WorkflowSpec(
 	}
 	if techspecDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		target,
+		specTarget,
 		"_techspec.md",
 		markdownDocumentKindTechSpec,
 		markdownDocumentKindTechSpec,
@@ -236,7 +316,24 @@ func (s *queryService) WorkflowSpec(
 	} else if ok {
 		spec.TechSpec = &techspecDoc
 	}
+	if workflow.ParentWorkflowID != "" {
+		excerpt, excerptErr := readTaskGroupPlanExcerpt(ctx, specTarget, workflow)
+		if excerptErr != nil {
+			return WorkflowSpecDocument{}, excerptErr
+		}
+		spec.PlanExcerpt = &excerpt
+	}
+	spec.ADRs, err = s.readWorkflowADRs(ctx, specTarget)
+	if err != nil {
+		return WorkflowSpecDocument{}, err
+	}
+	return spec, nil
+}
 
+func (s *queryService) readWorkflowADRs(
+	ctx context.Context,
+	target workflowReadTarget,
+) ([]MarkdownDocument, error) {
 	if adrs, ok, err := snapshotDocumentsByPrefix(
 		target.snapshotsByPath,
 		"adrs/",
@@ -245,20 +342,20 @@ func (s *queryService) WorkflowSpec(
 			return strings.TrimSuffix(filepath.Base(relativePath), filepath.Ext(relativePath))
 		},
 	); err != nil {
-		return WorkflowSpecDocument{}, err
+		return nil, err
 	} else if ok {
-		spec.ADRs = adrs
-		return spec, nil
+		return adrs, nil
 	}
 
 	adrsDir := filepath.Join(target.rootDir, "adrs")
 	entries, err := readMarkdownDir(adrsDir)
 	if err != nil {
 		if !errors.Is(err, ErrDocumentMissing) {
-			return WorkflowSpecDocument{}, err
+			return nil, err
 		}
-		return spec, nil
+		return nil, nil
 	}
+	adrs := make([]MarkdownDocument, 0, len(entries))
 	for _, entry := range entries {
 		doc, err := s.documents.Read(
 			ctx,
@@ -267,11 +364,11 @@ func (s *queryService) WorkflowSpec(
 			strings.TrimSuffix(filepath.Base(entry.displayPath), filepath.Ext(entry.displayPath)),
 		)
 		if err != nil {
-			return WorkflowSpecDocument{}, err
+			return nil, err
 		}
-		spec.ADRs = append(spec.ADRs, doc)
+		adrs = append(adrs, doc)
 	}
-	return spec, nil
+	return adrs, nil
 }
 
 func (s *queryService) WorkflowMemoryIndex(
@@ -509,7 +606,7 @@ func (s *queryService) resolveWorkflowReadTarget(
 
 	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, slug)
 	if err == nil {
-		rootDir, rootErr := readableWorkflowRootDir(workspace.RootDir, workflow)
+		rootDir, rootErr := s.readableTaskGroupAwareWorkflowRootDir(ctx, workspace.RootDir, workflow)
 		if rootErr != nil {
 			return workflowReadTarget{}, rootErr
 		}
@@ -532,7 +629,7 @@ func (s *queryService) resolveWorkflowReadTarget(
 	if err != nil {
 		return workflowReadTarget{}, err
 	}
-	rootDir, err := readableWorkflowRootDir(workspace.RootDir, workflow)
+	rootDir, err := s.readableTaskGroupAwareWorkflowRootDir(ctx, workspace.RootDir, workflow)
 	if err != nil {
 		return workflowReadTarget{}, err
 	}
@@ -546,6 +643,112 @@ func (s *queryService) resolveWorkflowReadTarget(
 		rootDir:         rootDir,
 		snapshotsByPath: snapshots,
 	}, nil
+}
+
+func (s *queryService) resolveSpecificationReadTarget(
+	ctx context.Context,
+	target workflowReadTarget,
+) (workflowReadTarget, error) {
+	if target.workflow.ParentWorkflowID == "" {
+		return target, nil
+	}
+	parent, err := s.globalDB.GetWorkflow(ctx, target.workflow.ParentWorkflowID)
+	if err != nil {
+		return workflowReadTarget{}, fmt.Errorf(
+			"load initiative %q for task group specification: %w",
+			target.workflow.ParentWorkflowID,
+			err,
+		)
+	}
+	rootDir, err := readableWorkflowRootDir(target.workspace.RootDir, parent)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	snapshots, err := s.snapshotIndex(ctx, parent.ID)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	return workflowReadTarget{
+		workspace:       target.workspace,
+		workflow:        parent,
+		rootDir:         rootDir,
+		snapshotsByPath: snapshots,
+	}, nil
+}
+
+func readTaskGroupPlanExcerpt(
+	ctx context.Context,
+	initiativeTarget workflowReadTarget,
+	taskGroupWorkflow globaldb.Workflow,
+) (MarkdownDocument, error) {
+	if contextErr := context.Cause(ctx); contextErr != nil {
+		return MarkdownDocument{}, fmt.Errorf("read task group plan excerpt: %w", contextErr)
+	}
+	content, updatedAt, err := readTaskGroupPlanSource(initiativeTarget, taskGroupWorkflow)
+	if err != nil {
+		return MarkdownDocument{}, err
+	}
+	plan, err := taskgroups.ParsePlanForInitiative(content, initiativeTarget.workflow.Slug)
+	if err != nil {
+		return MarkdownDocument{}, fmt.Errorf("parse task group plan excerpt: %w", err)
+	}
+	excerpt, err := taskgroups.RenderTaskGroupExcerpt(plan, taskGroupWorkflow.TaskGroupID)
+	if err != nil {
+		return MarkdownDocument{}, fmt.Errorf("render task group plan excerpt: %w", err)
+	}
+	taskGroup, found := plan.TaskGroup(taskGroupWorkflow.TaskGroupID)
+	if !found {
+		return MarkdownDocument{}, fmt.Errorf(
+			"read task group plan excerpt: task group %q not found",
+			taskGroupWorkflow.TaskGroupID,
+		)
+	}
+	return MarkdownDocument{
+		ID:        "task-group-" + taskGroupWorkflow.TaskGroupID,
+		Kind:      "task_group",
+		Title:     taskGroupWorkflow.TaskGroupID + " — " + taskGroup.Title,
+		UpdatedAt: updatedAt,
+		Markdown:  string(excerpt),
+		Metadata: map[string]any{
+			"task_group_id": taskGroupWorkflow.TaskGroupID,
+			"workflow_ref":  taskGroupWorkflow.Slug,
+		},
+	}, nil
+}
+
+func readTaskGroupPlanSource(
+	initiativeTarget workflowReadTarget,
+	taskGroupWorkflow globaldb.Workflow,
+) (string, time.Time, error) {
+	if snapshot, ok := initiativeTarget.snapshotsByPath[taskgroups.ManifestFileName]; ok {
+		doc, err := markdownDocumentFromSnapshot(snapshot, "task_group", "task-group-plan")
+		if err != nil {
+			return "", time.Time{}, fmt.Errorf("read task group plan snapshot: %w", err)
+		}
+		content, err := frontmatter.Format(doc.Metadata, doc.Markdown)
+		if err != nil {
+			return "", time.Time{}, fmt.Errorf("format task group plan snapshot: %w", err)
+		}
+		return content, snapshot.SourceMTime.UTC(), nil
+	}
+
+	planPath := filepath.Join(initiativeTarget.rootDir, taskgroups.ManifestFileName)
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", time.Time{}, DocumentMissingError{
+				Kind:         "task_group",
+				WorkflowSlug: taskGroupWorkflow.Slug,
+				RelativePath: taskgroups.ManifestFileName,
+			}
+		}
+		return "", time.Time{}, fmt.Errorf("read task group plan excerpt: %w", err)
+	}
+	info, err := os.Stat(planPath)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("stat task group plan excerpt: %w", err)
+	}
+	return string(content), info.ModTime().UTC(), nil
 }
 
 func (s *queryService) snapshotIndex(
@@ -956,6 +1159,62 @@ func workflowReadTargetUsesArchivedFS(target workflowReadTarget) bool {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// readableTaskGroupAwareWorkflowRootDir resolves a workflow's on-disk root while
+// honoring task-group nesting for both active and archived generations. A work
+// task group (ParentWorkflowID set) keeps its artifacts nested at
+// <parentRoot>/<taskGroupDir>, so resolving by slug alone would point reads at
+// .compozy/tasks/<initiative>/<taskGroupID> instead of the manifest-declared
+// task group directory. Ordinary workflows and initiatives (no parent) keep the
+// plain slug-based resolution.
+func (s *queryService) readableTaskGroupAwareWorkflowRootDir(
+	ctx context.Context,
+	workspaceRoot string,
+	workflow globaldb.Workflow,
+) (string, error) {
+	if workflow.ParentWorkflowID == "" {
+		return readableWorkflowRootDir(workspaceRoot, workflow)
+	}
+	parent, err := s.globalDB.GetWorkflow(ctx, workflow.ParentWorkflowID)
+	if err != nil {
+		return "", fmt.Errorf(
+			"load initiative %q for task group %q: %w",
+			workflow.ParentWorkflowID,
+			workflow.Slug,
+			err,
+		)
+	}
+	parentRoot, err := readableWorkflowRootDir(workspaceRoot, parent)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parentRoot, archivedTaskGroupDirectory(parentRoot, parent.Slug, workflow)), nil
+}
+
+// archivedTaskGroupDirectory returns the initiative-relative directory that holds
+// one archived task group's artifacts. It prefers the directory declared by the
+// archived manifest and falls back to the legacy "_task_groups/<id>" layout when
+// the manifest is missing or unreadable.
+func archivedTaskGroupDirectory(parentRoot string, initiativeSlug string, child globaldb.Workflow) string {
+	taskGroupID := strings.TrimSpace(child.TaskGroupID)
+	fallback := filepath.Join("_task_groups", taskGroupID)
+	if taskGroupID == "" {
+		return fallback
+	}
+	content, err := os.ReadFile(filepath.Join(parentRoot, taskgroups.ManifestFileName))
+	if err != nil {
+		return fallback
+	}
+	plan, err := taskgroups.ParsePlanForInitiative(string(content), strings.TrimSpace(initiativeSlug))
+	if err != nil {
+		return fallback
+	}
+	taskGroup, found := plan.TaskGroup(taskGroupID)
+	if !found || strings.TrimSpace(taskGroup.Directory) == "" {
+		return fallback
+	}
+	return filepath.FromSlash(strings.TrimSpace(taskGroup.Directory))
 }
 
 func readableWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) (string, error) {

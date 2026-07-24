@@ -843,7 +843,9 @@ func formatTaskRunMultipleHandoffItem(item *apicore.TaskRunMultipleItem) string 
 	if branch := strings.TrimSpace(item.BaseBranch); branch != "" {
 		segments = append(segments, "base_branch="+branch)
 	}
-	if branch := strings.TrimSpace(item.ResultBranch); branch != "" {
+	if strings.TrimSpace(item.Status) == "no-changes" {
+		segments = append(segments, "result_branch=-", "nothing to open")
+	} else if branch := strings.TrimSpace(item.ResultBranch); branch != "" {
 		segments = append(segments, "result_branch="+branch)
 	}
 	if status := strings.TrimSpace(item.WorktreeStatus); status != "" {
@@ -947,6 +949,11 @@ func renderObservedRunStarted(event eventspkg.Event) string {
 	payload, ok := decodeObservedPayload[kinds.RunStartedPayload](event)
 	if !ok || payload.JobsTotal <= 0 {
 		return "run started\n"
+	}
+	// Surface the issue count alongside the job count so atomic grouping (several
+	// issues in one job) never reads as if an issue were skipped.
+	if payload.IssuesTotal > payload.JobsTotal {
+		return fmt.Sprintf("run started | jobs=%d issues=%d\n", payload.JobsTotal, payload.IssuesTotal)
 	}
 	return fmt.Sprintf("run started | jobs=%d\n", payload.JobsTotal)
 }

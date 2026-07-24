@@ -7,9 +7,14 @@ function workspaceHeader(workspaceId: string) {
   return { header: { [ACTIVE_WORKSPACE_HEADER]: workspaceId } } as const;
 }
 
+function taskGroupQuery(taskGroupId: string | undefined) {
+  return taskGroupId ? { query: { task_group_id: taskGroupId } } : {};
+}
+
 export interface WorkflowMemoryParams {
   workspaceId: string;
   slug: string;
+  taskGroupId?: string;
 }
 
 export async function getWorkflowMemoryIndex(
@@ -18,6 +23,7 @@ export async function getWorkflowMemoryIndex(
   const { data, error, response } = await daemonApiClient.GET("/api/tasks/{slug}/memory", {
     params: {
       path: { slug: params.slug },
+      ...taskGroupQuery(params.taskGroupId),
       ...workspaceHeader(params.workspaceId),
     },
   });
@@ -34,6 +40,7 @@ export interface WorkflowMemoryFileParams {
   workspaceId: string;
   slug: string;
   fileId: string;
+  taskGroupId?: string;
 }
 
 export async function getWorkflowMemoryFile(
@@ -44,6 +51,7 @@ export async function getWorkflowMemoryFile(
     {
       params: {
         path: { slug: params.slug, file_id: params.fileId },
+        ...taskGroupQuery(params.taskGroupId),
         ...workspaceHeader(params.workspaceId),
       },
     }

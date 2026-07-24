@@ -203,6 +203,12 @@ func loadTaskGraphNodeFiles(
 	manifestPath string,
 	nodes []TaskGraphNode,
 ) ([]TaskGraphTaskFile, []Issue, error) {
+	taskRoot, err := os.OpenRoot(tasksDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open task graph root: %w", err)
+	}
+	defer taskRoot.Close()
+
 	issues := make([]Issue, 0)
 	files := make([]TaskGraphTaskFile, 0, len(nodes))
 	state := newTaskGraphNodeValidationState(len(nodes))
@@ -216,7 +222,15 @@ func loadTaskGraphNodeFiles(
 		if skip {
 			continue
 		}
-		taskFile, fileIssues, err := loadTaskGraphNodeFile(tasksDir, id, file, number)
+		taskFile, fileIssues, err := loadTaskGraphNodeFile(
+			taskRoot,
+			tasksDir,
+			manifestPath,
+			fieldPrefix,
+			id,
+			file,
+			number,
+		)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -328,13 +342,23 @@ func validateTaskGraphNodeUniqueness(
 }
 
 func loadTaskGraphNodeFile(
+	taskRoot *os.Root,
 	tasksDir string,
+	manifestPath string,
+	fieldPrefix string,
 	id string,
 	file string,
 	number int,
 ) (TaskGraphTaskFile, []Issue, error) {
-	absPath := filepath.Join(tasksDir, filepath.FromSlash(file))
-	content, err := os.ReadFile(absPath)
+	absPath, err := resolveTaskGraphNodeFilePath(tasksDir, file)
+	if err != nil {
+		return TaskGraphTaskFile{}, []Issue{{
+			Path:    manifestPath,
+			Field:   fieldPrefix + ".file",
+			Message: err.Error(),
+		}}, nil
+	}
+	content, err := taskRoot.ReadFile(filepath.FromSlash(file))
 	if err != nil {
 		return TaskGraphTaskFile{}, []Issue{{
 			Path:    absPath,
@@ -356,6 +380,46 @@ func loadTaskGraphNodeFile(
 	}
 	entry.ID = id
 	return TaskGraphTaskFile{ID: id, File: file, AbsPath: absPath, Number: number, Entry: entry}, issues, nil
+}
+
+func resolveTaskGraphNodeFilePath(tasksDir string, file string) (string, error) {
+	root, err := filepath.Abs(strings.TrimSpace(tasksDir))
+	if err != nil {
+		return "", fmt.Errorf("resolve task root: %w", err)
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve task root: %w", err)
+	}
+	path := filepath.FromSlash(strings.TrimSpace(file))
+	if filepath.IsAbs(path) {
+		return "", errors.New("task node file must resolve within task root")
+	}
+	candidate := filepath.Join(root, path)
+	if !pathIsContained(root, candidate) {
+		return "", errors.New("task node file must resolve within task root")
+	}
+	if _, err := os.Lstat(candidate); err == nil {
+		resolved, resolveErr := filepath.EvalSymlinks(candidate)
+		if resolveErr != nil {
+			return "", fmt.Errorf("resolve task node file: %w", resolveErr)
+		}
+		if !pathIsContained(resolvedRoot, resolved) {
+			return "", errors.New("task node file must resolve within task root")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("inspect task node file: %w", err)
+	}
+	return candidate, nil
+}
+
+func pathIsContained(root string, candidate string) bool {
+	relative, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
+		!filepath.IsAbs(relative)
 }
 
 func validateTaskGraphEdges(manifestPath string, nodes []TaskGraphNode, edges []TaskGraphEdge) []Issue {

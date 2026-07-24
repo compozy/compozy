@@ -38,6 +38,15 @@
                     "type": "integer"
                 }
             },
+            "TaskGroupIDQuery": {
+                "description": "Optional stable Task Group ID selected beneath the initiative route slug.",
+                "in": "query",
+                "name": "task_group_id",
+                "schema": {
+                    "pattern": "^TG-[0-9]{3}$",
+                    "type": "string"
+                }
+            },
             "Round": {
                 "description": "Review round number.",
                 "in": "path",
@@ -645,6 +654,10 @@
                         "additionalProperties": true,
                         "type": "object"
                     },
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
+                        "type": "string"
+                    },
                     "presentation_mode": {
                         "type": "string"
                     },
@@ -715,6 +728,12 @@
                     },
                     "parent_run_id": {
                         "type": "string"
+                    },
+                    "out_of_order_needed": {
+                        "type": "boolean"
+                    },
+                    "out_of_order_requested": {
+                        "type": "boolean"
                     },
                     "presentation_mode": {
                         "type": "string"
@@ -1562,7 +1581,8 @@
                             "task_standard",
                             "task_parallel",
                             "task_multi_enqueued",
-                            "task_multi_parallel"
+                            "task_multi_parallel",
+                            "task_multi_group_parallel"
                         ],
                         "type": "string"
                     },
@@ -1581,8 +1601,15 @@
             },
             "TaskRunRequest": {
                 "properties": {
+                    "allow_out_of_order": {
+                        "type": "boolean"
+                    },
                     "execution": {
                         "$ref": "#/components/schemas/TaskExecutionDescriptor"
+                    },
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
+                        "type": "string"
                     },
                     "presentation_mode": {
                         "type": "string"
@@ -1595,6 +1622,19 @@
                         "type": "string"
                     }
                 },
+                "type": "object"
+            },
+            "TaskRunTarget": {
+                "properties": {
+                    "initiative_slug": {
+                        "type": "string"
+                    },
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
+                        "type": "string"
+                    }
+                },
+                "required": ["initiative_slug", "task_group_id"],
                 "type": "object"
             },
             "TaskRunMultipleItem": {
@@ -1618,7 +1658,14 @@
                         "type": "string"
                     },
                     "status": {
-                        "enum": ["queued", "running", "completed", "failed", "canceled"],
+                        "enum": [
+                            "queued",
+                            "running",
+                            "completed",
+                            "no-changes",
+                            "failed",
+                            "canceled"
+                        ],
                         "type": "string"
                     },
                     "worktree_path": {
@@ -1637,6 +1684,9 @@
             },
             "TaskRunMultipleRequest": {
                 "properties": {
+                    "allow_out_of_order": {
+                        "type": "boolean"
+                    },
                     "execution": {
                         "$ref": "#/components/schemas/TaskExecutionDescriptor"
                     },
@@ -1662,17 +1712,27 @@
                         "minItems": 1,
                         "type": "array"
                     },
+                    "targets": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskRunTarget"
+                        },
+                        "type": "array"
+                    },
                     "workspace": {
                         "type": "string"
                     }
                 },
-                "required": ["slugs"],
                 "type": "object"
             },
             "TaskRunMultipleSnapshotResponse": {
                 "properties": {
                     "execution_kind": {
-                        "enum": ["task_parallel", "task_multi_enqueued", "task_multi_parallel"],
+                        "enum": [
+                            "task_parallel",
+                            "task_multi_enqueued",
+                            "task_multi_parallel",
+                            "task_multi_group_parallel"
+                        ],
                         "type": "string"
                     },
                     "incomplete": {
@@ -1892,6 +1952,9 @@
             },
             "WorkflowRefRequest": {
                 "properties": {
+                    "task_group_id": {
+                        "type": "string"
+                    },
                     "workspace": {
                         "type": "string"
                     }
@@ -1902,6 +1965,9 @@
                 "properties": {
                     "force": {
                         "type": "boolean"
+                    },
+                    "task_group_id": {
+                        "type": "string"
                     },
                     "workspace": {
                         "type": "string"
@@ -1918,6 +1984,9 @@
                         "type": "array"
                     },
                     "prd": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    },
+                    "plan_excerpt": {
                         "$ref": "#/components/schemas/MarkdownDocument"
                     },
                     "techspec": {
@@ -1957,11 +2026,29 @@
                     "can_start_run": {
                         "type": "boolean"
                     },
+                    "display_title": {
+                        "type": "string"
+                    },
                     "id": {
                         "type": "string"
                     },
                     "last_synced_at": {
                         "format": "date-time",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "lifecycle_complete": {
+                        "type": "boolean"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    },
+                    "task_group_id": {
+                        "type": "string"
+                    },
+                    "parent_workflow_id": {
                         "type": "string"
                     },
                     "slug": {
@@ -1973,11 +2060,132 @@
                     "task_counts": {
                         "$ref": "#/components/schemas/WorkflowTaskCounts"
                     },
+                    "task_groups": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskGroupSummary"
+                        },
+                        "type": "array"
+                    },
                     "workspace_id": {
                         "type": "string"
                     }
                 },
                 "required": ["id", "slug", "workspace_id"],
+                "type": "object"
+            },
+            "TaskGroupSummary": {
+                "properties": {
+                    "active_runs": {
+                        "type": "integer"
+                    },
+                    "archive_eligible": {
+                        "type": "boolean"
+                    },
+                    "archive_reason": {
+                        "type": "string"
+                    },
+                    "can_start_run": {
+                        "type": "boolean"
+                    },
+                    "dependencies": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskGroupDependency"
+                        },
+                        "type": "array"
+                    },
+                    "independently_eligible": {
+                        "type": "boolean"
+                    },
+                    "latest_review": {
+                        "$ref": "#/components/schemas/ReviewSummary"
+                    },
+                    "lifecycle_complete": {
+                        "type": "boolean"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    },
+                    "task_group_id": {
+                        "type": "string"
+                    },
+                    "reference": {
+                        "type": "string"
+                    },
+                    "requires_start_confirmation": {
+                        "type": "boolean"
+                    },
+                    "start_block_reason": {
+                        "type": "string"
+                    },
+                    "task_counts": {
+                        "$ref": "#/components/schemas/WorkflowTaskCounts"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "unmet_dependency_count": {
+                        "type": "integer"
+                    },
+                    "unmet_dependencies": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskGroupDependency"
+                        },
+                        "type": "array"
+                    },
+                    "unmet_dependency_paths": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskGroupDependencyPath"
+                        },
+                        "type": "array"
+                    },
+                    "unresolved_reviews": {
+                        "type": "integer"
+                    },
+                    "workflow_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "lifecycle_complete",
+                    "outcome",
+                    "task_group_id",
+                    "reference",
+                    "title",
+                    "workflow_id"
+                ],
+                "type": "object"
+            },
+            "TaskGroupDependency": {
+                "properties": {
+                    "task_group_id": {
+                        "type": "string"
+                    },
+                    "rationale": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": ["task_group_id", "rationale", "title"],
+                "type": "object"
+            },
+            "TaskGroupDependencyPath": {
+                "properties": {
+                    "dependencies": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskGroupDependency"
+                        },
+                        "type": "array"
+                    },
+                    "task_group_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["dependencies", "task_group_ids"],
                 "type": "object"
             },
             "WorkflowTaskCounts": {
@@ -2161,6 +2369,10 @@
                     "max_rounds": {
                         "type": "integer"
                     },
+                    "task_group_id": {
+                        "pattern": "^TG-[0-9]{3}$",
+                        "type": "string"
+                    },
                     "poll_interval": {
                         "type": "string"
                     },
@@ -2289,6 +2501,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -2395,6 +2610,9 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
+                    },
+                    {
                         "$ref": "#/components/parameters/Round"
                     }
                 ],
@@ -2437,6 +2655,9 @@
                         "$ref": "#/components/parameters/Slug"
                     },
                     {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
+                    },
+                    {
                         "$ref": "#/components/parameters/Round"
                     }
                 ],
@@ -2477,6 +2698,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/Round"
@@ -3045,6 +3269,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -3136,6 +3363,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -3172,6 +3402,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/TaskID"
@@ -3211,6 +3444,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {
@@ -3247,6 +3483,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     },
                     {
                         "$ref": "#/components/parameters/FileID"
@@ -3341,6 +3580,9 @@
                     },
                     {
                         "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskGroupIDQuery"
                     }
                 ],
                 "responses": {

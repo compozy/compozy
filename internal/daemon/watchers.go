@@ -417,6 +417,12 @@ func watchEventTargetsDirectory(path string, watchedDirs map[string]struct{}, ev
 
 func isRelevantWorkflowArtifact(relativePath string) bool {
 	clean := filepath.ToSlash(strings.TrimSpace(relativePath))
+	if clean == "_task_groups.md" {
+		return true
+	}
+	if taskGroupArtifactPath, ok := taskGroupArtifactPath(clean); ok {
+		return isRelevantWorkflowArtifact(taskGroupArtifactPath)
+	}
 	base := filepath.Base(clean)
 	if !strings.HasSuffix(strings.ToLower(base), ".md") {
 		return false
@@ -445,6 +451,14 @@ func isRelevantWorkflowArtifact(relativePath string) bool {
 		}
 		return false
 	}
+}
+
+func taskGroupArtifactPath(path string) (string, bool) {
+	parts := strings.Split(filepath.ToSlash(strings.TrimSpace(path)), "/")
+	if len(parts) < 3 || parts[0] != "_task_groups" || parts[1] == "" {
+		return "", false
+	}
+	return strings.Join(parts[2:], "/"), true
 }
 
 func classifyWatchChangeKind(event fsnotify.Event) string {

@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
 	runparallel "github.com/compozy/compozy/internal/core/run/parallel"
+	"github.com/compozy/compozy/internal/core/taskgroups"
+	"github.com/compozy/compozy/internal/core/worktree"
 )
 
 const taskMultiTaskFilePattern = "task_%02d.md"
@@ -40,7 +40,50 @@ func mirrorTaskMultiWorkflowArtifacts(sourceTaskDir, worktreeRoot, slug string) 
 	if err := requireTaskMultiArtifactDestination(destination); err != nil {
 		return err
 	}
-	return copyTaskMultiArtifactTree(source, destination)
+	return worktree.OverlayTree(source, destination)
+}
+
+// mirrorTaskMultiGroupArtifacts copies the initiative specification tree, which
+// includes the selected group's operational directory, into an isolated
+// worktree. Task-group sync validates both sides of ExecutionScope against the
+// child workspace, so copying only the leaf task directory would leave the PRD
+// and TechSpec outside that workspace.
+func mirrorTaskMultiGroupArtifacts(scope *model.ExecutionScope, worktreeRoot string) error {
+	if scope == nil {
+		return errors.New("daemon: task-group execution scope is required")
+	}
+	ref, err := taskgroups.ParseTaskGroupRef(strings.TrimSpace(scope.WorkflowRef))
+	if err != nil {
+		return err
+	}
+	source := strings.TrimSpace(scope.SpecDir)
+	if source == "" {
+		return errors.New("daemon: task-group specification directory is required")
+	}
+	root := strings.TrimSpace(worktreeRoot)
+	if root == "" {
+		return errors.New("daemon: task-group destination worktree root is required")
+	}
+	if err := requireDirectory(source); err != nil {
+		return fmt.Errorf("mirror task-group artifacts for %q: specification directory %s: %w",
+			ref.String(), source, err)
+	}
+	destination := model.TaskDirectoryForWorkspace(root, ref.Initiative)
+	if err := requireTaskMultiArtifactDestination(destination); err != nil {
+		return err
+	}
+	if err := worktree.OverlayTree(source, destination); err != nil {
+		return err
+	}
+	operationalSource := strings.TrimSpace(scope.OperationalDir)
+	if operationalSource == "" {
+		return errors.New("daemon: task-group operational directory is required")
+	}
+	operationalDestination := model.TaskDirectoryForWorkspace(root, ref.String())
+	if err := requireTaskMultiArtifactDestination(operationalDestination); err != nil {
+		return err
+	}
+	return worktree.OverlayTree(operationalSource, operationalDestination)
 }
 
 func requireTaskMultiArtifactDestination(destination string) error {
@@ -59,98 +102,6 @@ func requireTaskMultiArtifactDestination(destination string) error {
 	default:
 		return fmt.Errorf("stat workflow artifact destination %s: %w", destination, err)
 	}
-}
-
-func copyTaskMultiArtifactTree(source, destination string) error {
-	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(source, path)
-		if err != nil {
-			return fmt.Errorf("resolve workflow artifact path %s: %w", path, err)
-		}
-		if rel == "." {
-			return nil
-		}
-		if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
-			return fmt.Errorf("workflow artifact path %s escapes source %s", path, source)
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("stat workflow artifact %s: %w", path, err)
-		}
-		mode := info.Mode()
-		if mode&os.ModeSymlink != 0 {
-			return fmt.Errorf("workflow artifact symlink %s is not supported", path)
-		}
-		target := filepath.Join(destination, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(target, dirPerm(mode.Perm()))
-		}
-		if !mode.IsRegular() {
-			return fmt.Errorf("workflow artifact %s is not a regular file", path)
-		}
-		return copyTaskMultiArtifactFile(path, target, mode.Perm())
-	})
-}
-
-func copyTaskMultiArtifactFile(source, destination string, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(destination), taskMultiWorktreeDirPerm); err != nil {
-		return fmt.Errorf("create workflow artifact parent for %s: %w", destination, err)
-	}
-	if err := rejectTaskMultiArtifactDestinationSymlink(destination); err != nil {
-		return err
-	}
-	in, err := os.Open(source)
-	if err != nil {
-		return fmt.Errorf("open workflow artifact %s: %w", source, err)
-	}
-	defer in.Close()
-	out, err := os.OpenFile(destination, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, filePerm(mode))
-	if err != nil {
-		return fmt.Errorf("create workflow artifact %s: %w", destination, err)
-	}
-	_, copyErr := io.Copy(out, in)
-	closeErr := out.Close()
-	if copyErr != nil {
-		return fmt.Errorf("copy workflow artifact %s to %s: %w", source, destination, copyErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close workflow artifact %s: %w", destination, closeErr)
-	}
-	return nil
-}
-
-func rejectTaskMultiArtifactDestinationSymlink(path string) error {
-	info, err := os.Lstat(path)
-	switch {
-	case err == nil:
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("workflow artifact destination %s is a symlink", path)
-		}
-		return nil
-	case errors.Is(err, os.ErrNotExist):
-		return nil
-	default:
-		return fmt.Errorf("stat workflow artifact destination %s: %w", path, err)
-	}
-}
-
-func dirPerm(mode os.FileMode) os.FileMode {
-	// Guard against a zero FileMode creating unreadable 0000 directories.
-	if mode == 0 {
-		return taskMultiWorktreeDirPerm
-	}
-	return mode
-}
-
-func filePerm(mode os.FileMode) os.FileMode {
-	// Guard against a zero FileMode creating unreadable 0000 files.
-	if mode == 0 {
-		return 0o600
-	}
-	return mode
 }
 
 func syncCompletedParallelTaskArtifacts(
@@ -216,7 +167,7 @@ func syncParallelTaskArtifact(
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("sync task artifact %s from %s: source is not a regular file", fileName, source)
 	}
-	if err := copyTaskMultiArtifactFile(source, destination, info.Mode().Perm()); err != nil {
+	if err := worktree.OverlayFile(source, destination, info.Mode().Perm()); err != nil {
 		return fmt.Errorf("sync task artifact %s to parent workspace: %w", fileName, err)
 	}
 	return nil

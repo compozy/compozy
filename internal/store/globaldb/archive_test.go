@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -462,6 +463,200 @@ func TestArchiveErrorFallbackMessages(t *testing.T) {
 	}
 	if got := (WorkflowNotArchivableError{}).Error(); got == "" {
 		t.Fatal("WorkflowNotArchivableError{}.Error() = empty, want fallback message")
+	}
+}
+
+func TestMarkWorkflowHierarchyArchivedSnapshotsInsideTransaction(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	parentID, childIDs := mustArchivableHierarchy(t, db)
+
+	archivedAt := time.Date(2026, 4, 18, 10, 0, 0, 0, time.UTC)
+	archived, err := db.MarkWorkflowHierarchyArchived(context.Background(), parentID, archivedAt)
+	if err != nil {
+		t.Fatalf("MarkWorkflowHierarchyArchived() error = %v", err)
+	}
+	if len(archived) != 1+len(childIDs) {
+		t.Fatalf("archived rows = %d, want %d", len(archived), 1+len(childIDs))
+	}
+	if archived[0].ID != parentID {
+		t.Fatalf("archived[0].ID = %q, want parent %q", archived[0].ID, parentID)
+	}
+	for _, workflow := range archived {
+		if workflow.ArchivedAt == nil || !workflow.ArchivedAt.Equal(archivedAt) {
+			t.Fatalf("workflow %q ArchivedAt = %#v, want %v", workflow.ID, workflow.ArchivedAt, archivedAt)
+		}
+	}
+	assertHierarchyArchived(t, db, parentID, childIDs, true)
+}
+
+func TestMarkWorkflowHierarchyArchivedRollsBackWhenSnapshotReadFails(t *testing.T) {
+	// Not parallel: overrides the task-group-level readArchivedHierarchySnapshot seam.
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	parentID, childIDs := mustArchivableHierarchy(t, db)
+
+	original := readArchivedHierarchySnapshot
+	t.Cleanup(func() {
+		readArchivedHierarchySnapshot = original
+	})
+	injected := errors.New("injected post-mutation read failure")
+	readArchivedHierarchySnapshot = func(context.Context, *sql.Tx, string) (Workflow, []Workflow, error) {
+		return Workflow{}, nil, injected
+	}
+
+	archivedAt := time.Date(2026, 4, 18, 11, 0, 0, 0, time.UTC)
+	if _, err := db.MarkWorkflowHierarchyArchived(
+		context.Background(),
+		parentID,
+		archivedAt,
+	); !errors.Is(err, injected) {
+		t.Fatalf("MarkWorkflowHierarchyArchived() error = %v, want injected read failure", err)
+	}
+	// A read failure after the UPDATE must roll the mutation back so the archived
+	// catalog can never diverge from the untouched filesystem hierarchy the
+	// caller keeps. A committed archive plus a returned error would strand an
+	// active directory over an archived parent and children.
+	assertHierarchyArchived(t, db, parentID, childIDs, false)
+}
+
+func TestMarkWorkflowHierarchyArchivedRejectsActiveHierarchyRuns(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		runOnChild bool
+	}{
+		{name: "Should reject when the initiative parent has an active run", runOnChild: false},
+		{name: "Should reject when a direct child has an active run", runOnChild: true},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := openTestGlobalDB(t)
+			defer func() {
+				_ = db.Close()
+			}()
+
+			parentID, childIDs := mustArchivableHierarchy(t, db)
+			runTarget := parentID
+			if tc.runOnChild {
+				runTarget = childIDs[0]
+			}
+			insertActiveHierarchyRun(t, db, runTarget, "run-"+runTarget)
+
+			archivedAt := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+			_, err := db.MarkWorkflowHierarchyArchived(context.Background(), parentID, archivedAt)
+			if !errors.Is(err, ErrWorkflowHasActiveRuns) {
+				t.Fatalf("MarkWorkflowHierarchyArchived() error = %v, want ErrWorkflowHasActiveRuns", err)
+			}
+			// The transactional guard must abort before touching any row so the
+			// filesystem root the caller keeps can never diverge from the catalog:
+			// no parent or child may be marked archived while a run is active.
+			assertHierarchyArchived(t, db, parentID, childIDs, false)
+		})
+	}
+}
+
+func insertActiveHierarchyRun(t *testing.T, db *GlobalDB, workflowID string, runID string) {
+	t.Helper()
+
+	workflow, err := db.GetWorkflow(context.Background(), workflowID)
+	if err != nil {
+		t.Fatalf("GetWorkflow(%q): %v", workflowID, err)
+	}
+	if _, err := db.PutRun(context.Background(), Run{
+		RunID:            runID,
+		WorkspaceID:      workflow.WorkspaceID,
+		WorkflowID:       &workflow.ID,
+		Mode:             "task",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        time.Date(2026, 4, 18, 9, 30, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("PutRun(%q): %v", runID, err)
+	}
+}
+
+func mustArchivableHierarchy(t *testing.T, db *GlobalDB) (parentID string, childIDs []string) {
+	t.Helper()
+
+	workspace := registerSyncTestWorkspace(t, db)
+	syncedAt := time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC)
+	child := func(taskGroupID string) WorkflowSyncInput {
+		return WorkflowSyncInput{
+			WorkspaceID:        workspace.ID,
+			WorkflowSlug:       "initiative/" + taskGroupID,
+			Kind:               WorkflowKindTaskGroup,
+			TaskGroupID:        taskGroupID,
+			DisplayTitle:       "Task Group " + taskGroupID,
+			Outcome:            "Deliver " + taskGroupID,
+			LifecycleCompleted: true,
+			SyncedAt:           syncedAt,
+			CheckpointChecksum: taskGroupID + "-checkpoint",
+			TaskItems: []TaskItemInput{{
+				TaskNumber: 1,
+				TaskID:     taskGroupID + "-task",
+				Title:      taskGroupID + " task",
+				Status:     "completed",
+				Kind:       "backend",
+				SourcePath: "task_01.md",
+			}},
+		}
+	}
+	result, err := db.ReconcileAggregateWorkflowSync(context.Background(), AggregateWorkflowSyncInput{
+		Parent: WorkflowSyncInput{
+			WorkspaceID:        workspace.ID,
+			WorkflowSlug:       "initiative",
+			Kind:               WorkflowKindInitiative,
+			DisplayTitle:       "Initiative",
+			SyncedAt:           syncedAt,
+			CheckpointChecksum: "initiative-checkpoint",
+		},
+		Children: []WorkflowSyncInput{child("TG-001"), child("TG-002")},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileAggregateWorkflowSync(): %v", err)
+	}
+	childIDs = make([]string, 0, len(result.Children))
+	for i := range result.Children {
+		childIDs = append(childIDs, result.Children[i].Workflow.ID)
+	}
+	return result.Parent.Workflow.ID, childIDs
+}
+
+func assertHierarchyArchived(t *testing.T, db *GlobalDB, parentID string, childIDs []string, archived bool) {
+	t.Helper()
+
+	parent, err := db.GetWorkflow(context.Background(), parentID)
+	if err != nil {
+		t.Fatalf("GetWorkflow(parent): %v", err)
+	}
+	if got := parent.ArchivedAt != nil; got != archived {
+		t.Fatalf("parent %q archived = %v, want %v", parentID, got, archived)
+	}
+	children, err := db.ListChildWorkflows(context.Background(), parentID, true)
+	if err != nil {
+		t.Fatalf("ListChildWorkflows(): %v", err)
+	}
+	if len(children) != len(childIDs) {
+		t.Fatalf("children = %d, want %d", len(children), len(childIDs))
+	}
+	for i := range children {
+		child := &children[i]
+		if got := child.ArchivedAt != nil; got != archived {
+			t.Fatalf("child %q archived = %v, want %v", child.ID, got, archived)
+		}
 	}
 }
 

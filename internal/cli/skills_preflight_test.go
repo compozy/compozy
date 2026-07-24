@@ -381,6 +381,82 @@ func TestVerifyRequiredSkillStateUsesSetupAgentNameAndExtensionScopeHint(t *test
 	})
 }
 
+func TestVerifyRequiredSkillStateFallsBackToCompleteGlobalInstall(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	state.workspaceRoot = "/tmp/workspace-root"
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{{Name: "compozy"}, {Name: "git-rebase"}}, nil
+	}
+
+	bundledCalls := 0
+	state.verifyBundledSkills = func(cfg setup.VerifyConfig) (setup.VerifyResult, error) {
+		bundledCalls++
+		switch bundledCalls {
+		case 1:
+			if cfg.ScopeHint != setup.InstallScopeUnknown {
+				t.Fatalf("expected automatic initial scope, got %q", cfg.ScopeHint)
+			}
+			return setup.VerifyResult{
+				Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+				Scope: setup.InstallScopeProject,
+				Mode:  setup.InstallModeCopy,
+				Skills: []setup.VerifiedSkill{
+					{Skill: setup.Skill{Name: "compozy"}, State: setup.VerifyStateMissing},
+					{Skill: setup.Skill{Name: "git-rebase"}, State: setup.VerifyStateCurrent},
+				},
+			}, nil
+		case 2:
+			if cfg.ScopeHint != setup.InstallScopeGlobal {
+				t.Fatalf("expected explicit global fallback, got %q", cfg.ScopeHint)
+			}
+			return setup.VerifyResult{
+				Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+				Scope: setup.InstallScopeGlobal,
+				Mode:  setup.InstallModeSymlink,
+				Skills: []setup.VerifiedSkill{
+					{Skill: setup.Skill{Name: "compozy"}, State: setup.VerifyStateCurrent},
+					{Skill: setup.Skill{Name: "git-rebase"}, State: setup.VerifyStateCurrent},
+				},
+			}, nil
+		default:
+			t.Fatalf("unexpected bundled verification call %d", bundledCalls)
+			return setup.VerifyResult{}, nil
+		}
+	}
+
+	var extensionScopeHints []setup.InstallScope
+	state.verifyExtensionSkills = func(cfg setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error) {
+		extensionScopeHints = append(extensionScopeHints, cfg.ScopeHint)
+		return setup.ExtensionVerifyResult{
+			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+			Scope: cfg.ScopeHint,
+			Mode:  setup.InstallModeSymlink,
+		}, nil
+	}
+
+	result, err := state.verifyRequiredSkillState(core.Config{IDE: core.IDECodex}, nil)
+	if err != nil {
+		t.Fatalf("verify required skill state: %v", err)
+	}
+	if result.HasBlockingMissing() {
+		t.Fatalf("expected complete global install, got missing skills: %#v", result.BlockingMissingSkillNames())
+	}
+	if result.Scope() != setup.InstallScopeGlobal {
+		t.Fatalf("expected global scope, got %q", result.Scope())
+	}
+	if bundledCalls != 2 {
+		t.Fatalf("expected project and global verification, got %d call(s)", bundledCalls)
+	}
+	if len(extensionScopeHints) != 2 {
+		t.Fatalf("expected project and global extension verification, got %d call(s)", len(extensionScopeHints))
+	}
+	if got := string(extensionScopeHints[0]) + "," + string(extensionScopeHints[1]); got != "project,global" {
+		t.Fatalf("unexpected extension scope hints: %q", got)
+	}
+}
+
 func TestRequiredSkillStateFallsBackToExtensionMetadata(t *testing.T) {
 	t.Parallel()
 

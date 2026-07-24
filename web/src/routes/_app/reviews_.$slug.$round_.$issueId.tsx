@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
+import { taskGroupSearchSchema } from "@/lib/task-group-search";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import {
   ReviewDetailView,
@@ -14,6 +15,7 @@ import {
 
 export const Route = createFileRoute("/_app/reviews_/$slug/$round_/$issueId")({
   component: ReviewIssueDetailRoute,
+  validateSearch: taskGroupSearchSchema,
   parseParams: params => ({
     slug: params.slug,
     round: params.round,
@@ -25,6 +27,7 @@ function ReviewIssueDetailRoute(): ReactElement {
   const { slug, round, issueId } = useParams({
     from: "/_app/reviews_/$slug/$round_/$issueId",
   });
+  const { task_group_id: taskGroupId } = Route.useSearch();
   const navigate = useNavigate();
   const { activeWorkspace, workspaces, onSwitchWorkspace } = useActiveWorkspaceContext();
   const parsedRound = parseRound(round);
@@ -32,7 +35,8 @@ function ReviewIssueDetailRoute(): ReactElement {
     activeWorkspace.id,
     slug,
     Number.isFinite(parsedRound) ? parsedRound : null,
-    issueId
+    issueId,
+    taskGroupId
   );
   const startReviewRun = useStartReviewRun();
   const [dispatchedRun, setDispatchedRun] = useState<ReviewRelatedRun | null>(null);
@@ -46,6 +50,7 @@ function ReviewIssueDetailRoute(): ReactElement {
           void navigate({
             to: "/reviews/$slug/$round",
             params: { slug, round },
+            search: taskGroupId ? { task_group_id: taskGroupId } : {},
           })
         }
         type="button"
@@ -104,12 +109,14 @@ function ReviewIssueDetailRoute(): ReactElement {
           isDispatching={startReviewRun.isPending}
           isReadOnly={activeWorkspace.read_only}
           isRefreshing={issueQuery.isRefetching}
+          taskGroupId={taskGroupId}
           onDispatchFix={() => {
             startReviewRun.mutate(
               {
                 workspaceId: activeWorkspace.id,
                 slug,
                 round: parsedRound,
+                taskGroupId,
               },
               {
                 onSuccess: run => setDispatchedRun(run),
@@ -117,6 +124,7 @@ function ReviewIssueDetailRoute(): ReactElement {
             );
           }}
           payload={issueQuery.data}
+          workflowSlug={slug}
         />
       ) : null}
     </AppShellLayout>

@@ -23,19 +23,20 @@ const (
 )
 
 type Config struct {
-	TasksDir       string
-	Registry       *tasks.TypeRegistry
-	IsInteractive  func() bool
-	Force          bool
-	SkipValidation bool
-	Recursive      bool
-	Stderr         io.Writer
-	FormInput      io.Reader
-	FormOutput     io.Writer
-	ClipboardWrite func(string) error
-	Logger         *slog.Logger
-	ValidationFn   func(context.Context, string, *tasks.TypeRegistry) (tasks.Report, error)
-	ValidationForm func(tasks.Report, *tasks.TypeRegistry, io.Writer) (Decision, error)
+	TasksDir         string
+	Registry         *tasks.TypeRegistry
+	IsInteractive    func() bool
+	Force            bool
+	SkipValidation   bool
+	Recursive        bool
+	ExpectedWorkflow string
+	Stderr           io.Writer
+	FormInput        io.Reader
+	FormOutput       io.Writer
+	ClipboardWrite   func(string) error
+	Logger           *slog.Logger
+	ValidationFn     func(context.Context, string, *tasks.TypeRegistry) (tasks.Report, error)
+	ValidationForm   func(tasks.Report, *tasks.TypeRegistry, io.Writer) (Decision, error)
 }
 
 func Check(
@@ -63,7 +64,8 @@ func CheckConfig(ctx context.Context, cfg Config) (Decision, error) {
 	if validate == nil {
 		validate = func(ctx context.Context, tasksDir string, registry *tasks.TypeRegistry) (tasks.Report, error) {
 			return tasks.ValidateWithOptions(ctx, tasksDir, registry, tasks.ValidateOptions{
-				Recursive: cfg.Recursive,
+				Recursive:        cfg.Recursive,
+				ExpectedWorkflow: cfg.ExpectedWorkflow,
 			})
 		}
 	}

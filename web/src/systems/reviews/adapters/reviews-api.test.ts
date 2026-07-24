@@ -43,6 +43,27 @@ describe("reviews api adapter", () => {
     expect(stub.calls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
   });
 
+  it("Should encode a selected task group on review reads", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/reviews/alpha?task_group_id=TG-002"),
+        status: 200,
+        body: {
+          review: {
+            workflow_slug: "alpha",
+            round_number: 2,
+            resolved_count: 1,
+            unresolved_count: 0,
+            updated_at: "2026-01-02T00:00:00Z",
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await getLatestReview({ workspaceId: "ws-1", slug: "alpha", taskGroupId: "TG-002" });
+    expect(stub.calls[0]?.url).toContain("task_group_id=TG-002");
+  });
+
   it("Should GET one review round with the workspace header", async () => {
     const stub = installFetchStub([
       {

@@ -181,16 +181,24 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	if _, ok := getMap(t, taskRunSchema, "properties")["execution"]; !ok {
 		t.Fatal("TaskRunRequest must expose execution descriptor")
 	}
+	taskRunProperties := getMap(t, taskRunSchema, "properties")
+	for _, field := range []string{"task_group_id", "allow_out_of_order"} {
+		if _, ok := taskRunProperties[field]; !ok {
+			t.Fatalf("TaskRunRequest must expose %s", field)
+		}
+	}
 	taskRunMultipleSchema := getSchema(t, spec, "TaskRunMultipleRequest")
 	if schemaRequires(taskRunMultipleSchema, "workspace") {
 		t.Fatal("TaskRunMultipleRequest must not require workspace")
 	}
-	if !schemaRequires(taskRunMultipleSchema, "slugs") {
-		t.Fatal("TaskRunMultipleRequest must require slugs")
+	if schemaRequires(taskRunMultipleSchema, "slugs") {
+		t.Fatal("TaskRunMultipleRequest must keep legacy slugs optional for structured targets")
 	}
 	taskRunMultipleProperties := getMap(t, taskRunMultipleSchema, "properties")
 	for _, field := range []string{
+		"allow_out_of_order",
 		"slugs",
+		"targets",
 		"mode",
 		"parallel_limit",
 		"presentation_mode",
@@ -201,6 +209,24 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		if _, ok := taskRunMultipleProperties[field]; !ok {
 			t.Fatalf("TaskRunMultipleRequest must expose %s", field)
 		}
+	}
+	if schemaRequires(taskRunMultipleSchema, "targets") {
+		t.Fatal("TaskRunMultipleRequest must keep structured targets optional versus legacy slugs")
+	}
+	targetsSchema := getMap(t, taskRunMultipleProperties, "targets")
+	targetItems := getMap(t, targetsSchema, "items")
+	if ref, _ := targetItems["$ref"].(string); ref != "#/components/schemas/TaskRunTarget" {
+		t.Fatalf("TaskRunMultipleRequest.targets items ref = %v, want TaskRunTarget", targetItems["$ref"])
+	}
+	taskRunTargetSchema := getSchema(t, spec, "TaskRunTarget")
+	for _, field := range []string{"initiative_slug", "task_group_id"} {
+		if !schemaRequires(taskRunTargetSchema, field) {
+			t.Fatalf("TaskRunTarget must require %s to match runtime normalization", field)
+		}
+	}
+	taskGroupIDSchema := getMap(t, getMap(t, taskRunTargetSchema, "properties"), "task_group_id")
+	if pattern, _ := taskGroupIDSchema["pattern"].(string); pattern != `^TG-[0-9]{3}$` {
+		t.Fatalf("TaskRunTarget.task_group_id pattern = %v, want ^TG-[0-9]{3}$", taskGroupIDSchema["pattern"])
 	}
 	multiRunSnapshot := getSchema(t, spec, "TaskRunMultipleSnapshotResponse")
 	if !schemaRequires(multiRunSnapshot, "run") {
@@ -252,6 +278,41 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	if _, ok := archiveProperties["force"]; !ok {
 		t.Fatal("WorkflowArchiveRequest must expose force")
 	}
+	workflowSummaryProperties := getMap(t, getSchema(t, spec, "WorkflowSummary"), "properties")
+	for _, field := range []string{"kind", "task_group_id", "lifecycle_complete", "task_groups"} {
+		if _, ok := workflowSummaryProperties[field]; !ok {
+			t.Fatalf("WorkflowSummary must expose %s", field)
+		}
+	}
+	taskGroupProperties := getMap(t, getSchema(t, spec, "TaskGroupSummary"), "properties")
+	for _, field := range []string{
+		"task_group_id",
+		"reference",
+		"title",
+		"outcome",
+		"lifecycle_complete",
+		"dependencies",
+		"task_counts",
+		"unresolved_reviews",
+		"unmet_dependency_count",
+		"unmet_dependencies",
+		"unmet_dependency_paths",
+		"independently_eligible",
+		"active_runs",
+		"can_start_run",
+		"requires_start_confirmation",
+		"start_block_reason",
+		"archive_eligible",
+		"archive_reason",
+	} {
+		if _, ok := taskGroupProperties[field]; !ok {
+			t.Fatalf("TaskGroupSummary must expose %s", field)
+		}
+	}
+	workflowSpecProperties := getMap(t, getSchema(t, spec, "WorkflowSpecDocument"), "properties")
+	if _, ok := workflowSpecProperties["plan_excerpt"]; !ok {
+		t.Fatal("WorkflowSpecDocument must expose plan_excerpt")
+	}
 
 	runSnapshot := getSchema(t, spec, "RunSnapshotPayload")
 	if !schemaRequires(runSnapshot, "run") {
@@ -297,6 +358,37 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 			operation := getOperation(t, spec, routeKey)
 			if !hasResponse(operation, "403") {
 				t.Fatalf("%s is missing 403 browser security response", routeKey)
+			}
+		})
+	}
+}
+
+func TestBrowserOpenAPIContractConstrainsTaskGroupIDBodySelectors(t *testing.T) {
+	t.Parallel()
+
+	spec := loadBrowserOpenAPISpec(t)
+	// Every request-body task_group_id routed through taskgroups.ParseTaskGroupRef must
+	// advertise the TG-NNN pattern; otherwise generated clients marshal selectors that
+	// satisfy the published schema yet fail runtime parsing with HTTP 422.
+	const wantPattern = `^TG-[0-9]{3}$`
+	for _, schemaName := range []string{
+		"TaskRunRequest",
+		"ReviewRunRequest",
+		"ReviewWatchRequest",
+	} {
+		schemaName := schemaName
+		t.Run("Should constrain "+schemaName+".task_group_id to the TG-NNN pattern", func(t *testing.T) {
+			t.Parallel()
+
+			schema := getSchema(t, spec, schemaName)
+			taskGroupID := getMap(t, getMap(t, schema, "properties"), "task_group_id")
+			if pattern, _ := taskGroupID["pattern"].(string); pattern != wantPattern {
+				t.Fatalf("%s.task_group_id pattern = %v, want %s", schemaName, taskGroupID["pattern"], wantPattern)
+			}
+			// The selector stays optional so an omitted task_group_id still resolves the
+			// bare initiative; requiring it would reject the single-task-group run path.
+			if schemaRequires(schema, "task_group_id") {
+				t.Fatalf("%s.task_group_id must stay optional to preserve the no-task-group selection path", schemaName)
 			}
 		})
 	}

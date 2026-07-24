@@ -68,3 +68,25 @@ The leading underscore prefix is reserved for meta documents:
 ## Parser Compatibility
 
 Compozy reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with YAML frontmatter for `ParseTaskFile()` to read the metadata.
+
+## Task Group identity and scope
+
+For an opted-in initiative, `_task_groups.md` at initiative root is marker and
+canonical plan. New task group operational files live under the directory declared
+for their stable ID, normally `_task_groups/NNN-<brief>/`; legacy
+`_task_groups/TG-NNN/` directories remain valid. Root remains shared `SpecDir` for
+`_prd.md`, `_techspec.md`, `_user_stories.md`, `_tests.md`, and ADRs.
+Task Group-local manifest is valid only when logical `workflow` equals full public
+reference `<initiative>/TG-NNN` and task paths remain inside the
+manifest-declared task group directory.
+
+Task Group ID is stable identity; title and outcome are display fields. Validate
+task ownership using qualified keys `<task-group-id>/<task-id>`, so repeated local
+task filenames in different task groups do not collide while cross-task-group file
+references or repeated qualified keys are rejected. Audit `_tests.md`
+assignments across every task group manifest exactly once before generation
+succeeds.
+
+These rules apply only after `_task_groups.md` validates. If marker is absent,
+retain ordinary discovery and manifest behavior exactly as before; if marker is
+present but empty or malformed, fail closed as invalid opt-in.

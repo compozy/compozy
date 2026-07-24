@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
@@ -202,6 +203,10 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 
 func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	var captured agent.ClientConfig
+	start := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
+	clock := newFakeClock(start)
+	t.Cleanup(SetActivityClockForTest(clock))
+	activity := newActivityMonitor()
 	restore := SwapNewAgentClientForTest(func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
 		captured = cfg
 		return &capturingCommandIOClient{}, nil
@@ -223,6 +228,7 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 			ReasoningEffort: "high",
 		},
 		silentLogger(),
+		activity,
 	)
 	if err != nil {
 		t.Fatalf("create ACP client: %v", err)
@@ -242,6 +248,64 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	if captured.AccessMode != model.AccessModeFull {
 		t.Fatalf("expected access mode to stay global, got %q", captured.AccessMode)
 	}
+	if captured.TerminalActivityStarted == nil || captured.TerminalActivityFinished == nil {
+		t.Fatal("terminal activity callbacks were not forwarded to the ACP client")
+	}
+	captured.TerminalActivityStarted()
+	if idle := activity.TimeSinceLastActivity(); idle != 0 {
+		t.Fatalf("active terminal reported idle duration %v, want 0", idle)
+	}
+	captured.TerminalActivityFinished()
+	clock.set(start.Add(time.Second))
+	if idle := activity.TimeSinceLastActivity(); idle != time.Second {
+		t.Fatalf("finished terminal reported idle duration %v, want %v", idle, time.Second)
+	}
+}
+
+func TestCreateACPClientTerminalActivityDoesNotBlindWatchdog(t *testing.T) {
+	var captured agent.ClientConfig
+	start := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
+	clock := newFakeClock(start)
+	t.Cleanup(SetActivityClockForTest(clock))
+	activity := newActivityMonitor()
+	restore := SwapNewAgentClientForTest(func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
+		captured = cfg
+		return &capturingCommandIOClient{}, nil
+	})
+	defer restore()
+
+	if _, err := createACPClient(
+		context.Background(),
+		&config{IDE: model.IDECodex},
+		&job{},
+		silentLogger(),
+		activity,
+	); err != nil {
+		t.Fatalf("create ACP client: %v", err)
+	}
+	if captured.RecordActivity == nil {
+		t.Fatal("RecordActivity heartbeat was not forwarded to the ACP client")
+	}
+
+	t.Run("Should let a silent open terminal's idle clock advance", func(t *testing.T) {
+		// A terminal that stays open no longer holds the watchdog blind: with no
+		// output the idle clock advances, so a wedged command trips near the idle
+		// window instead of hiding behind the 45m absolute cap.
+		captured.TerminalActivityStarted()
+		clock.set(start.Add(3 * time.Minute))
+		if idle := activity.TimeSinceLastActivity(); idle != 3*time.Minute {
+			t.Fatalf("silent open terminal idle = %v, want 3m (no blindness)", idle)
+		}
+	})
+
+	t.Run("Should reset the idle clock on terminal output", func(t *testing.T) {
+		// Terminal output records a heartbeat, so a command that keeps producing
+		// output stays alive.
+		captured.RecordActivity()
+		if idle := activity.TimeSinceLastActivity(); idle != 0 {
+			t.Fatalf("terminal output heartbeat idle = %v, want 0", idle)
+		}
+	})
 }
 
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/internal/charmtheme"
@@ -94,6 +96,21 @@ func renderFormSuccess() string {
 func darkHuhTheme() huh.Theme {
 	return huh.ThemeFunc(func(bool) *huh.Styles {
 		return newDarkHuhStyles()
+	})
+}
+
+func reviewTaskGroupPickerHuhTheme() huh.Theme {
+	return huh.ThemeFunc(func(bool) *huh.Styles {
+		styles := newDarkHuhStyles()
+		selectedLabel := func(label string) string {
+			if strings.Contains(label, taskGroupPickerBlockedMarker) {
+				return label
+			}
+			return taskGroupPickerSelectedLabel(label)
+		}
+		styles.Focused.SelectedOption = styles.Focused.SelectedOption.Transform(selectedLabel)
+		styles.Blurred.SelectedOption = styles.Blurred.SelectedOption.Transform(selectedLabel)
+		return styles
 	})
 }
 

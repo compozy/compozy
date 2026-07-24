@@ -27,7 +27,7 @@ The standard development pipeline follows these phases in order. Each phase prod
 2. **Ideation** (optional) -- install and enable the first-party `cy-idea-factory` extension, run `compozy setup`, then use `/cy-idea-factory` to expand a raw idea into a structured, research-backed spec at `.compozy/tasks/<slug>/_idea.md`.
 3. **Requirements** -- `/cy-create-prd` creates a business-focused Product Requirements Document at `.compozy/tasks/<slug>/_prd.md` plus the user-story catalog `_user_stories.md`, with ADRs.
 4. **Technical Design** -- `/cy-create-techspec` translates the PRD into a technical specification at `.compozy/tasks/<slug>/_techspec.md` plus the test contract `_tests.md`, with ADRs.
-5. **Task Decomposition** -- `/cy-create-tasks` breaks down the PRD and TechSpec into robust, independently implementable task files (`task_01.md`, `task_02.md`, etc.) and a canonical task graph manifest at `_tasks.md`, assigning every `_tests.md` case to a task.
+5. **Task Decomposition** -- `/cy-create-tasks` breaks down the PRD and TechSpec into robust, independently implementable task files (`task_01.md`, `task_02.md`, etc.) and a canonical task graph manifest at `_tasks.md`, assigning every `_tests.md` case to a task. For larger initiatives it can first propose optional Task Groups, each with a complete task table for approval.
 6. **Execution** -- `compozy tasks run <slug> --ide <runtime>` dispatches task files to the configured AI agent for implementation. Use `--parallel-tasks` to run one workflow by dependency waves from `_tasks.md` graph edges.
 7. **Review** -- `/cy-review-round` (manual AI review) or `compozy reviews fetch <slug> --provider coderabbit --pr <N>` (external provider) produces review issue files under `reviews-NNN/`.
 8. **Remediation** -- `compozy reviews fix <slug>` processes review issues, triages, fixes, and verifies each one.
@@ -80,7 +80,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | `compozy reviews fetch` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round` |
 | `compozy reviews fix` | Process review issue files | `--name`, `--round`, `--concurrent`, `--batch-size`, `--ide` |
 | **Utilities** | | |
-| `compozy tasks validate` | Validate task file metadata | `--name`, `--tasks-dir`, `--format` |
+| `compozy tasks validate` | Validate task files, graphs, and Task Group plans | `--name`, `--tasks-dir`, `--format` |
 | `compozy sync` | Reconcile workflow artifacts into daemon `global.db` | `--name`, `--root-dir`, `--tasks-dir` |
 | `compozy archive` | Move daemon-eligible completed workflows to archive | `--name`, `--root-dir`, `--tasks-dir` |
 | `compozy migrate` | Convert legacy artifacts to frontmatter | `--name`, `--dry-run`, `--reviews-dir` |
@@ -135,6 +135,11 @@ For detailed skill descriptions and inputs/outputs, read `references/skills-refe
       _tests.md                        # Test contract (companion to the TechSpec)
       _tasks.md                        # Task graph manifest
       task_01.md ... task_N.md         # Individual task files
+      _task_groups.md                # Optional task group graph and stable TG-NNN identities
+      _task_groups/
+        001-shared-foundation/         # Readable physical directory declared by the task group graph
+          _tasks.md                    # Task Group-local task graph; workflow remains <slug>/TG-001
+          task_01.md ... task_N.md
       adrs/
         adr-001.md ... adr-NNN.md      # Architecture Decision Records
       reviews-NNN/
@@ -179,6 +184,11 @@ recursive = false
 [fix_reviews]
 concurrent = 2
 batch_size = 3
+
+[fix_reviews.stall]
+timeout = "45s"
+terminal_command_timeout = "8m"
+retries = 4
 
 [fetch_reviews]
 provider = "coderabbit"

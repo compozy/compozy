@@ -16,11 +16,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/core/taskgroups"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-const maxPageLimit = 500
+// MaxPageLimit is the largest collection page accepted by daemon API handlers.
+const MaxPageLimit = 500
 
 const workspaceSocketWriteTimeout = 5 * time.Second
 
@@ -298,6 +300,75 @@ func normalizeRequiredSlugs(values []string) ([]string, error) {
 		slugs = append(slugs, slug)
 	}
 	return slugs, nil
+}
+
+func workflowRouteReference(slug string, taskGroupID string) (string, error) {
+	initiative := strings.TrimSpace(slug)
+	if initiative == "" {
+		return "", validationProblem(
+			"workflow_slug_required",
+			"workflow slug is required",
+			map[string]any{"field": "slug"},
+		)
+	}
+	if strings.Contains(initiative, "/") {
+		return "", validationProblem(
+			"workflow_route_segment_invalid",
+			"workflow route slug must be one segment",
+			map[string]any{"field": "slug"},
+		)
+	}
+	selectedTaskGroup := strings.TrimSpace(taskGroupID)
+	if selectedTaskGroup == "" {
+		return initiative, nil
+	}
+	ref, err := taskgroups.ParseTaskGroupRef(initiative + "/" + selectedTaskGroup)
+	if err != nil {
+		return "", err
+	}
+	return ref.String(), nil
+}
+
+func (h *Handlers) queryWorkflowReference(c *gin.Context) (string, bool) {
+	reference, err := workflowRouteReference(c.Param("slug"), c.Query("task_group_id"))
+	if err != nil {
+		h.respondError(c, err)
+		return "", false
+	}
+	return reference, true
+}
+
+func normalizeTaskRunTargets(targets []TaskRunTarget) ([]TaskRunTarget, error) {
+	if len(targets) == 0 {
+		return nil, nil
+	}
+	result := make([]TaskRunTarget, 0, len(targets))
+	seen := make(map[string]struct{}, len(targets))
+	for index, target := range targets {
+		initiative := strings.TrimSpace(target.InitiativeSlug)
+		taskGroupID := strings.TrimSpace(target.TaskGroupID)
+		if taskGroupID == "" {
+			return nil, validationProblem(
+				"task_group_selection_required",
+				"structured task targets require task_group_id",
+				map[string]any{"field": "targets", "index": index},
+			)
+		}
+		reference, err := workflowRouteReference(initiative, taskGroupID)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[reference]; exists {
+			return nil, validationProblem(
+				"target_duplicate",
+				fmt.Sprintf("duplicate task target %q", reference),
+				map[string]any{"field": "targets", "target": reference},
+			)
+		}
+		seen[reference] = struct{}{}
+		result = append(result, TaskRunTarget{InitiativeSlug: initiative, TaskGroupID: taskGroupID})
+	}
+	return result, nil
 }
 
 func parsePositiveInt(value string, field string) (int, error) {
@@ -655,7 +726,11 @@ func (h *Handlers) GetTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	workflow, err := h.Tasks.WorkflowOverview(c.Request.Context(), workspace, c.Param("slug"))
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	workflow, err := h.Tasks.WorkflowOverview(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -675,7 +750,11 @@ func (h *Handlers) ListTaskItems(c *gin.Context) {
 		return
 	}
 
-	items, err := h.Tasks.ListItems(c.Request.Context(), workspace, c.Param("slug"))
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	items, err := h.Tasks.ListItems(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -695,7 +774,11 @@ func (h *Handlers) GetTaskBoard(c *gin.Context) {
 		return
 	}
 
-	board, err := h.Tasks.TaskBoard(c.Request.Context(), workspace, c.Param("slug"))
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	board, err := h.Tasks.TaskBoard(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -715,7 +798,11 @@ func (h *Handlers) GetWorkflowSpec(c *gin.Context) {
 		return
 	}
 
-	spec, err := h.Tasks.WorkflowSpec(c.Request.Context(), workspace, c.Param("slug"))
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	spec, err := h.Tasks.WorkflowSpec(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -735,7 +822,11 @@ func (h *Handlers) GetWorkflowMemory(c *gin.Context) {
 		return
 	}
 
-	memory, err := h.Tasks.WorkflowMemoryIndex(c.Request.Context(), workspace, c.Param("slug"))
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	memory, err := h.Tasks.WorkflowMemoryIndex(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -755,10 +846,14 @@ func (h *Handlers) GetWorkflowMemoryFile(c *gin.Context) {
 		return
 	}
 
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
 	document, err := h.Tasks.WorkflowMemoryFile(
 		c.Request.Context(),
 		workspace,
-		c.Param("slug"),
+		reference,
 		c.Param("file_id"),
 	)
 	if err != nil {
@@ -780,10 +875,14 @@ func (h *Handlers) GetTaskItemDetail(c *gin.Context) {
 		return
 	}
 
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
 	taskDetail, err := h.Tasks.TaskDetail(
 		c.Request.Context(),
 		workspace,
-		c.Param("slug"),
+		reference,
 		c.Param("task_id"),
 	)
 	if err != nil {
@@ -809,7 +908,12 @@ func (h *Handlers) ValidateTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	result, err := h.Tasks.Validate(c.Request.Context(), workspace, c.Param("slug"))
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	result, err := h.Tasks.Validate(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -833,8 +937,15 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 		return
 	}
 
-	run, err := h.Tasks.StartRun(c.Request.Context(), workspace, c.Param("slug"), TaskRunRequest{
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	run, err := h.Tasks.StartRun(c.Request.Context(), workspace, reference, TaskRunRequest{
 		Workspace:        workspace,
+		TaskGroupID:      strings.TrimSpace(body.TaskGroupID),
+		AllowOutOfOrder:  body.AllowOutOfOrder,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
 		Execution:        body.Execution,
@@ -861,17 +972,48 @@ func (h *Handlers) StartTaskRunMultiple(c *gin.Context) {
 	if !ok {
 		return
 	}
-	slugs, err := normalizeRequiredSlugs(body.Slugs)
+	targets, err := normalizeTaskRunTargets(body.Targets)
 	if err != nil {
 		h.respondError(c, err)
 		return
+	}
+	if len(targets) > 0 && len(body.Slugs) > 0 {
+		h.respondError(c, validationProblem(
+			"task_targets_ambiguous",
+			"use either legacy slugs or structured targets",
+			map[string]any{"field": "targets"},
+		))
+		return
+	}
+	slugs := []string(nil)
+	if len(targets) == 0 {
+		slugs, err = normalizeRequiredSlugs(body.Slugs)
+		if err == nil {
+			for _, slug := range slugs {
+				if strings.Contains(slug, "/") {
+					err = validationProblem(
+						"workflow_route_segment_invalid",
+						"legacy slugs must be one route segment",
+						map[string]any{"field": "slugs", "slug": slug},
+					)
+					break
+				}
+			}
+		}
+		if err != nil {
+			h.respondError(c, err)
+			return
+		}
 	}
 
 	run, err := h.Tasks.StartRunMultiple(c.Request.Context(), workspace, TaskRunMultipleRequest{
 		Workspace:        workspace,
 		Slugs:            slugs,
+		Targets:          targets,
+		AllowOutOfOrder:  body.AllowOutOfOrder,
 		Mode:             strings.TrimSpace(body.Mode),
 		ParallelLimit:    body.ParallelLimit,
+		NewRun:           body.NewRun,
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
 		Execution:        body.Execution,
@@ -920,7 +1062,25 @@ func (h *Handlers) ArchiveTaskWorkflow(c *gin.Context) {
 		return
 	}
 
-	result, err := h.Tasks.Archive(c.Request.Context(), workspace, c.Param("slug"), ArchiveRequest{
+	if strings.TrimSpace(body.TaskGroupID) != "" {
+		h.respondError(c, NewProblem(
+			http.StatusConflict,
+			"task_group_archive_forbidden",
+			"task groups cannot be archived independently",
+			map[string]any{
+				"initiative_slug": strings.TrimSpace(c.Param("slug")),
+				"task_group_id":   strings.TrimSpace(body.TaskGroupID),
+			},
+			nil,
+		))
+		return
+	}
+	reference, err := workflowRouteReference(c.Param("slug"), "")
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	result, err := h.Tasks.Archive(c.Request.Context(), workspace, reference, ArchiveRequest{
 		Workspace: workspace,
 		Force:     body.Force,
 	})
@@ -955,11 +1115,17 @@ func (h *Handlers) FetchReview(c *gin.Context) {
 		return
 	}
 
-	result, err := h.Reviews.Fetch(c.Request.Context(), workspace, c.Param("slug"), ReviewFetchRequest{
-		Workspace: workspace,
-		Provider:  strings.TrimSpace(body.Provider),
-		PRRef:     strings.TrimSpace(body.PRRef),
-		Round:     body.Round,
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	result, err := h.Reviews.Fetch(c.Request.Context(), workspace, reference, ReviewFetchRequest{
+		Workspace:   workspace,
+		TaskGroupID: strings.TrimSpace(body.TaskGroupID),
+		Provider:    strings.TrimSpace(body.Provider),
+		PRRef:       strings.TrimSpace(body.PRRef),
+		Round:       body.Round,
 	})
 	if err != nil {
 		h.respondError(c, err)
@@ -985,7 +1151,11 @@ func (h *Handlers) GetLatestReview(c *gin.Context) {
 		return
 	}
 
-	review, err := h.Reviews.GetLatest(c.Request.Context(), workspace, c.Param("slug"))
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	review, err := h.Reviews.GetLatest(c.Request.Context(), workspace, reference)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -1010,7 +1180,11 @@ func (h *Handlers) GetReviewRound(c *gin.Context) {
 		return
 	}
 
-	reviewRound, err := h.Reviews.GetRound(c.Request.Context(), workspace, c.Param("slug"), round)
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	reviewRound, err := h.Reviews.GetRound(c.Request.Context(), workspace, reference, round)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -1035,7 +1209,11 @@ func (h *Handlers) ListReviewIssues(c *gin.Context) {
 		return
 	}
 
-	issues, err := h.Reviews.ListIssues(c.Request.Context(), workspace, c.Param("slug"), round)
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
+	issues, err := h.Reviews.ListIssues(c.Request.Context(), workspace, reference, round)
 	if err != nil {
 		h.respondWorkspaceContextError(c, workspace, err)
 		return
@@ -1060,10 +1238,14 @@ func (h *Handlers) GetReviewIssue(c *gin.Context) {
 		return
 	}
 
+	reference, ok := h.queryWorkflowReference(c)
+	if !ok {
+		return
+	}
 	review, err := h.Reviews.ReviewDetail(
 		c.Request.Context(),
 		workspace,
-		c.Param("slug"),
+		reference,
 		round,
 		c.Param("issue_id"),
 	)
@@ -1095,8 +1277,14 @@ func (h *Handlers) StartReviewRun(c *gin.Context) {
 		return
 	}
 
-	run, err := h.Reviews.StartRun(c.Request.Context(), workspace, c.Param("slug"), round, ReviewRunRequest{
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	run, err := h.Reviews.StartRun(c.Request.Context(), workspace, reference, round, ReviewRunRequest{
 		Workspace:        workspace,
+		TaskGroupID:      strings.TrimSpace(body.TaskGroupID),
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		RuntimeOverrides: body.RuntimeOverrides,
 		Batching:         body.Batching,
@@ -1130,8 +1318,14 @@ func (h *Handlers) StartReviewWatch(c *gin.Context) {
 		return
 	}
 
-	run, err := h.Reviews.StartWatch(c.Request.Context(), workspace, c.Param("slug"), ReviewWatchRequest{
+	reference, err := workflowRouteReference(c.Param("slug"), body.TaskGroupID)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+	run, err := h.Reviews.StartWatch(c.Request.Context(), workspace, reference, ReviewWatchRequest{
 		Workspace:        workspace,
+		TaskGroupID:      strings.TrimSpace(body.TaskGroupID),
 		PresentationMode: strings.TrimSpace(body.PresentationMode),
 		Provider:         strings.TrimSpace(body.Provider),
 		PRRef:            strings.TrimSpace(body.PRRef),
@@ -1168,10 +1362,10 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 	if limit == 0 {
 		limit = 100
 	}
-	if limit > maxPageLimit {
+	if limit > MaxPageLimit {
 		h.respondError(c, validationProblem(
 			"limit_invalid",
-			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
+			fmt.Sprintf("limit must be less than or equal to %d", MaxPageLimit),
 			map[string]any{"field": "limit"},
 		))
 		return
@@ -1185,7 +1379,7 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 		Limit:     limit,
 	})
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, c.Query("workspace"), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.RunListResponse{Runs: runs})
@@ -1277,10 +1471,10 @@ func (h *Handlers) ListRunEvents(c *gin.Context) {
 	if limit == 0 {
 		limit = 100
 	}
-	if limit > maxPageLimit {
+	if limit > MaxPageLimit {
 		h.respondError(c, validationProblem(
 			"limit_invalid",
-			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
+			fmt.Sprintf("limit must be less than or equal to %d", MaxPageLimit),
 			map[string]any{"field": "limit"},
 		))
 		return

@@ -26,6 +26,24 @@ Runtime defaults applied to all commands unless overridden.
 | `max_retries` | int | Maximum number of retries on agent failure or inactivity timeout (`0` disables automatic retries) |
 | `retry_backoff_multiplier` | float | Backoff multiplier between retries |
 
+### `[defaults.stall]`
+
+Progress-aware stall detection and clean-state recovery for run-producing commands.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | Enable idle-stall detection. |
+| `timeout` | string | `3m` | Maximum agent idle window. Session updates reset it, and a live ACP terminal command keeps the attempt active. |
+| `child_timeout` | string | `6m` | Idle window for nested/reusable agent work. |
+| `terminal_command_timeout` | string | `45m` | Absolute wall-clock cap for one terminal command. This remains active while the agent idle timer is suspended by that command. |
+| `retries` | int | `1` | Number of clean-worktree retries granted after a stall. This budget is separate from `max_retries`. |
+
+A stall emits `job.stalled`. Compozy resets the job-owned worktree and consumes one stall retry. If the budget is
+empty or a safe reset is impossible, the job emits `job.parked` and preserves its worktree and logs for triage.
+Concurrent review batches use separate disposable Git worktrees, so one batch can reset without discarding a sibling's
+changes. Successful batch deltas are applied back to the source workspace serially; an integration conflict preserves
+the isolated worktree and fails the batch without partially applying its patch.
+
 ### `[tasks.run]`
 
 Options specific to `compozy tasks run`.
@@ -90,6 +108,27 @@ Options specific to `compozy reviews fix`.
 | `concurrent` | int | Number of batches to process in parallel (1-10) |
 | `batch_size` | int | Number of file groups per batch (1-50) |
 | `include_resolved` | bool | Include already-resolved review issues |
+
+### `[fix_reviews.stall]`
+
+Review-fix-specific overrides for the fields in `[defaults.stall]`. Values inherit field by field from
+`[defaults.stall]`; this section affects `compozy reviews fix` and review-fix children started by
+`compozy reviews watch`.
+
+For a “prefer tokens over waiting” policy, use a shorter idle window and a larger clean-retry budget while keeping an
+explicit terminal cap:
+
+```toml
+[fix_reviews.stall]
+enabled = true
+timeout = "45s"
+child_timeout = "2m"
+terminal_command_timeout = "8m"
+retries = 4
+```
+
+This can spend more model tokens because a genuinely slow or silent agent is restarted sooner. Lower
+`terminal_command_timeout` as well when long-running terminal commands should also be abandoned sooner.
 
 ### `[fetch_reviews]`
 
@@ -222,6 +261,13 @@ timeout = "45m"
 max_retries = 2
 retry_backoff_multiplier = 1.5
 
+[defaults.stall]
+enabled = true
+timeout = "3m"
+child_timeout = "6m"
+terminal_command_timeout = "45m"
+retries = 1
+
 [tasks]
 types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
 
@@ -233,6 +279,11 @@ recursive = false
 concurrent = 2
 batch_size = 3
 include_resolved = false
+
+[fix_reviews.stall]
+timeout = "45s"
+terminal_command_timeout = "8m"
+retries = 4
 
 [fetch_reviews]
 provider = "coderabbit"

@@ -7,9 +7,24 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/compozy/compozy/internal/charmtheme"
 	"github.com/spf13/cobra"
 )
+
+func TestReviewTaskGroupPickerThemePreservesBlockedMarker(t *testing.T) {
+	t.Parallel()
+
+	styles := reviewTaskGroupPickerHuhTheme().Theme(true)
+	blocked := xansi.Strip(styles.Focused.SelectedOption.Render("[⊘] auth/TG-004"))
+	if !strings.Contains(blocked, "[⊘] auth/TG-004") || strings.Contains(blocked, "[x]") {
+		t.Fatalf("focused review-blocked label = %q, want blocked marker preserved", blocked)
+	}
+	ready := xansi.Strip(styles.Focused.SelectedOption.Render("[ ] auth/TG-003"))
+	if !strings.Contains(ready, "[x] auth/TG-003") {
+		t.Fatalf("focused ready review label = %q, want selected marker", ready)
+	}
+}
 
 func TestDarkHuhThemeUsesCompozyTokens(t *testing.T) {
 	t.Parallel()
