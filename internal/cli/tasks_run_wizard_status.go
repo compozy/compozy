@@ -305,3 +305,13 @@ func taskRunWizardWorkflowOptionLabel(option taskRunWizardWorkflowOption) string
 func taskRunWizardWorkflowNotStarted(option taskRunWizardWorkflowOption) bool {
 	return option.TaskProgressKnown && option.TotalTasks > 0 && option.CompletedTasks == 0
 }
+
+// reviewFixImplementationBlocked reports whether a review target lacks positive
+// evidence of a completed implementation task. Review fixes must not dispatch
+// without at least one completed task, so unknown progress or zero completed
+// tasks (including a zero-task target) is blocked. This is the review-scoped
+// companion to taskRunWizardWorkflowNotStarted, which stays limited to the
+// normal picker's "not started" marker and is deliberately left unchanged.
+func reviewFixImplementationBlocked(option taskRunWizardWorkflowOption) bool {
+	return !option.TaskProgressKnown || option.CompletedTasks == 0
+}

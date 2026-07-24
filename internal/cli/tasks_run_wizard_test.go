@@ -1382,3 +1382,42 @@ func taskRunWizardTestKey(key string) tea.KeyPressMsg {
 		return tea.KeyPressMsg(tea.Key{Text: key, Code: runes[0]})
 	}
 }
+
+func TestReviewFixImplementationBlocked(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		option taskRunWizardWorkflowOption
+		want   bool
+	}{
+		{
+			name:   "Should not block a target with at least one completed task",
+			option: taskRunWizardWorkflowOption{TaskProgressKnown: true, TotalTasks: 3, CompletedTasks: 1},
+			want:   false,
+		},
+		{
+			name:   "Should block a known target with zero completed tasks",
+			option: taskRunWizardWorkflowOption{TaskProgressKnown: true, TotalTasks: 3, CompletedTasks: 0},
+			want:   true,
+		},
+		{
+			name:   "Should block a target whose task progress is unknown",
+			option: taskRunWizardWorkflowOption{TaskProgressKnown: false, TotalTasks: 3, CompletedTasks: 2},
+			want:   true,
+		},
+		{
+			name:   "Should block a target with no implementation tasks",
+			option: taskRunWizardWorkflowOption{TaskProgressKnown: true, TotalTasks: 0, CompletedTasks: 0},
+			want:   true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := reviewFixImplementationBlocked(tc.option); got != tc.want {
+				t.Fatalf("reviewFixImplementationBlocked(%+v) = %v, want %v", tc.option, got, tc.want)
+			}
+		})
+	}
+}

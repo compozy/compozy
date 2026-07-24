@@ -328,7 +328,7 @@ func buildTaskGroupPickerOption(
 			return taskGroupPickerOption{}, err
 		}
 		completed := reviewRoundPickerCompleted(workflowOption.Completed, summary)
-		reviewBlocked := taskRunWizardWorkflowNotStarted(workflowOption)
+		reviewBlocked := reviewFixImplementationBlocked(workflowOption)
 		selectionBlockedReason := reviewFixSelectionBlockedReason(reviewBlocked, summary)
 		mark := taskGroupPickerMarker(completed, reviewBlocked, false)
 		label := mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(summary)
@@ -361,7 +361,7 @@ func buildOrdinaryReviewFixTargetPickerOption(
 		return taskGroupPickerOption{}, err
 	}
 	completed := reviewRoundPickerCompleted(workflowOption.Completed, summary)
-	reviewBlocked := taskRunWizardWorkflowNotStarted(workflowOption)
+	reviewBlocked := reviewFixImplementationBlocked(workflowOption)
 	selectionBlockedReason := reviewFixSelectionBlockedReason(reviewBlocked, summary)
 	mark := taskGroupPickerMarker(completed, reviewBlocked, false)
 	return taskGroupPickerOption{
