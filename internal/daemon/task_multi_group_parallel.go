@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
+	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -409,7 +410,7 @@ func (m *RunManager) revalidateTaskMultiGroupChildStart(
 	if current == nil || item.taskGroupPreflight == nil {
 		return nil, false, errors.New("parallel task-group child is missing preflight evidence")
 	}
-	if err := rejectCompletedTaskMultiGroupChildStart(
+	if err := m.rejectCompletedTaskMultiGroupChildStart(
 		detachContext(active.ctx),
 		prepared.workspace.RootDir,
 		item.slug,
@@ -428,7 +429,7 @@ func (m *RunManager) revalidateTaskMultiGroupChildStart(
 	return current, outOfOrderNeeded, nil
 }
 
-func rejectCompletedTaskMultiGroupChildStart(
+func (m *RunManager) rejectCompletedTaskMultiGroupChildStart(
 	ctx context.Context,
 	workspaceRoot string,
 	workflowRef string,
@@ -437,17 +438,48 @@ func rejectCompletedTaskMultiGroupChildStart(
 	if err != nil {
 		return err
 	}
-	if !target.Plan.IsComplete(target.TaskGroup.ID) {
-		return nil
-	}
-	validation, err := taskgroups.ValidateIndependentSet(
-		target.Plan,
-		[]string{target.TaskGroup.ID},
+	completed, err := corepkg.CompletedTaskGroupIDsWithDB(
+		ctx,
+		m.globalDB,
+		workspaceRoot,
+		target.Ref.Initiative,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf(
+			"read completion authority for parallel task group %s: %w",
+			target.Ref.String(),
+			err,
+		)
 	}
-	return parallelTaskGroupSelectionProblem(target.Ref.Initiative, validation)
+	completionSource := ""
+	for _, taskGroupID := range completed {
+		if taskGroupID == target.TaskGroup.ID {
+			completionSource = "globaldb"
+			break
+		}
+	}
+	if completionSource == "" && target.Plan.IsComplete(target.TaskGroup.ID) {
+		completionSource = "plan_projection"
+	}
+	if completionSource == "" {
+		return nil
+	}
+	return apicore.NewProblem(
+		http.StatusConflict,
+		"task_group_already_completed",
+		fmt.Sprintf(
+			"task group %s is already completed and cannot start again",
+			target.Ref.String(),
+		),
+		map[string]any{
+			"initiative_slug":   target.Ref.Initiative,
+			"task_group_id":     target.TaskGroup.ID,
+			"workflow_ref":      target.Ref.String(),
+			"plan_checksum":     target.Plan.Checksum,
+			"completion_source": completionSource,
+		},
+		nil,
+	)
 }
 
 func taskMultiGroupChildPreflightDecision(
@@ -455,10 +487,34 @@ func taskMultiGroupChildPreflightDecision(
 	allowOutOfOrder bool,
 	previous *taskGroupPreflightEvidence,
 ) (bool, error) {
-	if previous != nil && evidence.planChecksum != previous.planChecksum {
-		return false, taskGroupDependenciesProblem(evidence, previous)
+	if previous != nil && evidence.graphChecksum != previous.graphChecksum {
+		return false, taskMultiGroupGraphChangedProblem(evidence, previous)
 	}
 	return taskGroupPreflightDecision(evidence, allowOutOfOrder, nil)
+}
+
+func taskMultiGroupGraphChangedProblem(
+	evidence *taskGroupPreflightEvidence,
+	previous *taskGroupPreflightEvidence,
+) error {
+	return apicore.NewProblem(
+		http.StatusConflict,
+		"task_group_dependencies_unmet",
+		"task group dependency graph changed; retry against the current plan",
+		map[string]any{
+			"initiative_slug":          evidence.initiativeSlug,
+			"task_group_id":            evidence.taskGroupID,
+			"direct_unmet":             evidence.readiness.DirectUnmet,
+			"transitive_unmet":         evidence.readiness.TransitiveUnmet,
+			"plan_changed":             true,
+			"preflight_plan_checksum":  previous.planChecksum,
+			"current_plan_checksum":    evidence.planChecksum,
+			"graph_changed":            true,
+			"preflight_graph_checksum": previous.graphChecksum,
+			"current_graph_checksum":   evidence.graphChecksum,
+		},
+		taskgroups.ErrDependenciesUnmet,
+	)
 }
 
 func taskMultiTaskGroupID(slug string) string {

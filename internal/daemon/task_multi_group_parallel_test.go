@@ -62,32 +62,138 @@ func TestTaskGroupPreflightDecisionPlanDriftUT080(t *testing.T) {
 	}
 }
 
-func TestTaskMultiGroupChildPreflightDecisionRejectsEligiblePlanDrift(t *testing.T) {
+func TestTaskMultiGroupChildPreflightDecisionUsesGraphIdentity(t *testing.T) {
 	t.Parallel()
 
 	previous := &taskGroupPreflightEvidence{
 		initiativeSlug: "initiative",
 		taskGroupID:    "TG-001",
 		planChecksum:   "before",
+		graphChecksum:  "stable-graph",
 		readiness:      taskgroups.Readiness{Eligible: true},
 	}
 	current := &taskGroupPreflightEvidence{
 		initiativeSlug: "initiative",
 		taskGroupID:    "TG-001",
 		planChecksum:   "after",
+		graphChecksum:  "stable-graph",
 		readiness:      taskgroups.Readiness{Eligible: true},
 	}
 
-	_, err := taskMultiGroupChildPreflightDecision(current, false, previous)
+	outOfOrderNeeded, err := taskMultiGroupChildPreflightDecision(current, false, previous)
+	if err != nil {
+		t.Fatalf("eligible content-only drift error = %v, want nil", err)
+	}
+	if outOfOrderNeeded {
+		t.Fatal("eligible content-only drift requested out-of-order execution")
+	}
+
+	current.graphChecksum = "changed-graph"
+	_, err = taskMultiGroupChildPreflightDecision(current, false, previous)
 	var problem *apicore.Problem
 	if !errors.As(err, &problem) {
-		t.Fatalf("eligible plan drift error = %v, want API problem", err)
+		t.Fatalf("graph drift error = %v, want API problem", err)
 	}
 	if problem.Status != http.StatusConflict || problem.Code != "task_group_dependencies_unmet" {
-		t.Fatalf("eligible plan drift problem = %#v, want 409 task_group_dependencies_unmet", problem)
+		t.Fatalf("graph drift problem = %#v, want 409 task_group_dependencies_unmet", problem)
 	}
 	if changed, ok := problem.Details["plan_changed"].(bool); !ok || !changed {
-		t.Fatalf("eligible plan drift details = %#v, want plan_changed=true", problem.Details)
+		t.Fatalf("graph drift details = %#v, want plan_changed=true", problem.Details)
+	}
+	if problem.Details["preflight_plan_checksum"] != "before" ||
+		problem.Details["current_plan_checksum"] != "after" {
+		t.Fatalf("graph drift details = %#v, want full plan checksum diagnostics", problem.Details)
+	}
+}
+
+func TestRunManagerTaskMultiGroupParallelStartsWaitingChildAfterPeerCheckboxDrift(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-peer-checkbox-drift"
+		parentID   = "group-peer-checkbox-drift-parent"
+	)
+	started := make(chan string, 2)
+	releaseFirst := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() {
+			close(releaseFirst)
+		})
+	})
+
+	var executed atomic.Int32
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			groupID := taskMultiTaskGroupID(cfg.Name)
+			executed.Add(1)
+			started <- groupID
+			if groupID == "TG-001" {
+				select {
+				case <-releaseFirst:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" result\n")
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 2)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiGroupParallelRun(
+		t,
+		env,
+		parentID,
+		initiative,
+		[]string{"TG-001", "TG-002"},
+		1,
+	)
+	select {
+	case groupID := <-started:
+		if groupID != "TG-001" {
+			t.Fatalf("first started group = %q, want TG-001", groupID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("first task-group child did not start")
+	}
+
+	completedPeer := independentTaskGroupSpec("TG-001")
+	completedPeer.Completed = true
+	writeTaskGroupPlanFile(
+		t,
+		env,
+		initiative,
+		[]taskgroups.TaskGroup{
+			completedPeer,
+			independentTaskGroupSpec("TG-002"),
+		},
+		nil,
+	)
+	releaseOnce.Do(func() {
+		close(releaseFirst)
+	})
+
+	select {
+	case groupID := <-started:
+		if groupID != "TG-002" {
+			t.Fatalf("waiting started group = %q, want TG-002", groupID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("waiting task-group child did not start after peer checkbox drift")
+	}
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusCompleted {
+		t.Fatalf("parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+	}
+	if got := executed.Load(); got != 2 {
+		t.Fatalf("executed children = %d, want 2", got)
 	}
 }
 
@@ -157,19 +263,28 @@ func TestRunManagerTaskMultiGroupParallelRejectsCompletionBeforeChildStart(t *te
 		t.Fatal("first task-group child did not start")
 	}
 
-	completedSecond := independentTaskGroupSpec("TG-002")
-	completedSecond.Completed = true
-	writeTaskGroupPlanFile(
+	seedDaemonCompletionRows(
 		t,
-		env,
+		env.globalDB,
+		env.workspaceRoot,
 		initiative,
-		[]taskgroups.TaskGroup{
-			independentTaskGroupSpec("TG-001"),
-			completedSecond,
-		},
-		nil,
+		[]string{"TG-002"},
 	)
-	revalidationErr := rejectCompletedTaskMultiGroupChildStart(
+	env.manager.hydratePlanCompletion = func(context.Context, string, string) ([]string, error) {
+		return nil, errors.New("injected projection failure")
+	}
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(
+		context.Background(),
+		env.workspaceRoot,
+		initiative+"/TG-002",
+	)
+	if err != nil {
+		t.Fatalf("ResolveTaskGroup(TG-002) error = %v", err)
+	}
+	if target.Plan.IsComplete("TG-002") {
+		t.Fatal("TG-002 plan checkbox = complete, want unchecked projection")
+	}
+	revalidationErr := env.manager.rejectCompletedTaskMultiGroupChildStart(
 		context.Background(),
 		env.workspaceRoot,
 		initiative+"/TG-002",
@@ -178,13 +293,18 @@ func TestRunManagerTaskMultiGroupParallelRejectsCompletionBeforeChildStart(t *te
 	if !errors.As(revalidationErr, &problem) {
 		t.Fatalf("completed child revalidation error = %v, want API problem", revalidationErr)
 	}
-	rejected, ok := problem.Details["rejected"].(map[string]any)
-	if !ok {
-		t.Fatalf("completed child revalidation details = %#v, want rejected map", problem.Details)
+	if problem.Status != http.StatusConflict || problem.Code != "task_group_already_completed" {
+		t.Fatalf("completed child problem = %#v, want 409 task_group_already_completed", problem)
 	}
-	rejection, ok := rejected["TG-002"].(map[string]any)
-	if !ok || rejection["reason"] != "already_completed" {
-		t.Fatalf("completed child rejection = %#v, want already_completed", rejected["TG-002"])
+	if problem.Details["task_group_id"] != "TG-002" {
+		t.Fatalf("completed child details = %#v, want task_group_id=TG-002", problem.Details)
+	}
+	if problem.Details["completion_source"] != "globaldb" {
+		t.Fatalf("completed child details = %#v, want completion_source=globaldb", problem.Details)
+	}
+	if !strings.Contains(problem.Message, "already completed") ||
+		strings.Contains(problem.Message, "sequential path") {
+		t.Fatalf("completed child message = %q, want dedicated completion guidance", problem.Message)
 	}
 	releaseOnce.Do(func() {
 		close(releaseFirst)
