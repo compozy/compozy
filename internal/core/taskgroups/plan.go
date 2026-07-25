@@ -42,14 +42,19 @@ type manifestEdge struct {
 	Rationale string `yaml:"rationale"`
 }
 
+type markdownDependencyField struct {
+	Parsed []Dependency
+	Issues []string
+}
+
 type markdownTaskGroup struct {
-	ID           string
-	Title        string
-	Completed    bool
-	Reference    string
-	Outcome      string
-	OwnedScope   []string
-	Dependencies []Dependency
+	ID              string
+	Title           string
+	Completed       bool
+	Reference       string
+	Outcome         string
+	OwnedScope      []string
+	DependencyField *markdownDependencyField
 }
 
 // ParsePlan parses and validates a canonical Task Group manifest.
@@ -346,7 +351,22 @@ func parseMarkdownTaskGroupFields(taskGroup *markdownTaskGroup, lines []string) 
 		case strings.HasPrefix(line, "- Owns:"):
 			taskGroup.OwnedScope = markdownListItems(lines[index+1:])
 		case strings.HasPrefix(line, "- Dependencies:"):
-			taskGroup.Dependencies = markdownDependencies(taskGroup.ID, line, lines[index+1:])
+			if taskGroup.DependencyField != nil {
+				taskGroup.DependencyField.Issues = append(
+					taskGroup.DependencyField.Issues,
+					"must appear exactly once",
+				)
+				continue
+			}
+			dependencies, issues := markdownDependencies(
+				taskGroup.ID,
+				line,
+				lines[index+1:],
+			)
+			taskGroup.DependencyField = &markdownDependencyField{
+				Parsed: dependencies,
+				Issues: issues,
+			}
 		}
 	}
 }
@@ -367,29 +387,51 @@ func markdownListItems(lines []string) []string {
 	return items
 }
 
-func markdownDependencies(taskGroupID, heading string, lines []string) []Dependency {
-	if strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(heading, "- Dependencies:")), "none") {
-		return nil
+func markdownDependencies(taskGroupID, heading string, lines []string) ([]Dependency, []string) {
+	value := strings.TrimSpace(strings.TrimPrefix(heading, "- Dependencies:"))
+	if value == "None" {
+		for _, rawLine := range lines {
+			line := strings.TrimRight(rawLine, "\r\n")
+			if isMarkdownSectionBoundary(line) {
+				break
+			}
+			if strings.TrimSpace(line) != "" {
+				return nil, []string{"must not contain content after None"}
+			}
+		}
+		return nil, nil
+	}
+	if value != "" {
+		return nil, []string{"must be None or an indented dependency list"}
 	}
 	dependencies := make([]Dependency, 0)
+	issues := make([]string, 0)
 	for _, rawLine := range lines {
 		line := strings.TrimRight(rawLine, "\r\n")
 		if isMarkdownSectionBoundary(line) {
 			break
 		}
-		match := markdownDependencyLine.FindStringSubmatch(line)
-		if match != nil {
-			dependencies = append(
-				dependencies,
-				Dependency{
-					From:      match[1],
-					To:        taskGroupID,
-					Rationale: strings.TrimSpace(match[2]),
-				},
-			)
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
+		match := markdownDependencyLine.FindStringSubmatch(line)
+		if len(match) != 3 || strings.TrimSpace(match[2]) == "" {
+			issues = append(issues, fmt.Sprintf("contains malformed dependency row %q", line))
+			continue
+		}
+		dependencies = append(
+			dependencies,
+			Dependency{
+				From:      match[1],
+				To:        taskGroupID,
+				Rationale: strings.TrimSpace(match[2]),
+			},
+		)
 	}
-	return dependencies
+	if len(dependencies) == 0 {
+		issues = append(issues, "must contain at least one canonical dependency row")
+	}
+	return dependencies, issues
 }
 
 func isMarkdownSectionBoundary(line string) bool {
@@ -418,6 +460,14 @@ func validateMarkdownTaskGroup(taskGroup markdownTaskGroup, path string) []Issue
 			issues,
 			Issue{Path: path, Field: "body." + taskGroup.ID + ".owns", Message: "must contain owned scope"},
 		)
+	}
+	dependenciesField := "body." + taskGroup.ID + ".dependencies"
+	if taskGroup.DependencyField == nil {
+		issues = append(issues, Issue{Path: path, Field: dependenciesField, Message: "is required"})
+	} else {
+		for _, message := range taskGroup.DependencyField.Issues {
+			issues = append(issues, Issue{Path: path, Field: dependenciesField, Message: message})
+		}
 	}
 	return issues
 }
@@ -458,7 +508,11 @@ func validatePlanSurfaces(raw manifest, body map[string]markdownTaskGroup, path 
 
 	graphIncoming := incomingDependencies(raw.Graph.Edges)
 	for id, bodyTaskGroup := range body {
-		if !sameDependencies(graphIncoming[id], bodyTaskGroup.Dependencies) {
+		var bodyDependencies []Dependency
+		if bodyTaskGroup.DependencyField != nil {
+			bodyDependencies = bodyTaskGroup.DependencyField.Parsed
+		}
+		if !sameDependencies(graphIncoming[id], bodyDependencies) {
 			issues = append(
 				issues,
 				Issue{

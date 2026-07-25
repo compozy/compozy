@@ -129,6 +129,34 @@ func TestValidatePlan(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects malformed root task group dependency declarations", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name        string
+			declaration string
+		}{
+			{name: "missing field"},
+			{name: "inline garbage", declaration: "- Dependencies: garbage\n"},
+			{name: "empty block", declaration: "- Dependencies:\n"},
+			{name: "malformed row", declaration: "- Dependencies:\n  - garbage\n"},
+		}
+		for _, testCase := range cases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				content := strings.Replace(
+					string(twoTaskGroupPlan(t)),
+					"- Dependencies: None\n",
+					testCase.declaration,
+					1,
+				)
+
+				_, err := ValidatePlan(content)
+				assertDomainError(t, err, ErrInvalidPlan)
+				assertIssueContains(t, err, "body.TG-001.dependencies")
+			})
+		}
+	})
+
 	t.Run("UT-028 rejects consumed empty producer outcomes", func(t *testing.T) {
 		t.Parallel()
 		content := strings.Replace(string(twoTaskGroupPlan(t)), "- Outcome: Persist customer data", "- Outcome: ", 1)
