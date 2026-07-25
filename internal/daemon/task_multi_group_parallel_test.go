@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -201,6 +204,260 @@ func TestRunManagerTaskMultiGroupParallelPersistsCanonicalTaskArtifacts(t *testi
 	item := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 1).Items)[groupID]
 	if item.WorktreeStatus != taskMultiWorktreeStatusRemoved {
 		t.Fatalf("worktree status = %q, want removed after artifact persistence", item.WorktreeStatus)
+	}
+}
+
+// Invariant: failure to remove the displaced tree after CAS commit is observable
+// as a warning but cannot be returned as an install failure.
+func TestRemoveDisplacedTaskMultiArtifactTreeWarnsOnCleanupFailure(t *testing.T) {
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	called := false
+	removeDisplacedTaskMultiArtifactTree(
+		func(relativePath string) error {
+			called = true
+			if relativePath != "staged.canonical" {
+				t.Fatalf("remove relative path = %q, want staged.canonical", relativePath)
+			}
+			return errors.New("cleanup denied")
+		},
+		"staged.canonical",
+		"/workspace/.artifacts.reconcile-1.canonical",
+	)
+	if !called {
+		t.Fatal("displaced artifact cleanup was not attempted")
+	}
+	if !strings.Contains(logs.String(), "remove previous canonical task-group artifacts") ||
+		!strings.Contains(logs.String(), "cleanup denied") {
+		t.Fatalf("cleanup warning missing from logs: %q", logs.String())
+	}
+}
+
+// Invariant: a completed group-parallel child keeps its worktree when the
+// terminal parent-journal event cannot be committed, even after artifact sync
+// has installed the child's canonical updates.
+func TestFinishTaskMultiWorktreeChildEmitsCompletionBeforeCleanup(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		parentRunID = "group-settlement-before-cleanup"
+		initiative  = "group-settlement"
+		groupID     = "TG-001"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
+	writeCompozyTasksGitignore(t, env.workspaceRoot)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveBase() error = %v", err)
+	}
+	allocation, err := env.manager.worktreeAllocator.Allocate(context.Background(), taskMultiWorktreeSpec{
+		WorkspaceRoot: env.workspaceRoot,
+		ParentRunID:   parentRunID,
+		Slug:          initiative + "/" + groupID,
+		Index:         0,
+		TaskNumber:    1,
+		Base:          base,
+	})
+	if err != nil {
+		t.Fatalf("Allocate() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if _, statErr := os.Stat(allocation.Path); statErr == nil {
+			if removeErr := env.manager.worktreeAllocator.Remove(
+				context.Background(),
+				env.workspaceRoot,
+				allocation.Path,
+			); removeErr != nil {
+				t.Errorf("remove preserved test worktree: %v", removeErr)
+			}
+		}
+	})
+
+	parentArtifacts := filepath.Join(
+		env.workspaceRoot,
+		".compozy",
+		"tasks",
+		initiative,
+		"_task_groups",
+		groupID,
+	)
+	childArtifacts := remapTaskMultiExecutionScopePath(
+		parentArtifacts,
+		env.workspaceRoot,
+		allocation.Path,
+	)
+	writeFileForTest(t, filepath.Join(parentArtifacts, "task.md"), "before\n")
+	writeFileForTest(t, filepath.Join(childArtifacts, "task.md"), "before\n")
+	baseline, err := captureTaskMultiArtifactTreeAt(taskMultiArtifactLocation{
+		workspaceRoot: allocation.Path,
+		path:          childArtifacts,
+	})
+	if err != nil {
+		t.Fatalf("capture artifact baseline: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(childArtifacts, "task.md"), []byte("after\n"), 0o600); err != nil {
+		t.Fatalf("write child artifact update: %v", err)
+	}
+
+	scope, err := model.OpenBaseRunScope(context.Background(), &model.RuntimeConfig{RunID: parentRunID})
+	if err != nil {
+		t.Fatalf("OpenBaseRunScope() error = %v", err)
+	}
+	if scope.RunEventBus() != nil {
+		t.Cleanup(func() {
+			_ = scope.RunEventBus().Close(context.Background())
+		})
+	}
+	if err := scope.RunJournal().Close(context.Background()); err != nil {
+		t.Fatalf("close parent run journal: %v", err)
+	}
+	active := &activeRun{
+		runID: parentRunID,
+		mode:  runModeTaskMulti,
+		scope: scope,
+		ctx:   context.Background(),
+	}
+	parentRuntime := &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		ExecutionScope: &model.ExecutionScope{
+			OperationalDir: parentArtifacts,
+		},
+	}
+	childRuntime := &model.RuntimeConfig{
+		WorkspaceRoot: allocation.Path,
+		ExecutionScope: &model.ExecutionScope{
+			OperationalDir: childArtifacts,
+		},
+	}
+	prepared := &preparedTaskMulti{
+		mode:          workspacecfg.TaskRunMultipleModeParallel,
+		executionKind: apicore.ExecutionKindTaskMultiGroupParallel,
+		workspace:     globaldb.Workspace{RootDir: env.workspaceRoot},
+	}
+	item := preparedTaskMultiItem{
+		slug:       initiative + "/" + groupID,
+		runtimeCfg: parentRuntime,
+	}
+
+	err = env.manager.finishTaskMultiWorktreeChild(
+		active,
+		prepared,
+		item,
+		0,
+		1,
+		globaldb.Run{RunID: "completed-child", Status: runStatusCompleted},
+		allocation,
+		childRuntime,
+		baseline,
+	)
+	if !errors.Is(err, journal.ErrClosed) {
+		t.Fatalf("finishTaskMultiWorktreeChild() error = %v, want journal.ErrClosed", err)
+	}
+	canonical, err := os.ReadFile(filepath.Join(parentArtifacts, "task.md"))
+	if err != nil {
+		t.Fatalf("read synced canonical artifact: %v", err)
+	}
+	if string(canonical) != "after\n" {
+		t.Fatalf("canonical artifact = %q, want synced child update", canonical)
+	}
+	if _, err := os.Stat(allocation.Path); err != nil {
+		t.Fatalf("worktree removed before terminal settlement: %v", err)
+	}
+}
+
+// Invariant: after completion is durable, the projected cleanup metadata must
+// also be durable before an empty result branch or its worktree is removed.
+func TestCleanupSettledTaskWorktreeRecordsMetadataBeforeMutation(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		parentRunID = "group-cleanup-metadata-before-mutation"
+		slug        = "group-cleanup/TG-001"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveBase() error = %v", err)
+	}
+	resultBranch, err := taskMultiResultBranch(parentRunID, 0, slug)
+	if err != nil {
+		t.Fatalf("taskMultiResultBranch() error = %v", err)
+	}
+	allocation, err := env.manager.worktreeAllocator.Allocate(context.Background(), taskMultiWorktreeSpec{
+		WorkspaceRoot: env.workspaceRoot,
+		ParentRunID:   parentRunID,
+		Slug:          slug,
+		Index:         0,
+		TaskNumber:    1,
+		ResultBranch:  resultBranch,
+		Base:          base,
+	})
+	if err != nil {
+		t.Fatalf("Allocate() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if _, statErr := os.Stat(allocation.Path); statErr == nil {
+			if removeErr := env.manager.worktreeAllocator.Remove(
+				context.Background(),
+				env.workspaceRoot,
+				allocation.Path,
+			); removeErr != nil {
+				t.Errorf("remove preserved test worktree: %v", removeErr)
+			}
+		}
+		if _, deleteErr := env.manager.worktreeAllocator.DeleteBranchIfAt(
+			context.Background(),
+			env.workspaceRoot,
+			resultBranch,
+			base.Commit,
+		); deleteErr != nil {
+			t.Errorf("delete preserved test result branch: %v", deleteErr)
+		}
+	})
+
+	refineErr := errors.New("record cleanup metadata")
+	err = env.manager.cleanupSettledTaskWorktreeAfterRecord(
+		context.Background(),
+		env.workspaceRoot,
+		allocation,
+		taskMultiWorktreeCleanupPolicy{
+			reportNoChanges: true,
+		},
+		func(projected taskMultiWorktreeAllocation) error {
+			if projected.WorktreeStatus != taskMultiWorktreeStatusRemoved ||
+				!projected.NoChanges ||
+				projected.ResultBranch != "" {
+				t.Errorf("projected cleanup allocation = %#v, want removed no-changes result", projected)
+			}
+			return refineErr
+		},
+	)
+	if !errors.Is(err, refineErr) {
+		t.Fatalf("cleanupSettledTaskWorktreeAfterRecord() error = %v, want refine error", err)
+	}
+	if _, err := os.Stat(allocation.Path); err != nil {
+		t.Fatalf("worktree removed before cleanup metadata was recorded: %v", err)
+	}
+	if got := runGitOutput(
+		t,
+		env.workspaceRoot,
+		"branch",
+		"--list",
+		resultBranch,
+		"--format=%(refname:short)",
+	); got != resultBranch {
+		t.Fatalf("result branch after rejected cleanup metadata = %q, want %q", got, resultBranch)
 	}
 }
 
@@ -527,6 +784,84 @@ func TestRunManagerTaskMultiGroupParallelRejectsSymlinkedOperationalRoot(t *test
 	if !reflect.DeepEqual(canonicalAfter, canonicalBefore) {
 		t.Fatalf(
 			"canonical task-group artifacts changed through child root symlink:\nbefore=%q\nafter=%q",
+			canonicalBefore,
+			canonicalAfter,
+		)
+	}
+}
+
+// Invariant: every component leading to a child artifact root is a real
+// directory, so an in-workspace parent symlink cannot redirect reconciliation.
+func TestRunManagerTaskMultiGroupParallelRejectsSymlinkedOperationalParent(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-artifact-parent-symlink"
+		parentID   = "group-artifact-parent-symlink-parent"
+		groupID    = "TG-001"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			operationalRoot := cfg.ExecutionScope.OperationalDir
+			groupsRoot := filepath.Dir(operationalRoot)
+			foreignRoot := filepath.Join(filepath.Dir(groupsRoot), "foreign-task-groups")
+			if err := os.Rename(groupsRoot, foreignRoot); err != nil {
+				return fmt.Errorf("move child task-group tree: %w", err)
+			}
+			if err := os.Symlink(filepath.Base(foreignRoot), groupsRoot); err != nil {
+				return fmt.Errorf("replace child task-group parent with symlink: %w", err)
+			}
+			foreignTask := filepath.Join(foreignRoot, groupID, "task_01.md")
+			if err := os.WriteFile(foreignTask, []byte("foreign task-group content\n"), 0o600); err != nil {
+				return fmt.Errorf("write foreign task-group artifact: %w", err)
+			}
+			return commitTaskMultiGroupAgentChange(
+				ctx,
+				cfg.WorkspaceRoot,
+				groupID,
+				"symlinked operational parent\n",
+			)
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+	taskPath := filepath.Join("_task_groups", groupID, "task_01.md")
+	canonicalBefore := readTaskMultiGroupArtifactFiles(
+		t,
+		env.workflowDir(initiative),
+		[]string{taskPath},
+	)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusFailed || !strings.Contains(row.ErrorText, "symlink") {
+		t.Fatalf("parent status = %q error=%q, want symlink failure", row.Status, row.ErrorText)
+	}
+	item := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 1).Items)[groupID]
+	if item.Status != taskMultiItemStatusFailed ||
+		item.WorktreeStatus != taskMultiWorktreeStatusPreserved {
+		t.Fatalf("symlinked parent item = %#v, want failed with preserved worktree", item)
+	}
+	if _, err := os.Stat(item.WorktreePath); err != nil {
+		t.Fatalf("preserved worktree %s is unavailable: %v", item.WorktreePath, err)
+	}
+	canonicalAfter := readTaskMultiGroupArtifactFiles(
+		t,
+		env.workflowDir(initiative),
+		[]string{taskPath},
+	)
+	if !reflect.DeepEqual(canonicalAfter, canonicalBefore) {
+		t.Fatalf(
+			"canonical task-group artifacts changed through child parent symlink:\nbefore=%q\nafter=%q",
 			canonicalBefore,
 			canonicalAfter,
 		)

@@ -117,6 +117,14 @@ type taskMultiWorktreeCleanupPolicy struct {
 	reportNoChanges bool
 }
 
+type taskMultiWorktreeCleanupPlan struct {
+	original   taskMultiWorktreeAllocation
+	projected  taskMultiWorktreeAllocation
+	path       string
+	inspection taskWorktreeInspection
+	policy     taskMultiWorktreeCleanupPolicy
+}
+
 // StartTaskRunMultiple starts one daemon-owned parent for an ordered task queue.
 func (m *RunManager) StartTaskRunMultiple(
 	ctx context.Context,
@@ -2695,21 +2703,116 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 				emitErr,
 			)
 		}
+		if prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel {
+			return m.finishCompletedTaskMultiGroupWorktreeChild(
+				active,
+				prepared,
+				item,
+				index,
+				total,
+				childRow,
+				allocation,
+			)
+		}
 	}
+	return m.cleanupAndEmitTaskMultiWorktreeChildSettlement(
+		active,
+		prepared,
+		item,
+		index,
+		total,
+		childRow,
+		allocation,
+	)
+}
+
+func (m *RunManager) cleanupAndEmitTaskMultiWorktreeChildSettlement(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRow globaldb.Run,
+	allocation taskMultiWorktreeAllocation,
+) error {
+	groupParallel := prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel
 	allocation = m.cleanupSettledTaskWorktree(
 		context.WithoutCancel(active.ctx),
 		prepared.workspace.RootDir,
 		allocation,
 		taskMultiWorktreeCleanupPolicy{
-			preserve: prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel &&
-				childRow.Status != runStatusCompleted,
-			reportNoChanges: prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel,
+			preserve:        groupParallel && childRow.Status != runStatusCompleted,
+			reportNoChanges: groupParallel,
 		},
 	)
+	return m.emitTaskMultiWorktreeChildSettlement(
+		active,
+		item,
+		index,
+		total,
+		childRow,
+		allocation,
+		groupParallel,
+	)
+}
+
+func (m *RunManager) finishCompletedTaskMultiGroupWorktreeChild(
+	active *activeRun,
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRow globaldb.Run,
+	allocation taskMultiWorktreeAllocation,
+) error {
+	// Persist completion first, then persist the projected cleanup metadata
+	// before removing either the worktree or its empty result branch.
+	if err := m.emitTaskMultiWorktreeChildSettlement(
+		active,
+		item,
+		index,
+		total,
+		childRow,
+		allocation,
+		true,
+	); err != nil {
+		return err
+	}
+	err := m.cleanupSettledTaskWorktreeAfterRecord(
+		context.WithoutCancel(active.ctx),
+		prepared.workspace.RootDir,
+		allocation,
+		taskMultiWorktreeCleanupPolicy{
+			reportNoChanges: true,
+		},
+		func(projected taskMultiWorktreeAllocation) error {
+			return m.emitTaskMultiWorktreeChildSettlement(
+				active,
+				item,
+				index,
+				total,
+				childRow,
+				projected,
+				true,
+			)
+		},
+	)
+	return err
+}
+
+func (m *RunManager) emitTaskMultiWorktreeChildSettlement(
+	active *activeRun,
+	item preparedTaskMultiItem,
+	index int,
+	total int,
+	childRow globaldb.Run,
+	allocation taskMultiWorktreeAllocation,
+	reportNoChanges bool,
+) error {
 	kind, status, errorText := taskMultiChildSettlement(
 		childRow,
 		allocation,
-		prepared.executionKind == apicore.ExecutionKindTaskMultiGroupParallel,
+		reportNoChanges,
 	)
 	return m.emitTaskMultiEvent(
 		active,
@@ -2957,11 +3060,12 @@ func resolveTaskMultiArtifactLocation(
 }
 
 func (root *taskMultiArtifactRoot) openDirectory() error {
-	before, err := root.workspace.Lstat(root.relativePath)
+	before, err := inspectTaskMultiArtifactRootPath(
+		root.workspace,
+		root.relativePath,
+		root.location.path,
+	)
 	if err != nil {
-		return fmt.Errorf("inspect task-group artifact root %s: %w", root.location.path, err)
-	}
-	if err := validateTaskMultiArtifactRootInfo(before, root.location.path); err != nil {
 		return err
 	}
 	directory, err := root.workspace.OpenRoot(root.relativePath)
@@ -2973,11 +3077,12 @@ func (root *taskMultiArtifactRoot) openDirectory() error {
 	if err != nil {
 		return fmt.Errorf("inspect opened task-group artifact root %s: %w", root.location.path, err)
 	}
-	current, err := root.workspace.Lstat(root.relativePath)
+	current, err := inspectTaskMultiArtifactRootPath(
+		root.workspace,
+		root.relativePath,
+		root.location.path,
+	)
 	if err != nil {
-		return fmt.Errorf("reinspect task-group artifact root %s: %w", root.location.path, err)
-	}
-	if err := validateTaskMultiArtifactRootInfo(current, root.location.path); err != nil {
 		return err
 	}
 	if !os.SameFile(before, opened) || !os.SameFile(current, opened) {
@@ -2988,6 +3093,48 @@ func (root *taskMultiArtifactRoot) openDirectory() error {
 	}
 	root.identity = opened
 	return nil
+}
+
+func inspectTaskMultiArtifactRootPath(
+	workspace *os.Root,
+	relativePath string,
+	path string,
+) (os.FileInfo, error) {
+	parts := strings.Split(filepath.Clean(relativePath), string(filepath.Separator))
+	current := ""
+	for index, part := range parts {
+		current = filepath.Join(current, part)
+		info, err := workspace.Lstat(current)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"inspect task-group artifact root %s component %s: %w",
+				path,
+				current,
+				err,
+			)
+		}
+		if index == len(parts)-1 {
+			if err := validateTaskMultiArtifactRootInfo(info, path); err != nil {
+				return nil, err
+			}
+			return info, nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf(
+				"daemon: task-group artifact root %s contains symlink component %s",
+				path,
+				current,
+			)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf(
+				"daemon: task-group artifact root %s contains non-directory component %s",
+				path,
+				current,
+			)
+		}
+	}
+	return nil, fmt.Errorf("daemon: task-group artifact root %s is invalid", path)
 }
 
 func validateTaskMultiArtifactRootInfo(info os.FileInfo, path string) error {
@@ -3008,11 +3155,8 @@ func (root *taskMultiArtifactRoot) verifyIdentity() error {
 }
 
 func (root *taskMultiArtifactRoot) verifyIdentityAt(relativePath string, path string) error {
-	current, err := root.workspace.Lstat(relativePath)
+	current, err := inspectTaskMultiArtifactRootPath(root.workspace, relativePath, path)
 	if err != nil {
-		return fmt.Errorf("reinspect task-group artifact root %s: %w", path, err)
-	}
-	if err := validateTaskMultiArtifactRootInfo(current, path); err != nil {
 		return err
 	}
 	opened, err := root.directory.Stat(".")
@@ -3468,10 +3612,28 @@ func installStagedTaskMultiArtifactTree(
 			fmt.Errorf("install reconciled task-group artifacts at %s: %w", destinationPath, err),
 		)
 	}
-	if err := destination.workspace.RemoveAll(displacedRelative); err != nil {
-		return fmt.Errorf("remove previous canonical task-group artifacts %s: %w", displacedPath, err)
-	}
+	removeDisplacedTaskMultiArtifactTree(
+		destination.workspace.RemoveAll,
+		displacedRelative,
+		displacedPath,
+	)
 	return nil
+}
+
+func removeDisplacedTaskMultiArtifactTree(
+	removeAll func(string) error,
+	displacedRelative string,
+	displacedPath string,
+) {
+	if err := removeAll(displacedRelative); err != nil {
+		slog.Default().Warn(
+			"daemon: remove previous canonical task-group artifacts",
+			"path",
+			displacedPath,
+			"error",
+			err,
+		)
+	}
 }
 
 func restoreTaskMultiArtifactDestinationAfterError(
@@ -3561,23 +3723,62 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 	if len(policies) > 0 {
 		policy = policies[0]
 	}
-	allocation.WorktreeStatus = taskMultiWorktreeStatusPreserved
+	plan := m.planSettledTaskWorktreeCleanup(ctx, workspaceRoot, allocation, policy)
+	return m.applySettledTaskWorktreeCleanup(ctx, workspaceRoot, plan)
+}
+
+func (m *RunManager) cleanupSettledTaskWorktreeAfterRecord(
+	ctx context.Context,
+	workspaceRoot string,
+	allocation taskMultiWorktreeAllocation,
+	policy taskMultiWorktreeCleanupPolicy,
+	record func(taskMultiWorktreeAllocation) error,
+) error {
+	if record == nil {
+		return errors.New("daemon: worktree cleanup metadata recorder is required")
+	}
+	plan := m.planSettledTaskWorktreeCleanup(ctx, workspaceRoot, allocation, policy)
+	if err := record(plan.projected); err != nil {
+		return err
+	}
+	settled := m.applySettledTaskWorktreeCleanup(ctx, workspaceRoot, plan)
+	if settled == plan.projected {
+		return nil
+	}
+	if err := record(settled); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *RunManager) planSettledTaskWorktreeCleanup(
+	ctx context.Context,
+	workspaceRoot string,
+	allocation taskMultiWorktreeAllocation,
+	policy taskMultiWorktreeCleanupPolicy,
+) taskMultiWorktreeCleanupPlan {
+	plan := taskMultiWorktreeCleanupPlan{
+		original:  allocation,
+		projected: allocation,
+		policy:    policy,
+	}
+	plan.projected.WorktreeStatus = taskMultiWorktreeStatusPreserved
 	if policy.preserve {
-		allocation.WorktreeReason = "preserved after unsuccessful parallel task-group child"
-		return allocation
+		plan.projected.WorktreeReason = "preserved after unsuccessful parallel task-group child"
+		return plan
 	}
 	path, owned, err := cleanOwnedWorktreePath(m.homePaths.WorktreesDir, allocation.Path)
 	if err != nil {
-		allocation.WorktreeReason = fmt.Sprintf("validate worktree ownership: %v", err)
-		return allocation
+		plan.projected.WorktreeReason = fmt.Sprintf("validate worktree ownership: %v", err)
+		return plan
 	}
 	if !owned {
-		allocation.WorktreeReason = fmt.Sprintf(
+		plan.projected.WorktreeReason = fmt.Sprintf(
 			"worktree %s is outside captured root %s; it may belong to a previous COMPOZY_HOME",
 			allocation.Path,
 			m.homePaths.WorktreesDir,
 		)
-		return allocation
+		return plan
 	}
 	inspection, err := inspectTaskWorktreeLifecycle(ctx, m.worktreeAllocator, workspaceRoot, taskWorktreePurgeTarget{
 		Path:         path,
@@ -3585,41 +3786,63 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 		ResultBranch: allocation.ResultBranch,
 	})
 	if err != nil {
-		allocation.WorktreeReason = fmt.Sprintf("inspect worktree cleanup safety: %v", err)
-		return allocation
+		plan.projected.WorktreeReason = fmt.Sprintf("inspect worktree cleanup safety: %v", err)
+		return plan
 	}
+	plan.path = path
+	plan.inspection = inspection
 	if !inspection.Removable {
-		allocation.WorktreeReason = inspection.Reason
-		return allocation
+		plan.projected.WorktreeReason = inspection.Reason
+		return plan
 	}
-	if inspection.Exists {
-		if err := m.worktreeAllocator.Remove(ctx, workspaceRoot, path); err != nil {
-			allocation.WorktreeReason = fmt.Sprintf("remove safe worktree: %v", err)
-			return allocation
+	plan.projected.WorktreeStatus = taskMultiWorktreeStatusRemoved
+	plan.projected.WorktreeReason = inspection.Reason
+	if inspection.DeleteResultBranch && policy.reportNoChanges {
+		plan.projected.NoChanges = true
+		plan.projected.ResultBranch = ""
+	}
+	return plan
+}
+
+func (m *RunManager) applySettledTaskWorktreeCleanup(
+	ctx context.Context,
+	workspaceRoot string,
+	plan taskMultiWorktreeCleanupPlan,
+) taskMultiWorktreeAllocation {
+	if !plan.inspection.Removable {
+		return plan.projected
+	}
+	settled := plan.projected
+	if plan.inspection.Exists {
+		if err := m.worktreeAllocator.Remove(ctx, workspaceRoot, plan.path); err != nil {
+			settled = plan.original
+			settled.WorktreeStatus = taskMultiWorktreeStatusPreserved
+			settled.WorktreeReason = fmt.Sprintf("remove safe worktree: %v", err)
+			return settled
 		}
-		removeEmptyWorktreeParents(m.homePaths.WorktreesDir, path)
+		removeEmptyWorktreeParents(m.homePaths.WorktreesDir, plan.path)
 	}
-	allocation.WorktreeStatus = taskMultiWorktreeStatusRemoved
-	allocation.WorktreeReason = inspection.Reason
-	if inspection.DeleteResultBranch {
+	if plan.inspection.DeleteResultBranch {
 		deleted, err := m.worktreeAllocator.DeleteBranchIfAt(
 			ctx,
 			workspaceRoot,
-			allocation.ResultBranch,
-			allocation.BaseCommit,
+			plan.original.ResultBranch,
+			plan.original.BaseCommit,
 		)
 		if err != nil {
-			allocation.WorktreeReason = fmt.Sprintf(
+			settled.NoChanges = plan.original.NoChanges
+			settled.ResultBranch = plan.original.ResultBranch
+			settled.WorktreeReason = fmt.Sprintf(
 				"%s; empty result branch cleanup failed: %v",
-				inspection.Reason,
+				plan.inspection.Reason,
 				err,
 			)
-		} else if deleted && policy.reportNoChanges {
-			allocation.NoChanges = true
-			allocation.ResultBranch = ""
+		} else if !deleted && plan.policy.reportNoChanges {
+			settled.NoChanges = plan.original.NoChanges
+			settled.ResultBranch = plan.original.ResultBranch
 		}
 	}
-	return allocation
+	return settled
 }
 
 // cleanupSettledTaskMultiChildWorktree removes a parallel child's worktree only
