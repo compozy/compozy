@@ -2521,7 +2521,9 @@ func remapTaskMultiChildRuntime(
 	remapped.WorkflowName = trimmedSlug
 	remapped.ParentRunID = strings.TrimSpace(parentRunID)
 	remapped.RunID = ""
-	remapTaskMultiExecutionScope(remapped.ExecutionScope, base.WorkspaceRoot, trimmedPath)
+	if err := remapTaskMultiExecutionScope(remapped.ExecutionScope, base.WorkspaceRoot, trimmedPath); err != nil {
+		return nil, err
+	}
 	if remapped.ExecutionScope != nil {
 		tasksDir := strings.TrimSpace(remapped.ExecutionScope.TasksDir)
 		if tasksDir == "" {
@@ -2536,30 +2538,68 @@ func remapTaskMultiExecutionScope(
 	scope *model.ExecutionScope,
 	sourceRoot string,
 	worktreeRoot string,
-) {
+) error {
 	if scope == nil {
-		return
+		return nil
 	}
-	scope.SpecDir = remapTaskMultiExecutionScopePath(scope.SpecDir, sourceRoot, worktreeRoot)
-	scope.OperationalDir = remapTaskMultiExecutionScopePath(scope.OperationalDir, sourceRoot, worktreeRoot)
-	scope.TasksDir = remapTaskMultiExecutionScopePath(scope.TasksDir, sourceRoot, worktreeRoot)
-	scope.ReviewsDir = remapTaskMultiExecutionScopePath(scope.ReviewsDir, sourceRoot, worktreeRoot)
-	scope.MemoryDir = remapTaskMultiExecutionScopePath(scope.MemoryDir, sourceRoot, worktreeRoot)
+	paths := []struct {
+		label       string
+		path        string
+		destination *string
+	}{
+		{label: "specification directory", path: scope.SpecDir, destination: &scope.SpecDir},
+		{label: "operational directory", path: scope.OperationalDir, destination: &scope.OperationalDir},
+		{label: "task directory", path: scope.TasksDir, destination: &scope.TasksDir},
+		{label: "reviews directory", path: scope.ReviewsDir, destination: &scope.ReviewsDir},
+		{label: "memory directory", path: scope.MemoryDir, destination: &scope.MemoryDir},
+	}
+	remappedPaths := make([]string, len(paths))
+	for index := range paths {
+		remapped, err := remapTaskMultiExecutionScopePath(paths[index].path, sourceRoot, worktreeRoot)
+		if err != nil {
+			return fmt.Errorf("daemon: task-group execution scope %s: %w", paths[index].label, err)
+		}
+		remappedPaths[index] = remapped
+	}
+	for index := range paths {
+		*paths[index].destination = remappedPaths[index]
+	}
+	return nil
 }
 
-func remapTaskMultiExecutionScopePath(path string, sourceRoot string, worktreeRoot string) string {
+func remapTaskMultiExecutionScopePath(path string, sourceRoot string, worktreeRoot string) (string, error) {
 	trimmed := strings.TrimSpace(path)
-	if trimmed == "" || !filepath.IsAbs(trimmed) {
-		return path
+	if trimmed == "" {
+		return "", errors.New("path is required")
 	}
-	rel, err := filepath.Rel(filepath.Clean(sourceRoot), filepath.Clean(trimmed))
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return path
+	if !filepath.IsAbs(trimmed) {
+		return "", fmt.Errorf("path %s is not absolute", trimmed)
 	}
-	if rel == "." {
-		return filepath.Clean(worktreeRoot)
+	cleanSourceRoot := filepath.Clean(strings.TrimSpace(sourceRoot))
+	if strings.TrimSpace(sourceRoot) == "" || !filepath.IsAbs(cleanSourceRoot) {
+		return "", fmt.Errorf("source workspace root %s is not absolute", sourceRoot)
 	}
-	return filepath.Join(worktreeRoot, rel)
+	cleanWorktreeRoot := filepath.Clean(strings.TrimSpace(worktreeRoot))
+	if strings.TrimSpace(worktreeRoot) == "" || !filepath.IsAbs(cleanWorktreeRoot) {
+		return "", fmt.Errorf("worktree root %s is not absolute", worktreeRoot)
+	}
+	cleanPath := filepath.Clean(trimmed)
+	rel, err := filepath.Rel(cleanSourceRoot, cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve path %s below source workspace %s: %w", cleanPath, cleanSourceRoot, err)
+	}
+	if !taskMultiRelativePathIsBelowRoot(rel) {
+		return "", fmt.Errorf("path %s is not below source workspace %s", cleanPath, cleanSourceRoot)
+	}
+	remapped := filepath.Join(cleanWorktreeRoot, rel)
+	remappedRel, err := filepath.Rel(cleanWorktreeRoot, remapped)
+	if err != nil {
+		return "", fmt.Errorf("resolve remapped path %s below worktree %s: %w", remapped, cleanWorktreeRoot, err)
+	}
+	if !taskMultiRelativePathIsBelowRoot(remappedRel) {
+		return "", fmt.Errorf("remapped path %s is not below worktree %s", remapped, cleanWorktreeRoot)
+	}
+	return remapped, nil
 }
 
 // requireTaskMultiWorktreeTaskDir resolves and validates the slug task directory
@@ -2890,11 +2930,16 @@ func taskMultiGroupArtifactSyncPaths(
 			taskMultiArtifactLocation{},
 			errors.New("daemon: parent task-group operational directory is required")
 	}
-	expectedSource := remapTaskMultiExecutionScopePath(
+	expectedSource, err := remapTaskMultiExecutionScopePath(
 		destination,
 		item.runtimeCfg.WorkspaceRoot,
 		childRuntimeCfg.WorkspaceRoot,
 	)
+	if err != nil {
+		return taskMultiArtifactLocation{},
+			taskMultiArtifactLocation{},
+			fmt.Errorf("remap parent task-group operational directory: %w", err)
+	}
 	if filepath.Clean(source) != filepath.Clean(expectedSource) {
 		return taskMultiArtifactLocation{}, taskMultiArtifactLocation{}, fmt.Errorf(
 			"daemon: child task-group operational directory %s does not match remapped parent path %s",

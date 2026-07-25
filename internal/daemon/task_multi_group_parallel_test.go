@@ -263,6 +263,106 @@ func TestRemapTaskMultiChildRuntimeClonesTaskGroupExecutionScope(t *testing.T) {
 	}
 }
 
+func TestRunManagerTaskMultiGroupChildRejectsEscapedExecutionScopeBeforeLaunch(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "escaped-execution-scope"
+		parentID   = "escaped-execution-scope-parent"
+		groupID    = "TG-001"
+	)
+	var launched atomic.Int32
+	var executed atomic.Int32
+	buildRunID := taskMultiGroupRunIDBuilder(parentID)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+			if cfg != nil && cfg.ParentRunID == parentID {
+				launched.Add(1)
+			}
+			return buildRunID(cfg)
+		},
+		prepare: plan.Prepare,
+		execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+			executed.Add(1)
+			return nil
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	request := taskMultiGroupRequest(t, env, parentID, initiative, []string{groupID}, 1, true)
+	slugs, err := normalizeTaskMultiRequest(request)
+	if err != nil {
+		t.Fatalf("normalizeTaskMultiRequest() error = %v", err)
+	}
+	childOverrides, err := taskMultiChildRuntimeOverrides(request.RuntimeOverrides)
+	if err != nil {
+		t.Fatalf("taskMultiChildRuntimeOverrides() error = %v", err)
+	}
+	prepared, err := env.manager.prepareTaskMultiStart(
+		context.Background(),
+		env.workspaceRoot,
+		slugs,
+		workspacecfg.TaskRunMultipleModeParallel,
+		request,
+		childOverrides,
+	)
+	if err != nil {
+		t.Fatalf("prepareTaskMultiStart() error = %v", err)
+	}
+	prepared.executionKind = apicore.ExecutionKindTaskMultiGroupParallel
+	if len(prepared.items) != 1 || prepared.items[0].runtimeCfg == nil ||
+		prepared.items[0].runtimeCfg.ExecutionScope == nil {
+		t.Fatalf("prepared items = %#v, want one task-group runtime", prepared.items)
+	}
+	item := prepared.items[0]
+	item.runtimeCfg.ExecutionScope.MemoryDir = filepath.Join(
+		filepath.Dir(env.workspaceRoot),
+		"foreign-memory",
+	)
+
+	base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveBase() error = %v", err)
+	}
+	child, err := env.manager.startTaskMultiWorktreeChild(
+		&activeRun{
+			runID:     parentID,
+			ctx:       context.Background(),
+			mode:      runModeTaskMulti,
+			taskMulti: prepared,
+		},
+		prepared,
+		item,
+		0,
+		1,
+		base,
+	)
+	if child.Run.RunID != "" {
+		waitForRun(t, env.globalDB, child.Run.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+	}
+	if child.Allocation.Path != "" {
+		if removeErr := env.manager.worktreeAllocator.Remove(
+			context.Background(),
+			env.workspaceRoot,
+			child.Allocation.Path,
+		); removeErr != nil {
+			t.Fatalf("remove rejected child worktree: %v", removeErr)
+		}
+	}
+	if err == nil || !strings.Contains(err.Error(), "execution scope memory directory") {
+		t.Fatalf("startTaskMultiWorktreeChild() error = %v, want escaped memory directory rejection", err)
+	}
+	if got := launched.Load(); got != 0 {
+		t.Fatalf("launched children = %d, want 0", got)
+	}
+	if got := executed.Load(); got != 0 {
+		t.Fatalf("executed children = %d, want 0", got)
+	}
+}
+
 func TestRunManagerTaskMultiGroupParallelPersistsCanonicalTaskArtifacts(t *testing.T) {
 	requireGitForTaskMulti(t)
 
@@ -541,11 +641,14 @@ func TestFinishTaskMultiWorktreeChildEmitsCompletionBeforeCleanup(t *testing.T) 
 		"_task_groups",
 		groupID,
 	)
-	childArtifacts := remapTaskMultiExecutionScopePath(
+	childArtifacts, err := remapTaskMultiExecutionScopePath(
 		parentArtifacts,
 		env.workspaceRoot,
 		allocation.Path,
 	)
+	if err != nil {
+		t.Fatalf("remapTaskMultiExecutionScopePath() error = %v", err)
+	}
 	writeFileForTest(t, filepath.Join(parentArtifacts, "task.md"), "before\n")
 	writeFileForTest(t, filepath.Join(childArtifacts, "task.md"), "before\n")
 	baseline, err := captureTaskMultiArtifactTreeAt(taskMultiArtifactLocation{
