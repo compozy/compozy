@@ -409,7 +409,14 @@ func (m *RunManager) revalidateTaskMultiGroupChildStart(
 	if current == nil || item.taskGroupPreflight == nil {
 		return nil, false, errors.New("parallel task-group child is missing preflight evidence")
 	}
-	outOfOrderNeeded, err := taskGroupPreflightDecision(
+	if err := rejectCompletedTaskMultiGroupChildStart(
+		detachContext(active.ctx),
+		prepared.workspace.RootDir,
+		item.slug,
+	); err != nil {
+		return nil, false, err
+	}
+	outOfOrderNeeded, err := taskMultiGroupChildPreflightDecision(
 		current,
 		prepared.allowOutOfOrder,
 		item.taskGroupPreflight,
@@ -419,6 +426,39 @@ func (m *RunManager) revalidateTaskMultiGroupChildStart(
 	}
 	current.outOfOrderNeeded = outOfOrderNeeded
 	return current, outOfOrderNeeded, nil
+}
+
+func rejectCompletedTaskMultiGroupChildStart(
+	ctx context.Context,
+	workspaceRoot string,
+	workflowRef string,
+) error {
+	target, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspaceRoot, workflowRef)
+	if err != nil {
+		return err
+	}
+	if !target.Plan.IsComplete(target.TaskGroup.ID) {
+		return nil
+	}
+	validation, err := taskgroups.ValidateIndependentSet(
+		target.Plan,
+		[]string{target.TaskGroup.ID},
+	)
+	if err != nil {
+		return err
+	}
+	return parallelTaskGroupSelectionProblem(target.Ref.Initiative, validation)
+}
+
+func taskMultiGroupChildPreflightDecision(
+	evidence *taskGroupPreflightEvidence,
+	allowOutOfOrder bool,
+	previous *taskGroupPreflightEvidence,
+) (bool, error) {
+	if previous != nil && evidence.planChecksum != previous.planChecksum {
+		return false, taskGroupDependenciesProblem(evidence, previous)
+	}
+	return taskGroupPreflightDecision(evidence, allowOutOfOrder, nil)
 }
 
 func taskMultiTaskGroupID(slug string) string {

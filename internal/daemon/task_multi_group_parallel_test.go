@@ -62,6 +62,159 @@ func TestTaskGroupPreflightDecisionPlanDriftUT080(t *testing.T) {
 	}
 }
 
+func TestTaskMultiGroupChildPreflightDecisionRejectsEligiblePlanDrift(t *testing.T) {
+	t.Parallel()
+
+	previous := &taskGroupPreflightEvidence{
+		initiativeSlug: "initiative",
+		taskGroupID:    "TG-001",
+		planChecksum:   "before",
+		readiness:      taskgroups.Readiness{Eligible: true},
+	}
+	current := &taskGroupPreflightEvidence{
+		initiativeSlug: "initiative",
+		taskGroupID:    "TG-001",
+		planChecksum:   "after",
+		readiness:      taskgroups.Readiness{Eligible: true},
+	}
+
+	_, err := taskMultiGroupChildPreflightDecision(current, false, previous)
+	var problem *apicore.Problem
+	if !errors.As(err, &problem) {
+		t.Fatalf("eligible plan drift error = %v, want API problem", err)
+	}
+	if problem.Status != http.StatusConflict || problem.Code != "task_group_dependencies_unmet" {
+		t.Fatalf("eligible plan drift problem = %#v, want 409 task_group_dependencies_unmet", problem)
+	}
+	if changed, ok := problem.Details["plan_changed"].(bool); !ok || !changed {
+		t.Fatalf("eligible plan drift details = %#v, want plan_changed=true", problem.Details)
+	}
+}
+
+func TestRunManagerTaskMultiGroupParallelRejectsCompletionBeforeChildStart(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-completed-before-child-start"
+		parentID   = "group-completed-before-child-start-parent"
+	)
+	firstStarted := make(chan struct{}, 1)
+	releaseFirst := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() {
+			close(releaseFirst)
+		})
+	})
+
+	var executed atomic.Int32
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			executed.Add(1)
+			groupID := taskMultiTaskGroupID(cfg.Name)
+			if groupID == "TG-001" {
+				firstStarted <- struct{}{}
+				select {
+				case <-releaseFirst:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" result\n")
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 2)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	realGit := env.manager.worktreeAllocator.run
+	var worktreeAdds atomic.Int32
+	env.manager.worktreeAllocator.run = func(
+		ctx context.Context,
+		dir string,
+		args ...string,
+	) (string, error) {
+		if len(args) >= 2 && args[0] == "worktree" && args[1] == "add" {
+			worktreeAdds.Add(1)
+		}
+		return realGit(ctx, dir, args...)
+	}
+
+	parent := startTaskMultiGroupParallelRun(
+		t,
+		env,
+		parentID,
+		initiative,
+		[]string{"TG-001", "TG-002"},
+		1,
+	)
+	select {
+	case <-firstStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first task-group child did not start")
+	}
+
+	completedSecond := independentTaskGroupSpec("TG-002")
+	completedSecond.Completed = true
+	writeTaskGroupPlanFile(
+		t,
+		env,
+		initiative,
+		[]taskgroups.TaskGroup{
+			independentTaskGroupSpec("TG-001"),
+			completedSecond,
+		},
+		nil,
+	)
+	revalidationErr := rejectCompletedTaskMultiGroupChildStart(
+		context.Background(),
+		env.workspaceRoot,
+		initiative+"/TG-002",
+	)
+	var problem *apicore.Problem
+	if !errors.As(revalidationErr, &problem) {
+		t.Fatalf("completed child revalidation error = %v, want API problem", revalidationErr)
+	}
+	rejected, ok := problem.Details["rejected"].(map[string]any)
+	if !ok {
+		t.Fatalf("completed child revalidation details = %#v, want rejected map", problem.Details)
+	}
+	rejection, ok := rejected["TG-002"].(map[string]any)
+	if !ok || rejection["reason"] != "already_completed" {
+		t.Fatalf("completed child rejection = %#v, want already_completed", rejected["TG-002"])
+	}
+	releaseOnce.Do(func() {
+		close(releaseFirst)
+	})
+
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusFailed {
+		t.Fatalf("parent status = %q error=%q, want failed", row.Status, row.ErrorText)
+	}
+	items := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 2).Items)
+	if first := items["TG-001"]; first.Status != taskMultiItemStatusCompleted {
+		t.Fatalf("first item = %#v, want completed", first)
+	}
+	second := items["TG-002"]
+	if second.Status != taskMultiItemStatusFailed {
+		t.Fatalf("completed-before-start item = %#v, want failed", second)
+	}
+	if second.WorktreePath != "" {
+		t.Fatalf("completed-before-start worktree = %q, want no allocation", second.WorktreePath)
+	}
+	if got := worktreeAdds.Load(); got != 1 {
+		t.Fatalf("worktree allocations = %d, want only the first child", got)
+	}
+	if got := executed.Load(); got != 1 {
+		t.Fatalf("executed children = %d, want only the first child", got)
+	}
+}
+
 func TestRemapTaskMultiChildRuntimeClonesTaskGroupExecutionScope(t *testing.T) {
 	t.Parallel()
 
