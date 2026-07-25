@@ -290,8 +290,8 @@ func (fb *formBuilder) addNameField(target *string) {
 				Title("Review Target").
 				Description(
 					"Select a workflow or Task Group. " +
-						"Rows without pending issues stay visible but stay locked; " +
-						"[⊘] means no implementation tasks are complete and review is blocked.",
+						"Rows without pending issues stay visible but stay locked. " +
+						"[⊘] means no valid review round is available.",
 				).
 				Options(options...).
 				Validate(func(value string) error {

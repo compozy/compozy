@@ -121,7 +121,7 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 				Label:                  "[⊘] TG-004 — Rollout — No review round — No issues pending",
 				Depth:                  1,
 				SelectionBlocked:       true,
-				SelectionBlockedReason: reviewImplementationBlockedReason,
+				SelectionBlockedReason: reviewNoPendingIssuesReason,
 			},
 		}
 		inputs := newFormInputs()
@@ -165,8 +165,8 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 		}
 		rendered := xansi.Strip(field.View())
 		for _, want := range []string{
-			"Rows without pending issues stay visible but stay locked;",
-			"[⊘] means no implementation tasks are complete",
+			"Rows without pending issues stay visible but stay locked.",
+			"[⊘] means no valid review round is available.",
 			"[ ] auth",
 			"  [✓] TG-001",
 			"  [x] TG-002",
@@ -193,9 +193,6 @@ func TestFixReviewsFormStartsWithExactReviewTargetSelection(t *testing.T) {
 			t.Fatalf("selected review target = %q, want exact Task Group reference", inputs.name)
 		}
 		accessibleOutput := xansi.Strip(output.String())
-		if !strings.Contains(accessibleOutput, reviewImplementationBlockedReason) {
-			t.Fatalf("review target output missing blocked-selection guidance:\n%s", output.String())
-		}
 		if !strings.Contains(accessibleOutput, reviewNoPendingIssuesReason) {
 			t.Fatalf("review target output missing no-pending guidance:\n%s", output.String())
 		}

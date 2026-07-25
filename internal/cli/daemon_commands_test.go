@@ -3721,7 +3721,7 @@ func TestTaskGroupPickerOptions(t *testing.T) {
 		t.Fatalf("review picker options = %#v, missing TG-002", reviewOptions)
 	}
 	if got, want := reviewOptions[reviewIndex].Label,
-		"[ ] TG-002 — Delivery — No review round — No issues pending"; got != want {
+		"[⊘] TG-002 — Delivery — No review round — No issues pending"; got != want {
 		t.Fatalf("review picker label = %q, want %q", got, want)
 	}
 	if reviewOptions[reviewIndex].Completed {
@@ -3870,7 +3870,7 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 		initiative + "/TG-001": "[ ] TG-001 — Foundation — Review round 3 — 1 issue pending",
 		initiative + "/TG-002": "[⊘] TG-002 — Delivery — No review round — No issues pending",
 		"clean":                "[✓] clean — Review round 1 — No issues pending",
-		"unreviewed":           "[ ] unreviewed — No review round — No issues pending",
+		"unreviewed":           "[⊘] unreviewed — No review round — No issues pending",
 	}
 	if len(options) != len(wants) {
 		t.Fatalf("review target options = %#v, want %d", options, len(wants))
@@ -3960,8 +3960,84 @@ func TestBuildReviewFixTargetPickerOptions(t *testing.T) {
 		t.Fatalf("review-blocked target label = %q, want %q", got, want)
 	}
 	if err := validateTaskGroupPickerSelection(options, initiative+"/TG-002", true); err == nil ||
-		!strings.Contains(err.Error(), "review is blocked until at least one implementation task is complete") {
-		t.Fatalf("review-blocked selection error = %v, want implementation guidance", err)
+		!strings.Contains(err.Error(), reviewNoPendingIssuesReason) {
+		t.Fatalf("review-blocked selection error = %v, want no-pending guidance", err)
+	}
+}
+
+// Invariant: pending review issues remain selectable without implementation task artifacts.
+func TestReviewFixPickerAllowsReviewOnlyWorkflow(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	workflow := "review-only"
+	reviewDir := filepath.Join(
+		workspaceRoot,
+		".compozy",
+		"tasks",
+		workflow,
+		reviews.RoundDirName(1),
+	)
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "manual",
+		Round:     1,
+		CreatedAt: time.Date(2026, 7, 25, 4, 30, 0, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title: "Pending issue",
+		File:  "review_only.go",
+		Line:  1,
+		Body:  "Fix the pending review issue.",
+	}}); err != nil {
+		t.Fatalf("write review-only round: %v", err)
+	}
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options: %v", err)
+	}
+	index := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == workflow
+	})
+	if index < 0 {
+		t.Fatalf("review target options = %#v, want %q", options, workflow)
+	}
+	if got, want := options[index].Label, "[ ] review-only — Review round 1 — 1 issue pending"; got != want {
+		t.Fatalf("review-only target label = %q, want %q", got, want)
+	}
+	if err := validateTaskGroupPickerSelection(options, workflow, true); err != nil {
+		t.Fatalf("review-only target selection error = %v", err)
+	}
+}
+
+// Invariant: a target without a parseable, non-empty review round stays visible
+// as blocked even when implementation task artifacts are present.
+func TestReviewFixPickerBlocksWorkflowWithoutValidReview(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	workflow := "no-review"
+	workflowRoot := filepath.Join(workspaceRoot, ".compozy", "tasks", workflow)
+	if err := os.MkdirAll(workflowRoot, 0o755); err != nil {
+		t.Fatalf("create workflow without review: %v", err)
+	}
+	writeFormTaskFile(t, workflowRoot, "task_001.md", "completed")
+
+	options, err := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+	if err != nil {
+		t.Fatalf("build review target picker options: %v", err)
+	}
+	index := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+		return option.Value == workflow
+	})
+	if index < 0 {
+		t.Fatalf("review target options = %#v, want %q", options, workflow)
+	}
+	if got, want := options[index].Label, "[⊘] no-review — No review round — No issues pending"; got != want {
+		t.Fatalf("target without valid review label = %q, want %q", got, want)
+	}
+	if err := validateTaskGroupPickerSelection(options, workflow, true); err == nil ||
+		!strings.Contains(err.Error(), reviewNoPendingIssuesReason) {
+		t.Fatalf("target without valid review selection error = %v, want no-pending guidance", err)
 	}
 }
 

@@ -22,7 +22,6 @@ const (
 	taskGroupPickerNotStartedMarker    = "[!]"
 	taskGroupPickerBlockedMarker       = "[⊘]"
 	taskGroupPickerCompletedMarker     = "[✓]"
-	reviewImplementationBlockedReason  = "review is blocked until at least one implementation task is complete"
 	reviewNoPendingIssuesReason        = "review target has no pending issues"
 	reviewNoActionableTaskGroupsReason = "review target has no Task Groups with pending issues that can be fixed"
 	reviewTargetUnavailableReason      = "review target is unavailable"
@@ -108,7 +107,7 @@ func taskGroupPickerDescription(input taskGroupPickerInput, allowCompleted bool)
 		"[⊘] means dependency blocked; [!] means no tasks are complete."
 	if input.RunMode == daemonRunModeReview {
 		description = "Rows without pending issues stay visible but stay locked. " +
-			"[⊘] means no implementation tasks are complete and review is blocked."
+			"[⊘] means no valid review round is available."
 	} else if !allowCompleted {
 		description = "Completed task groups stay visible with a check but stay locked. " +
 			"Rows include status and task progress; [⊘] means dependency blocked; [!] means no tasks are complete."
@@ -368,9 +367,8 @@ func buildTaskGroupPickerOption(
 			return taskGroupPickerOption{}, err
 		}
 		completed := reviewRoundPickerCompleted(workflowOption.Completed, summary)
-		reviewBlocked := reviewFixImplementationBlocked(workflowOption)
-		selectionBlockedReason := reviewFixSelectionBlockedReason(reviewBlocked, summary)
-		mark := taskGroupPickerMarker(completed, reviewBlocked, false)
+		selectionBlockedReason := reviewFixSelectionBlockedReason(summary)
+		mark := taskGroupPickerMarker(completed, reviewRoundPickerBlocked(summary), false)
 		label := mark + " " + workflowOption.Label + " — " + reviewRoundPickerSummaryLabel(summary)
 		return taskGroupPickerOption{
 			Value:                  value,
@@ -401,9 +399,8 @@ func buildOrdinaryReviewFixTargetPickerOption(
 		return taskGroupPickerOption{}, err
 	}
 	completed := reviewRoundPickerCompleted(workflowOption.Completed, summary)
-	reviewBlocked := reviewFixImplementationBlocked(workflowOption)
-	selectionBlockedReason := reviewFixSelectionBlockedReason(reviewBlocked, summary)
-	mark := taskGroupPickerMarker(completed, reviewBlocked, false)
+	selectionBlockedReason := reviewFixSelectionBlockedReason(summary)
+	mark := taskGroupPickerMarker(completed, reviewRoundPickerBlocked(summary), false)
 	return taskGroupPickerOption{
 		Value:                  slug,
 		SelectionBlocked:       selectionBlockedReason != "",
@@ -415,17 +412,15 @@ func buildOrdinaryReviewFixTargetPickerOption(
 	}, nil
 }
 
-func reviewFixSelectionBlockedReason(
-	implementationBlocked bool,
-	summary reviewRoundPickerSummary,
-) string {
-	if implementationBlocked {
-		return reviewImplementationBlockedReason
-	}
+func reviewFixSelectionBlockedReason(summary reviewRoundPickerSummary) string {
 	if summary.PendingIssueCount == 0 {
 		return reviewNoPendingIssuesReason
 	}
 	return ""
+}
+
+func reviewRoundPickerBlocked(summary reviewRoundPickerSummary) bool {
+	return summary.Round == 0
 }
 
 func reviewRoundPickerCompleted(
