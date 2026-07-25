@@ -586,7 +586,8 @@ func listTaskRunWizardWorkflowOptions(
 }
 
 func readTaskRunWizardPlan(baseDir, initiative string) taskRunWizardPlanReadResult {
-	planPath := filepath.Join(baseDir, initiative, taskgroups.ManifestFileName)
+	initiativeDir := filepath.Join(baseDir, initiative)
+	planPath := filepath.Join(initiativeDir, taskgroups.ManifestFileName)
 	if _, err := os.Lstat(planPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return taskRunWizardPlanReadResult{Status: taskRunWizardPlanAbsent}
@@ -596,7 +597,39 @@ func readTaskRunWizardPlan(baseDir, initiative string) taskRunWizardPlanReadResu
 			Err:    taskRunWizardPlanFilesystemError(err),
 		}
 	}
-	content, err := os.ReadFile(planPath)
+	resolvedInitiativeDir, err := filepath.EvalSymlinks(initiativeDir)
+	if err != nil {
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err:    taskRunWizardPlanFilesystemError(err),
+		}
+	}
+	resolvedPlanPath, err := filepath.EvalSymlinks(planPath)
+	if err != nil {
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err:    taskRunWizardPlanFilesystemError(err),
+		}
+	}
+	relativePlanPath, err := filepath.Rel(resolvedInitiativeDir, resolvedPlanPath)
+	if err != nil {
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err:    fmt.Errorf("compare Task Group marker containment: %w", err),
+		}
+	}
+	if relativePlanPath == ".." ||
+		strings.HasPrefix(relativePlanPath, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relativePlanPath) {
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err: fmt.Errorf(
+				"%w: marker: resolved path escapes allowed root",
+				taskgroups.ErrContainment,
+			),
+		}
+	}
+	content, err := os.ReadFile(resolvedPlanPath)
 	if err != nil {
 		return taskRunWizardPlanReadResult{
 			Status: taskRunWizardPlanInvalid,

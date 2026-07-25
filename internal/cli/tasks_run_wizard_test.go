@@ -457,6 +457,24 @@ func TestTaskRunWizardModel(t *testing.T) {
 				wantDiagnostic: taskgroups.ErrInvalidPlan.Error(),
 			},
 			{
+				name: "marker symlink outside the initiative is blocked",
+				prepareMarker: func(t *testing.T, state *commandState, planPath string) {
+					t.Helper()
+					writeTaskRunWizardPlan(t, state, initiative,
+						taskgroups.TaskGroup{ID: "TG-001", Title: "Foundation"},
+					)
+					externalPlanPath := filepath.Join(state.workspaceRoot, "external-task-groups.md")
+					if err := os.Rename(planPath, externalPlanPath); err != nil {
+						t.Fatalf("move Task Group plan outside initiative: %v", err)
+					}
+					if err := os.Symlink(externalPlanPath, planPath); err != nil {
+						t.Fatalf("symlink external Task Group plan: %v", err)
+					}
+				},
+				wantStatus:     taskRunWizardWorkflowBlocked,
+				wantDiagnostic: taskgroups.ErrContainment.Error(),
+			},
+			{
 				name: "unreadable marker is blocked",
 				prepareMarker: func(t *testing.T, state *commandState, planPath string) {
 					t.Helper()
@@ -499,7 +517,10 @@ func TestTaskRunWizardModel(t *testing.T) {
 				if got := wizard.workflowOptions[0].Status; got != tc.wantStatus {
 					t.Fatalf("workflow status = %s, want %s", got.label(), tc.wantStatus.label())
 				}
-				view := xansi.Strip(wizard.View().Content)
+				view := xansi.Strip(strings.Join(
+					wizard.workflowListLines(wizard.filteredWorkflowOptions(), 180, 20),
+					"\n",
+				))
 				if tc.wantDiagnostic != "" && !strings.Contains(view, tc.wantDiagnostic) {
 					t.Fatalf("workflow view missing diagnostic %q:\n%s", tc.wantDiagnostic, view)
 				}
