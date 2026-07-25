@@ -2270,13 +2270,13 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 	}
 	// Align the runtime workspace root with the registered worktree workspace row
 	// so database identity and runtime filesystem paths match (ADR-007).
-	tasksDir, err := requireTaskMultiWorktreeTaskDir(workspaceRow.RootDir, item.slug)
-	if err != nil {
-		return taskWorktreeChildRun{Allocation: allocation}, err
-	}
 	runtimeCfg, err := remapTaskMultiChildRuntime(item.runtimeCfg, workspaceRow.RootDir, item.slug, active.runID)
 	if err != nil {
 		return taskWorktreeChildRun{Allocation: allocation}, err
+	}
+	tasksDir, err := resolveTaskOperationalDirectory(workspaceRow.RootDir, item.slug, runtimeCfg.ExecutionScope)
+	if err != nil {
+		return taskWorktreeChildRun{Allocation: allocation, RuntimeConfig: runtimeCfg}, err
 	}
 	artifactBaseline, err := captureTaskMultiGroupArtifactBaseline(prepared, runtimeCfg)
 	if err != nil {
@@ -2765,8 +2765,8 @@ func (m *RunManager) finishCompletedTaskMultiGroupWorktreeChild(
 	childRow globaldb.Run,
 	allocation taskMultiWorktreeAllocation,
 ) error {
-	// Persist completion first, then persist the projected cleanup metadata
-	// before removing either the worktree or its empty result branch.
+	// Persist completion first, then apply cleanup and persist only the settled
+	// metadata returned by the worktree and branch mutations.
 	if err := m.emitTaskMultiWorktreeChildSettlement(
 		active,
 		item,
@@ -2778,21 +2778,21 @@ func (m *RunManager) finishCompletedTaskMultiGroupWorktreeChild(
 	); err != nil {
 		return err
 	}
-	err := m.cleanupSettledTaskWorktreeAfterRecord(
+	err := m.cleanupSettledTaskWorktreeAndRecord(
 		context.WithoutCancel(active.ctx),
 		prepared.workspace.RootDir,
 		allocation,
 		taskMultiWorktreeCleanupPolicy{
 			reportNoChanges: true,
 		},
-		func(projected taskMultiWorktreeAllocation) error {
+		func(settled taskMultiWorktreeAllocation) error {
 			return m.emitTaskMultiWorktreeChildSettlement(
 				active,
 				item,
 				index,
 				total,
 				childRow,
-				projected,
+				settled,
 				true,
 			)
 		},
@@ -3727,7 +3727,7 @@ func (m *RunManager) cleanupSettledTaskWorktree(
 	return m.applySettledTaskWorktreeCleanup(ctx, workspaceRoot, plan)
 }
 
-func (m *RunManager) cleanupSettledTaskWorktreeAfterRecord(
+func (m *RunManager) cleanupSettledTaskWorktreeAndRecord(
 	ctx context.Context,
 	workspaceRoot string,
 	allocation taskMultiWorktreeAllocation,
@@ -3738,17 +3738,8 @@ func (m *RunManager) cleanupSettledTaskWorktreeAfterRecord(
 		return errors.New("daemon: worktree cleanup metadata recorder is required")
 	}
 	plan := m.planSettledTaskWorktreeCleanup(ctx, workspaceRoot, allocation, policy)
-	if err := record(plan.projected); err != nil {
-		return err
-	}
 	settled := m.applySettledTaskWorktreeCleanup(ctx, workspaceRoot, plan)
-	if settled == plan.projected {
-		return nil
-	}
-	if err := record(settled); err != nil {
-		return err
-	}
-	return nil
+	return record(settled)
 }
 
 func (m *RunManager) planSettledTaskWorktreeCleanup(

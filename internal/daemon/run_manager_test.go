@@ -2312,6 +2312,7 @@ func TestDaemonWorkflowPreparedRunRestartFailedTreatsEmptyFailedJobIDsAsRestartA
 
 		cfg := (&model.RuntimeConfig{
 			RunID:         "restart-all-prepared-jobs",
+			RunsDir:       env.paths.RunsDir,
 			WorkspaceRoot: env.workspaceRoot,
 			TasksDir:      model.TaskDirectoryForWorkspace(env.workspaceRoot, env.workflowSlug),
 			Mode:          model.ExecutionModePRDTasks,

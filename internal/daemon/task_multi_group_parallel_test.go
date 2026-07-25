@@ -207,6 +207,105 @@ func TestRunManagerTaskMultiGroupParallelPersistsCanonicalTaskArtifacts(t *testi
 	}
 }
 
+// Invariant: a parallel Task Group child watches the same canonical
+// _task_groups directory exposed to its runtime, so edits are observed before
+// end-of-child reconciliation without creating a legacy slug-shaped copy.
+func TestRunManagerTaskMultiGroupParallelWatchesCanonicalTaskGroupDirectory(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-canonical-watcher"
+		parentID   = "group-canonical-watcher-parent"
+		groupID    = "TG-001"
+	)
+	type childObservation struct {
+		runID         string
+		tasksDir      string
+		workspaceRoot string
+		workflowRef   string
+	}
+	started := make(chan childObservation, 1)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseChild := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	t.Cleanup(releaseChild)
+
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID:      taskMultiGroupRunIDBuilder(parentID),
+		prepare:         plan.Prepare,
+		watcherDebounce: 40 * time.Millisecond,
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			taskPath := filepath.Join(cfg.ExecutionScope.TasksDir, "task_01.md")
+			taskContent, err := os.ReadFile(taskPath)
+			if err != nil {
+				return fmt.Errorf("read canonical child task: %w", err)
+			}
+			taskContent = append(taskContent, []byte("\nWatcher observed canonical edit.\n")...)
+			if err := os.WriteFile(taskPath, taskContent, 0o600); err != nil {
+				return fmt.Errorf("write canonical child task: %w", err)
+			}
+			started <- childObservation{
+				runID:         cfg.RunID,
+				tasksDir:      cfg.ExecutionScope.TasksDir,
+				workspaceRoot: cfg.WorkspaceRoot,
+				workflowRef:   cfg.ExecutionScope.WorkflowRef,
+			}
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	var observation childObservation
+	select {
+	case observation = <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parallel task-group child did not start")
+	}
+
+	active := env.manager.getActive(observation.runID)
+	if active == nil {
+		t.Fatalf("child run %q is not active", observation.runID)
+	}
+	if active.workflowRoot != observation.tasksDir {
+		t.Fatalf("watcher root = %q, want execution scope tasks dir %q",
+			active.workflowRoot, observation.tasksDir)
+	}
+	if active.watcher == nil || active.watcher.workflowRoot != observation.tasksDir {
+		t.Fatalf("active watcher = %#v, want root %q", active.watcher, observation.tasksDir)
+	}
+	decoyDir := model.TaskDirectoryForWorkspace(observation.workspaceRoot, observation.workflowRef)
+	if _, err := os.Lstat(decoyDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy slug task directory stat error = %v, want os.ErrNotExist", err)
+	}
+
+	waitForCondition(t, 5*time.Second, "canonical task-group watcher event", func() bool {
+		return runArtifactSyncCount(t, env.manager, observation.runID) > 0
+	})
+	requireRunEvent(t, env.manager, observation.runID, eventspkg.EventKindArtifactUpdated)
+
+	releaseChild()
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusCompleted {
+		t.Fatalf("parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+	}
+}
+
 // Invariant: failure to remove the displaced tree after CAS commit is observable
 // as a warning but cannot be returned as an install failure.
 func TestRemoveDisplacedTaskMultiArtifactTreeWarnsOnCleanupFailure(t *testing.T) {
@@ -307,7 +406,10 @@ func TestFinishTaskMultiWorktreeChildEmitsCompletionBeforeCleanup(t *testing.T) 
 		t.Fatalf("write child artifact update: %v", err)
 	}
 
-	scope, err := model.OpenBaseRunScope(context.Background(), &model.RuntimeConfig{RunID: parentRunID})
+	scope, err := model.OpenBaseRunScope(context.Background(), &model.RuntimeConfig{
+		RunID:   parentRunID,
+		RunsDir: env.paths.RunsDir,
+	})
 	if err != nil {
 		t.Fatalf("OpenBaseRunScope() error = %v", err)
 	}
@@ -373,91 +475,154 @@ func TestFinishTaskMultiWorktreeChildEmitsCompletionBeforeCleanup(t *testing.T) 
 	}
 }
 
-// Invariant: after completion is durable, the projected cleanup metadata must
-// also be durable before an empty result branch or its worktree is removed.
-func TestCleanupSettledTaskWorktreeRecordsMetadataBeforeMutation(t *testing.T) {
+// Invariant: a failed cleanup-metadata write never leaves projected state as
+// durable history when the actual worktree or branch cleanup diverges.
+func TestCleanupSettledTaskWorktreeRecordsOnlySettledMetadata(t *testing.T) {
 	requireGitForTaskMulti(t)
 
-	const (
-		parentRunID = "group-cleanup-metadata-before-mutation"
-		slug        = "group-cleanup/TG-001"
-	)
-	env := newRunManagerTestEnv(t, runManagerTestDeps{})
-	writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
-	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+	tests := []struct {
+		name               string
+		failGit            func([]string) bool
+		wantWorktreeExists bool
+		wantStatus         string
+		wantReason         string
+	}{
+		{
+			name: "worktree removal fails",
+			failGit: func(args []string) bool {
+				return len(args) >= 2 && args[0] == "worktree" && args[1] == "remove"
+			},
+			wantWorktreeExists: true,
+			wantStatus:         taskMultiWorktreeStatusPreserved,
+			wantReason:         "remove safe worktree",
+		},
+		{
+			name: "empty result branch deletion fails",
+			failGit: func(args []string) bool {
+				return len(args) >= 3 && args[0] == "branch" && args[1] == "-d"
+			},
+			wantWorktreeExists: false,
+			wantStatus:         taskMultiWorktreeStatusRemoved,
+			wantReason:         "empty result branch cleanup failed",
+		},
+	}
 
-	base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
-	if err != nil {
-		t.Fatalf("ResolveBase() error = %v", err)
-	}
-	resultBranch, err := taskMultiResultBranch(parentRunID, 0, slug)
-	if err != nil {
-		t.Fatalf("taskMultiResultBranch() error = %v", err)
-	}
-	allocation, err := env.manager.worktreeAllocator.Allocate(context.Background(), taskMultiWorktreeSpec{
-		WorkspaceRoot: env.workspaceRoot,
-		ParentRunID:   parentRunID,
-		Slug:          slug,
-		Index:         0,
-		TaskNumber:    1,
-		ResultBranch:  resultBranch,
-		Base:          base,
-	})
-	if err != nil {
-		t.Fatalf("Allocate() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if _, statErr := os.Stat(allocation.Path); statErr == nil {
-			if removeErr := env.manager.worktreeAllocator.Remove(
+	for index, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parentRunID := fmt.Sprintf("group-cleanup-settled-metadata-%d", index)
+			slug := fmt.Sprintf("group-cleanup/TG-%03d", index+1)
+			env := newRunManagerTestEnv(t, runManagerTestDeps{})
+			writeFileForTest(t, filepath.Join(env.workspaceRoot, "README.md"), "seed\n")
+			commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+			base, err := env.manager.worktreeAllocator.ResolveBase(context.Background(), env.workspaceRoot)
+			if err != nil {
+				t.Fatalf("ResolveBase() error = %v", err)
+			}
+			resultBranch, err := taskMultiResultBranch(parentRunID, 0, slug)
+			if err != nil {
+				t.Fatalf("taskMultiResultBranch() error = %v", err)
+			}
+			allocation, err := env.manager.worktreeAllocator.Allocate(
+				context.Background(),
+				taskMultiWorktreeSpec{
+					WorkspaceRoot: env.workspaceRoot,
+					ParentRunID:   parentRunID,
+					Slug:          slug,
+					Index:         0,
+					TaskNumber:    1,
+					ResultBranch:  resultBranch,
+					Base:          base,
+				},
+			)
+			if err != nil {
+				t.Fatalf("Allocate() error = %v", err)
+			}
+
+			realGit := env.manager.worktreeAllocator.run
+			env.manager.worktreeAllocator.run = func(
+				ctx context.Context,
+				dir string,
+				args ...string,
+			) (string, error) {
+				if tt.failGit(args) {
+					return "", errors.New("simulated cleanup divergence")
+				}
+				return realGit(ctx, dir, args...)
+			}
+			t.Cleanup(func() {
+				env.manager.worktreeAllocator.run = realGit
+				if _, statErr := os.Stat(allocation.Path); statErr == nil {
+					if removeErr := env.manager.worktreeAllocator.Remove(
+						context.Background(),
+						env.workspaceRoot,
+						allocation.Path,
+					); removeErr != nil {
+						t.Errorf("remove preserved test worktree: %v", removeErr)
+					}
+				}
+				if _, deleteErr := env.manager.worktreeAllocator.DeleteBranchIfAt(
+					context.Background(),
+					env.workspaceRoot,
+					resultBranch,
+					base.Commit,
+				); deleteErr != nil {
+					t.Errorf("delete preserved test result branch: %v", deleteErr)
+				}
+			})
+
+			recordErr := errors.New("record settled cleanup metadata")
+			var attempted []taskMultiWorktreeAllocation
+			var durable []taskMultiWorktreeAllocation
+			err = env.manager.cleanupSettledTaskWorktreeAndRecord(
 				context.Background(),
 				env.workspaceRoot,
-				allocation.Path,
-			); removeErr != nil {
-				t.Errorf("remove preserved test worktree: %v", removeErr)
+				allocation,
+				taskMultiWorktreeCleanupPolicy{
+					reportNoChanges: true,
+				},
+				func(settled taskMultiWorktreeAllocation) error {
+					attempted = append(attempted, settled)
+					if settled.WorktreeStatus == tt.wantStatus &&
+						settled.ResultBranch == resultBranch &&
+						!settled.NoChanges &&
+						strings.Contains(settled.WorktreeReason, tt.wantReason) {
+						return recordErr
+					}
+					durable = append(durable, settled)
+					return nil
+				},
+			)
+			if !errors.Is(err, recordErr) {
+				t.Fatalf(
+					"cleanupSettledTaskWorktreeAndRecord() error = %v, want record error",
+					err,
+				)
 			}
-		}
-		if _, deleteErr := env.manager.worktreeAllocator.DeleteBranchIfAt(
-			context.Background(),
-			env.workspaceRoot,
-			resultBranch,
-			base.Commit,
-		); deleteErr != nil {
-			t.Errorf("delete preserved test result branch: %v", deleteErr)
-		}
-	})
-
-	refineErr := errors.New("record cleanup metadata")
-	err = env.manager.cleanupSettledTaskWorktreeAfterRecord(
-		context.Background(),
-		env.workspaceRoot,
-		allocation,
-		taskMultiWorktreeCleanupPolicy{
-			reportNoChanges: true,
-		},
-		func(projected taskMultiWorktreeAllocation) error {
-			if projected.WorktreeStatus != taskMultiWorktreeStatusRemoved ||
-				!projected.NoChanges ||
-				projected.ResultBranch != "" {
-				t.Errorf("projected cleanup allocation = %#v, want removed no-changes result", projected)
+			if len(attempted) != 1 {
+				t.Fatalf("cleanup metadata attempts = %d, want 1: %#v", len(attempted), attempted)
 			}
-			return refineErr
-		},
-	)
-	if !errors.Is(err, refineErr) {
-		t.Fatalf("cleanupSettledTaskWorktreeAfterRecord() error = %v, want refine error", err)
-	}
-	if _, err := os.Stat(allocation.Path); err != nil {
-		t.Fatalf("worktree removed before cleanup metadata was recorded: %v", err)
-	}
-	if got := runGitOutput(
-		t,
-		env.workspaceRoot,
-		"branch",
-		"--list",
-		resultBranch,
-		"--format=%(refname:short)",
-	); got != resultBranch {
-		t.Fatalf("result branch after rejected cleanup metadata = %q, want %q", got, resultBranch)
+			if len(durable) != 0 {
+				t.Fatalf("durable cleanup metadata = %#v, want none", durable)
+			}
+			_, statErr := os.Stat(allocation.Path)
+			if tt.wantWorktreeExists && statErr != nil {
+				t.Fatalf("preserved worktree stat error = %v", statErr)
+			}
+			if !tt.wantWorktreeExists && !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("removed worktree stat error = %v, want os.ErrNotExist", statErr)
+			}
+			if got := runGitOutput(
+				t,
+				env.workspaceRoot,
+				"branch",
+				"--list",
+				resultBranch,
+				"--format=%(refname:short)",
+			); got != resultBranch {
+				t.Fatalf("result branch after cleanup divergence = %q, want %q", got, resultBranch)
+			}
+		})
 	}
 }
 

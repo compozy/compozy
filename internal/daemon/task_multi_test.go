@@ -2666,7 +2666,10 @@ func TestParallelPreparedTaskRunEmitTaskStartedIsBestEffort(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 	ctx := context.Background()
 	runID := "task-parallel-start-event-fails"
-	scope, err := model.OpenBaseRunScope(ctx, &model.RuntimeConfig{RunID: runID})
+	scope, err := model.OpenBaseRunScope(ctx, &model.RuntimeConfig{
+		RunID:   runID,
+		RunsDir: env.paths.RunsDir,
+	})
 	if err != nil {
 		t.Fatalf("OpenBaseRunScope() error = %v", err)
 	}

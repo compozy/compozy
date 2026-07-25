@@ -72,18 +72,7 @@ func mirrorTaskMultiGroupArtifacts(scope *model.ExecutionScope, worktreeRoot str
 	if err := requireTaskMultiArtifactDestination(destination); err != nil {
 		return err
 	}
-	if err := worktree.OverlayTree(source, destination); err != nil {
-		return err
-	}
-	operationalSource := strings.TrimSpace(scope.OperationalDir)
-	if operationalSource == "" {
-		return errors.New("daemon: task-group operational directory is required")
-	}
-	operationalDestination := model.TaskDirectoryForWorkspace(root, ref.String())
-	if err := requireTaskMultiArtifactDestination(operationalDestination); err != nil {
-		return err
-	}
-	return worktree.OverlayTree(operationalSource, operationalDestination)
+	return worktree.OverlayTree(source, destination)
 }
 
 func requireTaskMultiArtifactDestination(destination string) error {
