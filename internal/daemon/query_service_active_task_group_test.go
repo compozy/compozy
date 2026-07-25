@@ -2,9 +2,12 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/compozy/compozy/internal/core/taskgroups"
 )
 
 func TestResolveWorkflowReadTargetActiveTaskGroupResolvesNestedRoot(t *testing.T) {
@@ -72,5 +75,37 @@ func TestResolveWorkflowReadTargetActiveTaskGroupResolvesNestedRoot(t *testing.T
 	}
 	if doc.Title != "Foundation child task" {
 		t.Fatalf("active task group task document title = %q, want Foundation child task", doc.Title)
+	}
+}
+
+func TestResolveWorkflowReadTargetActiveTaskGroupRejectsEscapedNestedRoot(t *testing.T) {
+	// INVARIANT: an active task group's read root remains physically contained by
+	// its initiative's _task_groups directory after the catalog has been synced.
+	// OWNING_LAYER: read-model.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	writeDaemonDependentTaskGroupFixture(t, env, initiative, false)
+	syncNamedWorkflowForDaemonTest(t, env, initiative)
+
+	foreignRoot := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(foreignRoot, "task_01.md"),
+		[]byte(daemonTaskBody("completed", "Foreign child task")),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(foreign task) error = %v", err)
+	}
+	taskGroupRoot := filepath.Join(env.workflowDir(initiative), "_task_groups", "TG-001")
+	if err := os.RemoveAll(taskGroupRoot); err != nil {
+		t.Fatalf("RemoveAll(active task group root) error = %v", err)
+	}
+	if err := os.Symlink(foreignRoot, taskGroupRoot); err != nil {
+		t.Fatalf("Symlink(active task group root) error = %v", err)
+	}
+
+	svc := &queryService{globalDB: env.globalDB, runManager: env.manager, documents: newDocumentReader()}
+	_, err := svc.resolveWorkflowReadTarget(context.Background(), env.workspaceRoot, initiative+"/TG-001")
+	if !errors.Is(err, taskgroups.ErrContainment) {
+		t.Fatalf("resolveWorkflowReadTarget(escaped active task group) error = %v, want ErrContainment", err)
 	}
 }

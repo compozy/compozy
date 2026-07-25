@@ -361,6 +361,37 @@ func TestResolveWorkflowReadTargetArchivedTaskGroupResolvesNestedRoot(t *testing
 	}
 }
 
+func TestResolveWorkflowReadTargetArchivedTaskGroupRejectsEscapedNestedRoot(t *testing.T) {
+	// INVARIANT: an archived task group's read root remains physically contained
+	// by the selected parent generation's _task_groups directory.
+	// OWNING_LAYER: read-model.
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	initiative := "customer-management"
+	result := archiveDependentTaskGroupInitiativeForTest(t, env, initiative)
+
+	foreignRoot := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(foreignRoot, "task_01.md"),
+		[]byte(daemonTaskBody("completed", "Foreign archived child task")),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(foreign archived task) error = %v", err)
+	}
+	taskGroupRoot := filepath.Join(result.ArchivedPaths[0], "_task_groups", "TG-001")
+	if err := os.RemoveAll(taskGroupRoot); err != nil {
+		t.Fatalf("RemoveAll(archived task group root) error = %v", err)
+	}
+	if err := os.Symlink(foreignRoot, taskGroupRoot); err != nil {
+		t.Fatalf("Symlink(archived task group root) error = %v", err)
+	}
+
+	svc := &queryService{globalDB: env.globalDB, runManager: env.manager, documents: newDocumentReader()}
+	_, err := svc.resolveWorkflowReadTarget(context.Background(), env.workspaceRoot, initiative+"/TG-001")
+	if !errors.Is(err, taskgroups.ErrContainment) {
+		t.Fatalf("resolveWorkflowReadTarget(escaped archived task group) error = %v, want ErrContainment", err)
+	}
+}
+
 func TestTransportGateRejectsArchivedTaskGroupDroppedByRecreatedParent(t *testing.T) {
 	// INVARIANT: once an initiative is archived and recreated with a plan that drops a
 	// child task group, public reads of that child resolve relative to the current parent

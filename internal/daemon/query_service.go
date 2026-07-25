@@ -1185,11 +1185,20 @@ func (s *queryService) readableTaskGroupAwareWorkflowRootDir(
 			err,
 		)
 	}
+	if workflow.ArchivedAt == nil {
+		target, resolveErr := (taskgroups.TargetResolver{}).ResolveTaskGroup(ctx, workspaceRoot, workflow.Slug)
+		if resolveErr != nil {
+			return "", fmt.Errorf("resolve active task group read root %q: %w", workflow.Slug, resolveErr)
+		}
+		return target.TaskGroupDir, nil
+	}
+
 	parentRoot, err := readableWorkflowRootDir(workspaceRoot, parent)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(parentRoot, archivedTaskGroupDirectory(parentRoot, parent.Slug, workflow)), nil
+	directory := archivedTaskGroupDirectory(parentRoot, parent.Slug, workflow)
+	return containedTaskGroupReadRoot(parentRoot, directory)
 }
 
 // archivedTaskGroupDirectory returns the initiative-relative directory that holds
@@ -1215,6 +1224,73 @@ func archivedTaskGroupDirectory(parentRoot string, initiativeSlug string, child 
 		return fallback
 	}
 	return filepath.FromSlash(strings.TrimSpace(taskGroup.Directory))
+}
+
+func containedTaskGroupReadRoot(parentRoot string, directory string) (string, error) {
+	taskGroupsRoot := filepath.Join(parentRoot, "_task_groups")
+	candidate := filepath.Join(parentRoot, directory)
+	if err := requireReadPathContained(taskGroupsRoot, candidate); err != nil {
+		return "", fmt.Errorf("daemon: task group read root %q: %w", candidate, err)
+	}
+
+	// A vanished archive remains snapshot-readable. Only canonicalize paths that
+	// still exist; downstream readers will use durable snapshots for missing roots.
+	resolvedParentRoot, exists, err := resolveExistingReadRoot(parentRoot)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve task group parent read root %q: %w", parentRoot, err)
+	}
+	if !exists {
+		return candidate, nil
+	}
+	resolvedTaskGroupsRoot, exists, err := resolveExistingReadRoot(taskGroupsRoot)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve task group read boundary %q: %w", taskGroupsRoot, err)
+	}
+	if !exists {
+		return candidate, nil
+	}
+	if err := requireReadPathContained(resolvedParentRoot, resolvedTaskGroupsRoot); err != nil {
+		return "", fmt.Errorf("daemon: task group read boundary %q: %w", taskGroupsRoot, err)
+	}
+
+	resolvedCandidate, exists, err := resolveExistingReadRoot(candidate)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve task group read root %q: %w", candidate, err)
+	}
+	if !exists {
+		return candidate, nil
+	}
+	if err := requireReadPathContained(resolvedTaskGroupsRoot, resolvedCandidate); err != nil {
+		return "", fmt.Errorf("daemon: task group read root %q: %w", candidate, err)
+	}
+	return resolvedCandidate, nil
+}
+
+func resolveExistingReadRoot(path string) (string, bool, error) {
+	if _, err := os.Lstat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", false, err
+	}
+	return resolved, true, nil
+}
+
+func requireReadPathContained(root string, candidate string) error {
+	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	if err != nil {
+		return fmt.Errorf("%w: compare paths: %w", taskgroups.ErrContainment, err)
+	}
+	if relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) ||
+		filepath.IsAbs(relative) {
+		return fmt.Errorf("%w: resolved path escapes allowed root", taskgroups.ErrContainment)
+	}
+	return nil
 }
 
 func readableWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) (string, error) {
