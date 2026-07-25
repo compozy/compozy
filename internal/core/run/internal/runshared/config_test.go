@@ -56,15 +56,34 @@ func TestNewConfigCarriesExplicitModelFlag(t *testing.T) {
 func TestNewJobsCarriesPerJobExplicitModelFlag(t *testing.T) {
 	t.Parallel()
 
-	jobs := NewJobs([]model.Job{{
-		Model:         "task-rule-model",
-		ModelExplicit: true,
-	}})
-	if len(jobs) != 1 {
-		t.Fatalf("NewJobs() length = %d, want 1", len(jobs))
+	tests := []struct {
+		name          string
+		modelExplicit bool
+	}{
+		{
+			name:          "Should preserve the per-job explicit model flag",
+			modelExplicit: true,
+		},
+		{
+			name: "Should preserve an inherited per-job model flag",
+		},
 	}
-	if !jobs[0].ModelExplicit {
-		t.Fatal("NewJobs() dropped the per-job explicit model marker")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			jobs := NewJobs([]model.Job{{
+				Model:         "task-rule-model",
+				ModelExplicit: tt.modelExplicit,
+			}})
+			if len(jobs) != 1 {
+				t.Fatalf("NewJobs() length = %d, want 1", len(jobs))
+			}
+			if jobs[0].ModelExplicit != tt.modelExplicit {
+				t.Fatalf("NewJobs().ModelExplicit = %v, want %v", jobs[0].ModelExplicit, tt.modelExplicit)
+			}
+		})
 	}
 }
 

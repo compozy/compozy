@@ -481,6 +481,13 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve explicit model provenance", testPrepareJobsResolvesPerTaskRuntimeOverrides)
+}
+
+func testPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
 	workspaceRoot := t.TempDir()
 	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-runtime-test-run")
 	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
@@ -1529,6 +1536,9 @@ complexity: low
 	}
 	if got := prep.Jobs[0].ReasoningEffort; got != "xhigh" {
 		t.Fatalf("prepared job reasoning = %q, want %q", got, "xhigh")
+	}
+	if !prep.Jobs[0].ModelExplicit {
+		t.Fatalf("hook-selected model should remain explicit: %#v", prep.Jobs[0])
 	}
 }
 
