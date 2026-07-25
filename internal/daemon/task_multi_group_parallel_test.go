@@ -204,6 +204,202 @@ func TestRunManagerTaskMultiGroupParallelPersistsCanonicalTaskArtifacts(t *testi
 	}
 }
 
+// Invariant: canonical task-group edits made after child launch survive beside
+// non-conflicting child artifact updates.
+func TestRunManagerTaskMultiGroupParallelMergesConcurrentCanonicalArtifactEdits(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-artifact-concurrent-edit"
+		parentID   = "group-artifact-concurrent-edit-parent"
+		groupID    = "TG-001"
+	)
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseChild := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	t.Cleanup(releaseChild)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare:    plan.Prepare,
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			started <- struct{}{}
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			taskPath := filepath.Join(cfg.ExecutionScope.TasksDir, "task_01.md")
+			taskContent, err := os.ReadFile(taskPath)
+			if err != nil {
+				return fmt.Errorf("read child task artifact: %w", err)
+			}
+			completed := strings.Replace(string(taskContent), "status: pending", "status: completed", 1)
+			if completed == string(taskContent) {
+				return errors.New("child task artifact did not contain pending status")
+			}
+			if err := os.WriteFile(taskPath, []byte(completed), 0o600); err != nil {
+				return fmt.Errorf("complete child task artifact: %w", err)
+			}
+			return commitTaskMultiGroupAgentChange(
+				ctx,
+				cfg.WorkspaceRoot,
+				groupID,
+				"concurrent artifact edit\n",
+			)
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	parentTaskGroupDir := filepath.Join(
+		env.workflowDir(initiative),
+		"_task_groups",
+		groupID,
+	)
+	parentTaskPath := filepath.Join(parentTaskGroupDir, "task_01.md")
+	parentMemoryPath := filepath.Join(parentTaskGroupDir, "memory", "operator-note.md")
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parallel task-group child did not start")
+	}
+	if err := os.MkdirAll(filepath.Dir(parentMemoryPath), 0o755); err != nil {
+		t.Fatalf("create canonical memory directory: %v", err)
+	}
+	if err := os.WriteFile(parentMemoryPath, []byte("operator edit after launch\n"), 0o600); err != nil {
+		t.Fatalf("write concurrent canonical memory: %v", err)
+	}
+	releaseChild()
+
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusCompleted {
+		t.Fatalf("parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+	}
+	taskContent, err := os.ReadFile(parentTaskPath)
+	if err != nil {
+		t.Fatalf("read canonical parent task: %v", err)
+	}
+	if !strings.Contains(string(taskContent), "status: completed") {
+		t.Fatalf("canonical parent task = %q, want child completion", taskContent)
+	}
+	memoryContent, err := os.ReadFile(parentMemoryPath)
+	if err != nil {
+		t.Fatalf("read concurrent canonical memory: %v", err)
+	}
+	if string(memoryContent) != "operator edit after launch\n" {
+		t.Fatalf("canonical memory = %q, want operator edit", memoryContent)
+	}
+}
+
+// Invariant: divergent edits to one artifact never overwrite the canonical
+// version and leave the child worktree available for manual reconciliation.
+func TestRunManagerTaskMultiGroupParallelPreservesWorktreeOnArtifactConflict(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-artifact-conflict"
+		parentID   = "group-artifact-conflict-parent"
+		groupID    = "TG-001"
+	)
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseChild := func() {
+		releaseOnce.Do(func() {
+			close(release)
+		})
+	}
+	t.Cleanup(releaseChild)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare:    plan.Prepare,
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			started <- struct{}{}
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			taskPath := filepath.Join(cfg.ExecutionScope.TasksDir, "task_01.md")
+			taskContent, err := os.ReadFile(taskPath)
+			if err != nil {
+				return fmt.Errorf("read child task artifact: %w", err)
+			}
+			taskContent = append(taskContent, "\nchild completion edit\n"...)
+			if err := os.WriteFile(taskPath, taskContent, 0o600); err != nil {
+				return fmt.Errorf("write child task artifact: %w", err)
+			}
+			return commitTaskMultiGroupAgentChange(
+				ctx,
+				cfg.WorkspaceRoot,
+				groupID,
+				"conflicting artifact edit\n",
+			)
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	parentTaskPath := filepath.Join(
+		env.workflowDir(initiative),
+		"_task_groups",
+		groupID,
+		"task_01.md",
+	)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parallel task-group child did not start")
+	}
+	parentTaskContent, err := os.ReadFile(parentTaskPath)
+	if err != nil {
+		t.Fatalf("read canonical parent task: %v", err)
+	}
+	parentTaskContent = append(parentTaskContent, "\nparent review edit\n"...)
+	if err := os.WriteFile(parentTaskPath, parentTaskContent, 0o600); err != nil {
+		t.Fatalf("write conflicting canonical task edit: %v", err)
+	}
+	releaseChild()
+
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusFailed || !strings.Contains(row.ErrorText, "artifact conflict") {
+		t.Fatalf("parent status = %q error=%q, want artifact conflict failure", row.Status, row.ErrorText)
+	}
+	canonicalContent, err := os.ReadFile(parentTaskPath)
+	if err != nil {
+		t.Fatalf("read canonical task after conflict: %v", err)
+	}
+	if !strings.Contains(string(canonicalContent), "parent review edit") ||
+		strings.Contains(string(canonicalContent), "child completion edit") {
+		t.Fatalf("canonical task after conflict = %q, want only parent edit", canonicalContent)
+	}
+	item := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 1).Items)[groupID]
+	if item.Status != taskMultiItemStatusFailed ||
+		item.WorktreeStatus != taskMultiWorktreeStatusPreserved {
+		t.Fatalf("conflicted artifact item = %#v, want failed with preserved worktree", item)
+	}
+	if _, err := os.Stat(item.WorktreePath); err != nil {
+		t.Fatalf("preserved conflict worktree %s is unavailable: %v", item.WorktreePath, err)
+	}
+}
+
 func TestRunManagerTaskMultiGroupParallelPreservesWorktreeWhenArtifactSyncFails(t *testing.T) {
 	requireGitForTaskMulti(t)
 

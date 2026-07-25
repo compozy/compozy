@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -83,9 +85,18 @@ type taskMultiSnapshotBuilder struct {
 }
 
 type taskWorktreeChildRun struct {
-	Run           apicore.Run
-	Allocation    taskMultiWorktreeAllocation
-	RuntimeConfig *model.RuntimeConfig
+	Run              apicore.Run
+	Allocation       taskMultiWorktreeAllocation
+	RuntimeConfig    *model.RuntimeConfig
+	ArtifactBaseline taskMultiArtifactTree
+}
+
+type taskMultiArtifactTree map[string]taskMultiArtifactEntry
+
+type taskMultiArtifactEntry struct {
+	mode      fs.FileMode
+	data      []byte
+	directory bool
 }
 
 type taskMultiWorktreeCleanupPolicy struct {
@@ -1764,6 +1775,7 @@ func (m *RunManager) runTaskMultiParallelChild(
 		childRow,
 		child.Allocation,
 		child.RuntimeConfig,
+		child.ArtifactBaseline,
 	); emitErr != nil {
 		return emitErr
 	}
@@ -2245,6 +2257,15 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 	if err != nil {
 		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
+	artifactBaseline, err := captureTaskMultiGroupArtifactBaseline(prepared, runtimeCfg)
+	if err != nil {
+		return taskWorktreeChildRun{Allocation: allocation, RuntimeConfig: runtimeCfg}, err
+	}
+	child := taskWorktreeChildRun{
+		Allocation:       allocation,
+		RuntimeConfig:    runtimeCfg,
+		ArtifactBaseline: artifactBaseline,
+	}
 	childRun, err := m.startRun(active.ctx, startRunSpec{
 		workspace:           workspaceRow,
 		workflowID:          workflowID,
@@ -2260,20 +2281,13 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 		taskGroupPreflight:  taskGroupPreflight,
 	})
 	if err != nil {
-		return taskWorktreeChildRun{Allocation: allocation, RuntimeConfig: runtimeCfg}, err
+		return child, err
 	}
+	child.Run = childRun
 	if err := m.emitTaskMultiWorktreeChildStarted(active, item, index, total, childRun, allocation); err != nil {
-		return taskWorktreeChildRun{
-			Run:           childRun,
-			Allocation:    allocation,
-			RuntimeConfig: runtimeCfg,
-		}, err
+		return child, err
 	}
-	return taskWorktreeChildRun{
-		Run:           childRun,
-		Allocation:    allocation,
-		RuntimeConfig: runtimeCfg,
-	}, nil
+	return child, nil
 }
 
 func (m *RunManager) emitTaskMultiWorktreeChildStarted(
@@ -2626,12 +2640,18 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 	childRow globaldb.Run,
 	allocation taskMultiWorktreeAllocation,
 	childRuntimeCfg *model.RuntimeConfig,
+	artifactBaseline taskMultiArtifactTree,
 ) error {
 	if prepared == nil {
 		return errors.New("daemon: prepared task multi run is required")
 	}
 	if childRow.Status == runStatusCompleted {
-		if err := syncTaskMultiGroupChildArtifacts(prepared, item, childRuntimeCfg); err != nil {
+		if err := syncTaskMultiGroupChildArtifacts(
+			prepared,
+			item,
+			childRuntimeCfg,
+			artifactBaseline,
+		); err != nil {
 			allocation = m.cleanupSettledTaskWorktree(
 				context.WithoutCancel(active.ctx),
 				prepared.workspace.RootDir,
@@ -2685,29 +2705,66 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 	)
 }
 
+func captureTaskMultiGroupArtifactBaseline(
+	prepared *preparedTaskMulti,
+	childRuntimeCfg *model.RuntimeConfig,
+) (taskMultiArtifactTree, error) {
+	if prepared == nil ||
+		prepared.executionKind != apicore.ExecutionKindTaskMultiGroupParallel {
+		return nil, nil
+	}
+	if childRuntimeCfg == nil || childRuntimeCfg.ExecutionScope == nil {
+		return nil, errors.New("daemon: child task-group execution scope is required")
+	}
+	source := strings.TrimSpace(childRuntimeCfg.ExecutionScope.OperationalDir)
+	if source == "" {
+		return nil, errors.New("daemon: child task-group operational directory is required")
+	}
+	if err := requireDirectory(source); err != nil {
+		return nil, fmt.Errorf("capture child task-group artifact baseline from %s: %w", source, err)
+	}
+	baseline, err := captureTaskMultiArtifactTree(source)
+	if err != nil {
+		return nil, fmt.Errorf("capture child task-group artifact baseline from %s: %w", source, err)
+	}
+	return baseline, nil
+}
+
 func syncTaskMultiGroupChildArtifacts(
 	prepared *preparedTaskMulti,
 	item preparedTaskMultiItem,
 	childRuntimeCfg *model.RuntimeConfig,
+	artifactBaseline taskMultiArtifactTree,
 ) error {
 	if prepared.executionKind != apicore.ExecutionKindTaskMultiGroupParallel {
 		return nil
 	}
+	source, destination, err := taskMultiGroupArtifactSyncPaths(item, childRuntimeCfg)
+	if err != nil {
+		return err
+	}
+	return reconcileTaskMultiGroupArtifacts(source, destination, artifactBaseline)
+}
+
+func taskMultiGroupArtifactSyncPaths(
+	item preparedTaskMultiItem,
+	childRuntimeCfg *model.RuntimeConfig,
+) (string, string, error) {
 	if item.runtimeCfg == nil || item.runtimeCfg.ExecutionScope == nil {
-		return errors.New("daemon: parent task-group execution scope is required")
+		return "", "", errors.New("daemon: parent task-group execution scope is required")
 	}
 	if childRuntimeCfg == nil || childRuntimeCfg.ExecutionScope == nil {
-		return errors.New("daemon: child task-group execution scope is required")
+		return "", "", errors.New("daemon: child task-group execution scope is required")
 	}
 	parentScope := item.runtimeCfg.ExecutionScope
 	childScope := childRuntimeCfg.ExecutionScope
 	source := strings.TrimSpace(childScope.OperationalDir)
 	destination := strings.TrimSpace(parentScope.OperationalDir)
 	if source == "" {
-		return errors.New("daemon: child task-group operational directory is required")
+		return "", "", errors.New("daemon: child task-group operational directory is required")
 	}
 	if destination == "" {
-		return errors.New("daemon: parent task-group operational directory is required")
+		return "", "", errors.New("daemon: parent task-group operational directory is required")
 	}
 	expectedSource := remapTaskMultiExecutionScopePath(
 		destination,
@@ -2715,20 +2772,391 @@ func syncTaskMultiGroupChildArtifacts(
 		childRuntimeCfg.WorkspaceRoot,
 	)
 	if filepath.Clean(source) != filepath.Clean(expectedSource) {
-		return fmt.Errorf(
+		return "", "", fmt.Errorf(
 			"daemon: child task-group operational directory %s does not match remapped parent path %s",
 			source,
 			expectedSource,
 		)
 	}
 	if err := requireDirectory(source); err != nil {
-		return fmt.Errorf("read child task-group artifacts from %s: %w", source, err)
+		return "", "", fmt.Errorf("read child task-group artifacts from %s: %w", source, err)
 	}
 	if err := requireDirectory(destination); err != nil {
-		return fmt.Errorf("write parent task-group artifacts to %s: %w", destination, err)
+		return "", "", fmt.Errorf("write parent task-group artifacts to %s: %w", destination, err)
 	}
-	if err := worktree.OverlayTree(source, destination); err != nil {
-		return fmt.Errorf("copy task-group artifacts from %s to %s: %w", source, destination, err)
+	return source, destination, nil
+}
+
+func reconcileTaskMultiGroupArtifacts(
+	source string,
+	destination string,
+	artifactBaseline taskMultiArtifactTree,
+) error {
+	if artifactBaseline == nil {
+		return errors.New("daemon: task-group artifact baseline is required")
+	}
+	childTree, err := captureTaskMultiArtifactTree(source)
+	if err != nil {
+		return fmt.Errorf("capture child task-group artifacts from %s: %w", source, err)
+	}
+	parentTree, err := captureTaskMultiArtifactTree(destination)
+	if err != nil {
+		return fmt.Errorf("capture parent task-group artifacts from %s: %w", destination, err)
+	}
+	mergedTree, err := mergeTaskMultiArtifactTrees(artifactBaseline, parentTree, childTree)
+	if err != nil {
+		return err
+	}
+	mergedRoot, err := os.MkdirTemp("", "compozy-task-group-artifacts-")
+	if err != nil {
+		return fmt.Errorf("create merged task-group artifact tree: %w", err)
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(mergedRoot); removeErr != nil {
+			slog.Default().Warn(
+				"daemon: remove merged task-group artifact tree",
+				"path",
+				mergedRoot,
+				"error",
+				removeErr,
+			)
+		}
+	}()
+	if err := materializeTaskMultiArtifactTree(mergedRoot, mergedTree); err != nil {
+		return fmt.Errorf("materialize merged task-group artifacts: %w", err)
+	}
+	if err := installTaskMultiArtifactTreeCAS(mergedRoot, destination, parentTree); err != nil {
+		return err
+	}
+	return nil
+}
+
+func captureTaskMultiArtifactTree(root string) (tree taskMultiArtifactTree, result error) {
+	rooted, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("open task-group artifact root %s: %w", root, err)
+	}
+	defer func() {
+		if closeErr := rooted.Close(); closeErr != nil {
+			result = errors.Join(
+				result,
+				fmt.Errorf("close task-group artifact root %s: %w", root, closeErr),
+			)
+		}
+	}()
+	tree = make(taskMultiArtifactTree)
+	result = fs.WalkDir(rooted.FS(), ".", func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("task-group artifact symlink %s is not supported", path)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("stat task-group artifact %s: %w", path, err)
+		}
+		switch {
+		case info.IsDir():
+			tree[filepath.FromSlash(path)] = taskMultiArtifactEntry{
+				mode:      info.Mode().Perm(),
+				directory: true,
+			}
+			return nil
+		case info.Mode().IsRegular():
+			data, err := rooted.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("read task-group artifact %s: %w", path, err)
+			}
+			tree[filepath.FromSlash(path)] = taskMultiArtifactEntry{
+				mode: info.Mode().Perm(),
+				data: data,
+			}
+			return nil
+		default:
+			return fmt.Errorf("task-group artifact %s is not a regular file or directory", path)
+		}
+	})
+	if result != nil {
+		return nil, result
+	}
+	return tree, nil
+}
+
+func mergeTaskMultiArtifactTrees(
+	baseline taskMultiArtifactTree,
+	parent taskMultiArtifactTree,
+	child taskMultiArtifactTree,
+) (taskMultiArtifactTree, error) {
+	paths := make(map[string]struct{}, len(baseline)+len(parent)+len(child))
+	for path := range baseline {
+		paths[path] = struct{}{}
+	}
+	for path := range parent {
+		paths[path] = struct{}{}
+	}
+	for path := range child {
+		paths[path] = struct{}{}
+	}
+	merged := make(taskMultiArtifactTree, len(paths))
+	conflicts := make([]string, 0)
+	for path := range paths {
+		baselineEntry, baselineFound := baseline[path]
+		parentEntry, parentFound := parent[path]
+		childEntry, childFound := child[path]
+		switch {
+		case taskMultiArtifactStatesEqual(childEntry, childFound, baselineEntry, baselineFound):
+			taskMultiSetArtifactEntry(merged, path, parentEntry, parentFound)
+		case taskMultiArtifactStatesEqual(parentEntry, parentFound, baselineEntry, baselineFound):
+			taskMultiSetArtifactEntry(merged, path, childEntry, childFound)
+		case taskMultiArtifactStatesEqual(parentEntry, parentFound, childEntry, childFound):
+			taskMultiSetArtifactEntry(merged, path, parentEntry, parentFound)
+		default:
+			conflicts = append(conflicts, path)
+		}
+	}
+	if len(conflicts) > 0 {
+		sort.Strings(conflicts)
+		return nil, fmt.Errorf(
+			"daemon: task-group artifact conflict at %s",
+			strings.Join(conflicts, ", "),
+		)
+	}
+	return merged, nil
+}
+
+func taskMultiArtifactStatesEqual(
+	left taskMultiArtifactEntry,
+	leftFound bool,
+	right taskMultiArtifactEntry,
+	rightFound bool,
+) bool {
+	if leftFound != rightFound {
+		return false
+	}
+	if !leftFound {
+		return true
+	}
+	return left.directory == right.directory &&
+		left.mode.Perm() == right.mode.Perm() &&
+		bytes.Equal(left.data, right.data)
+}
+
+func taskMultiSetArtifactEntry(
+	tree taskMultiArtifactTree,
+	path string,
+	entry taskMultiArtifactEntry,
+	found bool,
+) {
+	if !found {
+		return
+	}
+	entry.data = bytes.Clone(entry.data)
+	tree[path] = entry
+}
+
+func materializeTaskMultiArtifactTree(root string, tree taskMultiArtifactTree) error {
+	rootEntry, found := tree["."]
+	if !found || !rootEntry.directory {
+		return errors.New("task-group artifact tree root directory is required")
+	}
+	paths := make([]string, 0, len(tree))
+	for path := range tree {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	if err := createTaskMultiArtifactDirectories(root, tree, paths); err != nil {
+		return err
+	}
+	if err := writeTaskMultiArtifactFiles(root, tree, paths); err != nil {
+		return err
+	}
+	return setTaskMultiArtifactDirectoryModes(root, tree, paths)
+}
+
+func createTaskMultiArtifactDirectories(
+	root string,
+	tree taskMultiArtifactTree,
+	paths []string,
+) error {
+	for _, path := range paths {
+		entry := tree[path]
+		if path == "." || !entry.directory {
+			continue
+		}
+		target, err := taskMultiArtifactTarget(root, path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(target, 0o700); err != nil {
+			return fmt.Errorf("create merged task-group artifact directory %s: %w", target, err)
+		}
+	}
+	return nil
+}
+
+func writeTaskMultiArtifactFiles(
+	root string,
+	tree taskMultiArtifactTree,
+	paths []string,
+) error {
+	for _, path := range paths {
+		entry := tree[path]
+		if entry.directory {
+			continue
+		}
+		target, err := taskMultiArtifactTarget(root, path)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(target, entry.data, 0o600); err != nil {
+			return fmt.Errorf("write merged task-group artifact %s: %w", target, err)
+		}
+		if err := os.Chmod(target, entry.mode.Perm()); err != nil {
+			return fmt.Errorf("set merged task-group artifact mode %s: %w", target, err)
+		}
+	}
+	return nil
+}
+
+func setTaskMultiArtifactDirectoryModes(
+	root string,
+	tree taskMultiArtifactTree,
+	paths []string,
+) error {
+	for index := len(paths) - 1; index >= 0; index-- {
+		path := paths[index]
+		entry := tree[path]
+		if !entry.directory {
+			continue
+		}
+		target, err := taskMultiArtifactTarget(root, path)
+		if err != nil {
+			return err
+		}
+		if err := os.Chmod(target, entry.mode.Perm()); err != nil {
+			return fmt.Errorf("set merged task-group artifact directory mode %s: %w", target, err)
+		}
+	}
+	return nil
+}
+
+func taskMultiArtifactTarget(root string, relativePath string) (string, error) {
+	if relativePath == "." {
+		return filepath.Clean(root), nil
+	}
+	cleanPath := filepath.Clean(relativePath)
+	if filepath.IsAbs(cleanPath) ||
+		cleanPath == ".." ||
+		strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("task-group artifact path %s escapes root %s", relativePath, root)
+	}
+	return filepath.Join(root, cleanPath), nil
+}
+
+func installTaskMultiArtifactTreeCAS(
+	source string,
+	destination string,
+	expected taskMultiArtifactTree,
+) error {
+	parent := filepath.Dir(destination)
+	staged, err := os.MkdirTemp(parent, "."+filepath.Base(destination)+".reconcile-")
+	if err != nil {
+		return fmt.Errorf("stage merged task-group artifacts beside %s: %w", destination, err)
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(staged); removeErr != nil {
+			slog.Default().Warn(
+				"daemon: remove staged task-group artifact tree",
+				"path",
+				staged,
+				"error",
+				removeErr,
+			)
+		}
+	}()
+	if err := worktree.OverlayTree(source, staged); err != nil {
+		return fmt.Errorf("stage merged task-group artifacts for %s: %w", destination, err)
+	}
+	displaced := staged + ".canonical"
+	if err := os.Rename(destination, displaced); err != nil {
+		return fmt.Errorf("capture canonical task-group artifacts at %s: %w", destination, err)
+	}
+	actual, err := captureTaskMultiArtifactTree(displaced)
+	if err != nil {
+		restoreErr := restoreTaskMultiArtifactDestination(displaced, destination)
+		return errors.Join(
+			fmt.Errorf("verify canonical task-group artifacts at %s: %w", destination, err),
+			restoreErr,
+		)
+	}
+	if !taskMultiArtifactTreesEqual(actual, expected) {
+		restoreErr := restoreTaskMultiArtifactDestination(displaced, destination)
+		return errors.Join(
+			fmt.Errorf(
+				"daemon: task-group artifact conflict: canonical tree %s changed during reconciliation",
+				destination,
+			),
+			restoreErr,
+		)
+	}
+	if _, err := os.Lstat(destination); err == nil {
+		return fmt.Errorf(
+			"daemon: task-group artifact conflict: canonical tree %s was recreated during reconciliation; "+
+				"previous tree preserved at %s",
+			destination,
+			displaced,
+		)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		restoreErr := restoreTaskMultiArtifactDestination(displaced, destination)
+		return errors.Join(
+			fmt.Errorf("inspect canonical task-group artifacts at %s: %w", destination, err),
+			restoreErr,
+		)
+	}
+	if err := os.Rename(staged, destination); err != nil {
+		restoreErr := restoreTaskMultiArtifactDestination(displaced, destination)
+		return errors.Join(
+			fmt.Errorf("install reconciled task-group artifacts at %s: %w", destination, err),
+			restoreErr,
+		)
+	}
+	if err := os.RemoveAll(displaced); err != nil {
+		return fmt.Errorf("remove previous canonical task-group artifacts %s: %w", displaced, err)
+	}
+	return nil
+}
+
+func taskMultiArtifactTreesEqual(left taskMultiArtifactTree, right taskMultiArtifactTree) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for path, leftEntry := range left {
+		rightEntry, found := right[path]
+		if !taskMultiArtifactStatesEqual(leftEntry, true, rightEntry, found) {
+			return false
+		}
+	}
+	return true
+}
+
+func restoreTaskMultiArtifactDestination(source string, destination string) error {
+	if _, err := os.Lstat(destination); err == nil {
+		return fmt.Errorf(
+			"restore canonical task-group artifacts: destination %s was recreated; previous tree preserved at %s",
+			destination,
+			source,
+		)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect canonical task-group artifact restore target %s: %w", destination, err)
+	}
+	if err := os.Rename(source, destination); err != nil {
+		return fmt.Errorf(
+			"restore canonical task-group artifacts from %s to %s: %w",
+			source,
+			destination,
+			err,
+		)
 	}
 	return nil
 }
