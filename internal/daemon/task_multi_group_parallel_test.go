@@ -1822,6 +1822,76 @@ func TestRunManagerTaskMultiGroupParallelRelaunchRecovery(t *testing.T) {
 		requireTaskMultiGroupSnapshot(t, env, first.RunID, 2)
 	})
 
+	t.Run("IT-029 completion projection preserves active selection re-attachment", func(t *testing.T) {
+		const (
+			initiative = "relaunch-hydrated-peer"
+			parentID   = "relaunch-hydrated-peer-parent"
+		)
+		started := make(chan string, 2)
+		release := make(chan struct{})
+		t.Cleanup(func() {
+			select {
+			case <-release:
+			default:
+				close(release)
+			}
+		})
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: taskMultiGroupRunIDBuilder(parentID),
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+				started <- taskMultiTaskGroupID(cfg.Name)
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				groupID := taskMultiTaskGroupID(cfg.Name)
+				return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, groupID+" hydrated peer\n")
+			},
+		})
+		writeIndependentTaskGroupFixture(t, env, initiative, 3)
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		first := startTaskMultiGroupParallelRun(
+			t, env, parentID, initiative, []string{"TG-001", "TG-002"}, 2,
+		)
+		waitForTaskMultiGroupStarts(t, started, 2)
+
+		initiativeDir := filepath.Join(env.workspaceRoot, ".compozy", "tasks", initiative)
+		completed, err := taskgroups.NewStore().MarkComplete(
+			context.Background(),
+			initiativeDir,
+			"TG-003",
+		)
+		if err != nil {
+			t.Fatalf("IT-029 MarkComplete(TG-003) error = %v", err)
+		}
+		if !completed.CompletionRecorded {
+			t.Fatalf("IT-029 completion result = %#v, want TG-003 projection recorded", completed)
+		}
+
+		existing, err := attemptTaskMultiGroupParallelRun(
+			t, env, parentID+"-again", initiative, []string{"TG-001", "TG-002"}, 2, false,
+		)
+		if err != nil {
+			t.Fatalf("IT-029 re-attach error = %v, want existing run", err)
+		}
+		if existing.RunID != first.RunID {
+			t.Fatalf("IT-029 re-attach run = %q, want existing %q", existing.RunID, first.RunID)
+		}
+
+		close(release)
+		row := waitForRun(t, env.globalDB, first.RunID, func(row globaldb.Run) bool {
+			return isTerminalRunStatus(row.Status)
+		})
+		if row.Status != runStatusCompleted {
+			t.Fatalf("IT-029 parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+		}
+	})
+
 	t.Run("IT-023/IT-026 completed selection refuses re-attach; --new starts fresh", func(t *testing.T) {
 		const (
 			initiative = "relaunch-done"

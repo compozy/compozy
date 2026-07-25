@@ -232,6 +232,7 @@ type taskGroupPreflightEvidence struct {
 	initiativeSlug   string
 	taskGroupID      string
 	planChecksum     string
+	graphChecksum    string
 	readiness        taskgroups.Readiness
 	outOfOrderNeeded bool
 }
@@ -681,6 +682,7 @@ func (m *RunManager) resolveTaskGroupPreflightEvidence(
 		initiativeSlug: target.Ref.Initiative,
 		taskGroupID:    target.TaskGroup.ID,
 		planChecksum:   target.Plan.Checksum,
+		graphChecksum:  target.Plan.GraphChecksum,
 		readiness:      readiness,
 	}, nil
 }

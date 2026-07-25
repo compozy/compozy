@@ -85,6 +85,50 @@ func TestValidatePlan(t *testing.T) {
 		}
 	})
 
+	t.Run("UT-041 checksum tracks graph identity without lifecycle projection", func(t *testing.T) {
+		t.Parallel()
+		content := bytes.Replace(
+			twoTaskGroupPlan(t),
+			[]byte("## [x] TG-002"),
+			[]byte("## [ ] TG-002"),
+			1,
+		)
+		initial := mustParsePlan(t, content)
+		completed, err := RewriteCompletion(content, "TG-002")
+		if err != nil {
+			t.Fatalf("RewriteCompletion() error = %v", err)
+		}
+		projected := mustParsePlan(t, completed.Content)
+		if projected.Checksum == initial.Checksum {
+			t.Fatalf(
+				"completion projection content checksum = %q, want value different from initial %q",
+				projected.Checksum,
+				initial.Checksum,
+			)
+		}
+		if projected.GraphChecksum != initial.GraphChecksum {
+			t.Fatalf(
+				"completion projection graph checksum = %q, want stable %q",
+				projected.GraphChecksum,
+				initial.GraphChecksum,
+			)
+		}
+
+		graphChanged := bytes.Replace(
+			content,
+			[]byte("directory: _task_groups/TG-001"),
+			[]byte("directory: _task_groups/001-persistence"),
+			1,
+		)
+		changed := mustParsePlan(t, graphChanged)
+		if changed.GraphChecksum == initial.GraphChecksum {
+			t.Fatalf(
+				"graph change checksum = %q, want value different from initial",
+				changed.GraphChecksum,
+			)
+		}
+	})
+
 	t.Run("UT-012 reports all large-plan conflicts", func(t *testing.T) {
 		t.Parallel()
 		var body strings.Builder

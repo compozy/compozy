@@ -107,16 +107,42 @@ func parsePlan(content, expectedInitiative, path string) (Plan, error) {
 	}
 	slices.SortFunc(taskGroups, func(left, right TaskGroup) int { return strings.Compare(left.ID, right.ID) })
 	edges := allDependencies(raw.Graph.Edges)
-	checksum := sha256.Sum256([]byte(content))
+	graphChecksum, err := graphChecksum(raw)
+	if err != nil {
+		return Plan{}, err
+	}
+	contentChecksum := sha256.Sum256([]byte(content))
 	return Plan{
 		SchemaVersion: raw.SchemaVersion,
 		Initiative:    raw.Initiative,
 		TaskGroups:    taskGroups,
 		Edges:         edges,
 		Path:          path,
-		Checksum:      hex.EncodeToString(checksum[:]),
+		Checksum:      hex.EncodeToString(contentChecksum[:]),
+		GraphChecksum: graphChecksum,
 		raw:           []byte(content),
 	}, nil
+}
+
+func graphChecksum(raw manifest) (string, error) {
+	canonical := raw
+	canonical.Graph.Nodes = slices.Clone(raw.Graph.Nodes)
+	slices.SortFunc(canonical.Graph.Nodes, func(left, right manifestNode) int {
+		if result := strings.Compare(left.ID, right.ID); result != 0 {
+			return result
+		}
+		return strings.Compare(left.Directory, right.Directory)
+	})
+	canonical.Graph.Edges = slices.Clone(raw.Graph.Edges)
+	slices.SortFunc(canonical.Graph.Edges, func(left, right manifestEdge) int {
+		return compareDependency(Dependency(left), Dependency(right))
+	})
+	content, err := yaml.Marshal(canonical)
+	if err != nil {
+		return "", fmt.Errorf("marshal task group graph checksum: %w", err)
+	}
+	checksum := sha256.Sum256(content)
+	return hex.EncodeToString(checksum[:]), nil
 }
 
 func normalizeManifest(raw *manifest) {

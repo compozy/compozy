@@ -29,7 +29,7 @@ func taskMultiGroupSelectionFingerprint(prepared *preparedTaskMulti) (string, er
 	}
 	groupIDs := make([]string, 0, len(prepared.items))
 	initiative := ""
-	planChecksum := ""
+	graphChecksum := ""
 	for index := range prepared.items {
 		evidence := prepared.items[index].taskGroupPreflight
 		if evidence == nil {
@@ -40,13 +40,13 @@ func taskMultiGroupSelectionFingerprint(prepared *preparedTaskMulti) (string, er
 		}
 		if initiative == "" {
 			initiative = strings.TrimSpace(evidence.initiativeSlug)
-			planChecksum = strings.TrimSpace(evidence.planChecksum)
+			graphChecksum = strings.TrimSpace(evidence.graphChecksum)
 		}
 		if strings.TrimSpace(evidence.initiativeSlug) != initiative {
 			return "", errors.New("parallel task-group selection spans multiple initiatives")
 		}
-		if strings.TrimSpace(evidence.planChecksum) != planChecksum {
-			return "", errors.New("parallel task-group selection has inconsistent plan checksums")
+		if strings.TrimSpace(evidence.graphChecksum) != graphChecksum {
+			return "", errors.New("parallel task-group selection has inconsistent graph checksums")
 		}
 		groupID := strings.TrimSpace(evidence.taskGroupID)
 		if groupID == "" {
@@ -57,10 +57,10 @@ func taskMultiGroupSelectionFingerprint(prepared *preparedTaskMulti) (string, er
 		}
 		groupIDs = append(groupIDs, groupID)
 	}
-	if initiative == "" || planChecksum == "" || len(groupIDs) == 0 {
+	if initiative == "" || graphChecksum == "" || len(groupIDs) == 0 {
 		return "", errors.New("parallel task-group selection fingerprint inputs are incomplete")
 	}
-	return taskgroups.SelectionFingerprint(initiative, groupIDs, planChecksum), nil
+	return taskgroups.SelectionFingerprint(initiative, groupIDs, graphChecksum), nil
 }
 
 // isRelaunchSettledRunStatus reports whether an existing run for a selection is

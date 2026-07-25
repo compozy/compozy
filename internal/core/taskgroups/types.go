@@ -97,6 +97,7 @@ type Plan struct {
 	Edges         []Dependency
 	Path          string
 	Checksum      string
+	GraphChecksum string
 
 	raw []byte
 }
