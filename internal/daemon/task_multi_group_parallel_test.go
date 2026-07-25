@@ -447,6 +447,92 @@ func TestRunManagerTaskMultiGroupParallelPreservesWorktreeWhenArtifactSyncFails(
 	}
 }
 
+// Invariant: a child cannot replace its operational directory with a sibling
+// symlink and reconcile that sibling's artifacts into the canonical group.
+func TestRunManagerTaskMultiGroupParallelRejectsSymlinkedOperationalRoot(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-artifact-root-symlink"
+		parentID   = "group-artifact-root-symlink-parent"
+		groupID    = "TG-001"
+		siblingID  = "TG-002"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			operationalRoot := cfg.ExecutionScope.OperationalDir
+			siblingRoot := filepath.Join(filepath.Dir(operationalRoot), siblingID)
+			if err := os.RemoveAll(operationalRoot); err != nil {
+				return fmt.Errorf("remove child operational root: %w", err)
+			}
+			if err := os.Symlink(filepath.Base(siblingRoot), operationalRoot); err != nil {
+				return fmt.Errorf("replace child operational root with sibling symlink: %w", err)
+			}
+			return commitTaskMultiGroupAgentChange(
+				ctx,
+				cfg.WorkspaceRoot,
+				groupID,
+				"symlinked operational root\n",
+			)
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 2)
+	artifactPaths := make([]string, 0, 6)
+	for _, id := range []string{groupID, siblingID} {
+		reviewPath := filepath.Join("_task_groups", id, "reviews", "review.md")
+		memoryPath := filepath.Join("_task_groups", id, "memory", "MEMORY.md")
+		env.writeWorkflowFile(t, initiative, reviewPath, id+" canonical review\n")
+		env.writeWorkflowFile(t, initiative, memoryPath, id+" canonical memory\n")
+		artifactPaths = append(
+			artifactPaths,
+			filepath.Join("_task_groups", id, "task_01.md"),
+			reviewPath,
+			memoryPath,
+		)
+	}
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+	canonicalBefore := readTaskMultiGroupArtifactFiles(
+		t,
+		env.workflowDir(initiative),
+		artifactPaths,
+	)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusFailed || !strings.Contains(row.ErrorText, "symlink") {
+		t.Fatalf("parent status = %q error=%q, want symlink failure", row.Status, row.ErrorText)
+	}
+	item := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 1).Items)[groupID]
+	if item.Status != taskMultiItemStatusFailed ||
+		item.WorktreeStatus != taskMultiWorktreeStatusPreserved {
+		t.Fatalf("symlinked artifact item = %#v, want failed with preserved worktree", item)
+	}
+	if _, err := os.Stat(item.WorktreePath); err != nil {
+		t.Fatalf("preserved worktree %s is unavailable: %v", item.WorktreePath, err)
+	}
+	canonicalAfter := readTaskMultiGroupArtifactFiles(
+		t,
+		env.workflowDir(initiative),
+		artifactPaths,
+	)
+	if !reflect.DeepEqual(canonicalAfter, canonicalBefore) {
+		t.Fatalf(
+			"canonical task-group artifacts changed through child root symlink:\nbefore=%q\nafter=%q",
+			canonicalBefore,
+			canonicalAfter,
+		)
+	}
+}
+
 func TestRunManagerTaskMultiGroupParallelIsolationAndAgentCommits(t *testing.T) {
 	// IT-001, IT-002, IT-003: real git worktrees prove isolation, agent-owned
 	// commits, an untouched checkout, and no-change branch cleanup.
@@ -1704,6 +1790,23 @@ func taskMultiPromptTaskPath(promptText string) (string, error) {
 		return path, nil
 	}
 	return "", errors.New("prepared prompt did not identify an exact task file")
+}
+
+func readTaskMultiGroupArtifactFiles(
+	t *testing.T,
+	root string,
+	relativePaths []string,
+) map[string][]byte {
+	t.Helper()
+	artifacts := make(map[string][]byte, len(relativePaths))
+	for _, relativePath := range relativePaths {
+		data, err := os.ReadFile(filepath.Join(root, relativePath))
+		if err != nil {
+			t.Fatalf("read canonical task-group artifact %s: %v", relativePath, err)
+		}
+		artifacts[relativePath] = data
+	}
+	return artifacts
 }
 
 func requireTaskMultiGroupSnapshot(
