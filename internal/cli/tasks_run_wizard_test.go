@@ -6,6 +6,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -161,6 +162,82 @@ func TestTaskRunWizardWorkflowStatuses(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject Task Group progress from a symlink outside the initiative", func(t *testing.T) {
+		t.Parallel()
+
+		state := newTaskRunWizardTestState(t, "auth")
+		taskGroup := taskgroups.TaskGroup{
+			ID:        "TG-001",
+			Title:     "Escaped implementation",
+			Directory: "_task_groups/TG-001",
+		}
+		writeTaskRunWizardPlan(t, state, "auth", taskGroup)
+
+		externalTasksDir := filepath.Join(state.workspaceRoot, "foreign-task-group")
+		if err := os.MkdirAll(externalTasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir foreign Task Group directory: %v", err)
+		}
+		writeFormTaskFile(t, externalTasksDir, "task_01.md", "completed")
+		taskGroupsRoot := filepath.Join(
+			state.workspaceRoot,
+			".compozy",
+			"tasks",
+			"auth",
+			"_task_groups",
+		)
+		if err := os.MkdirAll(taskGroupsRoot, 0o755); err != nil {
+			t.Fatalf("mkdir Task Group root: %v", err)
+		}
+		taskGroupDir := filepath.Join(taskGroupsRoot, taskGroup.ID)
+		if err := os.Remove(taskGroupDir); err != nil {
+			t.Fatalf("remove canonical Task Group fixture directory: %v", err)
+		}
+		if err := os.Symlink(externalTasksDir, taskGroupDir); err != nil {
+			t.Fatalf("symlink escaped Task Group directory: %v", err)
+		}
+
+		_, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(
+			context.Background(),
+			state.workspaceRoot,
+			"auth/"+taskGroup.ID,
+		)
+		if !errors.Is(err, taskgroups.ErrContainment) {
+			t.Fatalf("resolver error = %v, want ErrContainment", err)
+		}
+
+		wizard := newTaskRunWizardModel(state, taskRunFormInputs{
+			selectedWorkflows: []string{"auth/" + taskGroup.ID},
+			includeCompleted:  true,
+		})
+		var option taskRunWizardWorkflowOption
+		for _, candidate := range wizard.workflowOptions {
+			if candidate.Value == "auth/"+taskGroup.ID {
+				option = candidate
+				break
+			}
+		}
+		if !strings.Contains(option.UnavailableReason, taskgroups.ErrContainment.Error()) {
+			t.Fatalf("unavailable reason = %q, want containment diagnostic", option.UnavailableReason)
+		}
+		if option.Status != taskRunWizardWorkflowBlocked || option.TaskProgressKnown ||
+			option.CompletedTasks != 0 || option.TotalTasks != 0 || option.Completed {
+			t.Fatalf("escaped Task Group option = %#v, want blocked with no foreign progress", option)
+		}
+		if len(wizard.inputs.selectedWorkflows) != 0 {
+			t.Fatalf("selection = %#v, want escaped target removed", wizard.inputs.selectedWorkflows)
+		}
+		view := xansi.Strip(strings.Join(
+			wizard.workflowListLines(wizard.filteredWorkflowOptions(), 180, 20),
+			"\n",
+		))
+		if !strings.Contains(view, taskgroups.ErrContainment.Error()) {
+			t.Fatalf("workflow view missing containment diagnostic:\n%s", view)
+		}
+		if strings.Contains(view, "1/1 tasks completed") {
+			t.Fatalf("workflow view exposed foreign progress:\n%s", view)
+		}
+	})
+
 	t.Run("Should exclude completed Task Groups from group selection until opt-in", func(t *testing.T) {
 		t.Parallel()
 
@@ -273,7 +350,8 @@ func TestTaskRunWizardWorkflowStatuses(t *testing.T) {
 		})
 
 		options := buildTaskRunWizardWorkflowOptions(
-			filepath.Join(state.workspaceRoot, ".compozy", "tasks"),
+			context.Background(),
+			state.workspaceRoot,
 			nil,
 		)
 		got := make([]string, 0, len(options)-1)
@@ -1393,6 +1471,23 @@ func writeTaskRunWizardPlanWithEdges(
 	)
 	if err := os.WriteFile(planPath, content, 0o644); err != nil {
 		t.Fatalf("write Task Group plan: %v", err)
+	}
+	parsed, err := taskgroups.ParsePlanForInitiative(string(content), initiative)
+	if err != nil {
+		t.Fatalf("parse rendered Task Group plan: %v", err)
+	}
+	for index := range parsed.TaskGroups {
+		taskGroup := &parsed.TaskGroups[index]
+		taskGroupDir := filepath.Join(
+			state.workspaceRoot,
+			".compozy",
+			"tasks",
+			initiative,
+			filepath.FromSlash(taskGroup.Directory),
+		)
+		if err := os.MkdirAll(taskGroupDir, 0o755); err != nil {
+			t.Fatalf("mkdir Task Group fixture directory: %v", err)
+		}
 	}
 }
 

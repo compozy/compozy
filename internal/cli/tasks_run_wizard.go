@@ -395,15 +395,15 @@ func newTaskRunWizardModelWithRunStatuses(
 	inputs taskRunFormInputs,
 	latestRunStatuses map[string]string,
 ) *taskRunWizardModel {
-	baseDir := model.TasksBaseDirForWorkspace("")
+	workspaceRoot := ""
 	if state != nil {
-		baseDir = model.TasksBaseDirForWorkspace(state.workspaceRoot)
+		workspaceRoot = state.workspaceRoot
 	}
 	m := &taskRunWizardModel{
 		ctx:                    ctx,
 		state:                  state,
 		inputs:                 inputs,
-		workflowOptions:        listTaskRunWizardWorkflowOptions(baseDir, latestRunStatuses),
+		workflowOptions:        listTaskRunWizardWorkflowOptions(ctx, workspaceRoot, latestRunStatuses),
 		ideOptions:             taskRunWizardIDEOptions(),
 		reasoningOpts:          taskRunWizardReasoningOptions(),
 		accessModeOpts:         taskRunWizardAccessModeOptions(),
@@ -579,10 +579,11 @@ func filterValidTaskRunWorkflowSelections(
 }
 
 func listTaskRunWizardWorkflowOptions(
-	baseDir string,
+	ctx context.Context,
+	workspaceRoot string,
 	latestRunStatuses map[string]string,
 ) []taskRunWizardWorkflowOption {
-	return buildTaskRunWizardWorkflowOptions(baseDir, latestRunStatuses)
+	return buildTaskRunWizardWorkflowOptions(ctx, workspaceRoot, latestRunStatuses)
 }
 
 func readTaskRunWizardPlan(baseDir, initiative string) taskRunWizardPlanReadResult {

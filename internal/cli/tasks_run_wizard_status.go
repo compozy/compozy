@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	taskscore "github.com/compozy/compozy/internal/core/tasks"
 )
@@ -97,11 +98,14 @@ func isWorkspaceContextStaleError(err error) bool {
 }
 
 func buildTaskRunWizardWorkflowOptions(
-	baseDir string,
+	ctx context.Context,
+	workspaceRoot string,
 	latestRunStatuses map[string]string,
 ) []taskRunWizardWorkflowOption {
+	baseDir := model.TasksBaseDirForWorkspace(workspaceRoot)
 	slugs := listTaskSubdirs(baseDir)
 	options := make([]taskRunWizardWorkflowOption, 0, len(slugs))
+	resolver := taskgroups.TargetResolver{}
 	for _, slug := range slugs {
 		planRead := readTaskRunWizardPlan(baseDir, slug)
 		if planRead.Status == taskRunWizardPlanAbsent {
@@ -116,9 +120,19 @@ func buildTaskRunWizardWorkflowOptions(
 
 		children := make([]taskRunWizardWorkflowOption, 0, len(plan.TaskGroups))
 		for index := range plan.TaskGroups {
+			taskGroup := plan.TaskGroups[index]
+			reference := slug + "/" + taskGroup.ID
+			target, err := resolver.ResolveTaskGroup(ctx, workspaceRoot, reference)
+			if err != nil {
+				children = append(
+					children,
+					taskRunWizardUnavailableTaskGroupOption(slug, taskGroup, err),
+				)
+				continue
+			}
 			children = append(
 				children,
-				taskRunWizardTaskGroupOption(baseDir, slug, plan, plan.TaskGroups[index], latestRunStatuses),
+				taskRunWizardTaskGroupOption(target.TasksDir, slug, plan, taskGroup, latestRunStatuses),
 			)
 		}
 		options = append(options, taskRunWizardGroupOption(slug, children))
@@ -141,6 +155,25 @@ func taskRunWizardInvalidPlanOption(slug string, err error) taskRunWizardWorkflo
 	}
 }
 
+func taskRunWizardUnavailableTaskGroupOption(
+	initiative string,
+	taskGroup taskgroups.TaskGroup,
+	err error,
+) taskRunWizardWorkflowOption {
+	reason := taskgroups.ErrTaskGroupNotFound.Error()
+	if err != nil {
+		reason = err.Error()
+	}
+	return taskRunWizardWorkflowOption{
+		Value:             initiative + "/" + taskGroup.ID,
+		Label:             taskGroup.ID + " — " + taskGroup.Title,
+		Initiative:        initiative,
+		Depth:             1,
+		Status:            taskRunWizardWorkflowBlocked,
+		UnavailableReason: reason,
+	}
+}
+
 func taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus string) taskRunWizardWorkflowOption {
 	completedTasks, totalTasks, progressKnown := taskRunWizardTaskProgress(filepath.Join(baseDir, slug))
 	completed := taskRunWizardTaskProgressCompleted(completedTasks, totalTasks, progressKnown)
@@ -157,16 +190,14 @@ func taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus string) taskRunW
 }
 
 func taskRunWizardTaskGroupOption(
-	baseDir string,
+	tasksDir string,
 	initiative string,
 	plan taskgroups.Plan,
 	taskGroup taskgroups.TaskGroup,
 	latestRunStatuses map[string]string,
 ) taskRunWizardWorkflowOption {
 	reference := initiative + "/" + taskGroup.ID
-	completedTasks, totalTasks, progressKnown := taskRunWizardTaskProgress(
-		filepath.Join(baseDir, initiative, filepath.FromSlash(taskGroup.Directory)),
-	)
+	completedTasks, totalTasks, progressKnown := taskRunWizardTaskProgress(tasksDir)
 	readiness, err := taskgroups.EvaluateReadiness(plan, taskGroup.ID)
 	blocked := err == nil && !readiness.Eligible
 	blockedBy := taskRunWizardBlockedBy(readiness)

@@ -85,7 +85,7 @@ func loadTaskGroupPickerOptions(
 		}
 	}
 
-	options, err := buildTaskGroupPickerOptions(input, latestRunStatuses)
+	options, err := buildTaskGroupPickerOptions(cmd.Context(), input, latestRunStatuses)
 	if err != nil {
 		return nil, false, err
 	}
@@ -212,17 +212,27 @@ func loadReviewFixTargetPickerOptions(
 }
 
 func buildTaskGroupPickerOptions(
+	ctx context.Context,
 	input taskGroupPickerInput,
 	latestRunStatuses map[string]string,
 ) ([]taskGroupPickerOption, error) {
 	target := input.Target
-	baseDir := filepath.Dir(target.InitiativeDir)
 	options := make([]taskGroupPickerOption, 0, len(target.Plan.TaskGroups))
+	resolver := taskgroups.TargetResolver{}
 	for index := range target.Plan.TaskGroups {
 		taskGroup := target.Plan.TaskGroups[index]
+		reference := target.Ref.Initiative + "/" + taskGroup.ID
+		taskGroupTarget, err := resolver.ResolveTaskGroup(ctx, input.WorkspaceRoot, reference)
+		if err != nil {
+			options = append(
+				options,
+				taskGroupPickerUnavailableTaskGroupOption(taskGroup.ID, taskGroup, err),
+			)
+			continue
+		}
 		option, err := buildTaskGroupPickerOption(
 			input,
-			baseDir,
+			taskGroupTarget,
 			taskGroup,
 			taskGroup.ID,
 			taskGroup.ID,
@@ -282,15 +292,27 @@ func buildReviewFixTargetPickerRowsForSlug(
 		return []taskGroupPickerOption{option}, nil
 	}
 
-	input := taskGroupPickerInput{Target: target, RunMode: daemonRunModeReview}
+	input := taskGroupPickerInput{
+		Target:        target,
+		WorkspaceRoot: workspaceRoot,
+		RunMode:       daemonRunModeReview,
+	}
 	children := make([]taskGroupPickerOption, 0, len(target.Plan.TaskGroups))
 	hasActionableTaskGroup := false
+	resolver := taskgroups.TargetResolver{}
 	for index := range target.Plan.TaskGroups {
 		taskGroup := target.Plan.TaskGroups[index]
 		reference := target.Ref.Initiative + "/" + taskGroup.ID
+		taskGroupTarget, err := resolver.ResolveTaskGroup(ctx, workspaceRoot, reference)
+		if err != nil {
+			option := taskGroupPickerUnavailableTaskGroupOption(reference, taskGroup, err)
+			option.Depth = 1
+			children = append(children, option)
+			continue
+		}
 		option, err := buildTaskGroupPickerOption(
 			input,
-			baseDir,
+			taskGroupTarget,
 			taskGroup,
 			reference,
 			taskGroup.ID,
@@ -333,9 +355,26 @@ func reviewFixTargetErrorRow(slug string, err error) taskGroupPickerOption {
 	}
 }
 
+func taskGroupPickerUnavailableTaskGroupOption(
+	value string,
+	taskGroup taskgroups.TaskGroup,
+	err error,
+) taskGroupPickerOption {
+	reason := taskgroups.ErrTaskGroupNotFound.Error()
+	if err != nil {
+		reason = err.Error()
+	}
+	return taskGroupPickerOption{
+		Value:                  value,
+		Label:                  taskGroupPickerBlockedMarker + " " + taskGroup.ID + " — " + taskGroup.Title + " — " + reason,
+		SelectionBlocked:       true,
+		SelectionBlockedReason: reason,
+	}
+}
+
 func buildTaskGroupPickerOption(
 	input taskGroupPickerInput,
-	baseDir string,
+	taskGroupTarget taskgroups.Target,
 	taskGroup taskgroups.TaskGroup,
 	value string,
 	displayReference string,
@@ -346,7 +385,7 @@ func buildTaskGroupPickerOption(
 		return taskGroupPickerOption{}, err
 	}
 	workflowOption := taskRunWizardTaskGroupOption(
-		baseDir,
+		taskGroupTarget.TasksDir,
 		target.Ref.Initiative,
 		target.Plan,
 		taskGroup,
@@ -359,10 +398,7 @@ func buildTaskGroupPickerOption(
 	}
 
 	if input.RunMode == daemonRunModeReview {
-		summary, err := reviewDispatchRoundSummary(filepath.Join(
-			target.InitiativeDir,
-			filepath.FromSlash(taskGroup.Directory),
-		))
+		summary, err := reviewDispatchRoundSummary(taskGroupTarget.ReviewsDir)
 		if err != nil {
 			return taskGroupPickerOption{}, err
 		}

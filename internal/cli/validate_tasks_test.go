@@ -121,6 +121,37 @@ func TestValidateTasksCommandValidatesTaskGroupInitiative(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject escaped task group symlink during initiative aggregation", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+		writeTaskGroupWorkflowForCLI(t, tasksDir, false)
+
+		taskGroupDir := filepath.Join(tasksDir, "_task_groups", "001-foundation")
+		externalTaskGroupDir := t.TempDir()
+		writeTaskGroupSuiteForCLI(t, externalTaskGroupDir, "demo/TG-001")
+		if err := os.RemoveAll(taskGroupDir); err != nil {
+			t.Fatalf("remove canonical task group directory: %v", err)
+		}
+		if err := os.Symlink(externalTaskGroupDir, taskGroupDir); err != nil {
+			t.Fatalf("symlink escaped task group directory: %v", err)
+		}
+
+		stdout, stderr, exitCode := runValidateTasksCommand(
+			t,
+			workspaceRoot,
+			"tasks",
+			"validate",
+			"--tasks-dir",
+			tasksDir,
+		)
+		if exitCode != 1 {
+			t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		}
+		if !strings.Contains(stdout, taskgroups.ErrContainment.Error()) {
+			t.Fatalf("expected containment diagnostic, got stdout=%q stderr=%q", stdout, stderr)
+		}
+	})
+
 	t.Run("Should accept public workflow reference for direct task group directory", func(t *testing.T) {
 		t.Parallel()
 		workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")

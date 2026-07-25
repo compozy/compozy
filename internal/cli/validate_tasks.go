@@ -145,26 +145,29 @@ func validateTaskWorkflow(
 		return report, nil
 	}
 
+	resolver := taskgroups.TargetResolver{}
 	for index := range plan.TaskGroups {
 		taskGroup := &plan.TaskGroups[index]
-		taskGroupDir := filepath.Join(tasksDir, filepath.FromSlash(taskGroup.Directory))
+		reference := initiative + "/" + taskGroup.ID
+		target, resolveErr := resolver.ResolveTaskGroup(ctx, workspaceRoot, reference)
+		if resolveErr != nil {
+			issue, issueErr := taskGroupResolutionIssue(planPath, *taskGroup, resolveErr)
+			if issueErr != nil {
+				return tasks.Report{}, issueErr
+			}
+			report.Issues = append(report.Issues, issue)
+			continue
+		}
+
 		taskGroupReport, validateErr := tasks.ValidateWithOptions(
 			ctx,
-			taskGroupDir,
+			target.TaskGroupDir,
 			registry,
 			tasks.ValidateOptions{
 				Recursive:        false,
-				ExpectedWorkflow: initiative + "/" + taskGroup.ID,
+				ExpectedWorkflow: reference,
 			},
 		)
-		if errors.Is(validateErr, os.ErrNotExist) {
-			report.Issues = append(report.Issues, tasks.Issue{
-				Path:    planPath,
-				Field:   "graph.nodes." + taskGroup.ID + ".directory",
-				Message: fmt.Sprintf("declared task group directory %q does not exist", taskGroup.Directory),
-			})
-			continue
-		}
 		if validateErr != nil {
 			return tasks.Report{}, fmt.Errorf("validate task group %s: %w", taskGroup.ID, validateErr)
 		}
@@ -174,6 +177,32 @@ func validateTaskWorkflow(
 
 	sortTaskValidationIssues(report.Issues)
 	return report, nil
+}
+
+func taskGroupResolutionIssue(
+	planPath string,
+	taskGroup taskgroups.TaskGroup,
+	resolveErr error,
+) (tasks.Issue, error) {
+	issue := tasks.Issue{
+		Path:  planPath,
+		Field: "graph.nodes." + taskGroup.ID + ".directory",
+	}
+	if errors.Is(resolveErr, taskgroups.ErrTaskGroupNotFound) {
+		issue.Message = fmt.Sprintf("declared task group directory %q does not exist", taskGroup.Directory)
+		return issue, nil
+	}
+
+	var taskGroupErr *taskgroups.Error
+	if !errors.As(resolveErr, &taskGroupErr) {
+		return tasks.Issue{}, fmt.Errorf("resolve task group %s: %w", taskGroup.ID, resolveErr)
+	}
+	issue.Message = fmt.Sprintf(
+		"declared task group directory %q does not resolve through the canonical Task Group plan: %v",
+		taskGroup.Directory,
+		resolveErr,
+	)
+	return issue, nil
 }
 
 func validateDirectTaskGroupSuite(

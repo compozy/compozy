@@ -3667,9 +3667,10 @@ func TestTaskGroupPickerOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve initiative: %v", err)
 	}
-	options, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
-		Target:  target,
-		RunMode: daemonRunModeTask,
+	options, err := buildTaskGroupPickerOptions(context.Background(), taskGroupPickerInput{
+		Target:        target,
+		WorkspaceRoot: workspaceRoot,
+		RunMode:       daemonRunModeTask,
 	}, map[string]string{initiative + "/TG-002": execStatusFailed})
 	if err != nil {
 		t.Fatalf("build picker options: %v", err)
@@ -3707,9 +3708,10 @@ func TestTaskGroupPickerOptions(t *testing.T) {
 		t.Fatalf("implementation-complete Task Group is not struck through: %#v", options)
 	}
 
-	reviewOptions, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
-		Target:  target,
-		RunMode: daemonRunModeReview,
+	reviewOptions, err := buildTaskGroupPickerOptions(context.Background(), taskGroupPickerInput{
+		Target:        target,
+		WorkspaceRoot: workspaceRoot,
+		RunMode:       daemonRunModeReview,
 	}, nil)
 	if err != nil {
 		t.Fatalf("build review picker options: %v", err)
@@ -3733,6 +3735,110 @@ func TestTaskGroupPickerOptions(t *testing.T) {
 	}
 }
 
+// Invariant: picker rows never read task progress or review rounds through a
+// Task Group directory that resolves outside its initiative.
+func TestTaskGroupPickersRejectEscapingTaskGroupSymlink(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	initiative := "auth"
+	writeCLITaskGroupPlan(t, workspaceRoot, initiative, false)
+
+	externalTaskGroupDir := filepath.Join(workspaceRoot, "foreign-task-group")
+	if err := os.MkdirAll(externalTaskGroupDir, 0o755); err != nil {
+		t.Fatalf("create foreign Task Group directory: %v", err)
+	}
+	writeFormTaskFile(t, externalTaskGroupDir, "task_001.md", "completed")
+	if err := reviews.WriteRound(
+		filepath.Join(externalTaskGroupDir, reviews.RoundDirName(1)),
+		model.RoundMeta{
+			Provider:  "manual",
+			Round:     1,
+			CreatedAt: time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC),
+		},
+		[]provider.ReviewItem{{
+			Title: "Foreign issue",
+			File:  "foreign.go",
+			Line:  1,
+			Body:  "Must not appear in the picker.",
+		}},
+	); err != nil {
+		t.Fatalf("write foreign review round: %v", err)
+	}
+
+	taskGroupDir := filepath.Join(
+		workspaceRoot,
+		".compozy",
+		"tasks",
+		initiative,
+		"_task_groups",
+		"TG-001",
+	)
+	if err := os.Remove(taskGroupDir); err != nil {
+		t.Fatalf("remove canonical Task Group directory: %v", err)
+	}
+	if err := os.Symlink(externalTaskGroupDir, taskGroupDir); err != nil {
+		t.Fatalf("symlink escaped Task Group directory: %v", err)
+	}
+
+	_, err := (taskgroups.TargetResolver{}).ResolveTaskGroup(
+		context.Background(),
+		workspaceRoot,
+		initiative+"/TG-001",
+	)
+	if !errors.Is(err, taskgroups.ErrContainment) {
+		t.Fatalf("resolver error = %v, want ErrContainment", err)
+	}
+	target, err := (taskgroups.TargetResolver{}).Resolve(context.Background(), workspaceRoot, initiative)
+	if err != nil {
+		t.Fatalf("resolve initiative: %v", err)
+	}
+
+	assertBlockedContainment := func(t *testing.T, options []taskGroupPickerOption, value string) {
+		t.Helper()
+		index := slices.IndexFunc(options, func(option taskGroupPickerOption) bool {
+			return option.Value == value
+		})
+		if index < 0 {
+			t.Fatalf("picker options = %#v, missing %q", options, value)
+		}
+		option := options[index]
+		if !option.SelectionBlocked ||
+			!strings.Contains(option.SelectionBlockedReason, taskgroups.ErrContainment.Error()) {
+			t.Fatalf("escaped Task Group option = %#v, want containment-blocked row", option)
+		}
+	}
+
+	t.Run("task progress", func(t *testing.T) {
+		options, buildErr := buildTaskGroupPickerOptions(context.Background(), taskGroupPickerInput{
+			Target:        target,
+			WorkspaceRoot: workspaceRoot,
+			RunMode:       daemonRunModeTask,
+		}, nil)
+		if buildErr != nil {
+			t.Fatalf("build task picker options: %v", buildErr)
+		}
+		assertBlockedContainment(t, options, "TG-001")
+		if strings.Contains(options[0].Label, "1/1 tasks completed") {
+			t.Fatalf("task picker exposed foreign progress: %#v", options[0])
+		}
+	})
+
+	t.Run("review summary", func(t *testing.T) {
+		options, buildErr := buildReviewFixTargetPickerOptions(context.Background(), workspaceRoot, nil)
+		if buildErr != nil {
+			t.Fatalf("build review picker options: %v", buildErr)
+		}
+		assertBlockedContainment(t, options, initiative+"/TG-001")
+		if slices.ContainsFunc(options, func(option taskGroupPickerOption) bool {
+			return option.Value == initiative+"/TG-001" &&
+				strings.Contains(option.Label, "Review round 1")
+		}) {
+			t.Fatalf("review picker exposed foreign round: %#v", options)
+		}
+	})
+}
+
 func TestTaskGroupPickerShowsDependencyBlockedMarker(t *testing.T) {
 	t.Parallel()
 
@@ -3747,9 +3853,10 @@ func TestTaskGroupPickerShowsDependencyBlockedMarker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve initiative: %v", err)
 	}
-	options, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
-		Target:  target,
-		RunMode: daemonRunModeTask,
+	options, err := buildTaskGroupPickerOptions(context.Background(), taskGroupPickerInput{
+		Target:        target,
+		WorkspaceRoot: workspaceRoot,
+		RunMode:       daemonRunModeTask,
 	}, nil)
 	if err != nil {
 		t.Fatalf("build picker options: %v", err)
@@ -3790,9 +3897,10 @@ func TestTaskGroupPickerPreservesCanonicalIDOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve initiative: %v", err)
 	}
-	options, err := buildTaskGroupPickerOptions(taskGroupPickerInput{
-		Target:  target,
-		RunMode: daemonRunModeTask,
+	options, err := buildTaskGroupPickerOptions(context.Background(), taskGroupPickerInput{
+		Target:        target,
+		WorkspaceRoot: state.workspaceRoot,
+		RunMode:       daemonRunModeTask,
 	}, nil)
 	if err != nil {
 		t.Fatalf("build picker options: %v", err)
