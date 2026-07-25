@@ -1489,6 +1489,9 @@ complexity: low
 		}
 
 		manager := &planHookManager{
+			mutationFields: map[string][]string{
+				"plan.pre_resolve_task_runtime": {"runtime.model"},
+			},
 			mutators: map[string]func(any) (any, error){
 				"plan.pre_resolve_task_runtime": func(input any) (any, error) {
 					payload := input.(planPreResolveTaskRuntimePayload)
@@ -2178,8 +2181,9 @@ func openRunScopeForTest(t *testing.T, cfg *model.RuntimeConfig) model.RunScope 
 }
 
 type planHookManager struct {
-	mutators     map[string]func(any) (any, error)
-	mutableHooks []string
+	mutators       map[string]func(any) (any, error)
+	mutationFields map[string][]string
+	mutableHooks   []string
 }
 
 func (*planHookManager) Start(context.Context) error { return nil }
@@ -2199,23 +2203,33 @@ func (m *planHookManager) DispatchMutableHookWithStatus(
 	_ context.Context,
 	hook string,
 	input any,
-) (any, bool, error) {
+) (any, model.HookMutation, error) {
 	return m.dispatchMutableHookWithStatus(hook, input)
 }
 
-func (m *planHookManager) dispatchMutableHookWithStatus(hook string, input any) (any, bool, error) {
+func (m *planHookManager) dispatchMutableHookWithStatus(
+	hook string,
+	input any,
+) (any, model.HookMutation, error) {
 	if m == nil {
-		return input, false, nil
+		return input, model.HookMutation{}, nil
 	}
 	m.mutableHooks = append(m.mutableHooks, hook)
 	if m.mutators == nil {
-		return input, false, nil
+		return input, model.HookMutation{}, nil
 	}
 	if mutate := m.mutators[hook]; mutate != nil {
 		updated, err := mutate(input)
-		return updated, true, err
+		mutation := model.HookMutation{Applied: true}
+		if fields := m.mutationFields[hook]; len(fields) != 0 {
+			mutation.Fields = make(map[string]struct{}, len(fields))
+			for _, field := range fields {
+				mutation.Fields[field] = struct{}{}
+			}
+		}
+		return updated, mutation, err
 	}
-	return input, false, nil
+	return input, model.HookMutation{}, nil
 }
 
 func (*planHookManager) DispatchObserverHook(context.Context, string, any) {}

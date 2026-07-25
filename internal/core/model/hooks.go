@@ -7,7 +7,22 @@ type observerHookWaiter interface {
 }
 
 type mutableHookStatusDispatcher interface {
-	DispatchMutableHookWithStatus(context.Context, string, any) (any, bool, error)
+	DispatchMutableHookWithStatus(context.Context, string, any) (any, HookMutation, error)
+}
+
+// HookMutation records whether a hook applied a patch and which JSON fields it selected.
+type HookMutation struct {
+	Applied bool
+	Fields  map[string]struct{}
+}
+
+// HasField reports whether an applied patch selected the given JSON field path.
+func (m HookMutation) HasField(path string) bool {
+	if !m.Applied {
+		return false
+	}
+	_, ok := m.Fields[path]
+	return ok
 }
 
 func DispatchMutableHook[T any](
@@ -37,26 +52,26 @@ func DispatchMutableHookWithStatus[T comparable](
 	manager RuntimeManager,
 	hook string,
 	payload T,
-) (T, bool, error) {
+) (T, HookMutation, error) {
 	if manager == nil {
-		return payload, false, nil
+		return payload, HookMutation{}, nil
 	}
 
 	statusDispatcher, ok := manager.(mutableHookStatusDispatcher)
 	if !ok {
 		updated, err := DispatchMutableHook(ctx, manager, hook, payload)
-		return updated, updated != payload, err
+		return updated, HookMutation{Applied: updated != payload}, err
 	}
 
-	updated, applied, err := statusDispatcher.DispatchMutableHookWithStatus(ctx, hook, payload)
+	updated, mutation, err := statusDispatcher.DispatchMutableHookWithStatus(ctx, hook, payload)
 	if err != nil {
-		return payload, false, err
+		return payload, HookMutation{}, err
 	}
 	typed, ok := updated.(T)
 	if !ok {
-		return payload, false, nil
+		return payload, HookMutation{}, nil
 	}
-	return typed, applied, nil
+	return typed, mutation, nil
 }
 
 func DispatchObserverHook(ctx context.Context, manager RuntimeManager, hook string, payload any) {

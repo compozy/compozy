@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/model"
 )
 
 const executeHookMethod = "execute_hook"
@@ -58,18 +60,18 @@ func (d *HookDispatcher) DispatchMutable(ctx context.Context, hook HookName, inp
 	return current, err
 }
 
-// DispatchMutableWithStatus reports whether any extension returned a valid patch.
+// DispatchMutableWithStatus reports which fields were selected by valid patches.
 func (d *HookDispatcher) DispatchMutableWithStatus(
 	ctx context.Context,
 	hook HookName,
 	input any,
-) (any, bool, error) {
+) (any, model.HookMutation, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return input, model.HookMutation{}, fmt.Errorf("dispatch hook %q: context is nil", hook)
 	}
 
 	current := input
-	applied := false
+	mutation := model.HookMutation{}
 	for _, entry := range d.chainEntries(hook) {
 		response := executeHookResponse{}
 		startedAt := time.Now()
@@ -77,7 +79,7 @@ func (d *HookDispatcher) DispatchMutableWithStatus(
 		if err != nil {
 			d.recordHookAudit(entry, hook, startedAt, err)
 			if entry.hook.Required {
-				return nil, applied, wrapRequiredHookError(hook, entry.extension.normalizedName(), err)
+				return nil, mutation, wrapRequiredHookError(hook, entry.extension.normalizedName(), err)
 			}
 
 			slog.Warn(
@@ -94,7 +96,7 @@ func (d *HookDispatcher) DispatchMutableWithStatus(
 		if patchErr != nil {
 			d.recordHookAudit(entry, hook, startedAt, patchErr)
 			if entry.hook.Required {
-				return nil, applied, wrapRequiredHookError(hook, entry.extension.normalizedName(), patchErr)
+				return nil, mutation, wrapRequiredHookError(hook, entry.extension.normalizedName(), patchErr)
 			}
 
 			slog.Warn(
@@ -108,18 +110,24 @@ func (d *HookDispatcher) DispatchMutableWithStatus(
 		}
 
 		d.recordHookAudit(entry, hook, startedAt, nil)
-		applied = applied || hasHookPatch(response.Patch)
+		recordHookMutation(&mutation, response.Patch)
 		current = next
 	}
 
-	return current, applied, nil
+	return current, mutation, nil
 }
 
 // DispatchObserver fans out one observe-only hook to all subscribers using
 // best-effort asynchronous delivery.
 func (d *HookDispatcher) DispatchObserver(ctx context.Context, hook HookName, payload any) {
 	if ctx == nil {
-		ctx = context.Background()
+		slog.Warn(
+			"observer hook dispatch rejected",
+			"component", "extension.dispatcher",
+			"hook", hook,
+			"reason", "context is nil",
+		)
+		return
 	}
 
 	entries := d.chainEntries(hook)
@@ -194,6 +202,9 @@ func (d *HookDispatcher) invokeHook(
 	payload any,
 	response *executeHookResponse,
 ) error {
+	if ctx == nil {
+		return fmt.Errorf("hook %q: context is nil", hook)
+	}
 	if entry.extension == nil {
 		return fmt.Errorf("hook %q: missing runtime extension", hook)
 	}
@@ -334,6 +345,40 @@ func applyHookPatch(current any, patch json.RawMessage) (any, error) {
 func hasHookPatch(patch json.RawMessage) bool {
 	trimmed := bytes.TrimSpace(patch)
 	return len(trimmed) != 0 && !bytes.Equal(trimmed, []byte("null")) && !bytes.Equal(trimmed, []byte("{}"))
+}
+
+func recordHookMutation(mutation *model.HookMutation, patch json.RawMessage) {
+	if mutation == nil || !hasHookPatch(patch) {
+		return
+	}
+	mutation.Applied = true
+	if mutation.Fields == nil {
+		mutation.Fields = make(map[string]struct{})
+	}
+	collectHookPatchFields(mutation.Fields, "", patch)
+}
+
+func collectHookPatchFields(fields map[string]struct{}, prefix string, value json.RawMessage) {
+	trimmed := bytes.TrimSpace(value)
+	if len(trimmed) != 0 && trimmed[0] == '{' {
+		var nested map[string]json.RawMessage
+		if err := json.Unmarshal(trimmed, &nested); err == nil {
+			if len(nested) == 0 && prefix != "" {
+				fields[prefix] = struct{}{}
+			}
+			for key, child := range nested {
+				path := key
+				if prefix != "" {
+					path = prefix + "." + key
+				}
+				collectHookPatchFields(fields, path, child)
+			}
+			return
+		}
+	}
+	if prefix != "" {
+		fields[prefix] = struct{}{}
+	}
 }
 
 func decodeJSONLike(template any, data []byte) (any, error) {

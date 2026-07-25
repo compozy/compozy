@@ -109,14 +109,14 @@ func (m *Manager) DispatchMutable(ctx context.Context, hook HookName, input any)
 	return updated, err
 }
 
-// DispatchMutableWithStatus also reports whether the chain applied a patch.
+// DispatchMutableWithStatus also reports the fields selected by the chain.
 func (m *Manager) DispatchMutableWithStatus(
 	ctx context.Context,
 	hook HookName,
 	input any,
-) (any, bool, error) {
+) (any, model.HookMutation, error) {
 	if m == nil || m.dispatcher == nil {
-		return input, false, nil
+		return input, model.HookMutation{}, nil
 	}
 	return m.dispatcher.DispatchMutableWithStatus(ctx, hook, input)
 }
@@ -132,7 +132,7 @@ func (m *Manager) DispatchMutableHookWithStatus(
 	ctx context.Context,
 	hook string,
 	input any,
-) (any, bool, error) {
+) (any, model.HookMutation, error) {
 	return m.DispatchMutableWithStatus(ctx, HookName(strings.TrimSpace(hook)), input)
 }
 

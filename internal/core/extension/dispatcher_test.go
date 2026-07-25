@@ -117,11 +117,19 @@ func TestDispatchMutableWithStatusTracksPatchPresence(t *testing.T) {
 		name        string
 		patch       json.RawMessage
 		wantApplied bool
+		wantFields  []string
 	}{
 		{
 			name:        "Should report an identical patch as applied",
 			patch:       patchPromptText(t, "base"),
 			wantApplied: true,
+			wantFields:  []string{"prompt_text"},
+		},
+		{
+			name:        "Should report only selected nested fields",
+			patch:       json.RawMessage(`{"runtime":{"ide":"cursor"}}`),
+			wantApplied: true,
+			wantFields:  []string{"runtime.ide"},
 		},
 		{
 			name: "Should report an empty patch as not applied",
@@ -144,7 +152,7 @@ func TestDispatchMutableWithStatusTracksPatchPresence(t *testing.T) {
 			))
 			dispatcher := NewHookDispatcher(registry, nil)
 
-			_, applied, err := dispatcher.DispatchMutableWithStatus(
+			_, mutation, err := dispatcher.DispatchMutableWithStatus(
 				context.Background(),
 				HookPromptPostBuild,
 				map[string]any{"prompt_text": "base"},
@@ -152,11 +160,90 @@ func TestDispatchMutableWithStatusTracksPatchPresence(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DispatchMutableWithStatus() error = %v", err)
 			}
-			if applied != tt.wantApplied {
-				t.Fatalf("DispatchMutableWithStatus() applied = %v, want %v", applied, tt.wantApplied)
+			if mutation.Applied != tt.wantApplied {
+				t.Fatalf(
+					"DispatchMutableWithStatus() applied = %v, want %v",
+					mutation.Applied,
+					tt.wantApplied,
+				)
+			}
+			if len(mutation.Fields) != len(tt.wantFields) {
+				t.Fatalf(
+					"DispatchMutableWithStatus() fields = %v, want %v",
+					mutation.Fields,
+					tt.wantFields,
+				)
+			}
+			for _, field := range tt.wantFields {
+				if !mutation.HasField(field) {
+					t.Fatalf("DispatchMutableWithStatus() missing field %q: %v", field, mutation.Fields)
+				}
 			}
 		})
 	}
+}
+
+func TestDispatchRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject mutable hook dispatch before calling the extension", func(t *testing.T) {
+		t.Parallel()
+
+		var called atomic.Bool
+		registry := mustRegistry(t, newRuntimeExtensionWithCaller(
+			"nil-mutable-context",
+			[]Capability{CapabilityPromptMutate},
+			&fakeExtensionCaller{
+				handler: func(context.Context, executeHookRequest) (json.RawMessage, error) {
+					called.Store(true)
+					return nil, nil
+				},
+			},
+			HookDeclaration{Event: HookPromptPostBuild, Required: true},
+		))
+		dispatcher := NewHookDispatcher(registry, nil)
+
+		_, err := dispatcher.DispatchMutable(nilContextForTest(), HookPromptPostBuild, map[string]any{
+			"prompt_text": "base",
+		})
+		if err == nil || !strings.Contains(err.Error(), "context is nil") {
+			t.Fatalf("DispatchMutable() error = %v, want nil-context error", err)
+		}
+		if called.Load() {
+			t.Fatal("extension caller was invoked with a nil context")
+		}
+	})
+
+	t.Run("Should reject observer hook dispatch before calling the extension", func(t *testing.T) {
+		t.Parallel()
+
+		var called atomic.Bool
+		registry := mustRegistry(t, newRuntimeExtensionWithCaller(
+			"nil-observer-context",
+			[]Capability{CapabilityPromptMutate},
+			&fakeExtensionCaller{
+				handler: func(context.Context, executeHookRequest) (json.RawMessage, error) {
+					called.Store(true)
+					return nil, nil
+				},
+			},
+			HookDeclaration{Event: HookPromptPostBuild},
+		))
+		dispatcher := NewHookDispatcher(registry, nil)
+
+		dispatcher.DispatchObserver(nilContextForTest(), HookPromptPostBuild, map[string]any{
+			"prompt_text": "base",
+		})
+		dispatcher.waitForObservers()
+
+		if called.Load() {
+			t.Fatal("extension caller was invoked with a nil context")
+		}
+	})
+}
+
+func nilContextForTest() context.Context {
+	return nil
 }
 
 func TestDispatchMutableRequiredFailureAbortsChain(t *testing.T) {
