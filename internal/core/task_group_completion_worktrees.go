@@ -119,8 +119,9 @@ func unionSiblingCompletions(
 	seenID map[string]struct{},
 ) []string {
 	for _, root := range roots {
-		// Read-only: db.Get never registers a sibling (AUTH-003, AUTH-004).
-		workspace, err := db.Get(ctx, root)
+		// Read-only and exact-root: a half-materialized sibling must not resolve
+		// through an ancestor workspace or populate discovery state.
+		workspace, err := db.GetByRoot(ctx, root)
 		if err != nil {
 			debugSkipSibling(root, siblingSkipNotRegistered, err)
 			continue

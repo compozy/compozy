@@ -64,6 +64,19 @@ func addWorktreeSibling(t *testing.T, primaryRoot string) string {
 	return siblingPath
 }
 
+// addHalfMaterializedWorktreeSibling creates a Git-visible worktree beneath the
+// primary workspace's Compozy state directory without its own .compozy marker.
+// This matches the allocation window before child artifacts are mirrored.
+func addHalfMaterializedWorktreeSibling(t *testing.T, primaryRoot string) string {
+	t.Helper()
+	siblingPath := filepath.Join(primaryRoot, ".compozy", "state", "worktrees", "half-created")
+	if err := os.MkdirAll(filepath.Dir(siblingPath), 0o755); err != nil {
+		t.Fatalf("mkdir worktree parent: %v", err)
+	}
+	runCoreGit(t, primaryRoot, "worktree", "add", "--detach", siblingPath)
+	return siblingPath
+}
+
 // seedUnionCompleted seeds exactly the given task groups as completed for one
 // workspace under the shared union initiative. Unlike seedCompletionHydrationRows
 // it accepts an arbitrary ID set for scale and multi-sibling cases.
@@ -387,6 +400,37 @@ func TestCompletedTaskGroupIDsWithDBUnion(t *testing.T) {
 			}
 			if after := countWorkspaces(t, db); after != before {
 				t.Fatalf("workspace count = %d, want %d (read must not register a sibling)", after, before)
+			}
+		})
+		t.Run("half-created sibling does not poison later registration", func(t *testing.T) {
+			primaryRoot, db := newUnionGitFixture(t, bothPending(), []string{"TG-001"})
+			primary, err := db.Get(context.Background(), primaryRoot)
+			if err != nil {
+				t.Fatalf("Get(primary) error = %v", err)
+			}
+			siblingPath := addHalfMaterializedWorktreeSibling(t, primaryRoot)
+			siblingRoot, ok := canonicalExistingDir(siblingPath)
+			if !ok {
+				t.Fatalf("resolve sibling root %q", siblingPath)
+			}
+
+			if _, err := CompletedTaskGroupIDsWithDB(
+				context.Background(), db, primaryRoot, unionInitiative); err != nil {
+				t.Fatalf("CompletedTaskGroupIDsWithDB() error = %v", err)
+			}
+			if err := os.MkdirAll(filepath.Join(siblingRoot, ".compozy"), 0o755); err != nil {
+				t.Fatalf("materialize sibling marker: %v", err)
+			}
+
+			sibling, err := db.ResolveOrRegister(context.Background(), siblingRoot)
+			if err != nil {
+				t.Fatalf("ResolveOrRegister(sibling) error = %v", err)
+			}
+			if sibling.RootDir != siblingRoot {
+				t.Fatalf("sibling root = %q, want exact worktree root %q", sibling.RootDir, siblingRoot)
+			}
+			if sibling.ID == primary.ID {
+				t.Fatalf("sibling workspace id = primary id %q, want distinct registration", primary.ID)
 			}
 		})
 		t.Run("resolved sibling row is unchanged by the read", func(t *testing.T) {

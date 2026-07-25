@@ -236,6 +236,55 @@ func TestGetReturnsNotFoundForMissingWorkspace(t *testing.T) {
 	}
 }
 
+func TestExactRootMethodsDoNotDiscoverAncestorWorkspace(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	ancestorRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(ancestorRoot, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir ancestor marker: %v", err)
+	}
+	childRoot := filepath.Join(ancestorRoot, ".compozy", "state", "worktrees", "child")
+	if err := os.MkdirAll(childRoot, 0o755); err != nil {
+		t.Fatalf("mkdir child root: %v", err)
+	}
+	ancestor, err := db.ResolveOrRegister(context.Background(), ancestorRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(ancestor) error = %v", err)
+	}
+
+	if _, err := db.GetByRoot(context.Background(), childRoot); !errors.Is(err, ErrWorkspaceNotFound) {
+		t.Fatalf("GetByRoot(unregistered child) error = %v, want ErrWorkspaceNotFound", err)
+	}
+
+	child, err := db.ResolveOrRegisterRoot(context.Background(), childRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegisterRoot(child) error = %v", err)
+	}
+	wantRoot, err := normalizeWorkspaceRoot(childRoot)
+	if err != nil {
+		t.Fatalf("normalize child root: %v", err)
+	}
+	if child.RootDir != wantRoot {
+		t.Fatalf("child root = %q, want %q", child.RootDir, wantRoot)
+	}
+	if child.ID == ancestor.ID {
+		t.Fatalf("child workspace id = ancestor id %q, want distinct exact-root registration", ancestor.ID)
+	}
+
+	loaded, err := db.GetByRoot(context.Background(), childRoot)
+	if err != nil {
+		t.Fatalf("GetByRoot(child) error = %v", err)
+	}
+	if loaded.ID != child.ID {
+		t.Fatalf("GetByRoot(child) id = %q, want %q", loaded.ID, child.ID)
+	}
+}
+
 func TestRegistryValidationBranches(t *testing.T) {
 	t.Parallel()
 

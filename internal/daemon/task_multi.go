@@ -2260,7 +2260,7 @@ func (m *RunManager) startTaskMultiWorktreeChild(
 	); err != nil {
 		return taskWorktreeChildRun{Allocation: allocation}, err
 	}
-	workspaceRow, workflowID, _, err := m.resolveWorkflowContext(detachContext(active.ctx), allocation.Path, item.slug)
+	workspaceRow, workflowID, err := m.resolveWorktreeContext(detachContext(active.ctx), allocation.Path, item.slug)
 	if err != nil {
 		return taskWorktreeChildRun{Allocation: allocation}, fmt.Errorf(
 			"register worktree workspace for %s: %w",
@@ -2454,7 +2454,7 @@ func (m *RunManager) startTaskWorktreeChildInAllocation(
 	targetTaskNumber int,
 	allocation taskMultiWorktreeAllocation,
 ) (taskWorktreeChildRun, error) {
-	workspaceRow, workflowID, _, err := m.resolveWorkflowContext(detachContext(active.ctx), allocation.Path, item.slug)
+	workspaceRow, workflowID, err := m.resolveWorktreeContext(detachContext(active.ctx), allocation.Path, item.slug)
 	if err != nil {
 		return taskWorktreeChildRun{}, fmt.Errorf("register worktree workspace for %s task %d: %w",
 			item.slug,

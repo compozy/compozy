@@ -218,6 +218,29 @@ func (g *GlobalDB) ResolveOrRegister(ctx context.Context, path string) (Workspac
 	return g.registerResolvedWorkspace(ctx, rootDir, "")
 }
 
+// ResolveOrRegisterRoot normalizes and registers an exact workspace root
+// without discovering an owning workspace from ancestor markers.
+func (g *GlobalDB) ResolveOrRegisterRoot(ctx context.Context, root string) (Workspace, error) {
+	if err := g.requireContext(ctx, "resolve workspace root"); err != nil {
+		return Workspace{}, err
+	}
+
+	rootDir, err := normalizeWorkspaceRoot(root)
+	if err != nil {
+		return Workspace{}, err
+	}
+
+	existing, err := g.getWorkspaceByRootDir(ctx, rootDir)
+	if err == nil {
+		return existing, nil
+	}
+	if !errors.Is(err, ErrWorkspaceNotFound) {
+		return Workspace{}, err
+	}
+
+	return g.registerResolvedWorkspace(ctx, rootDir, "")
+}
+
 // Register explicitly registers a workspace path and is idempotent on normalized roots.
 func (g *GlobalDB) Register(ctx context.Context, path string, name string) (Workspace, error) {
 	if err := g.requireContext(ctx, "register workspace"); err != nil {
@@ -274,6 +297,20 @@ func (g *GlobalDB) Get(ctx context.Context, idOrPath string) (Workspace, error) 
 		return Workspace{}, ErrWorkspaceNotFound
 	}
 	return Workspace{}, ErrWorkspaceNotFound
+}
+
+// GetByRoot loads a workspace by exact normalized root without discovering an
+// owning workspace from ancestor markers.
+func (g *GlobalDB) GetByRoot(ctx context.Context, root string) (Workspace, error) {
+	if err := g.requireContext(ctx, "get workspace by root"); err != nil {
+		return Workspace{}, err
+	}
+
+	rootDir, err := normalizeWorkspaceRoot(root)
+	if err != nil {
+		return Workspace{}, err
+	}
+	return g.getWorkspaceByRootDir(ctx, rootDir)
 }
 
 // List returns all registered workspaces in stable root order.

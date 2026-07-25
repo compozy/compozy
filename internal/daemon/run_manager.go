@@ -1573,6 +1573,27 @@ func (m *RunManager) resolveWorkflowContext(
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, err
 	}
+	return m.resolveWorkflowContextForWorkspace(ctx, workspaceRow, workflowSlug)
+}
+
+func (m *RunManager) resolveWorktreeContext(
+	ctx context.Context,
+	worktreeRoot string,
+	workflowSlug string,
+) (globaldb.Workspace, *string, error) {
+	workspaceRow, err := m.globalDB.ResolveOrRegisterRoot(ctx, worktreeRoot)
+	if err != nil {
+		return globaldb.Workspace{}, nil, err
+	}
+	resolvedWorkspace, workflowID, _, err := m.resolveWorkflowContextForWorkspace(ctx, workspaceRow, workflowSlug)
+	return resolvedWorkspace, workflowID, err
+}
+
+func (m *RunManager) resolveWorkflowContextForWorkspace(
+	ctx context.Context,
+	workspaceRow globaldb.Workspace,
+	workflowSlug string,
+) (globaldb.Workspace, *string, workspacecfg.ProjectConfig, error) {
 	if err := requireWorkspacePathAvailable(workspaceRow); err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, err
 	}
