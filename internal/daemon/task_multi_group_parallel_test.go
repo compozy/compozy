@@ -17,6 +17,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/taskgroups"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -86,6 +87,10 @@ func TestRemapTaskMultiChildRuntimeClonesTaskGroupExecutionScope(t *testing.T) {
 		t.Fatalf("WorkflowRef = %q, want preserved %q",
 			got.ExecutionScope.WorkflowRef, base.ExecutionScope.WorkflowRef)
 	}
+	if got.TasksDir != got.ExecutionScope.TasksDir {
+		t.Fatalf("TasksDir = %q, want canonical execution scope path %q",
+			got.TasksDir, got.ExecutionScope.TasksDir)
+	}
 	for label, path := range map[string]string{
 		"SpecDir":        got.ExecutionScope.SpecDir,
 		"OperationalDir": got.ExecutionScope.OperationalDir,
@@ -99,6 +104,150 @@ func TestRemapTaskMultiChildRuntimeClonesTaskGroupExecutionScope(t *testing.T) {
 	}
 	if !strings.HasPrefix(base.ExecutionScope.SpecDir, sourceRoot+string(filepath.Separator)) {
 		t.Fatalf("base execution scope mutated: %#v", base.ExecutionScope)
+	}
+}
+
+func TestRunManagerTaskMultiGroupParallelPersistsCanonicalTaskArtifacts(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-artifact-persistence"
+		parentID   = "group-artifact-persistence-parent"
+		groupID    = "TG-001"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare:    plan.Prepare,
+		execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			if cfg.TasksDir != cfg.ExecutionScope.TasksDir {
+				return fmt.Errorf(
+					"runtime task directory %s differs from canonical scope %s",
+					cfg.TasksDir,
+					cfg.ExecutionScope.TasksDir,
+				)
+			}
+			if len(prep.Jobs) != 1 {
+				return fmt.Errorf("prepared jobs = %d, want 1", len(prep.Jobs))
+			}
+			taskPath, err := taskMultiPromptTaskPath(string(prep.Jobs[0].Prompt))
+			if err != nil {
+				return err
+			}
+			wantTaskPath := filepath.Join(cfg.ExecutionScope.TasksDir, "task_01.md")
+			if filepath.Clean(taskPath) != filepath.Clean(wantTaskPath) {
+				return fmt.Errorf("prompt task path = %s, want %s", taskPath, wantTaskPath)
+			}
+			taskContent, err := os.ReadFile(taskPath)
+			if err != nil {
+				return fmt.Errorf("read prompted task path: %w", err)
+			}
+			completed := strings.Replace(string(taskContent), "status: pending", "status: completed", 1)
+			if completed == string(taskContent) {
+				return errors.New("prompted task did not contain pending status")
+			}
+			completed += "- [x] Canonical artifact persisted\n"
+			if err := os.WriteFile(taskPath, []byte(completed), 0o600); err != nil {
+				return fmt.Errorf("complete prompted task: %w", err)
+			}
+			if err := os.MkdirAll(cfg.ExecutionScope.MemoryDir, 0o755); err != nil {
+				return fmt.Errorf("create task-group memory directory: %w", err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(cfg.ExecutionScope.MemoryDir, "agent-note.md"),
+				[]byte("canonical memory persisted\n"),
+				0o600,
+			); err != nil {
+				return fmt.Errorf("write task-group memory: %w", err)
+			}
+			return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, "artifact persistence\n")
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	parentTaskPath := filepath.Join(
+		env.workflowDir(initiative),
+		"_task_groups",
+		groupID,
+		"task_01.md",
+	)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusCompleted {
+		t.Fatalf("parent status = %q error=%q, want completed", row.Status, row.ErrorText)
+	}
+	taskContent, err := os.ReadFile(parentTaskPath)
+	if err != nil {
+		t.Fatalf("read canonical parent task: %v", err)
+	}
+	if !strings.Contains(string(taskContent), "status: completed") {
+		t.Fatalf("canonical parent task = %q, want completed status", taskContent)
+	}
+	if !strings.Contains(string(taskContent), "- [x] Canonical artifact persisted") {
+		t.Fatalf("canonical parent task = %q, want persisted checklist update", taskContent)
+	}
+	memoryContent, err := os.ReadFile(filepath.Join(filepath.Dir(parentTaskPath), "memory", "agent-note.md"))
+	if err != nil {
+		t.Fatalf("read canonical parent memory: %v", err)
+	}
+	if string(memoryContent) != "canonical memory persisted\n" {
+		t.Fatalf("canonical parent memory = %q", memoryContent)
+	}
+	item := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 1).Items)[groupID]
+	if item.WorktreeStatus != taskMultiWorktreeStatusRemoved {
+		t.Fatalf("worktree status = %q, want removed after artifact persistence", item.WorktreeStatus)
+	}
+}
+
+func TestRunManagerTaskMultiGroupParallelPreservesWorktreeWhenArtifactSyncFails(t *testing.T) {
+	requireGitForTaskMulti(t)
+
+	const (
+		initiative = "group-artifact-sync-failure"
+		parentID   = "group-artifact-sync-failure-parent"
+		groupID    = "TG-001"
+	)
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		buildRunID: taskMultiGroupRunIDBuilder(parentID),
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			if cfg.ExecutionScope == nil {
+				return errors.New("task-group execution scope was not preserved")
+			}
+			if err := os.Symlink(
+				"task_01.md",
+				filepath.Join(cfg.ExecutionScope.OperationalDir, "artifact-link"),
+			); err != nil {
+				return fmt.Errorf("create invalid artifact symlink: %w", err)
+			}
+			return commitTaskMultiGroupAgentChange(ctx, cfg.WorkspaceRoot, groupID, "artifact sync failure\n")
+		},
+	})
+	writeIndependentTaskGroupFixture(t, env, initiative, 1)
+	commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+	parent := startTaskMultiGroupParallelRun(t, env, parentID, initiative, []string{groupID}, 1)
+	row := waitForRun(t, env.globalDB, parent.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Status != runStatusFailed {
+		t.Fatalf("parent status = %q error=%q, want failed", row.Status, row.ErrorText)
+	}
+	item := taskMultiItemsByGroupID(requireTaskMultiGroupSnapshot(t, env, parent.RunID, 1).Items)[groupID]
+	if item.Status != taskMultiItemStatusFailed ||
+		item.WorktreeStatus != taskMultiWorktreeStatusPreserved ||
+		!strings.Contains(item.ErrorText, "symlink") {
+		t.Fatalf("failed artifact item = %#v, want failed with preserved worktree", item)
+	}
+	if _, err := os.Stat(item.WorktreePath); err != nil {
+		t.Fatalf("preserved worktree %s is unavailable: %v", item.WorktreePath, err)
 	}
 }
 
@@ -1344,6 +1493,21 @@ func commitTaskMultiGroupPaths(
 		}
 	}
 	return nil
+}
+
+func taskMultiPromptTaskPath(promptText string) (string, error) {
+	const prefix = "- Task file: `"
+	for line := range strings.SplitSeq(promptText, "\n") {
+		if !strings.HasPrefix(line, prefix) || !strings.HasSuffix(line, "`") {
+			continue
+		}
+		path := strings.TrimSuffix(strings.TrimPrefix(line, prefix), "`")
+		if strings.TrimSpace(path) == "" {
+			break
+		}
+		return path, nil
+	}
+	return "", errors.New("prepared prompt did not identify an exact task file")
 }
 
 func requireTaskMultiGroupSnapshot(

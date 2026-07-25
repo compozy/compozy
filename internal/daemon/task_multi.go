@@ -1763,6 +1763,7 @@ func (m *RunManager) runTaskMultiParallelChild(
 		total,
 		childRow,
 		child.Allocation,
+		child.RuntimeConfig,
 	); emitErr != nil {
 		return emitErr
 	}
@@ -2455,9 +2456,10 @@ func (m *RunManager) startTaskWorktreeChildInAllocation(
 }
 
 // remapTaskMultiChildRuntime clones base and repoints it at the worktree: the
-// workspace root becomes the worktree path, the task directory becomes the slug
-// directory inside the worktree, and ParentRunID links the child to the parent
-// multi-run. All other runtime overrides are preserved.
+// workspace root becomes the worktree path, task-group runs use their canonical
+// execution-scope task directory, ordinary workflows use their slug directory,
+// and ParentRunID links the child to the parent multi-run. All other runtime
+// overrides are preserved.
 func remapTaskMultiChildRuntime(
 	base *model.RuntimeConfig,
 	worktreePath string,
@@ -2485,6 +2487,13 @@ func remapTaskMultiChildRuntime(
 	remapped.ParentRunID = strings.TrimSpace(parentRunID)
 	remapped.RunID = ""
 	remapTaskMultiExecutionScope(remapped.ExecutionScope, base.WorkspaceRoot, trimmedPath)
+	if remapped.ExecutionScope != nil {
+		tasksDir := strings.TrimSpace(remapped.ExecutionScope.TasksDir)
+		if tasksDir == "" {
+			return nil, errors.New("daemon: task-group execution scope task directory is required")
+		}
+		remapped.TasksDir = tasksDir
+	}
 	return remapped, nil
 }
 
@@ -2616,9 +2625,43 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 	total int,
 	childRow globaldb.Run,
 	allocation taskMultiWorktreeAllocation,
+	childRuntimeCfg *model.RuntimeConfig,
 ) error {
 	if prepared == nil {
 		return errors.New("daemon: prepared task multi run is required")
+	}
+	if childRow.Status == runStatusCompleted {
+		if err := syncTaskMultiGroupChildArtifacts(prepared, item, childRuntimeCfg); err != nil {
+			allocation = m.cleanupSettledTaskWorktree(
+				context.WithoutCancel(active.ctx),
+				prepared.workspace.RootDir,
+				allocation,
+				taskMultiWorktreeCleanupPolicy{
+					preserve: true,
+				},
+			)
+			emitErr := m.emitTaskMultiEvent(
+				active,
+				eventspkg.EventKindTaskRunMultipleChildFailed,
+				taskMultiWorktreeItemPayload(
+					item,
+					index,
+					total,
+					taskMultiItemStatusFailed,
+					childRow.RunID,
+					err.Error(),
+					allocation,
+				),
+			)
+			return errors.Join(
+				taskMultiPreservedChildError(
+					fmt.Errorf("sync task-group child %s artifacts: %w", item.slug, err),
+					prepared,
+					allocation,
+				),
+				emitErr,
+			)
+		}
 	}
 	allocation = m.cleanupSettledTaskWorktree(
 		context.WithoutCancel(active.ctx),
@@ -2640,6 +2683,54 @@ func (m *RunManager) finishTaskMultiWorktreeChild(
 		kind,
 		taskMultiWorktreeItemPayload(item, index, total, status, childRow.RunID, errorText, allocation),
 	)
+}
+
+func syncTaskMultiGroupChildArtifacts(
+	prepared *preparedTaskMulti,
+	item preparedTaskMultiItem,
+	childRuntimeCfg *model.RuntimeConfig,
+) error {
+	if prepared.executionKind != apicore.ExecutionKindTaskMultiGroupParallel {
+		return nil
+	}
+	if item.runtimeCfg == nil || item.runtimeCfg.ExecutionScope == nil {
+		return errors.New("daemon: parent task-group execution scope is required")
+	}
+	if childRuntimeCfg == nil || childRuntimeCfg.ExecutionScope == nil {
+		return errors.New("daemon: child task-group execution scope is required")
+	}
+	parentScope := item.runtimeCfg.ExecutionScope
+	childScope := childRuntimeCfg.ExecutionScope
+	source := strings.TrimSpace(childScope.OperationalDir)
+	destination := strings.TrimSpace(parentScope.OperationalDir)
+	if source == "" {
+		return errors.New("daemon: child task-group operational directory is required")
+	}
+	if destination == "" {
+		return errors.New("daemon: parent task-group operational directory is required")
+	}
+	expectedSource := remapTaskMultiExecutionScopePath(
+		destination,
+		item.runtimeCfg.WorkspaceRoot,
+		childRuntimeCfg.WorkspaceRoot,
+	)
+	if filepath.Clean(source) != filepath.Clean(expectedSource) {
+		return fmt.Errorf(
+			"daemon: child task-group operational directory %s does not match remapped parent path %s",
+			source,
+			expectedSource,
+		)
+	}
+	if err := requireDirectory(source); err != nil {
+		return fmt.Errorf("read child task-group artifacts from %s: %w", source, err)
+	}
+	if err := requireDirectory(destination); err != nil {
+		return fmt.Errorf("write parent task-group artifacts to %s: %w", destination, err)
+	}
+	if err := worktree.OverlayTree(source, destination); err != nil {
+		return fmt.Errorf("copy task-group artifacts from %s to %s: %w", source, destination, err)
+	}
+	return nil
 }
 
 func taskMultiChildSettlement(
