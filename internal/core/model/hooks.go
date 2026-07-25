@@ -6,6 +6,10 @@ type observerHookWaiter interface {
 	WaitForObserverHooks(context.Context) error
 }
 
+type mutableHookStatusDispatcher interface {
+	DispatchMutableHookWithStatus(context.Context, string, any) (any, bool, error)
+}
+
 func DispatchMutableHook[T any](
 	ctx context.Context,
 	manager RuntimeManager,
@@ -26,6 +30,33 @@ func DispatchMutableHook[T any](
 		return payload, nil
 	}
 	return typed, nil
+}
+
+func DispatchMutableHookWithStatus[T comparable](
+	ctx context.Context,
+	manager RuntimeManager,
+	hook string,
+	payload T,
+) (T, bool, error) {
+	if manager == nil {
+		return payload, false, nil
+	}
+
+	statusDispatcher, ok := manager.(mutableHookStatusDispatcher)
+	if !ok {
+		updated, err := DispatchMutableHook(ctx, manager, hook, payload)
+		return updated, updated != payload, err
+	}
+
+	updated, applied, err := statusDispatcher.DispatchMutableHookWithStatus(ctx, hook, payload)
+	if err != nil {
+		return payload, false, err
+	}
+	typed, ok := updated.(T)
+	if !ok {
+		return payload, false, nil
+	}
+	return typed, applied, nil
 }
 
 func DispatchObserverHook(ctx context.Context, manager RuntimeManager, hook string, payload any) {

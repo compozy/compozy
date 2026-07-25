@@ -105,16 +105,35 @@ func (m *Manager) Start(ctx context.Context) error {
 
 // DispatchMutable routes one mutable hook through the priority-ordered chain.
 func (m *Manager) DispatchMutable(ctx context.Context, hook HookName, input any) (any, error) {
+	updated, _, err := m.DispatchMutableWithStatus(ctx, hook, input)
+	return updated, err
+}
+
+// DispatchMutableWithStatus also reports whether the chain applied a patch.
+func (m *Manager) DispatchMutableWithStatus(
+	ctx context.Context,
+	hook HookName,
+	input any,
+) (any, bool, error) {
 	if m == nil || m.dispatcher == nil {
-		return input, nil
+		return input, false, nil
 	}
-	return m.dispatcher.DispatchMutable(ctx, hook, input)
+	return m.dispatcher.DispatchMutableWithStatus(ctx, hook, input)
 }
 
 // DispatchMutableHook adapts the generic runtime-manager hook interface onto
 // the extension hook dispatcher.
 func (m *Manager) DispatchMutableHook(ctx context.Context, hook string, input any) (any, error) {
 	return m.DispatchMutable(ctx, HookName(strings.TrimSpace(hook)), input)
+}
+
+// DispatchMutableHookWithStatus adapts mutation provenance onto the runtime manager.
+func (m *Manager) DispatchMutableHookWithStatus(
+	ctx context.Context,
+	hook string,
+	input any,
+) (any, bool, error) {
+	return m.DispatchMutableWithStatus(ctx, HookName(strings.TrimSpace(hook)), input)
 }
 
 // DispatchObserver fans out one observe-only hook using the dispatcher’s

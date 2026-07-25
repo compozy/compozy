@@ -614,7 +614,7 @@ func dispatchPlanPreResolveTaskRuntime(
 	task model.TaskRuntimeTask,
 	runtimeCfg *model.RuntimeConfig,
 ) (*model.RuntimeConfig, error) {
-	payload, err := model.DispatchMutableHook(
+	payload, applied, err := model.DispatchMutableHookWithStatus(
 		ctx,
 		manager,
 		"plan.pre_resolve_task_runtime",
@@ -628,7 +628,11 @@ func dispatchPlanPreResolveTaskRuntime(
 		return nil, err
 	}
 	updated := runtimeCfg.Clone()
-	model.ApplyTaskRuntime(updated, payload.Runtime)
+	if applied {
+		model.ApplyExplicitTaskRuntime(updated, payload.Runtime)
+	} else {
+		model.ApplyTaskRuntime(updated, payload.Runtime)
+	}
 	return updated, nil
 }
 

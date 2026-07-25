@@ -207,26 +207,31 @@ func TaskRuntimeFromConfig(cfg *RuntimeConfig) TaskRuntime {
 	}
 }
 
-// ApplyTaskRuntime copies task-scoped runtime fields and marks hook changes explicit.
+// ApplyTaskRuntime copies task-scoped runtime fields onto cfg.
 func ApplyTaskRuntime(cfg *RuntimeConfig, runtime TaskRuntime) {
 	if cfg == nil {
 		return
 	}
-	ide := strings.TrimSpace(runtime.IDE)
-	modelName := strings.TrimSpace(runtime.Model)
-	reasoningEffort := strings.TrimSpace(runtime.ReasoningEffort)
-	if strings.TrimSpace(cfg.IDE) != ide {
+	cfg.IDE = strings.TrimSpace(runtime.IDE)
+	cfg.Model = strings.TrimSpace(runtime.Model)
+	cfg.ReasoningEffort = strings.TrimSpace(runtime.ReasoningEffort)
+}
+
+// ApplyExplicitTaskRuntime preserves the authority of a hook-selected runtime.
+func ApplyExplicitTaskRuntime(cfg *RuntimeConfig, runtime TaskRuntime) {
+	ApplyTaskRuntime(cfg, runtime)
+	if cfg == nil {
+		return
+	}
+	if cfg.IDE != "" {
 		cfg.ExplicitRuntime.IDE = true
 	}
-	if strings.TrimSpace(cfg.Model) != modelName {
+	if cfg.Model != "" {
 		cfg.ExplicitRuntime.Model = true
 	}
-	if strings.TrimSpace(cfg.ReasoningEffort) != reasoningEffort {
+	if cfg.ReasoningEffort != "" {
 		cfg.ExplicitRuntime.ReasoningEffort = true
 	}
-	cfg.IDE = ide
-	cfg.Model = modelName
-	cfg.ReasoningEffort = reasoningEffort
 }
 
 func cloneTrimmedOptionalString(value *string) *string {

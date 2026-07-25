@@ -54,11 +54,22 @@ func NewHookDispatcher(registry *Registry, audit AuditHandler) *HookDispatcher {
 
 // DispatchMutable executes the chain-of-responsibility for one mutable hook.
 func (d *HookDispatcher) DispatchMutable(ctx context.Context, hook HookName, input any) (any, error) {
+	current, _, err := d.DispatchMutableWithStatus(ctx, hook, input)
+	return current, err
+}
+
+// DispatchMutableWithStatus reports whether any extension returned a valid patch.
+func (d *HookDispatcher) DispatchMutableWithStatus(
+	ctx context.Context,
+	hook HookName,
+	input any,
+) (any, bool, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	current := input
+	applied := false
 	for _, entry := range d.chainEntries(hook) {
 		response := executeHookResponse{}
 		startedAt := time.Now()
@@ -66,7 +77,7 @@ func (d *HookDispatcher) DispatchMutable(ctx context.Context, hook HookName, inp
 		if err != nil {
 			d.recordHookAudit(entry, hook, startedAt, err)
 			if entry.hook.Required {
-				return nil, wrapRequiredHookError(hook, entry.extension.normalizedName(), err)
+				return nil, applied, wrapRequiredHookError(hook, entry.extension.normalizedName(), err)
 			}
 
 			slog.Warn(
@@ -83,7 +94,7 @@ func (d *HookDispatcher) DispatchMutable(ctx context.Context, hook HookName, inp
 		if patchErr != nil {
 			d.recordHookAudit(entry, hook, startedAt, patchErr)
 			if entry.hook.Required {
-				return nil, wrapRequiredHookError(hook, entry.extension.normalizedName(), patchErr)
+				return nil, applied, wrapRequiredHookError(hook, entry.extension.normalizedName(), patchErr)
 			}
 
 			slog.Warn(
@@ -97,10 +108,11 @@ func (d *HookDispatcher) DispatchMutable(ctx context.Context, hook HookName, inp
 		}
 
 		d.recordHookAudit(entry, hook, startedAt, nil)
+		applied = applied || hasHookPatch(response.Patch)
 		current = next
 	}
 
-	return current, nil
+	return current, applied, nil
 }
 
 // DispatchObserver fans out one observe-only hook to all subscribers using
@@ -282,10 +294,10 @@ func effectiveHookName(entry hookChainEntry) string {
 }
 
 func applyHookPatch(current any, patch json.RawMessage) (any, error) {
-	trimmedPatch := bytes.TrimSpace(patch)
-	if len(trimmedPatch) == 0 || bytes.Equal(trimmedPatch, []byte("null")) || bytes.Equal(trimmedPatch, []byte("{}")) {
+	if !hasHookPatch(patch) {
 		return current, nil
 	}
+	trimmedPatch := bytes.TrimSpace(patch)
 
 	var patchFields map[string]json.RawMessage
 	if err := json.Unmarshal(trimmedPatch, &patchFields); err != nil {
@@ -317,6 +329,11 @@ func applyHookPatch(current any, patch json.RawMessage) (any, error) {
 	}
 
 	return decodeJSONLike(current, mergedBytes)
+}
+
+func hasHookPatch(patch json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(patch)
+	return len(trimmed) != 0 && !bytes.Equal(trimmed, []byte("null")) && !bytes.Equal(trimmed, []byte("{}"))
 }
 
 func decodeJSONLike(template any, data []byte) (any, error) {

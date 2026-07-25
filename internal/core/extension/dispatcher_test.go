@@ -110,6 +110,55 @@ func TestDispatchMutableFeedsMutatedPayloadThroughChain(t *testing.T) {
 	}
 }
 
+func TestDispatchMutableWithStatusTracksPatchPresence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		patch       json.RawMessage
+		wantApplied bool
+	}{
+		{
+			name:        "Should report an identical patch as applied",
+			patch:       patchPromptText(t, "base"),
+			wantApplied: true,
+		},
+		{
+			name: "Should report an empty patch as not applied",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			registry := mustRegistry(t, newRuntimeExtensionWithCaller(
+				"status",
+				[]Capability{CapabilityPromptMutate},
+				&fakeExtensionCaller{
+					handler: func(context.Context, executeHookRequest) (json.RawMessage, error) {
+						return tt.patch, nil
+					},
+				},
+				HookDeclaration{Event: HookPromptPostBuild, Required: true},
+			))
+			dispatcher := NewHookDispatcher(registry, nil)
+
+			_, applied, err := dispatcher.DispatchMutableWithStatus(
+				context.Background(),
+				HookPromptPostBuild,
+				map[string]any{"prompt_text": "base"},
+			)
+			if err != nil {
+				t.Fatalf("DispatchMutableWithStatus() error = %v", err)
+			}
+			if applied != tt.wantApplied {
+				t.Fatalf("DispatchMutableWithStatus() applied = %v, want %v", applied, tt.wantApplied)
+			}
+		})
+	}
+}
+
 func TestDispatchMutableRequiredFailureAbortsChain(t *testing.T) {
 	t.Parallel()
 
