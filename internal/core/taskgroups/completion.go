@@ -100,7 +100,7 @@ type RewriteResult struct {
 
 // RewriteCompletion changes only the selected stable heading checkbox in content.
 func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error) {
-	result, _, err := rewriteCompletion(content, taskGroupID)
+	result, _, err := rewriteCompletion(content, taskGroupID, "")
 	return result, err
 }
 
@@ -108,8 +108,13 @@ func RewriteCompletion(content []byte, taskGroupID string) (RewriteResult, error
 // how many stable headings matched taskGroupID. Bulk callers use the count to
 // distinguish an absent heading (0 matches, safe to skip) from a genuinely
 // ambiguous one (>1 matches, an error) — a distinction the returned
-// ErrCompletionConflict alone cannot express.
-func rewriteCompletion(content []byte, taskGroupID string) (RewriteResult, int, error) {
+// ErrCompletionConflict alone cannot express. When expectedInitiative is set,
+// validation also binds the plan to that initiative before returning rewritten
+// content.
+func rewriteCompletion(
+	content []byte,
+	taskGroupID, expectedInitiative string,
+) (RewriteResult, int, error) {
 	// Scan only the post-frontmatter body so this reader agrees with
 	// parseMarkdownTaskGroups, which validates against frontmatter.Parse's body.
 	// A heading-shaped line inside the frontmatter (e.g. a YAML comment) would
@@ -134,7 +139,13 @@ func rewriteCompletion(content []byte, taskGroupID string) (RewriteResult, int, 
 			[]Issue{{Field: "body." + taskGroupID, Message: "must contain exactly one compatible task group heading"}},
 		)
 	}
-	if _, err := ParsePlan(string(content)); err != nil {
+	var err error
+	if expectedInitiative == "" {
+		_, err = ParsePlan(string(content))
+	} else {
+		_, err = ParsePlanForInitiative(string(content), expectedInitiative)
+	}
+	if err != nil {
 		return RewriteResult{}, len(selected), err
 	}
 	checkboxIndex := bodyStart + selected[0][2]
@@ -267,25 +278,80 @@ func (s *Store) HydrateCompletion(
 	initiativeDir string,
 	completedTaskGroupIDs []string,
 ) ([]string, error) {
+	return s.HydrateCompletionForInitiative(
+		ctx,
+		initiativeDir,
+		filepath.Base(filepath.Clean(initiativeDir)),
+		completedTaskGroupIDs,
+	)
+}
+
+// HydrateCompletionForInitiative hydrates a containment-checked plan whose
+// declared initiative must match expectedInitiative.
+func (s *Store) HydrateCompletionForInitiative(
+	ctx context.Context,
+	initiativeDir, expectedInitiative string,
+	completedTaskGroupIDs []string,
+) ([]string, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, fmt.Errorf("hydrate task group completion: %w", err)
 	}
 	s = usableStore(s)
-	planPath := filepath.Join(initiativeDir, ManifestFileName)
-	if _, err := os.Stat(planPath); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("stat task group plan before hydration: %w", err)
+	resolvedInitiativeDir, planPath, present, err := resolveHydrationPlan(initiativeDir)
+	if err != nil {
+		return nil, err
+	}
+	if !present {
+		return nil, nil
 	}
 
 	var marked []string
-	_, err := s.withPlanLock(ctx, planPath, func() (CompletionResult, error) {
+	_, err = s.withPlanLock(ctx, planPath, func() (CompletionResult, error) {
 		var hydrateErr error
-		marked, hydrateErr = s.hydrateCompletionLocked(ctx, initiativeDir, planPath, completedTaskGroupIDs)
+		marked, hydrateErr = s.hydrateCompletionLocked(
+			ctx,
+			resolvedInitiativeDir,
+			planPath,
+			expectedInitiative,
+			completedTaskGroupIDs,
+		)
 		return CompletionResult{}, hydrateErr
 	})
 	return marked, err
+}
+
+func resolveHydrationPlan(initiativeDir string) (string, string, bool, error) {
+	cleanedInitiativeDir := filepath.Clean(initiativeDir)
+	candidate := filepath.Join(cleanedInitiativeDir, ManifestFileName)
+	if _, err := os.Lstat(candidate); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", "", false, nil
+		}
+		return "", "", false, fmt.Errorf("inspect task group plan before hydration: %w", err)
+	}
+	tasksRoot, err := filepath.Abs(filepath.Dir(cleanedInitiativeDir))
+	if err != nil {
+		return "", "", false, fmt.Errorf("resolve task group hydration root: %w", err)
+	}
+	tasksRoot, err = filepath.EvalSymlinks(tasksRoot)
+	if err != nil {
+		return "", "", false, fmt.Errorf("resolve task group hydration root: %w", err)
+	}
+	resolvedInitiativeDir, err := resolveInitiative(tasksRoot, filepath.Base(cleanedInitiativeDir))
+	if err != nil {
+		return "", "", false, err
+	}
+	marker, err := resolveMarker(
+		resolvedInitiativeDir,
+		filepath.Join(resolvedInitiativeDir, ManifestFileName),
+	)
+	if err != nil {
+		return "", "", false, err
+	}
+	if !marker.present {
+		return "", "", false, nil
+	}
+	return resolvedInitiativeDir, marker.path, true, nil
 }
 
 // hydrateCompletionLocked projects completion state into the plan file. The
@@ -298,7 +364,7 @@ func (s *Store) HydrateCompletion(
 // next hydration re-derives — no authoritative state is lost.
 func (s *Store) hydrateCompletionLocked(
 	ctx context.Context,
-	initiativeDir, planPath string,
+	initiativeDir, planPath, expectedInitiative string,
 	completedTaskGroupIDs []string,
 ) ([]string, error) {
 	content, err := os.ReadFile(planPath)
@@ -308,7 +374,6 @@ func (s *Store) hydrateCompletionLocked(
 		}
 		return nil, fmt.Errorf("read task group plan for hydration: %w", err)
 	}
-
 	ids := normalizedTaskGroupIDs(completedTaskGroupIDs)
 	rewritten := slices.Clone(content)
 	marked := make([]string, 0, len(ids))
@@ -316,7 +381,11 @@ func (s *Store) hydrateCompletionLocked(
 		if err := context.Cause(ctx); err != nil {
 			return nil, fmt.Errorf("hydrate task group completion: %w", err)
 		}
-		result, headingMatches, rewriteErr := rewriteCompletion(rewritten, taskGroupID)
+		result, headingMatches, rewriteErr := rewriteCompletion(
+			rewritten,
+			taskGroupID,
+			expectedInitiative,
+		)
 		if rewriteErr != nil {
 			// Plan drift can drop a completed group's heading entirely. Hydration
 			// is an additive best-effort projection, so skip an absent heading and

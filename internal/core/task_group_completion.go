@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -382,20 +379,27 @@ func HydratePlanCompletionWithDB(
 		return nil, errors.New("hydrate task group completion: initiative is required")
 	}
 
-	initiativeDir := filepath.Join(model.TasksBaseDirForWorkspace(workspaceRoot), initiative)
-	planPath := filepath.Join(initiativeDir, taskgroups.ManifestFileName)
-	if _, statErr := os.Stat(planPath); statErr != nil {
-		if errors.Is(statErr, fs.ErrNotExist) {
+	target, err := (taskgroups.TargetResolver{}).Resolve(ctx, workspaceRoot, initiative)
+	if err != nil {
+		if errors.Is(err, taskgroups.ErrInitiativeNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("inspect task group plan before hydration: %w", statErr)
+		return nil, fmt.Errorf("resolve task group plan before hydration: %w", err)
+	}
+	if target.Mode != taskgroups.TargetModeInitiative {
+		return nil, nil
 	}
 
 	completed, err := CompletedTaskGroupIDsWithDB(ctx, db, workspaceRoot, initiative)
 	if err != nil {
 		return nil, err
 	}
-	marked, err := taskgroups.NewStore().HydrateCompletion(ctx, initiativeDir, completed)
+	marked, err := taskgroups.NewStore().HydrateCompletionForInitiative(
+		ctx,
+		target.InitiativeDir,
+		initiative,
+		completed,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("hydrate task group plan %s: %w", initiative, err)
 	}

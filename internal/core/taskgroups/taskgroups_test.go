@@ -1288,6 +1288,61 @@ func TestHydrateCompletion(t *testing.T) {
 			t.Fatalf("hydrated plan = %#v, want TG-001 and TG-002 complete", plan)
 		}
 	})
+
+	t.Run("Should reject a mismatched initiative without changing the plan", func(t *testing.T) {
+		t.Parallel()
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		content := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "One", outcome: "One outcome"},
+		}, nil)
+		content = bytes.ReplaceAll(content, []byte("demo"), []byte("other"))
+		planPath := filepath.Join(initiativeDir, ManifestFileName)
+		writeTestFile(t, initiativeDir, ManifestFileName, string(content))
+
+		marked, err := NewStore().HydrateCompletion(
+			context.Background(),
+			initiativeDir,
+			[]string{"TG-001"},
+		)
+		assertDomainError(t, err, ErrInvalidPlan)
+		if marked != nil {
+			t.Fatalf("HydrateCompletion() marked = %v, want nil", marked)
+		}
+		if got := mustReadFile(t, planPath); !slices.Equal(got, content) {
+			t.Fatalf("mismatched hydration changed plan bytes\nwant %q\ngot  %q", content, got)
+		}
+	})
+
+	t.Run("Should reject an escaped marker symlink without changing its target", func(t *testing.T) {
+		t.Parallel()
+		initiativeDir := filepath.Join(t.TempDir(), "demo")
+		if err := os.MkdirAll(initiativeDir, 0o755); err != nil {
+			t.Fatalf("create initiative directory: %v", err)
+		}
+		content := taskGroupPlan(t, []fixtureTaskGroup{
+			{id: "TG-001", title: "One", outcome: "One outcome"},
+		}, nil)
+		externalDir := t.TempDir()
+		writeTestFile(t, externalDir, "external-plan.md", string(content))
+		externalPlan := filepath.Join(externalDir, "external-plan.md")
+		planPath := filepath.Join(initiativeDir, ManifestFileName)
+		if err := os.Symlink(externalPlan, planPath); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+
+		marked, err := NewStore().HydrateCompletion(
+			context.Background(),
+			initiativeDir,
+			[]string{"TG-001"},
+		)
+		assertDomainError(t, err, ErrContainment)
+		if marked != nil {
+			t.Fatalf("HydrateCompletion() marked = %v, want nil", marked)
+		}
+		if got := mustReadFile(t, externalPlan); !slices.Equal(got, content) {
+			t.Fatalf("escaped marker target changed\nwant %q\ngot  %q", content, got)
+		}
+	})
 }
 
 // withFrontmatterHeadingDecoy inserts a heading-shaped YAML comment into the

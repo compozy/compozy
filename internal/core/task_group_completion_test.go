@@ -116,6 +116,83 @@ func TestHydratePlanCompletion(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects an escaped initiative symlink without writing its target", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		tasksRoot := filepath.Join(workspaceRoot, ".compozy", "tasks")
+		if err := os.MkdirAll(tasksRoot, 0o755); err != nil {
+			t.Fatalf("create tasks root: %v", err)
+		}
+		externalInitiative := filepath.Join(t.TempDir(), "external-initiative")
+		writeTaskGroupCompletionFixture(
+			t,
+			externalInitiative,
+			map[string]string{"TG-001": "pending", "TG-002": "pending"},
+		)
+		if err := os.Symlink(externalInitiative, filepath.Join(tasksRoot, "initiative")); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		db := openCompletionHydrationDB(t)
+		workspace := registerCompletionHydrationWorkspace(t, db, workspaceRoot)
+		seedCompletionHydrationRows(t, db, workspace, []string{"TG-001"})
+		externalPlan := filepath.Join(externalInitiative, taskgroups.ManifestFileName)
+		before := mustReadFile(t, externalPlan)
+
+		marked, err := HydratePlanCompletionWithDB(
+			context.Background(),
+			db,
+			workspaceRoot,
+			"initiative",
+		)
+		if !errors.Is(err, taskgroups.ErrContainment) {
+			t.Fatalf("HydratePlanCompletionWithDB() error = %v, want ErrContainment", err)
+		}
+		if marked != nil {
+			t.Fatalf("marked = %v, want nil", marked)
+		}
+		if after := mustReadFile(t, externalPlan); after != before {
+			t.Fatalf("escaped initiative target changed\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+
+	t.Run("rejects an escaped marker symlink without replacing it", func(t *testing.T) {
+		workspaceRoot, db := newCompletionHydrationFixture(t, []string{"TG-001"})
+		planPath := completionHydrationPlanPath(workspaceRoot)
+		externalPlan := filepath.Join(t.TempDir(), "external-plan.md")
+		before := mustReadFile(t, planPath)
+		if err := os.WriteFile(externalPlan, []byte(before), 0o600); err != nil {
+			t.Fatalf("write external plan: %v", err)
+		}
+		if err := os.Remove(planPath); err != nil {
+			t.Fatalf("remove in-workspace plan: %v", err)
+		}
+		if err := os.Symlink(externalPlan, planPath); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+
+		marked, err := HydratePlanCompletionWithDB(
+			context.Background(),
+			db,
+			workspaceRoot,
+			"initiative",
+		)
+		if !errors.Is(err, taskgroups.ErrContainment) {
+			t.Fatalf("HydratePlanCompletionWithDB() error = %v, want ErrContainment", err)
+		}
+		if marked != nil {
+			t.Fatalf("marked = %v, want nil", marked)
+		}
+		if after := mustReadFile(t, externalPlan); after != before {
+			t.Fatalf("escaped marker target changed\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+		info, statErr := os.Lstat(planPath)
+		if statErr != nil {
+			t.Fatalf("lstat marker symlink: %v", statErr)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("marker mode = %v, want symlink", info.Mode())
+		}
+	})
+
 	t.Run("UT-024 concurrent hydration has no lost update", func(t *testing.T) {
 		workspaceRoot, db := newCompletionHydrationFixture(t, []string{"TG-001", "TG-002"})
 		start := make(chan struct{})
