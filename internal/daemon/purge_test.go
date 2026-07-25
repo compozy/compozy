@@ -746,6 +746,17 @@ func TestRunManagerPurgePreservesWorktreeHostingActiveNestedRun(t *testing.T) {
 			t.Fatalf("StartTaskRun(nested) error = %v", err)
 		}
 		waitForString(t, started, nestedRun.RunID)
+		activeNestedRun := env.manager.getActive(nestedRun.RunID)
+		if activeNestedRun == nil {
+			t.Fatalf("nested run %q is not active", nestedRun.RunID)
+		}
+		t.Cleanup(func() {
+			select {
+			case <-activeNestedRun.done:
+			case <-time.After(5 * time.Second):
+				t.Errorf("nested run %q did not stop during cleanup", nestedRun.RunID)
+			}
+		})
 
 		result, err := env.manager.Purge(context.Background(), RunLifecycleSettings{
 			KeepTerminalDays: 0,
