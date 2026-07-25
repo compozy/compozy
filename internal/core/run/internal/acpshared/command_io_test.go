@@ -245,15 +245,32 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 }
 
 // The ACP client decides whether an unadvertised model may fall back by reading
-// ClientConfig.ModelExplicit. Losing this hand-copied field would silently
-// downgrade an explicitly pinned model, and no client-level test would notice.
+// ClientConfig.ModelExplicit. Both run-wide and task-scoped pins must reach it.
 func TestCreateACPClientCarriesExplicitModelFlag(t *testing.T) {
 	tests := []struct {
-		name     string
-		explicit bool
+		name           string
+		configExplicit bool
+		job            *job
+		want           bool
 	}{
-		{name: "Should mark an explicitly pinned model", explicit: true},
-		{name: "Should leave an inherited model correctable", explicit: false},
+		{
+			name:           "Should mark a run-wide model pin explicit",
+			configExplicit: true,
+			job:            &job{},
+			want:           true,
+		},
+		{
+			name: "Should mark a task-rule model pin explicit",
+			job: &job{
+				Model:         "task-rule-model",
+				ModelExplicit: true,
+			},
+			want: true,
+		},
+		{
+			name: "Should leave an inherited model correctable",
+			job:  &job{Model: "inherited-model"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -272,15 +289,15 @@ func TestCreateACPClientCarriesExplicitModelFlag(t *testing.T) {
 				&config{
 					IDE:           model.IDECodex,
 					Model:         "opus",
-					ModelExplicit: tt.explicit,
+					ModelExplicit: tt.configExplicit,
 				},
-				&job{},
+				tt.job,
 				silentLogger(),
 			); err != nil {
 				t.Fatalf("create ACP client: %v", err)
 			}
-			if captured.ModelExplicit != tt.explicit {
-				t.Fatalf("ClientConfig.ModelExplicit = %v, want %v", captured.ModelExplicit, tt.explicit)
+			if captured.ModelExplicit != tt.want {
+				t.Fatalf("ClientConfig.ModelExplicit = %v, want %v", captured.ModelExplicit, tt.want)
 			}
 		})
 	}

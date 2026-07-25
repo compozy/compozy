@@ -448,6 +448,7 @@ type Job struct {
 	SafeName        string
 	IDE             string
 	Model           string
+	ModelExplicit   bool
 	ReasoningEffort string
 	Prompt          []byte
 	SystemPrompt    string

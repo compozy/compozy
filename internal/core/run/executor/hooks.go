@@ -87,6 +87,7 @@ func hookModelJob(src *job) model.Job {
 		SafeName:        src.SafeName,
 		IDE:             src.IDE,
 		Model:           src.Model,
+		ModelExplicit:   src.ModelExplicit,
 		ReasoningEffort: src.ReasoningEffort,
 		Prompt:          append([]byte(nil), src.Prompt...),
 		SystemPrompt:    src.SystemPrompt,
@@ -108,6 +109,7 @@ func applyHookModelJob(dst *job, updated model.Job) {
 	dst.SafeName = updated.SafeName
 	dst.IDE = updated.IDE
 	dst.Model = updated.Model
+	dst.ModelExplicit = updated.ModelExplicit
 	dst.ReasoningEffort = updated.ReasoningEffort
 	dst.Prompt = append([]byte(nil), updated.Prompt...)
 	dst.SystemPrompt = updated.SystemPrompt

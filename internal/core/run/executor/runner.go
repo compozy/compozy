@@ -483,5 +483,6 @@ func (r *jobRunner) waitForRetry(ctx context.Context, delay time.Duration) bool 
 func jobRuntimeChanged(before model.Job, after model.Job) bool {
 	return before.IDE != after.IDE ||
 		before.Model != after.Model ||
+		before.ModelExplicit != after.ModelExplicit ||
 		before.ReasoningEffort != after.ReasoningEffort
 }

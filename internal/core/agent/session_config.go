@@ -158,15 +158,19 @@ func (c *clientImpl) inheritedModelFallback(
 	if current == "" || strings.EqualFold(current, strings.TrimSpace(requested)) {
 		return "", false
 	}
+	resolvedCurrent, err := resolveSessionSelectValue(option, current, "model")
+	if err != nil {
+		return "", false
+	}
 	if c.logger != nil {
 		c.logger.Warn(
 			"inherited model is not available on this runtime; falling back to the runtime default",
 			"runtime", c.spec.ID,
 			"requested_model", requested,
-			"resolved_model", current,
+			"resolved_model", resolvedCurrent,
 		)
 	}
-	return current, true
+	return resolvedCurrent, true
 }
 
 func (c *clientImpl) configureSessionReasoning(

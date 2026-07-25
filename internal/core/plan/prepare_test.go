@@ -548,8 +548,14 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
 		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
 	}
+	if !jobs[0].ModelExplicit {
+		t.Fatalf("frontend type-rule model should remain explicit: %#v", jobs[0])
+	}
 	if jobs[1].IDE != model.IDEClaude || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "low" {
 		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
+	}
+	if !jobs[1].ModelExplicit {
+		t.Fatalf("backend id-rule model should remain explicit: %#v", jobs[1])
 	}
 }
 

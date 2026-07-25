@@ -59,6 +59,7 @@ type Job struct {
 	SafeName        string
 	IDE             string
 	Model           string
+	ModelExplicit   bool
 	ReasoningEffort string
 	ReusableAgent   *ReusableAgentExecution
 	Prompt          []byte
@@ -175,6 +176,7 @@ func NewJobs(src []model.Job) []Job {
 			SafeName:        item.SafeName,
 			IDE:             item.IDE,
 			Model:           item.Model,
+			ModelExplicit:   item.ModelExplicit,
 			ReasoningEffort: item.ReasoningEffort,
 			Prompt:          append([]byte(nil), item.Prompt...),
 			SystemPrompt:    item.SystemPrompt,

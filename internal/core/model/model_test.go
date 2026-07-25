@@ -603,12 +603,22 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 					IDE:   testStringPointer(model.IDEClaude),
 					Model: testStringPointer("sonnet"),
 				},
+				{
+					ID:    testStringPointer("task_02"),
+					IDE:   testStringPointer(model.IDECursor),
+					Model: testStringPointer("cursor-model"),
+				},
 			},
 		}
 
 		typed := cfg.RuntimeForTask(model.TaskRuntimeTarget{Type: "frontend"})
 		if !typed.ExplicitRuntime.Model || !typed.ExplicitRuntime.IDE {
 			t.Fatalf("type rule pins should be explicit: %#v", typed.ExplicitRuntime)
+		}
+
+		identified := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_02"})
+		if !identified.ExplicitRuntime.Model || !identified.ExplicitRuntime.IDE {
+			t.Fatalf("id rule pins should be explicit: %#v", identified.ExplicitRuntime)
 		}
 
 		complexityOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{Complexity: "low"})

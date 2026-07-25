@@ -706,54 +706,110 @@ func TestClientCreateSessionExplainsCursorCLIVersusACPModelNames(t *testing.T) {
 func TestClientCreateSessionFallsBackWhenInheritedModelIsFromAnotherRuntime(t *testing.T) {
 	t.Parallel()
 
-	// Mirrors `compozy exec --agent <id> --ide codex` in a workspace whose default
-	// model targets Claude: the runtime never advertises "opus", and the user never
-	// asked for it on this invocation.
+	tests := []struct {
+		name       string
+		runtimeID  string
+		current    string
+		advertised []acp.SessionConfigSelectOption
+	}{
+		{
+			name:      "Should fall back to the Codex runtime default",
+			runtimeID: model.IDECodex,
+			current:   "gpt-5.6-sol[reasoning=medium]",
+			advertised: []acp.SessionConfigSelectOption{
+				{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
+				{Value: "gpt-5.6-terra[reasoning=medium]", Name: "gpt-5.6-terra"},
+			},
+		},
+		{
+			name:      "Should fall back to the Cursor runtime default",
+			runtimeID: model.IDECursor,
+			current:   "default[]",
+			advertised: []acp.SessionConfigSelectOption{
+				{Value: "default[]", Name: "Auto"},
+				{Value: "grok-4.5[effort=high,fast=true]", Name: "grok-4.5"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modelOption := testSessionSelectOption(
+				"model",
+				acp.SessionConfigOptionCategoryModel,
+				tt.current,
+				tt.advertised,
+			)
+			scenario := helperScenario{
+				ExpectedCWD:             t.TempDir(),
+				ExpectedPrompt:          "run the council advisor",
+				NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+				ExpectedSessionConfig: []helperExpectedSessionConfig{
+					{ConfigID: "model", Value: tt.current},
+				},
+				StopReason: string(acp.StopReasonEndTurn),
+			}
+
+			client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+				cfg.Model = "opus"
+				cfg.ModelExplicit = false
+				cfg.ReasoningEffort = ""
+			})
+			client.(*clientImpl).spec.ID = tt.runtimeID
+			t.Cleanup(func() {
+				if err := client.Close(); err != nil {
+					t.Errorf("close client: %v", err)
+				}
+			})
+
+			session, err := client.CreateSession(context.Background(), SessionRequest{
+				Prompt:     []byte(scenario.ExpectedPrompt),
+				WorkingDir: scenario.ExpectedCWD,
+			})
+			if err != nil {
+				t.Fatalf("create session with inherited cross-runtime model: %v", err)
+			}
+			if got := session.Identity().Model; got != tt.current {
+				t.Fatalf("session identity model = %q, want runtime default %q", got, tt.current)
+			}
+			collectSessionUpdates(t, session)
+		})
+	}
+}
+
+func TestClientCreateSessionPreservesUnavailableModelErrorWhenRuntimeCurrentModelIsStale(t *testing.T) {
+	t.Parallel()
+
 	modelOption := testSessionSelectOption(
 		"model",
 		acp.SessionConfigOptionCategoryModel,
-		"gpt-5.6-sol[reasoning=medium]",
+		"stale-model",
 		[]acp.SessionConfigSelectOption{
 			{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
-			{Value: "gpt-5.6-terra[reasoning=medium]", Name: "gpt-5.6-terra"},
 		},
 	)
 	scenario := helperScenario{
 		ExpectedCWD:             t.TempDir(),
-		ExpectedPrompt:          "run the council advisor",
 		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
-		ExpectedSessionConfig: []helperExpectedSessionConfig{
-			{ConfigID: "model", Value: "gpt-5.6-sol[reasoning=medium]"},
-		},
-		StopReason: string(acp.StopReasonEndTurn),
 	}
-
-	// Codex sets UsesBootstrapModel but still advertises a model option, and the
-	// modern codex-acp adapter gets no bootstrap model flag, so the session config
-	// is the only place the model is applied.
 	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
 		cfg.Model = "opus"
 		cfg.ModelExplicit = false
 	})
+	client.(*clientImpl).spec.ID = model.IDECodex
 	t.Cleanup(func() {
 		if err := client.Close(); err != nil {
 			t.Errorf("close client: %v", err)
 		}
 	})
 
-	session, err := client.CreateSession(context.Background(), SessionRequest{
-		Prompt:     []byte(scenario.ExpectedPrompt),
-		WorkingDir: scenario.ExpectedCWD,
-	})
-	if err != nil {
-		t.Fatalf("create session with inherited cross-runtime model: %v", err)
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected inherited unavailable-model error")
 	}
-	// The substitution has to be recoverable from run artifacts; a warning log is
-	// silent in headless exec.
-	if got := session.Identity().Model; got != "gpt-5.6-sol[reasoning=medium]" {
-		t.Fatalf("session identity model = %q, want the runtime default it fell back to", got)
+	if !strings.Contains(err.Error(), `model "opus" is not available`) {
+		t.Fatalf("create session error = %q, want original unavailable-model error", err)
 	}
-	collectSessionUpdates(t, session)
 }
 
 func TestInheritedModelFallback(t *testing.T) {

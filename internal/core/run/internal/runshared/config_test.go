@@ -53,6 +53,21 @@ func TestNewConfigCarriesExplicitModelFlag(t *testing.T) {
 	}
 }
 
+func TestNewJobsCarriesPerJobExplicitModelFlag(t *testing.T) {
+	t.Parallel()
+
+	jobs := NewJobs([]model.Job{{
+		Model:         "task-rule-model",
+		ModelExplicit: true,
+	}})
+	if len(jobs) != 1 {
+		t.Fatalf("NewJobs() length = %d, want 1", len(jobs))
+	}
+	if !jobs[0].ModelExplicit {
+		t.Fatal("NewJobs() dropped the per-job explicit model marker")
+	}
+}
+
 func TestJobCodeFileLabel(t *testing.T) {
 	t.Parallel()
 

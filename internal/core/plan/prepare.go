@@ -506,6 +506,7 @@ func buildBatchJob(
 		SafeName:        safeName,
 		IDE:             jobRuntime.IDE,
 		Model:           jobRuntime.Model,
+		ModelExplicit:   jobRuntime.ExplicitRuntime.Model,
 		ReasoningEffort: jobRuntime.ReasoningEffort,
 		Prompt:          []byte(generated.promptText),
 		SystemPrompt:    generated.systemPrompt,
@@ -717,6 +718,7 @@ func validatePreparedJobRuntimeMutation(before []model.Job, after []model.Job) e
 func jobRuntimeChanged(before model.Job, after model.Job) bool {
 	return strings.TrimSpace(before.IDE) != strings.TrimSpace(after.IDE) ||
 		strings.TrimSpace(before.Model) != strings.TrimSpace(after.Model) ||
+		before.ModelExplicit != after.ModelExplicit ||
 		strings.TrimSpace(before.ReasoningEffort) != strings.TrimSpace(after.ReasoningEffort)
 }
 
@@ -757,6 +759,7 @@ func clonePreparedJobsForRuntimeGuard(src []model.Job) []model.Job {
 			SafeName:        job.SafeName,
 			IDE:             job.IDE,
 			Model:           job.Model,
+			ModelExplicit:   job.ModelExplicit,
 			ReasoningEffort: job.ReasoningEffort,
 			OutPromptPath:   job.OutPromptPath,
 		})
@@ -836,6 +839,7 @@ func buildExecJob(
 		SafeName:        safeName,
 		IDE:             cfg.IDE,
 		Model:           cfg.Model,
+		ModelExplicit:   cfg.ExplicitRuntime.Model,
 		ReasoningEffort: cfg.ReasoningEffort,
 		Prompt:          []byte(promptText),
 		SystemPrompt:    systemPrompt,
