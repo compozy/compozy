@@ -967,6 +967,70 @@ func TestReviewIsolationPropagatesExecutableBitThroughMerge(t *testing.T) {
 	}
 }
 
+func TestOverlayTreeMirrorsSourceExactly(t *testing.T) {
+	t.Parallel()
+	source := filepath.Join(t.TempDir(), "source")
+	destination := filepath.Join(t.TempDir(), "destination")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		t.Fatalf("mkdir destination: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "task_01.md"), []byte("current\n"), 0o600); err != nil {
+		t.Fatalf("write source task: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(destination, "task_01.md"), []byte("old\n"), 0o600); err != nil {
+		t.Fatalf("write old destination task: %v", err)
+	}
+	stalePath := filepath.Join(destination, "task_02.md")
+	if err := os.WriteFile(stalePath, []byte("stale\n"), 0o600); err != nil {
+		t.Fatalf("write stale destination task: %v", err)
+	}
+
+	if err := OverlayTree(source, destination); err != nil {
+		t.Fatalf("OverlayTree() error = %v", err)
+	}
+	if body, err := os.ReadFile(filepath.Join(destination, "task_01.md")); err != nil ||
+		string(body) != "current\n" {
+		t.Fatalf("mirrored task = %q, error = %v, want current", body, err)
+	}
+	if _, err := os.Lstat(stalePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale destination task remains: %v", err)
+	}
+}
+
+func TestOverlayTreeRejectsInvalidSourceWithoutChangingDestination(t *testing.T) {
+	t.Parallel()
+	source := filepath.Join(t.TempDir(), "source")
+	destination := filepath.Join(t.TempDir(), "destination")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		t.Fatalf("mkdir destination: %v", err)
+	}
+	sourceTask := filepath.Join(source, "a_task_01.md")
+	if err := os.WriteFile(sourceTask, []byte("current\n"), 0o600); err != nil {
+		t.Fatalf("write source task: %v", err)
+	}
+	destinationTask := filepath.Join(destination, "a_task_01.md")
+	if err := os.WriteFile(destinationTask, []byte("old\n"), 0o600); err != nil {
+		t.Fatalf("write destination task: %v", err)
+	}
+	if err := os.Symlink(sourceTask, filepath.Join(source, "z_link.md")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+
+	err := OverlayTree(source, destination)
+	if err == nil || !strings.Contains(err.Error(), "source symlink") {
+		t.Fatalf("OverlayTree() error = %v, want source symlink rejection", err)
+	}
+	if body, readErr := os.ReadFile(destinationTask); readErr != nil || string(body) != "old\n" {
+		t.Fatalf("destination after rejected mirror = %q, error = %v, want old content", body, readErr)
+	}
+}
+
 func mustRunGit(t *testing.T, dir string, args ...string) []byte {
 	t.Helper()
 	output, err := runGit(context.Background(), dir, args...)

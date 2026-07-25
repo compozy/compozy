@@ -1388,15 +1388,50 @@ func runGitWithIndex(
 	return stdout.Bytes(), nil
 }
 
-// OverlayTree copies a regular-file directory tree over an existing
-// destination. Symlinks and special files are rejected so a runtime artifact
+// OverlayTree replaces destination with an exact mirror of a regular-file
+// directory tree. Symlinks and special files are rejected so a runtime artifact
 // mirror cannot escape its target worktree.
-func OverlayTree(source string, destination string) error {
+func OverlayTree(source string, destination string) (result error) {
 	source = filepath.Clean(strings.TrimSpace(source))
 	destination = filepath.Clean(strings.TrimSpace(destination))
 	if source == "." || destination == "." {
 		return errors.New("overlay tree source and destination are required")
 	}
+	if sameRoot(source, destination) {
+		return errors.New("overlay tree source and destination must differ")
+	}
+	if _, inside := pathRelativeToRoot(source, destination); inside {
+		return fmt.Errorf("overlay tree destination %s is inside source %s", destination, source)
+	}
+	if _, inside := pathRelativeToRoot(destination, source); inside {
+		return fmt.Errorf("overlay tree source %s is inside destination %s", source, destination)
+	}
+	parent := filepath.Dir(destination)
+	if sameRoot(parent, destination) {
+		return fmt.Errorf("overlay tree destination %s must not be a filesystem root", destination)
+	}
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return fmt.Errorf("create overlay destination parent %s: %w", parent, err)
+	}
+	prepared, err := os.MkdirTemp(parent, "."+filepath.Base(destination)+".mirror-")
+	if err != nil {
+		return fmt.Errorf("create temporary overlay beside %s: %w", destination, err)
+	}
+	defer func() {
+		if err := os.RemoveAll(prepared); err != nil {
+			result = errors.Join(result, fmt.Errorf("remove temporary overlay %s: %w", prepared, err))
+		}
+	}()
+	if err := copyOverlayTree(source, prepared); err != nil {
+		return err
+	}
+	if err := replaceOverlayTree(prepared, destination); err != nil {
+		return err
+	}
+	return nil
+}
+
+func copyOverlayTree(source string, destination string) error {
 	return filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -1405,18 +1440,21 @@ func OverlayTree(source string, destination string) error {
 		if err != nil {
 			return fmt.Errorf("resolve overlay path %s: %w", path, err)
 		}
-		if rel == "." {
-			return os.MkdirAll(destination, 0o755)
-		}
 		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("overlay path %s escapes source %s", path, source)
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("overlay source symlink %s is not supported", path)
 		}
 		info, err := entry.Info()
 		if err != nil {
 			return fmt.Errorf("stat overlay source %s: %w", path, err)
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("overlay source symlink %s is not supported", path)
+		if rel == "." {
+			if !entry.IsDir() {
+				return fmt.Errorf("overlay source %s is not a directory", source)
+			}
+			return os.Chmod(destination, safeDirectoryMode(info.Mode().Perm()))
 		}
 		target := filepath.Join(destination, rel)
 		if entry.IsDir() {
@@ -1426,6 +1464,70 @@ func OverlayTree(source string, destination string) error {
 			return fmt.Errorf("overlay source %s is not a regular file", path)
 		}
 		return OverlayFile(path, target, info.Mode().Perm())
+	})
+}
+
+func replaceOverlayTree(prepared string, destination string) (result error) {
+	info, err := os.Lstat(destination)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		if err := os.Rename(prepared, destination); err != nil {
+			return fmt.Errorf("install overlay destination %s: %w", destination, err)
+		}
+		return nil
+	case err != nil:
+		return fmt.Errorf("stat overlay destination %s: %w", destination, err)
+	case info.Mode()&os.ModeSymlink != 0:
+		return fmt.Errorf("overlay destination %s is a symlink", destination)
+	case !info.IsDir():
+		return fmt.Errorf("overlay destination %s is not a directory", destination)
+	}
+	if err := validateOverlayDestination(destination); err != nil {
+		return err
+	}
+
+	backup := prepared + ".previous"
+	if err := os.Rename(destination, backup); err != nil {
+		return fmt.Errorf("move existing overlay destination %s: %w", destination, err)
+	}
+	installed := false
+	defer func() {
+		if installed {
+			if err := os.RemoveAll(backup); err != nil {
+				result = errors.Join(result, fmt.Errorf("remove previous overlay %s: %w", backup, err))
+			}
+		}
+	}()
+	if err := os.Rename(prepared, destination); err != nil {
+		rollbackErr := os.Rename(backup, destination)
+		if rollbackErr != nil {
+			rollbackErr = fmt.Errorf("restore previous overlay destination %s: %w", destination, rollbackErr)
+		}
+		return errors.Join(fmt.Errorf("install overlay destination %s: %w", destination, err), rollbackErr)
+	}
+	installed = true
+	return nil
+}
+
+func validateOverlayDestination(destination string) error {
+	return filepath.WalkDir(destination, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return fmt.Errorf("walk overlay destination %s: %w", path, walkErr)
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("overlay destination %s is a symlink", path)
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("stat overlay destination %s: %w", path, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("overlay destination %s is not a regular file", path)
+		}
+		return nil
 	})
 }
 
