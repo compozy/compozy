@@ -417,25 +417,102 @@ func TestTaskRunWizardModel(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not fabricate Task Group children from an invalid plan", func(t *testing.T) {
+	t.Run("Should fail closed when a Task Group marker is present but invalid", func(t *testing.T) {
 		t.Parallel()
 
-		state := newTaskRunWizardTestState(t, "general-task")
-		planPath := filepath.Join(
-			state.workspaceRoot,
-			".compozy",
-			"tasks",
-			"general-task",
-			taskgroups.ManifestFileName,
-		)
-		if err := os.WriteFile(planPath, []byte("---\nschema_version: invalid\n---\n"), 0o644); err != nil {
-			t.Fatalf("write invalid Task Group plan: %v", err)
+		const initiative = "general-task"
+		cases := []struct {
+			name           string
+			prepareMarker  func(t *testing.T, state *commandState, planPath string)
+			wantStatus     taskRunWizardWorkflowStatus
+			wantDiagnostic string
+			wantSelected   bool
+		}{
+			{
+				name:         "missing marker remains an ordinary workflow",
+				wantStatus:   taskRunWizardWorkflowReady,
+				wantSelected: true,
+			},
+			{
+				name: "empty marker is blocked",
+				prepareMarker: func(t *testing.T, _ *commandState, planPath string) {
+					t.Helper()
+					if err := os.WriteFile(planPath, nil, 0o644); err != nil {
+						t.Fatalf("write empty Task Group plan: %v", err)
+					}
+				},
+				wantStatus:     taskRunWizardWorkflowBlocked,
+				wantDiagnostic: taskgroups.ErrInvalidPlan.Error(),
+			},
+			{
+				name: "malformed marker is blocked",
+				prepareMarker: func(t *testing.T, _ *commandState, planPath string) {
+					t.Helper()
+					content := []byte("---\nschema_version: invalid\n---\n")
+					if err := os.WriteFile(planPath, content, 0o644); err != nil {
+						t.Fatalf("write malformed Task Group plan: %v", err)
+					}
+				},
+				wantStatus:     taskRunWizardWorkflowBlocked,
+				wantDiagnostic: taskgroups.ErrInvalidPlan.Error(),
+			},
+			{
+				name: "unreadable marker is blocked",
+				prepareMarker: func(t *testing.T, state *commandState, planPath string) {
+					t.Helper()
+					writeTaskRunWizardPlan(t, state, initiative,
+						taskgroups.TaskGroup{ID: "TG-001", Title: "Foundation"},
+					)
+					if err := os.Chmod(planPath, 0); err != nil {
+						t.Fatalf("make Task Group plan unreadable: %v", err)
+					}
+					t.Cleanup(func() {
+						if err := os.Chmod(planPath, 0o600); err != nil {
+							t.Errorf("restore Task Group plan permissions: %v", err)
+						}
+					})
+				},
+				wantStatus:     taskRunWizardWorkflowBlocked,
+				wantDiagnostic: os.ErrPermission.Error(),
+			},
 		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
-		view := wizard.View().Content
-		if strings.Contains(view, "TG-001") {
-			t.Fatalf("workflow view fabricated a task group child from an invalid plan:\n%s", view)
+				state := newTaskRunWizardTestState(t, initiative)
+				planPath := filepath.Join(
+					state.workspaceRoot,
+					".compozy",
+					"tasks",
+					initiative,
+					taskgroups.ManifestFileName,
+				)
+				if tc.prepareMarker != nil {
+					tc.prepareMarker(t, state, planPath)
+				}
+
+				wizard := newTaskRunWizardModel(state, taskRunFormInputs{})
+				if len(wizard.workflowOptions) != 1 {
+					t.Fatalf("workflow options = %#v, want one initiative row", wizard.workflowOptions)
+				}
+				if got := wizard.workflowOptions[0].Status; got != tc.wantStatus {
+					t.Fatalf("workflow status = %s, want %s", got.label(), tc.wantStatus.label())
+				}
+				view := xansi.Strip(wizard.View().Content)
+				if tc.wantDiagnostic != "" && !strings.Contains(view, tc.wantDiagnostic) {
+					t.Fatalf("workflow view missing diagnostic %q:\n%s", tc.wantDiagnostic, view)
+				}
+
+				wizard = updateTaskRunWizardTestModel(t, wizard, "space")
+				selected := slices.Contains(wizard.inputs.selectedWorkflows, initiative)
+				if selected != tc.wantSelected {
+					t.Fatalf("workflow selected = %t, want %t", selected, tc.wantSelected)
+				}
+				if tc.wantDiagnostic != "" && !strings.Contains(wizard.message, tc.wantDiagnostic) {
+					t.Fatalf("selection message missing diagnostic %q: %q", tc.wantDiagnostic, wizard.message)
+				}
+			})
 		}
 	})
 

@@ -185,6 +185,21 @@ type taskRunWizardWorkflowOption struct {
 	CompletedTaskGroups int
 	TotalTaskGroups     int
 	BlockedBy           []string
+	UnavailableReason   string
+}
+
+type taskRunWizardPlanReadStatus int
+
+const (
+	taskRunWizardPlanAbsent taskRunWizardPlanReadStatus = iota
+	taskRunWizardPlanValid
+	taskRunWizardPlanInvalid
+)
+
+type taskRunWizardPlanReadResult struct {
+	Plan   taskgroups.Plan
+	Status taskRunWizardPlanReadStatus
+	Err    error
 }
 
 type taskRunWizardTextInputs struct {
@@ -542,6 +557,9 @@ func filterValidTaskRunWorkflowSelections(
 		if option.Completed && !includeCompleted {
 			continue
 		}
+		if option.UnavailableReason != "" {
+			continue
+		}
 		valid[option.Value] = struct{}{}
 	}
 	filtered := make([]string, 0, len(selected))
@@ -567,16 +585,43 @@ func listTaskRunWizardWorkflowOptions(
 	return buildTaskRunWizardWorkflowOptions(baseDir, latestRunStatuses)
 }
 
-func readTaskRunWizardPlan(baseDir, initiative string) (taskgroups.Plan, bool) {
-	content, err := os.ReadFile(filepath.Join(baseDir, initiative, taskgroups.ManifestFileName))
+func readTaskRunWizardPlan(baseDir, initiative string) taskRunWizardPlanReadResult {
+	planPath := filepath.Join(baseDir, initiative, taskgroups.ManifestFileName)
+	if _, err := os.Lstat(planPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return taskRunWizardPlanReadResult{Status: taskRunWizardPlanAbsent}
+		}
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err:    taskRunWizardPlanFilesystemError(err),
+		}
+	}
+	content, err := os.ReadFile(planPath)
 	if err != nil {
-		return taskgroups.Plan{}, false
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err:    taskRunWizardPlanFilesystemError(err),
+		}
 	}
 	plan, err := taskgroups.ParsePlanForInitiative(string(content), initiative)
 	if err != nil {
-		return taskgroups.Plan{}, false
+		return taskRunWizardPlanReadResult{
+			Status: taskRunWizardPlanInvalid,
+			Err:    err,
+		}
 	}
-	return plan, true
+	return taskRunWizardPlanReadResult{
+		Plan:   plan,
+		Status: taskRunWizardPlanValid,
+	}
+}
+
+func taskRunWizardPlanFilesystemError(err error) error {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Err
+	}
+	return err
 }
 
 func (m *taskRunWizardModel) Init() tea.Cmd {
@@ -782,7 +827,7 @@ func (m *taskRunWizardModel) confirmHighlightedWorkflow(filtered []taskRunWizard
 	}
 	option := filtered[m.workflowCursor]
 	if m.workflowOptionLocked(option) {
-		m.message = taskRunWizardCompletedLocked
+		m.message = m.workflowOptionLockedMessage(option)
 		return nil
 	}
 	if option.Group {
@@ -1536,7 +1581,7 @@ func taskRunWizardWorkflowOptionMatches(option taskRunWizardWorkflowOption, quer
 
 func (m *taskRunWizardModel) toggleWorkflowOption(option taskRunWizardWorkflowOption) {
 	if m.workflowOptionLocked(option) {
-		m.message = taskRunWizardCompletedLocked
+		m.message = m.workflowOptionLockedMessage(option)
 		return
 	}
 	m.message = ""
@@ -1564,7 +1609,7 @@ func (m *taskRunWizardModel) toggleWorkflow(slug string) {
 		return
 	}
 	if option, ok := m.workflowOption(trimmed); ok && m.workflowOptionLocked(option) {
-		m.message = taskRunWizardCompletedLocked
+		m.message = m.workflowOptionLockedMessage(option)
 		return
 	}
 	idx := slices.Index(m.inputs.selectedWorkflows, trimmed)
@@ -1735,7 +1780,17 @@ func (m *taskRunWizardModel) workflowOption(value string) (taskRunWizardWorkflow
 }
 
 func (m *taskRunWizardModel) workflowOptionLocked(option taskRunWizardWorkflowOption) bool {
-	return option.Completed && !m.inputs.includeCompleted
+	return m.workflowOptionLockedMessage(option) != ""
+}
+
+func (m *taskRunWizardModel) workflowOptionLockedMessage(option taskRunWizardWorkflowOption) string {
+	if option.UnavailableReason != "" {
+		return "target is unavailable: " + option.UnavailableReason
+	}
+	if option.Completed && !m.inputs.includeCompleted {
+		return taskRunWizardCompletedLocked
+	}
+	return ""
 }
 
 func (m *taskRunWizardModel) toggleIncludeCompletedWorkflows() {
@@ -2079,8 +2134,10 @@ func (m *taskRunWizardModel) workflowListLines(
 		mark := m.workflowSelectionMark(option)
 		indent := strings.Repeat("  ", option.Depth)
 		label := taskRunWizardWorkflowOptionLabel(option)
-		if m.workflowOptionLocked(option) {
+		if option.Completed && !m.inputs.includeCompleted {
 			label = xansi.SGR(xansi.AttrStrikethrough) + label + xansi.SGR(xansi.AttrNoStrikethrough)
+			label = taskRunWizardMutedStyle().Render(label)
+		} else if option.UnavailableReason != "" {
 			label = taskRunWizardMutedStyle().Render(label)
 		}
 		lines = append(lines, taskRunWizardTruncate(cursor+indent+mark+" "+label, width))

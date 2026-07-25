@@ -103,11 +103,16 @@ func buildTaskRunWizardWorkflowOptions(
 	slugs := listTaskSubdirs(baseDir)
 	options := make([]taskRunWizardWorkflowOption, 0, len(slugs))
 	for _, slug := range slugs {
-		plan, ok := readTaskRunWizardPlan(baseDir, slug)
-		if !ok || len(plan.TaskGroups) == 0 {
+		planRead := readTaskRunWizardPlan(baseDir, slug)
+		if planRead.Status == taskRunWizardPlanAbsent {
 			options = append(options, taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatuses[slug]))
 			continue
 		}
+		if planRead.Status == taskRunWizardPlanInvalid {
+			options = append(options, taskRunWizardInvalidPlanOption(slug, planRead.Err))
+			continue
+		}
+		plan := planRead.Plan
 
 		children := make([]taskRunWizardWorkflowOption, 0, len(plan.TaskGroups))
 		for index := range plan.TaskGroups {
@@ -120,6 +125,20 @@ func buildTaskRunWizardWorkflowOptions(
 		options = append(options, children...)
 	}
 	return options
+}
+
+func taskRunWizardInvalidPlanOption(slug string, err error) taskRunWizardWorkflowOption {
+	reason := taskgroups.ErrInvalidPlan.Error()
+	if err != nil {
+		reason = err.Error()
+	}
+	return taskRunWizardWorkflowOption{
+		Value:             slug,
+		Label:             slug,
+		Initiative:        slug,
+		Status:            taskRunWizardWorkflowBlocked,
+		UnavailableReason: reason,
+	}
 }
 
 func taskRunWizardOrdinaryOption(baseDir, slug, latestRunStatus string) taskRunWizardWorkflowOption {
@@ -284,6 +303,9 @@ func taskRunWizardBlockedBy(readiness taskgroups.Readiness) []string {
 
 func taskRunWizardWorkflowOptionLabel(option taskRunWizardWorkflowOption) string {
 	parts := []string{option.Label, option.Status.label()}
+	if option.UnavailableReason != "" {
+		parts = append(parts, option.UnavailableReason)
+	}
 	if option.Group {
 		parts = append(parts, fmt.Sprintf(
 			"%d/%d Task Groups completed",
