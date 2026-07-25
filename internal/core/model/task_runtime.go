@@ -175,15 +175,20 @@ func applyTaskComplexityRuntimeRule(cfg *RuntimeConfig, rule TaskRuntimeRule) {
 	}
 }
 
+// applyTaskRuntimeRule applies a type or id rule, which outranks the run-wide
+// flags. A model it pins is therefore at least as deliberate as --model, so mark
+// it explicit: downstream resolution may not silently substitute it.
 func applyTaskRuntimeRule(cfg *RuntimeConfig, rule TaskRuntimeRule) {
 	if cfg == nil {
 		return
 	}
 	if rule.IDE != nil {
 		cfg.IDE = strings.TrimSpace(*rule.IDE)
+		cfg.ExplicitRuntime.IDE = true
 	}
 	if rule.Model != nil {
 		cfg.Model = strings.TrimSpace(*rule.Model)
+		cfg.ExplicitRuntime.Model = true
 	}
 	if rule.ReasoningEffort != nil {
 		cfg.ReasoningEffort = strings.TrimSpace(*rule.ReasoningEffort)

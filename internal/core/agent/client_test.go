@@ -675,8 +675,11 @@ func TestClientCreateSessionExplainsCursorCLIVersusACPModelNames(t *testing.T) {
 		ExpectedCWD:             t.TempDir(),
 		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
 	}
+	// A Cursor CLI model name reaches this path because the user typed --model, so
+	// the request is explicit and must fail loudly instead of falling back.
 	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
 		cfg.Model = "grok-4.5-fast-high"
+		cfg.ModelExplicit = true
 	})
 	client.(*clientImpl).spec.ID = model.IDECursor
 	t.Cleanup(func() {
@@ -697,6 +700,127 @@ func TestClientCreateSessionExplainsCursorCLIVersusACPModelNames(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("Cursor model error = %q, want %q", err, want)
 		}
+	}
+}
+
+func TestClientCreateSessionFallsBackWhenInheritedModelIsFromAnotherRuntime(t *testing.T) {
+	t.Parallel()
+
+	// Mirrors `compozy exec --agent <id> --ide codex` in a workspace whose default
+	// model targets Claude: the runtime never advertises "opus", and the user never
+	// asked for it on this invocation.
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"gpt-5.6-sol[reasoning=medium]",
+		[]acp.SessionConfigSelectOption{
+			{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
+			{Value: "gpt-5.6-terra[reasoning=medium]", Name: "gpt-5.6-terra"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		ExpectedPrompt:          "run the council advisor",
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+		ExpectedSessionConfig: []helperExpectedSessionConfig{
+			{ConfigID: "model", Value: "gpt-5.6-sol[reasoning=medium]"},
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+
+	// Codex sets UsesBootstrapModel but still advertises a model option, and the
+	// modern codex-acp adapter gets no bootstrap model flag, so the session config
+	// is the only place the model is applied.
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "opus"
+		cfg.ModelExplicit = false
+	})
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		Prompt:     []byte(scenario.ExpectedPrompt),
+		WorkingDir: scenario.ExpectedCWD,
+	})
+	if err != nil {
+		t.Fatalf("create session with inherited cross-runtime model: %v", err)
+	}
+	// The substitution has to be recoverable from run artifacts; a warning log is
+	// silent in headless exec.
+	if got := session.Identity().Model; got != "gpt-5.6-sol[reasoning=medium]" {
+		t.Fatalf("session identity model = %q, want the runtime default it fell back to", got)
+	}
+	collectSessionUpdates(t, session)
+}
+
+func TestInheritedModelFallback(t *testing.T) {
+	t.Parallel()
+
+	option := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"gpt-5.6-sol[reasoning=medium]",
+		[]acp.SessionConfigSelectOption{
+			{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
+		},
+	)
+
+	tests := []struct {
+		name      string
+		option    *acp.SessionConfigOptionSelect
+		explicit  bool
+		requested string
+		want      string
+		wantOK    bool
+	}{
+		{
+			name:      "Should fall back to the runtime default for an inherited model",
+			option:    option,
+			requested: "opus",
+			want:      "gpt-5.6-sol[reasoning=medium]",
+			wantOK:    true,
+		},
+		{
+			name:      "Should refuse to fall back for an explicitly pinned model",
+			option:    option,
+			explicit:  true,
+			requested: "opus",
+		},
+		{
+			name:      "Should refuse to fall back without an advertised current value",
+			option:    testSessionSelectOption("model", acp.SessionConfigOptionCategoryModel, "", nil),
+			requested: "opus",
+		},
+		{
+			name:      "Should refuse to fall back when the request already is the current value",
+			option:    option,
+			requested: "gpt-5.6-sol[reasoning=medium]",
+		},
+		{
+			name:      "Should refuse to fall back without an advertised model option",
+			requested: "opus",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &clientImpl{
+				spec: Spec{ID: model.IDECodex},
+				cfg:  ClientConfig{ModelExplicit: tt.explicit},
+			}
+			got, ok := client.inheritedModelFallback(tt.option, tt.requested)
+			if ok != tt.wantOK {
+				t.Fatalf("inheritedModelFallback() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if got != tt.want {
+				t.Fatalf("inheritedModelFallback() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -584,6 +584,42 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark type and id rule pins explicit but leave complexity pins inherited", func(t *testing.T) {
+		t.Parallel()
+
+		// A type or id rule outranks --model, so downstream resolution must treat its
+		// model as a deliberate pin. Complexity rules yield to --model, so theirs
+		// stays correctable.
+		cfg := &model.RuntimeConfig{
+			IDE:   model.IDECodex,
+			Model: "gpt-5.5",
+			TaskRuntimeRules: []model.TaskRuntimeRule{
+				{
+					Complexity: testStringPointer("low"),
+					Model:      testStringPointer("flash"),
+				},
+				{
+					Type:  testStringPointer("frontend"),
+					IDE:   testStringPointer(model.IDEClaude),
+					Model: testStringPointer("sonnet"),
+				},
+			},
+		}
+
+		typed := cfg.RuntimeForTask(model.TaskRuntimeTarget{Type: "frontend"})
+		if !typed.ExplicitRuntime.Model || !typed.ExplicitRuntime.IDE {
+			t.Fatalf("type rule pins should be explicit: %#v", typed.ExplicitRuntime)
+		}
+
+		complexityOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{Complexity: "low"})
+		if complexityOnly.Model != "flash" {
+			t.Fatalf("complexity rule should still apply: %#v", complexityOnly)
+		}
+		if complexityOnly.ExplicitRuntime.Model {
+			t.Fatalf("complexity rule pin should stay inherited: %#v", complexityOnly.ExplicitRuntime)
+		}
+	})
+
 	t.Run("Should apply complexity defaults without overriding explicit runtime fields", func(t *testing.T) {
 		t.Parallel()
 

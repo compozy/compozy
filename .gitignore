@@ -41,6 +41,13 @@ skills-lock.json
 .agents/skills/cy-review-round
 .agents/skills/cy-workflow-memory
 .agents/skills/git-rebase
+
+# Extension skills installed here by `compozy setup` in project scope
+# (internal/setup/install.go canonicalSkillsRoot). extensions/<name>/skills/ is
+# the tracked source; this path is an install destination, so committing it lets
+# the two drift. A broader follow-up should separate tracked skill sources from
+# generated install destinations.
+.agents/skills/cy-idea-factory
 ai-docs
 **/**/node_modules
 node_modules/

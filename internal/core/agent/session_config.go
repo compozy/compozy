@@ -22,21 +22,27 @@ const (
 	reasoningEffortUltra           = "ultra"
 )
 
+// configureSession applies the model, reasoning, and mode configuration to a new
+// or resumed session and reports the model the runtime accepted, which can differ
+// from the requested one when an inherited model falls back.
 func (c *clientImpl) configureSession(
 	ctx context.Context,
 	sessionID acp.SessionId,
 	requestedModel string,
 	options []acp.SessionConfigOption,
 	modes *acp.SessionModeState,
-) error {
+) (string, error) {
 	effectiveModel, err := c.configureSessionModel(ctx, sessionID, requestedModel, options)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := c.configureSessionReasoning(ctx, sessionID, options); err != nil {
-		return err
+		return "", err
 	}
-	return c.configureSessionMode(ctx, sessionID, effectiveModel, modes)
+	if err := c.configureSessionMode(ctx, sessionID, effectiveModel, modes); err != nil {
+		return "", err
+	}
+	return effectiveModel, nil
 }
 
 func (c *clientImpl) configureSessionModel(
@@ -104,14 +110,18 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 	}
 	resolvedModel, err := resolveSessionSelectValue(modelOption, effectiveModel, "model")
 	if err != nil {
-		if c.spec.ID == model.IDECursor {
-			err = fmt.Errorf(
-				"%w; Cursor CLI --list-models entries can differ from ACP model IDs; "+
-					"use an ACP name or value from the valid choices",
-				err,
-			)
+		fallback, ok := c.inheritedModelFallback(modelOption, effectiveModel)
+		if !ok {
+			if c.spec.ID == model.IDECursor {
+				err = fmt.Errorf(
+					"%w; Cursor CLI --list-models entries can differ from ACP model IDs; "+
+						"use an ACP name or value from the valid choices",
+					err,
+				)
+			}
+			return "", wrapSessionSetupError(SessionSetupStageSetModel, err)
 		}
-		return "", wrapSessionSetupError(SessionSetupStageSetModel, err)
+		resolvedModel = fallback
 	}
 	if err := c.setSessionConfigValue(
 		ctx,
@@ -124,6 +134,39 @@ func (c *clientImpl) configureAdvertisedSessionModel(
 		return "", err
 	}
 	return resolvedModel, nil
+}
+
+// inheritedModelFallback resolves a model the runtime does not advertise down to
+// that runtime's own current default. A workspace, task-rule, or agent default is
+// not a statement about which runtime the session lands on, so a cross-runtime
+// value must not fail the session. An explicitly pinned model stays a hard error:
+// running a model other than the one requested is worse than failing.
+//
+// ModelExplicit only distinguishes a --model flag from everything else, while
+// RuntimeForTask gives type and id task rules authority over that flag. Such a
+// rule is therefore correctable here even though it outranks the flag upstream.
+func (c *clientImpl) inheritedModelFallback(
+	option *acp.SessionConfigOptionSelect,
+	requested string,
+) (string, bool) {
+	if c.cfg.ModelExplicit || option == nil {
+		return "", false
+	}
+	// A current value the runtime does not list among its own options cannot be a
+	// safer choice than the request, so leave the original error in place.
+	current := strings.TrimSpace(string(option.CurrentValue))
+	if current == "" || strings.EqualFold(current, strings.TrimSpace(requested)) {
+		return "", false
+	}
+	if c.logger != nil {
+		c.logger.Warn(
+			"inherited model is not available on this runtime; falling back to the runtime default",
+			"runtime", c.spec.ID,
+			"requested_model", requested,
+			"resolved_model", current,
+		)
+	}
+	return current, true
 }
 
 func (c *clientImpl) configureSessionReasoning(

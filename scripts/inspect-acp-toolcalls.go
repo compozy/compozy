@@ -129,6 +129,7 @@ func inspectIDE(ctx context.Context, stdout io.Writer, stderr io.Writer, cfg ins
 	client, err := agent.NewClient(runCtx, agent.ClientConfig{
 		IDE:             ide,
 		Model:           cfg.model,
+		ModelExplicit:   strings.TrimSpace(cfg.model) != "",
 		ReasoningEffort: cfg.reasoningEffort,
 		AccessMode:      cfg.accessMode,
 		ShutdownTimeout: 3 * time.Second,

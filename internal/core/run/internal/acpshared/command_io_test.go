@@ -244,6 +244,48 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	}
 }
 
+// The ACP client decides whether an unadvertised model may fall back by reading
+// ClientConfig.ModelExplicit. Losing this hand-copied field would silently
+// downgrade an explicitly pinned model, and no client-level test would notice.
+func TestCreateACPClientCarriesExplicitModelFlag(t *testing.T) {
+	tests := []struct {
+		name     string
+		explicit bool
+	}{
+		{name: "Should mark an explicitly pinned model", explicit: true},
+		{name: "Should leave an inherited model correctable", explicit: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var captured agent.ClientConfig
+			restore := SwapNewAgentClientForTest(
+				func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
+					captured = cfg
+					return &capturingCommandIOClient{}, nil
+				},
+			)
+			defer restore()
+
+			if _, err := createACPClient(
+				context.Background(),
+				&config{
+					IDE:           model.IDECodex,
+					Model:         "opus",
+					ModelExplicit: tt.explicit,
+				},
+				&job{},
+				silentLogger(),
+			); err != nil {
+				t.Fatalf("create ACP client: %v", err)
+			}
+			if captured.ModelExplicit != tt.explicit {
+				t.Fatalf("ClientConfig.ModelExplicit = %v, want %v", captured.ModelExplicit, tt.explicit)
+			}
+		})
+	}
+}
+
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {
 	tests := []struct {
 		name    string
