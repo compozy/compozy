@@ -530,16 +530,23 @@ func mergeSourcePathThreeWay(
 	workspaceRoot string,
 	baselineRef string,
 	path string,
-) (bool, error) {
-	oursAbs, err := safeWorkspacePath(sourceRoot, path)
+) (conflicted bool, err error) {
+	source, err := os.OpenRoot(sourceRoot)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("open source workspace for review merge: %w", err)
 	}
-	theirsAbs, err := safeWorkspacePath(workspaceRoot, path)
+	defer func() {
+		err = errors.Join(err, source.Close())
+	}()
+	workspace, err := os.OpenRoot(workspaceRoot)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("open isolated workspace for review merge: %w", err)
 	}
-	_, theirsMode, theirsExists, err := readFileIfExists(theirsAbs)
+	defer func() {
+		err = errors.Join(err, workspace.Close())
+	}()
+
+	theirsContent, theirsMode, theirsExists, err := readFileIfExists(workspace, workspaceRoot, path)
 	if err != nil {
 		return false, err
 	}
@@ -547,47 +554,53 @@ func mergeSourcePathThreeWay(
 	if err != nil {
 		return false, err
 	}
-	oursContent, _, oursExists, err := readFileIfExists(oursAbs)
+	oursContent, _, oursExists, err := readFileIfExists(source, sourceRoot, path)
 	if err != nil {
 		return false, err
 	}
 	if !theirsExists {
-		return mergeDeletedSourcePath(oursAbs, path, oursContent, baseContent, baseExists, oursExists)
+		return mergeDeletedSourcePath(source, sourceRoot, path, oursContent, baseContent, baseExists, oursExists)
 	}
-	if err := os.MkdirAll(filepath.Dir(oursAbs), 0o755); err != nil {
-		return false, fmt.Errorf("create parent for %s during review merge: %w", path, err)
+
+	oursAbs, cleanupOurs, err := writeTempMergeFile(oursContent)
+	if err != nil {
+		return false, err
 	}
-	if !oursExists {
-		if err := os.WriteFile(oursAbs, nil, theirsMode.Perm()); err != nil {
-			return false, fmt.Errorf("create %s during review merge: %w", path, err)
-		}
-	}
+	defer cleanupOurs()
 	baseAbs, cleanup, err := writeTempMergeFile(baseContent)
 	if err != nil {
 		return false, err
 	}
 	defer cleanup()
-	conflicted, err := runGitMergeFile(ctx, sourceRoot, oursAbs, baseAbs, theirsAbs)
+	theirsAbs, cleanupTheirs, err := writeTempMergeFile(theirsContent)
 	if err != nil {
 		return false, err
 	}
-	if !conflicted {
-		// git merge-file rewrites content in place and preserves ours' mode, so a
-		// mode-only change carried by the batch (e.g. chmod +x) would be lost.
-		// Propagate theirs' mode after a clean merge; on a conflict the path is
-		// rolled back, so mode is only applied when the merge integrates cleanly.
-		if err := os.Chmod(oursAbs, theirsMode.Perm()); err != nil {
-			return false, fmt.Errorf("apply review mode change to %s: %w", path, err)
-		}
+	defer cleanupTheirs()
+
+	conflicted, err = runGitMergeFile(ctx, sourceRoot, oursAbs, baseAbs, theirsAbs)
+	if err != nil {
+		return false, err
 	}
-	return conflicted, nil
+	if conflicted {
+		return true, nil
+	}
+	mergedContent, err := os.ReadFile(oursAbs)
+	if err != nil {
+		return false, fmt.Errorf("read merged review content for %s: %w", path, err)
+	}
+	if err := writeWorkspaceFileAtomically(source, sourceRoot, path, mergedContent, theirsMode.Perm()); err != nil {
+		return false, fmt.Errorf("install merged review content for %s: %w", path, err)
+	}
+	return false, nil
 }
 
 // mergeDeletedSourcePath integrates a batch that deleted path. It removes an
 // unchanged source copy and reports a delete/modify conflict when the source
 // diverged from the isolated baseline.
 func mergeDeletedSourcePath(
-	oursAbs string,
+	root *os.Root,
+	rootPath string,
 	path string,
 	oursContent []byte,
 	baseContent []byte,
@@ -598,7 +611,17 @@ func mergeDeletedSourcePath(
 		return false, nil
 	}
 	if baseExists && bytes.Equal(oursContent, baseContent) {
-		if err := os.Remove(oursAbs); err != nil {
+		clean, info, exists, err := inspectWorkspacePath(root, rootPath, path)
+		if err != nil {
+			return false, err
+		}
+		if !exists {
+			return false, nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return false, fmt.Errorf("refuse to delete non-regular workspace path %s during review merge", path)
+		}
+		if err := root.Remove(clean); err != nil {
 			return false, fmt.Errorf("apply review deletion of %s: %w", path, err)
 		}
 		return false, nil
@@ -655,24 +678,274 @@ func readBaselineBlob(ctx context.Context, root, baselineRef, path string) ([]by
 	return content, true, nil
 }
 
-// readFileIfExists returns a path's content and mode, reporting exists=false for
-// a missing path rather than an error.
-func readFileIfExists(absPath string) ([]byte, fs.FileMode, bool, error) {
-	info, err := os.Stat(absPath)
-	if errors.Is(err, os.ErrNotExist) {
+// readFileIfExists returns a rooted path's content and mode, reporting
+// exists=false for a missing path. Every existing component must be a real
+// directory or regular file; symlinks are never merge inputs.
+func readFileIfExists(
+	root *os.Root,
+	rootPath string,
+	path string,
+) ([]byte, fs.FileMode, bool, error) {
+	clean, info, exists, err := inspectWorkspacePath(root, rootPath, path)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	if !exists {
 		return nil, 0, false, nil
 	}
-	if err != nil {
-		return nil, 0, false, fmt.Errorf("stat %s: %w", absPath, err)
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, 0, false, fmt.Errorf("workspace path %s is a symlink", path)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, 0, false, fmt.Errorf("unsupported path %s for review merge", absPath)
+		return nil, 0, false, fmt.Errorf("unsupported workspace path %s for review merge", path)
 	}
-	data, err := os.ReadFile(absPath)
+	data, err := readRootedRegularFile(root, rootPath, path, clean, info)
 	if err != nil {
-		return nil, 0, false, fmt.Errorf("read %s: %w", absPath, err)
+		return nil, 0, false, err
 	}
 	return data, info.Mode(), true, nil
+}
+
+func readRootedRegularFile(
+	root *os.Root,
+	rootPath string,
+	path string,
+	clean string,
+	expected fs.FileInfo,
+) (data []byte, err error) {
+	file, err := root.Open(clean)
+	if err != nil {
+		return nil, fmt.Errorf("open workspace path %s under %s: %w", path, rootPath, err)
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	opened, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("stat opened workspace path %s under %s: %w", path, rootPath, err)
+	}
+	current, err := root.Lstat(clean)
+	if err != nil {
+		return nil, fmt.Errorf("restat workspace path %s under %s: %w", path, rootPath, err)
+	}
+	if current.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("workspace path %s became a symlink before review merge read", path)
+	}
+	if !current.Mode().IsRegular() ||
+		!opened.Mode().IsRegular() ||
+		!os.SameFile(expected, opened) ||
+		!os.SameFile(opened, current) {
+		return nil, fmt.Errorf("workspace path %s changed before review merge read", path)
+	}
+	data, err = io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("read workspace path %s under %s: %w", path, rootPath, err)
+	}
+	return data, nil
+}
+
+// inspectWorkspacePath resolves a lexical workspace path through an os.Root and
+// rejects symlink or non-directory parent components. The final component is
+// returned to the caller for operation-specific type validation.
+func inspectWorkspacePath(
+	root *os.Root,
+	rootPath string,
+	path string,
+) (string, fs.FileInfo, bool, error) {
+	if _, err := safeWorkspacePath(rootPath, path); err != nil {
+		return "", nil, false, err
+	}
+	clean := filepath.Clean(filepath.FromSlash(strings.TrimSpace(path)))
+	parts := strings.Split(clean, string(filepath.Separator))
+	current := ""
+	for index, part := range parts {
+		if current == "" {
+			current = part
+		} else {
+			current = filepath.Join(current, part)
+		}
+		info, err := root.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			return clean, nil, false, nil
+		}
+		if err != nil {
+			return "", nil, false, fmt.Errorf(
+				"stat workspace path component %s under %s: %w",
+				current,
+				rootPath,
+				err,
+			)
+		}
+		if index == len(parts)-1 {
+			return clean, info, true, nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", nil, false, fmt.Errorf(
+				"workspace path %s contains symlink component %s",
+				path,
+				current,
+			)
+		}
+		if !info.IsDir() {
+			return "", nil, false, fmt.Errorf(
+				"workspace path %s contains non-directory component %s",
+				path,
+				current,
+			)
+		}
+	}
+	return clean, nil, false, nil
+}
+
+func ensureWorkspaceParent(root *os.Root, rootPath string, path string) (string, error) {
+	if _, err := safeWorkspacePath(rootPath, path); err != nil {
+		return "", err
+	}
+	clean := filepath.Clean(filepath.FromSlash(strings.TrimSpace(path)))
+	parent := filepath.Dir(clean)
+	if parent == "." {
+		return clean, nil
+	}
+	_, info, exists, err := inspectWorkspacePath(root, rootPath, parent)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("workspace path %s contains symlink parent %s", path, parent)
+		}
+		if !info.IsDir() {
+			return "", fmt.Errorf("workspace path %s contains non-directory parent %s", path, parent)
+		}
+		return clean, nil
+	}
+	if err := root.MkdirAll(parent, 0o755); err != nil {
+		return "", fmt.Errorf("create workspace parent %s under %s: %w", parent, rootPath, err)
+	}
+	_, info, exists, err = inspectWorkspacePath(root, rootPath, parent)
+	if err != nil {
+		return "", err
+	}
+	if !exists || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("workspace parent %s is not a real directory", parent)
+	}
+	return clean, nil
+}
+
+func writeWorkspaceFileAtomically(
+	root *os.Root,
+	rootPath string,
+	path string,
+	content []byte,
+	mode fs.FileMode,
+) (result error) {
+	clean, err := ensureWorkspaceParent(root, rootPath, path)
+	if err != nil {
+		return err
+	}
+	if err := validateWorkspaceMergeTarget(root, rootPath, path, false); err != nil {
+		return err
+	}
+
+	tempPath, file, err := createWorkspaceMergeTemp(root, clean)
+	if err != nil {
+		return err
+	}
+	fileOpen := true
+	installed := false
+	defer func() {
+		result = errors.Join(
+			result,
+			cleanupWorkspaceMergeTemp(root, tempPath, file, fileOpen, installed),
+		)
+	}()
+	if _, err := file.Write(content); err != nil {
+		return fmt.Errorf("write review merge temp for %s: %w", path, err)
+	}
+	if err := file.Chmod(mode.Perm()); err != nil {
+		return fmt.Errorf("set review merge mode for %s: %w", path, err)
+	}
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("sync review merge temp for %s: %w", path, err)
+	}
+	closeErr := file.Close()
+	fileOpen = false
+	if closeErr != nil {
+		return fmt.Errorf("close review merge temp for %s: %w", path, closeErr)
+	}
+
+	if _, err := ensureWorkspaceParent(root, rootPath, path); err != nil {
+		return err
+	}
+	if err := validateWorkspaceMergeTarget(root, rootPath, path, true); err != nil {
+		return err
+	}
+	if err := root.Rename(tempPath, clean); err != nil {
+		return fmt.Errorf("replace workspace path %s under %s: %w", path, rootPath, err)
+	}
+	installed = true
+	return nil
+}
+
+func validateWorkspaceMergeTarget(root *os.Root, rootPath string, path string, changed bool) error {
+	_, info, exists, err := inspectWorkspacePath(root, rootPath, path)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		if changed {
+			return fmt.Errorf("workspace path %s became a symlink during review merge", path)
+		}
+		return fmt.Errorf("workspace path %s is a symlink", path)
+	}
+	if !info.Mode().IsRegular() {
+		if changed {
+			return fmt.Errorf("workspace path %s became non-regular during review merge", path)
+		}
+		return fmt.Errorf("unsupported workspace path %s for review merge", path)
+	}
+	return nil
+}
+
+func cleanupWorkspaceMergeTemp(
+	root *os.Root,
+	tempPath string,
+	file *os.File,
+	fileOpen bool,
+	installed bool,
+) error {
+	var result error
+	if fileOpen {
+		result = file.Close()
+	}
+	if !installed {
+		if err := root.Remove(tempPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			result = errors.Join(result, fmt.Errorf("remove review merge temp %s: %w", tempPath, err))
+		}
+	}
+	return result
+}
+
+func createWorkspaceMergeTemp(root *os.Root, path string) (string, *os.File, error) {
+	parent := filepath.Dir(path)
+	for attempt := 0; attempt < 16; attempt++ {
+		name := fmt.Sprintf(".compozy-review-merge-%d-%d", time.Now().UTC().UnixNano(), attempt)
+		if parent != "." {
+			name = filepath.Join(parent, name)
+		}
+		file, err := root.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			return name, file, nil
+		}
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		return "", nil, fmt.Errorf("create rooted review merge temp for %s: %w", path, err)
+	}
+	return "", nil, fmt.Errorf("exhausted rooted review merge temp names for %s", path)
 }
 
 // writeTempMergeFile materializes merge input content to a temp file and returns
@@ -853,21 +1126,32 @@ func (r *ReviewIsolation) prepareMergeSnapshot(
 // refresh failed). It distinguishes that idempotent-retry case from a genuine
 // shared-secondary-file drift, where the source carries a different concurrent
 // batch's edit and must be merged.
-func batchAlreadyIntegrated(sourceRoot string, workspaceRoot string, paths []string) (bool, error) {
+func batchAlreadyIntegrated(
+	sourceRoot string,
+	workspaceRoot string,
+	paths []string,
+) (integrated bool, err error) {
+	source, err := os.OpenRoot(sourceRoot)
+	if err != nil {
+		return false, fmt.Errorf("open source workspace for integration check: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, source.Close())
+	}()
+	workspace, err := os.OpenRoot(workspaceRoot)
+	if err != nil {
+		return false, fmt.Errorf("open isolated workspace for integration check: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, workspace.Close())
+	}()
+
 	for _, path := range paths {
-		sourceAbs, err := safeWorkspacePath(sourceRoot, path)
+		sourceData, _, sourceExists, err := readFileIfExists(source, sourceRoot, path)
 		if err != nil {
 			return false, err
 		}
-		workspaceAbs, err := safeWorkspacePath(workspaceRoot, path)
-		if err != nil {
-			return false, err
-		}
-		sourceData, _, sourceExists, err := readFileIfExists(sourceAbs)
-		if err != nil {
-			return false, err
-		}
-		workspaceData, _, workspaceExists, err := readFileIfExists(workspaceAbs)
+		workspaceData, _, workspaceExists, err := readFileIfExists(workspace, workspaceRoot, path)
 		if err != nil {
 			return false, err
 		}
@@ -881,72 +1165,74 @@ func batchAlreadyIntegrated(sourceRoot string, workspaceRoot string, paths []str
 // captureSourcePathContents snapshots the current source content of paths so a
 // failed 3-way integration can restore them exactly, keeping the source clean
 // even after git apply --3way writes conflict markers.
-func captureSourcePathContents(root string, paths []string) (map[string]sourcePathContent, error) {
-	snapshot := make(map[string]sourcePathContent, len(paths))
+func captureSourcePathContents(rootPath string, paths []string) (snapshot map[string]sourcePathContent, err error) {
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return nil, fmt.Errorf("open source workspace for review snapshot: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
+
+	snapshot = make(map[string]sourcePathContent, len(paths))
 	for _, path := range paths {
-		absolutePath, err := safeWorkspacePath(root, path)
-		if err != nil {
-			return nil, err
-		}
-		info, err := os.Lstat(absolutePath)
-		if errors.Is(err, os.ErrNotExist) {
-			snapshot[path] = sourcePathContent{exists: false}
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("stat source path %s for review snapshot: %w", path, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			target, linkErr := os.Readlink(absolutePath)
-			if linkErr != nil {
-				return nil, fmt.Errorf("read source symlink %s for review snapshot: %w", path, linkErr)
-			}
-			snapshot[path] = sourcePathContent{data: []byte(target), mode: info.Mode(), exists: true}
-			continue
-		}
-		if !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("unsupported source path %s for review merge snapshot", path)
-		}
-		data, readErr := os.ReadFile(absolutePath)
+		data, mode, exists, readErr := readFileIfExists(root, rootPath, path)
 		if readErr != nil {
 			return nil, fmt.Errorf("read source path %s for review snapshot: %w", path, readErr)
 		}
-		snapshot[path] = sourcePathContent{data: data, mode: info.Mode(), exists: true}
+		if !exists {
+			snapshot[path] = sourcePathContent{exists: false}
+			continue
+		}
+		snapshot[path] = sourcePathContent{data: data, mode: mode, exists: true}
 	}
 	return snapshot, nil
 }
 
 // restoreSourcePathContents rewrites the snapshotted source paths to their
 // pre-apply state, removing any file the apply newly created.
-func restoreSourcePathContents(root string, snapshot map[string]sourcePathContent) error {
-	var result error
+func restoreSourcePathContents(rootPath string, snapshot map[string]sourcePathContent) (result error) {
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return fmt.Errorf("open source workspace for review rollback: %w", err)
+	}
+	defer func() {
+		result = errors.Join(result, root.Close())
+	}()
+
 	for path, content := range snapshot {
-		absolutePath, err := safeWorkspacePath(root, path)
+		clean, info, exists, err := inspectWorkspacePath(root, rootPath, path)
 		if err != nil {
 			result = errors.Join(result, err)
 			continue
 		}
-		if err := os.RemoveAll(absolutePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			result = errors.Join(result, fmt.Errorf("clear source path %s for review rollback: %w", path, err))
-			continue
-		}
 		if !content.exists {
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(absolutePath), 0o755); err != nil {
-			result = errors.Join(result, fmt.Errorf("create parent for %s during review rollback: %w", path, err))
-			continue
-		}
-		if content.mode&os.ModeSymlink != 0 {
-			if err := os.Symlink(string(content.data), absolutePath); err != nil {
-				result = errors.Join(
-					result,
-					fmt.Errorf("restore source symlink %s during review rollback: %w", path, err),
-				)
+			if !exists {
+				continue
+			}
+			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+				result = errors.Join(result, fmt.Errorf(
+					"refuse to remove non-regular source path %s during review rollback",
+					path,
+				))
+				continue
+			}
+			if err := root.Remove(clean); err != nil {
+				result = errors.Join(result, fmt.Errorf(
+					"clear source path %s for review rollback: %w",
+					path,
+					err,
+				))
 			}
 			continue
 		}
-		if err := os.WriteFile(absolutePath, content.data, content.mode.Perm()); err != nil {
+		if err := writeWorkspaceFileAtomically(
+			root,
+			rootPath,
+			path,
+			content.data,
+			content.mode.Perm(),
+		); err != nil {
 			result = errors.Join(result, fmt.Errorf("restore source path %s during review rollback: %w", path, err))
 		}
 	}
@@ -974,31 +1260,39 @@ func subtractPaths(paths []string, remove []string) []string {
 
 func sourcePathMatchesBaseline(
 	ctx context.Context,
-	root string,
+	rootPath string,
 	path string,
 	baseline gitBaselineEntry,
 	tracked bool,
-) (bool, error) {
-	absolutePath, err := safeWorkspacePath(root, path)
+) (matches bool, err error) {
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return false, fmt.Errorf("open source workspace for baseline comparison: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
+
+	clean, info, exists, err := inspectWorkspacePath(root, rootPath, path)
 	if err != nil {
 		return false, err
 	}
-	info, err := os.Lstat(absolutePath)
-	if errors.Is(err, os.ErrNotExist) {
+	if !exists {
 		return !tracked, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("stat source path: %w", err)
 	}
 	if !tracked {
 		return false, nil
 	}
 	switch baseline.mode {
 	case "100644", "100755":
-		return regularSourcePathMatchesBaseline(ctx, root, path, absolutePath, info, baseline)
+		return regularSourcePathMatchesBaseline(ctx, root, rootPath, path, clean, info, baseline)
 	case "120000":
-		return symlinkSourcePathMatchesBaseline(ctx, root, absolutePath, info, baseline)
+		return symlinkSourcePathMatchesBaseline(ctx, root, rootPath, path, clean, info, baseline)
 	case "160000":
+		absolutePath, pathErr := safeWorkspacePath(rootPath, path)
+		if pathErr != nil {
+			return false, pathErr
+		}
 		return gitlinkSourcePathMatchesBaseline(ctx, absolutePath, info, baseline)
 	default:
 		return false, fmt.Errorf("unsupported baseline mode %s", baseline.mode)
@@ -1007,9 +1301,10 @@ func sourcePathMatchesBaseline(
 
 func regularSourcePathMatchesBaseline(
 	ctx context.Context,
-	root string,
+	root *os.Root,
+	rootPath string,
 	path string,
-	absolutePath string,
+	clean string,
 	info fs.FileInfo,
 	baseline gitBaselineEntry,
 ) (bool, error) {
@@ -1023,7 +1318,11 @@ func regularSourcePathMatchesBaseline(
 	if currentMode != baseline.mode {
 		return false, nil
 	}
-	raw, err := runGit(ctx, root, "hash-object", "--path="+path, "--", absolutePath)
+	content, err := readRootedRegularFile(root, rootPath, path, clean, info)
+	if err != nil {
+		return false, err
+	}
+	raw, err := runGitInputOutput(ctx, rootPath, content, "hash-object", "--path="+path, "--stdin")
 	if err != nil {
 		return false, fmt.Errorf("hash regular file: %w", err)
 	}
@@ -1032,19 +1331,21 @@ func regularSourcePathMatchesBaseline(
 
 func symlinkSourcePathMatchesBaseline(
 	ctx context.Context,
-	root string,
-	absolutePath string,
+	root *os.Root,
+	rootPath string,
+	path string,
+	clean string,
 	info fs.FileInfo,
 	baseline gitBaselineEntry,
 ) (bool, error) {
 	if info.Mode()&os.ModeSymlink == 0 {
 		return false, nil
 	}
-	target, err := os.Readlink(absolutePath)
+	target, err := root.Readlink(clean)
 	if err != nil {
-		return false, fmt.Errorf("read symlink: %w", err)
+		return false, fmt.Errorf("read source symlink %s under %s: %w", path, rootPath, err)
 	}
-	raw, err := runGitInputOutput(ctx, root, []byte(target), "hash-object", "--stdin")
+	raw, err := runGitInputOutput(ctx, rootPath, []byte(target), "hash-object", "--stdin")
 	if err != nil {
 		return false, fmt.Errorf("hash symlink: %w", err)
 	}

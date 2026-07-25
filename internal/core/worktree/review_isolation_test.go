@@ -610,6 +610,115 @@ func TestReviewIsolationMergesNonConflictingSourceDrift(t *testing.T) {
 	}
 }
 
+func TestReviewIsolationRejectsSymlinkedSourceMergePaths(t *testing.T) {
+	t.Parallel()
+	requireScopeGit(t)
+
+	tests := []struct {
+		name          string
+		sourceRel     string
+		symlinkParent bool
+	}{
+		{
+			name:      "Should reject a symlink at the merged path",
+			sourceRel: "shared.txt",
+		},
+		{
+			name:          "Should reject a symlink in a merged path parent",
+			sourceRel:     "nested/shared.txt",
+			symlinkParent: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repo := initScopeGitRepo(t)
+			baseline := "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n"
+			sourcePath := filepath.Join(repo, filepath.FromSlash(test.sourceRel))
+			if err := os.MkdirAll(filepath.Dir(sourcePath), 0o755); err != nil {
+				t.Fatalf("mkdir source parent: %v", err)
+			}
+			if err := os.WriteFile(sourcePath, []byte(baseline), 0o600); err != nil {
+				t.Fatalf("write source baseline: %v", err)
+			}
+			mustRunGit(t, repo, "add", "--", test.sourceRel)
+			mustRunGit(t, repo, "commit", "-q", "-m", "add shared source path")
+
+			reviewsDir := filepath.Join(repo, ".compozy", "tasks", "demo", "reviews-001")
+			if err := os.MkdirAll(reviewsDir, 0o755); err != nil {
+				t.Fatalf("mkdir reviews: %v", err)
+			}
+			isolation, err := NewReviewIsolation(
+				context.Background(),
+				repo,
+				reviewsDir,
+				filepath.Dir(reviewsDir),
+				filepath.Join(t.TempDir(), "worktrees"),
+				[]string{"batch-a"},
+			)
+			if err != nil {
+				t.Fatalf("NewReviewIsolation() error = %v", err)
+			}
+			workspace, err := isolation.Workspace(0)
+			if err != nil {
+				t.Fatalf("Workspace(0) error = %v", err)
+			}
+			batchResult := strings.Replace(baseline, "one\n", "batch\n", 1)
+			workspacePath := filepath.Join(workspace.Root, filepath.FromSlash(test.sourceRel))
+			if err := os.WriteFile(workspacePath, []byte(batchResult), 0o600); err != nil {
+				t.Fatalf("write isolated result: %v", err)
+			}
+
+			externalDir := t.TempDir()
+			externalPath := filepath.Join(externalDir, "shared.txt")
+			externalContent := strings.Replace(baseline, "ten\n", "external\n", 1)
+			const externalMode = 0o640
+			if err := os.WriteFile(externalPath, []byte(externalContent), externalMode); err != nil {
+				t.Fatalf("write external target: %v", err)
+			}
+			if err := os.Chmod(externalPath, externalMode); err != nil {
+				t.Fatalf("set external target mode: %v", err)
+			}
+			if test.symlinkParent {
+				sourceParent := filepath.Dir(sourcePath)
+				if err := os.RemoveAll(sourceParent); err != nil {
+					t.Fatalf("remove source parent: %v", err)
+				}
+				if err := os.Symlink(externalDir, sourceParent); err != nil {
+					t.Skipf("symlink unsupported: %v", err)
+				}
+			} else {
+				if err := os.Remove(sourcePath); err != nil {
+					t.Fatalf("remove source path: %v", err)
+				}
+				if err := os.Symlink(externalPath, sourcePath); err != nil {
+					t.Skipf("symlink unsupported: %v", err)
+				}
+			}
+
+			err = isolation.Apply(context.Background(), 0, false, "fix: batch a")
+			if err == nil || !strings.Contains(err.Error(), "symlink") {
+				t.Errorf("Apply() error = %v, want symlink rejection", err)
+			}
+			if body, readErr := os.ReadFile(externalPath); readErr != nil || string(body) != externalContent {
+				t.Errorf(
+					"external target after rejected merge = %q, error = %v, want %q",
+					body,
+					readErr,
+					externalContent,
+				)
+			}
+			info, statErr := os.Stat(externalPath)
+			if statErr != nil {
+				t.Fatalf("stat external target: %v", statErr)
+			}
+			if info.Mode().Perm() != externalMode {
+				t.Errorf("external target mode = %v, want %v", info.Mode().Perm(), os.FileMode(externalMode))
+			}
+		})
+	}
+}
+
 func TestReviewIsolationRestoresSourceWhenAutoCommitHookRejects(t *testing.T) {
 	t.Parallel()
 	requireScopeGit(t)

@@ -1965,29 +1965,11 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 	if commandFlagChanged(cmd, "attach") {
 		explicitModes++
 	}
-	for _, item := range []struct {
-		name  string
-		value string
-	}{
-		{name: "ui", value: attachModeUI},
-		{name: "stream", value: attachModeStream},
-		{name: "detach", value: attachModeDetach},
-		{name: "background", value: attachModeDetach},
-	} {
-		// These are real bool flags, so gate on the VALUE rather than mere
-		// presence: --ui=false / --detach=false must not switch modes or count
-		// toward the mutual-exclusion check (mirrors the value-gating applied to
-		// --parallel / --parallel-tasks / --parallel-task-groups / --new).
-		enabled, err := boolFlagEnabled(cmd, item.name)
-		if err != nil {
-			return "", err
-		}
-		if !enabled {
-			continue
-		}
-		mode = item.value
-		explicitModes++
+	mode, explicitFlagModes, err := resolveExplicitTaskPresentationModeFlags(cmd, mode)
+	if err != nil {
+		return "", err
 	}
+	explicitModes += explicitFlagModes
 	if explicitModes > 1 {
 		message := "choose only one of --attach, --ui, --stream, or --detach"
 		if cmd != nil && cmd.Flags() != nil && cmd.Flags().Lookup("background") != nil {
@@ -2020,6 +2002,34 @@ func (s *commandState) resolveTaskPresentationMode(cmd *cobra.Command) (string, 
 	default:
 		return "", fmt.Errorf("attach mode must be one of auto, ui, stream, or detach (got %q)", mode)
 	}
+}
+
+func resolveExplicitTaskPresentationModeFlags(cmd *cobra.Command, mode string) (string, int, error) {
+	explicitModes := 0
+	for _, item := range []struct {
+		name  string
+		value string
+	}{
+		{name: "ui", value: attachModeUI},
+		{name: "stream", value: attachModeStream},
+		{name: "detach", value: attachModeDetach},
+		{name: "background", value: attachModeDetach},
+	} {
+		// These are real bool flags, so gate on the VALUE rather than mere
+		// presence: --ui=false / --detach=false must not switch modes or count
+		// toward the mutual-exclusion check (mirrors the value-gating applied to
+		// --parallel / --parallel-tasks / --parallel-task-groups / --new).
+		enabled, err := boolFlagEnabled(cmd, item.name)
+		if err != nil {
+			return "", 0, err
+		}
+		if !enabled {
+			continue
+		}
+		mode = item.value
+		explicitModes++
+	}
+	return mode, explicitModes, nil
 }
 
 func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.RawMessage, error) {
