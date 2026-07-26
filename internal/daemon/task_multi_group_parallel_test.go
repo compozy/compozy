@@ -2140,6 +2140,122 @@ func TestTaskMultiGroupParkedSettlementIT008(t *testing.T) {
 func TestRunManagerTaskMultiGroupParallelRelaunchRecovery(t *testing.T) {
 	requireGitForTaskMulti(t)
 
+	t.Run("Issue 003 --new waits for a non-new gate-to-insert section", func(t *testing.T) {
+		const (
+			initiative = "relaunch-new-serialization"
+			nonNewID   = "relaunch-new-serialization-gated"
+			freshID    = "relaunch-new-serialization-fresh"
+		)
+		firstParentBuildEntered := make(chan struct{})
+		secondParentBuildEntered := make(chan struct{}, 1)
+		releaseFirstParentBuild := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseFirst := func() {
+			releaseOnce.Do(func() {
+				close(releaseFirstParentBuild)
+			})
+		}
+		t.Cleanup(releaseFirst)
+
+		var parentBuilds atomic.Int32
+		var childBuilds atomic.Int32
+		env := newRunManagerTestEnv(t, runManagerTestDeps{
+			buildRunID: func(cfg *model.RuntimeConfig) (string, error) {
+				if cfg == nil {
+					return "", errors.New("runtime config is required")
+				}
+				if strings.TrimSpace(cfg.ParentRunID) != "" {
+					return fmt.Sprintf("serialized-child-%d", childBuilds.Add(1)), nil
+				}
+				switch parentBuilds.Add(1) {
+				case 1:
+					close(firstParentBuildEntered)
+					<-releaseFirstParentBuild
+					return nonNewID, nil
+				case 2:
+					secondParentBuildEntered <- struct{}{}
+					return freshID, nil
+				default:
+					return "", errors.New("unexpected extra parent run ID allocation")
+				}
+			},
+			prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+				return &model.SolvePreparation{}, nil
+			},
+			execute: func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+				return nil
+			},
+		})
+		writeIndependentTaskGroupFixture(t, env, initiative, 1)
+		commitTaskMultiGitWorkspace(t, env.workspaceRoot)
+
+		nonNewRequest := taskMultiGroupRequest(t, env, "", initiative, []string{"TG-001"}, 1, false)
+		freshRequest := taskMultiGroupRequest(t, env, "", initiative, []string{"TG-001"}, 1, true)
+		type startResult struct {
+			run apicore.Run
+			err error
+		}
+		nonNewResult := make(chan startResult, 1)
+		freshResult := make(chan startResult, 1)
+		go func() {
+			run, err := env.manager.StartTaskRunMultiple(
+				context.Background(),
+				env.workspaceRoot,
+				nonNewRequest,
+			)
+			nonNewResult <- startResult{run: run, err: err}
+		}()
+		select {
+		case <-firstParentBuildEntered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for non-new start between selection gate and insert")
+		}
+
+		go func() {
+			run, err := env.manager.StartTaskRunMultiple(
+				context.Background(),
+				env.workspaceRoot,
+				freshRequest,
+			)
+			freshResult <- startResult{run: run, err: err}
+		}()
+		select {
+		case <-secondParentBuildEntered:
+			t.Fatal("--new start entered run ID allocation while non-new gate-to-insert section was active")
+		case <-time.After(250 * time.Millisecond):
+		}
+
+		releaseFirst()
+		var nonNew, fresh startResult
+		select {
+		case nonNew = <-nonNewResult:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for serialized non-new start")
+		}
+		select {
+		case fresh = <-freshResult:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for serialized --new start")
+		}
+		if nonNew.err != nil {
+			t.Fatalf("non-new start error = %v", nonNew.err)
+		}
+		if fresh.err != nil {
+			t.Fatalf("--new start error = %v", fresh.err)
+		}
+		if nonNew.run.RunID != nonNewID {
+			t.Fatalf("non-new run = %q, want %q", nonNew.run.RunID, nonNewID)
+		}
+		if fresh.run.RunID != freshID {
+			t.Fatalf("--new run = %q, want %q", fresh.run.RunID, freshID)
+		}
+		for _, runID := range []string{nonNew.run.RunID, fresh.run.RunID} {
+			waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+				return isTerminalRunStatus(row.Status)
+			})
+		}
+	})
+
 	t.Run("IT-022 active selection re-attaches without a second launch", func(t *testing.T) {
 		const (
 			initiative = "relaunch-active"

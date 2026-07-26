@@ -1123,14 +1123,18 @@ func TestRunManagerTaskRunMultipleParallelRegistersChildrenUnderWorktreeWorkspac
 			if strings.TrimSpace(item.WorktreeReason) == "" {
 				t.Fatalf("item %s WorktreeReason is empty", item.Slug)
 			}
-			if strings.TrimSpace(item.ResultBranch) == "" {
-				t.Fatalf("item %s ResultBranch is empty", item.Slug)
+			if item.ResultBranch != "" {
+				t.Fatalf("item %s ResultBranch = %q, want empty after branch deletion", item.Slug, item.ResultBranch)
+			}
+			resultBranch, err := taskMultiResultBranch(parent.RunID, idx, item.Slug)
+			if err != nil {
+				t.Fatalf("taskMultiResultBranch(%s) error = %v", item.Slug, err)
 			}
 			if _, err := os.Stat(item.WorktreePath); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("item %s worktree stat error = %v, want removed", item.Slug, err)
 			}
-			if got := runGitOutput(t, env.workspaceRoot, "branch", "--list", item.ResultBranch); got != "" {
-				t.Fatalf("empty result branch %s still exists", item.ResultBranch)
+			if got := runGitOutput(t, env.workspaceRoot, "branch", "--list", resultBranch); got != "" {
+				t.Fatalf("empty result branch %s still exists", resultBranch)
 			}
 		}
 

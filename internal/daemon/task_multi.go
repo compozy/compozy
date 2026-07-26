@@ -166,10 +166,10 @@ func (m *RunManager) StartTaskRunMultiple(
 		if err != nil {
 			return apicore.Run{}, err
 		}
-		if !req.NewRun {
-			m.taskGroupSelectionMu.Lock()
-			defer m.taskGroupSelectionMu.Unlock()
+		m.taskGroupSelectionMu.Lock()
+		defer m.taskGroupSelectionMu.Unlock()
 
+		if !req.NewRun {
 			existing, found, gateErr := m.taskMultiGroupRelaunchGate(
 				detachContext(ctx),
 				prepared,
@@ -3835,7 +3835,6 @@ func (m *RunManager) planSettledTaskWorktreeCleanup(
 	plan.projected.WorktreeReason = inspection.Reason
 	if inspection.DeleteResultBranch && policy.reportNoChanges {
 		plan.projected.NoChanges = true
-		plan.projected.ResultBranch = ""
 	}
 	return plan
 }
@@ -3865,7 +3864,8 @@ func (m *RunManager) applySettledTaskWorktreeCleanup(
 			plan.original.ResultBranch,
 			plan.original.BaseCommit,
 		)
-		if err != nil {
+		switch {
+		case err != nil:
 			settled.NoChanges = plan.original.NoChanges
 			settled.ResultBranch = plan.original.ResultBranch
 			settled.WorktreeReason = fmt.Sprintf(
@@ -3873,9 +3873,11 @@ func (m *RunManager) applySettledTaskWorktreeCleanup(
 				plan.inspection.Reason,
 				err,
 			)
-		} else if !deleted && plan.policy.reportNoChanges {
+		case !deleted:
 			settled.NoChanges = plan.original.NoChanges
 			settled.ResultBranch = plan.original.ResultBranch
+		default:
+			settled.ResultBranch = ""
 		}
 	}
 	return settled
@@ -4299,9 +4301,10 @@ func (b *taskMultiSnapshotBuilder) applyEvent(event eventspkg.Event) error {
 
 // applyTaskMultiItemMetadata merges one parent-event payload into a snapshot
 // item. Non-empty fields overwrite prior values so later events refine earlier
-// state, while empty fields are ignored. This lets worktree metadata be recorded
-// before a child run id exists (metadata-only updates emitted before child
-// launch) and keeps older parent events without worktree fields compatible.
+// state, while empty fields are ignored unless removed-worktree metadata
+// explicitly tombstones a deleted result branch. This lets worktree metadata be
+// recorded before a child run id exists and keeps older events without worktree
+// fields compatible.
 func applyTaskMultiItemMetadata(item *apicore.TaskRunMultipleItem, payload kinds.TaskRunMultiplePayload) {
 	if status := strings.TrimSpace(payload.Status); status != "" {
 		item.Status = status
@@ -4326,6 +4329,10 @@ func applyTaskMultiItemMetadata(item *apicore.TaskRunMultipleItem, payload kinds
 	}
 	if worktreeStatus := strings.TrimSpace(payload.WorktreeStatus); worktreeStatus != "" {
 		item.WorktreeStatus = worktreeStatus
+		if worktreeStatus == taskMultiWorktreeStatusRemoved &&
+			strings.TrimSpace(payload.ResultBranch) == "" {
+			item.ResultBranch = ""
+		}
 	}
 	if worktreeReason := strings.TrimSpace(payload.WorktreeReason); worktreeReason != "" {
 		item.WorktreeReason = worktreeReason

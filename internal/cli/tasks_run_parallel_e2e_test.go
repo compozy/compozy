@@ -223,38 +223,41 @@ func TestTasksRunMultipleEnqueuedEndToEndStaysWorktreeFree(t *testing.T) {
 // TestTasksRunMultipleParallelEndToEndReportsWorktreePaths exercises the full
 // CLI -> in-process daemon -> worktree-backed parallel scheduler path and
 // asserts the parent starts in parallel mode while each temporary worktree is
-// removed after its output becomes reachable through a named result branch.
+// removed without advertising the empty result branch deleted during cleanup.
 func TestTasksRunMultipleParallelEndToEndReportsWorktreePaths(t *testing.T) {
-	t.Run("Should report removed worktrees and retained result branches in the parallel handoff", func(t *testing.T) {
-		requireGitForCLITests(t)
+	t.Run(
+		"Should report removed worktrees without deleted result branches in the parallel handoff",
+		func(t *testing.T) {
+			requireGitForCLITests(t)
 
-		client, paths, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
+			client, paths, workspaceRoot := newParallelMultiRunCLIEnv(t, []string{"alpha", "beta"})
 
-		stdout, stderr, err := runParallelMultiRunCLI(
-			t,
-			"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream", "--dry-run",
-		)
-		if err != nil {
-			t.Fatalf("execute parallel multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
-		}
-		if !containsAll(
-			stdout,
-			"task multi-run started:",
-			"task queue started | mode=parallel total=2",
-			"task multi-run handoff:",
-			"branch=main",
-		) {
-			t.Fatalf("expected parallel start + worktree handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
-		}
+			stdout, stderr, err := runParallelMultiRunCLI(
+				t,
+				"tasks", "run", "--multiple", "alpha,beta", "--parallel", "--stream", "--dry-run",
+			)
+			if err != nil {
+				t.Fatalf("execute parallel multi-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+			}
+			if !containsAll(
+				stdout,
+				"task multi-run started:",
+				"task queue started | mode=parallel total=2",
+				"task multi-run handoff:",
+				"branch=main",
+			) {
+				t.Fatalf("expected parallel start + worktree handoff output, got:\n%s\nstderr:\n%s", stdout, stderr)
+			}
 
-		runID := taskMultiRunIDFromCLIOutput(t, stdout)
-		snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
-		if err != nil {
-			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
-		}
-		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
-		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
-	})
+			runID := taskMultiRunIDFromCLIOutput(t, stdout)
+			snapshot, err := client.GetTaskRunMultipleSnapshot(context.Background(), runID)
+			if err != nil {
+				t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
+			}
+			assertParallelNoChangeWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+			assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
+		},
+	)
 }
 
 // TestTasksRunMultipleParallelEndToEndWarnsOnDirtyWorktree exercises R3
@@ -328,7 +331,7 @@ func TestTasksRunMultipleParallelLimitOneEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetTaskRunMultipleSnapshot(%q) error = %v", runID, err)
 		}
-		assertParallelWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
+		assertParallelNoChangeWorktreeSnapshot(t, snapshot, []string{"alpha", "beta"}, paths)
 		assertNoCLIWorktreesUnderRoot(t, workspaceRoot, paths.WorktreesDir)
 	})
 }
@@ -1170,7 +1173,7 @@ func TestTasksRunMultipleParallelEndToEndFromLinkedWorktree(t *testing.T) {
 	})
 }
 
-func assertParallelWorktreeSnapshot(
+func assertParallelNoChangeWorktreeSnapshot(
 	t *testing.T,
 	snapshot apicore.TaskRunMultipleSnapshot,
 	wantSlugs []string,
@@ -1205,8 +1208,12 @@ func assertParallelWorktreeSnapshot(
 		if strings.TrimSpace(item.WorktreeReason) == "" {
 			t.Fatalf("snapshot item %q is missing its cleanup reason", item.Slug)
 		}
-		if strings.TrimSpace(item.ResultBranch) == "" {
-			t.Fatalf("snapshot item %q is missing its retained result branch", item.Slug)
+		if item.ResultBranch != "" {
+			t.Fatalf(
+				"snapshot item %q result branch = %q, want empty after branch deletion",
+				item.Slug,
+				item.ResultBranch,
+			)
 		}
 		if _, err := os.Stat(item.WorktreePath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("snapshot item %q worktree %s stat = %v, want absent", item.Slug, item.WorktreePath, err)
