@@ -370,6 +370,87 @@ func TestRunManagerTaskGroupCompletionHydration(t *testing.T) {
 
 		assertDaemonHydrationPlanState(t, env.workspaceRoot, "initiative", []string{"TG-003"})
 	})
+
+	t.Run("IT-035 catalog sync follows newly hydrated completions", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			premarked  []string
+			wantSynced []string
+		}{
+			{
+				name:       "syncs only the newly marked group",
+				premarked:  []string{"TG-003"},
+				wantSynced: []string{"initiative/TG-004"},
+			},
+			{
+				name:      "skips sync when the plan is already current",
+				premarked: []string{"TG-003", "TG-004"},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				var synced []string
+				env := newRunManagerTestEnv(t, runManagerTestDeps{
+					syncWorkflow: func(
+						_ context.Context,
+						_ *globaldb.GlobalDB,
+						_ globaldb.Workspace,
+						cfg model.SyncConfig,
+					) (*corepkg.SyncResult, error) {
+						if cfg.ExecutionScope == nil {
+							t.Fatal("catalog sync execution scope is nil")
+						}
+						synced = append(synced, cfg.ExecutionScope.WorkflowRef)
+						return nil, nil
+					},
+				})
+				initializeHydrationGitRepository(t, env.workspaceRoot)
+				writeHydrationPeerPlan(t, env.workspaceRoot, "initiative")
+				initiativeDir := filepath.Join(
+					model.TasksBaseDirForWorkspace(env.workspaceRoot),
+					"initiative",
+				)
+				marked, err := taskgroups.NewStore().HydrateCompletion(
+					context.Background(),
+					initiativeDir,
+					test.premarked,
+				)
+				if err != nil {
+					t.Fatalf("HydrateCompletion(premarked) error = %v", err)
+				}
+				if !slices.Equal(marked, test.premarked) {
+					t.Fatalf("premarked groups = %v, want %v", marked, test.premarked)
+				}
+				seedDaemonCompletionRows(
+					t,
+					env.globalDB,
+					env.workspaceRoot,
+					"initiative",
+					[]string{"TG-003", "TG-004"},
+				)
+				workspace, err := env.globalDB.Get(context.Background(), env.workspaceRoot)
+				if err != nil {
+					t.Fatalf("Get(workspace) error = %v", err)
+				}
+
+				env.manager.hydrateTaskGroupCompletionAfterRun(
+					context.Background(),
+					&activeRun{
+						workspaceRoot: env.workspaceRoot,
+						workflowSlug:  "initiative/TG-004",
+					},
+					globaldb.Run{
+						RunID:       "task-group-complete-TG-004",
+						WorkspaceID: workspace.ID,
+					},
+				)
+
+				if !slices.Equal(synced, test.wantSynced) {
+					t.Fatalf("catalog sync refs = %v, want %v", synced, test.wantSynced)
+				}
+			})
+		}
+	})
 }
 
 func writeHydrationDependencyPlan(t *testing.T, workspaceRoot, initiative string) {

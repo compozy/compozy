@@ -166,7 +166,13 @@ func (m *RunManager) hydrateTaskGroupCompletionRoot(
 		)
 		return
 	}
-	for _, taskGroupID := range completed {
+	if len(marked) == 0 {
+		return
+	}
+	for _, taskGroupID := range marked {
+		if context.Cause(ctx) != nil {
+			return
+		}
 		m.syncHydratedTaskGroupPlanBestEffort(
 			ctx,
 			workspaceRoot,
@@ -174,15 +180,13 @@ func (m *RunManager) hydrateTaskGroupCompletionRoot(
 			runID,
 		)
 	}
-	if len(marked) > 0 {
-		slog.Default().Info(
-			"daemon: hydrated task group completion after run",
-			"run_id", runID,
-			"workspace_root", workspaceRoot,
-			"initiative", initiative,
-			"marked", marked,
-		)
-	}
+	slog.Default().Info(
+		"daemon: hydrated task group completion after run",
+		"run_id", runID,
+		"workspace_root", workspaceRoot,
+		"initiative", initiative,
+		"marked", marked,
+	)
 }
 
 func (m *RunManager) syncHydratedTaskGroupPlanBestEffort(
