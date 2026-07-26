@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/resources"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type bundleInfoInput struct {

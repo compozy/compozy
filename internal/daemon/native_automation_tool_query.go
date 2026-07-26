@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type automationJobHistoryInput struct {

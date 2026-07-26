@@ -91,7 +91,7 @@ func newAgentSoulInspectCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "inspect <agent>",
 		Short:   "Inspect one agent's resolved Soul",
-		Example: "  agh agent soul inspect coder --workspace checkout-api --json",
+		Example: "  compozy agent soul inspect coder --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -118,7 +118,7 @@ func newAgentSoulValidateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "validate <agent>",
 		Short:   "Validate a proposed Soul body or the current SOUL.md",
-		Example: "  agh agent soul validate coder --file SOUL.md --workspace checkout-api --json",
+		Example: "  compozy agent soul validate coder --file SOUL.md --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -156,10 +156,11 @@ func newAgentSoulWriteCommand(deps commandDeps) *cobra.Command {
 		idempotencyKey string
 	)
 	cmd := &cobra.Command{
-		Use:     "write <agent>",
-		Short:   "Create or replace SOUL.md through managed authoring",
-		Example: "  agh agent soul write coder --file SOUL.md --expected-digest sha256:old --workspace checkout-api --json",
-		Args:    exactOneNonBlankArg(),
+		Use:   "write <agent>",
+		Short: "Create or replace SOUL.md through managed authoring",
+		Example: "  compozy agent soul write coder --file SOUL.md --expected-digest sha256:old " +
+			"--workspace checkout-api --json",
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -199,7 +200,7 @@ func newAgentSoulDeleteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "delete <agent>",
 		Short:   "Delete SOUL.md through managed authoring",
-		Example: "  agh agent soul delete coder --expected-digest sha256:old --workspace checkout-api --json",
+		Example: "  compozy agent soul delete coder --expected-digest sha256:old --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -238,7 +239,7 @@ func newAgentSoulHistoryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "history <agent>",
 		Short:   "List managed Soul authoring revisions",
-		Example: "  agh agent soul history coder --limit 10 --workspace checkout-api --json",
+		Example: "  compozy agent soul history coder --limit 10 --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -276,7 +277,7 @@ func newAgentSoulRollbackCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rollback <agent>",
 		Short:   "Rollback SOUL.md to a managed revision",
-		Example: "  agh agent soul rollback coder --revision-id rev_123 --expected-digest sha256:old --json",
+		Example: "  compozy agent soul rollback coder --revision-id rev_123 --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

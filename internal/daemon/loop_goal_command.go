@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type goalCommandHandlerInstaller interface {

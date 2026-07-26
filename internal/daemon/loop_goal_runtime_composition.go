@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 var _ loopManagedInputSessionManager = (*session.Manager)(nil)

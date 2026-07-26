@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/windowmanager"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func (n *daemonNativeTools) layoutGet(

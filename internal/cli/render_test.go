@@ -215,8 +215,8 @@ func TestVersionCommandFormats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("version human error = %v", err)
 	}
-	if !strings.Contains(humanOut, "agh ") {
-		t.Fatalf("version human output = %q, want agh prefix", humanOut)
+	if !strings.Contains(humanOut, "compozy ") {
+		t.Fatalf("version human output = %q, want compozy prefix", humanOut)
 	}
 
 	toonOut, _, err := executeRootCommand(t, deps, "version", "-o", "toon")

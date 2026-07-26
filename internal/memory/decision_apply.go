@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 // ApplyDecision persists the Decision WAL row before applying the corresponding file mutation.

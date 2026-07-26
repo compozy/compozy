@@ -6,13 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/frontmatter"
-	memorypkg "github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/frontmatter"
+	memorypkg "github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	yaml "github.com/goccy/go-yaml"
 )
 

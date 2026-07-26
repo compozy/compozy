@@ -3,24 +3,24 @@ package cli
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
 const sessionCreateExample = `  # Start a session in the current workspace using the configured default agent
-  agh session new
+  compozy session new
 
   # Start a named session for a specific registered workspace and agent
-  agh session new --workspace checkout-api --agent reviewer --name review-api
+  compozy session new --workspace checkout-api --agent reviewer --name review-api
 
   # Override provider, model, and reasoning effort for this session only
-  agh session new --provider codex --model gpt-5.6-sol --reasoning-effort max
+  compozy session new --provider codex --model gpt-5.6-sol --reasoning-effort max
 
   # Create the session and dispatch its first prompt after runtime activation
-  agh session new --prompt "Inspect the failing build and propose a fix"
+  compozy session new --prompt "Inspect the failing build and propose a fix"
 
   # Auto-register an absolute workspace path before creating the session
-  agh session new --cwd "$PWD" --agent reviewer`
+  compozy session new --cwd "$PWD" --agent reviewer`
 
 func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	var (

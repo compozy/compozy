@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T) {
@@ -53,7 +53,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if !strings.Contains(second, "resolve canonical `agh__skill_view` for full skill/resource instructions") {
 			t.Fatalf("second prompt = %q, want compact harness-agnostic skill_view guidance", second)
 		}
-		if !strings.Contains(second, "use `agh skill view <name>` as an operator fallback") {
+		if !strings.Contains(second, "use `compozy skill view <name>` as an operator fallback") {
 			t.Fatalf("second prompt = %q, want operator fallback guidance", second)
 		}
 		if !strings.HasSuffix(second, "list current skills again") {
@@ -254,7 +254,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if _, err := augmenter.skillsForSessionAgent(
 			t.Context(),
 			workspace,
-			aghconfig.AgentDef{Name: "authored", SourcePath: "/tmp/ws-1/.agh/agents/authored/AGENT.md"},
+			aghconfig.AgentDef{Name: "authored", SourcePath: "/tmp/ws-1/.compozy/agents/authored/AGENT.md"},
 			"sess-authored",
 		); err != nil {
 			t.Fatalf("skillsForSessionAgent(authored) error = %v", err)

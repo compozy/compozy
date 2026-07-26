@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // HooksConfig holds config-defined hook declarations.

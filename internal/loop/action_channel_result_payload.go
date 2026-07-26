@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	storepkg "github.com/compozy/agh/internal/store"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 type channelResultSendMeta struct {

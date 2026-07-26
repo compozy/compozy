@@ -6,7 +6,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func automationRunBundle(item RunRecord) outputBundle {

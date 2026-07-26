@@ -3,11 +3,11 @@ package settings
 import (
 	"maps"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func cloneProviderSettings(value ProviderSettings) ProviderSettings {

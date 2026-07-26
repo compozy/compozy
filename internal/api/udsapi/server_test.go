@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/session"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
 )
 

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) networkSubscriptions(

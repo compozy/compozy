@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func (s *ResourceStore) listOwnedLayoutInventory(

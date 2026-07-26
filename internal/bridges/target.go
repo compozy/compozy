@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // DeliveryMode identifies the daemon-owned outbound delivery behavior requested

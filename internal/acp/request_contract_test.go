@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestACPBehaviorContracts(t *testing.T) {

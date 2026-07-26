@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/fileutil"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/fileutil"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 func (s *Store) writeDreamArtifact(

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/api/contract"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/gin-gonic/gin"
 )
 

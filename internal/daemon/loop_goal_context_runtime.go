@@ -6,11 +6,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	looppkg "github.com/compozy/agh/internal/loop"
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 type loopGoalContextRuntime struct {

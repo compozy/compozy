@@ -3,7 +3,7 @@ package acpmock
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func validatePromptStopReason(path string, stopReason string) error {

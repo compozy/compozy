@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
@@ -156,7 +156,7 @@ func TestRuntimeHarnessWriteRuntimeManifestIncludesPathsAndTransportMetadata(t *
 		HTTPBaseURL:   "http://127.0.0.1:4317",
 		UDSBaseURL:    "http://unix",
 		CLI: &CLIClient{
-			binaryPath: "/tmp/agh-test-bin",
+			binaryPath: "/tmp/compozy-test-bin",
 			workdir:    "/repo",
 		},
 		processLogPath: processLogPath,
@@ -188,7 +188,7 @@ func TestRuntimeHarnessWriteRuntimeManifestIncludesPathsAndTransportMetadata(t *
 	if got, want := manifest.Transport.SocketPath, config.Daemon.Socket; got != want {
 		t.Fatalf("manifest.Transport.SocketPath = %q, want %q", got, want)
 	}
-	if got, want := manifest.Transport.CLIBinary, "/tmp/agh-test-bin"; got != want {
+	if got, want := manifest.Transport.CLIBinary, "/tmp/compozy-test-bin"; got != want {
 		t.Fatalf("manifest.Transport.CLIBinary = %q, want %q", got, want)
 	}
 	if got, want := manifest.ArtifactManifestPath, collector.ManifestPath(); got != want {
@@ -203,7 +203,7 @@ func TestInstallRuntimeCLIInstallsShimIntoRuntimeHome(t *testing.T) {
 	t.Parallel()
 
 	homePaths := NewHomePaths(t)
-	sourceBinary := filepath.Join(t.TempDir(), "agh-source")
+	sourceBinary := filepath.Join(t.TempDir(), "compozy-source")
 	payload := []byte("#!/bin/sh\nexit 0\n")
 	if err := os.WriteFile(sourceBinary, payload, 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", sourceBinary, err)
@@ -214,9 +214,9 @@ func TestInstallRuntimeCLIInstallsShimIntoRuntimeHome(t *testing.T) {
 		t.Fatalf("installRuntimeCLI() error = %v", err)
 	}
 
-	expectedName := "agh"
+	expectedName := "compozy"
 	if windowsGOOS == "windows" && filepath.Ext(shimPath) == ".exe" {
-		expectedName = "agh.exe"
+		expectedName = "compozy.exe"
 	}
 	if got, want := filepath.Base(shimPath), expectedName; got != want {
 		t.Fatalf("filepath.Base(shimPath) = %q, want %q", got, want)

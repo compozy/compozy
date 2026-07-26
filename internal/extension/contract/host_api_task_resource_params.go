@@ -3,11 +3,11 @@ package contract
 import (
 	"encoding/json"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // TasksParams filters visible tasks.

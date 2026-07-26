@@ -9,8 +9,8 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/api/ginutil"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/ginutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/gin-gonic/gin"
 )

@@ -1,6 +1,6 @@
 package extensionpkg
 
-import bridgepkg "github.com/compozy/agh/internal/bridges"
+import bridgepkg "github.com/compozy/compozy/internal/bridges"
 
 type hostAPIBridgeIngressContext struct {
 	params     bridgepkg.InboundMessageEnvelope

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/session"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestAssemblerAssemble(t *testing.T) {
@@ -85,7 +85,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		}
 	})
 
-	t.Run("Should includes agh memory command reference", func(t *testing.T) {
+	t.Run("Should includes compozy memory command reference", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
@@ -94,11 +94,11 @@ func TestAssemblerAssemble(t *testing.T) {
 		got := env.assemble(t)
 		for _, want := range []string{
 			"## Memory Commands",
-			"`agh memory list`",
-			"`agh memory search <query>`",
-			"`agh memory show <filename>`",
-			"`agh memory reindex`",
-			"`agh memory write --name <name> --type <type> --description <desc> --content <content>`",
+			"`compozy memory list`",
+			"`compozy memory search <query>`",
+			"`compozy memory show <filename>`",
+			"`compozy memory reindex`",
+			"`compozy memory write --name <name> --type <type> --description <desc> --content <content>`",
 		} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("assembled prompt missing command reference %q: %q", want, got)

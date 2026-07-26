@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {

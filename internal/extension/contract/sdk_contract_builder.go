@@ -3,7 +3,7 @@ package contract
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 // BuildHookContracts returns the canonical hook payload/patch registry in event order.

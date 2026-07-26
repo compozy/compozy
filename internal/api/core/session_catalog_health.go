@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(

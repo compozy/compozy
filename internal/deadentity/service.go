@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const maxPersistedReasonBytes = 512

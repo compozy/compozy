@@ -1,8 +1,8 @@
 package situation
 
 import (
-	"github.com/compozy/agh/internal/api/contract"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func taskReferencePayload(taskRecord taskpkg.Task) *contract.TaskReferencePayload {

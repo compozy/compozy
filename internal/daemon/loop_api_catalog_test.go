@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {

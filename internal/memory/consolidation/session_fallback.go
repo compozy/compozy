@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func createDreamSessionWithFallback(

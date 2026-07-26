@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 const forceOpsDocURL = "/runtime/core/autonomy/task-runs-and-leases#force-operations"
@@ -91,7 +91,7 @@ func (m *Service) ForceReleaseRun(
 				previous.Status.Normalize(),
 			),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("agh task inspect %s", previous.ID),
+			fmt.Sprintf("compozy task inspect %s", previous.ID),
 			map[string]any{runEvidenceIDKey: previous.ID, leaseStatusKey: previous.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
@@ -236,7 +236,7 @@ func (m *Service) RetryRun(
 			"Task run cannot be retried",
 			fmt.Sprintf("Run %s is %s; only failed runs can be retried.", source.ID, source.Status.Normalize()),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("agh task inspect %s", source.ID),
+			fmt.Sprintf("compozy task inspect %s", source.ID),
 			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: source.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)

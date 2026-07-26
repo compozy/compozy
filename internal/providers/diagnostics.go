@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 // DiagnosticItem builds the canonical provider diagnostic for a classifier result.
@@ -62,18 +62,18 @@ func severityForCode(code string) string {
 func SuggestedCommand(providerName string, classification Classification) string {
 	name := strings.TrimSpace(providerName)
 	if name == "" {
-		return "agh provider auth status"
+		return "compozy provider auth status"
 	}
 	switch actionForClassification(classification) {
 	case ProviderFailureActionLogin:
-		return "agh provider auth login " + name
+		return "compozy provider auth login " + name
 	case ProviderFailureActionBindSecret,
 		ProviderFailureActionInstallCLI,
 		ProviderFailureActionInspect,
 		ProviderFailureActionNoRetry:
-		return "agh provider auth status " + name
+		return "compozy provider auth status " + name
 	case ProviderFailureActionRetry:
-		return "agh provider auth status " + name + " --remote"
+		return "compozy provider auth status " + name + " --remote"
 	default:
 		return ""
 	}

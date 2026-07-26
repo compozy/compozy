@@ -3,9 +3,9 @@ package core
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	observepkg "github.com/compozy/agh/internal/observe"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // TaskCatalogResponseFromPage converts one bounded catalog page into its wire envelope.

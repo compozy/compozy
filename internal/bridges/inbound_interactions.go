@@ -3,7 +3,7 @@ package bridges
 import (
 	"time"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // InboundEventFamily identifies the typed inbound bridge event family.

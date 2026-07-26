@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestCreateManualSessionProducesRootLineage(t *testing.T) {

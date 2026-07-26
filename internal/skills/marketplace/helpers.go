@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func ensureMarketplaceSkillsDir(skillsDir string) error {

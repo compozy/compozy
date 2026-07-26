@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/provider/local"
+	"github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/memory/provider/local"
 )
 
 // Adapter exposes memory.Store through the local provider's contract-typed backend.

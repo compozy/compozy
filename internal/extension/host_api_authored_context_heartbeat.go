@@ -7,9 +7,9 @@ import (
 
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 func (h *HostAPIHandler) handleAgentsHeartbeatGet(ctx context.Context, raw json.RawMessage) (any, error) {

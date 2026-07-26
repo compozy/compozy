@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
 
 func (h *HostAPIHandler) handleAutomationJobs(ctx context.Context, raw json.RawMessage) (any, error) {

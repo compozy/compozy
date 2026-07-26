@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestTaskRunContextNetworkSpecSnapshot(t *testing.T) {
@@ -416,7 +416,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	authoredProvenance := AuthoredContextProvenance{
 		WorkspaceID:      "ws-1",
 		AgentName:        "coder",
-		SourcePath:       ".agh/agents/coder/SOUL.md",
+		SourcePath:       ".compozy/agents/coder/SOUL.md",
 		SnapshotID:       "ss-1",
 		Digest:           "soul-digest",
 		ConfigDigest:     "cfg-digest",
@@ -449,7 +449,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		AuthoredContextProvenance: AuthoredContextProvenance{
 			WorkspaceID:      "ws-1",
 			AgentName:        "coder",
-			SourcePath:       ".agh/agents/coder/HEARTBEAT.md",
+			SourcePath:       ".compozy/agents/coder/HEARTBEAT.md",
 			SnapshotID:       "hbs-1",
 			Digest:           "hb-digest",
 			ConfigDigest:     "cfg-digest",

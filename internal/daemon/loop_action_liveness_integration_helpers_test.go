@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/workspace"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 const loopActionLivenessIntegrationTimeout = 40 * time.Millisecond

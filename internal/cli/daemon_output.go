@@ -6,9 +6,9 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle {

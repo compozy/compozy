@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // CreateTask derives one canonical task record from trusted actor context and

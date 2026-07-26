@@ -18,8 +18,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/telegram/bin
 go build -o ./extensions/bridges/telegram/bin/telegram ./extensions/bridges/telegram
-agh extension install ./extensions/bridges/telegram --allow-unverified --yes -o json
-agh extension status telegram -o json
+compozy extension install ./extensions/bridges/telegram --allow-unverified --yes -o json
+compozy extension status telegram -o json
 ```
 
 ## Provider Config

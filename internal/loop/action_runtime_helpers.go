@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func actionContextWithNodeTimeout(

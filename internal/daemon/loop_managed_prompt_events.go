@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	eventspkg "github.com/compozy/agh/internal/events"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func readManagedGoalPromptOutput(

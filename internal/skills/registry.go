@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/compozy/agh/internal/filesnap"
+	"github.com/compozy/compozy/internal/filesnap"
 
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (

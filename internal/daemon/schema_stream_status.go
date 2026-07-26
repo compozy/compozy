@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 type daemonSchemaStreamStatusReader struct {

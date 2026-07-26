@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 func writeWebhookJSON(w http.ResponseWriter, body any) error {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
 // MCPAuthTargetRequest selects one exact global or workspace MCP definition.

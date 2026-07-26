@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
+	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
 type EventSummary struct {

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	sessionpkg "github.com/compozy/agh/internal/session"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
 func TestParseWhoisCapabilityDiscoveryRequestCapabilityFilterPresence(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 // DeleteHeartbeatAgentHistory removes revisions owned by one effective authored definition.

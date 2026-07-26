@@ -8,12 +8,12 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWarning bool) bool {

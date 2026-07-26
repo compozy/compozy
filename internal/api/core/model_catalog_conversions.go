@@ -3,8 +3,8 @@ package core
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 const (

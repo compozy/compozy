@@ -11,7 +11,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func sqliteTableExists(db *sql.DB, tableName string) (bool, error) {

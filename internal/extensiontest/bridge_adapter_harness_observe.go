@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	observepkg "github.com/compozy/agh/internal/observe"
+	observepkg "github.com/compozy/compozy/internal/observe"
 
-	aghtestutil "github.com/compozy/agh/internal/testutil"
+	aghtestutil "github.com/compozy/compozy/internal/testutil"
 )
 
 // AppendInboundUpdate appends one fake platform update line for the adapter to ingest.

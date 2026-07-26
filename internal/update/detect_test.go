@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestDetectInstallUsesManagedEnvironmentOverride(t *testing.T) {

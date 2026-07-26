@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	looppkg "github.com/compozy/agh/internal/loop"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestNewAutomationLoopStarter(t *testing.T) {

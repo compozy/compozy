@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/compozy/agh/internal/marketplace"
+	"github.com/compozy/compozy/internal/marketplace"
 )
 
 func main() {
@@ -44,12 +44,12 @@ func run(args []string, output io.Writer) error {
 		}
 		return packageCatalogExtension(args[1], args[2])
 	default:
-		return fmt.Errorf("unknown agh-catalog command %q", args[0])
+		return fmt.Errorf("unknown compozy-catalog command %q", args[0])
 	}
 }
 
 func catalogUsageError() error {
 	return errors.New(
-		"usage: agh-catalog <validate DIRECTORY|digest ARTIFACT|package SOURCE_DIRECTORY OUTPUT_ARCHIVE>",
+		"usage: compozy-catalog <validate DIRECTORY|digest ARTIFACT|package SOURCE_DIRECTORY OUTPUT_ARCHIVE>",
 	)
 }

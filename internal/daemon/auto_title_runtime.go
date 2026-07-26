@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const autoTitleQueueCapacity = 128

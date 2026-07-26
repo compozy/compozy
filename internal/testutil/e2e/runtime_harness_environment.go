@@ -13,9 +13,9 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string {
@@ -74,9 +74,9 @@ func installRuntimeCLI(homePaths aghconfig.HomePaths, binaryPath string) (string
 		return "", fmt.Errorf("mkdir runtime cli dir %q: %w", binDir, err)
 	}
 
-	targetName := "agh"
+	targetName := "compozy"
 	if runtime.GOOS == windowsGOOS {
-		targetName = "agh.exe"
+		targetName = "compozy.exe"
 	}
 	targetPath := filepath.Join(binDir, targetName)
 	if err := os.Remove(targetPath); err != nil && !errors.Is(err, os.ErrNotExist) {

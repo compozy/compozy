@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (m *Manager) dispatchSessionHealthUpdateAfter(

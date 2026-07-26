@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func TestDaemonLoopAPIServiceApproveLoopRun(t *testing.T) {

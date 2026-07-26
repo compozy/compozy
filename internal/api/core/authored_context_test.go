@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/soul"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/soul"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type soulIfMatchTestAuthoring struct {
@@ -756,9 +756,9 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 				artifacts: session.AgentArtifacts{
 					Agent:               aghconfig.AgentDef{Name: "marketer", Prompt: "Run marketing workflows."},
 					PackageOwned:        true,
-					SoulSourcePath:      ".agh/bundles/act/agents/marketer/SOUL.md",
+					SoulSourcePath:      ".compozy/bundles/act/agents/marketer/SOUL.md",
 					SoulBody:            "Lead with campaign context.",
-					HeartbeatSourcePath: ".agh/bundles/act/agents/marketer/HEARTBEAT.md",
+					HeartbeatSourcePath: ".compozy/bundles/act/agents/marketer/HEARTBEAT.md",
 					HeartbeatBody:       "Inspect campaigns and use AGH task APIs.",
 				},
 			}

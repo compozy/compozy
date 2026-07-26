@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
 const (

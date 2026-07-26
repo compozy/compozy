@@ -235,7 +235,7 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 					}},
 					Skills: []WorkspaceSkillRecord{{
 						Name:   "review",
-						Dir:    "/workspace/project/.agh/skills/review",
+						Dir:    "/workspace/project/.compozy/skills/review",
 						Source: "workspace",
 					}},
 				}, nil
@@ -433,7 +433,7 @@ func TestWorkspaceOutputFormats(t *testing.T) {
 					}},
 					Skills: []WorkspaceSkillRecord{{
 						Name:   "review",
-						Dir:    "/workspace/project/.agh/skills/review",
+						Dir:    "/workspace/project/.compozy/skills/review",
 						Source: "workspace",
 					}},
 				}, nil

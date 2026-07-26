@@ -9,18 +9,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/compozy/internal/diagnostics"
+	eventspkg "github.com/compozy/compozy/internal/events"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	ssepkg "github.com/compozy/agh/internal/sse"
-	"github.com/compozy/agh/internal/store"
+	ssepkg "github.com/compozy/compozy/internal/sse"
+	"github.com/compozy/compozy/internal/store"
 
-	"github.com/compozy/agh/internal/workref"
+	"github.com/compozy/compozy/internal/workref"
 )
 
 // SessionFailurePayloadFromStore converts a stored failure diagnostic into the

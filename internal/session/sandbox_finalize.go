@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	envpkg "github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/store"
+	envpkg "github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) finalizeSandbox(

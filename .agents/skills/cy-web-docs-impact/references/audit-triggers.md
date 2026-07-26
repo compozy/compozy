@@ -9,7 +9,7 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 - `internal/api/httpapi/**` — HTTP/SSE responses feed the React SPA.
 - `internal/api/udsapi/**` — UDS responses feed CLI consumers; web indirectly via HTTP parity.
 - `internal/cli/**` — every new or renamed CLI verb regenerates `packages/site/content/runtime/cli/` via `make cli-docs`.
-- `cmd/agh/**` — top-level binary changes affect docs/getting-started/snippets.
+- `cmd/compozy/**` — top-level binary changes affect docs/getting-started/snippets.
 - `internal/config/**` — new TOML keys or sections affect `packages/site/content/runtime/configuration/`.
 - `internal/extension/**`, `internal/bridgesdk/**`, `internal/bridges/**` — extension and bridge surfaces affect the runtime extensibility contract.
 - `internal/hooks/**` — hook taxonomy or payload changes affect extension authors and agent workflows.

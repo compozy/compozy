@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/marketplace"
-	"github.com/compozy/agh/internal/vault"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // MCPCatalogInstallNextStep directs the caller to the only valid follow-up state.

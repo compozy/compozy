@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {

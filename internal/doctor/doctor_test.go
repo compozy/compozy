@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/subprocess"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestRegistry(t *testing.T) {
@@ -456,7 +456,7 @@ func TestBridgeProbeCategoryFilter(t *testing.T) {
 			!strings.Contains(item.Message, "bot_token") {
 			t.Fatalf("bridge diagnostic = %#v, want failed bot_token remediation", item)
 		}
-		if item.SuggestedCommand != "agh bridge verify brg-slack" {
+		if item.SuggestedCommand != "compozy bridge verify brg-slack" {
 			t.Fatalf("SuggestedCommand = %q, want bridge verify follow-up", item.SuggestedCommand)
 		}
 	})

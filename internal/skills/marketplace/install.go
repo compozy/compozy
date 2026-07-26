@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/skills"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/skills"
 )
 
 // InstallWithRegistry installs one marketplace skill using the supplied registry.
@@ -34,7 +34,7 @@ func InstallWithRegistry(
 		return InstallResult{}, err
 	}
 
-	tempRoot, err := os.MkdirTemp(skillsDir, ".agh-skill-stage-*")
+	tempRoot, err := os.MkdirTemp(skillsDir, ".compozy-skill-stage-*")
 	if err != nil {
 		return InstallResult{}, fmt.Errorf("create temporary install directory: %w", err)
 	}

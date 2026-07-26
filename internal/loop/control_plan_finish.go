@@ -1,8 +1,8 @@
 package loop
 
 import (
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func finishInitialControlPlan(

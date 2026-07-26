@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func countTaskStatus(rows []TaskStatusTotal, status taskpkg.Status) int {

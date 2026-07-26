@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func structuredResult(value any, preview string) (toolspkg.ToolResult, error) {

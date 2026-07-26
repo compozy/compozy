@@ -3,7 +3,7 @@ package bridges
 import (
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestBrokerProjectEventRefacs(t *testing.T) {

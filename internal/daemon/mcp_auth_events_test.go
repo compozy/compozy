@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/store"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestDaemonMCPAuthNotifierWritesOnlyRedactedLifecycleOutcome(t *testing.T) {

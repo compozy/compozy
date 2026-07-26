@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	observepkg "github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestValidateConformanceAcceptsHealthyOrderedReport(t *testing.T) {

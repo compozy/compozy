@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	heartbeatpkg "github.com/compozy/agh/internal/heartbeat"
-	soulpkg "github.com/compozy/agh/internal/soul"
+	heartbeatpkg "github.com/compozy/compozy/internal/heartbeat"
+	soulpkg "github.com/compozy/compozy/internal/soul"
 )
 
 func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {
@@ -26,7 +26,7 @@ func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {
 					SnapshotID:       "soul-snapshot-1",
 					Digest:           "sha256:soul",
 					ConfigDigest:     "sha256:config",
-					SourcePath:       ".agh/agents/coder/SOUL.md",
+					SourcePath:       ".compozy/agents/coder/SOUL.md",
 					Role:             "reviewer",
 					Tone:             []string{"direct"},
 					Principles:       []string{"state facts"},
@@ -47,7 +47,7 @@ func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {
 			Valid:            true,
 			ValidationStatus: AuthoredValidationValid,
 			Digest:           "sha256:soul",
-			SourcePath:       ".agh/agents/coder/SOUL.md",
+			SourcePath:       ".compozy/agents/coder/SOUL.md",
 			Frontmatter: AgentSoulFrontmatterPayload{
 				Role: "reviewer",
 				Tone: []string{"direct"},
@@ -142,14 +142,14 @@ func TestAuthoredContextDomainConversions(t *testing.T) {
 			Present:    true,
 			Active:     true,
 			Valid:      true,
-			SourcePath: ".agh/agents/coder/SOUL.md",
+			SourcePath: ".compozy/agents/coder/SOUL.md",
 			Digest:     "sha256:soul",
 			Compact: soulpkg.CompactProjection{
 				Enabled:      true,
 				Present:      true,
 				Active:       true,
 				Digest:       "sha256:soul",
-				SourcePath:   ".agh/agents/coder/SOUL.md",
+				SourcePath:   ".compozy/agents/coder/SOUL.md",
 				Role:         "reviewer",
 				Tone:         []string{"direct"},
 				Principles:   []string{"state facts"},
@@ -161,7 +161,7 @@ func TestAuthoredContextDomainConversions(t *testing.T) {
 				Present:                true,
 				Active:                 true,
 				Valid:                  true,
-				SourcePath:             ".agh/agents/coder/SOUL.md",
+				SourcePath:             ".compozy/agents/coder/SOUL.md",
 				Digest:                 "sha256:soul",
 				Frontmatter:            soulpkg.Frontmatter{Role: "reviewer", Tone: []string{"direct"}},
 				Body:                   "full persona prose",

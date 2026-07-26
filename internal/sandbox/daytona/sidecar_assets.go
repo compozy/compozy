@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	launcherSidecarAssetAMD64 = "sidecar_assets/agh-daytona-sidecar-linux-amd64.gz"
-	launcherSidecarAssetARM64 = "sidecar_assets/agh-daytona-sidecar-linux-arm64.gz"
+	launcherSidecarAssetAMD64 = "sidecar_assets/compozy-daytona-sidecar-linux-amd64.gz"
+	launcherSidecarAssetARM64 = "sidecar_assets/compozy-daytona-sidecar-linux-arm64.gz"
 	launcherSidecarArchAMD64  = "amd64"
 	launcherSidecarArchARM64  = "arm64"
 )
 
-//go:embed sidecar_assets/agh-daytona-sidecar-linux-amd64.gz sidecar_assets/agh-daytona-sidecar-linux-arm64.gz
+//go:embed sidecar_assets/compozy-daytona-sidecar-linux-amd64.gz sidecar_assets/compozy-daytona-sidecar-linux-arm64.gz
 var launcherSidecarAssets embed.FS
 
 func embeddedLauncherSidecarBinary(arch string) ([]byte, error) {

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
 )
 

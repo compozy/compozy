@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
 

@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // WindowManagerService is the semantic window-manager port consumed by public transports.

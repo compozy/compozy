@@ -7,9 +7,9 @@ import (
 
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // CreateInstance persists one bridge instance and, when the instance is

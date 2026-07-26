@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/memory/scan"
+	"github.com/compozy/compozy/internal/memory/scan"
 )
 
 // BatchAction identifies one staged mutation of a Memory v2 document body.

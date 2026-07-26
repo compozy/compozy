@@ -5,9 +5,9 @@ import (
 
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (m *Manager) fireHookRecord(ctx context.Context, sessionID string, record hookspkg.HookRunRecord) error {

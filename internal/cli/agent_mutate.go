@@ -7,9 +7,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 		Use:   "create <name>",
 		Short: "Create a global or workspace-local agent definition",
 		Long:  "Create a global or workspace-local agent definition through a running AGH daemon.",
-		Example: `  agh agent create pricing_strategist \
+		Example: `  compozy agent create pricing_strategist \
     --workspace ~/dev/ad8 \
     --provider claude \
     --model claude-sonnet-5 \

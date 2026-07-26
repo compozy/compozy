@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/task"
 )
 
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.

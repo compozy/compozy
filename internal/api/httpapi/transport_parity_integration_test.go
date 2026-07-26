@@ -18,12 +18,12 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	apispec "github.com/compozy/agh/internal/api/spec"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	apispec "github.com/compozy/compozy/internal/api/spec"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	tomltree "github.com/pelletier/go-toml"
 )
 

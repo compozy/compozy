@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/fileutil"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/compozy/internal/fileutil"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 func (s *Store) writeRaw(

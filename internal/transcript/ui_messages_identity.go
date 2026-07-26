@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func toolInputFromDecoded(decoded *decodedStoredEvent) (json.RawMessage, bool) {

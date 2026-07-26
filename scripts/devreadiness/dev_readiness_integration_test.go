@@ -33,7 +33,7 @@ func TestDevDaemonReadiness(t *testing.T) {
 		markerPath := filepath.Join(tempDir, "ready-sent")
 		stateDir := filepath.Join(tempDir, "state")
 		startLog := filepath.Join(tempDir, "daemon-started")
-		binaryPath := writeExecutable(t, tempDir, "agh", `#!/usr/bin/env bash
+		binaryPath := writeExecutable(t, tempDir, "compozy", `#!/usr/bin/env bash
 set -euo pipefail
 case "${1:-} ${2:-}" in
   "daemon stop")

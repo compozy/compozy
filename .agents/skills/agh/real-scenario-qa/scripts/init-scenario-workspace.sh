@@ -12,7 +12,7 @@ if [[ -z "$slug" ]]; then
   slug="release-candidate"
 fi
 
-workspace_path="$base_dir/agh-$slug-lab"
+workspace_path="$base_dir/compozy-$slug-lab"
 qa_output_path="$workspace_path/qa-artifacts"
 
 mkdir -p \
@@ -22,7 +22,7 @@ mkdir -p \
   "$workspace_path/finance" \
   "$workspace_path/ops" \
   "$workspace_path/reviews" \
-  "$workspace_path/.agh" \
+  "$workspace_path/.compozy" \
   "$qa_output_path/qa/test-plans" \
   "$qa_output_path/qa/test-cases" \
   "$qa_output_path/qa/issues" \

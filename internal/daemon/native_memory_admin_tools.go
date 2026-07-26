@@ -7,14 +7,14 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (

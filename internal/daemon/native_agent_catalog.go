@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/core"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/core"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (n *daemonNativeTools) workspaceAgents(

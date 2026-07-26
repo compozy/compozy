@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/task"
 )
 
 const (

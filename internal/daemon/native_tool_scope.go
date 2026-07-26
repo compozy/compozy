@@ -8,17 +8,17 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type nativeBoundSessionScope struct {

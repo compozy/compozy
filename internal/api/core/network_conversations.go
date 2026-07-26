@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 

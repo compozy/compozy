@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/modelcatalog"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 // ModelSourceRuntime calls AGH-to-extension model source services.

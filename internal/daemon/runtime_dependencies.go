@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/compozy/internal/api/core"
 )
 
 func (d *Daemon) runtimeDeps(

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
 func (s *daemonExtensionService) marketplaceInstallRequest(

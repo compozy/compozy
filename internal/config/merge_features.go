@@ -5,8 +5,8 @@ import (
 
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (o skillsOverlay) Apply(dst *SkillsConfig) {

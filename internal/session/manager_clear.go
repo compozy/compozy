@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/fileutil"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type sessionDBBackup struct {

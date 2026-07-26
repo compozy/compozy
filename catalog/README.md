@@ -9,14 +9,14 @@ reviewable source under `packages/<name>/` and the deterministic archive under `
 Package and validate a first-party extension from the repository root:
 
 ```bash
-go run ./cmd/agh-catalog package \
+go run ./cmd/compozy-catalog package \
   ./catalog/packages/repository-orientation \
   ./catalog/artifacts/repository-orientation-v1.0.0.tar.gz
 
 ./scripts/catalog-digest.sh \
   ./catalog/artifacts/repository-orientation-v1.0.0.tar.gz
 
-go run ./cmd/agh-catalog validate ./catalog
+go run ./cmd/compozy-catalog validate ./catalog
 ```
 
 Update `extensions.json` with the generated digest and a versioned `artifact_url`. Validation runs

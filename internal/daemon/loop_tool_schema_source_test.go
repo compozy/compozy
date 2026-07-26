@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/subprocess"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/subprocess"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestLoopToolSchemaSource(t *testing.T) {

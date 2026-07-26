@@ -1,6 +1,6 @@
 package loop
 
-import "github.com/compozy/agh/internal/network/participation"
+import "github.com/compozy/compozy/internal/network/participation"
 
 // RunNetworkState keeps immutable participation off the hot loop Run value.
 type RunNetworkState struct {

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/fileutil"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

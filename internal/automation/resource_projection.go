@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // BuildJobResourceState builds the next scheduler plan from canonical automation.job records.

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 type capturedMigrationLog struct {

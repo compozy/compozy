@@ -3,11 +3,11 @@ package contract
 import (
 	"time"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/network/participation"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const (

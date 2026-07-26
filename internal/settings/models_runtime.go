@@ -3,9 +3,9 @@ package settings
 import (
 	"time"
 
-	automationmodel "github.com/compozy/agh/internal/automation/model"
-	aghconfig "github.com/compozy/agh/internal/config"
-	skillspkg "github.com/compozy/agh/internal/skills"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 // AutomationSettings groups the editable automation-engine settings.

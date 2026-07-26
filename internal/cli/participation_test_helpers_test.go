@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func testParticipationChannelID(channel string) *string {

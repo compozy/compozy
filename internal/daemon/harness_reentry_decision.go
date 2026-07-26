@@ -7,12 +7,12 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (b *harnessReentryBridge) applyWakeDecision(

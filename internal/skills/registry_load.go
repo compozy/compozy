@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/filesnap"
+	"github.com/compozy/compozy/internal/filesnap"
 )
 
 func (r *Registry) loadGlobalSkills(

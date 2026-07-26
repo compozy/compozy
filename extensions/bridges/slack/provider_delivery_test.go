@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/bridgesdk"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 func TestSlackContractIngressRouting(t *testing.T) {
@@ -48,7 +48,7 @@ func TestSlackContractIngressRouting(t *testing.T) {
 		mapped, err := mapSlackSlashCommand(url.Values{
 			"channel_id":   {"D123"},
 			"channel_name": {"directmessage"},
-			"command":      {"/agh"},
+			"command":      {"/compozy"},
 			"text":         {"status"},
 			"user_id":      {"U123"},
 		}, managed, now)

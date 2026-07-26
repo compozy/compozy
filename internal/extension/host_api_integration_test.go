@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/acp"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func withHostAPIHooks(hooks *hookspkg.Hooks) hostAPITestEnvOption {

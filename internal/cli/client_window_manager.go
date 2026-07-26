@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // WindowManagerStreamHandlers receives the initial fence and later topology or client updates.

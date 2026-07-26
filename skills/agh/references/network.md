@@ -46,8 +46,8 @@ Usage is aggregate per turn:
 - `actual` means the provider reported input/output tokens.
 - `usage_unavailable` means it did not; never substitute zero or estimate provider usage.
 
-Inspect workspace usage with `agh network usage -o json` or the matching API. Usage visibility is
-not a currency spend limit. Inspect a wake's durable `task_run_id` with `agh task run show`; a
+Inspect workspace usage with `compozy network usage -o json` or the matching API. Usage visibility is
+not a currency spend limit. Inspect a wake's durable `task_run_id` with `compozy task run show`; a
 taskless Network wake omits the `task` reference instead of fabricating one.
 
 ## Conversation containers
@@ -67,20 +67,20 @@ release, recovery, and review verdicts.
 ## CLI fallback
 
 ```bash
-agh network status -o json
-agh network channels -o json
-agh network peers "$AGH_SESSION_CHANNEL" -o json
-agh network threads list --channel "$AGH_SESSION_CHANNEL" -o json
-agh network threads messages --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o jsonl
-agh network directs resolve --session "$AGH_SESSION_ID" --channel "$AGH_SESSION_CHANNEL" --peer reviewer.sess-xyz -o json
-agh network work lookup --work work_review_42 -o json
-agh network usage -o json
+compozy network status -o json
+compozy network channels -o json
+compozy network peers "$AGH_SESSION_CHANNEL" -o json
+compozy network threads list --channel "$AGH_SESSION_CHANNEL" -o json
+compozy network threads messages --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o jsonl
+compozy network directs resolve --session "$AGH_SESSION_ID" --channel "$AGH_SESSION_CHANNEL" --peer reviewer.sess-xyz -o json
+compozy network work lookup --work work_review_42 -o json
+compozy network usage -o json
 ```
 
 Example addressed message:
 
 ```bash
-agh network send \
+compozy network send \
   --session "$AGH_SESSION_ID" \
   --channel "$AGH_SESSION_CHANNEL" \
   --surface thread \
@@ -100,9 +100,9 @@ surfaces use `--network local|live`, `--network-channel-strategy named|run|loop_
 Workspace coordination:
 
 ```bash
-agh network coordination status -o json
-agh network coordination enable -o json
-agh network coordination disable -o json
+compozy network coordination status -o json
+compozy network coordination enable -o json
+compozy network coordination disable -o json
 ```
 
 An explicit execution request wins over its owning profile, then workspace coordination, then the

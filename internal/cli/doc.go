@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/compozy/agh/internal/cli/docpost"
+	"github.com/compozy/compozy/internal/cli/docpost"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 )
@@ -27,7 +27,7 @@ func newDocCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			root := cmd.Root()
 
-			tmpDir, err := os.MkdirTemp("", "agh-cli-docs-*")
+			tmpDir, err := os.MkdirTemp("", "compozy-cli-docs-*")
 			if err != nil {
 				return fmt.Errorf("doc: create temp dir: %w", err)
 			}

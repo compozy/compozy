@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensiontest "github.com/compozy/agh/internal/extensiontest"
-	observepkg "github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/acp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensiontest "github.com/compozy/compozy/internal/extensiontest"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 const (
@@ -151,7 +151,7 @@ func TestSlackProviderIngressInteractionsAndDeliveryConformance(t *testing.T) {
 		webhookURL,
 		"top-secret",
 		startTime,
-		"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=summarize&trigger_id=1337.42",
+		"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fcompozy&text=summarize&trigger_id=1337.42",
 	)
 	postSlackProviderFormWebhook(
 		t,
@@ -227,7 +227,7 @@ func TestSlackProviderIngressInteractionsAndDeliveryConformance(t *testing.T) {
 	if command.Envelope.Command == nil {
 		t.Fatal("command envelope missing command payload")
 	}
-	if got, want := command.Envelope.Command.Command, "/agh"; got != want {
+	if got, want := command.Envelope.Command.Command, "/compozy"; got != want {
 		t.Fatalf("command.Command = %q, want %q", got, want)
 	}
 

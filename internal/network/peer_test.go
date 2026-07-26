@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	sessionpkg "github.com/compozy/agh/internal/session"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
 func TestPeerRegistryTracksLocalMembership(t *testing.T) {

@@ -7,13 +7,13 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func decodeJSONValue(raw string) any {

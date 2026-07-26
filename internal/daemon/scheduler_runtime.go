@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	schedulerpkg "github.com/compozy/agh/internal/scheduler"
-	"github.com/compozy/agh/internal/situation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
+	"github.com/compozy/compozy/internal/situation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (

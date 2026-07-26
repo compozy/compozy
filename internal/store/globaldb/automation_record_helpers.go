@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	automation "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func encodeJobRecord(job automation.Job) (string, any, string, string, automationLoopTargetEncoded, error) {

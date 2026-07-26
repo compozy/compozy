@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // NetworkCoordinationPayload is the workspace coordination setting plus invitation state.

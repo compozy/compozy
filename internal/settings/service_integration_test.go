@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/vault"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )

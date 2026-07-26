@@ -25,17 +25,17 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
-	"github.com/compozy/agh/internal/cli"
-	aghconfig "github.com/compozy/agh/internal/config"
-	daemonpkg "github.com/compozy/agh/internal/daemon"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	"github.com/compozy/compozy/internal/cli"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	daemonpkg "github.com/compozy/compozy/internal/daemon"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/kballard/go-shellquote"
 )
@@ -412,7 +412,7 @@ func referenceDisableBundledDevCycle(t *testing.T, homePaths aghconfig.HomePaths
 func referenceMarkerDir(t *testing.T) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "agh-reference-extension-markers-")
+	dir, err := os.MkdirTemp("", "compozy-reference-extension-markers-")
 	if err != nil {
 		t.Fatalf("os.MkdirTemp(reference markers) error = %v", err)
 	}
@@ -1212,7 +1212,7 @@ func referenceWriteProviderConfig(
 func referenceShortSocketPath(t *testing.T) string {
 	t.Helper()
 
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("agh-reference-%d.sock", time.Now().UTC().UnixNano()))
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("compozy-reference-%d.sock", time.Now().UTC().UnixNano()))
 	t.Cleanup(func() {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Remove(%q) cleanup error = %v", path, err)

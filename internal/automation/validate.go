@@ -1,6 +1,6 @@
 package automation
 
-import modelpkg "github.com/compozy/agh/internal/automation/model"
+import modelpkg "github.com/compozy/compozy/internal/automation/model"
 
 // DefaultRetryConfig returns the default retry policy for automation definitions.
 func DefaultRetryConfig() RetryConfig {

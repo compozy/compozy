@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/observe"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/observe"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // ParseTaskListQuery parses the bounded task catalog query parameters.

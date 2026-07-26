@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 // ObserveOverviewQuery bounds one home overview read.

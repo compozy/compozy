@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -1554,7 +1554,7 @@ func TestCreateAutomationJobReturnsBlockedLifecycleClass(t *testing.T) {
 				"scope":"global",
 				"name":"blocked-restart",
 				"agent_name":"codex",
-				"prompt":"Run agh daemon restart now",
+				"prompt":"Run compozy daemon restart now",
 				"schedule":{"mode":"every","interval":"1h"}
 			}`),
 			nil,

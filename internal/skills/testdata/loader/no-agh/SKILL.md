@@ -1,6 +1,6 @@
 ---
-name: no-agh
-description: Skill without agh metadata
+name: no-compozy
+description: Skill without compozy metadata
 metadata:
   docs:
     category: docs

@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func initializeTranscriptProjectionState(ctx context.Context, db *sql.DB) error {

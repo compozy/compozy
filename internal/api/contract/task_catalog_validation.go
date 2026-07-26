@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // ValidateTaskListQuery validates transport-owned fields before workspace resolution or storage access.

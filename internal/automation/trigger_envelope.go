@@ -13,8 +13,8 @@ import (
 
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (e *TriggerEngine) hookCompletionEnvelope(

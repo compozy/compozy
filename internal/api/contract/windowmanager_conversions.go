@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // WindowManagerSnapshotFromDomain converts the authoritative domain snapshot to its stable wire form.

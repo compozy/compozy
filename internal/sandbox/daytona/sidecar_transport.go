@@ -19,9 +19,9 @@ import (
 
 const (
 	launcherSidecarPort               = 40241
-	launcherSidecarVersion            = "agh-daytona-launcher-sidecar-v1"
-	launcherSidecarPath               = "/tmp/agh-daytona-launcher-sidecar-v1"
-	launcherSidecarLogPath            = "/tmp/agh-daytona-launcher-sidecar-v1.log"
+	launcherSidecarVersion            = "compozy-daytona-launcher-sidecar-v1"
+	launcherSidecarPath               = "/tmp/compozy-daytona-launcher-sidecar-v1"
+	launcherSidecarLogPath            = "/tmp/compozy-daytona-launcher-sidecar-v1.log"
 	sidecarHealthPath                 = "healthz"
 	sidecarLaunchPath                 = "v1/launch"
 	sidecarSessionStreamBasePath      = "v1/sessions"

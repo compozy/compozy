@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func usageWorkspaceService() testutil.StubWorkspaceService {

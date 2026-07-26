@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/network/participation"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) networkParticipationAvailability(

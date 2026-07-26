@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/codegen/jsbin"
+	"github.com/compozy/compozy/internal/codegen/jsbin"
 )
 
 // Artifact describes one checked-in OpenAPI document and its generated type output.

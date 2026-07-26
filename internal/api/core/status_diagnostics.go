@@ -4,10 +4,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	authproviders "github.com/compozy/agh/internal/providers"
+	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
 func splitStatusFilter(values []string, raw string) []string {

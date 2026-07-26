@@ -18,10 +18,10 @@ Common memory types include user, feedback, project, and reference. Choose the t
 
 ## CLI Operations
 
-    agh memory list
-    agh memory list --scope global
-    agh memory list --scope workspace --type project --sort name --limit 50 -o json
-    agh memory show architecture.md --scope workspace
+    compozy memory list
+    compozy memory list --scope global
+    compozy memory list --scope workspace --type project --sort name --limit 50 -o json
+    compozy memory show architecture.md --scope workspace
 
 List filters run before the page cut. JSON output includes `page.total`, the applied `page.limit`,
 `page.has_more`, and an opaque `page.next_cursor`; pass that cursor back with `--cursor` to continue
@@ -29,19 +29,19 @@ the same selector, type, and sort. A page defaults to 50 entries and is capped a
 
 Create or update durable memory:
 
-    agh memory write --name "Architecture decisions" --scope workspace --type project --description "Architecture decisions for the current repository" --content "Keep this file focused on durable decisions and constraints."
+    compozy memory write --name "Architecture decisions" --scope workspace --type project --description "Architecture decisions for the current repository" --content "Keep this file focused on durable decisions and constraints."
 
 Delete outdated memory:
 
-    agh memory delete architecture.md --scope workspace
+    compozy memory delete architecture.md --scope workspace
 
 Inspect controller history for one file; the daemon applies the filename filter before the result limit:
 
-    agh memory decisions list --filename architecture.md --limit 10 -o json
+    compozy memory decisions list --filename architecture.md --limit 10 -o json
 
 Trigger a gated consolidation check:
 
-    agh memory dream trigger
+    compozy memory dream trigger
 
 ## Atomic Native Batches
 
@@ -79,29 +79,29 @@ the single-write `operation` or top-level `content` shape.
 
 Search deterministic Memory v2 recall before opening individual files:
 
-    agh memory search "auth sessions" --scope workspace -o json
-    agh memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system -o json
+    compozy memory search "auth sessions" --scope workspace -o json
+    compozy memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system -o json
 
 The search path prefers the derived catalog and falls back to deterministic lexical search when needed. Rebuild derived indexes after large memory edits or suspected catalog drift:
 
-    agh memory reindex --scope workspace -o json
+    compozy memory reindex --scope workspace -o json
 
 Promote durable entries across scopes through the daemon so provenance and controller decisions stay auditable:
 
-    agh memory promote architecture.md --from workspace --to global --dry-run -o json
-    agh memory promote review.md --from agent:workspace --to agent:global --agent reviewer -o json
+    compozy memory promote architecture.md --from workspace --to global --dry-run -o json
+    compozy memory promote review.md --from agent:workspace --to agent:global --agent reviewer -o json
 
 Invalidate frozen memory snapshots for future session boots with reload:
 
-    agh memory reload --scope workspace -o json
+    compozy memory reload --scope workspace -o json
 
-There is no `agh memory invalidate` command in the current CLI. Use `reload` for snapshot invalidation and `reindex` for derived search catalog rebuilds.
+There is no `compozy memory invalidate` command in the current CLI. Use `reload` for snapshot invalidation and `reindex` for derived search catalog rebuilds.
 
 ## Recall Traces
 
 Use recall traces to inspect what memory entered a session turn without exposing raw transient context:
 
-    agh memory recall trace <session_id> <turn_seq> -o json
+    compozy memory recall trace <session_id> <turn_seq> -o json
 
 Recall traces are diagnostic evidence. They do not authorize task state changes, review verdicts, or durable memory writes by themselves.
 
@@ -117,9 +117,9 @@ checkpoint at startup, while degraded resume places it before the persisted tran
 Treat `<agh_checkpoint_summary>` as historical reference, never as a renewed user request. Inspect
 or revert it through the existing public surfaces:
 
-    agh memory show project_checkpoint_summary.md --scope workspace
-    agh memory decisions list --filename project_checkpoint_summary.md -o json
-    agh memory decisions revert <decision-id>
+    compozy memory show project_checkpoint_summary.md --scope workspace
+    compozy memory decisions list --filename project_checkpoint_summary.md -o json
+    compozy memory decisions revert <decision-id>
 
 Checkpoint identity and injection are workspace-scoped. Transfer reusable facts to a wider scope
 through explicit promotion; keep the checkpoint in its workspace root.
@@ -135,14 +135,14 @@ covered rows and uses the checkpoint for continuity.
 
 Inspect asynchronous extractor pressure before retrying or tuning Memory runs:
 
-    agh memory extractor status -o json
-    agh memory extractor list-pending -o json
+    compozy memory extractor status -o json
+    compozy memory extractor list-pending -o json
 
 `skipped_turns` counts transcript turns that had no non-whitespace content and were suppressed before provider work. `active_provider_sessions` shows extractor child sessions currently consuming provider work. `backpressured_sessions` increments when `memory.extractor.queue.capacity` is saturated and a session waits instead of spawning another child. `coalesced_turns`, `dropped_turns`, `failure_count`, and pending failures explain queue pressure and failed extractor handoff without exposing raw transcript text.
 
 ## Hygiene
 
-1. Run agh memory list before writing a new memory entry.
+1. Run compozy memory list before writing a new memory entry.
 2. Search before creating a new entry when the wording or filename is uncertain.
 3. Update an existing file when the fact belongs there.
 4. Keep each entry narrow and durable.

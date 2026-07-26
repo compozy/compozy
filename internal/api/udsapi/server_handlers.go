@@ -1,6 +1,6 @@
 package udsapi
 
-import core "github.com/compozy/agh/internal/api/core"
+import core "github.com/compozy/compozy/internal/api/core"
 
 func newHandlers(cfg *handlerConfig) *Handlers {
 	if cfg == nil {

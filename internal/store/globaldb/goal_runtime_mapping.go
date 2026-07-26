@@ -3,10 +3,10 @@ package globaldb
 import (
 	"database/sql"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func goalSessionOutboxFromGenerated(row sqlcgen.LoopGoalSessionOutbox) goal.SessionOutboxEvent {

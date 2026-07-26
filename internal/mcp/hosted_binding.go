@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 // Bind consumes a launch nonce after validating the Unix peer and expected binary.

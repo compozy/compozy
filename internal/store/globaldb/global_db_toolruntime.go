@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 var _ toolruntime.Store = (*ToolRuntimeRepo)(nil)

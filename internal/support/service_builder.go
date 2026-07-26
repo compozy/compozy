@@ -77,7 +77,7 @@ func (b *Builder) openBundleFile(now time.Time) (bundleFile, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return bundleFile{}, fmt.Errorf("support: create bundle directory: %w", err)
 	}
-	fileName := fmt.Sprintf("agh-support-bundle-%s.tar.gz", now.Format("20060102T150405Z"))
+	fileName := fmt.Sprintf("compozy-support-bundle-%s.tar.gz", now.Format("20060102T150405Z"))
 	path := filepath.Join(dir, fileName)
 	tmpPath := path + ".tmp"
 	file, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/gin-gonic/gin"
 )
 

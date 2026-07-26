@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/vault"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const bridgeSecretNamespace = "bridges"

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *daemonExtensionService) finalizeMarketplaceUpdateBatch(

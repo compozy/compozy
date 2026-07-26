@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const loopActionClaimRetryInterval = time.Second

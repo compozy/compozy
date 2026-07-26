@@ -42,13 +42,13 @@ func (s WriteScope) Validate() error {
 type WriteTargetKind string
 
 const (
-	// WriteTargetGlobalConfig writes `~/.agh/config.toml`.
+	// WriteTargetGlobalConfig writes `~/.compozy/config.toml`.
 	WriteTargetGlobalConfig WriteTargetKind = "global-config"
-	// WriteTargetWorkspaceConfig writes `<workspace>/.agh/config.toml`.
+	// WriteTargetWorkspaceConfig writes `<workspace>/.compozy/config.toml`.
 	WriteTargetWorkspaceConfig WriteTargetKind = "workspace-config"
-	// WriteTargetGlobalMCPSidecar writes `~/.agh/mcp.json`.
+	// WriteTargetGlobalMCPSidecar writes `~/.compozy/mcp.json`.
 	WriteTargetGlobalMCPSidecar WriteTargetKind = "global-mcp-sidecar"
-	// WriteTargetWorkspaceMCPSidecar writes `<workspace>/.agh/mcp.json`.
+	// WriteTargetWorkspaceMCPSidecar writes `<workspace>/.compozy/mcp.json`.
 	WriteTargetWorkspaceMCPSidecar WriteTargetKind = "workspace-mcp-sidecar"
 )
 

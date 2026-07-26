@@ -1,6 +1,6 @@
 # Forbidden prompt phrases
 
-The auditor scans every prompt sent to an agent under test (journey-log entries with `surface=provider` or `surface=runtime`, the provider-attempt file, every `*.jsonl` under `qa-artifacts/qa/`, and any captured `agh session prompt` payload) for the phrases below. A match is a hard blocker (auditor exit code 2).
+The auditor scans every prompt sent to an agent under test (journey-log entries with `surface=provider` or `surface=runtime`, the provider-attempt file, every `*.jsonl` under `qa-artifacts/qa/`, and any captured `compozy session prompt` payload) for the phrases below. A match is a hard blocker (auditor exit code 2).
 
 Exception: the operator kickoff message is exempt **only** when the journey-log entry is marked `kickoff: true` AND `surface: runtime` AND `actor` matches the playbook's `operator_persona.name` (or `operator_persona.role` if name is absent). Anything else carrying these phrases is rejected.
 

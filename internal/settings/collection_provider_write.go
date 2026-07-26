@@ -8,12 +8,12 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/vault"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *service) buildSandboxItems(

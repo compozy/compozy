@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type runtimeProvider struct {

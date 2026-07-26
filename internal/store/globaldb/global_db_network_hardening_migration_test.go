@@ -9,9 +9,9 @@ import (
 	"testing/fstest"
 
 	atlasmigrate "ariga.io/atlas/sql/migrate"
-	"github.com/compozy/agh/internal/store"
-	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/store"
+	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestNetworkParticipationHardeningMigration(t *testing.T) {

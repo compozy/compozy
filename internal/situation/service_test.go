@@ -10,16 +10,16 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestRenderPromptPreservesSectionOrderAndOmitsUnavailableSections(t *testing.T) {
@@ -1885,7 +1885,7 @@ func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {
 
 	cfg := aghconfig.DefaultSoulConfig()
 	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
-		SourcePath:    "/work/agh/.agh/agents/coder/SOUL.md",
+		SourcePath:    "/work/agh/.compozy/agents/coder/SOUL.md",
 		WorkspaceRoot: "/work/agh",
 		Content: []byte(strings.Join([]string{
 			"---",

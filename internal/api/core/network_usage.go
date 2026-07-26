@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/compozy/agh/internal/api/contract"
-	networkusage "github.com/compozy/agh/internal/network/usage"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/api/contract"
+	networkusage "github.com/compozy/compozy/internal/network/usage"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 

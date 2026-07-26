@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // Handle dispatches one Host API request for the named extension.

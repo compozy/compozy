@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // ErrorClass is the shared bridge-sdk provider failure classification.

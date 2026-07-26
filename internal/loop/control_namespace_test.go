@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 func TestCollectionItemsShouldResolveFiniteFanOutArrays(t *testing.T) {

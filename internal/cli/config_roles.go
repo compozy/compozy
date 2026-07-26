@@ -1,6 +1,6 @@
 package cli
 
-import aghconfig "github.com/compozy/agh/internal/config"
+import aghconfig "github.com/compozy/compozy/internal/config"
 
 func roleConfigSetPathKinds() map[string]configSetValueKind {
 	result := make(map[string]configSetValueKind)

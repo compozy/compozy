@@ -1,6 +1,6 @@
 package globaldb
 
-import taskpkg "github.com/compozy/agh/internal/task"
+import taskpkg "github.com/compozy/compozy/internal/task"
 
 const unresolvedTaskDependencyClaimPredicate = `NOT EXISTS (
 	SELECT 1

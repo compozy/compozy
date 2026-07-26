@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/compozy/agh/internal/acp"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/acp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // BridgeDeliveryNotifier projects prompt-time ACP events into the bridge

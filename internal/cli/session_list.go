@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -29,10 +29,10 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		Use:   sessionListKey,
 		Short: "List sessions",
 		Example: `  # List active sessions
-  agh session list
+  compozy session list
 
   # Page all sessions for one agent in a workspace
-  agh session list --all --workspace checkout-api --agent reviewer --limit 25`,
+  compozy session list --all --workspace checkout-api --agent reviewer --limit 25`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

@@ -36,13 +36,13 @@ func newSchedulerCommand(deps commandDeps) *cobra.Command {
 		Use:   schedulerKey,
 		Short: "Inspect and control task scheduler dispatch",
 		Example: `  # Show scheduler pause and backlog pressure
-  agh scheduler status
+  compozy scheduler status
 
   # Pause all new scheduler dispatch while active claims continue
-  agh scheduler pause --reason "incident response"
+  compozy scheduler pause --reason "incident response"
 
   # Pause and wait up to 30 seconds for active claims to finish
-  agh scheduler drain --timeout 30s`,
+  compozy scheduler drain --timeout 30s`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -133,10 +133,10 @@ func newSchedulerDrainCommand(deps commandDeps) *cobra.Command {
 		Short: "Pause dispatch and wait for active task claims to finish",
 		Args:  cobra.NoArgs,
 		Example: `  # Drain active claims with the default timeout
-  agh scheduler drain
+  compozy scheduler drain
 
   # Return immediately after pausing dispatch
-  agh scheduler drain --timeout 0s`,
+  compozy scheduler drain --timeout 0s`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request := SchedulerDrainRequest{Reason: strings.TrimSpace(reason)}
 			if cmd.Flags().Changed("timeout") {

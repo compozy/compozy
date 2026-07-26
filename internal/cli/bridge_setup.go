@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/spf13/cobra"
 )
 
@@ -397,7 +397,7 @@ func finalizeBridgeSetup(
 		Status:           bridge.Status,
 		SecretSlots:      plan.SecretSlots,
 		InviteURL:        plan.ProviderDetails.InviteURL,
-		NextCommand:      "agh bridge verify " + bridge.ID,
+		NextCommand:      "compozy bridge verify " + bridge.ID,
 	}
 	if revealGeneratedSecrets {
 		result.GeneratedSecrets = cloneBridgeSetupSecrets(plan.GeneratedSecrets)

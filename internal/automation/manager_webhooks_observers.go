@@ -6,11 +6,11 @@ import (
 
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // HandleWebhook validates, normalizes, and dispatches a webhook delivery

@@ -1,6 +1,6 @@
 package extensionpkg
 
-import extensioncontract "github.com/compozy/agh/internal/extension/contract"
+import extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
 func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc {
 	handlers := map[string]hostAPIMethodFunc{

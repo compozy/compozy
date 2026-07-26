@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/toolmeta"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 var (

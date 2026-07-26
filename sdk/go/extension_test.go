@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	aghsdk "github.com/compozy/agh/sdk/go"
+	aghsdk "github.com/compozy/compozy/sdk/go"
 )
 
 type digestFixture struct {
@@ -453,7 +453,7 @@ func TestSDKHasNoDaemonInternalImports(t *testing.T) {
 		t.Fatalf("go list -deps . error = %v\n%s", err, string(output))
 	}
 	for line := range strings.SplitSeq(string(output), "\n") {
-		if strings.HasPrefix(line, "github.com/compozy/agh/internal/") {
+		if strings.HasPrefix(line, "github.com/compozy/compozy/internal/") {
 			t.Fatalf("sdk/go imports daemon internal package %q", line)
 		}
 	}
@@ -470,14 +470,14 @@ func TestExternalConsumerBuildsAgainstPublicSDK(t *testing.T) {
 	writeText(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/agh-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/agh v0.0.0\n",
+		"module example.com/agh-sdk-consumer\n\ngo 1.26.4\n\nrequire github.com/compozy/compozy v0.0.0\n",
 	)
 	writeText(t, filepath.Join(dir, "main.go"), `package main
 
 import (
 	"context"
 
-	aghsdk "github.com/compozy/agh/sdk/go"
+	aghsdk "github.com/compozy/compozy/sdk/go"
 )
 
 type input struct {
@@ -506,7 +506,7 @@ func main() {
 		"mod",
 		"edit",
 		"-replace",
-		"github.com/compozy/agh="+repoRoot,
+		"github.com/compozy/compozy="+repoRoot,
 	)
 	edit.Dir = dir
 	if output, err := edit.CombinedOutput(); err != nil {

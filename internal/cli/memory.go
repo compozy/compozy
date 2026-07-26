@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	"github.com/spf13/cobra"
 )
@@ -143,10 +143,10 @@ func newMemoryShowCommand(deps commandDeps) *cobra.Command {
 		Use:   "show <filename>",
 		Short: "Show one Memory v2 entry",
 		Example: `  # Show a workspace memory entry
-  agh memory show runtime-notes.md --scope workspace
+  compozy memory show runtime-notes.md --scope workspace
 
   # Show an agent-global memory entry as JSON
-  agh memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json`,
+  compozy memory show prefs.md --scope agent --agent reviewer --agent-tier global -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -182,10 +182,10 @@ func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
 		Use:   "write --type <type> --name <name> --content <@file|text>",
 		Short: "Create a Memory v2 entry through the controller",
 		Example: `  # Write workspace-scoped project memory from a file
-  agh memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
+  compozy memory write --scope workspace --type project --name "Runtime docs" --content @runtime.md
 
   # Write agent-global feedback
-  agh memory write --scope agent --agent reviewer --agent-tier global \
+  compozy memory write --scope agent --agent reviewer --agent-tier global \
     --type feedback --name "Review tone" --content @feedback.md`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -336,10 +336,10 @@ func newMemorySearchCommand(deps commandDeps) *cobra.Command {
 		Use:   memorySearchQueryValue,
 		Short: "Search deterministic Memory v2 recall",
 		Example: `  # Search global and current-workspace memories
-  agh memory search "auth sessions"
+  compozy memory search "auth sessions"
 
   # Search agent memory with system entries included
-  agh memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system`,
+  compozy memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

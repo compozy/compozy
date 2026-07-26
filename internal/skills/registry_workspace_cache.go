@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/filesnap"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/filesnap"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type wsCache struct {

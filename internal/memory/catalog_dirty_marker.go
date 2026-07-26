@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/compozy/agh/internal/fileutil"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/compozy/internal/fileutil"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
-const catalogDirtyMarkerFilename = ".agh-catalog-dirty"
+const catalogDirtyMarkerFilename = ".compozy-catalog-dirty"
 
 func (s *Store) prepareCatalogSourceMutation(scope memcontract.Scope) (bool, error) {
 	if s.catalog == nil {

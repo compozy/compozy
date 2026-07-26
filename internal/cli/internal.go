@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/spf13/cobra"
 )
 

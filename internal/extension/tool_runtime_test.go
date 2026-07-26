@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/compozy/agh/internal/subprocess"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/subprocess"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestExtensionToolCallErrorShouldRestoreStructuredOperatorFailure(t *testing.T) {

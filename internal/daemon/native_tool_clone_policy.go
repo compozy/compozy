@@ -6,12 +6,12 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func cloneStringPtr(value *string) *string {

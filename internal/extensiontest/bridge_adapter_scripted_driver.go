@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // ScriptedPromptEvent is one deterministic agent event emitted by the harness

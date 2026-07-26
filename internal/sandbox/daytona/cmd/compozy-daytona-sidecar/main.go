@@ -15,11 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 const (
-	version               = "agh-daytona-launcher-sidecar-v1"
+	version               = "compozy-daytona-launcher-sidecar-v1"
 	serverStdoutFrame     = 0x01
 	serverStderrFrame     = 0x02
 	serverExitFrame       = 0x03

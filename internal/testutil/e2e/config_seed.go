@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/goccy/go-yaml"
 )
 
@@ -401,7 +401,7 @@ func shortSocketPath(t testing.TB) string {
 	path := filepath.Join(
 		os.TempDir(),
 		fmt.Sprintf(
-			"agh-e2e-%d-%d-%d.sock",
+			"compozy-e2e-%d-%d-%d.sock",
 			os.Getpid(),
 			time.Now().UTC().UnixNano(),
 			socketPathCounter.Add(1),

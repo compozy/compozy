@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 const (

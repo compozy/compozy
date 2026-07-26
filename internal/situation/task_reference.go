@@ -3,7 +3,7 @@ package situation
 import (
 	"strings"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func taskReference(taskRecord taskpkg.Task) taskpkg.Reference {

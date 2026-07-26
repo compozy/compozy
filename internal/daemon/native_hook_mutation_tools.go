@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) hooksCreate(

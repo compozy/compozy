@@ -5,11 +5,11 @@ import (
 
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 
-	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func hostAPISoulPayload(

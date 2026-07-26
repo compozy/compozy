@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 // GetCursor returns one durable notification cursor by key.

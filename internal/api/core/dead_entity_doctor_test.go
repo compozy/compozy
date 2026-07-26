@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	apitestutil "github.com/compozy/agh/internal/api/testutil"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 

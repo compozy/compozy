@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
@@ -83,8 +83,8 @@ func assertDaemonUnavailableDiagnostic(t *testing.T, err error, socketPath strin
 	if structured.Item.Code != contract.CodeDaemonUnavailable {
 		t.Fatalf("StructuredError.Code = %q, want %q", structured.Item.Code, contract.CodeDaemonUnavailable)
 	}
-	if structured.Item.SuggestedCommand != "agh daemon start" {
-		t.Fatalf("StructuredError.SuggestedCommand = %q, want agh daemon start", structured.Item.SuggestedCommand)
+	if structured.Item.SuggestedCommand != "compozy daemon start" {
+		t.Fatalf("StructuredError.SuggestedCommand = %q, want compozy daemon start", structured.Item.SuggestedCommand)
 	}
 	if structured.Item.Evidence["socket_path"] != socketPath {
 		t.Fatalf(

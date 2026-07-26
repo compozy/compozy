@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 // AgentRecord is the shared daemon agent definition payload.

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/e2elane"
+	"github.com/compozy/compozy/internal/e2elane"
 )
 
 // Test runs unit tests only (no integration tag).

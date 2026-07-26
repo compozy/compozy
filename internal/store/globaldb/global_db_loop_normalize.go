@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {

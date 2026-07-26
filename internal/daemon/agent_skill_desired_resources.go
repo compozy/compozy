@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 type desiredAgentResource struct {

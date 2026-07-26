@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type recordingAuditStore struct {

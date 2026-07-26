@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *testing.T) {

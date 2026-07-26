@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 func TestClientSearchNotSupported(t *testing.T) {

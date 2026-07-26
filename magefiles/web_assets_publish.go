@@ -43,7 +43,7 @@ func releaseWebAssetsSync(ctx context.Context) error {
 	}
 	defer gitCredentials.cleanup()
 
-	assetsRepoDir, err := os.MkdirTemp("", "agh-web-assets-release-sync-")
+	assetsRepoDir, err := os.MkdirTemp("", "compozy-web-assets-release-sync-")
 	if err != nil {
 		return fmt.Errorf("create web assets sync repo dir: %w", err)
 	}
@@ -79,7 +79,7 @@ func webAssetsPublishToken() string {
 }
 
 func newWebAssetsGitCredentials(token string) (*webAssetsGitCredentials, error) {
-	askpassDir, err := os.MkdirTemp("", "agh-web-assets-askpass-")
+	askpassDir, err := os.MkdirTemp("", "compozy-web-assets-askpass-")
 	if err != nil {
 		return nil, fmt.Errorf("create web assets git credentials dir: %w", err)
 	}
@@ -102,6 +102,9 @@ func newWebAssetsGitCredentials(token string) (*webAssetsGitCredentials, error) 
 		env: map[string]string{
 			"AGH_WEB_ASSETS_GIT_TOKEN": token,
 			"GIT_ASKPASS":              askpassPath,
+			"GIT_CONFIG_COUNT":         "1",
+			"GIT_CONFIG_KEY_0":         "credential.helper",
+			"GIT_CONFIG_VALUE_0":       "",
 			"GIT_TERMINAL_PROMPT":      "0",
 		},
 	}, nil
@@ -182,7 +185,7 @@ func publishWebAssetsModule(
 		); err != nil {
 			return "", fmt.Errorf("stage web assets module update: %w", err)
 		}
-		message := fmt.Sprintf("build: sync AGH web assets %s", shortCommit(metadata.SourceCommit))
+		message := fmt.Sprintf("build: sync Compozy web assets %s", shortCommit(metadata.SourceCommit))
 		if err := runCommandInDir(ctx, assetsRepoDir, "git", "commit", "-m", message); err != nil {
 			return "", fmt.Errorf("commit web assets module update: %w", err)
 		}
@@ -204,7 +207,7 @@ func publishWebAssetsModule(
 		"-a",
 		nextTag,
 		"-m",
-		"AGH web assets "+metadata.SourceCommit,
+		"Compozy web assets "+metadata.SourceCommit,
 	); err != nil {
 		return "", fmt.Errorf("tag web assets module %s: %w", nextTag, err)
 	}

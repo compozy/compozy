@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	registryclawhub "github.com/compozy/agh/internal/registry/clawhub"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	registryclawhub "github.com/compozy/compozy/internal/registry/clawhub"
 )
 
 // DefaultSourceLoader resolves the configured marketplace registry source.

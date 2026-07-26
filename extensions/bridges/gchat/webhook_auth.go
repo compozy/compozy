@@ -16,7 +16,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 func verifyGChatWebhookBearer(ctx context.Context, req *http.Request, body []byte, cfg *resolvedInstanceConfig) error {

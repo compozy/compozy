@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 )
@@ -118,7 +118,7 @@ func startMCPServeClient(
 
 	var initialize sdkmcp.InitializeRequest
 	initialize.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
-	initialize.Params.ClientInfo = sdkmcp.Implementation{Name: "agh-e2e", Version: "1.0.0"}
+	initialize.Params.ClientInfo = sdkmcp.Implementation{Name: "compozy-e2e", Version: "1.0.0"}
 	if _, err := client.Initialize(ctx, initialize); err != nil {
 		t.Fatalf("MCP client.Initialize() error = %v", err)
 	}

@@ -15,9 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
 
@@ -863,7 +863,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := NewStore(
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
@@ -890,7 +890,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
@@ -953,7 +953,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		ctx := context.Background()
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		workspaceA := filepath.Join(baseDir, "workspace-a")
 		workspaceB := filepath.Join(baseDir, "workspace-b")
 		storeA := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
@@ -1035,7 +1035,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		t.Parallel()
 
 		baseDir := t.TempDir()
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
@@ -1072,7 +1072,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		baseDir := t.TempDir()
 		ctx := context.Background()
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		globalDir := filepath.Join(baseDir, "global")
 		seedWorkspace := filepath.Join(baseDir, "workspace-seed")
 		freshWorkspace := filepath.Join(baseDir, "workspace-fresh")
@@ -1138,7 +1138,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
@@ -1226,7 +1226,7 @@ func TestStoreConcurrentMutationDerivedState(t *testing.T) {
 		totalWrites := 512
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -1303,7 +1303,7 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	baseDir := t.TempDir()
 	globalDir := filepath.Join(baseDir, "global")
 	workspaceRoot := filepath.Join(baseDir, "workspace")
-	catalogPath := filepath.Join(baseDir, "agh.db")
+	catalogPath := filepath.Join(baseDir, "compozy.db")
 	store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 	workspaceStore := store.ForWorkspace(workspaceRoot)
 	if err := workspaceStore.EnsureDirs(); err != nil {
@@ -1447,7 +1447,7 @@ func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
 		ctx := context.Background()
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		workspaceA := filepath.Join(baseDir, "workspace-a")
 		workspaceB := filepath.Join(baseDir, "workspace-b")
 		storeA := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
@@ -1518,7 +1518,7 @@ func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
@@ -1557,7 +1557,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
@@ -1607,7 +1607,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -1715,7 +1715,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -1768,7 +1768,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		ctx := context.Background()
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -2000,7 +2000,7 @@ func TestWorkspaceMemoryDirUsesWorkspaceRoot(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-		want := filepath.Join(workspaceRoot, ".agh", "memory")
+		want := filepath.Join(workspaceRoot, ".compozy", "memory")
 		if got := workspaceMemoryDir(workspaceRoot); got != want {
 			t.Fatalf("workspaceMemoryDir(%q) = %q, want %q", workspaceRoot, got, want)
 		}
@@ -2019,7 +2019,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 			workspaceRoot := filepath.Join(baseDir, "workspace")
 			store := newOpenTestStore(t,
 				filepath.Join(baseDir, "global"),
-				WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+				WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 			).ForWorkspace(workspaceRoot)
 			if err := store.EnsureDirs(); err != nil {
 				t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -2059,7 +2059,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/compozy/agh/internal/filesnap"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/filesnap"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // ForWorkspace returns the global skill set overlaid with resolver-provided workspace skills.

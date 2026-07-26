@@ -1,7 +1,7 @@
 package spec
 
 import (
-	networkpkg "github.com/compozy/agh/internal/network"
+	networkpkg "github.com/compozy/compozy/internal/network"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

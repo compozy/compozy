@@ -6,7 +6,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 var emptyChecksJSON = json.RawMessage(`{}`)

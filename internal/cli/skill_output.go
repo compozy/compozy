@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/api/contract"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 const (

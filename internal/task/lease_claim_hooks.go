@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (m *Service) normalizeClaimCriteriaForActor(

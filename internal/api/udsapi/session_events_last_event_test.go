@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestSessionEventsLastEventIDHeader(t *testing.T) {

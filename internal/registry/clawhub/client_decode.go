@@ -5,7 +5,7 @@ import (
 
 	"io"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 func decodeListings(body io.Reader) ([]registry.Listing, error) {

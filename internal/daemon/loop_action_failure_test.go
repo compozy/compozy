@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestLoopActionFailureMetadataShouldPreserveSafeOperatorDetail(t *testing.T) {

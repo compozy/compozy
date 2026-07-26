@@ -159,7 +159,7 @@ def main() -> int:
     qa_output_path = Path(args.qa_output_path).resolve()
     workspace_root = Path(args.workspace).resolve()
     journey_log = qa_output_path / "qa" / "journey-log.jsonl"
-    open_tasks_path = workspace_root / ".agh" / "tasks" / "open-tasks.json"
+    open_tasks_path = workspace_root / ".compozy" / "tasks" / "open-tasks.json"
     summary_path = qa_output_path / "qa" / "observation-summary.json"
 
     journey_log.parent.mkdir(parents=True, exist_ok=True)

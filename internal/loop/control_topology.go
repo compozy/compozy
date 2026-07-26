@@ -3,7 +3,7 @@ package loop
 import (
 	"slices"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 type controlTopology struct {

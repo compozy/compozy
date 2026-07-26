@@ -25,7 +25,7 @@ func parseAGHMetadata(skill *Skill) error {
 
 	agh, ok := rawAGH.(map[string]any)
 	if !ok {
-		warnAGHMetadata(skill, "skills: malformed metadata.agh block", "type", fmt.Sprintf("%T", rawAGH))
+		warnAGHMetadata(skill, "skills: malformed metadata.compozy block", "type", fmt.Sprintf("%T", rawAGH))
 		return nil
 	}
 

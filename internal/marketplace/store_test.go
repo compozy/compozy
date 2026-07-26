@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestSQLiteStoreReplaceKind(t *testing.T) {

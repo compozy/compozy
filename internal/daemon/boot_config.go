@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghlogger "github.com/compozy/agh/internal/logger"
-	"github.com/compozy/agh/internal/redact"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghlogger "github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/redact"
 )
 
 func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {

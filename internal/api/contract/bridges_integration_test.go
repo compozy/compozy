@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func TestInboundTypedInteractionRoundTrip(t *testing.T) {

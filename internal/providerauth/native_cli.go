@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/providerenv"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/providerenv"
 	"github.com/kballard/go-shellquote"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/listcursor"
+	"github.com/compozy/compozy/internal/listcursor"
 )
 
 const (

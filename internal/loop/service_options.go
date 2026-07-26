@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // DefaultsResolver resolves the `[loops.defaults.*]` layer for one workspace.

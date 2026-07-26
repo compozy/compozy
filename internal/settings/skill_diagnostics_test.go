@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestSkillsSectionDiagnostics(t *testing.T) {
@@ -24,9 +24,9 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 					Name:               "review",
 					State:              skillspkg.SkillDiagnosticStateValid,
 					Source:             "workspace",
-					Path:               "/workspace/.agh/skills/review/SKILL.md",
+					Path:               "/workspace/.compozy/skills/review/SKILL.md",
 					WinningSource:      "workspace",
-					WinningPath:        "/workspace/.agh/skills/review/SKILL.md",
+					WinningPath:        "/workspace/.compozy/skills/review/SKILL.md",
 					VerificationStatus: skillspkg.SkillVerificationStatusPassed,
 				},
 				{
@@ -35,7 +35,7 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 					Source:             "user",
 					Path:               "/user/skills/review/SKILL.md",
 					WinningSource:      "workspace",
-					WinningPath:        "/workspace/.agh/skills/review/SKILL.md",
+					WinningPath:        "/workspace/.compozy/skills/review/SKILL.md",
 					VerificationStatus: skillspkg.SkillVerificationStatusPassed,
 				},
 				{
@@ -66,7 +66,7 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 		if got, want := envelope.Skills.Diagnostics[1].State, skillspkg.SkillDiagnosticStateShadowed; got != want {
 			t.Fatalf("shadowed diagnostic state = %q, want %q", got, want)
 		}
-		if got, want := envelope.Skills.Diagnostics[1].WinningPath, "/workspace/.agh/skills/review/SKILL.md"; got != want {
+		if got, want := envelope.Skills.Diagnostics[1].WinningPath, "/workspace/.compozy/skills/review/SKILL.md"; got != want {
 			t.Fatalf("shadowed winning path = %q, want %q", got, want)
 		}
 		if envelope.Skills.Diagnostics[2].Failure == nil {

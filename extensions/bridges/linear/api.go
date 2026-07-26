@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 const (

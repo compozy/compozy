@@ -3,8 +3,8 @@ package extensionpkg
 import (
 	"maps"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	"github.com/compozy/agh/internal/network/participation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func cloneHostAPIAutomationLoopTarget(source *automationpkg.LoopTarget) *automationpkg.LoopTarget {

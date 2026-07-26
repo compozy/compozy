@@ -1,6 +1,6 @@
 package daemon
 
-import hookspkg "github.com/compozy/agh/internal/hooks"
+import hookspkg "github.com/compozy/compozy/internal/hooks"
 
 func (d *Daemon) initializeHookObservers(
 	state *bootState,

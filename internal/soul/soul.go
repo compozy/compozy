@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (

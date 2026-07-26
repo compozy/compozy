@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) nextTranscriptEpoch(ctx context.Context, session *Session, sessionID string) (int64, error) {

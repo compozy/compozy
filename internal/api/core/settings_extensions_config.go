@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func settingsExtensionsConfigPayload(value aghconfig.ExtensionsConfig) contract.SettingsExtensionsConfigPayload {

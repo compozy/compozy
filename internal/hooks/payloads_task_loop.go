@@ -5,7 +5,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // TaskContext carries task-level identifiers shared across task lifecycle hooks.

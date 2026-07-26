@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestTaskEventsTypeSeqIndexFreshDB(t *testing.T) {

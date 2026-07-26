@@ -1,6 +1,6 @@
 package loop
 
-import "github.com/compozy/agh/internal/loop/dsl"
+import "github.com/compozy/compozy/internal/loop/dsl"
 
 func (c *lintContext) lintSubLoopBody(node dsl.Node) {
 	nested := c.def

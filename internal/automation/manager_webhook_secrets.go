@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (m *Manager) rollbackJobEnabled(ctx context.Context, definition Job, enabled bool) error {

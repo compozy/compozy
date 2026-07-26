@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/compozy/internal/loop/goal"
 )
 
 func validateGoalLivePromptOwner(

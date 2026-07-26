@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 type defaultInterrupter struct{}

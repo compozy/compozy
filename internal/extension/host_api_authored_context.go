@@ -7,11 +7,11 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/soul"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 func normalizeAgentCapabilities(values []AgentCapabilityPayload) []AgentCapabilityPayload {

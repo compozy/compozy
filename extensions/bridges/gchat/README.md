@@ -40,8 +40,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/gchat/bin
 go build -o ./extensions/bridges/gchat/bin/gchat ./extensions/bridges/gchat
-agh extension install ./extensions/bridges/gchat --allow-unverified --yes -o json
-agh extension status gchat -o json
+compozy extension install ./extensions/bridges/gchat --allow-unverified --yes -o json
+compozy extension status gchat -o json
 ```
 
 ## Configuration

@@ -3,7 +3,7 @@ package sdkts
 import (
 	"reflect"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 var specializedTypeAliases = map[reflect.Type]string{

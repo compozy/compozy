@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 type integrationToolProvider struct {

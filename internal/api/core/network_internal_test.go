@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestNetworkThreadPromotionDigestInternal(t *testing.T) {

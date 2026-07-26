@@ -7,12 +7,12 @@ import (
 
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) workspaceList(

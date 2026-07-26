@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -42,10 +42,10 @@ func newMeCommand(deps commandDeps) *cobra.Command {
 		Use:   "me",
 		Short: "Inspect the current AGH-managed agent session",
 		Example: `  # Show the current managed session identity
-  agh me
+  compozy me
 
   # Print machine-readable caller state
-  agh me -o json`,
+  compozy me -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -71,10 +71,10 @@ func newMeContextCommand(deps commandDeps) *cobra.Command {
 		Use:   agentKernelContextKey,
 		Short: "Inspect the bounded situation context for the current agent session",
 		Example: `  # Show the bounded situation context injected for this session
-  agh me context
+  compozy me context
 
   # Read the context payload as JSON
-  agh me context -o json`,
+  compozy me context -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -99,10 +99,10 @@ func newChannelCommand(deps commandDeps) *cobra.Command {
 		Aliases: []string{agentKernelChannelKey},
 		Short:   "Use agent-facing coordination channels",
 		Example: `  # List channels visible to this session
-  agh ch list
+  compozy ch list
 
   # Wait for task-run coordination messages
-  agh ch recv coord-run-123 --wait -o jsonl`,
+  compozy ch recv coord-run-123 --wait -o jsonl`,
 	}
 	cmd.AddCommand(newChannelListCommand(deps))
 	cmd.AddCommand(newChannelRecvCommand(deps))
@@ -116,10 +116,10 @@ func newChannelListCommand(deps commandDeps) *cobra.Command {
 		Use:   agentKernelListKey,
 		Short: "List coordination channels visible to the current agent session",
 		Example: `  # List coordination channels visible to this session
-  agh ch list
+  compozy ch list
 
   # Print channel discovery metadata as JSON
-  agh ch list -o json`,
+  compozy ch list -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -147,10 +147,10 @@ func newChannelRecvCommand(deps commandDeps) *cobra.Command {
 		Short: "Receive queued coordination messages for a channel",
 		Args:  exactOneNonBlankArg(),
 		Example: `  # Receive currently queued messages
-  agh ch recv coord-run-123
+  compozy ch recv coord-run-123
 
   # Wait for messages and stream each record as JSONL
-  agh ch recv coord-run-123 --wait --limit 10 -o jsonl`,
+  compozy ch recv coord-run-123 --wait --limit 10 -o jsonl`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -185,7 +185,7 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
 		Short: "Send one task-run coordination message",
 		Args:  exactOneNonBlankArg(),
 		Example: `  # Send a non-authoritative status message for a run
-  agh ch send coord-run-123 \
+  compozy ch send coord-run-123 \
     --task-id task-123 \
     --run-id run-123 \
     --kind status \
@@ -193,7 +193,7 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
     --body '{"status":"investigating"}'
 
   # Report a blocker in the same task-bound channel
-  agh ch send coord-run-123 \
+  compozy ch send coord-run-123 \
     --task-id task-123 \
     --run-id run-123 \
     --kind blocker \
@@ -211,7 +211,7 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if metadata.MessageKind == contract.CoordinationMessageReply {
-				return errors.New("cli: use `agh ch reply --to-message` for reply messages")
+				return errors.New("cli: use `compozy ch reply --to-message` for reply messages")
 			}
 			request := AgentChannelSendRequest{
 				Body:           body,
@@ -254,10 +254,10 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
 		Use:   agentKernelReplyKey,
 		Short: "Reply to a received coordination message",
 		Example: `  # Reply to one received coordination message
-  agh ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
+  compozy ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
 
   # Add explicit correlation metadata when replying from outside an inherited delivery
-  agh ch reply \
+  compozy ch reply \
     --to-message msg-123 \
     --task-id task-123 \
     --run-id run-123 \
@@ -268,7 +268,7 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
 			flags.kindExplicit = cmd.Flags().Changed(agentKernelKindKey)
 			if flags.kindExplicit &&
 				contract.CoordinationMessageKind(strings.TrimSpace(flags.kind)) != contract.CoordinationMessageReply {
-				return errors.New("cli: --kind must be reply for `agh ch reply`")
+				return errors.New("cli: --kind must be reply for `compozy ch reply`")
 			}
 			body, err := parseNetworkJSONValue("--body", bodyRaw)
 			if err != nil {
@@ -280,7 +280,7 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
 			}
 			if !zeroCLIAgentCoordinationMetadata(metadata) &&
 				metadata.MessageKind != contract.CoordinationMessageReply {
-				return errors.New("cli: --kind must be reply for `agh ch reply`")
+				return errors.New("cli: --kind must be reply for `compozy ch reply`")
 			}
 			request := AgentChannelReplyRequest{
 				ReplyToMessageID: strings.TrimSpace(toMessage),

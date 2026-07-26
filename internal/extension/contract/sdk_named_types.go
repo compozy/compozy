@@ -3,7 +3,7 @@ package contract
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{

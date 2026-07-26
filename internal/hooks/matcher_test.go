@@ -3,7 +3,7 @@ package hooks
 import (
 	"testing"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestHookMatcherMatchesSession(t *testing.T) {

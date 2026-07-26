@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // AgentSessionMetrics is the exact visible-session aggregate for one agent.

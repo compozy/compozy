@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 // ProviderModelSettingsCurator exposes provider model curation to API transports.

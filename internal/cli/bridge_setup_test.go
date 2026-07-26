@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 // Suite: bridge setup commands
@@ -317,7 +317,7 @@ func TestBridgeSetupJSONCreatesWhatsAppInstanceAndMasksSecrets(t *testing.T) {
 			t.Fatalf("json.Unmarshal(setup result) error = %v", err)
 		}
 		if result.BridgeInstanceID != bridgeID || result.Platform != "whatsapp" ||
-			result.NextCommand != "agh bridge verify "+bridgeID {
+			result.NextCommand != "compozy bridge verify "+bridgeID {
 			t.Fatalf("setup result = %#v, want bridge identity and exact verify command", result)
 		}
 		for _, slot := range []string{"access_token", "app_secret", "verify_token"} {
@@ -545,7 +545,7 @@ func TestBridgeSetupRerunKeepsMaskedSecretDefaults(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 			t.Fatalf("json.Unmarshal(setup rerun) error = %v", err)
 		}
-		if result.NextCommand != "agh bridge verify "+bridgeID {
+		if result.NextCommand != "compozy bridge verify "+bridgeID {
 			t.Fatalf("NextCommand = %q, want exact verify command", result.NextCommand)
 		}
 

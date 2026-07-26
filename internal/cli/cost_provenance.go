@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 func formatCostProvenance(totalCost *float64, currency string, status contract.CostStatus) string {

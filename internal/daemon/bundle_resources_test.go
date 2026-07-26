@@ -5,11 +5,11 @@ import (
 	"slices"
 	"testing"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/windowmanager"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type fakeBundleActivationProjector struct{}

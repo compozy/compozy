@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestResolveAgentCallerFromEnv(t *testing.T) {

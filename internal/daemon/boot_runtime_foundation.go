@@ -8,14 +8,14 @@ import (
 	"os"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/windowmanager"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *bootCleanup) error {

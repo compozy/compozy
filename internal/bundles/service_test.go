@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/windowmanager"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func discardBundleTestLogger() *slog.Logger {

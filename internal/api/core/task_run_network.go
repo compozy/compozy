@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (h *BaseHandlers) taskRunNetworkPayload(

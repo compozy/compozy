@@ -8,7 +8,7 @@ trigger: implicit
 
 ## Procedure
 
-1. Read `references/migration-decision.md` and classify the changed datum and owning stream: `global` and `memory` share `agh.db`; `session` owns each `events.db`; `workspace` owns workspace observability databases.
+1. Read `references/migration-decision.md` and classify the changed datum and owning stream: `global` and `memory` share `compozy.db`; `session` owns each `events.db`; `workspace` owns workspace observability databases.
 2. Inspect the owner's declarative schema source (`schema/schema.sql` or `schema/definitions/*.sql`), `schema/migrations/`, `schema/migrations/atlas.sum`, `migration_stream.go`, sqlc query catalog, and canonical migration/open tests. Select the next gap-free five-digit version. Never edit, rename, renumber, reorder, or delete an existing migration or its checksum entry.
 3. Read `references/migration-template.md`. Edit the owning declarative source, then run `make codegen`. Inspect the newly appended Goose SQL, Atlas sqlcheck result, refreshed `atlas.sum`, and regenerated sqlc output. If the generated tail is wrong, correct the declarative schema and regenerate; add bounded data transformation SQL only to the unpublished tail, then rerun `make codegen`.
 4. Update affected static queries in the owning sqlc catalog. Keep generated `sqlcgen` types inside the owner package and map them to domain types at the repository boundary.

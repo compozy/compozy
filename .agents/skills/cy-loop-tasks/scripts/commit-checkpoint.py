@@ -11,6 +11,7 @@ Usage:
     commit-checkpoint.py <slug> --task <stem>        # phase B, mode=tasks
     commit-checkpoint.py <slug> --slice "<text>"     # phase B, mode=free
     commit-checkpoint.py <slug> --review-round <N>   # phase D
+    commit-checkpoint.py <slug> --task <stem> --body-note "<text>"
     commit-checkpoint.py <slug> [--tasks-root <p>]
 
 Behavior:
@@ -23,6 +24,8 @@ Behavior:
        Hard-cap full header at 72 chars.
     4. Build body lines:
          ``Checkpoint via cy-loop-tasks (iteration <N>, <phase label>).``
+         (blank line)
+         optional ``--body-note`` text
          (blank line)
          ``Co-Authored-By: Codex <noreply@openai.com>``
     5. ``git add -A`` then ``git commit -m <header> -m <body>``. No --amend,
@@ -131,6 +134,10 @@ def main() -> int:
         type=int,
         help="peer-review round number (phase D)",
     )
+    ap.add_argument(
+        "--body-note",
+        help="optional provenance or context paragraph for the commit body",
+    )
     ap.add_argument("--tasks-root", default=".compozy/tasks")
     args = ap.parse_args()
 
@@ -153,6 +160,13 @@ def main() -> int:
     if args.review_round is not None and args.review_round < 1:
         print(
             "commit-checkpoint: --review-round must be >= 1",
+            file=sys.stderr,
+        )
+        return 2
+    body_note = _collapse_ws(args.body_note or "")
+    if args.body_note is not None and not body_note:
+        print(
+            "commit-checkpoint: --body-note is empty after trim",
             file=sys.stderr,
         )
         return 2
@@ -193,10 +207,13 @@ def main() -> int:
         header = _build_review_header(args.review_round)
         phase_label = f"phase D review round {args.review_round}"
 
-    body = (
-        f"Checkpoint via cy-loop-tasks (iteration {iteration}, "
-        f"{phase_label}).\n\n{_COAUTHOR}"
-    )
+    body_parts = [
+        f"Checkpoint via cy-loop-tasks (iteration {iteration}, {phase_label})."
+    ]
+    if body_note:
+        body_parts.append(body_note)
+    body_parts.append(_COAUTHOR)
+    body = "\n\n".join(body_parts)
 
     add = _run_git(["add", "-A"])
     if add.returncode != 0:

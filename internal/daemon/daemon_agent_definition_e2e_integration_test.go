@@ -18,12 +18,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/agentidentity"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {

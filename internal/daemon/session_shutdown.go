@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 type shutdownStopper interface {

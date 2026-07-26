@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func nilGlobalContext() context.Context {

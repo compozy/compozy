@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // SessionEvent is a persisted event row for a single AGH session.

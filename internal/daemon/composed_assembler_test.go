@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
-	skillbundled "github.com/compozy/agh/skills"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func TestComposedAssemblerAssemble(t *testing.T) {
@@ -776,7 +776,7 @@ func testPromptSoulSnapshot(t *testing.T, body string) *soul.Snapshot {
 
 	cfg := aghconfig.DefaultSoulConfig()
 	resolved, err := soul.Parse(context.Background(), soul.ParseRequest{
-		SourcePath:    "/workspace/.agh/agents/coder/SOUL.md",
+		SourcePath:    "/workspace/.compozy/agents/coder/SOUL.md",
 		WorkspaceRoot: "/workspace",
 		Content: []byte(strings.Join([]string{
 			"---",

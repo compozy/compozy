@@ -3,8 +3,8 @@ package loop
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/loop/gate"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/compozy/internal/loop/gate"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 )
 
 // DefaultWatchSilenceWindow is the fallback inactivity clock for watch-source loops.

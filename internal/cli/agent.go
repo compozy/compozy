@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -72,13 +72,13 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 		Use:   agentListKey,
 		Short: "List installed agent definitions",
 		Example: `  # Show every agent definition available to the daemon
-  agh agent list
+  compozy agent list
 
   # Show agents resolved for a workspace
-  agh agent list --workspace ~/dev/ai/acme-startup
+  compozy agent list --workspace ~/dev/ai/acme-startup
 
   # Emit the same list as JSON
-  agh agent list -o json`,
+  compozy agent list -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -105,13 +105,13 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   agentInfoNameValue,
 		Short: "Show one agent definition",
 		Example: `  # Inspect the default bootstrap agent
-  agh agent info general
+  compozy agent info general
 
   # Inspect a workspace-local agent
-  agh agent info reviewer --workspace ~/dev/ai/acme-startup
+  compozy agent info reviewer --workspace ~/dev/ai/acme-startup
 
   # Inspect an agent definition as JSON
-  agh agent info reviewer -o json`,
+  compozy agent info reviewer -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

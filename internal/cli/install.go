@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -83,11 +83,11 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   installCommandKey,
 		Short: "Bootstrap AGH and create the default general agent",
-		Example: `  # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
-  agh install
+		Example: `  # Create ~/.compozy/config.toml and ~/.compozy/agents/general/AGENT.md
+  compozy install
 
   # Bootstrap non-interactively for automation
-  agh install --provider codex --model gpt-5.6-sol -o json`,
+  compozy install --provider codex --model gpt-5.6-sol -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			homePaths, err := deps.resolveHome()
 			if err != nil {
@@ -406,7 +406,10 @@ func (m *installWizardModel) View() string {
 		builder.WriteString("Provider:    " + m.provider + "\n")
 		builder.WriteString("Model:       " + stringOrDash(strings.TrimSpace(m.modelInput.Value())) + "\n")
 		builder.WriteString("Permissions: " + string(aghconfig.PermissionModeApproveAll) + "\n")
-		builder.WriteString("\nPress Enter to write ~/.agh/config.toml and ensure ~/.agh/agents/general/AGENT.md.\n")
+		builder.WriteString(
+			"\nPress Enter to write ~/.compozy/config.toml and ensure " +
+				"~/.compozy/agents/general/AGENT.md.\n",
+		)
 		builder.WriteString("Press Esc to edit the model, or Ctrl+C to cancel.\n")
 	}
 

@@ -37,7 +37,7 @@ func TestUnixSocketClientSlackBridgeManifest(t *testing.T) {
     "features": {
       "bot_user": {"display_name": "Support agent", "always_online": false},
       "slash_commands": [{
-        "command": "/agh",
+        "command": "/compozy",
         "url": "https://bridge.example.com/slack/support",
         "description": "Send a command to AGH",
         "usage_hint": "<command>",

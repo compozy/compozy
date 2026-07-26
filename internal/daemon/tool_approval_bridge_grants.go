@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (b *toolApprovalBridge) consumeDurableToolApproval(

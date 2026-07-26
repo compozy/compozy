@@ -1,6 +1,6 @@
 package builtin
 
-import networkpkg "github.com/compozy/agh/internal/network"
+import networkpkg "github.com/compozy/compozy/internal/network"
 
 const (
 	networkSendSchemaDescription = "For say, capability, receipt, and trace, surface is required. " +

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	aghconfig "github.com/compozy/compozy/internal/config"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -201,7 +202,7 @@ func shouldSkipDir(name string) bool {
 	switch name {
 	case ".git", "node_modules":
 		return true
-	case ".agh":
+	case aghconfig.DirName:
 		return false
 	}
 

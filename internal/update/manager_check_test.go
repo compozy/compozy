@@ -333,7 +333,7 @@ func TestManagerCheck(t *testing.T) {
 			{
 				name:   "Should recommend public go install path for Go installs",
 				method: InstallMethodGoInstall,
-				want:   "go install github.com/compozy/agh@latest",
+				want:   "go install github.com/compozy/compozy@latest",
 			},
 		}
 

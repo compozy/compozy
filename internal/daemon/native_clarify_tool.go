@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) clarifyToolBindings(

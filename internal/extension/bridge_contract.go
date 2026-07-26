@@ -3,8 +3,8 @@ package extensionpkg
 import (
 	"encoding/json"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 func bridgeInstancesContract(instances []bridgepkg.BridgeInstance) []bridgecontract.BridgeInstance {

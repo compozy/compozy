@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/bridges"
 )
 
 // ListBridgeInstances returns all persisted bridge instances in stable display-name order.

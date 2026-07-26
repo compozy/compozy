@@ -1,6 +1,6 @@
 package modelcatalog
 
-import redactpkg "github.com/compozy/agh/internal/redact"
+import redactpkg "github.com/compozy/compozy/internal/redact"
 
 // RedactString removes secret-shaped values from catalog errors.
 func RedactString(value string) string {

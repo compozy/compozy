@@ -8,12 +8,12 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
 
-	"github.com/compozy/agh/internal/procutil"
-	aghupdate "github.com/compozy/agh/internal/update"
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/procutil"
+	aghupdate "github.com/compozy/compozy/internal/update"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func (d commandDeps) withDefaults() commandDeps {

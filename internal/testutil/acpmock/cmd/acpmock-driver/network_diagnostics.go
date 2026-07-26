@@ -4,7 +4,7 @@ import (
 	"os"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
 func (a *mockAgent) writeSessionDiagnostics(

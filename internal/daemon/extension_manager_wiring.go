@@ -1,9 +1,9 @@
 package daemon
 
 import (
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	"github.com/compozy/agh/internal/resources"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (d *Daemon) applyExtensionManagerFactoryDefault() {
@@ -55,7 +55,7 @@ func buildExtensionManagerOptions(
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
 		extensionpkg.WithProcessRegistry(deps.ProcessRegistry),
-		extensionpkg.WithAGHExecutableResolver(deps.AGHExecutable),
+		extensionpkg.WithCompozyExecutableResolver(deps.CompozyExecutable),
 		extensionpkg.WithExtensionToolCallTracker(hostAPI),
 	}
 	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {

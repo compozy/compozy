@@ -1,6 +1,6 @@
 package contract
 
-import apicontract "github.com/compozy/agh/internal/api/contract"
+import apicontract "github.com/compozy/compozy/internal/api/contract"
 
 // SkillSummary is the lightweight host-visible skill listing shape.
 type SkillSummary struct {

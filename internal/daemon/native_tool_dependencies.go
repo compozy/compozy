@@ -3,16 +3,16 @@ package daemon
 import (
 	"context"
 
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	memorypkg "github.com/compozy/agh/internal/memory"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/windowmanager"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	memorypkg "github.com/compozy/compozy/internal/memory"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type daemonNativeSkillsRegistry interface {

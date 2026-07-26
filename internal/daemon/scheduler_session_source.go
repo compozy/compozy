@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"strings"
 
-	contractpkg "github.com/compozy/agh/internal/api/contract"
-	schedulerpkg "github.com/compozy/agh/internal/scheduler"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/situation"
+	contractpkg "github.com/compozy/compozy/internal/api/contract"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/situation"
 )
 
 type schedulerSituationContext interface {

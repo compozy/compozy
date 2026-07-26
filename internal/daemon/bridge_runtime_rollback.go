@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (r *bridgeRuntime) rollbackCreatedBridgeResource(

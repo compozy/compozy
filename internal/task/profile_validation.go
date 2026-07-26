@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // Normalize returns a canonical copy with trimmed fields, default modes, and stable selector sets.

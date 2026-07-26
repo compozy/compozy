@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
 type mcpHostAPIRuntimeInvoker struct {

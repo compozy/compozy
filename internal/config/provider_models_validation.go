@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/compozy/agh/internal/reasoning"
+	"github.com/compozy/compozy/internal/reasoning"
 )
 
 // Validate reports whether the provider model block is usable.

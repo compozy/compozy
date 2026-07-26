@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {

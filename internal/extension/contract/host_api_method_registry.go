@@ -1,9 +1,9 @@
 package contract
 
 import (
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 var hostAPIMethodSpecs = []HostAPIMethodSpec{

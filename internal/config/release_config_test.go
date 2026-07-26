@@ -154,7 +154,7 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			t.Fatalf("nfpms[0].id = %q, want %q", got, want)
 		}
 		if !stringSliceContains(sliceAt(t, nfpm, "ids"), "agh") {
-			t.Fatalf("nfpms[0].ids = %#v, want agh build id", nfpm["ids"])
+			t.Fatalf("nfpms[0].ids = %#v, want compozy build id", nfpm["ids"])
 		}
 		formats := sliceAt(t, nfpm, "formats")
 		for _, want := range []string{"deb", "rpm"} {
@@ -199,13 +199,13 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	buildID := stringAt(t, build, "id")
 	assertEqualString(t, "build id", buildID, "agh")
 	assertEqualString(t, "build binary", stringAt(t, build, "binary"), "agh")
-	assertEqualString(t, "build main", stringAt(t, build, "main"), "./cmd/agh")
+	assertEqualString(t, "build main", stringAt(t, build, "main"), "./cmd/compozy")
 	ldflags := strings.Join(stringsFromSlice(t, sliceAt(t, build, "ldflags"), "builds[0].ldflags"), "\n")
 	assertContainsText(
 		t,
 		"GoReleaser ldflags",
 		ldflags,
-		"github.com/compozy/agh/internal/version.Version",
+		"github.com/compozy/compozy/internal/version.Version",
 	)
 	assertNotContainsText(t, "GoReleaser ldflags", ldflags, "github.com/pedronauck/agh")
 
@@ -264,7 +264,7 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 		for _, snippet := range []string{
 			"brew install compozy/compozy/agh",
 			"npm install -g @compozy/agh",
-			"go install github.com/compozy/agh@{{ .Tag }}",
+			"go install github.com/compozy/compozy@{{ .Tag }}",
 			"curl -fsSL https://agh.network/install.sh | sh",
 			"Verified Binary Installer",
 		} {

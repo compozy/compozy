@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SettleNetworkWake atomically terminalizes one claimed taskless wake and publishes committed hooks.

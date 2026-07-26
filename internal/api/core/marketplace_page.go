@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/api/contract"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 type marketplaceKindPage struct {

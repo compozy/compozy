@@ -1,13 +1,13 @@
 package contract
 
 import (
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/hooks"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/tools"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/hooks"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 const (

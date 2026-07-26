@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	core "github.com/compozy/agh/internal/api/core"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 func hookHeartbeatAuthoringService(

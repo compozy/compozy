@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 type fakeProviderSecretResolver struct {

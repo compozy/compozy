@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session/inputqueue"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session/inputqueue"
 )
 
 func (m *Manager) applyRuntimeDefaults() error {

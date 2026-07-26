@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func rollbackTx(tx *sql.Tx) error {

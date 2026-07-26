@@ -18,10 +18,10 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -209,7 +209,7 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 			t.Fatalf("EvalSymlinks(legacy database) error = %v", err)
 		}
 
-		binaryPath := buildAGHBinary(t)
+		binaryPath := buildCompozyBinary(t)
 		env, err := withRuntimeCLIEnv(layout.HomePaths, layout.Env, binaryPath)
 		if err != nil {
 			t.Fatalf("withRuntimeCLIEnv() error = %v", err)
@@ -241,7 +241,7 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 		logText := string(logBytes)
 		if !strings.Contains(logText, store.ErrLegacyDatabase.Error()) ||
 			!strings.Contains(logText, canonicalPath) ||
-			!strings.Contains(logText, "complete AGH_HOME or workspace .agh directory") {
+			!strings.Contains(logText, "complete AGH_HOME or workspace .compozy directory") {
 			t.Fatalf("daemon process log = %q, want legacy sentinel, path, and whole-family remediation", logText)
 		}
 		if _, err := os.Stat(layout.HomePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {

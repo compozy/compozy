@@ -4,17 +4,17 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/udsapi"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/doctor"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/situation"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/windowmanager"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/udsapi"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/doctor"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/situation"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.

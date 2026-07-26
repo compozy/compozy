@@ -19,7 +19,7 @@ const (
 	provenanceVersionKey = "version"
 )
 
-const sidecarFileName = ".agh-meta.json"
+const sidecarFileName = ".compozy-meta.json"
 
 // ErrSymlinkEscape reports a skill payload symlink that resolves outside the skill directory.
 var ErrSymlinkEscape = errors.New("skills: symlink escapes skill directory")

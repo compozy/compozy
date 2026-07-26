@@ -14,9 +14,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/subprocess"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 const (

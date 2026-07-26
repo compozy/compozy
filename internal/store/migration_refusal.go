@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const migrationFamilyRecoveryInstruction = "stop AGH; preserve or move the complete AGH_HOME or workspace .agh " +
+const migrationFamilyRecoveryInstruction = "stop AGH; preserve or move the complete AGH_HOME or workspace .compozy " +
 	"directory containing this database, including every sibling database file; then start AGH with a separately " +
 	"selected fresh AGH_HOME or workspace"
 

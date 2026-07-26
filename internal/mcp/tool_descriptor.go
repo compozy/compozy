@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/toolmeta"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/toolmeta"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 )
 

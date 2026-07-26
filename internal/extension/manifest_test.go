@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/version"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
@@ -608,7 +608,7 @@ min_agh_version = "0.5.0"
 			wantField: "capabilities.provides[0]",
 		},
 		{
-			name:          "incompatible minimum agh version",
+			name:          "incompatible minimum compozy version",
 			daemonVersion: "0.4.0",
 			fileName:      manifestTOMLFileName,
 			content:       validManifestTOML,

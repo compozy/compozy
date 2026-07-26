@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func rejectTaskSecretText(path string, value string) error {

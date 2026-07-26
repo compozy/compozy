@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Inbox returns immutable delivered messages for one durable session identity.

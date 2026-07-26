@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const EventTypeClarify = acp.EventTypeClarify

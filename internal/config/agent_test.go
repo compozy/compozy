@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/compozy/agh/internal/frontmatter"
-	"github.com/compozy/agh/internal/reasoning"
+	"github.com/compozy/compozy/internal/frontmatter"
+	"github.com/compozy/compozy/internal/reasoning"
 	"github.com/goccy/go-yaml"
 )
 

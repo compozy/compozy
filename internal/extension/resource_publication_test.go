@@ -8,9 +8,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/testutil"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestResolveManifestToolResourcesMatchesDynamicSnapshotCanonicalShape(t *testing.T) {

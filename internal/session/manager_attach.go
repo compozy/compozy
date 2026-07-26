@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // AttachSession acquires the durable attach lock before updating the live session snapshot.

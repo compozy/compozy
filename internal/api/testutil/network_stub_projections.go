@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (s StubNetworkStore) deriveNetworkChannelProjections(

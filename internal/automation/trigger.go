@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 const (

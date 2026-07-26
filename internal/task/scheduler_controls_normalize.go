@@ -3,7 +3,7 @@ package task
 import (
 	"strings"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 func normalizePauseTaskRequest(req PauseTaskRequest) (PauseTaskRequest, error) {
@@ -14,7 +14,7 @@ func normalizePauseTaskRequest(req PauseTaskRequest) (PauseTaskRequest, error) {
 			"Task pause requires a reason",
 			"Provide --reason so the pause audit event explains why new claims were stopped.",
 			diagnosticcontract.SeverityError,
-			"agh task pause <task-id> --reason \"incident response\"",
+			"compozy task pause <task-id> --reason \"incident response\"",
 			nil,
 			ErrForceOpRequiresReason,
 		)

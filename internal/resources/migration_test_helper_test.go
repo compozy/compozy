@@ -1,8 +1,8 @@
 package resources
 
 import (
-	"github.com/compozy/agh/internal/store"
-	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
+	"github.com/compozy/compozy/internal/store"
+	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 )
 
 func globalTestMigrationStream() store.MigrationStream {

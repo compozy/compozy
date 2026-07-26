@@ -1,6 +1,6 @@
 package mcp
 
-import "github.com/compozy/agh/internal/tools"
+import "github.com/compozy/compozy/internal/tools"
 
 func cloneToolViews(src []tools.ToolView) []tools.ToolView {
 	if src == nil {

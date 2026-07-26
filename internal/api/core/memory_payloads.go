@@ -6,11 +6,11 @@ import (
 
 	"strings"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/frontmatter"
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/frontmatter"
+	"github.com/compozy/compozy/internal/memory"
 )
 
 func validateMemoryCreateRequest(req contract.MemoryCreateRequest) error {

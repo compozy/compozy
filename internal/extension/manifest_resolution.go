@@ -7,16 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func resolveManifestCommand(
 	rootDir string,
 	value string,
 	getenv func(string) string,
-	aghExecutable func() (string, error),
+	compozyExecutable func() (string, error),
 ) (string, error) {
-	resolved, err := resolveManifestString(rootDir, value, getenv, aghExecutable)
+	resolved, err := resolveManifestString(rootDir, value, getenv, compozyExecutable)
 	if err != nil {
 		return "", err
 	}
@@ -36,7 +36,7 @@ func resolveManifestStringSlice(
 	rootDir string,
 	values []string,
 	getenv func(string) string,
-	aghExecutable func() (string, error),
+	compozyExecutable func() (string, error),
 ) ([]string, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -44,7 +44,7 @@ func resolveManifestStringSlice(
 
 	resolved := make([]string, 0, len(values))
 	for _, value := range values {
-		item, err := resolveManifestString(rootDir, value, getenv, aghExecutable)
+		item, err := resolveManifestString(rootDir, value, getenv, compozyExecutable)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +57,7 @@ func resolveManifestStringMap(
 	rootDir string,
 	env map[string]string,
 	getenv func(string) string,
-	aghExecutable func() (string, error),
+	compozyExecutable func() (string, error),
 ) (map[string]string, error) {
 	if len(env) == 0 {
 		return nil, nil
@@ -65,7 +65,7 @@ func resolveManifestStringMap(
 
 	resolved := make(map[string]string, len(env))
 	for key, value := range env {
-		item, err := resolveManifestString(rootDir, value, getenv, aghExecutable)
+		item, err := resolveManifestString(rootDir, value, getenv, compozyExecutable)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +78,7 @@ func resolveManifestString(
 	rootDir string,
 	value string,
 	getenv func(string) string,
-	aghExecutable func() (string, error),
+	compozyExecutable func() (string, error),
 ) (string, error) {
 	resolved := strings.TrimSpace(value)
 	if resolved == "" {
@@ -86,12 +86,12 @@ func resolveManifestString(
 	}
 
 	resolved = strings.ReplaceAll(resolved, "{{config_dir}}", rootDir)
-	if strings.Contains(resolved, "{{agh_executable}}") {
-		executable, err := resolveAGHExecutable(aghExecutable)
+	if strings.Contains(resolved, "{{compozy_executable}}") {
+		executable, err := resolveCompozyExecutable(compozyExecutable)
 		if err != nil {
 			return "", err
 		}
-		resolved = strings.ReplaceAll(resolved, "{{agh_executable}}", executable)
+		resolved = strings.ReplaceAll(resolved, "{{compozy_executable}}", executable)
 	}
 	for {
 		start := strings.Index(resolved, "{{env:")
@@ -112,20 +112,23 @@ func resolveManifestString(
 	return resolved, nil
 }
 
-func resolveAGHExecutable(aghExecutable func() (string, error)) (string, error) {
-	if aghExecutable == nil {
-		aghExecutable = os.Executable
+func resolveCompozyExecutable(compozyExecutable func() (string, error)) (string, error) {
+	if compozyExecutable == nil {
+		compozyExecutable = os.Executable
 	}
-	executable, err := aghExecutable()
+	executable, err := compozyExecutable()
 	if err != nil {
-		return "", fmt.Errorf("resolve agh executable template: %w", err)
+		return "", fmt.Errorf("resolve compozy executable template: %w", err)
 	}
 	trimmed := strings.TrimSpace(executable)
 	if trimmed == "" {
-		return "", errors.New("resolve agh executable template: executable path is required")
+		return "", errors.New("resolve compozy executable template: executable path is required")
 	}
 	if isGoTestBinary(trimmed) {
-		return "", fmt.Errorf("resolve agh executable template: %q is a Go test binary, not an agh executable", trimmed)
+		return "", fmt.Errorf(
+			"resolve compozy executable template: %q is a Go test binary, not a compozy executable",
+			trimmed,
+		)
 	}
 	return trimmed, nil
 }

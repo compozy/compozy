@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func (s *HostedService) consumeLaunch(

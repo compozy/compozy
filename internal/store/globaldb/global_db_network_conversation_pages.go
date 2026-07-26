@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ListThreads returns one counted, bounded page of public-thread summaries.

@@ -3,7 +3,7 @@ package session
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func spawnNetworkParticipation(opts SpawnOpts) *participation.Request {

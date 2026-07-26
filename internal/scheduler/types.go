@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/jonboulle/clockwork"
 )
 

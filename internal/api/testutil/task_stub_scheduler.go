@@ -3,7 +3,7 @@ package testutil
 import (
 	"context"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *StubTaskManager) PauseTask(

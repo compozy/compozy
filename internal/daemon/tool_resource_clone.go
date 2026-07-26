@@ -3,7 +3,7 @@ package daemon
 import (
 	"slices"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func cloneToolSpec(src toolspkg.Tool) toolspkg.Tool {

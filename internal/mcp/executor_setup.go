@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const defaultCallTimeout = 30 * time.Second

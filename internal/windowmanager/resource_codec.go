@@ -9,7 +9,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 const (

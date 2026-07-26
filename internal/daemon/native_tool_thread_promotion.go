@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/network/participation"
 
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) rollbackPromotedThreadTask(

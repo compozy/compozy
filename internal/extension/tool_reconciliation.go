@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ExtensionToolRuntimeState captures extension lifecycle state needed for manifest/runtime reconciliation.

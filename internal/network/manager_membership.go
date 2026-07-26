@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
-	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/network/participation"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
 const managerChannelKey = "channel"

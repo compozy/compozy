@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum string, config installConfig) error {

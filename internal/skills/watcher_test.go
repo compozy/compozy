@@ -218,15 +218,15 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "agents", "workspace-only", "skills"),
+		filepath.Join(workspace, ".compozy", "agents", "workspace-only", "skills"),
 		skillFileName,
 		skillWithDescription("workspace-only", "Workspace skill"),
 	)
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("workspace-agh", skillFileName),
-		skillWithDescription("workspace-agh", "Workspace agh skill"),
+		skillWithDescription("workspace-agh", "Workspace compozy skill"),
 	)
 
 	if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {

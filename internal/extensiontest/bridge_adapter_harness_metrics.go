@@ -3,7 +3,7 @@ package extensiontest
 import (
 	"context"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func (s harnessBridgeSource) CountBridgeRoutes(

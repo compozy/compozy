@@ -137,7 +137,7 @@ func TestRegistrySkillDiagnostics(t *testing.T) {
 		root := t.TempDir()
 		userDir := filepath.Join(root, "user")
 		workspaceRoot := filepath.Join(root, "workspace")
-		workspaceSkillDir := filepath.Join(workspaceRoot, ".agh", "skills", "shared")
+		workspaceSkillDir := filepath.Join(workspaceRoot, ".compozy", "skills", "shared")
 		writeSkillFile(
 			t,
 			userDir,

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network"
 )
 
 func hostAPINetworkChannel(channel string) (string, error) {

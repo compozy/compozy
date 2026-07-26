@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	automation "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/store"
+	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func scanAutomationJob(scanner rowScanner) (automation.Job, error) {

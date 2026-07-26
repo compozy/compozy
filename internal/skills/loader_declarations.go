@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/frontmatter"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/frontmatter"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	yaml "gopkg.in/yaml.v3"
 )
 

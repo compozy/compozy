@@ -25,16 +25,16 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 		Short: "Claim the next task run for the current agent session",
 		Args:  cobra.NoArgs,
 		Example: `  # Claim the next available run for this session
-  agh task next
+  compozy task next
 
   # Wait until matching work is claimable and request a five-minute lease
-  agh task next --wait --lease-seconds 300 -o json
+  compozy task next --wait --lease-seconds 300 -o json
 
   # Claim one exact queued run through the canonical lease path
-  agh task next --run-id run-123 -o json
+  compozy task next --run-id run-123 -o json
 
   # Filter by required caller capability
-  agh task next --capability go.test --priority-min 10`,
+  compozy task next --capability go.test --priority-min 10`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := validateAgentTaskLeaseSeconds(leaseSeconds); err != nil {
 				return err
@@ -95,10 +95,10 @@ func newTaskHeartbeatCommand(deps commandDeps) *cobra.Command {
 		Short: "Extend a claimed task run lease for the current agent session",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Extend the active session-bound lease
-  agh task heartbeat run-123
+  compozy task heartbeat run-123
 
 	  # Request a specific lease duration
-  agh task heartbeat run-123 --lease-seconds 300`,
+  compozy task heartbeat run-123 --lease-seconds 300`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runID, err := requiredAgentTaskRunID(args[0])
 			if err != nil {
@@ -143,10 +143,10 @@ func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
 		Short: "Complete a claimed task run for the current agent session",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Complete a claimed run
-  agh task complete run-123
+  compozy task complete run-123
 
 	  # Complete with structured result data
-  agh task complete run-123 --result '{"summary":"tests passed"}'`,
+  compozy task complete run-123 --result '{"summary":"tests passed"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runID, err := requiredAgentTaskRunID(args[0])
 			if err != nil {
@@ -192,13 +192,13 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 		Short: "Fail task runs through a session-bound lease or operator override",
 		Args:  cobra.MinimumNArgs(1),
 		Example: `  # Fail the current session's claimed run
-  agh task fail run-123 --error "provider returned invalid JSON"
+  compozy task fail run-123 --error "provider returned invalid JSON"
 
   # Force fail one run
-  agh task fail run-123 --reason "operator recovery"
+  compozy task fail run-123 --reason "operator recovery"
 
   # Force fail multiple runs with shared audit evidence
-  agh task fail run-123 run-456 \
+  compozy task fail run-123 run-456 \
     --reason "provider credentials revoked" \
     --metadata '{"incident":"INC-42"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -328,10 +328,10 @@ func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
 		Short: "Force release claimed task runs back to the queue",
 		Args:  cobra.MinimumNArgs(1),
 		Example: `  # Release a claim without completing the run
-  agh task release run-123
+  compozy task release run-123
 
   # Release multiple claims with shared audit evidence
-  agh task release run-123 run-456 --reason handoff`,
+  compozy task release run-123 run-456 --reason handoff`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runIDs, err := requiredTaskRunIDs(args)
 			if err != nil {
@@ -382,7 +382,7 @@ func newTaskRetryCommand(deps commandDeps) *cobra.Command {
 		Short: "Retry one failed task run",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Re-enqueue one failed run
-  agh task retry run-123`,
+  compozy task retry run-123`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runIDs, err := requiredTaskRunIDs(args)
 			if err != nil {

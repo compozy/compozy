@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/deadentity"
-	"github.com/compozy/agh/internal/diagnostics"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/diagnostics"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const defaultSettingsMCPProbeTimeout = 5 * time.Second

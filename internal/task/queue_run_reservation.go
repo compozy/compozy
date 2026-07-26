@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // QueueRunReservation captures the canonical store-level queue reservation input.

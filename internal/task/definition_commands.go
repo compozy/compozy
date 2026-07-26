@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // CreateTaskDefinitionMutation commits a task definition, optional execution

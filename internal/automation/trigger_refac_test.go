@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/testutil"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 type mutatingTriggerFilterDispatcher struct{}

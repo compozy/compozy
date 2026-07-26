@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/session"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestHarnessContextResolverMatrix(t *testing.T) {

@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/filesnap"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/sandbox"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/filesnap"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func TestResolveRoutesByIdentifierType(t *testing.T) {
@@ -710,7 +710,7 @@ func TestResolveCreatesAndLoadsStableWorkspaceIdentity(t *testing.T) {
 	if !IsWorkspaceID(first.WorkspaceID) {
 		t.Fatalf("Resolve(first).WorkspaceID = %q, want workspace ULID", first.WorkspaceID)
 	}
-	identityPath := filepath.Join(first.RootDir, ".agh", "workspace.toml")
+	identityPath := filepath.Join(first.RootDir, ".compozy", "workspace.toml")
 	identity, err := loadIdentityFile(identityPath)
 	if err != nil {
 		t.Fatalf("loadIdentityFile(%q) error = %v", identityPath, err)
@@ -809,7 +809,7 @@ func TestResolveFailsClosedForInvalidWorkspaceIdentity(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".agh", "workspace.toml"), `workspace_id = "invalid"
+	writeFile(t, filepath.Join(root, ".compozy", "workspace.toml"), `workspace_id = "invalid"
 created_at = "2026-05-05T12:00:00Z"
 realpath_at_creation = "/tmp/repo"
 `)
@@ -835,7 +835,7 @@ func TestResolveFailsClosedForPermissionDeniedWorkspaceIdentity(t *testing.T) {
 	ctx := context.Background()
 	homePaths := newTestHomePaths(t)
 	root := t.TempDir()
-	identityPath := filepath.Join(root, ".agh", "workspace.toml")
+	identityPath := filepath.Join(root, ".compozy", "workspace.toml")
 	writeFile(t, identityPath, `workspace_id = "`+testWorkspaceULID+`"
 created_at = "2026-05-05T12:00:00Z"
 realpath_at_creation = "/tmp/repo"

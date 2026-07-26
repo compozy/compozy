@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *daemonLoopAPIService) startSessionGoal(

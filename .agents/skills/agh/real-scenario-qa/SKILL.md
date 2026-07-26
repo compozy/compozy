@@ -47,16 +47,16 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 **Step 4: Post the Operator Kickoff**
 
-1. After runtime agents, sessions, channels, and the deterministic task ids from `.agh/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --agh-bin "${AGH_BIN:-agh}"`
+1. After runtime agents, sessions, channels, and the deterministic task ids from `.compozy/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --agh-bin "${AGH_BIN:-compozy}"`
 2. Render and validate the kickoff payload (mutating only the inspectable payload file):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
 3. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Rewrite the playbook's `kickoff_brief` when blocked.
-4. Read `<WORKSPACE_PATH>/.agh/operator-kickoff.txt`. Deliver that text verbatim once and capture the provider stream:
-   `agh session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.agh/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
+4. Read `<WORKSPACE_PATH>/.compozy/operator-kickoff.txt`. Deliver that text verbatim once and capture the provider stream:
+   `compozy session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.compozy/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
 5. Confirm the successful post from its non-empty evidence (mutating), then release the queued task runs (mutating):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --confirm-posted "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl"`
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --agh-bin "${AGH_BIN:-agh}"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --agh-bin "${AGH_BIN:-compozy}"`
 6. Confirm the manifest reports `KICKOFF_POSTED=true`, `KICKOFF_TIMESTAMP` is set, task activation is `released`, and the scheduler is unpaused. Send no further prompt to any agent under test; a stall becomes a bug.
 
 *Done when:* every declared task has one queued run behind the barrier, exactly one evidenced kickoff is confirmed, dispatch is released, and the observer has no path for a second agent prompt.
@@ -66,7 +66,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 1. Run the observer (read-only) for the configured window:
    `python3 .agents/skills/agh/real-scenario-qa/scripts/observe-runtime.py --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --duration-sec 1800 --stall-threshold-sec 300`
 2. While the observer is tailing the journey log, capture cross-surface evidence WITHOUT directing agents:
-   - CLI: `agh task list`, `agh agent list`, `agh channel list`, `agh session list` against the isolated daemon.
+   - CLI: `compozy task list`, `compozy agent list`, `compozy channel list`, `compozy session list` against the isolated daemon.
    - API: read endpoints that intersect the playbook's primary domain.
    - Web: open the AGH web app via `browser-use:browser` (or the `agent-browser` fallback) against `$AGH_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
    - Runtime: confirm the journey-log keeps growing.
@@ -111,4 +111,4 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 - If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), fix the artifact in the workspace via the agent that authored it (re-prompting in-persona is fine; new operator prompts are not). If the agent cannot fix it, that is a runtime bug.
 - If `browser-use:browser` is unavailable, follow the `agent-browser` fallback per the bootstrap browser policy. Do not silently drop the Web surface.
 - If providers are unreachable, record the boundary in `provider-attempt.json`. The run verdict becomes BLOCKED, never PASS.
-- If the auditor's `playbook_compliance` block reports zero counts despite agents working, confirm `WORKSPACE_PATH/.agh/playbook.json` exists and `journey-log.jsonl` is being written. Empty counts often mean the runtime is not wired to the journey log — that is a runtime bug.
+- If the auditor's `playbook_compliance` block reports zero counts despite agents working, confirm `WORKSPACE_PATH/.compozy/playbook.json` exists and `journey-log.jsonl` is being written. Empty counts often mean the runtime is not wired to the journey log — that is a runtime bug.

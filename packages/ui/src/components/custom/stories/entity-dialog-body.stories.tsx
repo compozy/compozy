@@ -23,7 +23,8 @@ const meta: Meta<typeof EntityDialogBody> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+// Derive from the component so its discriminated-union props remain intact.
+type Story = StoryObj<typeof EntityDialogBody>;
 
 function Placeholder({ label }: { label: string }) {
   return (

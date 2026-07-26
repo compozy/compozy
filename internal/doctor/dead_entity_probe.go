@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const deadEntityProbeIDPrefix = "runtime.dead_entities."

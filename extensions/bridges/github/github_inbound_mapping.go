@@ -14,9 +14,9 @@ import (
 
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func mapGitHubIssueComment(

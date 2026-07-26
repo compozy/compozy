@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func mustToolResourceCodec(t *testing.T) resources.KindCodec[Tool] {

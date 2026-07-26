@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
 func TestNetworkEnvironmentNames(t *testing.T) {

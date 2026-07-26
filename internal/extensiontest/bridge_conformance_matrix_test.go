@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	subprocesspkg "github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	subprocesspkg "github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestSummarizeConformanceReportBuildsStableMultiInstanceMatrixRow(t *testing.T) {

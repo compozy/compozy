@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	automationmodel "github.com/compozy/agh/internal/automation/model"
-	aghconfig "github.com/compozy/agh/internal/config"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
@@ -73,7 +73,7 @@ func TestSettingsLogTailFileHelpers(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "agh.log")
+	path := filepath.Join(dir, "compozy.log")
 	if err := os.WriteFile(path, []byte("existing\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}

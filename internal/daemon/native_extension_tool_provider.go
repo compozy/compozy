@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const devCycleImportTasksToolID toolspkg.ToolID = "ext__dev_cycle__import_tasks"

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestRequestRestartPersistsPreRestartContextBeforeShutdownSignal(t *testing.T) {
@@ -25,7 +25,7 @@ func TestRequestRestartPersistsPreRestartContextBeforeShutdownSignal(t *testing.
 	d.sessions = &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
 	}
-	d.executable = func() (string, error) { return "/usr/bin/agh", nil }
+	d.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 
 	var helperRequest detachedStartRequest
 	d.startDetached = func(_ context.Context, req detachedStartRequest) (restartProcess, error) {

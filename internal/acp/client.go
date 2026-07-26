@@ -10,9 +10,9 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox"
 
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 const (

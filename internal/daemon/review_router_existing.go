@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type existingReviewCandidate struct {

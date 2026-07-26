@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/marketplace"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/marketplace"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func validateCatalogForPublication(directory string) (err error) {
@@ -20,15 +20,15 @@ func validateCatalogForPublication(directory string) (err error) {
 	// #nosec G703 -- validation intentionally reads the explicit local catalog directory selected by the operator.
 	raw, err := os.ReadFile(filepath.Join(directory, "extensions.json"))
 	if err != nil {
-		return fmt.Errorf("agh-catalog: read extension feed: %w", err)
+		return fmt.Errorf("compozy-catalog: read extension feed: %w", err)
 	}
 	document, err := marketplace.DecodeDocument(marketplace.KindExtension, raw)
 	if err != nil {
-		return fmt.Errorf("agh-catalog: decode extension feed: %w", err)
+		return fmt.Errorf("compozy-catalog: decode extension feed: %w", err)
 	}
-	temporaryRoot, err := os.MkdirTemp("", "agh-catalog-validation-*")
+	temporaryRoot, err := os.MkdirTemp("", "compozy-catalog-validation-*")
 	if err != nil {
-		return fmt.Errorf("agh-catalog: create artifact validation directory: %w", err)
+		return fmt.Errorf("compozy-catalog: create artifact validation directory: %w", err)
 	}
 	defer func() {
 		err = errors.Join(err, removeCatalogValidationDirectory(temporaryRoot))
@@ -44,14 +44,14 @@ func validateCatalogForPublication(directory string) (err error) {
 func validateExtensionArtifact(catalogDir string, temporaryRoot string, entry marketplace.Entry) error {
 	details, err := marketplace.ProjectEntry(entry)
 	if err != nil {
-		return fmt.Errorf("agh-catalog: project extension %q: %w", entry.EntryID, err)
+		return fmt.Errorf("compozy-catalog: project extension %q: %w", entry.EntryID, err)
 	}
 	if details.Extension == nil {
-		return fmt.Errorf("agh-catalog: extension %q has no acquisition metadata", entry.EntryID)
+		return fmt.Errorf("compozy-catalog: extension %q has no acquisition metadata", entry.EntryID)
 	}
 	artifactName, err := curatedArtifactFilename(details.Extension.ArtifactURL)
 	if err != nil {
-		return fmt.Errorf("agh-catalog: extension %q: %w", entry.EntryID, err)
+		return fmt.Errorf("compozy-catalog: extension %q: %w", entry.EntryID, err)
 	}
 	artifactPath := filepath.Join(catalogDir, "artifacts", artifactName)
 	result, err := registrypkg.NewInstaller(&catalogFileDownloader{
@@ -63,15 +63,15 @@ func validateExtensionArtifact(catalogDir string, temporaryRoot string, entry ma
 		filepath.Join(temporaryRoot, entry.EntryID),
 	)
 	if err != nil {
-		return fmt.Errorf("agh-catalog: install extension artifact %q: %w", artifactName, err)
+		return fmt.Errorf("compozy-catalog: install extension artifact %q: %w", artifactName, err)
 	}
 	manifest, err := extensionpkg.LoadManifest(result.InstallPath)
 	if err != nil {
-		return fmt.Errorf("agh-catalog: load extension artifact %q: %w", artifactName, err)
+		return fmt.Errorf("compozy-catalog: load extension artifact %q: %w", artifactName, err)
 	}
 	if manifest.Version != entry.Version {
 		return fmt.Errorf(
-			"agh-catalog: extension artifact %q version %q does not match feed version %q",
+			"compozy-catalog: extension artifact %q version %q does not match feed version %q",
 			artifactName,
 			manifest.Version,
 			entry.Version,
@@ -105,12 +105,12 @@ func (d *catalogFileDownloader) Download(
 ) (*registrypkg.DownloadResult, error) {
 	file, err := os.Open(d.path)
 	if err != nil {
-		return nil, fmt.Errorf("agh-catalog: open artifact %q: %w", d.path, err)
+		return nil, fmt.Errorf("compozy-catalog: open artifact %q: %w", d.path, err)
 	}
 	info, err := file.Stat()
 	if err != nil {
 		return nil, errors.Join(
-			fmt.Errorf("agh-catalog: stat artifact %q: %w", d.path, err),
+			fmt.Errorf("compozy-catalog: stat artifact %q: %w", d.path, err),
 			file.Close(),
 		)
 	}
@@ -122,7 +122,7 @@ func (d *catalogFileDownloader) Download(
 
 func removeCatalogValidationDirectory(path string) error {
 	if err := os.RemoveAll(path); err != nil {
-		return fmt.Errorf("agh-catalog: remove artifact validation directory: %w", err)
+		return fmt.Errorf("compozy-catalog: remove artifact validation directory: %w", err)
 	}
 	return nil
 }

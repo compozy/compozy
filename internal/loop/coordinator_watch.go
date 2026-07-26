@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/task"
 )
 
 const (

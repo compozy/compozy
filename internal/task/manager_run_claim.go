@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // EnqueueRun persists one new queue-first task run under manager authority.

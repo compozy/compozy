@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/memory"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +20,10 @@ func newMemoryListCommand(deps commandDeps) *cobra.Command {
 		Use:   memoryListKey,
 		Short: "List Memory v2 entries",
 		Example: `  # List the newest global and current-workspace memories
-  agh memory list
+  compozy memory list
 
   # Walk agent-workspace memories by normalized name
-  agh memory list --scope agent --agent reviewer --agent-tier workspace --sort name --limit 50`,
+  compozy memory list --scope agent --agent reviewer --agent-tier workspace --sort name --limit 50`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if limit < 0 || limit > memory.MaxHeaderListLimit {

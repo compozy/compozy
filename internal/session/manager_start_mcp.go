@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (m *Manager) sessionMCPServers(

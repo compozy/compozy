@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/notifications"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/notifications"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {

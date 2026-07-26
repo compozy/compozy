@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func TestPromptInputCompositeOrdersEnabledAugmentersByDescriptorOrder(t *testing.T) {

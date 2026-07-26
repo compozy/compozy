@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/goal"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/goal"
 )
 
 // RevokeGoalPrompt atomically fences prepared work or terminalizes one already-claimed operation.

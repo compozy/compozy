@@ -3,7 +3,7 @@ package bridges
 import (
 	"fmt"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // ValidateInstanceStateTransition reports whether the next enabled/status pair is

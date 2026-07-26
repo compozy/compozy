@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 type hookBindingIntegrationHarness struct {

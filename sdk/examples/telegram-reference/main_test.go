@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/bridgesdk"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/bridgesdk"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestMapTelegramUpdateToInboundEnvelope(t *testing.T) {

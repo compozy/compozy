@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 
 	"github.com/spf13/cobra"
 )
@@ -62,10 +62,10 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 		Use:   daemonStartKey,
 		Short: "Start the AGH daemon",
 		Example: `  # Start AGH in the background and wait for readiness
-  agh daemon start
+  compozy daemon start
 
   # Keep logs attached to the current terminal
-  agh daemon start --foreground`,
+  compozy daemon start --foreground`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if foreground || internalChild {
 				return runDaemonForeground(cmd.Context(), deps, exitWhenOrphaned)
@@ -116,7 +116,7 @@ func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the AGH daemon",
 		Example: `  # Ask the running daemon to stop
-  agh daemon stop`,
+  compozy daemon stop`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			runtime, err := loadRuntimeContext(deps)
 			if err != nil {

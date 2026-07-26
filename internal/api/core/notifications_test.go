@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/gin-gonic/gin"
 )
 

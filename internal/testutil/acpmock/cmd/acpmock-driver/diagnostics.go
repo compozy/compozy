@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
 func (a *mockAgent) writeProtocolDiagnostics(

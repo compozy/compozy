@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	retrypkg "github.com/compozy/agh/internal/retry"
+	retrypkg "github.com/compozy/compozy/internal/retry"
 )
 
 // RetryBackoff bounds one provider failure class's delay sequence.

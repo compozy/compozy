@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestReferenceAdapterControlCheckIsExplicit(t *testing.T) {

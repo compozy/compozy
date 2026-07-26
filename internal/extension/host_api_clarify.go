@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/session"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
 )
 

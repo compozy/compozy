@@ -5,15 +5,15 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	observepkg "github.com/compozy/agh/internal/observe"
+	observepkg "github.com/compozy/compozy/internal/observe"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ObserveHealthPayloadFromHealth converts the observer health snapshot into the shared payload.

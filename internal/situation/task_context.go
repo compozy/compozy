@@ -8,8 +8,8 @@ import (
 
 	"strings"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *Service) BundleForActiveLease(

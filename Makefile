@@ -86,7 +86,7 @@ site-build:
 	@bunx turbo run build --filter=./packages/site
 
 cli-docs:
-	@go run ./cmd/agh doc --output-dir packages/site/content/runtime/cli-reference
+	@go run ./cmd/compozy doc --output-dir packages/site/content/runtime/cli-reference
 	@bunx oxfmt packages/site/content/runtime/cli-reference
 
 # Web UI
@@ -148,12 +148,12 @@ dev-daemon:
 	@bash scripts/dev-daemon-runner.sh "$(AIR_VERSION)" -c .air.toml
 
 start: build web-build
-	@test -x ./bin/agh || { echo "bin/agh not found — run 'make build' first"; exit 1; }
+	@test -x ./bin/compozy || { echo "bin/compozy not found — run 'make build' first"; exit 1; }
 	@echo "Starting daemon serving local web bundle: $(CURDIR)/web/dist"
-	@AGH_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/agh daemon start
+	@AGH_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/compozy daemon start
 
 stop:
-	@./bin/agh daemon stop
+	@./bin/compozy daemon stop
 
 restart:
 	@$(MAKE) stop || true

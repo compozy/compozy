@@ -6,11 +6,11 @@ import (
 
 	"strings"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/hooks"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/hooks"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (g *generator) emitHookMaps() {
@@ -203,7 +203,7 @@ func shouldAutoEmitNamedType(t reflect.Type) bool {
 	if t == nil || t.Name() == "" {
 		return false
 	}
-	if !strings.HasPrefix(t.PkgPath(), "github.com/compozy/agh/internal/") {
+	if !strings.HasPrefix(t.PkgPath(), "github.com/compozy/compozy/internal/") {
 		return false
 	}
 	return t.Kind() == reflect.Struct || isEnumType(t) || isPrimitiveAliasType(t)

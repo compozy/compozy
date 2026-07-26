@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	"github.com/compozy/agh/internal/version"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
 

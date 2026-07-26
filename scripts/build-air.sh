@@ -6,8 +6,8 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
 build_dir=${AGH_AIR_BUILD_DIR:-"$repo_root/.tmp/air"}
-binary="$build_dir/agh"
-next_binary="$build_dir/agh.next"
+binary="$build_dir/compozy"
+next_binary="$build_dir/compozy.next"
 
 cleanup() {
   local exit_status=$?
@@ -26,5 +26,5 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$build_dir"
-go build -o "$next_binary" ./cmd/agh
+go build -o "$next_binary" ./cmd/compozy
 mv -f -- "$next_binary" "$binary"

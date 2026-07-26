@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-const aghModulePath = "github.com/compozy/agh/"
+const aghModulePath = "github.com/compozy/compozy/"
 
 type dependencyClosureRule struct {
 	root              string
@@ -196,7 +196,7 @@ func Boundaries() error {
 			}
 			return fmt.Errorf("inspect boundary importer %q: %w", importerDir, err)
 		}
-		importPath := "github.com/compozy/agh/" + rule.imported
+		importPath := "github.com/compozy/compozy/" + rule.imported
 		files, err := filesImporting(importerDir, importPath)
 		if err != nil {
 			return fmt.Errorf("check whether %q imports %q: %w", importerDir, importPath, err)
@@ -234,7 +234,7 @@ func Boundaries() error {
 			}
 			return fmt.Errorf("inspect boundary importer %q: %w", importerDir, err)
 		}
-		importPath := "github.com/compozy/agh/" + rule.imported
+		importPath := "github.com/compozy/compozy/" + rule.imported
 		files, err := filesImportingPrefix(importerDir, importPath)
 		if err != nil {
 			return fmt.Errorf("check whether %q imports %q or a subpackage: %w", importerDir, importPath, err)
@@ -259,13 +259,13 @@ func Boundaries() error {
 		{
 			importer: "internal/toolmeta",
 			allowed: map[string]struct{}{
-				"github.com/compozy/agh/internal/redact": {},
+				"github.com/compozy/compozy/internal/redact": {},
 			},
 		},
 		{
 			importer: "internal/bridges/contract",
 			allowed: map[string]struct{}{
-				"github.com/compozy/agh/internal/redact": {},
+				"github.com/compozy/compozy/internal/redact": {},
 			},
 		},
 	}

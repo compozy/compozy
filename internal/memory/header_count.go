@@ -3,7 +3,7 @@ package memory
 import (
 	"fmt"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 // SourceHeaderCount returns the complete count of valid source headers in one scope.

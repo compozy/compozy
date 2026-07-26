@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 	"github.com/kballard/go-shellquote"
 )
 

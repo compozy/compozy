@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/gin-gonic/gin"
 )
 

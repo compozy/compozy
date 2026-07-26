@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type loopRunScanner interface {

@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ToolApprovalGrantSetRequest creates or replaces one explicit wider remembered decision.

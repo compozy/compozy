@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func cloneAutomationJobTaskConfig(config *automationpkg.JobTaskConfig) (*automationpkg.JobTaskConfig, error) {

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/listcursor"
+	"github.com/compozy/compozy/internal/listcursor"
 )
 
 // BridgeCatalogRecord is the lean persisted projection used before page hydration.

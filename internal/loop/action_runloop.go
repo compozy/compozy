@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 // RunLoopActionExecutor starts a child loop for await or detach semantics.

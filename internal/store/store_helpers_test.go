@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestValidationHelpersAndPathUtilities(t *testing.T) {
@@ -461,6 +461,12 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 	}
 
 	sessionRoot := filepath.Join(string(filepath.Separator), "tmp", "session-a")
+	if got, want := GlobalDatabaseName, "compozy.db"; got != want {
+		t.Fatalf("GlobalDatabaseName = %q, want %q", got, want)
+	}
+	if got, want := SessionDatabaseName, "events.db"; got != want {
+		t.Fatalf("SessionDatabaseName = %q, want %q", got, want)
+	}
 	if got, want := SessionDBFile(sessionRoot), filepath.Join(sessionRoot, SessionDatabaseName); got != want {
 		t.Fatalf("SessionDBFile() = %q, want %q", got, want)
 	}

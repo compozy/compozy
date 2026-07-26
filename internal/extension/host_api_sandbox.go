@@ -9,9 +9,9 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *HostAPIHandler) handleSandboxList(ctx context.Context, raw json.RawMessage) (any, error) {

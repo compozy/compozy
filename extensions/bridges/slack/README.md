@@ -18,8 +18,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/slack/bin
 go build -o ./extensions/bridges/slack/bin/slack ./extensions/bridges/slack
-agh extension install ./extensions/bridges/slack --allow-unverified --yes -o json
-agh extension status slack -o json
+compozy extension install ./extensions/bridges/slack --allow-unverified --yes -o json
+compozy extension status slack -o json
 ```
 
 ## Provider Config

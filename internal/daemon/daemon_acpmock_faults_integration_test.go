@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
 
 const faultyMockAgentName = "mock-faulty"

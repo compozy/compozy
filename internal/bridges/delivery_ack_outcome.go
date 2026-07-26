@@ -3,7 +3,7 @@ package bridges
 import (
 	"strings"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 const progressDeliveryIndeterminateReason = "progress_delivery_indeterminate"

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (

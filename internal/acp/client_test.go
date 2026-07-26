@@ -19,11 +19,11 @@ import (
 	"github.com/kballard/go-shellquote"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/toolruntime"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 const (
@@ -1576,7 +1576,7 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 				{
 					Name:      "agh-hosted-tools",
 					Transport: aghconfig.MCPServerTransportStdio,
-					Command:   "/bin/agh",
+					Command:   "/bin/compozy",
 					Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
 					Env:       map[string]string{"AGH_HOME": "/tmp/agh-home"},
 				},
@@ -1603,7 +1603,7 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 		if stdio == nil {
 			t.Fatalf("session/new mcpServers[0] = %#v, want stdio variant", request.MCPServers[0])
 		}
-		if stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/agh" {
+		if stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/compozy" {
 			t.Fatalf("hosted stdio entry = %#v, want hosted command", stdio)
 		}
 		if !slices.Equal(stdio.Args, []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"}) {

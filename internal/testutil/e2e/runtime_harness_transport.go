@@ -17,14 +17,14 @@ import (
 
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
 
 	"golang.org/x/sys/execabs"
 )
 
 // RunInDir executes one CLI command against the isolated daemon runtime using the provided working directory.
 func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string) (string, string, error) {
-	// #nosec G204 -- test helper intentionally shells out to the current agh test binary.
+	// #nosec G204 -- test helper intentionally shells out to the current compozy test binary.
 	cmd := execabs.CommandContext(ctx, c.binaryPath, args...)
 	cmd.Env = append([]string(nil), c.env...)
 	trimmedDir := strings.TrimSpace(workdir)

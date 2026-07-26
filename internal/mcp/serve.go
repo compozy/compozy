@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/google/uuid"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"

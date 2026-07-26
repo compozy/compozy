@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
 const (

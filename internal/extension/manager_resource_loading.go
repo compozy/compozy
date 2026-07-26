@@ -12,12 +12,12 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {

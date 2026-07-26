@@ -1,6 +1,6 @@
 package spec
 
-import memorypkg "github.com/compozy/agh/internal/memory"
+import memorypkg "github.com/compozy/compozy/internal/memory"
 
 func memoryListQueryParams() []ParameterSpec {
 	return append(

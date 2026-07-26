@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/spf13/cobra"
 )
 

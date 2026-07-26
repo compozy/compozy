@@ -17,11 +17,11 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/store"
-	sessionschema "github.com/compozy/agh/internal/store/sessiondb/schema"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
+	sessionschema "github.com/compozy/compozy/internal/store/sessiondb/schema"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 type SessionEvent = store.SessionEvent

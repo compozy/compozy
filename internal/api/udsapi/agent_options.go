@@ -1,6 +1,6 @@
 package udsapi
 
-import "github.com/compozy/agh/internal/api/core"
+import "github.com/compozy/compozy/internal/api/core"
 
 // WithAgentCatalog injects the projected resource-backed agent catalog.
 func WithAgentCatalog(catalog core.AgentCatalog) Option {

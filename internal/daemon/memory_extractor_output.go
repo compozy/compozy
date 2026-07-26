@@ -13,11 +13,11 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/memory/prompts"
+	"github.com/compozy/compozy/internal/memory/prompts"
 )
 
 func renderMemoryExtractorPrompt(turn memcontract.TurnRecord) (string, error) {

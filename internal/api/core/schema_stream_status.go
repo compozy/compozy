@@ -3,9 +3,9 @@ package core
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SchemaStreamStatusReader reads the daemon-global migration streams exposed by status.

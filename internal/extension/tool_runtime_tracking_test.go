@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/subprocess"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/subprocess"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestManagerCallToolTracksInvocationForExactCallLifetime(t *testing.T) {

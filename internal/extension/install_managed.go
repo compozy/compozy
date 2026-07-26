@@ -9,8 +9,8 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 const managedInstallDirName = "extensions"
@@ -72,7 +72,7 @@ func NewManagedInstallStagingDir(homePaths aghconfig.HomePaths) (string, error) 
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return "", fmt.Errorf("extension: create managed install root %q: %w", root, err)
 	}
-	return os.MkdirTemp(root, ".agh-extension-stage-*")
+	return os.MkdirTemp(root, ".compozy-extension-stage-*")
 }
 
 // InstallLocalManaged copies one local extension into the managed install root and persists the registry record there.

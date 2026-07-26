@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	observepkg "github.com/compozy/agh/internal/observe"
-	taskpkg "github.com/compozy/agh/internal/task"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (h *HostAPIHandler) taskManager() (hostAPITaskManager, error) {

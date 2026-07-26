@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {

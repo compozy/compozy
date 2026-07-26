@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const registryConcurrentReadWriteTimeout = 30 * time.Second
@@ -127,7 +127,7 @@ func newRegistryReadWriteRaceFixtureContract(t *testing.T) (*Registry, *workspac
 	)
 
 	workspaceRoot := filepath.Join(root, "workspace")
-	workspaceSkillsRoot := filepath.Join(workspaceRoot, ".agh", "skills")
+	workspaceSkillsRoot := filepath.Join(workspaceRoot, ".compozy", "skills")
 	workspaceSkillDir := filepath.Join(workspaceSkillsRoot, "workspace-skill")
 	writeSkillFile(
 		t,

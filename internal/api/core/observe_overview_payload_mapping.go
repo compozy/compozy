@@ -3,8 +3,8 @@ package core
 import (
 	"maps"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/observe"
 )
 
 // ObserveOverviewPayloadFromView converts the observe read model into the shared payload.

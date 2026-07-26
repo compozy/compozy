@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"strings"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/memory"
 
 	"github.com/gin-gonic/gin"
 )

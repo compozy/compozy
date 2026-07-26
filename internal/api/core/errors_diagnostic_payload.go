@@ -4,10 +4,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {

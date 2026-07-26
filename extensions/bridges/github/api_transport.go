@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 func (c *githubClient) doJSON(

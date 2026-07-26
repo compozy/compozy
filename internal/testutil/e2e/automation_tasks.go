@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	coreapi "github.com/compozy/agh/internal/api/core"
-	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/compozy/internal/agentidentity"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	coreapi "github.com/compozy/compozy/internal/api/core"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 // AutomationFixtureSeed describes one batch of automation definitions seeded

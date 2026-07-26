@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // NormalizeDirectTaskParticipation returns canonical authored participation

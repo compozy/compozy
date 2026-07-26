@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/google/cel-go/cel"
 	celast "github.com/google/cel-go/common/ast"
 )

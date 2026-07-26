@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func TestNativeExecutorExecuteCallsCallback(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type transitionContent struct {

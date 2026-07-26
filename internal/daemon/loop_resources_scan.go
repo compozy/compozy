@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/resources"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func scanLoopResourceDir(ctx context.Context, root string, source looppkg.Source) ([]looppkg.ResourceSpec, error) {

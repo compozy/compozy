@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	core "github.com/compozy/compozy/internal/api/core"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 

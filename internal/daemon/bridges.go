@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/deadentity"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/deadentity"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 var errBridgeSecretResolverRequired = errors.New("daemon: bridge secret resolver is required")

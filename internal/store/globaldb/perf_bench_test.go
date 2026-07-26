@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/bridges"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func BenchmarkReplaceBridgeInstances(b *testing.B) {

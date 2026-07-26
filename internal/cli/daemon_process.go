@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	aghlogger "github.com/compozy/agh/internal/logger"
-	"github.com/compozy/agh/internal/procutil"
+	aghlogger "github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 func spawnDetachedDaemonProcess(

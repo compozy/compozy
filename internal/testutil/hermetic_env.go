@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 const (

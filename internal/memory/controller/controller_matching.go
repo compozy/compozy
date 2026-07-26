@@ -6,9 +6,9 @@ import (
 
 	"strings"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/memory/scan"
+	"github.com/compozy/compozy/internal/memory/scan"
 )
 
 func exactContentTarget(candidate memcontract.Candidate, targets []Target) *Target {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/core"
-	apispec "github.com/compozy/agh/internal/api/spec"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/core"
+	apispec "github.com/compozy/compozy/internal/api/spec"
+	aghconfig "github.com/compozy/compozy/internal/config"
 	"github.com/gin-gonic/gin"
 )
 

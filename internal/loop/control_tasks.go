@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func appendCoordinatorTasksForOutputs(

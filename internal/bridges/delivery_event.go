@@ -3,7 +3,7 @@ package bridges
 import (
 	"encoding/json"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // DeliveryMessageReference identifies one previously delivered message.

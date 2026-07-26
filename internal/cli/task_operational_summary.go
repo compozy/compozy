@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/compozy/agh/internal/api/contract"
+import "github.com/compozy/compozy/internal/api/contract"
 
 func taskRunOperationalSummaryRows(summary contract.TaskRunOperationalSummaryPayload) []keyValue {
 	return []keyValue{

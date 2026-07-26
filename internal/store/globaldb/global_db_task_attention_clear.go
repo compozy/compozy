@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	taskpkg "github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type normalizedNeedsAttentionClear struct {

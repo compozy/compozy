@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/modelcatalog"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
 )
 
@@ -455,7 +455,7 @@ func TestOpenAIModelCatalogHandler(t *testing.T) {
 		}
 		model := payload.Data[0]
 		if model.Object != "model" || model.OwnedBy != "codex" || model.AGH.ProviderID != "codex" {
-			t.Fatalf("model = %#v, want OpenAI shape with agh metadata", model)
+			t.Fatalf("model = %#v, want OpenAI shape with compozy metadata", model)
 		}
 		if len(model.AGH.Sources) != 1 || model.AGH.Sources[0] != modelcatalog.SourceIDConfig {
 			t.Fatalf("AGH.Sources = %#v, want config source", model.AGH.Sources)

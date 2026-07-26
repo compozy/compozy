@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
-	"github.com/compozy/agh/internal/testutil"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBNotificationPresetSchema(t *testing.T) {

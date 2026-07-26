@@ -8,12 +8,12 @@ import (
 
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/soul"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func (h *HostAPIHandler) hostAPISessionHealthPayload(

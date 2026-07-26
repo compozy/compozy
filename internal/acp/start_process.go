@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (*AgentProcess, error) {

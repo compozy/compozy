@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 // rehydrateStaticModelCatalogSources rebuilds derived rows whose schema or

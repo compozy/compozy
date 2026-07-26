@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (d *Daemon) bootToolArtifacts(

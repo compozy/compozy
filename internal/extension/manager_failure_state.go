@@ -8,7 +8,7 @@ import (
 
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {

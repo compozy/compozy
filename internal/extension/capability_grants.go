@@ -4,8 +4,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/extension/surfaces"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/extension/surfaces"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (c *CapabilityChecker) lookup(extName string) capabilityGrant {

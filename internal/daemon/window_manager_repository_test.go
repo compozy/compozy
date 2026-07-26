@@ -8,9 +8,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/compozy/agh/internal/clientstate"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/clientstate"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestWindowManagerRepository(t *testing.T) {

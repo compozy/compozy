@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
 

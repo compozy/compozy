@@ -5,8 +5,8 @@ import (
 
 	"time"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/compozy/internal/diagnostics"
 )
 
 func forceRunDiagnosticError(

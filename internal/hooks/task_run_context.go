@@ -1,6 +1,6 @@
 package hooks
 
-import "github.com/compozy/agh/internal/network/participation"
+import "github.com/compozy/compozy/internal/network/participation"
 
 // NetworkSpecSnapshot returns the immutable participation value carried by one task-run hook.
 func (c TaskRunContext) NetworkSpecSnapshot() participation.Spec {

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	modelpkg "github.com/compozy/agh/internal/automation/model"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
 type resourceCatalogCandidate struct {

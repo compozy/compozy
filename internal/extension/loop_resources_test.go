@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
 func TestLoopResourcesShouldLoadFromManifestResources(t *testing.T) {

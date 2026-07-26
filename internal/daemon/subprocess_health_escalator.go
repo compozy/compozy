@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/subprocess"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const maxSubprocessHealthEscalationDiagnosticBytes = 1024

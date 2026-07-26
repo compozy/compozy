@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 	"golang.org/x/text/unicode/norm"
 )
 

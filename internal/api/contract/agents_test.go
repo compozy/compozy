@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestAgentContractNormalizationAndJSONShape(t *testing.T) {

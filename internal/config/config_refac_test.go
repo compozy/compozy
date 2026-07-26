@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func TestApplyMCPServerOverlaysNormalizesNameCollisions(t *testing.T) {

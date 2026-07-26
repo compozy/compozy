@@ -13,7 +13,7 @@ import (
 func TestPeerInfoContextHelpers(t *testing.T) {
 	t.Parallel()
 
-	peer := PeerInfo{Supported: true, PID: 10, UID: 20, GID: 30, ExecutablePath: "/bin/agh"}
+	peer := PeerInfo{Supported: true, PID: 10, UID: 20, GID: 30, ExecutablePath: "/bin/compozy"}
 	ctx := ContextWithPeerInfo(context.Background(), peer, nil)
 	got, err := PeerInfoFromContext(ctx)
 	if err != nil {

@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/session"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 

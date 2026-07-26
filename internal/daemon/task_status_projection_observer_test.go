@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestTaskStatusProjectionObserver(t *testing.T) {

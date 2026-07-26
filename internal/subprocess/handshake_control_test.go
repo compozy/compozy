@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
 func TestInitializeBridgeRuntimeV2PurposeContract(t *testing.T) {

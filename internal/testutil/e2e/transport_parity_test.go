@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestRuntimeHarnessTransportClientsReuseSharedSurfaces(t *testing.T) {

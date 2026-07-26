@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {

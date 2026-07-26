@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 type bridgeDedupStore interface {

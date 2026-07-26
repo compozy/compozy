@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 // HealthStore is the durable store used by metadata-only session health.

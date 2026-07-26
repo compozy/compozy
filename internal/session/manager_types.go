@@ -6,15 +6,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/admission"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/session/inputqueue"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/admission"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/session/inputqueue"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // CreateOpts defines the inputs required to create a new session.

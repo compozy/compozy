@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 )
 
 // loopWatchEventsReadModel projects the parked watch-events node state for a loop-run

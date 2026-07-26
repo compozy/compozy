@@ -3,12 +3,12 @@ package cli
 import (
 	"net/http"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/sse"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/sse"
 )
 
 // NetworkStatusRecord is the shared network status payload.
@@ -196,7 +196,7 @@ type NotificationPresetQuery struct {
 	Limit   int
 }
 
-// IdentityRecord is the local agent identity exposed by `agh whoami`.
+// IdentityRecord is the local agent identity exposed by `compozy whoami`.
 type IdentityRecord struct {
 	SessionID string `json:"session_id,omitempty"`
 	Agent     string `json:"agent,omitempty"`

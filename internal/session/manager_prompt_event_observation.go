@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func (m *Manager) observeRecordAndNotifyPromptEvent(

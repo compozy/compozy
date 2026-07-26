@@ -10,7 +10,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 // Prompt starts one prompt turn and returns the streamed event channel.

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/events"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/events"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestToolApprovalGrantServiceEmitsCanonicalTransitions(t *testing.T) {

@@ -13,10 +13,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/compozy/agh/internal/api/spec"
-	"github.com/compozy/agh/internal/codegen/jsbin"
-	"github.com/compozy/agh/internal/codegen/sdkts"
-	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/compozy/internal/api/spec"
+	"github.com/compozy/compozy/internal/codegen/jsbin"
+	"github.com/compozy/compozy/internal/codegen/sdkts"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -47,7 +47,7 @@ func run(ctx context.Context, args []string) error {
 func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkContractsPath string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(
-			"usage: agh-codegen <openapi|sdk-contracts|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>",
+			"usage: compozy-codegen <openapi|sdk-contracts|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>",
 		)
 	}
 	loopEnumsPath := loopEnumsPathFor(openapiPath)

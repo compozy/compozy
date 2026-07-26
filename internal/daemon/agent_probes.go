@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/acp"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func agentProbeTargetSource(

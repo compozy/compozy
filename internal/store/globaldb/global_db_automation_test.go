@@ -12,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/automation"
-	automationmodel "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/events"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/automation"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/events"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type Job = automation.Job

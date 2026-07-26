@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	modelpkg "github.com/compozy/agh/internal/automation/model"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
 // Jobs returns overlay-aware job definitions from persistence.

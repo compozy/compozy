@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {

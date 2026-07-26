@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 // HealthRecoveryResult summarizes one metadata-only restart recovery pass.

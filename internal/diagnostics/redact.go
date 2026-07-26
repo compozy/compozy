@@ -3,7 +3,7 @@ package diagnostics
 import (
 	"strings"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 const redactedValue = redactpkg.Marker

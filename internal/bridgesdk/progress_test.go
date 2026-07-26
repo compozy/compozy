@@ -15,8 +15,8 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestProgressAccumulatorAccumulatesProgress(t *testing.T) {

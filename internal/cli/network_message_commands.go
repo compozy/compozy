@@ -70,7 +70,7 @@ func newNetworkSendCommand(deps commandDeps, workspaceRef *string) *cobra.Comman
 			"For surface=thread, choose an ID matching `" + networkThreadIDPattern + "`. " +
 			"The first valid send opens a new public thread; later sends reuse that ID. " +
 			"For surface=direct, resolve the room first and reuse its direct_id.",
-		Example: `  agh network send --workspace ws_example --session sess_example --channel launch-war-room \
+		Example: `  compozy network send --workspace ws_example --session sess_example --channel launch-war-room \
     --surface thread --thread thread_launch_brief --kind say --body '{"text":"Launch status"}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			body, err := parseNetworkJSONValue("--body", flags.bodyRaw)

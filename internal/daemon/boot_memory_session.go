@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/session"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (d *Daemon) bootMemorySessionRuntime(

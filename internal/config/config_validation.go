@@ -6,8 +6,8 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // Validate ensures the loaded configuration is internally consistent.

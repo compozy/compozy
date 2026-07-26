@@ -14,16 +14,16 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/session"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
 
@@ -35,7 +35,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -146,7 +146,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		globalDir := filepath.Join(t.TempDir(), "memory")
 		store := memory.NewStore(
 			globalDir,
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -194,7 +194,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 		store := memory.NewStore(
 			filepath.Join(baseDir, "global-memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		openCoreTestMemoryCatalog(t, store)
 		base := store.ForWorkspace(workspaceRoot)
@@ -259,7 +259,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		fixture, workspace, _ := setup(t)
 		wantModTime := time.Date(2026, 5, 15, 9, 30, 0, 0, time.UTC)
-		workspaceMemoryPath := filepath.Join(workspace, ".agh", "memory", "workspace.md")
+		workspaceMemoryPath := filepath.Join(workspace, ".compozy", "memory", "workspace.md")
 		if err := os.Chtimes(workspaceMemoryPath, wantModTime, wantModTime); err != nil {
 			t.Fatalf("os.Chtimes(workspace memory) error = %v", err)
 		}
@@ -571,7 +571,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		workspace := filepath.Join(baseDir, "workspace")
 		store := memory.NewStore(
 			filepath.Join(baseDir, "global"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspace)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
@@ -624,7 +624,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		workspace := filepath.Join(baseDir, "workspace")
 		store := memory.NewStore(
 			filepath.Join(baseDir, "global"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspace)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
@@ -859,7 +859,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -1001,7 +1001,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)

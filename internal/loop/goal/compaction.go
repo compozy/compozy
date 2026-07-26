@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 func (e *Executor) recoverFromMaxTokens(

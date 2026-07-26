@@ -8,10 +8,10 @@ import (
 
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/store"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func registerHostAPINetworkMethodHandlers(

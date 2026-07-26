@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	"github.com/compozy/agh/internal/support"
+	"github.com/compozy/compozy/internal/support"
 )
 
 func extensionRuntimeHasRegisteredEntries(

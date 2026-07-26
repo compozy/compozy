@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)

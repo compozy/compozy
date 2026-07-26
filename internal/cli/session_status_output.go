@@ -119,7 +119,7 @@ func sessionResumeEmptyBundle() outputBundle {
 	return outputBundle{
 		jsonValue: payload,
 		human: func() (string, error) {
-			return "No resumable sessions; start a new one with 'agh session new'.", nil
+			return "No resumable sessions; start a new one with 'compozy session new'.", nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("resume", []string{"resumed", "reason"}, []string{"", payload.Reason}), nil

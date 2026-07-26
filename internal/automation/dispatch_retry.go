@@ -10,10 +10,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func renderTriggerPrompt(raw string, envelope *ActivationEnvelope) (string, error) {

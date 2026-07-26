@@ -15,7 +15,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 ## Required Inputs
 
-- **scenario-slug** (optional): a short kebab-case slug used to name the AGH_HOME directory and tmux socket. Defaults to `agh-iso-<timestamp>`.
+- **scenario-slug** (optional): a short kebab-case slug used to name the AGH_HOME directory and tmux socket. Defaults to `compozy-iso-<timestamp>`.
 
 ## Procedures
 
@@ -30,7 +30,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 **Step 2: Allocate AGH_HOME**
 
 1. Run the bootstrap/mutating helper `python3 .agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<scenario-slug>" [--prefer-worktree]`. Pass `--prefer-worktree` only from an actual parallel worktree. The script:
-   - Creates a unique `AGH_HOME` directory under `${TMPDIR:-/tmp}/agh-iso-<slug>-<random>/` OR uses the worktree-scoped `Compozy/_worktrees/<slug>/.agh/` when invoked from a worktree.
+   - Creates a unique `AGH_HOME` directory under `${TMPDIR:-/tmp}/compozy-iso-<slug>-<random>/` OR uses the worktree-scoped `Compozy/_worktrees/<slug>/.compozy/` when invoked from a worktree.
    - Picks a free TCP port on `127.0.0.1` for the daemon HTTP server.
    - Creates a unique UDS path under `AGH_HOME`.
    - Picks a unique tmux socket path under the AGH_HOME (e.g., `${AGH_HOME}/tmux-bridge.sock`).
@@ -43,7 +43,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 1. Capture the exported variables: `AGH_ISOLATION_ROOT`, `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
 2. For shells: `eval "$(python3 .agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>" [--prefer-worktree])"`.
 3. For Make/CI invocations: pass the variables as overrides to the daemon start command.
-4. Confirm the daemon does NOT write to `~/.agh/` or default port 23230.
+4. Confirm the daemon does NOT write to `~/.compozy/` or default port 23230.
 
 *Done when:* the current shell exposes the exact allocator output and no default runtime path is reachable by the planned command.
 
@@ -70,7 +70,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
    `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --root "$AGH_ISOLATION_ROOT"`
 2. Confirm the targeted teardown reports `TEARDOWN_ALL_CLEAN=true`. Survivors are a blocking failure.
 3. The `AGH_HOME` directory is left in place for forensic inspection unless the caller explicitly requests `--purge` for a temporary envelope.
-4. Never purge a worktree-scoped `.agh`; it belongs to the user's checkout.
+4. Never purge a worktree-scoped `.compozy`; it belongs to the user's checkout.
 5. Use `make qa-reap` or teardown `--all` only for an intentional machine-wide stale-lab recovery, never as normal cleanup while other runs may be active.
 
 *Done when:* the owned envelope is clean, unrelated labs remain untouched, and any retained files contain no live process state.

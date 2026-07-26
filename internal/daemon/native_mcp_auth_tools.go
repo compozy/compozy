@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (
@@ -228,9 +228,9 @@ func (n *daemonNativeTools) mcpAuthStatus(
 func mcpAuthRepairPathsFor(serverName string) mcpAuthRepairPaths {
 	arg := strconv.Quote(strings.TrimSpace(serverName))
 	return mcpAuthRepairPaths{
-		StatusCLI:    "agh mcp auth status " + arg,
-		LoginCLI:     "agh mcp auth login " + arg,
-		LogoutCLI:    "agh mcp auth logout " + arg,
+		StatusCLI:    "compozy mcp auth status " + arg,
+		LoginCLI:     "compozy mcp auth login " + arg,
+		LogoutCLI:    "compozy mcp auth logout " + arg,
 		SettingsHTTP: nativeMCPAuthToolsAPISettingsMCPServersPath,
 		SettingsUDS:  nativeMCPAuthToolsAPISettingsMCPServersPath,
 		Note:         "Login and logout remain management-only and are not exposed as tool calls.",

@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync/atomic"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 type usageTracker struct {

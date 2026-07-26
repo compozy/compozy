@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 // ValidateReasoningEffort validates one reasoning effort override.

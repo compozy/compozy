@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
-	"github.com/compozy/agh/internal/store"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 var _ aghworkspace.Store = (*WorkspaceRepo)(nil)

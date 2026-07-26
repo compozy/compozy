@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/modelcatalog"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 func (s *service) providerSettingsFromConfig(

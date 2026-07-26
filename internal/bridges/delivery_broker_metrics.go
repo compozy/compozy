@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"maps"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // LoadDeliveryMetrics hydrates one exact durable scope before health surfaces become available.

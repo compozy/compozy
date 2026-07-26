@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestUDSBridgeProgressContract(t *testing.T) {

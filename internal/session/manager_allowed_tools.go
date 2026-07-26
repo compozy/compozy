@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // WithToolsetCatalog injects the catalog used to validate toolset-backed overrides.

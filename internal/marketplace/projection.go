@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const CatalogSource = "agh-catalog"
+const CatalogSource = "compozy-catalog"
 
 // EntryDetails is the typed public projection of one validated catalog payload.
 type EntryDetails struct {

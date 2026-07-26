@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/session"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func TestNewRecallAugmenter(t *testing.T) {
@@ -45,7 +45,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -133,7 +133,7 @@ func TestStoreRecall(t *testing.T) {
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
+		catalogPath := filepath.Join(baseDir, "compozy.db")
 		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -195,7 +195,7 @@ func TestStoreRecall(t *testing.T) {
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -222,7 +222,7 @@ func TestStoreRecall(t *testing.T) {
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -303,7 +303,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 		baseDir := t.TempDir()
 		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)

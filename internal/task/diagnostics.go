@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/compozy/internal/diagnostics"
 )
 
 const (
@@ -78,7 +78,7 @@ func detectInspectStuckRun(snapshot *inspectDiagnosticSnapshot) (diagnosticcontr
 		"Task run heartbeat is stale",
 		fmt.Sprintf("Run %s is claimed, but its heartbeat is older than the expected threshold.", run.RunID),
 		diagnosticcontract.SeverityWarn,
-		fmt.Sprintf("agh task release %s --reason \"stuck\"", run.RunID),
+		fmt.Sprintf("compozy task release %s --reason \"stuck\"", run.RunID),
 		inspectRunEvidence(snapshot, map[string]any{
 			"heartbeat_age_seconds": *run.HeartbeatAgeSeconds,
 			"threshold_seconds":     thresholdSeconds,
@@ -99,7 +99,7 @@ func detectInspectStaleLease(snapshot *inspectDiagnosticSnapshot) (diagnosticcon
 		"Task run lease is stale",
 		fmt.Sprintf("Run %s still appears claimed after its lease expired.", run.RunID),
 		diagnosticcontract.SeverityError,
-		fmt.Sprintf("agh task release %s --reason \"stale lease\"", run.RunID),
+		fmt.Sprintf("compozy task release %s --reason \"stale lease\"", run.RunID),
 		inspectRunEvidence(snapshot, map[string]any{
 			"lease_until": run.LeaseUntil,
 			"as_of":       snapshot.AsOf,
@@ -120,7 +120,7 @@ func detectInspectOrphanRun(snapshot *inspectDiagnosticSnapshot) (diagnosticcont
 		"Task run is bound to a terminal session",
 		fmt.Sprintf("Run %s still has an ownership token, but its bound session is no longer active.", run.RunID),
 		diagnosticcontract.SeverityError,
-		fmt.Sprintf("agh task release %s --reason \"orphaned\"", run.RunID),
+		fmt.Sprintf("compozy task release %s --reason \"orphaned\"", run.RunID),
 		inspectRunEvidence(snapshot, map[string]any{
 			"session_id":      inspectSessionID(snapshot.BoundSession),
 			"session_state":   inspectSessionState(snapshot.BoundSession),
@@ -140,7 +140,7 @@ func detectInspectCrashedRun(snapshot *inspectDiagnosticSnapshot) (diagnosticcon
 		"Task run failed without a queued retry",
 		fmt.Sprintf("Run %s is failed and no later retry attempt is visible in the task snapshot.", run.RunID),
 		diagnosticcontract.SeverityError,
-		fmt.Sprintf("agh task run enqueue %s", run.TaskID),
+		fmt.Sprintf("compozy task run enqueue %s", run.TaskID),
 		inspectRunEvidence(snapshot, map[string]any{
 			"last_error_summary": run.LastErrorSummary,
 			"failure_kind":       run.FailureKind,
@@ -169,7 +169,7 @@ func detectInspectStrandedRun(snapshot *inspectDiagnosticSnapshot) (diagnosticco
 			run.RunID,
 		),
 		diagnosticcontract.SeverityWarn,
-		"agh task next --wait",
+		"compozy task next --wait",
 		inspectRunEvidence(snapshot, map[string]any{
 			"queued_age_seconds":     int64(queuedAge.Seconds()),
 			"threshold_seconds":      int64(inspectQueuedStrandedAfter.Seconds()),

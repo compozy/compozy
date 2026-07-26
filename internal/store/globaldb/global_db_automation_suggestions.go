@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	automation "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 type suggestionTransitionContent struct {

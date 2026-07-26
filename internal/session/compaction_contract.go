@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // CompactionRequest carries one exact persisted replay span to the memory boundary.

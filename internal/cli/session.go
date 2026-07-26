@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -53,7 +53,7 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 		Use:   "stop <id>",
 		Short: "Stop a session",
 		Example: `  # Stop a running session
-  agh session stop sess_1234`,
+  compozy session stop sess_1234`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -78,7 +78,7 @@ func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
 		Use:   "remove <id>",
 		Short: "Remove a session and its persisted history",
 		Example: `  # Remove a stopped session
-  agh session remove sess_1234`,
+  compozy session remove sess_1234`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -102,10 +102,10 @@ func newSessionStatusCommand(deps commandDeps) *cobra.Command {
 		Use:   "status <id>",
 		Short: "Show session status",
 		Example: `  # Show current state for one session
-  agh session status sess_1234
+  compozy session status sess_1234
 
   # Read status as JSON for scripts
-  agh session status sess_1234 -o json`,
+  compozy session status sess_1234 -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -131,10 +131,10 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 		Use:   "resume [id]",
 		Short: "Attach to a resumable session",
 		Example: `  # Attach to a resumable session by ID
-  agh session resume sess_1234
+  compozy session resume sess_1234
 
   # Attach to the latest eligible session in a workspace
-  agh session resume --latest --workspace checkout-api`,
+  compozy session resume --latest --workspace checkout-api`,
 		Args: sessionResumeArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -193,7 +193,7 @@ func newSessionRecapCommand(deps commandDeps) *cobra.Command {
 		Use:   "recap <id>",
 		Short: "Show deterministic session recap",
 		Example: `  # Show a bounded recap for one session
-  agh session recap sess_1234 --limit 20`,
+  compozy session recap sess_1234 --limit 20`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -221,10 +221,10 @@ func newSessionRepairCommand(deps commandDeps) *cobra.Command {
 		Use:   "repair <id>",
 		Short: "Inspect and repair an interrupted session transcript",
 		Example: `  # Report the repair actions without writing new events
-  agh session repair sess_1234 --dry-run
+  compozy session repair sess_1234 --dry-run
 
   # Force repair for a stopped session whose stop reason is not crash or error
-  agh session repair sess_1234 --force`,
+  compozy session repair sess_1234 --force`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -287,7 +287,7 @@ func newSessionWaitCommand(deps commandDeps) *cobra.Command {
 		Use:   "wait <id>",
 		Short: "Block until a session stops",
 		Example: `  # Block until a session emits its stopped event
-  agh session wait sess_1234`,
+  compozy session wait sess_1234`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

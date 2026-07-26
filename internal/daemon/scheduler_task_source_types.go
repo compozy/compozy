@@ -1,9 +1,9 @@
 package daemon
 
 import (
-	schedulerpkg "github.com/compozy/agh/internal/scheduler"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // The production global store MUST satisfy the scheduler's StarvationStore so

@@ -3,7 +3,7 @@ package hooks
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // TaskRunClaimCriteria carries the mutable claim criteria exposed to task-run pre-claim hooks.

@@ -3,8 +3,8 @@ package situation
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func runSummaryFromTaskRun(run taskpkg.Run, maxAttempts int) taskpkg.RunSummary {

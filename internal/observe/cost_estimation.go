@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // CostCatalog is the merged model projection consumed by usage estimation.

@@ -11,35 +11,35 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/admission"
-	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/memory/consolidation"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/observe"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/observe"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/situation"
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/situation"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/toolruntime"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/windowmanager"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/toolruntime"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const defaultShutdownTimeout = 10 * time.Second
@@ -203,7 +203,7 @@ type extensionManagerDeps struct {
 	WakeEvents             core.HeartbeatWakeEventReader
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
-	AGHExecutable          func() (string, error)
+	CompozyExecutable      func() (string, error)
 }
 
 // Daemon is the sole AGH composition root.

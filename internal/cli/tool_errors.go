@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
 

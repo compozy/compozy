@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) {

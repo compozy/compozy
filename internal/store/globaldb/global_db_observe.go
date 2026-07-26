@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const eventSummaryContentPayloadKey = "payload"

@@ -129,7 +129,7 @@ func (c *Config) resolveAgentProvider(
 	}
 	if providerName == "" {
 		return "", ProviderConfig{}, "", errors.New(
-			"agent provider is required; run `agh install` or set agent.provider/defaults.provider",
+			"agent provider is required; run `compozy install` or set agent.provider/defaults.provider",
 		)
 	}
 

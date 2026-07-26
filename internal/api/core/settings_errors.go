@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"os"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/modelcatalog"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var (

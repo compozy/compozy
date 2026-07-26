@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/marketplace"
-	"github.com/compozy/agh/internal/store"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const defaultMarketplaceEventWriteTimeout = 5 * time.Second

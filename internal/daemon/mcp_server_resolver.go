@@ -7,11 +7,11 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/resources"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/resources"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func newDaemonMCPServerResolver(state *bootState) mcppkg.ServerResolver {

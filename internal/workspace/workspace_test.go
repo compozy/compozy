@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 func TestWorkspaceErrorsMatchViaErrorsIs(t *testing.T) {

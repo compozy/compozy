@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func buildSessionGoalDefinition(

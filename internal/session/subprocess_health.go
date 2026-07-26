@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // SubprocessHealthSnapshot is one immutable health observation for an active session process.

@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestProviderConfigSources(t *testing.T) {

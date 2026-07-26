@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 // OverviewStore is the aggregate persistence capability behind the home overview.

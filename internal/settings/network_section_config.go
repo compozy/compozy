@@ -1,6 +1,6 @@
 package settings
 
-import aghconfig "github.com/compozy/agh/internal/config"
+import aghconfig "github.com/compozy/compozy/internal/config"
 
 func diffNetworkSettings(current aghconfig.NetworkConfig, desired aghconfig.NetworkConfig) []string {
 	changed := make([]string, 0, 20)

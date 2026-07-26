@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func (e *PromptStreamEncoder) ensureMessageStarted(writer FlushWriter, event acp.AgentEvent) error {

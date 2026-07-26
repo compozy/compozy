@@ -1,6 +1,6 @@
 package settings
 
-import "github.com/compozy/agh/internal/config/lifecycle"
+import "github.com/compozy/compozy/internal/config/lifecycle"
 
 type collectionMutationOperation string
 

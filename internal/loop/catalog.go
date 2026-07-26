@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/listcursor"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 const (

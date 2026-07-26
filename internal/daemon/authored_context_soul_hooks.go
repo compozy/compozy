@@ -6,11 +6,11 @@ import (
 
 	"strings"
 
-	core "github.com/compozy/agh/internal/api/core"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 type hookedSoulAuthoringService struct {

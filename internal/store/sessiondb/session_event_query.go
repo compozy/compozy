@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
 )
 
 const sessionEventsOrderASCClause = " ORDER BY sequence ASC"

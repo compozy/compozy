@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func requireReadAuthority(actor ActorContext) error {

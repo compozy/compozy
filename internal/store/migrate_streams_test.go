@@ -14,16 +14,16 @@ import (
 
 	atlasschema "ariga.io/atlas/sql/schema"
 	atlassqlite "ariga.io/atlas/sql/sqlite"
-	"github.com/compozy/agh/internal/memory"
-	memoryschema "github.com/compozy/agh/internal/memory/schema"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	sessionschema "github.com/compozy/agh/internal/store/sessiondb/schema"
-	"github.com/compozy/agh/internal/store/workspacedb"
-	workspaceschema "github.com/compozy/agh/internal/store/workspacedb/schema"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/memory"
+	memoryschema "github.com/compozy/compozy/internal/memory/schema"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	sessionschema "github.com/compozy/compozy/internal/store/sessiondb/schema"
+	"github.com/compozy/compozy/internal/store/workspacedb"
+	workspaceschema "github.com/compozy/compozy/internal/store/workspacedb/schema"
+	"github.com/compozy/compozy/internal/testutil"
 	_ "modernc.org/sqlite"
 )
 
@@ -120,7 +120,7 @@ func TestProductionMigrationStreams(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		db := openStreamTestDB(t, "shared-agh.db")
+		db := openStreamTestDB(t, "shared-compozy.db")
 		globalStream := globaldb.MigrationStream()
 		memoryStream := memory.MigrationStream()
 		if err := store.Apply(ctx, db, globalStream); err != nil {

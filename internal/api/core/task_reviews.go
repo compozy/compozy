@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 

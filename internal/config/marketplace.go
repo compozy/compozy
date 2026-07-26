@@ -3,7 +3,7 @@ package config
 import "strings"
 
 const (
-	DefaultMarketplaceCatalogBaseURL = "https://raw.githubusercontent.com/compozy/agh/main/catalog"
+	DefaultMarketplaceCatalogBaseURL = "https://raw.githubusercontent.com/compozy/compozy/main/catalog"
 	DefaultMarketplaceCatalogTTL     = "1h"
 	DefaultMarketplaceCatalogTimeout = "10s"
 )

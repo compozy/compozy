@@ -3,12 +3,12 @@ package contract
 import (
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 
-	observepkg "github.com/compozy/agh/internal/observe"
+	observepkg "github.com/compozy/compozy/internal/observe"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SessionSummary is the lightweight host-visible session listing shape.

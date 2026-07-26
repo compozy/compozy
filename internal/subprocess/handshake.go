@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	bridges "github.com/compozy/agh/internal/bridges/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	bridges "github.com/compozy/compozy/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
 // CloneInitializeRequest returns a deep copy safe to expose to callers.

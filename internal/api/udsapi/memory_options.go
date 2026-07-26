@@ -1,9 +1,9 @@
 package udsapi
 
 import (
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/doctor"
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/memory"
 )
 
 // WithMemoryStore injects the memory store surfaced by the daemon.

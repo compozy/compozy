@@ -23,8 +23,8 @@ const (
 )
 
 const (
-	// DirName is the AGH directory name used for both the global home and workspace overlays.
-	DirName = ".agh"
+	// DirName is the CompozyOS directory name used for both the global home and workspace overlays.
+	DirName = ".compozy"
 	// ConfigName is the standard TOML configuration filename.
 	ConfigName = "config.toml"
 	// marketplaceSchemeHTTP is the accepted plaintext marketplace URL scheme.
@@ -34,7 +34,7 @@ const (
 	skillsMarketplaceRegistryClawhub = "clawhub"
 )
 
-const defaultMemoryWorkspaceTOMLPath = "<workspace>/.agh/workspace.toml"
+const defaultMemoryWorkspaceTOMLPath = "<workspace>/" + DirName + "/workspace.toml"
 
 // ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
 var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")

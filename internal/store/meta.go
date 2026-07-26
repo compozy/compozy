@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // ReadSessionMeta loads a session metadata document from disk.

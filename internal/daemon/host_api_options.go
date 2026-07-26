@@ -1,9 +1,9 @@
 package daemon
 
 import (
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/store"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func buildHostAPIOptions(

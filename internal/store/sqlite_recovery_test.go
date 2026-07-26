@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {

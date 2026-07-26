@@ -18,11 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensiontest "github.com/compozy/agh/internal/extensiontest"
-	observepkg "github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/acp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensiontest "github.com/compozy/compozy/internal/extensiontest"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 const (
@@ -251,7 +251,7 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 	if command.Envelope.Command == nil {
 		t.Fatal("command envelope missing command payload")
 	}
-	if got, want := command.Envelope.Command.Command, "/agh summarize"; got != want {
+	if got, want := command.Envelope.Command.Command, "/compozy summarize"; got != want {
 		t.Fatalf("command.Command = %q, want %q", got, want)
 	}
 
@@ -386,7 +386,7 @@ func discordProviderCommandInteraction() map[string]any {
 			},
 		},
 		"data": map[string]any{
-			"name": "agh",
+			"name": "compozy",
 			"options": []map[string]any{{
 				"name": "summarize",
 				"type": 1,

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
 func TestWriteDiagnosticsStampsProcessOwner(t *testing.T) {

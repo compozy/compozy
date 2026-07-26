@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghupdate "github.com/compozy/agh/internal/update"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
 

@@ -9,8 +9,8 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func digestSoul(front Frontmatter, body string) (string, error) {

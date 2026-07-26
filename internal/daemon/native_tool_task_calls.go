@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (n *daemonNativeTools) taskRead(

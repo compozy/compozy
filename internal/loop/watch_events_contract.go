@@ -1,6 +1,6 @@
 package loop
 
-import "github.com/compozy/agh/internal/hooks"
+import "github.com/compozy/compozy/internal/hooks"
 
 const (
 	watchEventsTaskStream       = "task_events"

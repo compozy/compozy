@@ -1,6 +1,6 @@
 package extensionpkg
 
-import "github.com/compozy/agh/internal/resources"
+import "github.com/compozy/compozy/internal/resources"
 
 func resourceKindStrings(values []resources.ResourceKind) []string {
 	converted := make([]string, 0, len(values))

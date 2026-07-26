@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	loop "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	taskpkg "github.com/compozy/agh/internal/task"
+	loop "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (

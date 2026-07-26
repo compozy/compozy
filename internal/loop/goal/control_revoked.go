@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 const (

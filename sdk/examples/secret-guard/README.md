@@ -27,7 +27,7 @@ go build -o ./bin/secret-guard .
 Build the binary first, then install the extension directory:
 
 ```bash
-agh extension install ./sdk/examples/secret-guard
+compozy extension install ./sdk/examples/secret-guard
 ```
 
 ## Manifest Summary

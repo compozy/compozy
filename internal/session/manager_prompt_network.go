@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // PromptNetwork sends one network-originated prompt turn to an active session.

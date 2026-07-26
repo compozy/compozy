@@ -35,10 +35,10 @@ func ResolveAgentName(name string, defaults DefaultsConfig) (string, error) {
 	if resolved := strings.TrimSpace(defaults.Agent); resolved != "" {
 		return resolved, nil
 	}
-	return "", errors.New("agent name is required; run `agh install` or set defaults.agent")
+	return "", errors.New("agent name is required; run `compozy install` or set defaults.agent")
 }
 
-// SaveBootstrapConfig writes the global bootstrap config managed by `agh install`.
+// SaveBootstrapConfig writes the global bootstrap config managed by `compozy install`.
 func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Config, error) {
 	selectedProvider := CanonicalProviderName(provider)
 	if selectedProvider == "" {

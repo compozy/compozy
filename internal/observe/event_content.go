@@ -3,8 +3,8 @@ package observe
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/events"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/events"
 )
 
 func observedEventContent(event acp.AgentEvent) []byte {

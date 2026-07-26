@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // HookCatalogQuery captures the shared resolved-hook catalog filters.

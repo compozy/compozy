@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (s *Service) resolveRequest(

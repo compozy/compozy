@@ -15,12 +15,12 @@ Reap every discoverable lab on the machine (safe default set of roots):
     python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --all
 
 Discovery roots for --all:
-  - ~/dev/qa-labs/agh-*-lab/qa-artifacts/qa/bootstrap-manifest.json  (bootstrap labs)
-  - $TMPDIR/aghqa-*                                                  (short socket-safe runtime roots)
-  - $TMPDIR/agh-iso-* and /tmp/agh-iso-*                             (worktree-isolation envelopes)
+  - ~/dev/qa-labs/compozy-*-lab/qa-artifacts/qa/bootstrap-manifest.json  (bootstrap labs)
+  - $TMPDIR/compozyqa-*                                                  (short socket-safe runtime roots)
+  - $TMPDIR/compozy-iso-* and /tmp/compozy-iso-*                         (worktree-isolation envelopes)
 
 Per lab the teardown:
-  1. Stops the daemon gracefully (`agh daemon stop` against the lab AGH_HOME when a
+  1. Stops the daemon gracefully (`compozy daemon stop` against the lab AGH_HOME when a
      repo binary exists, else SIGTERM -> SIGKILL on the PID recorded in daemon.lock /
      daemon.json). Graceful stop lets the daemon shut down its ACP agent subprocesses,
      MCP sidecars, and tmux bridge sessions.
@@ -51,7 +51,7 @@ from pathlib import Path
 
 GRACE_DEFAULT_SEC = 10.0
 DAEMON_STOP_TIMEOUT_SEC = 20.0
-SAFE_ROOT_MARKERS = ("/qa-labs/", "/aghqa-", "/agh-iso-", "/_worktrees/")
+SAFE_ROOT_MARKERS = ("/qa-labs/", "/compozyqa-", "/compozy-iso-", "/_worktrees/")
 
 
 @dataclass
@@ -218,7 +218,7 @@ def registered_pids(qa_root: Path | None) -> dict[int, str]:
 
 
 def resolve_repo_agh_binary(repo_root: Path) -> Path | None:
-    candidate = repo_root / "bin" / "agh"
+    candidate = repo_root / "bin" / "compozy"
     if candidate.is_file() and os.access(candidate, os.X_OK):
         return candidate
     return None
@@ -250,7 +250,7 @@ def stop_daemon_gracefully(
                 env=env,
             )
         except subprocess.TimeoutExpired:
-            result.notes.append(f"agh daemon stop timed out after {DAEMON_STOP_TIMEOUT_SEC}s for {agh_home}")
+            result.notes.append(f"compozy daemon stop timed out after {DAEMON_STOP_TIMEOUT_SEC}s for {agh_home}")
         deadline = time.monotonic() + DAEMON_STOP_TIMEOUT_SEC
         while pid_alive(pid) and time.monotonic() < deadline:
             time.sleep(0.25)
@@ -295,7 +295,7 @@ def collect_target_pids(target: LabTarget) -> dict[int, str]:
         lsof_scan_paths.append(target.agh_home)
     for root in target.roots:
         name = root.name
-        if name.startswith("aghqa-") or name.startswith("agh-iso-") or name == ".agh":
+        if name.startswith("compozyqa-") or name.startswith("compozy-iso-") or name == ".compozy":
             lsof_scan_paths.append(root)
     for pid in lsof_pids(lsof_scan_paths):
         candidates.setdefault(pid, "holds open files under lab runtime")
@@ -417,10 +417,10 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
         roots.append(Path(qa_output).resolve())
     if agh_home is not None:
         roots.append(agh_home)
-        # short runtime roots ($TMPDIR/aghqa-<digest>/runtime) purge at the aghqa root
-        if agh_home.parent.name.startswith("aghqa-"):
+        # short runtime roots ($TMPDIR/compozyqa-<digest>/runtime) purge at the compozyqa root
+        if agh_home.parent.name.startswith("compozyqa-"):
             purgeable.append(agh_home.parent)
-        elif agh_home.name == "runtime" and agh_home.parent.name == ".agh":
+        elif agh_home.name == "runtime" and agh_home.parent.name == ".compozy":
             purgeable.append(agh_home)
     if provider_home is not None:
         roots.append(provider_home)
@@ -448,7 +448,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
     for sock in sorted(agh_home.glob("tmux-bridge*.sock")):
         tmux_socket = sock
         break
-    worktree_scoped = root.name == ".agh" and "_worktrees" in root.parts
+    worktree_scoped = root.name == ".compozy" and "_worktrees" in root.parts
     return LabTarget(
         label=root.name,
         manifest_path=None,
@@ -465,7 +465,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
 def discover_all_targets() -> list[LabTarget]:
     targets: list[LabTarget] = []
     seen_roots: set[str] = set()
-    manifest_glob = str(Path.home() / "dev" / "qa-labs" / "agh-*-lab" / "qa-artifacts" / "qa" / "bootstrap-manifest.json")
+    manifest_glob = str(Path.home() / "dev" / "qa-labs" / "compozy-*-lab" / "qa-artifacts" / "qa" / "bootstrap-manifest.json")
     for manifest_file in sorted(glob.glob(manifest_glob)):
         try:
             target = target_from_manifest(Path(manifest_file))
@@ -475,10 +475,10 @@ def discover_all_targets() -> list[LabTarget]:
         for root in target.roots:
             seen_roots.add(str(root))
     bare_globs = [
-        str(Path(tempfile.gettempdir()) / "aghqa-*"),
-        str(Path(tempfile.gettempdir()) / "agh-iso-*"),
-        "/tmp/aghqa-*",
-        "/tmp/agh-iso-*",
+        str(Path(tempfile.gettempdir()) / "compozyqa-*"),
+        str(Path(tempfile.gettempdir()) / "compozy-iso-*"),
+        "/tmp/compozyqa-*",
+        "/tmp/compozy-iso-*",
     ]
     for pattern in bare_globs:
         for raw in sorted(glob.glob(pattern)):
@@ -522,7 +522,7 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="Discover and tear down every known lab root")
     parser.add_argument("--purge", action="store_true", help="Remove lab runtime dirs after a clean sweep")
     parser.add_argument("--dry-run", action="store_true", help="Report actions without executing them")
-    parser.add_argument("--repo-root", default=".", help="Repository root (for bin/agh graceful stop)")
+    parser.add_argument("--repo-root", default=".", help="Repository root (for bin/compozy graceful stop)")
     parser.add_argument("--grace-sec", type=float, default=GRACE_DEFAULT_SEC, help="SIGTERM grace before SIGKILL")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON summary")
     args = parser.parse_args()

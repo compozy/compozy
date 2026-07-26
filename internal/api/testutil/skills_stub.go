@@ -3,9 +3,9 @@ package testutil
 import (
 	"context"
 
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/skills"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type StubSkillsRegistry struct {

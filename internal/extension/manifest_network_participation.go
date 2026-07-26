@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // NetworkParticipationRequirement is the typed Live requirement declared on an extension manifest.

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/soul"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func loadBundleAgent(ctx context.Context, rootDir string, path string) (BundleAgent, error) {

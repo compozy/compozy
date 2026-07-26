@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func (r *bridgeRuntime) rollbackManagedInstanceStates(

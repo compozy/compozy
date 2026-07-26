@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/vault"
+	automationpkg "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // AutomationConfig holds TOML-defined automation defaults, jobs, and triggers.

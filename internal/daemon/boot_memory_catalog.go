@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/memory"
 )
 
 // bootMemoryCatalog applies the shared memory stream on every boot while

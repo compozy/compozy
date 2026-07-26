@@ -3,7 +3,7 @@ package loop
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func compileSubLoopBodies(

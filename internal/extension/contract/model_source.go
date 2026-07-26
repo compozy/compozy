@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 )
 
 // ModelSourceListParams is sent by AGH to extension model sources.

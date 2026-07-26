@@ -3,8 +3,8 @@ package toolmeta_test
 import (
 	"testing"
 
-	"github.com/compozy/agh/internal/toolmeta"
-	"github.com/compozy/agh/internal/tools/builtin"
+	"github.com/compozy/compozy/internal/toolmeta"
+	"github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func TestNativeEntryMatchesBuiltinDescriptorInventory(t *testing.T) {

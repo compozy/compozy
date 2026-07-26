@@ -104,7 +104,12 @@ func TestInboundInteractionContracts(t *testing.T) {
 			normalized.Operation != InboundEditOperationUpdated || normalized.OriginalTimestamp.Location() != time.UTC {
 			t.Fatalf("InboundEdit.normalize() = %#v, want canonical update", normalized)
 		}
-		if err := (InboundEdit{MessageID: "msg-1", OriginalTimestamp: timestamp, Operation: InboundEditOperationDeleted}).Validate(); err != nil {
+		deleted := InboundEdit{
+			MessageID:         "msg-1",
+			OriginalTimestamp: timestamp,
+			Operation:         InboundEditOperationDeleted,
+		}
+		if err := deleted.Validate(); err != nil {
 			t.Fatalf("InboundEdit(deleted).Validate() error = %v", err)
 		}
 		invalid := []struct {
@@ -163,7 +168,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			t.Fatalf("message.Validate() error = %v", err)
 		}
 		ref, ok, err := message.NetworkConversationRef()
-		if err != nil || !ok || ref.Channel != "agh" || ref.ThreadID != "thread_123" {
+		if err != nil || !ok || ref.Channel != "compozy" || ref.ThreadID != "thread_123" {
 			t.Fatalf("NetworkConversationRef() = (%#v, %v, %v), want canonical thread ref", ref, ok, err)
 		}
 		normalized := NormalizeInboundMessageEnvelope(message)
@@ -367,7 +372,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should accept a thread conversation",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceThread,
 					ThreadID: "thread_123",
 					WorkID:   "work_1",
@@ -376,7 +381,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should accept a direct conversation",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceDirect,
 					DirectID: directID,
 				},
@@ -395,11 +400,14 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			ref  NetworkConversationRef
 		}{
 			{name: "Should reject an empty conversation", ref: NetworkConversationRef{}},
-			{name: "Should reject an unknown surface", ref: NetworkConversationRef{Channel: "agh", Surface: "room"}},
+			{
+				name: "Should reject an unknown surface",
+				ref:  NetworkConversationRef{Channel: "compozy", Surface: "room"},
+			},
 			{
 				name: "Should reject a malformed thread id",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceThread,
 					ThreadID: "bad",
 				},
@@ -407,7 +415,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should reject a direct id on a thread",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceThread,
 					ThreadID: "thread_1",
 					DirectID: directID,
@@ -416,7 +424,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should reject a short direct id",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceDirect,
 					DirectID: "direct_short",
 				},
@@ -424,7 +432,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should reject a thread id on a direct conversation",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceDirect,
 					DirectID: directID,
 					ThreadID: "thread_1",
@@ -433,7 +441,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should reject a malformed work id",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceThread,
 					ThreadID: "thread_1",
 					WorkID:   "bad/id",
@@ -442,7 +450,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{
 				name: "Should reject control characters in a thread id",
 				ref: NetworkConversationRef{
-					Channel:  "agh",
+					Channel:  "compozy",
 					Surface:  NetworkConversationSurfaceThread,
 					ThreadID: "thread_\x01",
 				},
@@ -457,11 +465,11 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			})
 		}
 		normalized := NormalizeNetworkConversationRef(NetworkConversationRef{
-			Channel: " agh ", Surface: " THREAD ", ThreadID: " thread_123 ",
+			Channel: " compozy ", Surface: " THREAD ", ThreadID: " thread_123 ",
 			WorkID: " work_1 ", ReplyTo: " reply-1 ", TraceID: " trace-1 ",
 			CausationID: " cause-1 ",
 		})
-		if normalized.Channel != "agh" || normalized.Surface != NetworkConversationSurfaceThread ||
+		if normalized.Channel != "compozy" || normalized.Surface != NetworkConversationSurfaceThread ||
 			normalized.ThreadID != "thread_123" || normalized.WorkID != "work_1" ||
 			normalized.ReplyTo != "reply-1" || normalized.TraceID != "trace-1" ||
 			normalized.CausationID != "cause-1" {
@@ -472,7 +480,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not infer an AGH conversation from provider routing fields", func(t *testing.T) {
+	t.Run("Should not infer a Compozy conversation from provider routing fields", func(t *testing.T) {
 		t.Parallel()
 
 		envelope := baseInboundEnvelope()
@@ -482,7 +490,7 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			t.Fatalf("NetworkConversationRef() error = %v", err)
 		}
 		if ok {
-			t.Fatalf("NetworkConversationRef() = (%#v, true), want no inferred AGH conversation", ref)
+			t.Fatalf("NetworkConversationRef() = (%#v, true), want no inferred Compozy conversation", ref)
 		}
 	})
 }
@@ -513,7 +521,7 @@ func richInboundMessageEnvelope() InboundMessageEnvelope {
 	envelope.ReplyToAuthorID = " user-0 "
 	envelope.ReplyToAuthorName = " Bob "
 	envelope.Conversation = &NetworkConversationRef{
-		Channel: " agh ", Surface: NetworkConversationSurfaceThread, ThreadID: " thread_123 ",
+		Channel: " compozy ", Surface: NetworkConversationSurfaceThread, ThreadID: " thread_123 ",
 		WorkID: " work_1 ", ReplyTo: " reply-1 ", TraceID: " trace-1 ", CausationID: " cause-1 ",
 	}
 	envelope.ProviderMetadata = json.RawMessage(`{"provider":"slack"}`)

@@ -12,13 +12,13 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	localprovider "github.com/compozy/agh/internal/memory/provider/local"
+	localprovider "github.com/compozy/compozy/internal/memory/provider/local"
 
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type daemonMemoryProviderService struct {

@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/bridgesdk"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/bridgesdk"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestMapTelegramUpdateDirectAndForumRouting(t *testing.T) {

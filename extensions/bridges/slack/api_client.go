@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 func (c *slackBotClient) AuthTest(ctx context.Context) (*slackAuthIdentity, error) {

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func TestGlobalDBVaultSecretsCRUD(t *testing.T) {

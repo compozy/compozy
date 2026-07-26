@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 // UpsertSoulSnapshot inserts a resolved Soul snapshot or reuses the existing row for its digest.

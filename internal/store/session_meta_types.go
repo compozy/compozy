@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // SessionSandboxMeta is the persisted runtime sandbox state for a session.

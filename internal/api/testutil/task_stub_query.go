@@ -3,8 +3,8 @@ package testutil
 import (
 	"context"
 
-	core "github.com/compozy/agh/internal/api/core"
-	taskpkg "github.com/compozy/agh/internal/task"
+	core "github.com/compozy/compozy/internal/api/core"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *StubTaskManager) GetTask(

@@ -11,11 +11,11 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 var (

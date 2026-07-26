@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

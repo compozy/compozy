@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 const (

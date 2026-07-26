@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type toolListInput struct {

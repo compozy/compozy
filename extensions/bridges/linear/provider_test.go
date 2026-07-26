@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/bridgesdk"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestResolveLinearInstanceConfigValidatesProviderOwnedModes(t *testing.T) {

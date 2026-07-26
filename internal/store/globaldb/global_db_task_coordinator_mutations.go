@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	taskpkg "github.com/compozy/agh/internal/task"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func applyCoordinatorRunStopsWithExecutor(

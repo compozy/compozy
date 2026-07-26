@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestHeartbeatPersistenceSnapshot(t *testing.T) {
@@ -196,7 +196,7 @@ func heartbeatSnapshotForPersistenceTest(createdAt time.Time) Snapshot {
 		ID:              "hb-snapshot",
 		WorkspaceID:     "ws-heartbeat",
 		AgentName:       "coder",
-		SourcePath:      ".agh/agents/coder/HEARTBEAT.md",
+		SourcePath:      ".compozy/agents/coder/HEARTBEAT.md",
 		SchemaVersion:   1,
 		Digest:          "sha256:heartbeat",
 		ConfigDigest:    "sha256:config",
@@ -213,7 +213,7 @@ func heartbeatRevisionForPersistenceTest(createdAt time.Time) Revision {
 		ID:             "hb-revision",
 		WorkspaceID:    "ws-heartbeat",
 		AgentName:      "coder",
-		SourcePath:     ".agh/agents/coder/HEARTBEAT.md",
+		SourcePath:     ".compozy/agents/coder/HEARTBEAT.md",
 		Operation:      RevisionOperationWrite,
 		PreviousDigest: "sha256:previous",
 		NewDigest:      "sha256:heartbeat",

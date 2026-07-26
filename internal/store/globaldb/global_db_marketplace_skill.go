@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ListMarketplaceSkillsByInstallSlugs returns curated skill rows for exact acquisition slugs.

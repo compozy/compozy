@@ -1,8 +1,8 @@
 package httpapi
 
 import (
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type httpExtendedServices struct {

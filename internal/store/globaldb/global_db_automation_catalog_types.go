@@ -1,6 +1,6 @@
 package globaldb
 
-import automation "github.com/compozy/agh/internal/automation/model"
+import automation "github.com/compozy/compozy/internal/automation/model"
 
 type automationCatalogCandidate struct {
 	ID     string

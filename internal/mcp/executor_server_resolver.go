@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ResolvedServer binds one MCP config to its OAuth credential owner.

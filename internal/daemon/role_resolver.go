@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (

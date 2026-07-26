@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 
 	"golang.org/x/sys/execabs"
 )
@@ -84,7 +84,7 @@ func readNetworkAuditSnapshot(path string) (_ []store.NetworkAuditEntry, err err
 	return entries, nil
 }
 
-func buildAGHBinary(t testing.TB) string {
+func buildCompozyBinary(t testing.TB) string {
 	t.Helper()
 
 	repoRoot := mustRepoRoot(t)
@@ -104,23 +104,23 @@ func buildAGHBinary(t testing.TB) string {
 		}
 	}
 
-	binaryPath := filepath.Join(os.TempDir(), fmt.Sprintf("agh-e2e-%d", os.Getpid()))
-	// #nosec G204 -- test harness builds the local agh binary from the checked-out repository.
-	cmd := execabs.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/agh")
+	binaryPath := filepath.Join(os.TempDir(), fmt.Sprintf("compozy-e2e-%d", os.Getpid()))
+	// #nosec G204 -- test harness builds the local compozy binary from the checked-out repository.
+	cmd := execabs.CommandContext(context.Background(), "go", "build", "-o", binaryPath, "./cmd/compozy")
 	cmd.Dir = repoRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go build ./cmd/agh error = %v\n%s", err, strings.TrimSpace(string(output)))
+		t.Fatalf("go build ./cmd/compozy error = %v\n%s", err, strings.TrimSpace(string(output)))
 	}
 
 	builtBinaryPath = binaryPath
 	return builtBinaryPath
 }
 
-// BuildAGHBinary builds or reuses the current checkout's agh binary for integration fixtures.
-func BuildAGHBinary(t testing.TB) string {
+// BuildCompozyBinary builds or reuses the current checkout's Compozy binary for integration fixtures.
+func BuildCompozyBinary(t testing.TB) string {
 	t.Helper()
-	return buildAGHBinary(t)
+	return buildCompozyBinary(t)
 }
 
 func cloneMockAgentRegistrations(

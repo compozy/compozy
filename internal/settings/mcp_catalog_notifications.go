@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/marketplace"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/marketplace"
 )
 
 func (s *service) notifyMCPCatalogInstalled(

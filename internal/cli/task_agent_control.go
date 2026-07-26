@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
 	"github.com/spf13/cobra"
 )
@@ -21,7 +21,7 @@ func newTaskRunRecoverCommand(deps commandDeps) *cobra.Command {
 		Short: "Recover one needs_attention task run",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Re-enqueue one run stuck in needs_attention
-  agh task run recover run-123 --reason "operator recovery"`,
+  compozy task run recover run-123 --reason "operator recovery"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runIDs, err := requiredTaskRunIDs(args)
 			if err != nil {
@@ -60,7 +60,7 @@ func newTaskPauseCommand(deps commandDeps) *cobra.Command {
 		Short: "Pause new runs for one task",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Pause a noisy task while current claims finish
-  agh task pause task-123 --reason "provider incident"`,
+  compozy task pause task-123 --reason "provider incident"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID, err := requiredTaskID(args[0])
 			if err != nil {
@@ -101,7 +101,7 @@ func newTaskResumeCommand(deps commandDeps) *cobra.Command {
 		Short: "Resume new runs for one paused task",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Re-enable scheduler claims for a task
-  agh task resume task-123`,
+  compozy task resume task-123`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID, err := requiredTaskID(args[0])
 			if err != nil {

@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation/model"
+	automationpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
 // DefaultWithHome returns the built-in default configuration for the supplied AGH home.

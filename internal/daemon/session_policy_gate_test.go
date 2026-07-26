@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestSessionPolicyGateAppliesSandboxPolicy(t *testing.T) {
@@ -172,7 +172,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			ResolvedNetworkParticipation: participationSnapshotPointer(
 				daemonTestLiveParticipation("ws-parity", "design-review"),
 			),
-			PromptOverlay: "A queued AGH task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `agh task next --run-id 'run-parity' --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+			PromptOverlay: "A queued AGH task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `compozy task next --run-id 'run-parity' --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
 			Type:          session.SessionTypeSystem,
 		}
 		if !reflect.DeepEqual(got, want) {

@@ -4,11 +4,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func insertSyntheticWake(items []harnessSyntheticWake, item harnessSyntheticWake) []harnessSyntheticWake {

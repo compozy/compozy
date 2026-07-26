@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/api/contract"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func (h *BaseHandlers) marketplaceEntry(

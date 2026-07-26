@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (h *BaseHandlers) agentTaskClaimCriteria(

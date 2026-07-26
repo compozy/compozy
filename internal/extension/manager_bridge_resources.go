@@ -11,12 +11,12 @@ import (
 	"slices"
 	"strings"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/subprocess"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func (m *Manager) resolveBridgeRuntime(

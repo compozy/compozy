@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/toolruntime"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func daemonNativeHooks(

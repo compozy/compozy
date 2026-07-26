@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/resources"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const loopManagedIDPrefix = "daemon.sync.loop."

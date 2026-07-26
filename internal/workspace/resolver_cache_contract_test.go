@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/resources"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {

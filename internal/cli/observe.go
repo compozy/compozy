@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/observe"
 	"github.com/spf13/cobra"
 )
 
@@ -41,13 +41,13 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
 		Use:   observeOverviewCommandKey,
 		Short: "Show the home overview: what agents did, what needs you, what it costs",
 		Example: `  # Show the home overview
-  agh observe overview
+  compozy observe overview
 
   # Return the machine-readable overview for agents
-  agh observe overview -o json
+  compozy observe overview -o json
 
   # Scope aggregates to one workspace with a 7-day usage window
-  agh observe overview --workspace launch-hq --usage-window 7`,
+  compozy observe overview --workspace launch-hq --usage-window 7`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if usageWindow != 0 {
 				if err := observe.ValidateUsageWindowDays(usageWindow); err != nil {

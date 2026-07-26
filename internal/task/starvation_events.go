@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // DefaultTaskStarvationAge is the queued age past which a claimable run is treated as

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func applyCoordinatorBudgetBoundary(

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func coerceConfigBool(value any) (bool, error) {

@@ -19,11 +19,11 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	registrygithub "github.com/compozy/agh/internal/registry/github"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	registrygithub "github.com/compozy/compozy/internal/registry/github"
 )
 
 type extensionRegistryTestEnv struct {

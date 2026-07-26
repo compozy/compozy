@@ -3,7 +3,7 @@ package loop
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 func hydrateExecutedDefinitionSnapshot(

@@ -3,7 +3,7 @@ package core
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func (e *PromptStreamEncoder) emitAgentMessage(writer FlushWriter, event acp.AgentEvent) error {

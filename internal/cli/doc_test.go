@@ -98,20 +98,20 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 		t.Fatal("doc command should generate .mdx files")
 	}
 
-	// Verify agh.mdx exists at the root (from agh.md). Root index.mdx is
+	// Verify compozy.mdx exists at the root (from compozy.md). Root index.mdx is
 	// hand-authored by the site and preserved by the post-processor.
-	rootMDX := filepath.Join(outputDir, "agh.mdx")
+	rootMDX := filepath.Join(outputDir, "compozy.mdx")
 	data, err := os.ReadFile(rootMDX)
 	if err != nil {
-		t.Fatalf("agh.mdx should exist at root: %v", err)
+		t.Fatalf("compozy.mdx should exist at root: %v", err)
 	}
 
 	content := string(data)
 	if !strings.Contains(content, "---") {
-		t.Error("agh.mdx should have YAML frontmatter")
+		t.Error("compozy.mdx should have YAML frontmatter")
 	}
-	if !strings.Contains(content, `title: "agh"`) {
-		t.Error("agh.mdx frontmatter should have title 'agh'")
+	if !strings.Contains(content, `title: "compozy"`) {
+		t.Error("compozy.mdx frontmatter should have title 'compozy'")
 	}
 
 	// Per-subdirectory meta.json is auto-generated; walk and ensure at least
@@ -206,7 +206,7 @@ func TestNewDocCommand_GeneratesAllCommands(t *testing.T) {
 	// Expected files in the nested layout: parents with children render as
 	// <segment>/index.mdx; leaves render as <segment>.mdx.
 	expected := []string{
-		"agh.mdx",            // from agh
+		"compozy.mdx",        // from compozy
 		"session/index.mdx",  // parent with children
 		"daemon/index.mdx",   // parent with children
 		"tool/index.mdx",     // parent with children

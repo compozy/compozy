@@ -8,11 +8,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/resources"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var _ core.AgentCatalog = (*resourceAgentCatalog)(nil)

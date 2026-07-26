@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/api/contract"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
 func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {

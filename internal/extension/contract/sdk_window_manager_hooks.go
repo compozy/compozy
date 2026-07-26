@@ -1,6 +1,6 @@
 package contract
 
-import "github.com/compozy/agh/internal/hooks"
+import "github.com/compozy/compozy/internal/hooks"
 
 func windowManagerNamedHookTypes() map[string]NamedType {
 	return map[string]NamedType{

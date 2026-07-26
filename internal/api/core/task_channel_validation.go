@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 )
 
 func validateParticipationChannel(path string, channel string) error {

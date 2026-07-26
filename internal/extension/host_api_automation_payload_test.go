@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func TestHostAPIAutomationJobsTriggerContract(t *testing.T) {

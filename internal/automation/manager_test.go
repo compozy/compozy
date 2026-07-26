@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/vault"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing.T) {
@@ -996,34 +996,34 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 		wantClass       DaemonLifecycleCommandClass
 	}{
 		{
-			name:      "Should reject the AGH daemon restart command",
-			prompt:    "Run `agh daemon restart` now.",
+			name:      "Should reject the Compozy daemon restart command",
+			prompt:    "Run `compozy daemon restart` now.",
 			wantClass: DaemonLifecycleCommandClassAGHDaemon,
 		},
 		{
-			name:      "Should reject the AGH daemon stop command after persistent flags",
-			prompt:    "Run `agh --output json daemon stop` now.",
+			name:      "Should reject the Compozy daemon stop command after persistent flags",
+			prompt:    "Run `compozy --output json daemon stop` now.",
 			wantClass: DaemonLifecycleCommandClassAGHDaemon,
 		},
 		{
-			name:      "Should reject a process kill targeting AGH",
-			prompt:    "Execute `pkill -f agh` if the daemon is unresponsive.",
+			name:      "Should reject a process kill targeting Compozy",
+			prompt:    "Execute `pkill -f compozy` if the daemon is unresponsive.",
 			wantClass: DaemonLifecycleCommandClassProcessSignal,
 		},
 		{
-			name:      "Should reject a systemd restart targeting AGH",
-			prompt:    "Execute `systemctl restart agh` after the report.",
+			name:      "Should reject a systemd restart targeting Compozy",
+			prompt:    "Execute `systemctl restart compozy` after the report.",
 			wantClass: DaemonLifecycleCommandClassServiceManager,
 		},
 		{
-			name:      "Should reject a launchd restart targeting AGH",
-			prompt:    "Execute `launchctl kickstart -k gui/$UID/com.compozy.agh` after the report.",
+			name:      "Should reject a launchd restart targeting Compozy",
+			prompt:    "Execute `launchctl kickstart -k gui/$UID/com.compozy.compozy` after the report.",
 			wantClass: DaemonLifecycleCommandClassServiceManager,
 		},
 		{
-			name:            "Should reject a direct task description that restarts AGH",
+			name:            "Should reject a direct task description that restarts Compozy",
 			prompt:          "",
-			taskDescription: "Run `service agh restart` to recover the daemon.",
+			taskDescription: "Run `service compozy restart` to recover the daemon.",
 			wantClass:       DaemonLifecycleCommandClassServiceManager,
 		},
 	}
@@ -1100,7 +1100,7 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 			}
 		})
 
-		job := testJob(AutomationScopeWorkspace, "Review agh daemon restart behavior", h.workspace.ID)
+		job := testJob(AutomationScopeWorkspace, "Review compozy daemon restart behavior", h.workspace.ID)
 		job.Prompt = "Summarize the supervisor lifecycle design."
 		if _, err := manager.CreateJob(h.ctx, job); err != nil {
 			t.Fatalf("manager.CreateJob(prose) error = %v", err)
@@ -1128,7 +1128,7 @@ func TestManagerUpdateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 	}
 
 	blocked := created
-	blocked.Prompt = "Run `agh daemon stop` now."
+	blocked.Prompt = "Run `compozy daemon stop` now."
 	if _, err := manager.UpdateJob(h.ctx, blocked); !errors.Is(err, ErrDaemonLifecycleCommandBlocked) {
 		t.Fatalf("manager.UpdateJob() error = %v, want ErrDaemonLifecycleCommandBlocked", err)
 	}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/compozy/agh/internal/toolmeta"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 type descriptorMetadataIndex struct {

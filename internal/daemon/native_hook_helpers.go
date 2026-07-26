@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func hookCatalogFilter(

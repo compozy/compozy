@@ -9,9 +9,9 @@ import (
 
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func validateBridgeIngressInstance(instance bridgepkg.BridgeInstance) error {

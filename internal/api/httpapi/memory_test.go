@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/session"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/session"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
 
@@ -746,7 +746,7 @@ func newTestMemoryStore(t *testing.T) (*memory.Store, string) {
 
 	baseDir := t.TempDir()
 	globalDir := filepath.Join(baseDir, "global-memory")
-	store := memory.NewStore(globalDir, memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+	store := memory.NewStore(globalDir, memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")))
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}

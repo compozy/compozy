@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const sessionInputGenerationColumn = "input_generation"

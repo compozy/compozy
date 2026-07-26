@@ -1,8 +1,8 @@
 package daemon
 
 import (
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/observe"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/observe"
 )
 
 func bridgeObserveSource(service core.BridgeService) observe.BridgeSource {

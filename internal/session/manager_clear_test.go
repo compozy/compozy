@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/compozy/agh/internal/acp"
-	sessionledger "github.com/compozy/agh/internal/sessions/ledger"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {

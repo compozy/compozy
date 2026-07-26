@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 // MarketplaceReadScope selects the installed-state projection for Marketplace reads.

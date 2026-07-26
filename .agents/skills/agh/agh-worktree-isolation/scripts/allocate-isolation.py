@@ -43,24 +43,24 @@ def resolve_home(slug: str, prefer_worktree: bool) -> Path:
         if "_worktrees" in cwd.parts:
             for i, part in enumerate(cwd.parts):
                 if part == "_worktrees" and i + 1 < len(cwd.parts):
-                    candidate = Path(*cwd.parts[: i + 2]) / ".agh"
+                    candidate = Path(*cwd.parts[: i + 2]) / ".compozy"
                     candidate.mkdir(parents=True, exist_ok=True)
                     return candidate
-    base = Path(tempfile.gettempdir()) / f"agh-iso-{slug}-{random_suffix()}"
+    base = Path(tempfile.gettempdir()) / f"compozy-iso-{slug}-{random_suffix()}"
     base.mkdir(parents=True, exist_ok=False)
     return base
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--slug", default=None, help="Scenario slug (default: agh-iso-<timestamp>)")
+    parser.add_argument("--slug", default=None, help="Scenario slug (default: compozy-iso-<timestamp>)")
     parser.add_argument(
         "--prefer-worktree",
         action="store_true",
-        help="Use Compozy/_worktrees/<slug>/.agh when invoked from a worktree",
+        help="Use Compozy/_worktrees/<slug>/.compozy when invoked from a worktree",
     )
     args = parser.parse_args()
-    slug = args.slug or f"agh-iso-{int(time.time())}"
+    slug = args.slug or f"compozy-iso-{int(time.time())}"
 
     try:
         agh_home = resolve_home(slug, prefer_worktree=args.prefer_worktree)

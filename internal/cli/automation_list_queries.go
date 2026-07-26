@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 func parseAutomationJobListQuery(

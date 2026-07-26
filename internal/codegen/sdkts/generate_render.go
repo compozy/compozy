@@ -6,7 +6,7 @@ import (
 
 	"unicode/utf8"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
 
 func estimatedOutputSize(blocks []string) int {

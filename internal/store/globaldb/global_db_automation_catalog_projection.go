@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	automation "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const automationJobRichSelectSQL = `SELECT

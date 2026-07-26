@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // WindowManagerRevision is an unsigned wire integer that remains exact in JavaScript.

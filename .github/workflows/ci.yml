@@ -130,7 +130,7 @@ jobs:
       - name: Restore Daytona sidecar proof
         uses: actions/cache@v4
         with:
-          path: ~/.cache/agh-dev/daytona-check.stamp
+          path: ~/.cache/compozy-dev/daytona-check.stamp
           key: ${{ runner.os }}-daytona-proof-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-daytona-proof-
@@ -206,7 +206,7 @@ jobs:
       - name: Restore golangci-lint cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/agh-dev/golangci-lint
+          path: ~/.cache/compozy-dev/golangci-lint
           key: ${{ runner.os }}-golangci-v2.12.2-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-golangci-v2.12.2-${{ hashFiles('go.sum', '.golangci.yml') }}-
@@ -329,6 +329,6 @@ jobs:
           name: e2e-combined-artifacts
           path: |
             .tmp/playwright
-            /tmp/agh-e2e-*
+            /tmp/compozy-e2e-*
           if-no-files-found: ignore
           retention-days: 7

@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/deadentity"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestBridgeRuntimeResolveBridgeControlRuntimeKeepsDisabledState(t *testing.T) {

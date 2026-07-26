@@ -12,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/vault"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var errUnexpectedBridgeRuntimeStoreCall = errors.New("unexpected bridge runtime store stub call")

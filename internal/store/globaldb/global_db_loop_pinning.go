@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type activeGateCriterionPayload struct {

@@ -1,6 +1,6 @@
 package automation
 
-import modelpkg "github.com/compozy/agh/internal/automation/model"
+import modelpkg "github.com/compozy/compozy/internal/automation/model"
 
 // DefaultTimezone is the default schedule timezone used by automation config.
 const DefaultTimezone = modelpkg.DefaultTimezone

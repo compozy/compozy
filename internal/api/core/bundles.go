@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 

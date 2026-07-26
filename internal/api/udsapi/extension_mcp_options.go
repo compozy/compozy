@@ -1,6 +1,6 @@
 package udsapi
 
-import mcppkg "github.com/compozy/agh/internal/mcp"
+import mcppkg "github.com/compozy/compozy/internal/mcp"
 
 // WithExtensionService injects daemon-backed extension management handlers.
 func WithExtensionService(service ExtensionService) Option {
@@ -16,7 +16,7 @@ func WithHostedMCP(service *mcppkg.HostedService) Option {
 	}
 }
 
-// WithMCPHostAPI injects the workspace-bound Host API façade used by agh mcp serve.
+// WithMCPHostAPI injects the workspace-bound Host API façade used by compozy mcp serve.
 func WithMCPHostAPI(service mcppkg.HostAPIInvoker) Option {
 	return func(server *Server) {
 		server.mcpHostAPI = service

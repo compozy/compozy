@@ -26,11 +26,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/compozy/agh/internal/acp"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensiontest "github.com/compozy/agh/internal/extensiontest"
-	observepkg "github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/acp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensiontest "github.com/compozy/compozy/internal/extensiontest"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 const (

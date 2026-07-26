@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 func sendTelegramOutbound(

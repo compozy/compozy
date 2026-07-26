@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (g *TaskRepo) normalizeTaskDependencyForCreate(record taskpkg.Dependency) (taskpkg.Dependency, error) {

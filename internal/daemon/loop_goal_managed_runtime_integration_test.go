@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	looppkg "github.com/compozy/agh/internal/loop"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {

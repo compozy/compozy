@@ -6,11 +6,11 @@ Mutating helper. Called once by the real-scenario-qa skill after the bootstrap c
 What it does:
   1. Loads the playbook spec and renders the kickoff message.
   2. Scans the rendered message against forbidden-prompt-phrases.md and aborts on any match.
-  3. Writes the rendered message to <workspace>/.agh/operator-kickoff.txt for inspection.
+  3. Writes the rendered message to <workspace>/.compozy/operator-kickoff.txt for inspection.
   4. With --confirm-posted, requires non-empty provider evidence, appends the journey row, and
      updates the manifest with KICKOFF_POSTED=true and KICKOFF_TIMESTAMP=<iso>.
 
-It does NOT call `agh session prompt` itself. The caller renders, invokes the AGH CLI once, then
+It does NOT call `compozy session prompt` itself. The caller renders, invokes the AGH CLI once, then
 confirms that exact call with --confirm-posted and its captured provider evidence.
 """
 
@@ -160,7 +160,7 @@ def main() -> int:
     journey_log = qa_output_path / "qa" / "journey-log.jsonl"
     manifest_path = Path(args.manifest).resolve()
 
-    inspect_path = workspace_root / ".agh" / "operator-kickoff.txt"
+    inspect_path = workspace_root / ".compozy" / "operator-kickoff.txt"
     inspect_path.parent.mkdir(parents=True, exist_ok=True)
     inspect_path.write_text(message, encoding="utf-8")
 

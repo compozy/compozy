@@ -3,7 +3,7 @@ package loop
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 // RenderContractBlock renders the ADR-018 loop contract for worker prompt context.

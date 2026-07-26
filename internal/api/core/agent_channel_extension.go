@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func extensionMapFromNetworkMessage(entry store.NetworkMessageEntry) (network.ExtensionMap, error) {

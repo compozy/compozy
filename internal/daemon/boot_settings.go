@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {

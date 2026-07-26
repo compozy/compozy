@@ -23,7 +23,7 @@ export AGH_AIR_DEV_RUN_ID=$dev_run_id
 
 configured_api_proxy_target() {
   local config_json
-  if ! config_json=$(go run ./cmd/agh config show -o json); then
+  if ! config_json=$(go run ./cmd/compozy config show -o json); then
     echo "dev: failed to resolve the daemon HTTP endpoint from the active config" >&2
     return 1
   fi
@@ -138,7 +138,7 @@ remove_dev_readiness() {
 }
 
 stop_owned_daemon() {
-  local binary="$air_build_dir/agh"
+  local binary="$air_build_dir/compozy"
 
   go run ./scripts/air-state-lock "$air_state_dir/dev-owner.lock" -- \
     bash scripts/stop-dev-daemon.sh "$air_state_dir" "$dev_run_id" "$binary"

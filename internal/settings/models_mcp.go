@@ -1,6 +1,6 @@
 package settings
 
-import mcpauth "github.com/compozy/agh/internal/mcp/auth"
+import mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 
 // MCPSecretValues is the write-only secret material submitted with an MCP server mutation.
 type MCPSecretValues struct {

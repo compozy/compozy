@@ -10,10 +10,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -305,7 +305,7 @@ func editLoopDefinition(
 	if err != nil {
 		return contract.LoopResponse{}, fmt.Errorf("cli: marshal loop definition: %w", err)
 	}
-	tempFile, err := os.CreateTemp("", "agh-loop-*.yaml")
+	tempFile, err := os.CreateTemp("", "compozy-loop-*.yaml")
 	if err != nil {
 		return contract.LoopResponse{}, fmt.Errorf("cli: create temp loop definition: %w", err)
 	}

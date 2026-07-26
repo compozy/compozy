@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func openLoopTestGlobalDB(t *testing.T, workspaceIDs ...string) *GlobalDB {

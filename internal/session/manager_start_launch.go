@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func (m *Manager) prepareSessionLaunch(

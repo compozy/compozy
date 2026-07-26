@@ -3,8 +3,8 @@ package daemon
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func daemonTestLiveParticipation(workspaceID, channelID string) participation.Spec {

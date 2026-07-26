@@ -48,7 +48,7 @@ func outPath(in input, hasChildren map[string]bool) string {
 }
 
 // buildTargetMap builds a baseName -> absolute URL map used by remapLinks.
-// The root command maps to the generated agh page; every other command maps
+// The root command maps to the generated compozy page; every other command maps
 // to linkBasePath + its segment path.
 func buildTargetMap(inputs []input) map[string]string {
 	targets := make(map[string]string, len(inputs))
@@ -70,7 +70,7 @@ func validateOutputPaths(inputs []input, hasChildren map[string]bool) error {
 	return nil
 }
 
-// remapLinks rewrites any `](agh_xxx)` link target in the body to its
+// remapLinks rewrites any `](compozy_xxx)` link target in the body to its
 // absolute URL under linkBasePath. Runs after TransformMarkdown has already
 // stripped `.md` extensions via rewriteLinks.
 func remapLinks(body string, targets map[string]string) string {

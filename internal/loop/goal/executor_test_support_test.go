@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 type fakeExecutorStore struct {

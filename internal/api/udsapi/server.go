@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/doctor"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/doctor"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 

@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (
@@ -250,13 +250,13 @@ func PromptOverlay(input PromptInput) string {
 		writePromptLine(&b, "participation_channel", input.NetworkParticipation.ChannelID)
 	}
 	b.WriteString("\nUse public AGH agent APIs only:\n")
-	b.WriteString("- `agh me context` for the Situation Surface.\n")
-	b.WriteString("- `agh task create` to persist follow-up task intent.\n")
-	b.WriteString("- `agh task next|heartbeat|complete|fail|release` for task ownership and terminal status.\n")
+	b.WriteString("- `compozy me context` for the Situation Surface.\n")
+	b.WriteString("- `compozy task create` to persist follow-up task intent.\n")
+	b.WriteString("- `compozy task next|heartbeat|complete|fail|release` for task ownership and terminal status.\n")
 	if input.NetworkParticipation.Mode == participation.ModeLive {
-		b.WriteString("- `agh ch list|recv|send|reply` for operational worker communication.\n")
+		b.WriteString("- `compozy ch list|recv|send|reply` for operational worker communication.\n")
 	}
-	b.WriteString("- `agh spawn` for bounded worker delegation.\n")
+	b.WriteString("- `compozy spawn` for bounded worker delegation.\n")
 	b.WriteString("\nCreating a task only records follow-up intent. The current coordinator run is the active ")
 	b.WriteString("execution boundary, and child work must stay within the allowed task-run and spawn surfaces.\n")
 	if input.NetworkParticipation.Mode == participation.ModeLive {

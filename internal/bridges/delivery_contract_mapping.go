@@ -3,7 +3,7 @@ package bridges
 import (
 	"slices"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 func routingKeyToContract(key RoutingKey) bridgecontract.RoutingKey {

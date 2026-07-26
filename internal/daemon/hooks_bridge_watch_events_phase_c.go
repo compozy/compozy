@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/store"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type coordinatorWatchObserver interface {

@@ -5,8 +5,8 @@ package main
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/codegen/openapits"
-	"github.com/compozy/agh/internal/codegen/storeschema"
+	"github.com/compozy/compozy/internal/codegen/openapits"
+	"github.com/compozy/compozy/internal/codegen/storeschema"
 )
 
 func Codegen() error {
@@ -20,7 +20,7 @@ func Codegen() error {
 	if err := DaytonaSidecars(); err != nil {
 		return err
 	}
-	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "all"); err != nil {
 		return err
 	}
 	artifacts, err := availableWebOpenAPIArtifacts()
@@ -46,7 +46,7 @@ func CodegenCheck() error {
 	if err := daytonaSidecarsCheckStamped(); err != nil {
 		return err
 	}
-	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
+	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/compozy-codegen", "check"); err != nil {
 		return err
 	}
 	artifacts, err := availableWebOpenAPIArtifacts()

@@ -3,8 +3,8 @@ package session
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network/participation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func networkPeerCapabilities(catalog *aghconfig.CapabilityCatalog) []NetworkPeerCapability {

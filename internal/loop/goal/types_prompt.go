@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 // BudgetDecision is the short-lived durable authorization presented at effect start.

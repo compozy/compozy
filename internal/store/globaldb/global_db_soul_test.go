@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBSoulSnapshotStore(t *testing.T) {

@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 // Stop shuts down the started daemon and waits for process exit.

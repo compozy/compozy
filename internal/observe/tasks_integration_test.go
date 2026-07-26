@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 type observeTaskClock struct {
@@ -213,7 +213,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 	executor := &observeSessionExecutor{nextSessionID: "sess-observe-cancel"}
 	manager := newObserveTaskManager(t, h, executor, clock)
 
-	humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
+	humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "compozy task")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -391,7 +391,7 @@ func TestObserveTaskDashboardLoadsDependencyCountsWithoutPerTaskCalls(t *testing
 		Title:       "Dependency blocked task",
 		Status:      taskpkg.TaskStatusBlocked,
 		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		CreatedAt:   h.now,
 		UpdatedAt:   h.now,
 	})
@@ -402,7 +402,7 @@ func TestObserveTaskDashboardLoadsDependencyCountsWithoutPerTaskCalls(t *testing
 		Title:       "Prerequisite task",
 		Status:      taskpkg.TaskStatusReady,
 		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		CreatedAt:   h.now.Add(time.Minute),
 		UpdatedAt:   h.now.Add(time.Minute),
 	})
@@ -434,7 +434,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		h.observer.now = clock.Now
 		WithTaskDashboardConfig(TaskDashboardConfig{BacklogWarnAfter: 20 * time.Minute})(h.observer)
 
-		humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
+		humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "compozy task")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -632,7 +632,7 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 		h.observer.now = clock.Now
 		WithTaskDashboardConfig(TaskDashboardConfig{BacklogWarnAfter: 5 * time.Minute})(h.observer)
 
-		humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "agh task")
+		humanActor, err := taskpkg.DeriveHumanActorContext("user-ops", taskpkg.OriginKindCLI, "compozy task")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -737,7 +737,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		manager := newObserveTaskManager(t, h, executor, clock)
 		h.observer.now = clock.Now
 
-		alice, err := taskpkg.DeriveHumanActorContext("alice", taskpkg.OriginKindCLI, "agh task inbox")
+		alice, err := taskpkg.DeriveHumanActorContext("alice", taskpkg.OriginKindCLI, "compozy task inbox")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext(alice) error = %v", err)
 		}

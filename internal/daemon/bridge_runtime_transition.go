@@ -7,10 +7,10 @@ import (
 
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func (r *bridgeRuntime) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {

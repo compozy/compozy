@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	currentCatalogOpen                    = "<current-available-skills>"
 	currentCatalogClose                   = "</current-available-skills>"
 	catalogToolPolicyFallbackInstructions = "" +
-		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
+		"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback."
 	catalogUsageInstructions = "Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.\n" +
 		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.\n" +
 		catalogToolPolicyFallbackInstructions

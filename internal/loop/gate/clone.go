@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func cloneCriteria(criteria []dsl.GateCriterion) []dsl.GateCriterion {

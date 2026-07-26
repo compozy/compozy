@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // ManagedConfigResolver converts one daemon-managed instance into provider-specific config.

@@ -9,11 +9,11 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/providerauth"
-	authproviders "github.com/compozy/agh/internal/providers"
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/providerauth"
+	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const settingsCredentialSourceEnv = "env"

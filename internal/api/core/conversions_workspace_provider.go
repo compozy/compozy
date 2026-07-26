@@ -8,12 +8,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WorkspacePayloadFromWorkspace converts a workspace into the shared payload.

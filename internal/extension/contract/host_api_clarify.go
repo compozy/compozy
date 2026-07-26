@@ -1,8 +1,8 @@
 package contract
 
 import (
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const HostAPIMethodClarifyAsk = extensionprotocol.HostAPIMethodClarifyAsk

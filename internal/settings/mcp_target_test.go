@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
 func TestMCPServerTargetSelectorValidation(t *testing.T) {

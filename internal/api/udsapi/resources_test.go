@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/gin-gonic/gin"
 )
 

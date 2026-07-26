@@ -11,7 +11,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 type bundleArchiveWriter struct {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/testutil"
 )
 
 func TestSessionCreateRejectsLegacyParticipationFields(t *testing.T) {

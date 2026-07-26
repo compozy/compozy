@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 var _ goal.JudgeStore = (*GoalRepo)(nil)

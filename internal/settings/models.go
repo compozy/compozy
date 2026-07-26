@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // ScopeKind identifies the supported settings scope.
@@ -45,17 +45,17 @@ func (s ScopeKind) configWriteScope() aghconfig.WriteScope {
 type WriteTargetKind = aghconfig.WriteTargetKind
 
 const (
-	// WriteTargetGlobalConfig persists to `~/.agh/config.toml`.
+	// WriteTargetGlobalConfig persists to `~/.compozy/config.toml`.
 	WriteTargetGlobalConfig = aghconfig.WriteTargetGlobalConfig
-	// WriteTargetWorkspaceConfig persists to `<workspace>/.agh/config.toml`.
+	// WriteTargetWorkspaceConfig persists to `<workspace>/.compozy/config.toml`.
 	WriteTargetWorkspaceConfig = aghconfig.WriteTargetWorkspaceConfig
-	// WriteTargetGlobalMCPSidecar persists to `~/.agh/mcp.json`.
+	// WriteTargetGlobalMCPSidecar persists to `~/.compozy/mcp.json`.
 	WriteTargetGlobalMCPSidecar = aghconfig.WriteTargetGlobalMCPSidecar
-	// WriteTargetWorkspaceMCPSidecar persists to `<workspace>/.agh/mcp.json`.
+	// WriteTargetWorkspaceMCPSidecar persists to `<workspace>/.compozy/mcp.json`.
 	WriteTargetWorkspaceMCPSidecar = aghconfig.WriteTargetWorkspaceMCPSidecar
-	// WriteTargetGlobalAgentFile persists to `~/.agh/agents/<name>/AGENT.md`.
+	// WriteTargetGlobalAgentFile persists to `~/.compozy/agents/<name>/AGENT.md`.
 	WriteTargetGlobalAgentFile WriteTargetKind = "global-agent-file"
-	// WriteTargetWorkspaceAgentFile persists to `<root>/.agh/agents/<name>/AGENT.md`.
+	// WriteTargetWorkspaceAgentFile persists to `<root>/.compozy/agents/<name>/AGENT.md`.
 	WriteTargetWorkspaceAgentFile WriteTargetKind = "workspace-agent-file"
 )
 

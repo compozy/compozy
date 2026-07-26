@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 // memoryControllerCallOptions is the invocation contract for the in-process

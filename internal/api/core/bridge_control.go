@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	redactpkg "github.com/compozy/agh/internal/redact"
-	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 

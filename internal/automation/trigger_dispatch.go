@@ -10,9 +10,9 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (e *TriggerEngine) matchingRegistrations(envelope ActivationEnvelope) ([]TriggerRegistration, error) {

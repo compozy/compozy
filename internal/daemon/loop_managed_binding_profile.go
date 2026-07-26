@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(

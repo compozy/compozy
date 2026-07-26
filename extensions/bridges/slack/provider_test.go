@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/bridgesdk"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/bridgesdk"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
@@ -305,7 +305,7 @@ func TestMapSlackSlashCommandStableTargetIdentity(t *testing.T) {
 	managed := testBridgeRuntime(now, "brg-slack")
 
 	mapped, err := mapSlackSlashCommand(url.Values{
-		"command":      []string{"/agh"},
+		"command":      []string{"/compozy"},
 		"text":         []string{"summarize this"},
 		"user_id":      []string{"u123"},
 		"user_name":    []string{"Alice"},
@@ -324,7 +324,7 @@ func TestMapSlackSlashCommandStableTargetIdentity(t *testing.T) {
 	if got, want := mapped.Envelope.GroupID, "C123"; got != want {
 		t.Fatalf("GroupID = %q, want %q", got, want)
 	}
-	if got, want := mapped.Envelope.Command.Command, "/agh"; got != want {
+	if got, want := mapped.Envelope.Command.Command, "/compozy"; got != want {
 		t.Fatalf("Command.Command = %q, want %q", got, want)
 	}
 	if got, want := mapped.Envelope.Command.TriggerID, "1337.42"; got != want {
@@ -335,7 +335,7 @@ func TestMapSlackSlashCommandStableTargetIdentity(t *testing.T) {
 	}
 
 	direct, err := mapSlackSlashCommand(url.Values{
-		"command":      []string{"/agh"},
+		"command":      []string{"/compozy"},
 		"user_id":      []string{"U999"},
 		"user_name":    []string{"Bob"},
 		"channel_id":   []string{"D999"},
@@ -1833,7 +1833,7 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 	webhookURL := "http://" + serverAddr + "/slack/brg-1"
 
 	commandBody := []byte(
-		"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=hello&trigger_id=1337.42",
+		"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fcompozy&text=hello&trigger_id=1337.42",
 	)
 	postSignedSlackForm(t, webhookURL, "top-secret", now, commandBody)
 
@@ -1870,7 +1870,7 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 			) (*httptest.ResponseRecorder, error) {
 				recorder := httptest.NewRecorder()
 				commandBody := []byte(
-					"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=hello&trigger_id=1337.42",
+					"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fcompozy&text=hello&trigger_id=1337.42",
 				)
 				return recorder, runtime.handleFormWebhook(ctx, recorder, &cfg, bridgesdk.WebhookRequest{
 					Body:       commandBody,

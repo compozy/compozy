@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

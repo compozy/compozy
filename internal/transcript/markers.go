@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/events"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/events"
 )
 
 const (

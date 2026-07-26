@@ -1,6 +1,6 @@
 package settings
 
-import aghconfig "github.com/compozy/agh/internal/config"
+import aghconfig "github.com/compozy/compozy/internal/config"
 
 const (
 	sectionsDaemonKey         = "daemon"

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/e2elane"
+	"github.com/compozy/compozy/internal/e2elane"
 )
 
 func TestShouldEnsureWebBundle(t *testing.T) {
@@ -90,14 +90,14 @@ func TestFilesImporting(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeTestFile(t, root, "exact.go", "package fixture\nimport _ \"github.com/compozy/agh/internal/session\"\n")
+		writeTestFile(t, root, "exact.go", "package fixture\nimport _ \"github.com/compozy/compozy/internal/session\"\n")
 		writeTestFile(
 			t,
 			root,
 			"prefix.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/internal/sessions/ledger\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/sessions/ledger\"\n",
 		)
-		files, err := filesImporting(root, "github.com/compozy/agh/internal/session")
+		files, err := filesImporting(root, "github.com/compozy/compozy/internal/session")
 		if err != nil {
 			t.Fatalf("filesImporting() error = %v", err)
 		}
@@ -111,7 +111,7 @@ func TestFilesImporting(t *testing.T) {
 		t.Parallel()
 
 		missing := filepath.Join(t.TempDir(), "missing")
-		if _, err := filesImporting(missing, "github.com/compozy/agh/internal/session"); err == nil {
+		if _, err := filesImporting(missing, "github.com/compozy/compozy/internal/session"); err == nil {
 			t.Fatal("filesImporting(missing) error = nil, want scan failure")
 		}
 	})
@@ -121,7 +121,7 @@ func TestFilesImporting(t *testing.T) {
 
 		root := t.TempDir()
 		writeTestFile(t, root, "broken.go", "package fixture\nimport (\n")
-		if _, err := filesImporting(root, "github.com/compozy/agh/internal/session"); err == nil {
+		if _, err := filesImporting(root, "github.com/compozy/compozy/internal/session"); err == nil {
 			t.Fatal("filesImporting(malformed) error = nil, want parse failure")
 		}
 	})
@@ -134,22 +134,22 @@ func TestFilesImporting(t *testing.T) {
 			t,
 			root,
 			"root.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/internal/extension\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/extension\"\n",
 		)
 		writeTestFile(
 			t,
 			root,
 			"child.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/internal/extension/contract\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/extension/contract\"\n",
 		)
 		writeTestFile(
 			t,
 			root,
 			"neighbor.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/internal/extensionprotocol\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/internal/extensionprotocol\"\n",
 		)
 
-		files, err := filesImportingPrefix(root, "github.com/compozy/agh/internal/extension")
+		files, err := filesImportingPrefix(root, "github.com/compozy/compozy/internal/extension")
 		if err != nil {
 			t.Fatalf("filesImportingPrefix() error = %v", err)
 		}
@@ -167,22 +167,22 @@ func TestFilesImporting(t *testing.T) {
 			t,
 			root,
 			"root.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/extensions/bridges\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridges\"\n",
 		)
 		writeTestFile(
 			t,
 			root,
 			"provider.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/extensions/bridges/slack\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridges/slack\"\n",
 		)
 		writeTestFile(
 			t,
 			root,
 			"neighbor.go",
-			"package fixture\nimport _ \"github.com/compozy/agh/extensions/bridgekit\"\n",
+			"package fixture\nimport _ \"github.com/compozy/compozy/extensions/bridgekit\"\n",
 		)
 
-		files, err := filesImportingPrefix(root, "github.com/compozy/agh/extensions/bridges")
+		files, err := filesImportingPrefix(root, "github.com/compozy/compozy/extensions/bridges")
 		if err != nil {
 			t.Fatalf("filesImportingPrefix() error = %v", err)
 		}
@@ -503,6 +503,7 @@ func TestWebAssetsNextTag(t *testing.T) {
 	}
 }
 
+// not parallel: t.Setenv mutates process-wide state.
 func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 	t.Run("Should prefer the dedicated web assets token over the release token", func(t *testing.T) {
 		t.Setenv(webAssetsTokenEnvVar, "assets-token")
@@ -557,10 +558,57 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 		assertAskpassOutput(t, credentials.env, askpassPath, "Password for https://github.com", "secret-token")
 	})
 
+	t.Run("Should bypass operator credential helpers", func(t *testing.T) {
+		t.Parallel()
+
+		credentials, err := newWebAssetsGitCredentials("secret-token")
+		if err != nil {
+			t.Fatalf("newWebAssetsGitCredentials() error = %v", err)
+		}
+		t.Cleanup(credentials.cleanup)
+
+		testDir := t.TempDir()
+		helperPath := filepath.Join(testDir, "operator-credential-helper.sh")
+		markerPath := filepath.Join(testDir, "operator-helper-called")
+		helperSource := "#!/bin/sh\nprintf 'called\\n' > \"$WEB_ASSETS_HELPER_MARKER\"\n"
+		if err := os.WriteFile(helperPath, []byte(helperSource), 0o700); err != nil {
+			t.Fatalf("write operator credential helper: %v", err)
+		}
+		configPath := filepath.Join(testDir, "gitconfig")
+		configSource := "[credential]\n\thelper = " + helperPath + "\n"
+		if err := os.WriteFile(configPath, []byte(configSource), 0o600); err != nil {
+			t.Fatalf("write Git config: %v", err)
+		}
+
+		env := make(map[string]string, len(credentials.env)+3)
+		for key, value := range credentials.env {
+			env[key] = value
+		}
+		env["GIT_CONFIG_GLOBAL"] = configPath
+		env["GIT_CONFIG_NOSYSTEM"] = "1"
+		env["WEB_ASSETS_HELPER_MARKER"] = markerPath
+
+		cmd := exec.Command("git", "credential", "fill")
+		cmd.Env = mergeCommandEnv(env)
+		cmd.Stdin = strings.NewReader("protocol=https\nhost=github.com\n\n")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git credential fill error = %v\n%s", err, output)
+		}
+		for _, want := range []string{"username=x-access-token", "password=secret-token"} {
+			if !strings.Contains(string(output), want) {
+				t.Fatalf("git credential fill output = %q, want %q", output, want)
+			}
+		}
+		if _, err := os.Stat(markerPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("operator credential helper was invoked: %v", err)
+		}
+	})
+
 	t.Run("Should force public module resolution through the Go proxy", func(t *testing.T) {
 		t.Parallel()
 
-		env := webAssetsPublicModuleEnv("/tmp/agh-web-assets-test")
+		env := webAssetsPublicModuleEnv("/tmp/compozy-web-assets-test")
 		want := map[string]string{
 			"GO111MODULE": "on",
 			"GOFLAGS":     "-mod=mod",
@@ -569,8 +617,8 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 			"GOPRIVATE":   "",
 			"GOPROXY":     "https://proxy.golang.org,direct",
 			"GOSUMDB":     "sum.golang.org",
-			"GOMODCACHE":  filepath.Join("/tmp/agh-web-assets-test", "mod"),
-			"GOPATH":      filepath.Join("/tmp/agh-web-assets-test", "gopath"),
+			"GOMODCACHE":  filepath.Join("/tmp/compozy-web-assets-test", "mod"),
+			"GOPATH":      filepath.Join("/tmp/compozy-web-assets-test", "gopath"),
 		}
 		for key, value := range want {
 			if env[key] != value {
@@ -586,7 +634,7 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 			"package webassets",
 			"const (",
 			"\tBuildDigest = \"digest-123\"",
-			"\tSourceRepository = \"github.com/compozy/agh\"",
+			"\tSourceRepository = \"github.com/compozy/compozy\"",
 			"\tSourceCommit = \"abcdef123456\"",
 			")",
 		}, "\n")
@@ -624,6 +672,13 @@ func TestWebAssetsPrepare(t *testing.T) {
 		repoDir := t.TempDir()
 		if err := prepareWebAssetsRepo(srcDist, repoDir, metadata); err != nil {
 			t.Fatalf("prepareWebAssetsRepo(first) error = %v", err)
+		}
+		metadataSource := readTestFile(t, repoDir, webAssetsMetadataFile)
+		if !strings.Contains(metadataSource, "production Compozy web UI bundle") {
+			t.Fatalf("generated metadata does not identify the Compozy web UI bundle:\n%s", metadataSource)
+		}
+		if strings.Contains(metadataSource, "AGH") {
+			t.Fatalf("generated metadata retains the retired AGH identity:\n%s", metadataSource)
 		}
 		firstDigest, err := directoryDigest(repoDir)
 		if err != nil {

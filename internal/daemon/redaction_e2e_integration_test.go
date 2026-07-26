@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	_ "modernc.org/sqlite"
 )
 
@@ -97,7 +97,7 @@ func testDaemonRedactionBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query runtime event summaries error = %v", err)
 	}
-	assertRedactedBoundaryPayload(t, "agh.db event summaries", runtimeRows, true)
+	assertRedactedBoundaryPayload(t, "compozy.db event summaries", runtimeRows, true)
 
 	sessionRows, err := querySQLiteText(sessionDBPath, "SELECT content FROM events ORDER BY sequence")
 	if err != nil {

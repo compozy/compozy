@@ -1,9 +1,9 @@
 package extensionpkg
 
 import (
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSummaryPayload {

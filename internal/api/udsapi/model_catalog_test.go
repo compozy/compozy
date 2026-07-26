@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 func TestUDSHandlersModelCatalogDependency(t *testing.T) {

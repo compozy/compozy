@@ -16,14 +16,14 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 	// not parallel: these cases mutate process-wide environment variables with t.Setenv.
 	t.Run("Should return executable override path without cleanup side effects", func(t *testing.T) {
 		envVar := "AGH_TEST_DAEMON_BIN"
-		overridePath := filepath.Join(t.TempDir(), laneBinaryName("agh"))
+		overridePath := filepath.Join(t.TempDir(), laneBinaryName("compozy"))
 		writeExecutableFile(t, overridePath)
 		t.Setenv(envVar, overridePath)
 
 		got, cleanup, err := resolveOrBuildLaneBinary(envVar, func(string) error {
 			t.Fatal("resolveOrBuildLaneBinary() invoked build for an override path")
 			return nil
-		}, "agh")
+		}, "compozy")
 		if err != nil {
 			t.Fatalf("resolveOrBuildLaneBinary() error = %v", err)
 		}
@@ -40,13 +40,13 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 
 	t.Run("Should reject missing override paths", func(t *testing.T) {
 		envVar := "AGH_TEST_DAEMON_BIN"
-		missingPath := filepath.Join(t.TempDir(), laneBinaryName("missing-agh"))
+		missingPath := filepath.Join(t.TempDir(), laneBinaryName("missing-compozy"))
 		t.Setenv(envVar, missingPath)
 
 		if _, _, err := resolveOrBuildLaneBinary(envVar, func(string) error {
 			t.Fatal("resolveOrBuildLaneBinary() invoked build for a missing override path")
 			return nil
-		}, "agh"); !errors.Is(err, os.ErrNotExist) {
+		}, "compozy"); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("resolveOrBuildLaneBinary() error = %v, want os.ErrNotExist", err)
 		}
 	})
@@ -59,7 +59,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 		_, _, err := resolveOrBuildLaneBinary(envVar, func(string) error {
 			t.Fatal("resolveOrBuildLaneBinary() invoked build for a directory override path")
 			return nil
-		}, "agh")
+		}, "compozy")
 		if err == nil {
 			t.Fatal("resolveOrBuildLaneBinary() error = nil, want non-nil")
 		}
@@ -71,7 +71,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Run("Should reject non-executable override paths", func(t *testing.T) {
 			envVar := "AGH_TEST_DAEMON_BIN"
-			overridePath := filepath.Join(t.TempDir(), "agh")
+			overridePath := filepath.Join(t.TempDir(), "compozy")
 			if err := os.WriteFile(overridePath, []byte("binary"), 0o644); err != nil {
 				t.Fatalf("os.WriteFile(%q) error = %v", overridePath, err)
 			}
@@ -80,7 +80,7 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 			_, _, err := resolveOrBuildLaneBinary(envVar, func(string) error {
 				t.Fatal("resolveOrBuildLaneBinary() invoked build for a non-executable override path")
 				return nil
-			}, "agh")
+			}, "compozy")
 			if err == nil {
 				t.Fatal("resolveOrBuildLaneBinary() error = nil, want non-nil")
 			}
@@ -101,14 +101,14 @@ func TestResolveOrBuildLaneBinary(t *testing.T) {
 				return err
 			}
 			return nil
-		}, "agh")
+		}, "compozy")
 		if err != nil {
 			t.Fatalf("resolveOrBuildLaneBinary() error = %v", err)
 		}
 		if buildDir == "" {
 			t.Fatal("resolveOrBuildLaneBinary() did not provide an output path to build")
 		}
-		if got != filepath.Join(buildDir, laneBinaryName("agh")) {
+		if got != filepath.Join(buildDir, laneBinaryName("compozy")) {
 			t.Fatalf("resolveOrBuildLaneBinary() path = %q, want output inside %q", got, buildDir)
 		}
 		if _, err := os.Stat(buildDir); err != nil {

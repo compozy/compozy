@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/compozy/agh/internal/e2elane"
+	"github.com/compozy/compozy/internal/e2elane"
 )
 
 // TestE2ERuntime runs the PR-required daemon/runtime E2E lane without sweeping every integration package.
@@ -117,7 +117,7 @@ func prepareE2ELaneEnv() (e2eLaneEnv, error) {
 			buildLDFlags(),
 			"-o",
 			outputPath,
-			"./cmd/agh",
+			"./cmd/compozy",
 		)
 	}, cliBinary)
 	if err != nil {
@@ -179,7 +179,7 @@ func resolveOrBuildLaneBinary(
 		return overridePath, noopCleanup, nil
 	}
 
-	buildDir, err := os.MkdirTemp("", "agh-e2e-lane-")
+	buildDir, err := os.MkdirTemp("", "compozy-e2e-lane-")
 	if err != nil {
 		return "", nil, err
 	}

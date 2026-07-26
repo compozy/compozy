@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestDaemonModelCatalogWiring(t *testing.T) {

@@ -56,7 +56,7 @@ func TestHermeticProcessEnv(t *testing.T) {
 			"PATH=/usr/bin",
 			"HOME=/Users/operator",
 			"OPENAI_API_KEY=sk-ambient",
-			"AGH_HOME=/Users/operator/.agh",
+			"AGH_HOME=/Users/operator/.compozy",
 			"AGH_TEST_DAEMON_BIN=/tmp/agh",
 			"PROVIDER_CODEX_HOME=/Users/operator/.codex",
 			"TZ=America/Sao_Paulo",

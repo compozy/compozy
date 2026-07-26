@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
 )
 

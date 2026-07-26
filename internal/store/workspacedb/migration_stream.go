@@ -1,8 +1,8 @@
 package workspacedb
 
 import (
-	"github.com/compozy/agh/internal/store"
-	workspaceschema "github.com/compozy/agh/internal/store/workspacedb/schema"
+	"github.com/compozy/compozy/internal/store"
+	workspaceschema "github.com/compozy/compozy/internal/store/workspacedb/schema"
 )
 
 const workspaceMigrationVersionTable = "goose_db_version_workspace"

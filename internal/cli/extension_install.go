@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
 func installExtension(

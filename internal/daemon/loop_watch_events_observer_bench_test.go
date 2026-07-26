@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 )
 
 func TestLoopWatchEventsObserverShouldUseKindIndexBeforeDoorbellCEL(t *testing.T) {

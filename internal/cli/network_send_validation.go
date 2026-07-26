@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	networkpkg "github.com/compozy/agh/internal/network"
+	networkpkg "github.com/compozy/compozy/internal/network"
 )
 
 const (

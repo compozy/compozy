@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/compozy/agh/internal/frontmatter"
+	"github.com/compozy/compozy/internal/frontmatter"
 	yaml "gopkg.in/yaml.v3"
 )
 

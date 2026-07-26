@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func TestSlackBridgeManifestHandlerReturnsRequestedPayload(t *testing.T) {

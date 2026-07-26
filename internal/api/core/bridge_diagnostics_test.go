@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/observe"
 	"github.com/gin-gonic/gin"
 )
 

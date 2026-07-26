@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func (g *BridgeRepo) PutBridgeSecretBinding(ctx context.Context, binding bridges.BridgeSecretBinding) error {

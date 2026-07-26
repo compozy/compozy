@@ -3,8 +3,8 @@ package core
 import (
 	"net/http"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/transcript"
 	"github.com/gin-gonic/gin"
 )
 

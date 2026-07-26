@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func applyLoopRunPinningForTest(t *testing.T, run *looppkg.Run, at time.Time) {

@@ -1,6 +1,6 @@
 package udsapi
 
-import toolspkg "github.com/compozy/agh/internal/tools"
+import toolspkg "github.com/compozy/compozy/internal/tools"
 
 // WithClarifyBroker injects the boot-scoped clarification authority.
 func WithClarifyBroker(broker toolspkg.ClarifyBroker) Option {

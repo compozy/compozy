@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
@@ -661,7 +661,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 		"Use `agh__skill_view` to load full instructions for any skill.",
 		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback.",
 		"",
 		"hello alpha",
 	}, "\n")
@@ -886,7 +886,7 @@ hello alpha
 				"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 				"Use `agh__skill_view` to load full instructions for any skill.",
 				"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-				"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+				"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback.",
 				"",
 				"<turn-recall>",
 				"Relevant durable memory for this turn:",
@@ -911,7 +911,7 @@ hello alpha
 				"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 				"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 				"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
-				"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+				"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback.",
 				"",
 				"hello alpha",
 			}, "\n"),

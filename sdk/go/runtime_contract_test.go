@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghsdk "github.com/compozy/agh/sdk/go"
+	aghsdk "github.com/compozy/compozy/sdk/go"
 )
 
 func TestSDKRuntimeContracts(t *testing.T) {

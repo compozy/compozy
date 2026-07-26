@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +15,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   skillCommandsInfoEntryValue,
 		Short: "Show one Marketplace skill entry",
 		Example: `  # Inspect a Marketplace skill before installation
-  agh skill info skill_code_review`,
+  compozy skill info skill_code_review`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -45,7 +45,7 @@ func newSkillInspectCommand(deps commandDeps) *cobra.Command {
 		Use:   skillCommandsInspectNameValue,
 		Short: "Inspect installed skill metadata and resources",
 		Example: `  # Inspect an installed skill's metadata and resource list
-  agh skill inspect code-review`,
+  compozy skill inspect code-review`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.inspect"))

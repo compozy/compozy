@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
@@ -211,7 +211,7 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 			Target: fixture.target,
 			Body:   body,
 			Actor:  soul.AuthoringIdentity{Kind: "human", Ref: "tester"},
-			Origin: soul.AuthoringIdentity{Kind: "cli", Ref: "agh agent soul write"},
+			Origin: soul.AuthoringIdentity{Kind: "cli", Ref: "compozy agent soul write"},
 		})
 		if err != nil {
 			t.Fatalf("Put(create) error = %v", err)
@@ -236,7 +236,7 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 			Body:           updatedBody,
 			ExpectedDigest: first.Soul.Digest,
 			Actor:          soul.AuthoringIdentity{Kind: "human", Ref: "tester"},
-			Origin:         soul.AuthoringIdentity{Kind: "cli", Ref: "agh agent soul write"},
+			Origin:         soul.AuthoringIdentity{Kind: "cli", Ref: "compozy agent soul write"},
 		})
 		if err != nil {
 			t.Fatalf("Put(update) error = %v", err)
@@ -465,7 +465,7 @@ func TestManagedSoulAuthoringServiceDeleteRollbackAndHistory(t *testing.T) {
 	t.Run("Should persist revision history across database reopen", func(t *testing.T) {
 		t.Parallel()
 
-		dbPath := filepath.Join(t.TempDir(), "agh.db")
+		dbPath := filepath.Join(t.TempDir(), "compozy.db")
 		cloneSoulTestStoreSeed(t, dbPath)
 		firstFixture := newAuthoringFixtureWithDBPath(t, dbPath)
 		first, err := firstFixture.service.Put(firstFixture.ctx, soul.PutRequest{
@@ -698,7 +698,7 @@ func (c *cancelAfterFirstErrContext) Err() error {
 func newAuthoringFixture(t *testing.T) authoringFixture {
 	t.Helper()
 
-	dbPath := filepath.Join(t.TempDir(), "agh.db")
+	dbPath := filepath.Join(t.TempDir(), "compozy.db")
 	cloneSoulTestStoreSeed(t, dbPath)
 	return newAuthoringFixtureWithDBPath(t, dbPath)
 }

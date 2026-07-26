@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // ListTasks exposes the unpaged task-list seam used by internal lifecycle tests.

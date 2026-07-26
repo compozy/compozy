@@ -1,6 +1,6 @@
 package mcp
 
-import extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+import extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 
 const (
 	projectionReasonAgentsExcluded     = "agents are outside the approved MCP families"

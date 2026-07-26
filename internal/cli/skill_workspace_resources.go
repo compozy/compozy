@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/skills"
 )
 
 func listSkillResources(skill *skills.Skill, bundledFS fs.FS) ([]string, error) {

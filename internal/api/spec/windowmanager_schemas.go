@@ -3,7 +3,7 @@ package spec
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

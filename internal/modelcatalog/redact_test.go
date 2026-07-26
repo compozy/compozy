@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/toolmeta"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 func TestCanonicalRedactionConsumersStaySafe(t *testing.T) {

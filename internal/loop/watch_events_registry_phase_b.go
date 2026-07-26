@@ -1,6 +1,6 @@
 package loop
 
-import "github.com/compozy/agh/internal/hooks"
+import "github.com/compozy/compozy/internal/hooks"
 
 var phaseBWatchEvents = []WatchEventsContract{
 	// automation_runs is rowid-cursored and workspace-scoped by joining the run's job/trigger

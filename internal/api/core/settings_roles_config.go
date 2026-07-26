@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 var errSettingsRolesConfigRequired = errors.New("roles.config is required")

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 func (m *Manager) refreshActiveSessionHealth(ctx context.Context) (int, error) {

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	storepkg "github.com/compozy/agh/internal/store"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // ListMemoryEventSummaries returns canonical memory events from every visible

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

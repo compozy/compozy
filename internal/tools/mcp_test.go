@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/deadentity"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {

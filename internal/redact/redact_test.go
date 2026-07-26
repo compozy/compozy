@@ -260,8 +260,8 @@ func TestEngineComposesExactAndHeuristicRedaction(t *testing.T) {
 		t.Parallel()
 
 		for _, path := range []string{
-			"/private/var/tmp/TestExecuteContextLocalDatabaseMigrationErrorsJ20270725/001/agh.db",
-			`C:\Users\runner\AppData\Local\TestExecuteContextLocalDatabaseMigrationErrorsJ20270725\agh.db`,
+			"/private/var/tmp/TestExecuteContextLocalDatabaseMigrationErrorsJ20270725/001/compozy.db",
+			`C:\Users\runner\AppData\Local\TestExecuteContextLocalDatabaseMigrationErrorsJ20270725\compozy.db`,
 		} {
 			if got := New(Options{}).RedactString(path); got != path {
 				t.Fatalf("RedactString(path) = %q, want byte-identical %q", got, path)

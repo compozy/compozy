@@ -4,9 +4,9 @@ import (
 	"maps"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // AutomationSchedulerStatePayloadFromState converts durable scheduler metadata

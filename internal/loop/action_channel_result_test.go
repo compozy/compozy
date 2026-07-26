@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func TestStoreChannelResultHarvesterShouldReadDurableConversationResults(t *testing.T) {

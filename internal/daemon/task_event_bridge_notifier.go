@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/notifications"
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
-	taskpkg "github.com/compozy/agh/internal/task"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/notifications"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const defaultBridgeTerminalNotificationQueueSize = 32

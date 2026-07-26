@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/testutil"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGoalSessionOutboxRelay(t *testing.T) {

@@ -3,7 +3,7 @@ package sessiondb
 import (
 	"encoding/json"
 
-	"github.com/compozy/agh/internal/redact"
+	"github.com/compozy/compozy/internal/redact"
 )
 
 var persistedEventContentFields = []string{

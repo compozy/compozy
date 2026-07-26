@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/network"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/spf13/cobra"
 )
 

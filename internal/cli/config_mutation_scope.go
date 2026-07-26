@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func prepareConfigMutationTarget(target aghconfig.WriteTarget, path []string) error {

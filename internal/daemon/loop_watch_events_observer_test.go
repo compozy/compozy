@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {

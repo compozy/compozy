@@ -10,8 +10,8 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 const executedDefinitionSnapshotFormatVersion = 1

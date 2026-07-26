@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 // ToolCallActionExecutor adapts a ToolID action to RuntimeRegistry.Call.

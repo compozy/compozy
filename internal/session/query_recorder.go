@@ -9,8 +9,8 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 )
 
 type recorderOpenTarget struct {

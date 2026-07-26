@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/fileutil"
-	aghlogger "github.com/compozy/agh/internal/logger"
-	"github.com/compozy/agh/internal/procutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
+	aghlogger "github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 type restartRequestRuntime struct {

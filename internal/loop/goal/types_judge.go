@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 // JudgeAttempt is the durable persist-before-effect aggregate judge operation.

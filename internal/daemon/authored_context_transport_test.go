@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/httpapi"
-	"github.com/compozy/agh/internal/api/testutil"
-	"github.com/compozy/agh/internal/api/udsapi"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/soul"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/soul"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -297,7 +297,7 @@ func newAuthoredContextFixture(t *testing.T) *authoredContextFixture {
 	t.Helper()
 
 	root := t.TempDir()
-	agentDir := filepath.Join(root, ".agh", "agents", "coder")
+	agentDir := filepath.Join(root, ".compozy", "agents", "coder")
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(agentDir) error = %v", err)
 	}

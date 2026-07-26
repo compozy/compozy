@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
 )
 

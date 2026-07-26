@@ -34,8 +34,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/discord/bin
 go build -o ./extensions/bridges/discord/bin/discord ./extensions/bridges/discord
-agh extension install ./extensions/bridges/discord --allow-unverified --yes -o json
-agh extension status discord -o json
+compozy extension install ./extensions/bridges/discord --allow-unverified --yes -o json
+compozy extension status discord -o json
 ```
 
 ## Provider Config

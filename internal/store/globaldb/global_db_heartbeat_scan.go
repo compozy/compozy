@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func scanHeartbeatSnapshot(scanner rowScanner) (heartbeat.Snapshot, error) {

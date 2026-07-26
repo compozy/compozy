@@ -1,4 +1,4 @@
-// Package main is the root AGH CLI entrypoint for go install github.com/compozy/agh.
+// Package main is the root AGH CLI entrypoint for go install github.com/compozy/compozy.
 package main
 
 import (
@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/compozy/agh/internal/cli"
+	"github.com/compozy/compozy/internal/cli"
 )
 
 func main() {

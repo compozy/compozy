@@ -9,14 +9,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/ginutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/doctor"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/store"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/ginutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 

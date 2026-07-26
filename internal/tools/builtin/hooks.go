@@ -1,6 +1,6 @@
 package builtin
 
-import toolspkg "github.com/compozy/agh/internal/tools"
+import toolspkg "github.com/compozy/compozy/internal/tools"
 
 const (
 	hooksHooksKey = "hooks"

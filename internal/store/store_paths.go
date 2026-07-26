@@ -5,8 +5,8 @@ import "path/filepath"
 const (
 	// SessionDatabaseName is the filename for per-session event storage.
 	SessionDatabaseName = "events.db"
-	// GlobalDatabaseName is the filename for the global AGH index database.
-	GlobalDatabaseName = "agh.db"
+	// GlobalDatabaseName is the filename for the global CompozyOS index database.
+	GlobalDatabaseName = "compozy.db"
 	// SessionMetaName is the filename for quick session metadata lookups.
 	SessionMetaName = "meta.json"
 )

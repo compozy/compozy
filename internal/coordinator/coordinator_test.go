@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDecideBootstrap(t *testing.T) {
@@ -310,10 +310,10 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 			NetworkParticipation: participation.LocalSpec(),
 		})
 		for _, required := range []string{
-			"agh me context",
-			"agh task create",
-			"agh task next|heartbeat|complete|fail|release",
-			"agh spawn",
+			"compozy me context",
+			"compozy task create",
+			"compozy task next|heartbeat|complete|fail|release",
+			"compozy spawn",
 			"The current coordinator run is the active execution boundary",
 			"Never spawn another coordinator",
 		} {
@@ -321,7 +321,7 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
-		for _, forbidden := range []string{"agh ch", "participation_channel", "coordination_channel_id", "Channel communication"} {
+		for _, forbidden := range []string{"compozy ch", "participation_channel", "coordination_channel_id", "Channel communication"} {
 			if strings.Contains(overlay, forbidden) {
 				t.Fatalf("PromptOverlay contains local-only forbidden guidance %q:\n%s", forbidden, overlay)
 			}
@@ -339,7 +339,7 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 				ChannelID: "ch-run-1", Source: participation.SourceExplicitRequest,
 			},
 		})
-		for _, required := range []string{"agh ch list|recv|send|reply", "participation_channel: ch-run-1", "Channel communication"} {
+		for _, required := range []string{"compozy ch list|recv|send|reply", "participation_channel: ch-run-1", "Channel communication"} {
 			if !strings.Contains(overlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}

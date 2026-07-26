@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/memory"
 )
 
 func (d *Daemon) configureMemoryStore(state *bootState) error {

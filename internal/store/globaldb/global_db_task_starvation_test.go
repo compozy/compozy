@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBRunStarvation(t *testing.T) {

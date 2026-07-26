@@ -5,14 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {
 	// not parallel: relaunch reads process environment through os.Getenv.
 	t.Run("Should invoke relaunch helper with restart operation environment", func(t *testing.T) {
 		deps := newTestDeps(t, &stubClient{})
-		deps.executable = func() (string, error) { return "/usr/bin/agh", nil }
+		deps.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 
 		var captured aghdaemon.RelaunchHelperConfig
 		deps.runRelaunchHelper = func(_ context.Context, cfg aghdaemon.RelaunchHelperConfig) error {

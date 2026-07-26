@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	taskpkg "github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestLoopNativeHookObserverShouldProtectDurableNodeTerminalWake(t *testing.T) {

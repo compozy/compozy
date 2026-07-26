@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/memory"
-	ssepkg "github.com/compozy/agh/internal/sse"
+	"github.com/compozy/compozy/internal/memory"
+	ssepkg "github.com/compozy/compozy/internal/sse"
 
 	"github.com/gin-gonic/gin"
 )

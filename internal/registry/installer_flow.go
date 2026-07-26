@@ -161,7 +161,7 @@ func (i *Installer) cleanupStaleTempDirs(parent string) error {
 			continue
 		}
 		name := entry.Name()
-		if !strings.HasPrefix(name, ".agh-install-") {
+		if !strings.HasPrefix(name, ".compozy-install-") {
 			continue
 		}
 

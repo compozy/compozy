@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/diagnostics"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func (h *BaseHandlers) mcpServerStatusPayloads(

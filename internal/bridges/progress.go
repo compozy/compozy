@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	redactpkg "github.com/compozy/agh/internal/redact"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 const maxToolProgressErrorRunes = bridgecontract.MaxToolProgressErrorRunes

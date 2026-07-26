@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // CanonicalSchema is the stored envelope schema for transcript-aware session events.

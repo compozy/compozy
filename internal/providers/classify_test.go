@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestClassifyProviderAuth(t *testing.T) {

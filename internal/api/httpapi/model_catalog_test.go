@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 func TestHTTPHandlersModelCatalogDependency(t *testing.T) {
@@ -92,7 +92,7 @@ func TestHTTPModelCatalogRoutes(t *testing.T) {
 		var payload contract.OpenAIModelListResponse
 		decodeJSONResponse(t, recorder, &payload)
 		if payload.Object != "list" || len(payload.Data) != 1 || payload.Data[0].AGH.ProviderID != "codex" {
-			t.Fatalf("payload = %#v, want OpenAI list with agh metadata", payload)
+			t.Fatalf("payload = %#v, want OpenAI list with compozy metadata", payload)
 		}
 	})
 

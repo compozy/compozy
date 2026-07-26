@@ -4,9 +4,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (r *Registry) usesResourceAuthority() bool {

@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/coordinator"
-	eventspkg "github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	storepkg "github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/coordinator"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
@@ -99,12 +99,12 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if got := call.Lineage.PermissionPolicy.NetworkChannels; len(got) != 0 {
 		t.Fatalf("Lineage.PermissionPolicy.NetworkChannels = %#v, want empty", got)
 	}
-	for _, required := range []string{"agh me context", "agh task next", "agh spawn"} {
+	for _, required := range []string{"compozy me context", "compozy task next", "compozy spawn"} {
 		if !contains(call.PromptOverlay, required) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 		}
 	}
-	for _, forbidden := range []string{"agh ch", "ch-run-1", "participation_channel", "coordination_channel_id"} {
+	for _, forbidden := range []string{"compozy ch", "ch-run-1", "participation_channel", "coordination_channel_id"} {
 		if contains(call.PromptOverlay, forbidden) {
 			t.Fatalf("PromptOverlay contains local coordinator guidance %q:\n%s", forbidden, call.PromptOverlay)
 		}
@@ -239,7 +239,7 @@ func TestCoordinatorRuntimeBindsLiveParticipationToCoordinatorLifecycle(t *testi
 		if !slices.Contains(call.Lineage.PermissionPolicy.Tools, toolspkg.ToolIDNetworkSend.String()) {
 			t.Fatalf("Lineage.PermissionPolicy.Tools = %#v, want Network send", call.Lineage.PermissionPolicy.Tools)
 		}
-		for _, required := range []string{"participation_channel: " + liveSpec.ChannelID, "agh ch"} {
+		for _, required := range []string{"participation_channel: " + liveSpec.ChannelID, "compozy ch"} {
 			if !contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
@@ -331,7 +331,7 @@ func TestCoordinatorRuntimeBootstrapsWithTaskContextOverlay(t *testing.T) {
 	}
 	call := sessions.createCall(0)
 	if !contains(call.PromptOverlay, "coordinator task context bundle") ||
-		!contains(call.PromptOverlay, "agh task next") {
+		!contains(call.PromptOverlay, "compozy task next") {
 		t.Fatalf("PromptOverlay = %q, want task context plus coordinator instructions", call.PromptOverlay)
 	}
 	if len(overlay.calls) != 1 ||

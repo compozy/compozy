@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
-	eventspkg "github.com/compozy/agh/internal/events"
-	storepkg "github.com/compozy/agh/internal/store"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/compozy/internal/diagnostics"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 type schedulerControlTestStore struct {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	sessionpkg "github.com/compozy/agh/internal/session"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
 const capabilityBriefExtKey = "agh.capabilities_brief"

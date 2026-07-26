@@ -8,10 +8,10 @@ import (
 	"maps"
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/windowmanager"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func cloneActivation(value Activation) Activation {

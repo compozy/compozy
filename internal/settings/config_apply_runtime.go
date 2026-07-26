@@ -3,10 +3,10 @@ package settings
 import (
 	"context"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func (s *service) persistRuntimeApply(
@@ -82,7 +82,7 @@ func restartRequiredDiagnostics(
 			"Desired config was written, but the active generation cannot advance until the daemon restarts.",
 			diagnosticcontract.SeverityWarn,
 			diagnosticcontract.FreshnessLive,
-			diagnostics.WithSuggestedCommand("agh daemon restart"),
+			diagnostics.WithSuggestedCommand("compozy daemon restart"),
 		),
 	}
 }

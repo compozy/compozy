@@ -7,7 +7,7 @@ import (
 
 	atlasmigrate "ariga.io/atlas/sql/migrate"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestMigrationStreamStatus(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	"github.com/compozy/agh/internal/network/participation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // AutomationResourceStatusPayload reports total and enabled counts for one

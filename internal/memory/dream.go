@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (

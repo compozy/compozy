@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

@@ -1,6 +1,6 @@
 package contract
 
-import "github.com/compozy/agh/internal/transcript"
+import "github.com/compozy/compozy/internal/transcript"
 
 const (
 	SessionStreamFrameRaw        = "raw"

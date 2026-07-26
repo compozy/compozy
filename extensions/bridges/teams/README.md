@@ -10,8 +10,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/teams/bin
 go build -o ./extensions/bridges/teams/bin/teams ./extensions/bridges/teams
-agh extension install ./extensions/bridges/teams --allow-unverified --yes -o json
-agh extension status teams -o json
+compozy extension install ./extensions/bridges/teams --allow-unverified --yes -o json
+compozy extension status teams -o json
 ```
 
 ## Secrets

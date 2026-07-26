@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	core "github.com/compozy/compozy/internal/api/core"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
@@ -68,8 +68,8 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			!payload.Status.Refreshable {
 			t.Fatalf("payload status = %#v, want redacted auth status model", payload.Status)
 		}
-		if payload.RepairPaths.LoginCLI != `agh mcp auth login "linear"` ||
-			payload.RepairPaths.LogoutCLI != `agh mcp auth logout "linear"` ||
+		if payload.RepairPaths.LoginCLI != `compozy mcp auth login "linear"` ||
+			payload.RepairPaths.LogoutCLI != `compozy mcp auth logout "linear"` ||
 			payload.RepairPaths.SettingsHTTP != "/api/settings/mcp-servers" {
 			t.Fatalf("repair paths = %#v, want management paths", payload.RepairPaths)
 		}
@@ -206,7 +206,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			t.Fatalf("Unmarshal(mcp status payload) error = %v", err)
 		}
 		if payload.State != "auth-blocked" ||
-			payload.RepairPaths.LoginCLI != `agh mcp auth login "linear"` ||
+			payload.RepairPaths.LoginCLI != `compozy mcp auth login "linear"` ||
 			!strings.Contains(payload.CallableDiscoveryNote, "omitted from callable discovery") {
 			t.Fatalf("payload = %#v, want auth-blocked probe with management repair paths", payload)
 		}
@@ -281,7 +281,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			t.Fatalf("Unmarshal(mcp auth payload) error = %v", err)
 		}
 		if payload.Status.ServerName != "linear" ||
-			payload.RepairPaths.StatusCLI != `agh mcp auth status "linear"` {
+			payload.RepairPaths.StatusCLI != `compozy mcp auth status "linear"` {
 			t.Fatalf("payload = %#v, want requested server name in status and repair paths", payload)
 		}
 	})

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 const (

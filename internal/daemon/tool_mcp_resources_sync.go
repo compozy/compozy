@@ -5,10 +5,10 @@ import (
 
 	"fmt"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]*desiredToolResource) (bool, error) {

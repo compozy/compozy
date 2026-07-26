@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func TestLayoutResourceCodec(t *testing.T) {

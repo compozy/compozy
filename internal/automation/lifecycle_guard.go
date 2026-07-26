@@ -14,7 +14,7 @@ var ErrDaemonLifecycleCommandBlocked = errors.New("automation: daemon lifecycle 
 type DaemonLifecycleCommandClass string
 
 const (
-	// DaemonLifecycleCommandClassAGHDaemon identifies the native AGH daemon CLI.
+	// DaemonLifecycleCommandClassAGHDaemon identifies the native daemon CLI.
 	DaemonLifecycleCommandClassAGHDaemon DaemonLifecycleCommandClass = "agh_daemon"
 	// DaemonLifecycleCommandClassProcessSignal identifies process-targeting kill commands.
 	DaemonLifecycleCommandClassProcessSignal DaemonLifecycleCommandClass = "process_signal"
@@ -49,33 +49,33 @@ var daemonLifecycleCommandPatterns = []daemonLifecycleCommandPattern{
 	{
 		class: DaemonLifecycleCommandClassAGHDaemon,
 		pattern: regexp.MustCompile(
-			`(?i)\bagh(?:[[:space:]]+(?:--json|--output(?:=[^[:space:]\n]+|[[:space:]]+[^[:space:]\n]+)|-o(?:=[^[:space:]\n]+|[[:space:]]+[^[:space:]\n]+)))*[[:space:]]+daemon[[:space:]]+(restart|stop)\b`,
+			`(?i)\bcompozy(?:[[:space:]]+(?:--json|--output(?:=[^[:space:]\n]+|[[:space:]]+[^[:space:]\n]+)|-o(?:=[^[:space:]\n]+|[[:space:]]+[^[:space:]\n]+)))*[[:space:]]+daemon[[:space:]]+(restart|stop)\b`,
 		),
 	},
 	{
 		class:   DaemonLifecycleCommandClassProcessSignal,
-		pattern: regexp.MustCompile(`(?i)\b(pkill|killall)\b[^\n]*\bagh\b`),
+		pattern: regexp.MustCompile(`(?i)\b(pkill|killall)\b[^\n]*\bcompozy\b`),
 	},
 	{
 		class:   DaemonLifecycleCommandClassProcessSignal,
-		pattern: regexp.MustCompile(`(?i)\bkill\b[^\n]*\bpgrep\b[^\n]*\bagh\b`),
+		pattern: regexp.MustCompile(`(?i)\bkill\b[^\n]*\bpgrep\b[^\n]*\bcompozy\b`),
 	},
 	{
 		class: DaemonLifecycleCommandClassServiceManager,
 		pattern: regexp.MustCompile(
-			`(?i)\bsystemctl\b[^\n]*\b(restart|stop|start)\b[^\n]*\bagh\b`,
+			`(?i)\bsystemctl\b[^\n]*\b(restart|stop|start)\b[^\n]*\bcompozy\b`,
 		),
 	},
 	{
 		class: DaemonLifecycleCommandClassServiceManager,
 		pattern: regexp.MustCompile(
-			`(?i)\blaunchctl[[:space:]]+(kickstart|unload|load|stop|restart)\b[^\n]*\bagh\b`,
+			`(?i)\blaunchctl[[:space:]]+(kickstart|unload|load|stop|restart)\b[^\n]*\bcompozy\b`,
 		),
 	},
 	{
 		class: DaemonLifecycleCommandClassServiceManager,
 		pattern: regexp.MustCompile(
-			`(?i)\bservice[[:space:]]+[^[:space:]\n]*agh[^[:space:]\n]*[[:space:]]+(restart|stop|start)\b`,
+			`(?i)\bservice[[:space:]]+[^[:space:]\n]*compozy[^[:space:]\n]*[[:space:]]+(restart|stop|start)\b`,
 		),
 	},
 }

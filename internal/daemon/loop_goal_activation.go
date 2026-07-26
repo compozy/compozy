@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type loopGoalRunActivator struct {

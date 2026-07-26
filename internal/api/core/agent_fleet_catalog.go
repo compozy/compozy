@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/listcursor"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
 )
 

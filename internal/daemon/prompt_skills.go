@@ -9,10 +9,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const promptSkillsCatalogCacheMaxSessions = 2048

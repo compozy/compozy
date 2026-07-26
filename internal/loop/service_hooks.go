@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func (s *service) dispatchLoopStarted(ctx context.Context, run Run, actor task.ActorContext) {

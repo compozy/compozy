@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 type notificationPresetScanner interface {

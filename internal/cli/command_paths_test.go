@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 type stubRunner struct {
@@ -556,7 +556,7 @@ func TestAgentLifecycleCommandPaths(t *testing.T) {
 			if err != nil {
 				t.Fatalf("agent %s --help error = %v", verb, err)
 			}
-			if !strings.Contains(stdout, "agh agent "+verb) {
+			if !strings.Contains(stdout, "compozy agent "+verb) {
 				t.Fatalf("agent %s help = %q, want command path", verb, stdout)
 			}
 		})

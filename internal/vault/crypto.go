@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (

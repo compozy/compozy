@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type taskBlockWatchEventPayload struct {

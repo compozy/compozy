@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func layoutProfileRecord(id string, scope resources.ResourceScope, version int64) contract.ResourceRecordPayload {

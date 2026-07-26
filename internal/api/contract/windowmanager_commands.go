@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // WindowManagerCommandID is the stable wire discriminator for semantic commands.

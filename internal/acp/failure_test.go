@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestFailureFromErrorClassifiesFatalPromptRequestErrorsAsProcessExit(t *testing.T) {

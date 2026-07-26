@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghlogger "github.com/compozy/agh/internal/logger"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghlogger "github.com/compozy/compozy/internal/logger"
 )
 
 func TestSpawnDetachedDaemonProcess(t *testing.T) {
@@ -19,7 +19,7 @@ func TestSpawnDetachedDaemonProcess(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
-	scriptPath := filepath.Join(t.TempDir(), "agh-test-daemon.sh")
+	scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon.sh")
 	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(script) error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestSpawnDetachedDaemonProcessWaitIncludesStderr(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
-	scriptPath := filepath.Join(t.TempDir(), "agh-test-daemon-error.sh")
+	scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon-error.sh")
 	script := "#!/bin/sh\nprintf 'bind failed on localhost:2123\\n' >&2\nexit 1\n"
 	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(script) error = %v", err)
@@ -79,7 +79,7 @@ func TestSpawnDetachedDaemonProcessInjectsMirrorOverrideEnv(t *testing.T) {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
 
-		scriptPath := filepath.Join(t.TempDir(), "agh-test-daemon-env.sh")
+		scriptPath := filepath.Join(t.TempDir(), "compozy-test-daemon-env.sh")
 		script := "#!/bin/sh\nprintf 'mirror=%s\\n' \"$AGH_INTERNAL_LOG_MIRROR_STDERR\" >&2\nexit 1\n"
 		if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 			t.Fatalf("os.WriteFile(script) error = %v", err)

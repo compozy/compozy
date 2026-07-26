@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 // ActionStopReason is the closed ACP terminal reason vocabulary persisted for managed prompts.

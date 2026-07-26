@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/gin-gonic/gin"
 )
 

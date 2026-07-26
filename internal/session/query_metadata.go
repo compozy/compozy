@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.SessionMeta, error) {

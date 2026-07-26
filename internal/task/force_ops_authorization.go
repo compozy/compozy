@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 // BulkForceReleaseRuns applies force release one row at a time to preserve per-row preconditions.
@@ -71,7 +71,7 @@ func (m *Service) requireForceRunAuthority(actor ActorContext) error {
 		"Force operation is disabled for agents",
 		"task.recovery.allow_agent_force is false, so only non-agent operators can run this recovery action.",
 		diagnosticcontract.SeverityError,
-		"agh config set task.recovery.allow_agent_force true",
+		"compozy config set task.recovery.allow_agent_force true",
 		map[string]any{"actor_kind": string(actor.Actor.Kind.Normalize()), "actor_id": actor.Actor.Ref},
 		ErrForbiddenOperatorAction,
 	)
@@ -95,7 +95,7 @@ func (m *Service) requireForceRunRate(actor ActorContext, taskID string) error {
 			taskID,
 		),
 		diagnosticcontract.SeverityWarn,
-		"agh task inspect "+taskID,
+		"compozy task inspect "+taskID,
 		map[string]any{
 			"actor_kind":      string(actor.Actor.Kind.Normalize()),
 			"actor_id":        actor.Actor.Ref,

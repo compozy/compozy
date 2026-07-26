@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
 func newBridgeRuntime(

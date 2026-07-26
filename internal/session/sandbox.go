@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/diagnostics"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	envpkg "github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/diagnostics"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	envpkg "github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const (

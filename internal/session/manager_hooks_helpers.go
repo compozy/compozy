@@ -8,9 +8,9 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (m *Manager) warnHookDispatch(ctx context.Context, session *Session, event hookspkg.HookEvent, err error) {

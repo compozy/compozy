@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
 // Path reports the served Unix domain socket path.

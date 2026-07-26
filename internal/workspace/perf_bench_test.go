@@ -33,19 +33,19 @@ func newBenchmarkResolverFixture(tb testing.TB) benchmarkResolverFixture {
 	writeSkill(tb, filepath.Join(homePaths.SkillsDir, "global-skill"))
 	writeAgentDef(
 		tb,
-		filepath.Join(rootDir, ".agh", "agents", "local-agent", agentDefinitionFile),
+		filepath.Join(rootDir, ".compozy", "agents", "local-agent", agentDefinitionFile),
 		"local-agent",
 		"haiku",
 	)
-	writeSkill(tb, filepath.Join(rootDir, ".agh", "skills", "local-skill"))
+	writeSkill(tb, filepath.Join(rootDir, ".compozy", "skills", "local-skill"))
 	writeAgentDef(
 		tb,
-		filepath.Join(additionalDir, ".agh", "agents", "additional-agent", agentDefinitionFile),
+		filepath.Join(additionalDir, ".compozy", "agents", "additional-agent", agentDefinitionFile),
 		"additional-agent",
 		"opus",
 	)
-	writeSkill(tb, filepath.Join(additionalDir, ".agh", "skills", "additional-skill"))
-	writeFile(tb, filepath.Join(rootDir, ".agh", "config.toml"), "[http]\nport = 4242\n")
+	writeSkill(tb, filepath.Join(additionalDir, ".compozy", "skills", "additional-skill"))
+	writeFile(tb, filepath.Join(rootDir, ".compozy", "config.toml"), "[http]\nport = 4242\n")
 
 	workspace := Workspace{
 		ID:             "ws_bench",

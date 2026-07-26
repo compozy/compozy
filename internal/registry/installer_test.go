@@ -366,8 +366,8 @@ func TestInstallerCleansStaleTempDirs(t *testing.T) {
 	parent := t.TempDir()
 	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
 
-	staleDir := filepath.Join(parent, ".agh-install-stale")
-	recentDir := filepath.Join(parent, ".agh-install-recent")
+	staleDir := filepath.Join(parent, ".compozy-install-stale")
+	recentDir := filepath.Join(parent, ".compozy-install-recent")
 	if err := os.MkdirAll(staleDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(staleDir) error = %v", err)
 	}
@@ -414,7 +414,7 @@ func TestInstallerIgnoresStaleTempCleanupRemoveFailures(t *testing.T) {
 
 	parent := t.TempDir()
 	now := time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
-	staleDir := filepath.Join(parent, ".agh-install-stale")
+	staleDir := filepath.Join(parent, ".compozy-install-stale")
 	if err := os.MkdirAll(staleDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(staleDir) error = %v", err)
 	}
@@ -718,7 +718,7 @@ func assertNoTempInstallDirs(t *testing.T, parent string) {
 		t.Fatalf("ReadDir(%q) error = %v", parent, err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".agh-install-") {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".compozy-install-") {
 			t.Fatalf("found unexpected temp install dir %q", filepath.Join(parent, entry.Name()))
 		}
 	}

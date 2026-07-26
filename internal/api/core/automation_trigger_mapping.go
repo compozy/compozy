@@ -7,8 +7,8 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 // AutomationTriggerFromCreateRequest converts the shared create payload into

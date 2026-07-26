@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func (b *uiMessageBuilder) applyToolCall(decoded *decodedStoredEvent) {

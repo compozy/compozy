@@ -6,8 +6,8 @@ import (
 	"maps"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/api/contract"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // SSEMessage is the shared SSE envelope.

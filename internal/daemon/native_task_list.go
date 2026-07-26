@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	core "github.com/compozy/agh/internal/api/core"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	core "github.com/compozy/compozy/internal/api/core"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type taskListInput struct {

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
@@ -217,7 +217,7 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 				return payload, nil
 			},
 		}))
-		actor, err := DeriveHumanActorContext("operator-1", OriginKindCLI, "agh task start")
+		actor, err := DeriveHumanActorContext("operator-1", OriginKindCLI, "compozy task start")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -239,7 +239,7 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 		if got.ActorKind != string(ActorKindHuman) || got.ActorID != "operator-1" {
 			t.Fatalf("hook actor context = %#v, want operator actor", got.TaskRunContext)
 		}
-		if got.OriginKind != string(OriginKindCLI) || got.OriginRef != "agh task start" {
+		if got.OriginKind != string(OriginKindCLI) || got.OriginRef != "compozy task start" {
 			t.Fatalf("hook origin context = %#v, want cli origin", got.TaskRunContext)
 		}
 	})

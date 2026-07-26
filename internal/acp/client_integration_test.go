@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestACPIntegrationRoundTrip(t *testing.T) {
@@ -270,7 +270,7 @@ func TestACPIntegrationNetworkTurnGuardrails(t *testing.T) {
 			t.Fatalf("Prompt() events = %#v, want blocked shell-wrapper result", events)
 		}
 		if !containsEventText(events, "network-ok") {
-			t.Fatalf("Prompt() events = %#v, want allowlisted agh network output", events)
+			t.Fatalf("Prompt() events = %#v, want allowlisted compozy network output", events)
 		}
 	})
 }

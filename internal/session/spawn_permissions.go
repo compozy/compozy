@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ValidatePermissionSubset fails closed unless every child permission atom is

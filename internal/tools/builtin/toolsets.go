@@ -1,6 +1,6 @@
 package builtin
 
-import toolspkg "github.com/compozy/agh/internal/tools"
+import toolspkg "github.com/compozy/compozy/internal/tools"
 
 // ToolsetCatalog returns the built-in toolset definitions.
 func ToolsetCatalog() (toolspkg.ToolsetCatalog, error) {

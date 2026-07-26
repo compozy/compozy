@@ -142,5 +142,5 @@ func (c *stagedExtensionDirChange) Rollback() error {
 }
 
 func uniqueExtensionBackupPath(targetDir string) string {
-	return fmt.Sprintf("%s.agh-backup-%d", targetDir, time.Now().UTC().UnixNano())
+	return fmt.Sprintf("%s.compozy-backup-%d", targetDir, time.Now().UTC().UnixNano())
 }

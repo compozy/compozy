@@ -3,7 +3,7 @@ package memory
 import (
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func newOpenTestStore(t *testing.T, globalDir string, opts ...StoreOption) *Store {

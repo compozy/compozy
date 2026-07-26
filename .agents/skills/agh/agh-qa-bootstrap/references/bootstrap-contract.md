@@ -33,10 +33,10 @@ The bootstrap helper writes two canonical artifacts under:
     "WORKSPACE_PATH": "/abs/path/to/lab",
     "RUNTIME_WORKSPACE_PATH": "/abs/path/to/lab/project",
     "QA_OUTPUT_PATH": "/abs/path/to/lab/qa-artifacts",
-    "AGH_HOME": "/abs/path/to/lab/.agh/runtime",
+    "AGH_HOME": "/abs/path/to/lab/.compozy/runtime",
     "AGH_HTTP_PORT": "2235",
-    "AGH_UDS_PATH": "/abs/path/to/lab/.agh/runtime/aghd.sock",
-    "TMUX_BRIDGE_SOCKET": "/abs/path/to/lab/.agh/runtime/tmux-bridge.sock",
+    "AGH_UDS_PATH": "/abs/path/to/lab/.compozy/runtime/compozyd.sock",
+    "TMUX_BRIDGE_SOCKET": "/abs/path/to/lab/.compozy/runtime/tmux-bridge.sock",
     "AGH_WEB_API_PROXY_TARGET": "http://127.0.0.1:2235",
     "PROVIDER_HOME": "/abs/path/to/lab/.provider-home",
     "PROVIDER_CODEX_HOME": "/abs/path/to/lab/.provider-home/.codex",
@@ -72,10 +72,10 @@ The bootstrap helper writes two canonical artifacts under:
 
 The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 
-- `.agh/playbook.json` — the resolved playbook spec (the canonical structured JSON parsed from `references/playbooks/<ref>.md`).
-- `.agh/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
-- `.agh/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
-- `.agh/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
+- `.compozy/playbook.json` — the resolved playbook spec (the canonical structured JSON parsed from `references/playbooks/<ref>.md`).
+- `.compozy/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
+- `.compozy/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
+- `.compozy/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
 - `project/` — the only root registered with AGH for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
 - `project/workspaces/<workspace-name>/README.md` — per-workspace stub README.
 - `knowledge/<...>` — canonical copy of every knowledge file declared by the playbook.
@@ -96,7 +96,7 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 - Bound-secret, brokered, or explicitly isolated-home provider commands: `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <cmd>`
 - `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior
 - Web dev server for isolated daemon QA: `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET" make web-dev`
-- Config mutations such as `agh config set` must run sequentially when they target the same isolated home.
+- Config mutations such as `compozy config set` must run sequentially when they target the same isolated home.
 - Before claiming behavior-first QA completion, run `python3 "$AUDIT_COMMAND" --qa-output-path "$QA_OUTPUT_PATH" --strict` and include its result in the verification report.
 - Every long-lived process started against the lab (daemon, `make web-dev`, watchers, browser sessions started outside `agent-browser`'s own lifecycle) must register its PID at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` right after spawn (`echo $! > "$QA_OUTPUT_PATH/qa/pids/<name>.pid"`). The teardown consumes this registry first and falls back to cmdline/lsof/port scans.
 
@@ -110,7 +110,7 @@ eval "$TEARDOWN_COMMAND"            # single lab, from the manifest
 make qa-reap                         # add PURGE=1 to also delete runtime dirs after a clean sweep
 ```
 
-- The teardown stops the daemon gracefully first (`agh daemon stop` under the lab `AGH_HOME`), kills the lab tmux server, then sweeps survivors (registered PIDs, cmdline references, lab-port listeners, open files under the runtime/provider homes).
+- The teardown stops the daemon gracefully first (`compozy daemon stop` under the lab `AGH_HOME`), kills the lab tmux server, then sweeps survivors (registered PIDs, cmdline references, lab-port listeners, open files under the runtime/provider homes).
 - It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps a `teardown` block into the manifest. `"clean": true` in that block is the required completion evidence.
 - Exception: a lab may stay alive ONLY while the same active session/loop continues using it (reuse policy above). A continuation that ends without reusing the lab inherits the teardown obligation.
 - Exit code `1` (survivors remain) is a blocking failure: diagnose the survivors, do not ignore them.
@@ -123,7 +123,7 @@ Append this block to the end of a QA summary whenever a continuation may need to
 [QA_BOOTSTRAP]
 manifest_path=/abs/path/to/lab/qa-artifacts/qa/bootstrap-manifest.json
 lab_root=/abs/path/to/lab
-runtime_home=/abs/path/to/lab/.agh/runtime
+runtime_home=/abs/path/to/lab/.compozy/runtime
 base_url=http://127.0.0.1:2235
 verification_report=/abs/path/to/lab/qa-artifacts/qa/verification-report.md
 health_status=healthy

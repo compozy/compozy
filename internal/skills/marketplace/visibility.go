@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/skills"
 )
 
 // VerifyInstallVisible verifies that a completed marketplace install is visible

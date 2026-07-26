@@ -24,8 +24,8 @@ import (
 const (
 	daytonaCheckModeEnvVar = "AGH_DAYTONA_CHECK"
 	daytonaStampFileName   = "daytona-check.stamp"
-	daytonaSidecarPkgPath  = "./internal/sandbox/daytona/cmd/agh-daytona-sidecar"
-	repoModulePath         = "github.com/compozy/agh"
+	daytonaSidecarPkgPath  = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
+	repoModulePath         = "github.com/compozy/compozy"
 )
 
 func daytonaSidecarsCheckStamped() error {

@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // InputQueueSummary is the session package projection of durable busy-input queue state.

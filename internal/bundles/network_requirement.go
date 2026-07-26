@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
 var (

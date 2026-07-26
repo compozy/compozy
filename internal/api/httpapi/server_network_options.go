@@ -1,9 +1,9 @@
 package httpapi
 
 import (
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WithNetworkStore injects the persisted network query store.

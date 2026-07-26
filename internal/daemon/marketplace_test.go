@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/marketplace"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/testutil"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestBootMarketplaceLifecycle(t *testing.T) {

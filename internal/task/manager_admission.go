@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/admission"
+	"github.com/compozy/compozy/internal/admission"
 )
 
 // WithWorkAdmissionChecker injects the daemon-owned new-work gate.

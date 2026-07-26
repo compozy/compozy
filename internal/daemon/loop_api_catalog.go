@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const loopCatalogAggregateWindow = 30 * 24 * time.Hour

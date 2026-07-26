@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	schedulerpkg "github.com/compozy/agh/internal/scheduler"
-	taskpkg "github.com/compozy/agh/internal/task"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s schedulerTaskSource) PendingRuns(ctx context.Context) ([]schedulerpkg.RunSnapshot, error) {

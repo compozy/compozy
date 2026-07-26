@@ -15,15 +15,15 @@ import (
 	"strings"
 	"testing"
 
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	eventspkg "github.com/compozy/agh/internal/events"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type nativeExtensionSource struct {

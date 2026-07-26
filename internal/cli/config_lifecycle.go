@@ -3,8 +3,8 @@ package cli
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	configlifecycle "github.com/compozy/agh/internal/config/lifecycle"
+	"github.com/compozy/compozy/internal/api/contract"
+	configlifecycle "github.com/compozy/compozy/internal/config/lifecycle"
 )
 
 type configMutationLifecycle struct {

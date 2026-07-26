@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 )
 
 // NotificationTargetPayload identifies one preset delivery target.

@@ -3,9 +3,9 @@ package globaldb
 import (
 	"context"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var _ workspacepkg.CoordinationCommandStore = (*WorkspaceRepo)(nil)

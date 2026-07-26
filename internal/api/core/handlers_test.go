@@ -15,23 +15,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/transcript"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
@@ -3376,7 +3376,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						},
 						AgentDiagnostics: []workspacepkg.AgentDiagnostic{{
 							Name:      "broken",
-							Path:      "/workspace/.agh/agents/broken/AGENT.md",
+							Path:      "/workspace/.compozy/agents/broken/AGENT.md",
 							ErrorKind: "frontmatter.missing",
 							Message:   "config: missing YAML frontmatter",
 						}},

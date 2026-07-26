@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func validateToolConfigs(extensionName string, tools map[string]ToolConfig) error {

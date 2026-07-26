@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func nativeAutomationToolError(id toolspkg.ToolID, err error) error {

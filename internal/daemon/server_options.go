@@ -1,10 +1,10 @@
 package daemon
 
 import (
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/httpapi"
-	"github.com/compozy/agh/internal/api/udsapi"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/udsapi"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {

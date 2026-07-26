@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 var _ sandbox.Provider = (*localProvider)(nil)

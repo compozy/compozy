@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func TestBuildProviderVault(t *testing.T) {

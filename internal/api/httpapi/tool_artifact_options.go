@@ -1,6 +1,6 @@
 package httpapi
 
-import toolspkg "github.com/compozy/agh/internal/tools"
+import toolspkg "github.com/compozy/compozy/internal/tools"
 
 // WithToolArtifactStore injects retained oversized result storage.
 func WithToolArtifactStore(store toolspkg.ToolArtifactStore) Option {

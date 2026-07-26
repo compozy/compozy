@@ -41,10 +41,10 @@ func newSpawnCommand(deps commandDeps) *cobra.Command {
 		Short: "Spawn a bounded child agent session",
 		Args:  cobra.NoArgs,
 		Example: `  # Spawn a worker child with a required TTL
-  agh spawn --agent reviewer --ttl-seconds 1800
+  compozy spawn --agent reviewer --ttl-seconds 1800
 
   # Spawn with a role, prompt overlay, and narrowed permission atoms
-  agh spawn \
+  compozy spawn \
     --agent reviewer \
     --role reviewer \
     --ttl-seconds 1800 \

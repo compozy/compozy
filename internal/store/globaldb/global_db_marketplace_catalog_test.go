@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/marketplace"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestMarketplaceCatalogFreshDB(t *testing.T) {

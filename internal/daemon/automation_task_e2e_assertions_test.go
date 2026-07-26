@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 type automationRunLinkage string

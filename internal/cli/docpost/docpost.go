@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	docpostAghKey       = "agh"
-	docpostAghMDXPath   = "agh.mdx"
+	docpostAghKey       = "compozy"
+	docpostAghMDXPath   = "compozy.mdx"
 	docpostIndexKey     = "index"
 	docpostIndexMDXPath = "index.mdx"
 	docpostMetaJSONPath = "meta.json"
@@ -30,15 +30,15 @@ const linkBasePath = "/runtime/cli-reference"
 var (
 	autoGenLine  = regexp.MustCompile(`(?m)^###### Auto generated.*$\n?`)
 	seeAlsoRe    = regexp.MustCompile(`(?ms)^### SEE ALSO\n.*`)
-	crossLinkRe  = regexp.MustCompile(`\[([^\]]+)\]\((agh[A-Za-z0-9_\-]*)\.md\)`)
-	strippedLink = regexp.MustCompile(`\]\((agh[A-Za-z0-9_\-]*)\)`)
+	crossLinkRe  = regexp.MustCompile(`\[([^\]]+)\]\((compozy[A-Za-z0-9_\-]*)\.md\)`)
+	strippedLink = regexp.MustCompile(`\]\((compozy[A-Za-z0-9_\-]*)\)`)
 	segmentRe    = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 )
 
-// Process reads all agh*.md files from srcDir, transforms them into
+// Process reads all compozy*.md files from srcDir, transforms them into
 // Fumadocs-compatible MDX, and writes them to dstDir using a nested
-// directory layout: `agh` → agh.mdx, `agh_agent` → agent/index.mdx,
-// `agh_agent_list` → agent/list.mdx, and so on.
+// directory layout: `compozy` → compozy.mdx, `compozy_agent` → agent/index.mdx,
+// `compozy_agent_list` → agent/list.mdx, and so on.
 //
 // The root-level index.mdx and meta.json of dstDir are hand-maintained and
 // never touched by Process. Subdirectory meta.json files are regenerated on
@@ -171,7 +171,7 @@ func (in input) commandName() string {
 
 func (in input) targetURL() string {
 	if in.isRoot() {
-		return linkBasePath + "/agh"
+		return linkBasePath + "/compozy"
 	}
 	return linkBasePath + "/" + strings.Join(in.segments, "/")
 }
@@ -232,8 +232,11 @@ func commandSegments(fileName string, base string) ([]string, error) {
 	if base == docpostAghKey {
 		return nil, nil
 	}
-	if !strings.HasPrefix(base, "agh_") {
-		return nil, fmt.Errorf("docpost: unexpected filename %q (must be 'agh.md' or start with 'agh_')", fileName)
+	if !strings.HasPrefix(base, "compozy_") {
+		return nil, fmt.Errorf(
+			"docpost: unexpected filename %q (must be 'compozy.md' or start with 'compozy_')",
+			fileName,
+		)
 	}
 	segments := strings.Split(base, "_")[1:]
 	for _, segment := range segments {

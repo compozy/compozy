@@ -11,7 +11,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 func (c *Client) doRequest(

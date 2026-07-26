@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/doctor"
+	"github.com/compozy/compozy/internal/doctor"
 )
 
 const (

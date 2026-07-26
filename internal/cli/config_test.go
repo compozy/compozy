@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
-	aghupdate "github.com/compozy/agh/internal/update"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	aghupdate "github.com/compozy/compozy/internal/update"
 )
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
@@ -990,11 +990,11 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			GlobalMCPJSON:        "/home/agh/mcp.json",
 			Scope:                "workspace",
 			WorkspaceRoot:        "/workspace/project",
-			WorkspaceConfig:      "/workspace/project/.agh/config.toml",
-			WorkspaceMCPJSON:     "/workspace/project/.agh/mcp.json",
+			WorkspaceConfig:      "/workspace/project/.compozy/config.toml",
+			WorkspaceMCPJSON:     "/workspace/project/.compozy/mcp.json",
 			Managed:              true,
 			Manager:              "homebrew",
-			SelectedConfigTarget: "/workspace/project/.agh/config.toml",
+			SelectedConfigTarget: "/workspace/project/.compozy/config.toml",
 		})
 		pathHuman, err := pathBundle.human()
 		if err != nil {
@@ -1285,7 +1285,7 @@ func TestCompletionCommandEmitsShellCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("completion bash error = %v", err)
 	}
-	for _, want := range []string{"bash completion V2 for agh", "__start_agh"} {
+	for _, want := range []string{"bash completion V2 for compozy", "__start_compozy"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("completion output missing %q\n%s", want, out[:min(len(out), 400)])
 		}

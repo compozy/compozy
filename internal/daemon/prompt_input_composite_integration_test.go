@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetworkTurns(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // Start validates the runtime start contract. Trigger matching is synchronous so no background work begins here.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
 func (g *WatchEventsRepo) readLoopWatchEvents(

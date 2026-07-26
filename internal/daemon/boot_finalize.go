@@ -9,15 +9,15 @@ import (
 
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/skills"
 
-	skillbundled "github.com/compozy/agh/skills"
+	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func daemonNetworkInfo(

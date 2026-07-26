@@ -1,6 +1,6 @@
 package httpapi
 
-import core "github.com/compozy/agh/internal/api/core"
+import core "github.com/compozy/compozy/internal/api/core"
 
 // WithModelCatalogService injects the daemon-owned provider model catalog service.
 func WithModelCatalogService(service core.ModelCatalogService) Option {

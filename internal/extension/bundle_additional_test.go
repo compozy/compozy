@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/windowmanager"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestLoadBundleSpecsLoadsMixedFormatsAndSorts(t *testing.T) {

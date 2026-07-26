@@ -8,13 +8,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/providerenv"
-	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/compozy/internal/providerenv"
+	authproviders "github.com/compozy/compozy/internal/providers"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const (

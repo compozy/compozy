@@ -9,8 +9,8 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *HostAPIHandler) requireHostAPINetworkService() (hostAPINetworkService, error) {

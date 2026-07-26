@@ -9,8 +9,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/compozy/agh/internal/clientstate"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/clientstate"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 const (

@@ -3,7 +3,7 @@ package automation
 import (
 	"text/template"
 
-	modelpkg "github.com/compozy/agh/internal/automation/model"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
 // ParseTriggerPromptTemplate parses a trigger prompt template with strict activation-envelope validation.

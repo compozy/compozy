@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/session"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/session"
 )
 
 const (

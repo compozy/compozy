@@ -6,9 +6,9 @@ import (
 	"math"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/task"
 )
 
 const fanOutMaterializationKind = "fan_out"

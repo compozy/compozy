@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 const (

@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/resources"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/vault"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/resources"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
@@ -730,7 +730,7 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 			t.Fatalf("UpdateJob(resource changed target) error = %v, want ErrTargetIdentityImmutable", err)
 		}
 		blockedLifecycle := createdJob
-		blockedLifecycle.Prompt = "Run `agh daemon stop` now."
+		blockedLifecycle.Prompt = "Run `compozy daemon stop` now."
 		if _, err := manager.UpdateJob(h.ctx, blockedLifecycle); !errors.Is(
 			err,
 			ErrDaemonLifecycleCommandBlocked,

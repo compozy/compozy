@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 var (

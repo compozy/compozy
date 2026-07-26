@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/listcursor"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/compozy/internal/listcursor"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 const (

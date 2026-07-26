@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 // TurnKey identifies one workspace-owned Goal node instance.

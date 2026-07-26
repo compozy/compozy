@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // MarshalAgentEvent converts a runtime ACP event into the canonical stored payload.

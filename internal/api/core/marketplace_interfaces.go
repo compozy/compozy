@@ -3,9 +3,9 @@ package core
 import (
 	"context"
 
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 )
 
 // MarketplaceCatalogService exposes the daemon-owned curated feed projection.

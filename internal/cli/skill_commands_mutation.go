@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/skills"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/spf13/cobra"
 )
@@ -21,7 +21,7 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "where <name>",
 		Short:   "Show every path participating in skill resolution",
-		Example: "  # Show which skill declaration wins and which ones are shadowed\n  agh skill where code-review",
+		Example: "  # Show which skill declaration wins and which ones are shadowed\n  compozy skill where code-review",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.where"))
@@ -65,8 +65,8 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "create [name]",
 		Short: "Scaffold a new workspace skill",
-		Example: `  # Create .agh/skills/api-review/SKILL.md in the current workspace
-  agh skill create api-review`,
+		Example: `  # Create .compozy/skills/api-review/SKILL.md in the current workspace
+  compozy skill create api-review`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := defaultSkillName

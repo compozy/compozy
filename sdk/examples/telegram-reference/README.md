@@ -33,7 +33,7 @@ go build -o ./bin/telegram-reference .
 Build the binary first, then install the extension directory:
 
 ```bash
-agh extension install ./sdk/examples/telegram-reference
+compozy extension install ./sdk/examples/telegram-reference
 ```
 
 ## Manifest Summary

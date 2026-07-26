@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	networkusage "github.com/compozy/agh/internal/network/usage"
-	"github.com/compozy/agh/internal/store"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	networkusage "github.com/compozy/compozy/internal/network/usage"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *HostAPIHandler) handleNetworkStatus(ctx context.Context, raw json.RawMessage) (any, error) {

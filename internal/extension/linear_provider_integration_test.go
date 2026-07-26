@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensiontest "github.com/compozy/agh/internal/extensiontest"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/acp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensiontest "github.com/compozy/compozy/internal/extensiontest"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 const (

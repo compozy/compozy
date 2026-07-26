@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/task"
 )
 
 // WorkspaceID is the workspace owner for loop aggregate state.

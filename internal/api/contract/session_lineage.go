@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SessionLineagePayloadFromStore converts durable session lineage metadata into

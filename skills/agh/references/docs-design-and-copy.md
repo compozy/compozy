@@ -51,7 +51,7 @@ Do not rename product concepts without updating code, docs, specs, task artifact
 
 Generated docs and generated design regions are contracts only through their source generators. Do not add tests that merely freeze generated prose unless generated prose itself is the product artifact under test.
 
-`cmd/agh-codegen` owns `openapi`, `sdk-contracts`, `lifecycle-matrix`, `native-tool-catalog`, `all`, and `check`. Use `make codegen` for regeneration and `make codegen-check` for verification.
+`cmd/compozy-codegen` owns `openapi`, `sdk-contracts`, `lifecycle-matrix`, `native-tool-catalog`, `all`, and `check`. Use `make codegen` for regeneration and `make codegen-check` for verification.
 
 ## Design-System Lessons
 

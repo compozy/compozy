@@ -3,7 +3,7 @@ package task
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // RunNetworkState keeps immutable participation and wake-only correlation off the hot Run value.

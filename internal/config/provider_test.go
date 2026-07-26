@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/reasoning"
+	"github.com/compozy/compozy/internal/reasoning"
 )
 
 const expectedCodexModelsReleaseDate = "2026-06-26"

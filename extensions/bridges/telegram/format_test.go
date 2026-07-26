@@ -7,7 +7,7 @@ package main
 import (
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil/bridgeformat"
+	"github.com/compozy/compozy/internal/testutil/bridgeformat"
 )
 
 func TestFormatOutbound(t *testing.T) {

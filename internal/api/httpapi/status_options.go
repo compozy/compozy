@@ -1,6 +1,6 @@
 package httpapi
 
-import "github.com/compozy/agh/internal/api/core"
+import "github.com/compozy/compozy/internal/api/core"
 
 // WithObserver injects the runtime observer.
 func WithObserver(observer core.Observer) Option {

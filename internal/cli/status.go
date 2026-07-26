@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -25,10 +25,10 @@ func newStatusCommand(deps commandDeps) *cobra.Command {
 		Use:   statusCommandKey,
 		Short: "Show consolidated runtime status",
 		Example: `  # Show runtime status
-  agh status
+  compozy status
 
   # Return machine-readable status for agents
-  agh status -o json`,
+  compozy status -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -52,13 +52,13 @@ func newDoctorCommand(deps commandDeps) *cobra.Command {
 		Use:   doctorCommandKey,
 		Short: "Run runtime diagnostics",
 		Example: `  # Run diagnostics
-  agh doctor
+  compozy doctor
 
   # Return diagnostic items for agents
-  agh doctor -o json
+  compozy doctor -o json
 
   # Run only provider and MCP diagnostics
-  agh doctor --only provider --only mcp`,
+  compozy doctor --only provider --only mcp`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

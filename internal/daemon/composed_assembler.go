@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // ComposedAssembler assembles selected startup prompt sections around the base

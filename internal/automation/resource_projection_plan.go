@@ -1,6 +1,6 @@
 package automation
 
-import "github.com/compozy/agh/internal/resources"
+import "github.com/compozy/compozy/internal/resources"
 
 type jobResourceProjectionPlan struct {
 	revision   int64

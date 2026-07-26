@@ -9,7 +9,7 @@ import (
 	"net/netip"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 type webhookIPResolver interface {

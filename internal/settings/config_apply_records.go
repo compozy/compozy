@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

@@ -28,7 +28,7 @@ func newSessionSoulRefreshCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "refresh <session-id>",
 		Short:   "Refresh an idle session's Soul snapshot",
-		Example: "  agh session soul refresh sess_123 --expected-digest sha256:old --json",
+		Example: "  compozy session soul refresh sess_123 --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -58,7 +58,7 @@ func newSessionHealthCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "health <session-id>",
 		Short:   "Read session health and wake eligibility",
-		Example: "  agh session health sess_123 --json",
+		Example: "  compozy session health sess_123 --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -80,7 +80,7 @@ func newSessionInspectCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "inspect <session-id>",
 		Short:   "Inspect session health, wake audit, and policy correlation",
-		Example: "  agh session inspect sess_123 --include-wake-events --json",
+		Example: "  compozy session inspect sess_123 --include-wake-events --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 )
 
 type daemonAPIError struct {

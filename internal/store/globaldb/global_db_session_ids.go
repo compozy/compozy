@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func (g *SessionRepo) loadSessionIDs(

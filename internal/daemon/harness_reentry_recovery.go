@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (b *harnessReentryBridge) loadRecoveredDetachedHarnessRuns(

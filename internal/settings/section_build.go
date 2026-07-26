@@ -7,10 +7,10 @@ import (
 
 	"sort"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *service) buildMemorySection(ctx context.Context, cfg *aghconfig.Config) (MemorySection, error) {

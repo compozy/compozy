@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func cloneToolResult(value *ToolResult) *ToolResult {

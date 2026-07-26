@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type hooksNotifier struct {

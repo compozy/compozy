@@ -3,9 +3,9 @@ package daemon
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 )
 
 type automationJobIDInput struct {

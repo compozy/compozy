@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 const bundleEntryPrefix = "bundle_"

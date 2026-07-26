@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestReconcileManifestToolRuntimeReportsAvailabilityReasons(t *testing.T) {

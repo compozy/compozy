@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // CreateJob stores a new dynamic automation job and registers it into the

@@ -4,12 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	"github.com/compozy/agh/internal/skills"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
+	"github.com/compozy/compozy/internal/skills"
+	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 )
 
 // SkillPayloadFromSkill converts a skills.Skill into the shared HTTP payload.

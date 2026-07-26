@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	looppkg "github.com/compozy/agh/internal/loop"
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 type loopGoalPromptRecoveryStore interface {

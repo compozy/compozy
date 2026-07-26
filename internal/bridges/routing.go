@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // RoutingKey is the canonical identity used to resolve bridge traffic to one ACP session.

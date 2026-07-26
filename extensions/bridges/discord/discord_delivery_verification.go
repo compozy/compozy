@@ -15,7 +15,7 @@ import (
 
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 func resolveDiscordDeliveryChannelID(event bridgepkg.DeliveryEvent) (string, error) {

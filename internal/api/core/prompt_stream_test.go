@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/core"
 )
 
 func TestPromptStreamEncoderStart(t *testing.T) {

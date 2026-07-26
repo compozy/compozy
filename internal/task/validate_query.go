@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	networkrules "github.com/compozy/agh/internal/network/rules"
+	networkrules "github.com/compozy/compozy/internal/network/rules"
 )
 
 // Validate reports whether the task-query filters are internally consistent.

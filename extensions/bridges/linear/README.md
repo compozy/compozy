@@ -22,8 +22,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/linear/bin
 go build -o ./extensions/bridges/linear/bin/linear ./extensions/bridges/linear
-agh extension install ./extensions/bridges/linear --allow-unverified --yes -o json
-agh extension status linear -o json
+compozy extension install ./extensions/bridges/linear --allow-unverified --yes -o json
+compozy extension status linear -o json
 ```
 
 ## Secrets
@@ -58,7 +58,7 @@ integration tests or sovereign deployments. Bridge config cannot redirect bound 
 
 - Comment mode starts turns only from new comments.
 - Agent Activities are append-only; edit and delete delivery are unsupported in Agent Session mode.
-- `agh bridge verify` reports provider identity as `skipped`; enabled runtime health performs the live
+- `compozy bridge verify` reports provider identity as `skipped`; enabled runtime health performs the live
   GraphQL viewer check.
 - Generic outbound media and provider-visible tool progress are not implemented.
 

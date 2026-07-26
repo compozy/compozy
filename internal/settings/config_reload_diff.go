@@ -3,8 +3,8 @@ package settings
 import (
 	"reflect"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
 func classifyReloadLifecycle(current *aghconfig.Config, desired *aghconfig.Config) lifecycle.Lifecycle {

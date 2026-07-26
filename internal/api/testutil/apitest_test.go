@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestNewDisabledNetworkHomeConfig(t *testing.T) {

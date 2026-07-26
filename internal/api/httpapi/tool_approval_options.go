@@ -1,6 +1,6 @@
 package httpapi
 
-import core "github.com/compozy/agh/internal/api/core"
+import core "github.com/compozy/compozy/internal/api/core"
 
 // WithToolApprovalIssuer injects the local approval-token issuer.
 func WithToolApprovalIssuer(issuer core.ToolApprovalIssuer) Option {

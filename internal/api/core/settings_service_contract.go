@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 // SettingsService exposes the daemon-owned settings read and mutation surface to API transports.

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 const (

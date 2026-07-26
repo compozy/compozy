@@ -3,7 +3,7 @@ package goal
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 // PromptRecoveryIdentity is the complete persisted identity eligible for event reconciliation.

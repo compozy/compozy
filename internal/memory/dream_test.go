@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	memoryrecall "github.com/compozy/agh/internal/memory/recall"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestServiceConstructionDefaults(t *testing.T) {
@@ -302,7 +302,7 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	if !gotCutoff.Equal(prior) {
 		t.Fatalf("last consolidated at = %v, want %v", gotCutoff, prior)
 	}
-	if _, err := os.Stat(filepath.Join(workspaceRoot, ".agh", "memory")); err != nil {
+	if _, err := os.Stat(filepath.Join(workspaceRoot, ".compozy", "memory")); err != nil {
 		t.Fatalf("workspace memory dir stat error = %v", err)
 	}
 	if lock.tryAcquireCalls != 1 {
@@ -421,9 +421,16 @@ func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
 		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamPromoted, 1)
 		assertFileExists(
 			t,
-			filepath.Join(env.workspaceRoot, ".agh", "memory", "_system", "dreaming", "20260505-dreaming-curator.md"),
+			filepath.Join(
+				env.workspaceRoot,
+				".compozy",
+				"memory",
+				"_system",
+				"dreaming",
+				"20260505-dreaming-curator.md",
+			),
 		)
-		assertFileExists(t, filepath.Join(env.workspaceRoot, ".agh", "memory", "project_dreaming_20260505.md"))
+		assertFileExists(t, filepath.Join(env.workspaceRoot, ".compozy", "memory", "project_dreaming_20260505.md"))
 		if lock.releaseCalls != 1 {
 			t.Fatalf("release calls = %d, want 1", lock.releaseCalls)
 		}
@@ -1284,7 +1291,7 @@ func newDreamSeedEnv(t *testing.T, _ time.Time) *dreamSeedEnv {
 	workspaceRoot := filepath.Join(baseDir, "workspace")
 	baseStore := newOpenTestStore(t,
 		filepath.Join(baseDir, "global", "memory"),
-		WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 	)
 	workspaceStore := baseStore.ForWorkspace(workspaceRoot)
 	if err := workspaceStore.EnsureDirs(); err != nil {
@@ -1469,7 +1476,7 @@ func globDreamFailures(t *testing.T, workspaceRoot string) []string {
 	t.Helper()
 
 	matches, err := filepath.Glob(
-		filepath.Join(workspaceRoot, ".agh", "memory", "_system", "dream", "failures", "*.json"),
+		filepath.Join(workspaceRoot, ".compozy", "memory", "_system", "dream", "failures", "*.json"),
 	)
 	if err != nil {
 		t.Fatalf("filepath.Glob() error = %v", err)

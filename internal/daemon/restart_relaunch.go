@@ -11,12 +11,12 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
-// RelaunchHelperConfig configures one internal `agh daemon relaunch` execution.
+// RelaunchHelperConfig configures one internal `compozy daemon relaunch` execution.
 type RelaunchHelperConfig struct {
 	HomePaths      aghconfig.HomePaths
 	OperationID    string

@@ -3,7 +3,7 @@ package settings
 import (
 	"reflect"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func diffExtensionsSettings(current aghconfig.ExtensionsConfig, desired aghconfig.ExtensionsConfig) []string {

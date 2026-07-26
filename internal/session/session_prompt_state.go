@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 // CurrentTurnSource reports the provenance of the currently active prompt turn.

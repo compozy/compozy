@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 )
 
 // Info is the persisted daemon discovery record written to daemon.json.

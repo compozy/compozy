@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func normalizeTaskBlockForCreate(block taskpkg.TaskBlock, defaultNow time.Time) (taskpkg.TaskBlock, error) {

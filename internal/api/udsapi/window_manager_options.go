@@ -1,9 +1,9 @@
 package udsapi
 
 import (
-	"github.com/compozy/agh/internal/api/core"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/api/core"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type udsExtendedServices struct {

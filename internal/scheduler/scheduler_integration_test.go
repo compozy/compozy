@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -27,7 +27,7 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 	t.Run("Should wake an eligible session without claiming the run for it", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		base := time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)
-		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "compozy.db"))
 		workspaceID := registerSchedulerWorkspace(t, db, "wake-claim", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Wake then claim")
@@ -118,7 +118,7 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 	t.Run("Should recover an expired lease after restart and make the run claimable again", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		base := time.Date(2026, 4, 26, 15, 0, 0, 0, time.UTC)
-		dbPath := filepath.Join(t.TempDir(), "agh.db")
+		dbPath := filepath.Join(t.TempDir(), "compozy.db")
 		first := openSchedulerGlobalDB(t, dbPath)
 		workspaceID := registerSchedulerWorkspace(t, first, "restart-recovery", filepath.Join(t.TempDir(), "workspace"))
 		firstManager := newSchedulerTaskManager(t, first)
@@ -227,7 +227,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 		func(t *testing.T) {
 			ctx := testutil.Context(t)
 			base := time.Date(2027, 4, 28, 9, 46, 36, 0, time.UTC)
-			db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+			db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "compozy.db"))
 			workspaceID := registerSchedulerWorkspace(
 				t,
 				db,
@@ -251,7 +251,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("WriteNetworkChannel() error = %v", err)
 			}
 
-			operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task start")
+			operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task start")
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
@@ -429,7 +429,7 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 	t.Run("Should release a dead worker lease before waking a replacement session", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		base := time.Date(2026, 5, 19, 11, 0, 0, 0, time.UTC)
-		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "compozy.db"))
 		workspaceID := registerSchedulerWorkspace(t, db, "dead-worker", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Dead worker recovery")
@@ -562,7 +562,7 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 
 		ctx := testutil.Context(t)
 		base := time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)
-		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "compozy.db"))
 		workspaceID := registerSchedulerWorkspace(t, db, "serial-capacity", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManagerWithOptions(
 			t,
@@ -682,7 +682,7 @@ func TestSchedulerNoEligibleSessionDoesNotClaimIntegration(t *testing.T) {
 	t.Run("Should leave a queued run untouched when no eligible session exists", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		base := time.Date(2026, 4, 26, 16, 0, 0, 0, time.UTC)
-		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "compozy.db"))
 		workspaceID := registerSchedulerWorkspace(t, db, "no-eligible", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "No eligible")
@@ -878,7 +878,7 @@ func createSchedulerTaskRun(
 ) *taskpkg.Execution {
 	t.Helper()
 
-	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task start")
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task start")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}

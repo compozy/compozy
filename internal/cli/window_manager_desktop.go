@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ func newDesktopListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     windowManagerListKey,
 		Short:   "List persistent virtual desktops",
-		Example: "  agh desktop list --workspace ws_1234 -o json",
+		Example: "  compozy desktop list --workspace ws_1234 -o json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			workspace, err := requiredWindowManagerFlag(workspace, windowManagerWorkspaceFlag)

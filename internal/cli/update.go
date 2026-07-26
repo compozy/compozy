@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghupdate "github.com/compozy/agh/internal/update"
+	aghupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -60,9 +60,9 @@ self-update. Managed installs return the exact package-manager upgrade path inst
 files directly.
 		`),
 		Example: strings.TrimSpace(`
-  agh update
-  agh update --check
-  agh update -o json
+  compozy update
+  compozy update --check
+  compozy update -o json
 		`),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

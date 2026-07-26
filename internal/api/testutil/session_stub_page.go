@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func stubSessionListPage(infos []*session.Info, query session.ListQuery) session.ListPage {

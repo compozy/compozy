@@ -8,10 +8,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	storepkg "github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	storepkg "github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func TestActionChannelResultIntegrationShouldHarvestResultAndStallWithFakeConversationStore(t *testing.T) {

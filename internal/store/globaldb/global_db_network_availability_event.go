@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 type networkAvailabilityEventContent struct {

@@ -1,6 +1,6 @@
 package contract
 
-import diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+import diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 
 // DiagnosticItem is the canonical actionable-diagnostic wire shape.
 type DiagnosticItem = diagnosticcontract.DiagnosticItem

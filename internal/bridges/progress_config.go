@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // ProgressMode controls which tool lifecycle events become bridge presentation events.

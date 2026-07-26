@@ -1,6 +1,6 @@
 package store
 
-import "github.com/compozy/agh/internal/network/participation"
+import "github.com/compozy/compozy/internal/network/participation"
 
 // SessionNetworkState keeps immutable participation off the hot SessionInfo value.
 type SessionNetworkState struct {

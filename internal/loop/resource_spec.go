@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 	SourceUser Source = "user"
 	// SourceAdditional identifies loop definitions discovered through additional workspace roots.
 	SourceAdditional Source = "additional"
-	// SourceWorkspace identifies workspace-local loop definitions under <workspace>/.agh.
+	// SourceWorkspace identifies workspace-local loop definitions under <workspace>/.compozy.
 	SourceWorkspace Source = "workspace"
 )
 

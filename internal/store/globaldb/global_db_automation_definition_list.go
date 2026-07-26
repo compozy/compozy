@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	automation "github.com/compozy/agh/internal/automation/model"
+	automation "github.com/compozy/compozy/internal/automation/model"
 )
 
 const automationDefinitionOrderSQL = ` ORDER BY CASE source

@@ -3,9 +3,9 @@ package daemon
 import (
 	"context"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (d *Daemon) newDaemonMCPToolProvider(

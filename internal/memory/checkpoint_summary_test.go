@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestCheckpointSummaryServiceUpdate(t *testing.T) {
@@ -539,7 +539,7 @@ func newCheckpointSummaryTestEnv(t *testing.T) checkpointSummaryTestEnv {
 	store := newOpenTestStore(
 		t,
 		filepath.Join(baseDir, "home", "memory"),
-		WithCatalogDatabasePath(filepath.Join(baseDir, "home", "agh.db")),
+		WithCatalogDatabasePath(filepath.Join(baseDir, "home", "compozy.db")),
 	)
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() error = %v", err)

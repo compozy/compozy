@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 const (

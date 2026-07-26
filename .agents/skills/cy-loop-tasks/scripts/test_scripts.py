@@ -675,7 +675,15 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             )
             (root / "feature.txt").write_text("change", encoding="utf-8")
 
-            result = self._run_checkpoint(root, tasks_root, slug, "--task", "task_07")
+            result = self._run_checkpoint(
+                root,
+                tasks_root,
+                slug,
+                "--task",
+                "task_07",
+                "--body-note",
+                "Imported from source SHA abc123 on 2026-07-26.",
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             sha = result.stdout.strip()
             self.assertEqual(len(sha), 40)
@@ -684,6 +692,10 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             self.assertEqual(log.returncode, 0, log.stderr)
             self.assertIn("feat: implement backend tests #07", log.stdout)
             self.assertIn("Checkpoint via cy-loop-tasks (iteration 4, phase B mode=tasks).", log.stdout)
+            self.assertIn(
+                "Imported from source SHA abc123 on 2026-07-26.",
+                log.stdout,
+            )
             self.assertIn(
                 "Co-Authored-By: Codex <noreply@openai.com>",
                 log.stdout,

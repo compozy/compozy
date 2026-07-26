@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // RunID identifies a durable task_run row without exposing raw lease credentials.

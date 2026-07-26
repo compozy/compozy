@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // ResolveEffectiveResources overlays records for one read scope using loop precedence.

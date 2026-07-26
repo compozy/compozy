@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/compozy/internal/observe"
 )
 
 func (d *Daemon) applyObserverFactoryDefault() {

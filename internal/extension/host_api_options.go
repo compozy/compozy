@@ -5,13 +5,13 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/memory"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WithHostAPICapabilityChecker injects the capability checker used for Host API authorization.

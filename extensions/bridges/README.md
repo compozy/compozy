@@ -24,17 +24,17 @@ go build \
   -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
   "./extensions/bridges/$PROVIDER"
 
-agh extension install \
+compozy extension install \
   "./extensions/bridges/$PROVIDER" \
   --allow-unverified \
   --yes \
   -o json
 
-agh extension status "$PROVIDER" -o json
+compozy extension status "$PROVIDER" -o json
 ```
 
 The local install is an explicit trust decision. It copies the provider into the AGH extension home
-and enables it; use `agh extension enable "$PROVIDER" -o json` only if it was disabled later.
+and enables it; use `compozy extension enable "$PROVIDER" -o json` only if it was disabled later.
 
 ## In-tree providers
 

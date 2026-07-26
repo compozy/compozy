@@ -3,7 +3,7 @@ package daemon
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestCloneDaemonMCPServer(t *testing.T) {

@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 
-	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
 )
 
 const daemonRunningStatus = "running"

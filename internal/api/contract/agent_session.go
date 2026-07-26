@@ -3,8 +3,8 @@ package contract
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // AgentSessionPayload is the compact session context used by agent endpoints.

@@ -3,7 +3,7 @@ package cli
 import (
 	"strconv"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -32,10 +32,10 @@ func newOnboardingStatusCommand(deps commandDeps) *cobra.Command {
 		Use:   statusCommandKey,
 		Short: "Show whether first-run onboarding has been completed",
 		Example: `  # Show onboarding status
-  agh onboarding status
+  compozy onboarding status
 
   # Return machine-readable status for agents
-  agh onboarding status -o json`,
+  compozy onboarding status -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {

@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"

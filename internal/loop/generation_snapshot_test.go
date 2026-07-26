@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {

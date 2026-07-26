@@ -10,18 +10,18 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	observepkg "github.com/compozy/agh/internal/observe"
+	observepkg "github.com/compozy/compozy/internal/observe"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	"github.com/compozy/agh/internal/subprocess"
-	aghtestutil "github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/subprocess"
+	aghtestutil "github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (h *Harness) stopSessions(t testing.TB) {

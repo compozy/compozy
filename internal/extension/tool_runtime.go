@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/subprocess"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/subprocess"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 var _ toolspkg.ExtensionToolInvoker = (*Manager)(nil)

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // NewBroker constructs a delivery broker with bounded per-route queues and

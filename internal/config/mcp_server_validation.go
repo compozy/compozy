@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // Validate ensures the MCP server entry is usable.

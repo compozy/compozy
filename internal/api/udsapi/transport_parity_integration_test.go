@@ -21,16 +21,16 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	apispec "github.com/compozy/agh/internal/api/spec"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	transcriptpkg "github.com/compozy/agh/internal/transcript"
-	"github.com/compozy/agh/internal/windowmanager"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	apispec "github.com/compozy/compozy/internal/api/spec"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	transcriptpkg "github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
 
@@ -916,7 +916,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 			item.Name != "GitHub bridge" ||
 			item.Description != "Connect GitHub events to AGH" ||
 			item.Version != "1.0.0" ||
-			item.Source != "agh-catalog" {
+			item.Source != "compozy-catalog" {
 			t.Fatalf("CLI extension search item = %#v, want unchanged extension search fields", item)
 		}
 	})

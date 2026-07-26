@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestUnixSocketClientNetworkMethods(t *testing.T) {

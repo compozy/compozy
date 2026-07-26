@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
@@ -832,7 +832,7 @@ func heartbeatResolvedSnapshotForTest(
 	t.Helper()
 
 	root := t.TempDir()
-	sourcePath := filepath.Join(root, ".agh", "agents", agentName, heartbeat.FileName)
+	sourcePath := filepath.Join(root, ".compozy", "agents", agentName, heartbeat.FileName)
 	resolved, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
 		SourcePath:    sourcePath,
 		WorkspaceRoot: root,

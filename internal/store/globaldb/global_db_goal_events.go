@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/goal"
 )
 
 func appendGoalStatusChangedEvent(

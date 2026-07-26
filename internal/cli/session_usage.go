@@ -11,10 +11,10 @@ func newSessionUsageCommand(deps commandDeps) *cobra.Command {
 		Use:   "usage <session-id>",
 		Short: "Show aggregated session token usage and cost provenance",
 		Example: `  # Show truthful token and cost totals
-  agh session usage sess_1234
+  compozy session usage sess_1234
 
   # Read the usage contract as JSON for scripts
-  agh session usage sess_1234 -o json`,
+  compozy session usage sess_1234 -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

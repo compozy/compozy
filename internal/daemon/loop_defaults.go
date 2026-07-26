@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	looppkg "github.com/compozy/agh/internal/loop"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func newLoopDefaultsResolver(

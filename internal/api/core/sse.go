@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	ssepkg "github.com/compozy/agh/internal/sse"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	ssepkg "github.com/compozy/compozy/internal/sse"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/filesnap"
-	looppkg "github.com/compozy/agh/internal/loop"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/filesnap"
+	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
 func startLoopWatcher(

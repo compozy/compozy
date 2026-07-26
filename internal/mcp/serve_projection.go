@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	jsonschema "github.com/google/jsonschema-go/jsonschema"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )

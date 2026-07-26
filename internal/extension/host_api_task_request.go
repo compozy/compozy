@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/network/participation"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/network/participation"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (h *HostAPIHandler) createTaskSpecFromRequest(

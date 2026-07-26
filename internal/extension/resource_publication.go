@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 var defaultManifestToolInputSchema = json.RawMessage(`{"type":"object"}`)

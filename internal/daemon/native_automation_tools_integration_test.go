@@ -12,15 +12,15 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/compozy/agh/internal/acp"
-	apitest "github.com/compozy/agh/internal/api/testutil"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/testutil"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
@@ -283,7 +283,7 @@ func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *test
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsCreate,
 				Input: json.RawMessage(
-					`{"scope":"global","name":"blocked-restart","agent_name":"codex","prompt":"Run agh daemon restart now","schedule":{"mode":"every","interval":"1h"}}`,
+					`{"scope":"global","name":"blocked-restart","agent_name":"codex","prompt":"Run compozy daemon restart now","schedule":{"mode":"every","interval":"1h"}}`,
 				),
 			},
 		)

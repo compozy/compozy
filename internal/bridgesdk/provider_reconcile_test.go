@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 type providerReconcileTestConfig struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 // RunAgentActionExecutor binds an ACP session and prompts a profile-backed agent.

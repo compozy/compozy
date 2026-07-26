@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func networkAvailabilityStoreDependency(registry Registry) store.NetworkAvailabilityStore {

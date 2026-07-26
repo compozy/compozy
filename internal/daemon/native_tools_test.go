@@ -14,39 +14,39 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	apitest "github.com/compozy/agh/internal/api/testutil"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	memorypkg "github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	builtintools "github.com/compozy/agh/internal/tools/builtin"
-	"github.com/compozy/agh/internal/windowmanager"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
-	skillbundled "github.com/compozy/agh/skills"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	memorypkg "github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
+	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	skillbundled "github.com/compozy/compozy/skills"
 )
 
 const (
@@ -5128,7 +5128,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					},
 					Agents: []aghconfig.AgentDef{{
 						Name:       "coder",
-						SourcePath: "/workspace/agh/.agh/agents/coder/AGENT.md",
+						SourcePath: "/workspace/agh/.compozy/agents/coder/AGENT.md",
 					}},
 				}, nil
 			},
@@ -5231,7 +5231,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(agent_heartbeat_wake) error = %v", err)
 		}
 		requireNativeStructuredContains(t, wakeResult, []byte(`"wake_event_id":"hwe-tool"`))
-		if status.last.Target.AgentPath != "/workspace/agh/.agh/agents/coder/AGENT.md" {
+		if status.last.Target.AgentPath != "/workspace/agh/.compozy/agents/coder/AGENT.md" {
 			t.Fatalf("heartbeat status target path = %q, want managed agent path", status.last.Target.AgentPath)
 		}
 		if wake.last.SessionID != "sess-heartbeat" ||
@@ -5705,7 +5705,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		memoryStore := memorypkg.NewStore(
 			filepath.Join(baseDir, "global-memory"),
-			memorypkg.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			memorypkg.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		openDaemonMemoryCatalog(t, memoryStore)
 		base := memoryStore.ForWorkspace(workspaceRoot)
@@ -6555,7 +6555,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		globalDir := filepath.Join(t.TempDir(), "global-memory")
 		memoryStore := memorypkg.NewStore(
 			globalDir,
-			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		openDaemonMemoryCatalog(t, memoryStore)
 		recorder := &nativeMemoryToolWriteRecorder{}
@@ -8276,7 +8276,7 @@ func TestNativeSkillsForSessionAgentUsesLiveAuthoredDefinition(t *testing.T) {
 		manager := &nativeSessionAgentManager{
 			agent: aghconfig.AgentDef{
 				Name:       "reviewer",
-				SourcePath: "/tmp/.agh/agents/reviewer/AGENT.md",
+				SourcePath: "/tmp/.compozy/agents/reviewer/AGENT.md",
 			},
 		}
 		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{

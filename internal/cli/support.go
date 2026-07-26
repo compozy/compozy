@@ -57,10 +57,10 @@ func newSupportBundleCommand(deps commandDeps) *cobra.Command {
 		Short: "Create and download a redacted support bundle",
 		Example: strings.Join([]string{
 			"  # Create a bundle and write it under $AGH_HOME/support-bundles",
-			"  agh support bundle --yes",
+			"  compozy support bundle --yes",
 			"",
 			"  # Write the daemon-built bundle to a specific path",
-			"  agh support bundle --yes --output /tmp/agh-support-bundle.tar.gz",
+			"  compozy support bundle --yes --output /tmp/compozy-support-bundle.tar.gz",
 		}, "\n"),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -251,7 +251,7 @@ func resolveSupportBundleOutputPath(
 	}
 	fileName := strings.TrimSpace(operation.FileName)
 	if fileName == "" {
-		fileName = fmt.Sprintf("agh-support-bundle-%s.tar.gz", time.Now().UTC().Format("20060102T150405Z"))
+		fileName = fmt.Sprintf("compozy-support-bundle-%s.tar.gz", time.Now().UTC().Format("20060102T150405Z"))
 	}
 
 	trimmed := strings.TrimSpace(rawPath)

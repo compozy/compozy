@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // ManifestFamily identifies one family-oriented manifest request name.

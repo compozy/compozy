@@ -7,11 +7,11 @@ import (
 	"net/url"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network/participation"
-	networkusage "github.com/compozy/agh/internal/network/usage"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network/participation"
+	networkusage "github.com/compozy/compozy/internal/network/usage"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (h *HostAPIHandler) taskRunDetailPayloadFromView(

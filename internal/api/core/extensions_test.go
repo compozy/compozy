@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 

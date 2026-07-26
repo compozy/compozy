@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
@@ -319,7 +319,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 			Spec: soul.ResourceSpec{
 				AgentName:       "marketer",
 				AgentResourceID: "agt-marketer",
-				SourcePath:      ".agh/bundles/act-marketing/agents/marketer/SOUL.md",
+				SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/SOUL.md",
 				Body:            "Lead with campaign context.",
 			},
 		},
@@ -330,7 +330,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 			Spec: soul.ResourceSpec{
 				AgentName:       "marketer",
 				AgentResourceID: "agt-global",
-				SourcePath:      ".agh/bundles/act-marketing/agents/marketer/SOUL.md",
+				SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/SOUL.md",
 				Body:            "Do not attach this global sidecar.",
 			},
 		},
@@ -343,7 +343,7 @@ func TestResourceAgentCatalogResolvesPackageOwnedArtifactsAndHeartbeatPolicy(t *
 		Spec: heartbeat.ResourceSpec{
 			AgentName:       "marketer",
 			AgentResourceID: "agt-marketer",
-			SourcePath:      ".agh/bundles/act-marketing/agents/marketer/HEARTBEAT.md",
+			SourcePath:      ".compozy/bundles/act-marketing/agents/marketer/HEARTBEAT.md",
 			Body:            "Inspect campaign status and use AGH task APIs.",
 		},
 	}})

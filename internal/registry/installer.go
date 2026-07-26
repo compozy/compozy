@@ -20,7 +20,7 @@ const (
 	// DefaultMaxArchiveSize caps the compressed archive stream before extraction.
 	DefaultMaxArchiveSize int64 = 50 * 1024 * 1024
 
-	defaultInstallerTempDirPattern = ".agh-install-*"
+	defaultInstallerTempDirPattern = ".compozy-install-*"
 	defaultInstallerTempDirMaxAge  = time.Hour
 )
 

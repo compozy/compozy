@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/admission"
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/admission"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
 
 func TestDaemonE2EDrainRefusesNewSessionsUntilUndrained(t *testing.T) {

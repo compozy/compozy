@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	authproviders "github.com/compozy/agh/internal/providers"
-	"github.com/compozy/agh/internal/sandbox"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 const (

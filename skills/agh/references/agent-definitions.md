@@ -14,9 +14,9 @@
 
 ## Files And Precedence
 
-AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $AGH_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.agh/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
+AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $AGH_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
 
-Runtime configuration starts from $AGH_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.agh/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
+Runtime configuration starts from $AGH_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.compozy/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
 
 Workspace definitions shadow same-name global definitions; AGH never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
 
@@ -59,7 +59,7 @@ be limited to that explicit runtime surface.
 
 ## Managed Bundled Agent
 
-AGH ensures one managed agent definition exists on first boot and during `agh install`:
+AGH ensures one managed agent definition exists on first boot and during `compozy install`:
 
 - `general` — the default public general-purpose agent (`defaults.agent`). It is the agent operators see in public agent lists and the workspace sidebar unless a workspace-local `general` overrides it.
 
@@ -78,8 +78,8 @@ reserved; it remains the editable managed public agent described above.
 Background routing lives under `[roles.coordinator]`, `[roles.dream]`,
 `[roles.checkpoint_summary]`, `[roles.memory_extractor]`, `[roles.auto_title]`, and
 `[roles.memory_controller]`. A non-empty session-role `agent` selects an authored definition; it
-does not customize an embedded builtin prompt. Read the effective projection with `agh roles list`
-or `agh roles show <role>` before diagnosing provider or model behavior.
+does not customize an embedded builtin prompt. Read the effective projection with `compozy roles list`
+or `compozy roles show <role>` before diagnosing provider or model behavior.
 
 ## Providers And MCP
 
@@ -101,10 +101,10 @@ When `sessions_available` is true, each result's `sessions` object covers every 
 
 Use structured CLI output for agent lifecycle work:
 
-    agh agent info <name> --workspace <ref> -o json
-    agh agent update <name> --workspace <ref> --expected-digest <digest> [overrides] -o json
-    agh agent duplicate <source> <new-name> --workspace <ref> [--scope global|workspace] [overrides] -o json
-    agh agent delete <name> --workspace <ref> --yes -o json
+    compozy agent info <name> --workspace <ref> -o json
+    compozy agent update <name> --workspace <ref> --expected-digest <digest> [overrides] -o json
+    compozy agent duplicate <source> <new-name> --workspace <ref> [--scope global|workspace] [overrides] -o json
+    compozy agent delete <name> --workspace <ref> --yes -o json
 
 Create, update, and duplicate accept repeatable `--disable-skill <name>` flags. On update,
 providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clear the list.
@@ -121,7 +121,7 @@ The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:
 2. Create $AGH_HOME/agents/<name>/AGENT.md or workspace-local equivalent.
 3. Keep frontmatter small and put behavior in the Markdown body.
 4. Add only the toolsets and MCP servers the agent actually needs.
-5. Reconcile desired config with runtime truth after config edits, using `agh config reload -o json` when the daemon is running.
+5. Reconcile desired config with runtime truth after config edits, using `compozy config reload -o json` when the daemon is running.
 6. Validate with AGH CLI/API rather than guessing from file shape.
 
 If AGH rejects the agent, inspect missing name, invalid permissions, empty prompt body, malformed mcp_servers, or a directory/name mismatch first.
@@ -130,4 +130,4 @@ If AGH rejects the agent, inspect missing name, invalid permissions, empty promp
 
 Provider aliases are small built-in conveniences, not user-configured compatibility keys. `claude-code` resolves to the canonical `claude` provider; aliases such as `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen` resolve before launch. Config files must still reference canonical provider IDs, and the removed `providers.<id>.aliases` key is rejected.
 
-Settings writes are governed by the config apply lifecycle. Provider model-only changes are live; provider command/auth changes remain restart-required. After config edits, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `agh config apply-history -o json`.
+Settings writes are governed by the config apply lifecycle. Provider model-only changes are live; provider command/auth changes remain restart-required. After config edits, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `compozy config apply-history -o json`.

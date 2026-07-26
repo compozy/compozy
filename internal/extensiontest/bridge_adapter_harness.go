@@ -9,12 +9,12 @@ import (
 
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 const (
@@ -85,7 +85,7 @@ func NewMarkerPaths(root string) MarkerPaths {
 func NewTempMarkerPaths(t testing.TB) MarkerPaths {
 	t.Helper()
 
-	root, err := os.MkdirTemp("", "agh-e2e-bridge-markers-")
+	root, err := os.MkdirTemp("", "compozy-e2e-bridge-markers-")
 	if err != nil {
 		t.Fatalf("os.MkdirTemp(bridge markers) error = %v", err)
 	}

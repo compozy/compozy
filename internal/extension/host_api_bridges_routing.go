@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (h *HostAPIHandler) maybeCleanupBridgeIngestDedup(ctx context.Context) error {

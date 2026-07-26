@@ -16,12 +16,12 @@ func TestParseGoListDepLine(t *testing.T) {
 	t.Run("Should parse dir, module path, go files, and embeds", func(t *testing.T) {
 		t.Parallel()
 		dir, modPath, files, ok := parseGoListDepLine(
-			"/repo/internal/pkg|github.com/compozy/agh|a.go,b.go|assets/data.json",
+			"/repo/internal/pkg|github.com/compozy/compozy|a.go,b.go|assets/data.json",
 		)
 		if !ok {
 			t.Fatal("parseGoListDepLine() ok = false, want true")
 		}
-		if dir != "/repo/internal/pkg" || modPath != "github.com/compozy/agh" {
+		if dir != "/repo/internal/pkg" || modPath != "github.com/compozy/compozy" {
 			t.Fatalf("parseGoListDepLine() dir=%q mod=%q", dir, modPath)
 		}
 		want := []string{"a.go", "b.go", "assets/data.json"}
@@ -37,7 +37,7 @@ func TestParseGoListDepLine(t *testing.T) {
 
 	t.Run("Should reject blank and malformed lines", func(t *testing.T) {
 		t.Parallel()
-		for _, line := range []string{"", "   ", "only|three|fields", "|github.com/compozy/agh|a.go|"} {
+		for _, line := range []string{"", "   ", "only|three|fields", "|github.com/compozy/compozy|a.go|"} {
 			if _, _, _, ok := parseGoListDepLine(line); ok {
 				t.Fatalf("parseGoListDepLine(%q) ok = true, want false", line)
 			}

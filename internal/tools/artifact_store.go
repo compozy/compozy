@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const artifactFileMode = 0o600

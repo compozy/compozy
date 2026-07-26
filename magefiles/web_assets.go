@@ -221,7 +221,7 @@ func copyWebAssetsDist(srcDir string, destDir string) error {
 
 func writeWebAssetsMetadata(assetsRepoDir string, metadata webAssetsMetadata) error {
 	content := strings.Join([]string{
-		"// Package webassets embeds the production AGH web UI bundle.",
+		"// Package webassets embeds the production Compozy web UI bundle.",
 		"package webassets",
 		"",
 		"import \"embed\"",
@@ -235,7 +235,7 @@ func writeWebAssetsMetadata(assetsRepoDir string, metadata webAssetsMetadata) er
 		"\tSourceCommit = " + strconv.Quote(metadata.SourceCommit),
 		")",
 		"",
-		"// DistFS embeds the generated production AGH web UI bundle.",
+		"// DistFS embeds the generated production Compozy web UI bundle.",
 		"//",
 		"//go:embed all:dist",
 		"var DistFS embed.FS",
@@ -379,7 +379,7 @@ func webAssetsPublicCheck(ctx context.Context, version string) error {
 	if version == "" {
 		return errors.New("web assets module version is required")
 	}
-	tmpDir, err := os.MkdirTemp("", "agh-web-assets-public-check-")
+	tmpDir, err := os.MkdirTemp("", "compozy-web-assets-public-check-")
 	if err != nil {
 		return fmt.Errorf("create web assets public check dir: %w", err)
 	}

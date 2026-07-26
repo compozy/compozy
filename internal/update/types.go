@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
 	githubReleaseAPIURL        = "https://api.github.com/repos/compozy/agh/releases/latest"
 	githubRepositorySlug       = "compozy/agh"
-	goInstallModulePath        = "github.com/compozy/agh"
+	goInstallModulePath        = "github.com/compozy/compozy"
 	checksumsAssetName         = "checksums.txt"
 	checksumsBundleAssetName   = "checksums.txt.sigstore.json"
 	sigstoreOIDCIssuer         = "https://token.actions.githubusercontent.com"

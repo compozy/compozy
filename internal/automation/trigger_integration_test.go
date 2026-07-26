@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestTriggerEngineIntegrationSessionStoppedViaObserverBoundaryDispatchesOneRun(t *testing.T) {

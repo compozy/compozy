@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 // DeliverPromptEventStream forwards one accepted prompt until the client,

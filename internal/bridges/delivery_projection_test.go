@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/toolmeta"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 func TestBrokerSetTransportFlushesQueuedResume(t *testing.T) {

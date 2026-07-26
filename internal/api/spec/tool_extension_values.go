@@ -3,9 +3,9 @@ package spec
 import (
 	"sort"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func toolSourceValues() []string {

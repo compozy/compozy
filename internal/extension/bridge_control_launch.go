@@ -7,12 +7,12 @@ import (
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/diagnostics"
-	redactpkg "github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/toolruntime"
-	"github.com/compozy/agh/internal/version"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/diagnostics"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/toolruntime"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func (m *Manager) executeBridgeControl(

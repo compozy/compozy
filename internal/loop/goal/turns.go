@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 func (e *Executor) advanceSegment(ctx context.Context, segment *segmentState) (*turnBoundary, error) {

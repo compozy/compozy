@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 func configureSubprocessCommand(cmd *exec.Cmd) {

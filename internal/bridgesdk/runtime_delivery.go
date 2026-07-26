@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, error) {

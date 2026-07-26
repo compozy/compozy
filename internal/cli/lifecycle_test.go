@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghupdate "github.com/compozy/agh/internal/update"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghupdate "github.com/compozy/compozy/internal/update"
 )
 
 type stubUpdateManager struct {

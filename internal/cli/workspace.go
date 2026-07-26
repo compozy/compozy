@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -59,10 +59,10 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 		Use:   "add <path>",
 		Short: "Register a workspace",
 		Example: `  # Register a workspace with a stable name
-  agh workspace add "$PWD" --name checkout-api
+  compozy workspace add "$PWD" --name checkout-api
 
   # Include an additional directory and set a workspace default agent
-  agh workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect`,
+  compozy workspace add "$PWD" --name platform --add-dir "$PWD/docs" --default-agent architect`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -99,10 +99,10 @@ func newWorkspaceListCommand(deps commandDeps) *cobra.Command {
 		Use:   workspaceListKey,
 		Short: "List registered workspaces",
 		Example: `  # Show every registered workspace
-  agh workspace list
+  compozy workspace list
 
   # Return workspace records as JSON
-  agh workspace list --output json`,
+  compozy workspace list --output json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -124,13 +124,13 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   "info [name-or-id]",
 		Short: "Show one workspace with resolved details",
 		Example: `  # Show workspace paths, agents, and skills by name
-  agh workspace info checkout-api
+  compozy workspace info checkout-api
 
   # Resolve the current directory as a workspace
-  agh workspace info
+  compozy workspace info
 
   # Emit resolved workspace details as JSON
-  agh workspace info ws_1234 -o json`,
+  compozy workspace info ws_1234 -o json`,
 		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -250,10 +250,10 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 		Use:   "edit <name-or-id>",
 		Short: "Edit a registered workspace",
 		Example: `  # Rename a workspace
-  agh workspace edit checkout-api --name checkout
+  compozy workspace edit checkout-api --name checkout
 
   # Clear the workspace default agent
-  agh workspace edit checkout-api --default-agent ""`,
+  compozy workspace edit checkout-api --default-agent ""`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -323,7 +323,7 @@ func newWorkspaceRemoveCommand(deps commandDeps) *cobra.Command {
 		Use:   "remove <name-or-id>",
 		Short: "Remove a workspace registration and stopped session history",
 		Example: `  # Remove a workspace registration by name
-  agh workspace remove checkout-api`,
+  compozy workspace remove checkout-api`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

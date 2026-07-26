@@ -9,10 +9,10 @@ import (
 
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/store"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const defaultDispatchTimeout = 10 * time.Second

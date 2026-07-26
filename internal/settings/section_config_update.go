@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
 func (s *service) updateConfigBackedSection(

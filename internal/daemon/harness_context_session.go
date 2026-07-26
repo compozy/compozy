@@ -1,8 +1,8 @@
 package daemon
 
 import (
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // HarnessSessionInput carries durable session metadata into the resolver.

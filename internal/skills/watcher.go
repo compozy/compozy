@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/filesnap"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/filesnap"
 )
 
 const (

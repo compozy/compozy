@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	memorypkg "github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memorypkg "github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func redactMemoryPackaged(packaged memcontract.Packaged) memcontract.Packaged {

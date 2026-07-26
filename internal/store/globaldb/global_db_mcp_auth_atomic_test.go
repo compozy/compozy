@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/testutil"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {

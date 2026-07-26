@@ -3,8 +3,8 @@ package observe
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func sessionInfoFromSession(info *session.Info) store.SessionInfo {

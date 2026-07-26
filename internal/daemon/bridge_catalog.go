@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	core "github.com/compozy/agh/internal/api/core"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/observe"
+	core "github.com/compozy/compozy/internal/api/core"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/observe"
 )
 
 var (

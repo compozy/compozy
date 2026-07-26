@@ -11,7 +11,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // AttachHooks swaps in the live hook catalog source after the hook runtime is built.

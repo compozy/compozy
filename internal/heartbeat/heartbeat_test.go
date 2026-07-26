@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func TestParseHeartbeatPolicy(t *testing.T) {
@@ -44,7 +44,7 @@ context:
 ---
 # Wake Checklist
 
-Inspect context first, then use agh task next before doing task work.
+Inspect context first, then use compozy task next before doing task work.
 `)
 
 		first, err := Parse(context.Background(), ParseRequest{
@@ -80,7 +80,7 @@ Inspect context first, then use agh task next before doing task work.
 		if first.ConfigDigest == "" || first.ConfigDigest != second.ConfigDigest {
 			t.Fatalf("ConfigDigest determinism mismatch: first=%q second=%q", first.ConfigDigest, second.ConfigDigest)
 		}
-		if got, want := first.SourcePath, ".agh/agents/coder/HEARTBEAT.md"; got != want {
+		if got, want := first.SourcePath, ".compozy/agents/coder/HEARTBEAT.md"; got != want {
 			t.Fatalf("SourcePath = %q, want %q", got, want)
 		}
 		if got, want := first.Preferences.MinInterval, 30*time.Minute; got != want {
@@ -796,7 +796,7 @@ func agentWorkspace(t *testing.T) (string, string) {
 	t.Helper()
 
 	workspaceRoot := t.TempDir()
-	agentDir := filepath.Join(workspaceRoot, ".agh", "agents", "coder")
+	agentDir := filepath.Join(workspaceRoot, ".compozy", "agents", "coder")
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		t.Fatalf("create agent dir: %v", err)
 	}

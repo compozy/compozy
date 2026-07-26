@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
 

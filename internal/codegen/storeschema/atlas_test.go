@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"ariga.io/atlas/sql/migrate"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestSchemaSource(t *testing.T) {

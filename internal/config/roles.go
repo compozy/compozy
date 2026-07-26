@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/reasoning"
+	"github.com/compozy/compozy/internal/reasoning"
 )
 
 type providerResolver interface {

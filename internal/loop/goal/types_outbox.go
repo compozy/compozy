@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 // SessionOutboxCause is the closed session-projection transition vocabulary.

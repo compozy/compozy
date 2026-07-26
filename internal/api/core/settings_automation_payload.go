@@ -3,10 +3,10 @@ package core
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	automationmodel "github.com/compozy/agh/internal/automation/model"
-	aghconfig "github.com/compozy/agh/internal/config"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func automationSettingsFromPayload(

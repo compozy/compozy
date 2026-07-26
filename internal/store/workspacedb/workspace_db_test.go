@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestOpen(t *testing.T) {
@@ -25,7 +25,7 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EvalSymlinks(workspaceRoot) error = %v", err)
 		}
-		if got, want := db.Path(), filepath.Join(realWorkspaceRoot, ".agh", store.GlobalDatabaseName); got != want {
+		if got, want := db.Path(), filepath.Join(realWorkspaceRoot, ".compozy", store.GlobalDatabaseName); got != want {
 			t.Fatalf("Path() = %q, want %q", got, want)
 		}
 		if !aghworkspace.IsWorkspaceID(db.WorkspaceID()) {

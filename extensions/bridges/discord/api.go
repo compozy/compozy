@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 type discordAPI interface {

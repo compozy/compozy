@@ -46,7 +46,7 @@ func TestManagerApplyRelease(t *testing.T) {
 		if applied.TargetPath != executablePath || applied.Version != "v1.1.0" {
 			t.Fatalf("applied = %#v, want executable %q and version v1.1.0", applied, executablePath)
 		}
-		if !strings.Contains(applied.BackupPath, ".agh.agh-backup-") {
+		if !strings.Contains(applied.BackupPath, ".agh.compozy-backup-") {
 			t.Fatalf("applied.BackupPath = %q, want sibling backup naming", applied.BackupPath)
 		}
 		if applier.targetPath != executablePath || applier.mode != 0o755 {

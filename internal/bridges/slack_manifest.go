@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 const (
@@ -188,7 +188,7 @@ func BuildSlackAppManifest(instance BridgeInstance, provider BridgeProvider) (Sl
 		Features: SlackManifestFeatures{
 			BotUser: SlackManifestBotUser{DisplayName: botName},
 			SlashCommands: []SlackManifestSlashCommand{{
-				Command:      "/agh",
+				Command:      "/compozy",
 				URL:          publicURL,
 				Description:  "Send a command to AGH",
 				UsageHint:    "<command>",

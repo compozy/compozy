@@ -52,9 +52,9 @@ def socket_path_length(path: Path) -> int:
 
 def socket_limited_paths(agh_home: Path, provider_home: Path) -> dict[str, Path]:
     return {
-        "AGH_UDS_PATH": agh_home / "aghd.sock",
+        "AGH_UDS_PATH": agh_home / "compozyd.sock",
         "TMUX_BRIDGE_SOCKET": agh_home / "tmux-bridge.sock",
-        "PROVIDER_DEFAULT_UDS": provider_home / ".agh" / "daemon.sock",
+        "PROVIDER_DEFAULT_UDS": provider_home / ".compozy" / "daemon.sock",
     }
 
 
@@ -69,7 +69,7 @@ def socket_limit_violations(paths: dict[str, Path]) -> list[str]:
 
 def short_runtime_root(scenario_slug: str) -> Path:
     digest = hashlib.sha256(scenario_slug.encode("utf-8")).hexdigest()[:12]
-    return Path(tempfile.gettempdir()) / f"aghqa-{digest}"
+    return Path(tempfile.gettempdir()) / f"compozyqa-{digest}"
 
 
 def run_init_workspace(repo_root: Path, scenario: str, workspace_root: str) -> dict[str, str]:
@@ -237,7 +237,7 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
     socket_paths = {
         "AGH_UDS_PATH": Path(str(env.get("AGH_UDS_PATH", ""))),
         "TMUX_BRIDGE_SOCKET": Path(str(env.get("TMUX_BRIDGE_SOCKET", ""))),
-        "PROVIDER_DEFAULT_UDS": required_paths["PROVIDER_HOME"] / ".agh" / "daemon.sock",
+        "PROVIDER_DEFAULT_UDS": required_paths["PROVIDER_HOME"] / ".compozy" / "daemon.sock",
     }
     for note in socket_limit_violations(socket_paths):
         healthy = False
@@ -674,13 +674,13 @@ def main() -> int:
             str(existing_env.get("RUNTIME_WORKSPACE_PATH", workspace_path))
         ).resolve()
         provider_home = Path(str(existing_env.get("PROVIDER_HOME", workspace_path / ".provider-home"))).resolve()
-        agh_home = Path(str(existing_env.get("AGH_HOME", workspace_path / ".agh" / "runtime"))).resolve()
+        agh_home = Path(str(existing_env.get("AGH_HOME", workspace_path / ".compozy" / "runtime"))).resolve()
     else:
         runtime_workspace_path = Path(
             str(seed_summary.get("runtime_workspace_path", workspace_path))
         ).resolve()
         provider_home = workspace_path / ".provider-home"
-        agh_home = workspace_path / ".agh" / "runtime"
+        agh_home = workspace_path / ".compozy" / "runtime"
         violations = socket_limit_violations(socket_limited_paths(agh_home, provider_home))
         if violations:
             runtime_root = short_runtime_root(workspace_info["SCENARIO_SLUG"])
@@ -709,7 +709,7 @@ def main() -> int:
             "QA_OUTPUT_PATH": str(qa_output_path),
             "AGH_HOME": str(agh_home),
             "AGH_HTTP_PORT": str(pick_free_port()),
-            "AGH_UDS_PATH": str(agh_home / "aghd.sock"),
+            "AGH_UDS_PATH": str(agh_home / "compozyd.sock"),
             "TMUX_BRIDGE_SOCKET": str(agh_home / "tmux-bridge.sock"),
             "AGH_WEB_API_PROXY_TARGET": "",
             "PROVIDER_HOME": str(provider_home),

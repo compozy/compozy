@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/compozy/agh/internal/codegen/openapits"
+	"github.com/compozy/compozy/internal/codegen/openapits"
 )
 
 const (
@@ -19,8 +19,8 @@ const (
 	goIntegrationTestTimeout  = "30m"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
-	cliBinary                 = "agh"
-	versionPackage            = "github.com/compozy/agh/internal/version"
+	cliBinary                 = "compozy"
+	versionPackage            = "github.com/compozy/compozy/internal/version"
 	openAPISpecPath           = "openapi/agh.json"
 	compozyOpenAPISpecPath    = "openapi/compozy-daemon.json"
 	webOpenAPITypePath        = "web/src/generated/agh-openapi.d.ts"
@@ -28,17 +28,17 @@ const (
 	webDistDir                = "web/dist"
 	webDistIndex              = "web/dist/index.html"
 	webDistDirEnvVar          = "AGH_WEB_DIST_DIR"
-	webAssetsModulePath       = "github.com/compozy/agh-web-assets"
-	webAssetsRemoteURL        = "https://github.com/compozy/agh-web-assets.git"
+	webAssetsModulePath       = "github.com/compozy/compozy-web-assets"
+	webAssetsRemoteURL        = "https://github.com/compozy/compozy-web-assets.git"
 	webAssetsModuleDistDir    = "dist"
 	webAssetsMetadataFile     = "assets.go"
-	webAssetsSourceRepository = "github.com/compozy/agh"
+	webAssetsSourceRepository = "github.com/compozy/compozy"
 	webAssetsTokenEnvVar      = "AGH_WEB_ASSETS_TOKEN"
 	releaseTokenEnvVar        = "RELEASE_TOKEN"
 	daemonBinaryEnvVar        = "AGH_TEST_DAEMON_BIN"
 	driverBinaryEnvVar        = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
-	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/agh-daytona-sidecar"
+	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/compozy-daytona-sidecar"
 	daytonaSidecarToolchain   = "1.26.4"
 	daytonaSidecarRegenHint   = "go run github.com/magefile/mage@v1.17.2 " +
 		"daytonaSidecars"
@@ -76,7 +76,7 @@ var daytonaSidecarAssets = []daytonaSidecarAsset{
 			"sandbox",
 			"daytona",
 			"sidecar_assets",
-			"agh-daytona-sidecar-linux-amd64.gz",
+			"compozy-daytona-sidecar-linux-amd64.gz",
 		),
 	},
 	{
@@ -86,7 +86,7 @@ var daytonaSidecarAssets = []daytonaSidecarAsset{
 			"sandbox",
 			"daytona",
 			"sidecar_assets",
-			"agh-daytona-sidecar-linux-arm64.gz",
+			"compozy-daytona-sidecar-linux-arm64.gz",
 		),
 	},
 }

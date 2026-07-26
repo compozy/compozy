@@ -1,6 +1,6 @@
 package gate
 
-import "github.com/compozy/agh/internal/loop/dsl"
+import "github.com/compozy/compozy/internal/loop/dsl"
 
 // Evaluator evaluates gate criteria using injected runtime boundaries.
 type Evaluator struct {

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 

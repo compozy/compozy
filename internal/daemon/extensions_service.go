@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/api/udsapi"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/api/udsapi"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type daemonExtensionService struct {

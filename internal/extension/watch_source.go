@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 var _ watchpkg.Poller = (*Manager)(nil)

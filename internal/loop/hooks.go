@@ -3,7 +3,7 @@ package loop
 import (
 	"context"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // HookDispatcher is the loop hook surface consumed at loop-owned call sites.

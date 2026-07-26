@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 // BridgeVerifyRecord is the structured result of one provider verification pass.

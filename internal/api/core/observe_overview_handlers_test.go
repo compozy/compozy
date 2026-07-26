@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/testutil"
-	"github.com/compozy/agh/internal/observe"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/observe"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestObserveOverviewHandler(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestKernelSnapshotSequenceConflictAndResetIntegration(t *testing.T) {

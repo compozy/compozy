@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func (c *InboxConsumer) moveToDLQ(path string, stage string, cause error) (string, error) {

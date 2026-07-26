@@ -8,11 +8,11 @@ import (
 	"slices"
 	"strings"
 
-	bundlepkg "github.com/compozy/agh/internal/bundles"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func extensionManifestBundleDeclarationProvider(

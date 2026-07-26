@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func diffMemorySettings(current *aghconfig.MemoryConfig, desired *aghconfig.MemoryConfig) []string {

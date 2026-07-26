@@ -11,10 +11,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/prompts"
-	redactpkg "github.com/compozy/agh/internal/redact"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/memory/prompts"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func TestBridgeSetupVerifyAndSendIntegration(t *testing.T) {
@@ -57,7 +57,7 @@ func TestBridgeSetupVerifyAndSendIntegration(t *testing.T) {
 			t.Fatalf("json.Unmarshal(setup) error = %v; output=%s", err, setupOut)
 		}
 		if setup.Status != bridgepkg.BridgeStatusDisabled || setup.WebhookCommand == "" ||
-			setup.NextCommand != "agh bridge verify "+setup.BridgeInstanceID {
+			setup.NextCommand != "compozy bridge verify "+setup.BridgeInstanceID {
 			t.Fatalf("setup result = %#v", setup)
 		}
 

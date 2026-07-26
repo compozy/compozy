@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/session"
 )
 
 type sandboxExecSessionManager interface {

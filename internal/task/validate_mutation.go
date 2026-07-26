@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // Validate reports whether the create-task request is internally consistent.

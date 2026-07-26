@@ -1,8 +1,8 @@
 package session
 
 import (
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Meta returns the current metadata snapshot for persistence.

@@ -3,8 +3,8 @@ package contract
 import (
 	"time"
 
-	automationmodel "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/resources"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 type SettingsGlobalSectionResponseMetaPayload struct {

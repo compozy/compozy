@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *testing.T) {
@@ -69,7 +69,7 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 			mutateNode func(*dsl.Node)
 		}{
 			{
-				name:   "Should reject agh network tools",
+				name:   "Should reject compozy network tools",
 				nodeID: "send-update",
 				mutateNode: func(node *dsl.Node) {
 					node.Kind = "agh__network_send"

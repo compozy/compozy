@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // TaskReader loads task context needed to enrich task-event notifications.

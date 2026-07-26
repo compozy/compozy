@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
 func (c *unixSocketClient) CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error) {

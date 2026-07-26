@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestMergeRows(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func insertRecord(ctx context.Context, exec sqlExecutor, record RawRecord) error {

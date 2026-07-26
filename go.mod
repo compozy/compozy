@@ -1,8 +1,6 @@
-module github.com/compozy/agh
+module github.com/compozy/compozy
 
 go 1.26.4
-
-retract v0.0.1 // broken source module: missing embedded web/dist assets; use v0.0.2 or newer
 
 require (
 	ariga.io/atlas v1.2.3
@@ -11,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/compozy/agh-web-assets v0.0.46
+	github.com/compozy/compozy-web-assets v0.0.2
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/daytonaio/daytona/libs/sdk-go v0.190.0
 	github.com/getkin/kin-openapi v0.140.0

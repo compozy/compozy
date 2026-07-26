@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	heartbeatpkg "github.com/compozy/agh/internal/heartbeat"
-	soulpkg "github.com/compozy/agh/internal/soul"
+	heartbeatpkg "github.com/compozy/compozy/internal/heartbeat"
+	soulpkg "github.com/compozy/compozy/internal/soul"
 )
 
 const (

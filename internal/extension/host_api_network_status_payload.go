@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/network"
 )
 
 func hostAPINetworkStatusPayload(status *network.Status) apicontract.NetworkStatusPayload {

@@ -3,7 +3,7 @@ package core
 import (
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/gin-gonic/gin"
 )
 

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
-	authproviders "github.com/compozy/agh/internal/providers"
-	"github.com/compozy/agh/internal/store"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

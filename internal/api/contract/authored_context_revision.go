@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	heartbeatpkg "github.com/compozy/agh/internal/heartbeat"
-	soulpkg "github.com/compozy/agh/internal/soul"
+	"github.com/compozy/compozy/internal/diagnostics"
+	heartbeatpkg "github.com/compozy/compozy/internal/heartbeat"
+	soulpkg "github.com/compozy/compozy/internal/soul"
 )
 
 // AgentSoulRevisionPayloadFromDomain converts a Soul authoring revision into the public DTO.

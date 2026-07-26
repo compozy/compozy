@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func (s *ManagedSoulAuthoringService) persistPostWrite(

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 func TestClientDownloadArchiveLimitContract(t *testing.T) {

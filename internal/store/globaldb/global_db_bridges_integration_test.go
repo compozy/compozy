@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBBridgeInstanceRoundTripAcrossReopen(t *testing.T) {

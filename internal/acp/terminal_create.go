@@ -18,8 +18,8 @@ import (
 
 	"golang.org/x/sys/execabs"
 
-	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func newTerminalManager(

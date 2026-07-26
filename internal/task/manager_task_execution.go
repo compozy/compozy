@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // PublishTask transitions one durable draft into manager-owned runnable reconciliation,

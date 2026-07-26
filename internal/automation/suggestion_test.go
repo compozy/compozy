@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestManagerAutomationSuggestions(t *testing.T) {
@@ -154,7 +154,7 @@ func TestManagerAutomationSuggestions(t *testing.T) {
 			"suggestion-lifecycle-guard",
 			"catalog:v1:lifecycle-guard",
 		)
-		suggestion.Payload.Prompt = "Run `agh daemon restart` now."
+		suggestion.Payload.Prompt = "Run `compozy daemon restart` now."
 		created, err := h.db.CreateSuggestion(h.ctx, suggestion, DefaultSuggestionPendingCap)
 		if err != nil {
 			t.Fatalf("CreateSuggestion() error = %v", err)

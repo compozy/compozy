@@ -23,7 +23,7 @@ export AGH_AIR_DEV_RUN_ID=$dev_run_id
 
 stop_owned_daemon() {
   go run ./scripts/air-state-lock "$air_state_dir/dev-owner.lock" -- \
-    bash scripts/stop-dev-daemon.sh "$air_state_dir" "$dev_run_id" "$air_build_dir/agh"
+    bash scripts/stop-dev-daemon.sh "$air_state_dir" "$dev_run_id" "$air_build_dir/compozy"
 }
 
 cleanup() {

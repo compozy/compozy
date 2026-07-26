@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 func goalPromptMetaFromManagedInput(meta ManagedInputPromptMeta) (*acp.GoalPromptMeta, error) {

@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 const (

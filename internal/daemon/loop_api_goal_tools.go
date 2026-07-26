@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 )
 
 func (s *daemonLoopAPIService) findGoalReportTarget(

@@ -4,12 +4,12 @@ import (
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 func (m *Manager) cloneExtension(ext *managedExtension) *Extension {

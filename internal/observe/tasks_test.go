@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
@@ -28,7 +28,7 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		Title:     "Global ready",
 		Status:    taskpkg.TaskStatusReady,
 		CreatedBy: taskActor(taskpkg.ActorKindHuman, "user-1"),
-		Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task create"),
+		Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task create"),
 		CreatedAt: h.now.Add(time.Minute),
 		UpdatedAt: h.now.Add(time.Minute),
 	})
@@ -63,7 +63,7 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		TaskID:   "task-global-ready",
 		Status:   taskpkg.TaskRunStatusQueued,
 		Attempt:  1,
-		Origin:   taskOrigin(taskpkg.OriginKindCLI, "agh task run"),
+		Origin:   taskOrigin(taskpkg.OriginKindCLI, "compozy task run"),
 		QueuedAt: h.now.Add(10 * time.Minute),
 	})
 	createObserveRun(t, h, taskpkg.Run{
@@ -188,7 +188,7 @@ func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
 			Title:       id,
 			Status:      taskpkg.TaskStatusInProgress,
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   h.now,
 			UpdatedAt:   h.now,
 		})
@@ -200,7 +200,7 @@ func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
 		TaskID:    "task-claimed",
 		Status:    taskpkg.TaskRunStatusClaimed,
 		Attempt:   1,
-		Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		QueuedAt:  now.Add(-40 * time.Minute),
 		ClaimedAt: now.Add(-20 * time.Minute),
 	})
@@ -210,7 +210,7 @@ func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
 		Status:          taskpkg.TaskRunStatusStarting,
 		Attempt:         1,
 		SessionID:       "sess-live-starting",
-		Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		Origin:          taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		QueuedAt:        now.Add(-15 * time.Minute),
 		ClaimedAt:       now.Add(-4 * time.Minute),
 		RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
@@ -298,7 +298,7 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		TaskID:          "task-net",
 		Status:          taskpkg.TaskRunStatusQueued,
 		Attempt:         2,
-		Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task run"),
+		Origin:          taskOrigin(taskpkg.OriginKindCLI, "compozy task run"),
 		RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
 		IdempotencyKey:  "idem-2",
 		QueuedAt:        h.now.Add(6 * time.Minute),
@@ -455,7 +455,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			Priority:  taskpkg.PriorityUrgent,
 			Status:    taskpkg.TaskStatusReady,
 			CreatedBy: taskActor(taskpkg.ActorKindHuman, "user-1"),
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt: now.Add(-15 * time.Minute),
 			UpdatedAt: now.Add(-10 * time.Minute),
 		})
@@ -468,7 +468,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 			ApprovalState:  taskpkg.ApprovalStatePending,
 			CreatedBy:      taskActor(taskpkg.ActorKindHuman, "user-1"),
-			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:         taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:      now.Add(-14 * time.Minute),
 			UpdatedAt:      now.Add(-9 * time.Minute),
 		})
@@ -481,7 +481,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			ApprovalPolicy: taskpkg.ApprovalPolicyNone,
 			ApprovalState:  taskpkg.ApprovalStateNotRequired,
 			CreatedBy:      taskActor(taskpkg.ActorKindHuman, "user-1"),
-			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:         taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:      now.Add(-13 * time.Minute),
 			UpdatedAt:      now.Add(-8 * time.Minute),
 		})
@@ -506,7 +506,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			Status:      taskpkg.TaskStatusInProgress,
 			Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user-1"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   now.Add(-12 * time.Minute),
 			UpdatedAt:   now.Add(-7 * time.Minute),
 		})
@@ -540,7 +540,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			TaskID:   "task-ready",
 			Status:   taskpkg.TaskRunStatusQueued,
 			Attempt:  1,
-			Origin:   taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:   taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt: now.Add(-3 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
@@ -549,7 +549,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			Status:          taskpkg.TaskRunStatusRunning,
 			Attempt:         2,
 			SessionID:       "sess-live-running",
-			Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:          taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
 			QueuedAt:        now.Add(-8 * time.Minute),
 			ClaimedAt:       now.Add(-7 * time.Minute),
@@ -670,7 +670,7 @@ func TestQueryTaskDashboardFlagsBacklogAndStaleSnapshots(t *testing.T) {
 			Title:       "Backlogged work",
 			Status:      taskpkg.TaskStatusReady,
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   now.Add(-25 * time.Minute),
 			UpdatedAt:   now.Add(-25 * time.Minute),
 		})
@@ -679,7 +679,7 @@ func TestQueryTaskDashboardFlagsBacklogAndStaleSnapshots(t *testing.T) {
 			TaskID:   "task-backlog",
 			Status:   taskpkg.TaskRunStatusQueued,
 			Attempt:  1,
-			Origin:   taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:   taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt: now.Add(-20 * time.Minute),
 		})
 
@@ -770,7 +770,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 				Status:      taskpkg.TaskStatusInProgress,
 				Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 				CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-				Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+				Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 				CreatedAt:   now.Add(-30 * time.Minute),
 				UpdatedAt:   now.Add(-30 * time.Minute),
 			})
@@ -788,7 +788,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			TaskID:    "task-running-recent",
 			Status:    taskpkg.TaskRunStatusRunning,
 			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt:  now.Add(-6 * time.Minute),
 			ClaimedAt: now.Add(-5 * time.Minute),
 			StartedAt: now.Add(-time.Minute),
@@ -798,7 +798,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			TaskID:    "task-running-stale",
 			Status:    taskpkg.TaskRunStatusRunning,
 			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt:  now.Add(-25 * time.Minute),
 			ClaimedAt: now.Add(-22 * time.Minute),
 			StartedAt: now.Add(-20 * time.Minute),
@@ -808,7 +808,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			TaskID:    "task-starting",
 			Status:    taskpkg.TaskRunStatusStarting,
 			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt:  now.Add(-8 * time.Minute),
 			ClaimedAt: now.Add(-2 * time.Minute),
 		})
@@ -817,7 +817,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			TaskID:    "task-claimed",
 			Status:    taskpkg.TaskRunStatusClaimed,
 			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt:  now.Add(-9 * time.Minute),
 			ClaimedAt: now.Add(-3 * time.Minute),
 		})
@@ -826,7 +826,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			TaskID:   "task-queued",
 			Status:   taskpkg.TaskRunStatusQueued,
 			Attempt:  1,
-			Origin:   taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:   taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt: now.Add(-4 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
@@ -834,7 +834,7 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			TaskID:   "task-other-workspace",
 			Status:   taskpkg.TaskRunStatusQueued,
 			Attempt:  1,
-			Origin:   taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:   taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			QueuedAt: now.Add(-2 * time.Minute),
 		})
 
@@ -938,7 +938,7 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			Status:      taskpkg.TaskStatusReady,
 			Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   now.Add(-25 * time.Minute),
 			UpdatedAt:   now.Add(-20 * time.Minute),
 		})
@@ -959,7 +959,7 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			Status:      taskpkg.TaskStatusReady,
 			Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   now.Add(-35 * time.Minute),
 			UpdatedAt:   now.Add(-5 * time.Minute),
 		})
@@ -981,7 +981,7 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 			ApprovalState:  taskpkg.ApprovalStatePending,
 			CreatedBy:      taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:         taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:      now.Add(-18 * time.Minute),
 			UpdatedAt:      now.Add(-4 * time.Minute),
 		})
@@ -1023,7 +1023,7 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			PausedAt:     now.Add(-8 * time.Minute),
 			PausedReason: "waiting on a dependency decision",
 			CreatedBy:    taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:       taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:       taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:    now.Add(-17 * time.Minute),
 			UpdatedAt:    now.Add(-7 * time.Minute),
 		})
@@ -1036,7 +1036,7 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			Status:      taskpkg.TaskStatusReady,
 			Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   now.Add(-16 * time.Minute),
 			UpdatedAt:   now.Add(-8 * time.Minute),
 		})
@@ -1057,7 +1057,7 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			Status:      taskpkg.TaskStatusReady,
 			Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
 			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 			CreatedAt:   now.Add(-30 * time.Minute),
 			UpdatedAt:   now.Add(-25 * time.Minute),
 		})

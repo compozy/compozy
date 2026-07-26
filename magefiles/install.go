@@ -35,7 +35,7 @@ func ReleaseInstallCheck() error {
 
 // SourceInstallCheck verifies the public root go install path from source-visible files.
 func SourceInstallCheck() error {
-	tmpRoot, err := os.MkdirTemp("", "agh-source-install-check-")
+	tmpRoot, err := os.MkdirTemp("", "compozy-source-install-check-")
 	if err != nil {
 		return fmt.Errorf("create source install check dir: %w", err)
 	}
@@ -65,7 +65,7 @@ func SourceInstallCheck() error {
 		binary += ".exe"
 	}
 	if err := runCommandInDirWithEnv(context.Background(), sourceDir, env, binary, "version"); err != nil {
-		return fmt.Errorf("source install agh version: %w", err)
+		return fmt.Errorf("source install compozy version: %w", err)
 	}
 	if err := runCommandInDirWithEnv(
 		context.Background(),

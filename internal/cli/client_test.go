@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -1699,12 +1699,12 @@ func TestUnixSocketClientMethods(t *testing.T) {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/alpha":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`,
+						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.compozy/skills/review","source":"workspace"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.agh/skills/review","source":"workspace"}]}`,
+						`{"workspace":{"id":"ws-1","root_dir":"/workspace/project","name":"alpha","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/workspace/project","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"agents":[{"name":"coder","provider":"fake","prompt":"hi"}],"skills":[{"name":"review","dir":"/workspace/project/.compozy/skills/review","source":"workspace"}]}`,
 					), nil
 				case req.Method == http.MethodPatch && req.URL.Path == "/api/workspaces/ws-1":
 					body, err := io.ReadAll(req.Body)
@@ -1742,7 +1742,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"skills":[{"name":"review","description":"Review helper","source":"workspace","enabled":true,"dir":"/workspace/project/.agh/skills/review"}]}`,
+						`{"skills":[{"name":"review","description":"Review helper","source":"workspace","enabled":true,"dir":"/workspace/project/.compozy/skills/review"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/skills/review":
 					if got := req.URL.Query().Get("workspace"); got != "alpha" {
@@ -1750,7 +1750,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"skill":{"name":"review","description":"Review helper","version":"1.0.0","source":"workspace","enabled":true,"dir":"/workspace/project/.agh/skills/review","metadata":{"area":"qa"}}}`,
+						`{"skill":{"name":"review","description":"Review helper","version":"1.0.0","source":"workspace","enabled":true,"dir":"/workspace/project/.compozy/skills/review","metadata":{"area":"qa"}}}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/skills/review/content":
 					if got := req.URL.Query().Get("workspace"); got != "alpha" {
@@ -1763,7 +1763,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"name":"review","winner":{"path":"/workspace/project/.agh/skills/review/SKILL.md","tier":"workspace","resolved_to_winner":true,"detected_at":"2026-04-03T12:00:00Z"},"shadows":[{"path":"/workspace/project/.agh/skills/review/SKILL.md","tier":"workspace","resolved_to_winner":true,"detected_at":"2026-04-03T12:00:00Z"}]}`,
+						`{"name":"review","winner":{"path":"/workspace/project/.compozy/skills/review/SKILL.md","tier":"workspace","resolved_to_winner":true,"detected_at":"2026-04-03T12:00:00Z"},"shadows":[{"path":"/workspace/project/.compozy/skills/review/SKILL.md","tier":"workspace","resolved_to_winner":true,"detected_at":"2026-04-03T12:00:00Z"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/hooks/catalog":
 					if got := req.URL.Query().Get("workspace"); got != "alpha" {

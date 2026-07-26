@@ -8,8 +8,8 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/bridgesdk"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 //nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.

@@ -6,12 +6,12 @@ import (
 
 	"strings"
 
-	core "github.com/compozy/agh/internal/api/core"
+	core "github.com/compozy/compozy/internal/api/core"
 
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func hookHeartbeatWakeService(next core.HeartbeatWakeService, hooks *hooksNotifier) core.HeartbeatWakeService {

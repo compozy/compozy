@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const historyEventChunkSize = 256

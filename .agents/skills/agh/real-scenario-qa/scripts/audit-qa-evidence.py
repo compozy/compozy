@@ -310,7 +310,7 @@ def final_verify_paths(report_text: str) -> list[str]:
 def load_playbook_snapshot(workspace_path: Path | None) -> dict[str, Any] | None:
     if workspace_path is None:
         return None
-    snapshot = workspace_path / ".agh" / "playbook.json"
+    snapshot = workspace_path / ".compozy" / "playbook.json"
     if not snapshot.is_file():
         return None
     try:
@@ -485,7 +485,7 @@ def scan_forbidden_phrases(
 
 
 def collect_workspace_files(workspace_path: Path) -> list[Path]:
-    skip = {".agh", "node_modules", ".git", "__pycache__"}
+    skip = {".compozy", "node_modules", ".git", "__pycache__"}
     files: list[Path] = []
     for root, dirs, filenames in os.walk(workspace_path):
         dirs[:] = [d for d in dirs if d not in skip]

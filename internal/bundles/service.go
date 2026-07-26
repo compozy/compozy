@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	modelpkg "github.com/compozy/agh/internal/bundles/model"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/soul"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	modelpkg "github.com/compozy/compozy/internal/bundles/model"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/soul"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var (

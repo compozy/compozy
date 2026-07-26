@@ -1,8 +1,8 @@
 package globaldb
 
 import (
-	"github.com/compozy/agh/internal/notifications"
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/notifications"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 )
 
 // NotificationRepo owns notification cursor and preset persistence.

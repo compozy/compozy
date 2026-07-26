@@ -17,7 +17,7 @@
 
 ## Tool-First Operating Model
 
-AGH exposes runtime capabilities through a policy-filtered tool registry. Prefer native AGH tools over equivalent agh shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
+AGH exposes runtime capabilities through a policy-filtered tool registry. Prefer native AGH tools over equivalent compozy shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
 
 Use shell commands for repository work, explicit operator requests, and management flows AGH keeps outside the normal tool-call loop.
 
@@ -48,7 +48,7 @@ tool reference. Pass the artifact URI unchanged; continue from `next_offset` unt
 
 The artifact is readable only from its owning workspace. Missing, expired, and foreign-workspace
 references share the same not-found result, so do not infer whether another workspace owns one.
-Operator fallback is `agh tool artifact read <artifact-uri> --workspace <workspace> [--offset N]
+Operator fallback is `compozy tool artifact read <artifact-uri> --workspace <workspace> [--offset N]
 [-o json]`; human output writes the exact page bytes, while structured output carries base64 bytes
 and paging metadata. A `result_persistence_failed` tool error preserves a bounded partial result but
 does not promise a durable artifact; inspect the partial result and do not fabricate or retry a URI.
@@ -70,15 +70,15 @@ contract.
 
 Use `agh__marketplace_search` for read-only MCP, extension, skill, and bundle discovery. Results carry
 stable `entry_id` values and scoped installed state. CLI fallback:
-`agh marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
+`compozy marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
 [--workspace <id>] [--cursor <opaque>] -o json`. Continuation requires one kind and unchanged query,
 scope, and workspace. Curated/bundle cursors fence the source; remote-skill cursors validate the prior
 page boundary; grouped search omits cursors. Restart from page one after rejection. Human/TOON output
 adds a Page block; JSONL adds a `type: "page"` record after items.
 
-Exact detail is `agh marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
+Exact detail is `compozy marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
 applies to MCPs, extensions, and skills, never bundles. Global is default; workspace requires an ID.
-Refresh with `agh marketplace refresh [--kind]` or `POST /api/marketplace/refresh`; bundles are derived.
+Refresh with `compozy marketplace refresh [--kind]` or `POST /api/marketplace/refresh`; bundles are derived.
 Read each kind's `stale`, `error_class`, and `error`: failed refreshes preserve the last good rows.
 Installed HTTP/UDS and structured CLI rows use `installed_name` for lifecycle mutations; `name` is
 feed-owned and `manage_path` is an opaque presentation path to follow, not reconstruct.
@@ -94,7 +94,7 @@ For non-curated side-loads, `extension_unverified_policy_blocked` means the live
 do not match the catalog pin; do not retry with `--allow-unverified`.
 
 Install MCP catalog entries with
-`agh mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
+`compozy mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
 `POST /api/settings/mcp-servers/install`; no mutating native install tool exists. `--set KEY` reads
 one field from stdin/hidden prompt; `--vault-ref KEY=vault:mcp/...` binds a present ref. Confidential
 OAuth accepts exactly one of `--oauth-client-secret` or `--oauth-client-secret-vault-ref`.
@@ -106,7 +106,7 @@ input-free). `mcp_install_event_persist_failed` warns that install committed but
 event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
 partial secret/definition restoration retains the commit and returns a residual-state warning.
 
-When `next_step=authorize`, run `agh mcp authorize <name>`; `agh mcp auth login <name>` reaches the
+When `next_step=authorize`, run `compozy mcp authorize <name>`; `compozy mcp auth login <name>` reaches the
 same daemon-owned PKCE flow. Use `--manual` to paste a code or full redirect URL, especially for a
 remote operator or non-loopback HTTP bind. Workspace targets always carry both
 `--scope workspace --workspace <id>`. Treat authorization as complete only when redacted status is
@@ -136,16 +136,16 @@ repair requires `authenticated` plus `token_present=true`. Reads project `env_ke
 `secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
 `preserve_secrets`; renames and target changes require replacement.
 
-The singular `agh skill search`, `agh skill info <entry_id>`, and `agh extension search` commands
-read the same discovery namespace. Use `agh skill inspect <installed-name>` for effective metadata
+The singular `compozy skill search`, `compozy skill info <entry_id>`, and `compozy extension search` commands
+read the same discovery namespace. Use `compozy skill inspect <installed-name>` for effective metadata
 and resources. Do not call the deleted skill- or extension-specific browse endpoints or invent a
 per-extension native search tool.
 
 ## Skill Loading
 
 Catalogs carry names and descriptions only. Resolve canonical skill search/view through the active
-harness; CLI uses `agh skill view agh` or
-`agh skill view agh --file references/network.md` for a resource.
+harness; CLI uses `compozy skill view agh` or
+`compozy skill view compozy --file references/network.md` for a resource.
 
 Repeated `<current-available-skills>` or `<agh-situation-context>` sections may be `unchanged`.
 Reuse the latest full section for that ACP session and workspace; live surfaces remain authoritative.
@@ -172,7 +172,7 @@ Every skill list/detail payload includes resolver provenance. `provenance.preced
 
 When multiple declarations use the same skill name, AGH keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 
-    agh skill where <name> --workspace <ref> --for-agent <agent>
+    compozy skill where <name> --workspace <ref> --for-agent <agent>
     GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<agent>
 
 The response shape is `SkillShadowsRecord` / `SkillShadowsResponse`: `winner` is the effective declaration, and each entry in `shadows` carries `path`, `tier`, `resolved_to_winner`, and `detected_at`. The winning entry is marked `resolved_to_winner: true`; lower-precedence declarations remain visible with `false`.
@@ -182,7 +182,7 @@ Do not diagnose skill drift from filesystem paths alone. Use the resolver view s
 Marketplace install can write files and still fail discovery verification when the effective skill is
 disabled, shadowed by a higher-precedence declaration, missing marketplace provenance, or reporting a
 different slug. Treat a marketplace unavailable or not-discoverable install result as terminal until
-local state changes. Use `agh skill where <name>`, inspect the winning source and path, then enable
+local state changes. Use `compozy skill where <name>`, inspect the winning source and path, then enable
 the installed skill, remove or rename the shadowing declaration, or remove the broken install
 directory before retrying.
 
@@ -213,7 +213,7 @@ AGH skills follow progressive disclosure:
 - Do not nest reference-to-reference dependencies.
 - Add ## Contents to every reference file that might be partially read.
 
-For this agh skill, do not add scripts. It is a documentation and routing bundle.
+For this compozy skill, do not add scripts. It is a documentation and routing bundle.
 
 ## Reference-System Lessons
 

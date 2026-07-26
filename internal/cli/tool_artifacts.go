@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -33,10 +33,10 @@ func newToolArtifactReadCommand(deps commandDeps) *cobra.Command {
 		Use:   "read <artifact_uri>",
 		Short: "Read one workspace-scoped artifact page",
 		Example: `  # Emit one page as structured JSON
-  agh tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 -o json
+  compozy tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 -o json
 
   # Decode page bytes directly to stdout
-  agh tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536`,
+  compozy tool artifact read agh://tool-artifacts/art_<sha256> --workspace ws-1 --offset 65536`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			uri := strings.TrimSpace(args[0])

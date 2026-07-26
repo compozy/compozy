@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/tools"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"

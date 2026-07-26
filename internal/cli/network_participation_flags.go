@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/spf13/cobra"
 )
 

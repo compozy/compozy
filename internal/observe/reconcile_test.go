@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/testutil"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {

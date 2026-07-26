@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // SkillMeta maps YAML frontmatter fields per the AgentSkills spec.
@@ -93,9 +93,9 @@ const (
 	SourceUser
 	// SourceAdditional identifies skills loaded from additional workspace roots.
 	SourceAdditional
-	// SourceWorkspace is the highest-precedence source from `<workspace>/.agh/skills/`.
+	// SourceWorkspace is the highest-precedence source from `<workspace>/.compozy/skills/`.
 	SourceWorkspace
-	// SourceAgentLocal is the final overlay from `<root>/.agh/agents/<name>/skills/`.
+	// SourceAgentLocal is the final overlay from `<root>/.compozy/agents/<name>/skills/`.
 	SourceAgentLocal
 )
 

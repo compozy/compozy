@@ -5,10 +5,10 @@ import (
 
 	"fmt"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/notifications"
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/notifications"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 )
 
 func (d *Daemon) bootNotificationPresets(ctx context.Context, state *bootState) error {

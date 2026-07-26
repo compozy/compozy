@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 func AssertResolvedParticipationChannel(

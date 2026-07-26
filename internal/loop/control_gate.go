@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func evaluateGateNode(

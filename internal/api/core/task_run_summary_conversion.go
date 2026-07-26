@@ -1,8 +1,8 @@
 package core
 
 import (
-	"github.com/compozy/agh/internal/api/contract"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // TaskRunOperationalSummaryPayloadFromSummary converts run-detail operational metrics into the shared payload.

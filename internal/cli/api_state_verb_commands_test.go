@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/resources"
-	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/resources"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestAPIStateTransitionCommandsExposeExactLeaves(t *testing.T) {
@@ -47,8 +47,8 @@ func TestAPIStateTransitionCommandsExposeExactLeaves(t *testing.T) {
 			if cmd == nil {
 				t.Fatalf("Find(%v) command = nil", tt.args)
 			}
-			if got := strings.TrimSpace(cmd.CommandPath()); got != "agh "+strings.Join(tt.args, " ") {
-				t.Fatalf("command path = %q, want %q", got, "agh "+strings.Join(tt.args, " "))
+			if got := strings.TrimSpace(cmd.CommandPath()); got != "compozy "+strings.Join(tt.args, " ") {
+				t.Fatalf("command path = %q, want %q", got, "compozy "+strings.Join(tt.args, " "))
 			}
 		})
 	}

@@ -3,7 +3,7 @@ package goal
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 // SessionProjection is the store-owned state needed to compose one canonical session Goal snapshot.

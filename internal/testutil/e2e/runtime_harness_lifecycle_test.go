@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
 func TestRuntimeHarnessWaitForReadyUsesPublicSurfaces(t *testing.T) {
@@ -677,25 +677,25 @@ func TestRuntimeHelpersCoverCLIEnvAndRepoUtilities(t *testing.T) {
 	}
 }
 
-func TestBuildAGHBinaryProducesReusableExecutable(t *testing.T) {
-	path := buildAGHBinary(t)
+func TestBuildCompozyBinaryProducesReusableExecutable(t *testing.T) {
+	path := buildCompozyBinary(t)
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("os.Stat(%q) error = %v", path, err)
 	}
 
-	if got, want := buildAGHBinary(t), path; got != want {
-		t.Fatalf("second buildAGHBinary() = %q, want %q", got, want)
+	if got, want := buildCompozyBinary(t), path; got != want {
+		t.Fatalf("second buildCompozyBinary() = %q, want %q", got, want)
 	}
 }
 
-func TestBuildAGHBinaryHonorsSandboxOverride(t *testing.T) {
-	override := filepath.Join(t.TempDir(), "agh-custom")
+func TestBuildCompozyBinaryHonorsSandboxOverride(t *testing.T) {
+	override := filepath.Join(t.TempDir(), "compozy-custom")
 	if err := os.WriteFile(override, []byte("fake"), 0o755); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", override, err)
 	}
 
 	t.Setenv(daemonBinaryEnvVar, override)
-	if got, want := buildAGHBinary(t), override; got != want {
-		t.Fatalf("buildAGHBinary() with env override = %q, want %q", got, want)
+	if got, want := buildCompozyBinary(t), override; got != want {
+		t.Fatalf("buildCompozyBinary() with env override = %q, want %q", got, want)
 	}
 }

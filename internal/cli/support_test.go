@@ -47,7 +47,7 @@ func TestSupportBundleCommand(t *testing.T) {
 				return SupportBundleOperationRecord{
 					OperationID: "op_123",
 					Status:      "completed",
-					FileName:    "agh-support-bundle-20260520T120000Z.tar.gz",
+					FileName:    "compozy-support-bundle-20260520T120000Z.tar.gz",
 					SizeBytes:   12,
 					CreatedAt:   fixedTestNow,
 					UpdatedAt:   completedAt,
@@ -96,7 +96,7 @@ func TestSupportBundleCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 			t.Fatalf("json.Unmarshal(stdout) error = %v; stdout=%s", err, stdout)
 		}
-		wantPath := filepath.Join(outputDir, "agh-support-bundle-20260520T120000Z.tar.gz")
+		wantPath := filepath.Join(outputDir, "compozy-support-bundle-20260520T120000Z.tar.gz")
 		if result.Path != wantPath {
 			t.Fatalf("result.Path = %q, want %q", result.Path, wantPath)
 		}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
 
 var _ mcppkg.HostAPIInvoker = (*unixSocketClient)(nil)

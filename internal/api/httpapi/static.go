@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	webassets "github.com/compozy/agh-web-assets"
+	webassets "github.com/compozy/compozy-web-assets"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,7 +39,7 @@ func newEmbeddedStaticFS() (staticSourceFS, error) {
 	}
 	return staticSourceFS{
 		fs:     staticFS,
-		source: fmt.Sprintf("embedded %s/%s", "github.com/compozy/agh-web-assets", webassets.DistDir),
+		source: fmt.Sprintf("embedded %s/%s", "github.com/compozy/compozy-web-assets", webassets.DistDir),
 	}, nil
 }
 

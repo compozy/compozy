@@ -3,8 +3,8 @@ package core
 import (
 	"context"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/observe"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/observe"
 )
 
 // BridgeCatalogObserver is the required bounded bridge projection used by public catalog surfaces.

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestCodecShouldRoundTripNetworkParticipation(t *testing.T) {

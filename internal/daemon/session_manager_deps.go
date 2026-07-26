@@ -3,16 +3,16 @@ package daemon
 import (
 	"log/slog"
 
-	"github.com/compozy/agh/internal/admission"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/toolruntime"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/admission"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/toolruntime"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.

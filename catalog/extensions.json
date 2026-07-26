@@ -9,11 +9,11 @@
             "version": "1.0.0",
             "published_at": "2026-07-17T00:40:00Z",
             "install_slug": "compozy/repository-orientation",
-            "artifact_url": "https://raw.githubusercontent.com/compozy/agh/main/catalog/artifacts/repository-orientation-v1.0.0.tar.gz",
+            "artifact_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts/repository-orientation-v1.0.0.tar.gz",
             "digest_sha256": "d78c05d9d3a1924f9c16af39b4040d81287b50ac2b35c677dc060c1a071dabdd",
             "tier": "official",
             "author": "Compozy",
-            "repository": "https://github.com/compozy/agh/tree/main/catalog/packages/repository-orientation"
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/repository-orientation"
         }
     ]
 }

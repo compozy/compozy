@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func (p *Process) checkpointShutdownRequested(ctx context.Context) {

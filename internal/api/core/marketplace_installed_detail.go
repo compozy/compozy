@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/api/contract"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/skills"
 )
 
 func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(

@@ -3,8 +3,8 @@ package daemon
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/api/core"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/core"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type nativeToolAvailabilitySet struct {

@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 var localDatabaseMigrationLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -67,7 +67,7 @@ func (e *localDatabaseOpenError) errorPayload() contract.ErrorPayload {
 		diagnostics.WithEvidence(map[string]any{
 			"surface":        e.Surface,
 			"offending_path": e.Path,
-			"recovery_scope": "complete AGH_HOME or workspace .agh directory",
+			"recovery_scope": "complete AGH_HOME or workspace .compozy directory",
 		}),
 	)
 	return contract.ErrorPayload{Error: diagnostics.Redact(e.Error()), Diagnostic: &item}

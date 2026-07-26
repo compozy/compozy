@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/doctor"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/doctor"
 
-	"github.com/compozy/agh/internal/session"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
 )
 

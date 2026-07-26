@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {

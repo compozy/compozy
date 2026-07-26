@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/resources"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (s *Service) validateActivationAgentBindings(

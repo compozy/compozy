@@ -5,10 +5,10 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	ssepkg "github.com/compozy/agh/internal/sse"
-	taskpkg "github.com/compozy/agh/internal/task"
+	ssepkg "github.com/compozy/compozy/internal/sse"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func promptRedactRaw(raw json.RawMessage) json.RawMessage {

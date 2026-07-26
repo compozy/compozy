@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/windowmanager"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func canonicalizeBundleLayouts(ctx context.Context, bundle *extensionpkg.BundleSpec) error {

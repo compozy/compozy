@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	sessionledger "github.com/compozy/agh/internal/sessions/ledger"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestManagerSessionLedger(t *testing.T) {

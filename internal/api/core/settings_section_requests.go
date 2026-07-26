@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
 )
 

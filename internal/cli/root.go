@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
-	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
 
 const (
-	rootAghKey       = "agh"
+	rootAghKey       = "compozy"
 	rootVersionKey   = "version"
 	cliCodeKey       = "code"
 	cliFieldKey      = "field"
@@ -99,11 +99,11 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 		Use:   rootAghKey,
 		Short: "AGH — Artificial General Hivemind",
 		Example: `  # Start the daemon and create a session in the current workspace
-  agh daemon start
-  agh session new --agent general
+  compozy daemon start
+  compozy session new --agent general
 
   # Print machine-readable output for automation
-  agh session list -o json`,
+  compozy session list -o json`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -175,7 +175,7 @@ func newVersionCommand() *cobra.Command {
 			return writeCommandOutput(cmd, outputBundle{
 				jsonValue: version.Current(),
 				human: func() (string, error) {
-					return fmt.Sprintf("agh %s", version.Current().Version), nil
+					return fmt.Sprintf("compozy %s", version.Current().Version), nil
 				},
 				toon: func() (string, error) {
 					info := version.Current()

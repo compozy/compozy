@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/admission"
-	"github.com/compozy/agh/internal/diagnostics"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
-	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/diagnostics"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 type recordingParticipationResolver struct {
@@ -2632,11 +2632,11 @@ func TestDeriveActorContextsForSupportedSurfaces(t *testing.T) {
 		{
 			name: "human cli",
 			derive: func() (ActorContext, error) {
-				return DeriveHumanActorContext("user-1", OriginKindCLI, "agh task create")
+				return DeriveHumanActorContext("user-1", OriginKindCLI, "compozy task create")
 			},
 			want: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-				Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+				Origin:    Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
 				Authority: FullAccessAuthority(),
 				Scope:     CallerScope{Operator: true},
 			},
@@ -4386,7 +4386,7 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 			spec: CreateTask{Scope: ScopeGlobal, Title: "Global task"},
 			actor: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-				Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+				Origin:    Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
 				Scope:     CallerScope{Operator: true},
 				Authority: Authority{Read: true, Write: true, CreateWorkspace: true},
 			},
@@ -4396,7 +4396,7 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 			spec: CreateTask{Scope: ScopeWorkspace, WorkspaceID: "ws-1", Title: "Workspace task"},
 			actor: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-				Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+				Origin:    Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
 				Scope:     CallerScope{WorkspaceID: "ws-1", Operator: true},
 				Authority: Authority{Read: true, Write: true, CreateGlobal: true},
 			},
@@ -9249,7 +9249,7 @@ func TestManagerStartRunPreservesResolvedParticipationSnapshot(t *testing.T) {
 	}
 	resolver := &recordingParticipationResolver{spec: liveSpec}
 	bootstrap := newTaskManagerForTestWithOptions(t, store, WithParticipationResolver(resolver))
-	actor, err := DeriveHumanActorContext("user-1", OriginKindCLI, "agh task run start")
+	actor, err := DeriveHumanActorContext("user-1", OriginKindCLI, "compozy task run start")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}

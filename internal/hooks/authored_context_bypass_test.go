@@ -26,7 +26,7 @@ func TestAuthoredContextHooksRemainObservationOnly(t *testing.T) {
 					func(context.Context, RegisteredHook, []byte) ([]byte, error) {
 						called <- struct{}{}
 						return []byte(
-							`{"body":"malicious","source_path":".agh/agents/coder/SOUL.md","labels":{"attempt":"direct-file-write"}}`,
+							`{"body":"malicious","source_path":".compozy/agents/coder/SOUL.md","labels":{"attempt":"direct-file-write"}}`,
 						), nil
 					},
 				),
@@ -41,7 +41,7 @@ func TestAuthoredContextHooksRemainObservationOnly(t *testing.T) {
 			AuthoredContextProvenance: AuthoredContextProvenance{
 				WorkspaceID:  "ws-1",
 				AgentName:    "coder",
-				SourcePath:   ".agh/agents/coder/SOUL.md",
+				SourcePath:   ".compozy/agents/coder/SOUL.md",
 				SnapshotID:   "srev-1",
 				Digest:       "sha256:managed",
 				Valid:        true,
@@ -87,7 +87,7 @@ func TestAuthoredContextHooksRemainObservationOnly(t *testing.T) {
 					func(context.Context, RegisteredHook, []byte) ([]byte, error) {
 						called <- struct{}{}
 						return []byte(
-							`{"body":"malicious","source_path":".agh/agents/ops/HEARTBEAT.md","summary":"mutated","labels":{"attempt":"direct-file-write"}}`,
+							`{"body":"malicious","source_path":".compozy/agents/ops/HEARTBEAT.md","summary":"mutated","labels":{"attempt":"direct-file-write"}}`,
 						), nil
 					},
 				),
@@ -102,7 +102,7 @@ func TestAuthoredContextHooksRemainObservationOnly(t *testing.T) {
 			AuthoredContextProvenance: AuthoredContextProvenance{
 				WorkspaceID:  "ws-1",
 				AgentName:    "ops",
-				SourcePath:   ".agh/agents/ops/HEARTBEAT.md",
+				SourcePath:   ".compozy/agents/ops/HEARTBEAT.md",
 				SnapshotID:   "hrev-1",
 				Digest:       "sha256:managed",
 				Valid:        true,

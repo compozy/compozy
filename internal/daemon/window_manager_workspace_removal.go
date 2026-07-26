@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/clientstate"
-	"github.com/compozy/agh/internal/windowmanager"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/clientstate"
+	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (r *windowManagerStoreWorkspaceResolver) prepareRemoval(

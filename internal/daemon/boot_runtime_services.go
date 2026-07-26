@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/memory"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/memory"
 )
 
 func (d *Daemon) bootRuntimeServices(

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/task"
 )
 
 // InlineGoalLoopName is the reserved non-catalog display identity for session Goals.

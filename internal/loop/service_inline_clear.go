@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/task"
 )
 
 // ClearInlineGoal hides the newest session-origin Goal and stops it first when still live.

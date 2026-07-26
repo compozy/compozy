@@ -1,5 +1,5 @@
 [daemon]
-socket = "~/.agh/daemon.sock"
+socket = "~/.compozy/daemon.sock"
 
 [http]
 host = "localhost"

@@ -6,11 +6,11 @@ import (
 	"errors"
 	"testing"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestManagerWatchPoll(t *testing.T) {

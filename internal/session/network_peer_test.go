@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestNetworkPeerCapabilitiesProjectsUnifiedFieldsAndDeepCopiesCatalogData(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (r *reviewRouter) isOriginalWorker(info *session.Info, original originalWorkerIdentity) bool {
@@ -106,7 +106,7 @@ func reviewSessionName(taskID string) string {
 
 func reviewRouterPromptOverlay(taskID string, runID string) string {
 	return fmt.Sprintf(
-		"Load the agh skill and read %s. Review task %s run %s and submit the verdict with submit_run_review.",
+		"Load the compozy skill and read %s. Review task %s run %s and submit the verdict with submit_run_review.",
 		bundledTaskReference,
 		strings.TrimSpace(taskID),
 		strings.TrimSpace(runID),

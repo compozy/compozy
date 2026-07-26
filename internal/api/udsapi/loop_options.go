@@ -1,6 +1,6 @@
 package udsapi
 
-import "github.com/compozy/agh/internal/api/core"
+import "github.com/compozy/compozy/internal/api/core"
 
 // WithAutomation injects the daemon-owned automation manager.
 func WithAutomation(manager core.AutomationManager) Option {

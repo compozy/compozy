@@ -288,7 +288,7 @@ func TestMemoryV2ConfigValidationRejectsInvalidValues(t *testing.T) {
 		{
 			name: "workspace toml path",
 			patch: func(cfg *MemoryConfig) {
-				cfg.Workspace.TOMLPath = ".agh/workspace.toml"
+				cfg.Workspace.TOMLPath = ".compozy/workspace.toml"
 			},
 			want: "memory.workspace.toml_path",
 		},

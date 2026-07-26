@@ -12,9 +12,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/compozy/agh/internal/extension/surfaces"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/extension/surfaces"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
 // LoadManifest reads one extension manifest from dir, preferring TOML over JSON.

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/testutil"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T) {
@@ -682,7 +682,7 @@ func mustTestModelSource(
 func openModelSourceTestStore(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
-	store, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), "agh.db"))
+	store, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), "compozy.db"))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

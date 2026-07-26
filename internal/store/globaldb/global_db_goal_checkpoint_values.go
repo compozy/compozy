@@ -1,6 +1,6 @@
 package globaldb
 
-import "github.com/compozy/agh/internal/loop/goal"
+import "github.com/compozy/compozy/internal/loop/goal"
 
 func goalGrantConsumed(grant *goal.ControlGrant) int {
 	if grant == nil || grant.Consumed {

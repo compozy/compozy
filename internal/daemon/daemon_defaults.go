@@ -5,12 +5,12 @@ import (
 
 	"os"
 
-	"github.com/compozy/agh/internal/api/httpapi"
-	"github.com/compozy/agh/internal/api/udsapi"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/udsapi"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 func (d *Daemon) applyServerFactoryDefaults() {

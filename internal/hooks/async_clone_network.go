@@ -1,6 +1,6 @@
 package hooks
 
-import "github.com/compozy/agh/internal/network/participation"
+import "github.com/compozy/compozy/internal/network/participation"
 
 func cloneCoordinatorContext(ctx CoordinatorContext) CoordinatorContext {
 	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)

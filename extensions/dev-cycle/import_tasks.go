@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type importTasksInput struct {

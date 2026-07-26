@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 func (p *whatsappProvider) newGraphAPI(cfg resolvedInstanceConfig) whatsappAPI {

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Projector routes ordered events to deterministic, independently rebuildable entries.

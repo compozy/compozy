@@ -3,12 +3,12 @@ package daemon
 import (
 	"context"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/providers"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/store"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/providers"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type daemonSettingsRuntimeApplier struct {
@@ -239,7 +239,7 @@ func configApplyFailure(
 			diagnostics.RedactAndBound(err.Error(), 1024),
 			diagnosticcontract.SeverityError,
 			diagnosticcontract.FreshnessLive,
-			diagnostics.WithSuggestedCommand("agh config reload"),
+			diagnostics.WithSuggestedCommand("compozy config reload"),
 		),
 	}
 }

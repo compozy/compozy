@@ -5,7 +5,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func newAgentHeartbeatInspectCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "inspect <agent>",
 		Short:   "Inspect one agent's resolved Heartbeat policy",
-		Example: "  agh agent heartbeat inspect coder --workspace checkout-api --json",
+		Example: "  compozy agent heartbeat inspect coder --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -56,7 +56,7 @@ func newAgentHeartbeatValidateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "validate <agent>",
 		Short:   "Validate a proposed Heartbeat policy body",
-		Example: "  agh agent heartbeat validate coder --file HEARTBEAT.md --workspace checkout-api --json",
+		Example: "  compozy agent heartbeat validate coder --file HEARTBEAT.md --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -97,7 +97,7 @@ func newAgentHeartbeatWriteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "write <agent>",
 		Short:   "Create or replace HEARTBEAT.md through managed authoring",
-		Example: "  agh agent heartbeat write coder --file HEARTBEAT.md --expected-digest sha256:old --json",
+		Example: "  compozy agent heartbeat write coder --file HEARTBEAT.md --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -143,7 +143,7 @@ func newAgentHeartbeatDeleteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "delete <agent>",
 		Short:   "Delete HEARTBEAT.md through managed authoring",
-		Example: "  agh agent heartbeat delete coder --expected-digest sha256:old --json",
+		Example: "  compozy agent heartbeat delete coder --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -183,7 +183,7 @@ func newAgentHeartbeatHistoryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "history <agent>",
 		Short:   "List managed Heartbeat authoring revisions",
-		Example: "  agh agent heartbeat history coder --limit 10 --workspace checkout-api --json",
+		Example: "  compozy agent heartbeat history coder --limit 10 --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -223,7 +223,7 @@ func newAgentHeartbeatRollbackCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "rollback <agent>",
 		Short:   "Rollback HEARTBEAT.md to a managed revision or snapshot digest",
-		Example: "  agh agent heartbeat rollback coder --revision-id rev_123 --expected-digest sha256:old --json",
+		Example: "  compozy agent heartbeat rollback coder --revision-id rev_123 --expected-digest sha256:old --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -287,7 +287,7 @@ func newAgentHeartbeatStatusCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "status <agent>",
 		Short:   "Read Heartbeat policy status and wake eligibility",
-		Example: "  agh agent heartbeat status coder --session sess_123 --workspace checkout-api --json",
+		Example: "  compozy agent heartbeat status coder --session sess_123 --workspace checkout-api --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -334,7 +334,7 @@ func newAgentHeartbeatWakeCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "wake <agent>",
 		Short:   "Request one manual advisory Heartbeat wake",
-		Example: "  agh agent heartbeat wake coder --session sess_123 --dry-run --json",
+		Example: "  compozy agent heartbeat wake coder --session sess_123 --dry-run --json",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

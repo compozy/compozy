@@ -3,8 +3,8 @@ package core
 import (
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // GoalSnapshotPayloadFromSession maps the session-domain projection to the canonical public contract.

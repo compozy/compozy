@@ -21,8 +21,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/github/bin
 go build -o ./extensions/bridges/github/bin/github ./extensions/bridges/github
-agh extension install ./extensions/bridges/github --allow-unverified --yes -o json
-agh extension status github -o json
+compozy extension install ./extensions/bridges/github --allow-unverified --yes -o json
+compozy extension status github -o json
 ```
 
 ## Secrets
@@ -60,7 +60,7 @@ deployments. Bridge config cannot redirect bound credentials.
 
 - One bridge instance owns one repository.
 - Only newly created issue and review comments start turns.
-- `agh bridge verify` reports provider identity as `skipped`; enabled runtime health performs the live
+- `compozy bridge verify` reports provider identity as `skipped`; enabled runtime health performs the live
   PAT/App authentication probe.
 - Generic outbound media and provider-visible tool progress are not implemented.
 

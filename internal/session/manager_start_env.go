@@ -4,10 +4,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/procutil"
 )
 
 func (m *Manager) sessionStartOpts(

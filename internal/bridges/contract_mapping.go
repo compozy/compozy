@@ -3,7 +3,7 @@ package bridges
 import (
 	"slices"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // BridgeInstanceToContract maps one domain snapshot into its provider-facing wire contract.

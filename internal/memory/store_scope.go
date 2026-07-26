@@ -12,9 +12,10 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/fileutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 func (s *Store) dirForScope(scope memcontract.Scope) (string, error) {
@@ -73,7 +74,7 @@ func (s *Store) agentMemoryDir() (string, error) {
 				errors.New("workspace directory is required"),
 			)
 		}
-		return filepath.Join(s.workspaceRoot, ".agh", "agents", agentName, memoryDirName), nil
+		return filepath.Join(s.workspaceRoot, aghconfig.DirName, "agents", agentName, memoryDirName), nil
 	default:
 		return "", wrapValidationError(
 			"resolve agent tier",

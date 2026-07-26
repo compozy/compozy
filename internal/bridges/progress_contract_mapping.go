@@ -1,6 +1,6 @@
 package bridges
 
-import bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+import bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 
 func progressConfigToContract(config ProgressConfig) bridgecontract.ProgressConfig {
 	return bridgecontract.ProgressConfig{

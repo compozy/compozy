@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
 const loopForkRollbackTimeout = 5 * time.Second

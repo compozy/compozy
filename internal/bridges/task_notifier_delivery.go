@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/notifications"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/notifications"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (n *TerminalTaskNotifier) deliverSubscription(

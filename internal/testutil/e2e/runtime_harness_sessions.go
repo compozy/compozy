@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	sessionpkg "github.com/compozy/agh/internal/session"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
 // RuntimeManifestPath returns the stable runtime-manifest path under the harness artifact root.

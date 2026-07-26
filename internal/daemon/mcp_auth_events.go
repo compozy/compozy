@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	eventspkg "github.com/compozy/agh/internal/events"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/diagnostics"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const defaultMCPAuthEventWriteTimeout = 5 * time.Second

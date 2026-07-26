@@ -13,9 +13,9 @@ import (
 	"runtime"
 	"testing"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	"github.com/compozy/agh/internal/transcript"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func mockFixturePath(t testing.TB, name string) string {

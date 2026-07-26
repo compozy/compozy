@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestOwnerKindForActor(t *testing.T) {
@@ -842,7 +842,7 @@ func validTask() Task {
 		ApprovalState:  ApprovalStateNotRequired,
 		Owner:          &Ownership{Kind: OwnerKindHuman, Ref: "user-1"},
 		CreatedBy:      ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-		Origin:         Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+		Origin:         Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		Metadata:       json.RawMessage(`{"source":"cli"}`),
@@ -858,7 +858,7 @@ func validRun() Run {
 		TaskID:   "task-1",
 		Status:   TaskRunStatusQueued,
 		Attempt:  1,
-		Origin:   Origin{Kind: OriginKindCLI, Ref: "agh task run enqueue"},
+		Origin:   Origin{Kind: OriginKindCLI, Ref: "compozy task run enqueue"},
 		QueuedAt: now,
 		Result:   json.RawMessage(`{"ok":true}`),
 	}
@@ -871,7 +871,7 @@ func validEvent() Event {
 		TaskID:    "task-1",
 		EventType: "task.created",
 		Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-		Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+		Origin:    Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
 		Payload:   json.RawMessage(`{"source":"cli"}`),
 		Timestamp: now,
 	}
@@ -890,7 +890,7 @@ func validTaskRunIdempotency() RunIdempotency {
 func validActorContext() ActorContext {
 	return ActorContext{
 		Actor:  ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
-		Origin: Origin{Kind: OriginKindCLI, Ref: "agh task run start"},
+		Origin: Origin{Kind: OriginKindCLI, Ref: "compozy task run start"},
 		Scope:  CallerScope{Operator: true},
 		Authority: Authority{
 			Read:            true,

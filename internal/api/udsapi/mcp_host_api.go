@@ -3,8 +3,8 @@ package udsapi
 import (
 	"net/http"
 
-	"github.com/compozy/agh/internal/api/core"
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/compozy/internal/api/core"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/gin-gonic/gin"
 )
 

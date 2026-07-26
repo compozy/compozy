@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (
@@ -21,11 +21,11 @@ Only prompt-safe MEMORY.md indexes are injected here. Show full memory entries o
 - ` + "`reference`" + `: external facts, docs, or system references worth re-reading on demand.`
 	memoryCommandsSection = `## Memory Commands
 
-- ` + "`agh memory list`" + ` shows discoverable memory files in the current scope.
-- ` + "`agh memory search <query>`" + ` searches durable memory before opening individual files.
-- ` + "`agh memory show <filename>`" + ` shows the full content of one memory entry.
-- ` + "`agh memory reindex`" + ` rebuilds the derived search catalog from Markdown memory files.
-- ` + "`agh memory write --name <name> --type <type> --description <desc> --content <content>`" + ` proposes a durable memory write through the controller.`
+- ` + "`compozy memory list`" + ` shows discoverable memory files in the current scope.
+- ` + "`compozy memory search <query>`" + ` searches durable memory before opening individual files.
+- ` + "`compozy memory show <filename>`" + ` shows the full content of one memory entry.
+- ` + "`compozy memory reindex`" + ` rebuilds the derived search catalog from Markdown memory files.
+- ` + "`compozy memory write --name <name> --type <type> --description <desc> --content <content>`" + ` proposes a durable memory write through the controller.`
 	memoryStalenessSection = `## Staleness Policy
 
 - Memories older than 1 day should be verified against the current repository

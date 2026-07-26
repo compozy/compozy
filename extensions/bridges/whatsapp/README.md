@@ -41,8 +41,8 @@ checkout, run this from the repository root with the daemon running:
 ```bash
 mkdir -p ./extensions/bridges/whatsapp/bin
 go build -o ./extensions/bridges/whatsapp/bin/whatsapp ./extensions/bridges/whatsapp
-agh extension install ./extensions/bridges/whatsapp --allow-unverified --yes -o json
-agh extension status whatsapp -o json
+compozy extension install ./extensions/bridges/whatsapp --allow-unverified --yes -o json
+compozy extension status whatsapp -o json
 ```
 
 ## Provider Config

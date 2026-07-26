@@ -6,8 +6,8 @@ import (
 	"maps"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
 func (o *loopWatchEventsObserver) Hydrate(ctx context.Context) error {

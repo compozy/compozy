@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/gorilla/websocket"
 )
 

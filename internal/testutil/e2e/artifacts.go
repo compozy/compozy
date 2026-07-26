@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/store"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ArtifactKind identifies one stable E2E diagnostic surface.
@@ -244,7 +244,7 @@ type ArtifactCollector struct {
 func NewArtifactCollector(t testing.TB) *ArtifactCollector {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "agh-e2e-"+sanitizePathComponent(t.Name())+"-")
+	dir, err := os.MkdirTemp("", "compozy-e2e-"+sanitizePathComponent(t.Name())+"-")
 	if err != nil {
 		t.Fatalf("os.MkdirTemp(artifacts) error = %v", err)
 	}

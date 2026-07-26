@@ -6,9 +6,9 @@ import (
 
 	"strings"
 
-	modelpkg "github.com/compozy/agh/internal/automation/model"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Triggers returns overlay-aware trigger definitions from persistence.

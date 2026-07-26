@@ -7,22 +7,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/network"
 
-	observepkg "github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const (

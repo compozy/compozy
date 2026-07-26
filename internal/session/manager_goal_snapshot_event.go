@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // AppendSessionEventIfAbsent persists and publishes one deterministic Goal projection event.

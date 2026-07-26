@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestBuildCatalogReturnsEmptyStringWhenNoSkills(t *testing.T) {
@@ -60,7 +60,7 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 		"",
 		"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -90,7 +90,7 @@ func TestBuildCurrentCatalogFormatsAuthoritativeTurnScopedCatalog(t *testing.T) 
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
 		"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -387,13 +387,13 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	writeSkillFile(t, userDir, filepath.Join("global", skillFileName), skillWithDescription("global", "Global skill"))
 	writeSkillFile(
 		t,
-		filepath.Join(workspaceOne, ".agh", "skills"),
+		filepath.Join(workspaceOne, ".compozy", "skills"),
 		filepath.Join("alpha", skillFileName),
 		skillWithDescription("alpha", "Workspace one skill"),
 	)
 	writeSkillFile(
 		t,
-		filepath.Join(workspaceTwo, ".agh", "skills"),
+		filepath.Join(workspaceTwo, ".compozy", "skills"),
 		filepath.Join("beta", skillFileName),
 		skillWithDescription("beta", "Workspace two skill"),
 	)
@@ -410,7 +410,7 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	got, err := provider.PromptSection(context.Background(), resolvedWorkspacePtr(
 		"ws_catalog_one",
 		workspaceOne,
-		resolvedSkillPath(filepath.Join(workspaceOne, ".agh", "skills", "alpha"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspaceOne, ".compozy", "skills", "alpha"), "workspace"),
 	))
 	if err != nil {
 		t.Fatalf("PromptSection() error = %v", err)
@@ -424,7 +424,7 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 		"",
 		"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
 		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"If current tool policy denies canonical `agh__skill_view`, use `compozy skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -458,7 +458,7 @@ func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 		if !strings.Contains(got, "operator fallback") {
 			t.Fatalf("BuildCatalog() = %q, want conditional operator fallback guidance", got)
 		}
-		if strings.Contains(got, "Use `agh skill view <name>` to load full instructions") {
+		if strings.Contains(got, "Use `compozy skill view <name>` to load full instructions") {
 			t.Fatalf("BuildCatalog() = %q, want no CLI-first loading guidance", got)
 		}
 	})

@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type daemonRuntimeWorkers struct {

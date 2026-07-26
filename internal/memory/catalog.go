@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	storepkg "github.com/compozy/agh/internal/store"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 const (

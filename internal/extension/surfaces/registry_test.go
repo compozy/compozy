@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func TestLookupReturnsFirstWaveSurfaceMetadata(t *testing.T) {

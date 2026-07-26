@@ -1,6 +1,6 @@
 package spec
 
-import bridgepkg "github.com/compozy/agh/internal/bridges"
+import bridgepkg "github.com/compozy/compozy/internal/bridges"
 
 func bridgeCheckStatusValues() []string {
 	return []string{

@@ -17,11 +17,11 @@ import (
 	"testing/fstest"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestRegistryLoadAllLoadsBundledSkills(t *testing.T) {
@@ -87,7 +87,7 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 		t.Fatalf("lint Source = %v, want %v", skill.Source, SourceUser)
 	}
 	if _, ok := registry.Get("debug"); ok {
-		t.Fatal("Get(\"debug\") found legacy agent-root skill, want it ignored after the .agh/agents hard cut")
+		t.Fatal("Get(\"debug\") found legacy agent-root skill, want it ignored after the .compozy/agents hard cut")
 	}
 }
 
@@ -139,7 +139,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 		)
 		writeSkillFile(
 			t,
-			filepath.Join(workspaceRoot, ".agh", "skills"),
+			filepath.Join(workspaceRoot, ".compozy", "skills"),
 			filepath.Join("review", skillFileName),
 			skillWithDescription("review", "Workspace review skill"),
 		)
@@ -157,7 +157,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 				RootDir: workspaceRoot,
 			},
 			Skills: []workspacepkg.SkillPath{{
-				Dir:    filepath.Join(workspaceRoot, ".agh", "skills", "review"),
+				Dir:    filepath.Join(workspaceRoot, ".compozy", "skills", "review"),
 				Source: "workspace",
 			}},
 		})
@@ -469,13 +469,13 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	)
 	workspaceDir := writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("local", skillFileName),
 		skillWithDescription("local", "Workspace skill"),
 	)
 	additionalDir := writeSkillFile(
 		t,
-		filepath.Join(additional, ".agh", "skills"),
+		filepath.Join(additional, ".compozy", "skills"),
 		filepath.Join("shared", skillFileName),
 		skillWithDescription("shared", "Additional skill"),
 	)
@@ -532,7 +532,7 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 	)
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("shared", skillFileName),
 		skillWithDescription("shared", "Workspace override"),
 	)
@@ -548,7 +548,7 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 	got, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
 		"ws_override",
 		workspace,
-		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "shared"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "shared"), "workspace"),
 	))
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
@@ -590,7 +590,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		}
 		writeSkillFile(
 			t,
-			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join(workspace, ".compozy", "skills"),
 			filepath.Join("cool-skill", skillFileName),
 			skillWithDescription("cool-skill", "Workspace override"),
 		)
@@ -609,7 +609,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		if _, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
 			"ws_shadow",
 			workspace,
-			resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "cool-skill"), "workspace"),
+			resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "cool-skill"), "workspace"),
 		)); err != nil {
 			t.Fatalf("ForWorkspace() error = %v", err)
 		}
@@ -641,7 +641,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		)
 		writeSkillFile(
 			t,
-			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join(workspace, ".compozy", "skills"),
 			filepath.Join("shared", skillFileName),
 			skillWithDescription("shared", "Workspace override"),
 		)
@@ -654,7 +654,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		resolved := resolvedWorkspacePtr(
 			"ws_cache_refresh",
 			workspace,
-			resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "shared"), "workspace"),
+			resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "shared"), "workspace"),
 		)
 		if _, err := registry.ForWorkspace(context.Background(), resolved); err != nil {
 			t.Fatalf("first ForWorkspace() error = %v", err)
@@ -764,13 +764,13 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		additional := filepath.Join(root, "additional")
 		writeSkillFile(
 			t,
-			filepath.Join(additional, ".agh", "skills"),
+			filepath.Join(additional, ".compozy", "skills"),
 			filepath.Join("layered-skill", skillFileName),
 			skillWithDescription("layered-skill", "Additional override"),
 		)
 		writeSkillFile(
 			t,
-			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join(workspace, ".compozy", "skills"),
 			filepath.Join("layered-skill", skillFileName),
 			skillWithDescription("layered-skill", "Workspace override"),
 		)
@@ -820,12 +820,12 @@ func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 	workspace := filepath.Join(root, "workspace")
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("cached", skillFileName),
 		skillWithDescription("cached", "Cached skill"),
 	)
 	resolvedWorkspace := resolvedWorkspaceForTest("ws_cached", workspace,
-		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "cached"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "cached"), "workspace"),
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{})
@@ -868,12 +868,12 @@ func TestRegistryForWorkspaceRescansWhenChanged(t *testing.T) {
 	workspace := filepath.Join(root, "workspace")
 	skillPath := writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("rescan", skillFileName),
 		skillWithDescription("rescan", "Initial description"),
 	)
 	resolvedWorkspace := resolvedWorkspaceForTest("ws_rescan", workspace,
-		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "rescan"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "rescan"), "workspace"),
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{})
@@ -931,13 +931,13 @@ func TestRegistryForWorkspaceReturnsDifferentResultsPerWorkspace(t *testing.T) {
 
 	writeSkillFile(
 		t,
-		filepath.Join(workspaceOne, ".agh", "skills"),
+		filepath.Join(workspaceOne, ".compozy", "skills"),
 		filepath.Join("one", skillFileName),
 		skillWithDescription("one", "First workspace"),
 	)
 	writeSkillFile(
 		t,
-		filepath.Join(workspaceTwo, ".agh", "skills"),
+		filepath.Join(workspaceTwo, ".compozy", "skills"),
 		filepath.Join("two", skillFileName),
 		skillWithDescription("two", "Second workspace"),
 	)
@@ -947,7 +947,7 @@ func TestRegistryForWorkspaceReturnsDifferentResultsPerWorkspace(t *testing.T) {
 	first, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
 		"ws_one",
 		workspaceOne,
-		resolvedSkillPath(filepath.Join(workspaceOne, ".agh", "skills", "one"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspaceOne, ".compozy", "skills", "one"), "workspace"),
 	))
 	if err != nil {
 		t.Fatalf("ForWorkspace(workspaceOne) error = %v", err)
@@ -955,7 +955,7 @@ func TestRegistryForWorkspaceReturnsDifferentResultsPerWorkspace(t *testing.T) {
 	second, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
 		"ws_two",
 		workspaceTwo,
-		resolvedSkillPath(filepath.Join(workspaceTwo, ".agh", "skills", "two"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspaceTwo, ".compozy", "skills", "two"), "workspace"),
 	))
 	if err != nil {
 		t.Fatalf("ForWorkspace(workspaceTwo) error = %v", err)
@@ -976,12 +976,12 @@ func TestRegistryWorkspaceCacheEvictsEntriesOlderThanTTL(t *testing.T) {
 	workspace := filepath.Join(root, "workspace")
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("ttl", skillFileName),
 		skillWithDescription("ttl", "TTL skill"),
 	)
 	resolvedWorkspace := resolvedWorkspaceForTest("ws_ttl", workspace,
-		resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "ttl"), "workspace"),
+		resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "ttl"), "workspace"),
 	)
 
 	now := time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC)
@@ -1305,10 +1305,10 @@ func TestRegistryForWorkspaceReloadsWhenSkillMCPSidecarChanges(t *testing.T) {
 	t.Parallel()
 
 	workspace := t.TempDir()
-	skillDir := filepath.Join(workspace, ".agh", "skills", "cached-sidecar")
+	skillDir := filepath.Join(workspace, ".compozy", "skills", "cached-sidecar")
 	writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("cached-sidecar", skillFileName),
 		skillWithDescription("cached-sidecar", "Cached sidecar"),
 	)
@@ -1325,7 +1325,7 @@ func TestRegistryForWorkspaceReloadsWhenSkillMCPSidecarChanges(t *testing.T) {
 		"ws_cached_sidecar",
 		workspace,
 		resolvedSkillPath(
-			filepath.Join(workspace, ".agh", "skills", "cached-sidecar"),
+			filepath.Join(workspace, ".compozy", "skills", "cached-sidecar"),
 			"workspace",
 		),
 	)
@@ -1913,7 +1913,7 @@ func TestRegistryLoadContent(t *testing.T) {
 	)
 	writeSkillFile(
 		t,
-		filepath.Join(workspaceDir, ".agh", "skills"),
+		filepath.Join(workspaceDir, ".compozy", "skills"),
 		filepath.Join("workspace-skill", skillFileName),
 		skillWithBody("workspace-skill", "Workspace skill", "Workspace body"),
 	)
@@ -1960,7 +1960,7 @@ func TestRegistryLoadContent(t *testing.T) {
 			"ws-content",
 			workspaceDir,
 			resolvedSkillPath(
-				filepath.Join(workspaceDir, ".agh", "skills", "workspace-skill"),
+				filepath.Join(workspaceDir, ".compozy", "skills", "workspace-skill"),
 				"workspace",
 			),
 		),
@@ -2187,7 +2187,7 @@ func TestRegistrySetEnabledUsesSkillOnlyWorkspaceCacheKey(t *testing.T) {
 	workspaceDir := t.TempDir()
 	writeSkillFile(
 		t,
-		filepath.Join(workspaceDir, ".agh", "skills"),
+		filepath.Join(workspaceDir, ".compozy", "skills"),
 		filepath.Join("workspace-skill", skillFileName),
 		skillWithBody("workspace-skill", "Workspace skill", "body"),
 	)
@@ -2197,7 +2197,7 @@ func TestRegistrySetEnabledUsesSkillOnlyWorkspaceCacheKey(t *testing.T) {
 		"",
 		"",
 		resolvedSkillPath(
-			filepath.Join(workspaceDir, ".agh", "skills", "workspace-skill"),
+			filepath.Join(workspaceDir, ".compozy", "skills", "workspace-skill"),
 			"workspace",
 		),
 	)
@@ -2290,14 +2290,14 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		workspace := filepath.Join(root, "workspace")
 		writeSkillFile(
 			t,
-			filepath.Join(workspace, ".agh", "skills"),
+			filepath.Join(workspace, ".compozy", "skills"),
 			filepath.Join("workspace-skill", skillFileName),
 			skillWithDescription("workspace-skill", "Initial workspace description"),
 		)
 		resolved := resolvedWorkspaceForTest(
 			"ws-resource-disable",
 			workspace,
-			resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "workspace-skill"), "workspace"),
+			resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "workspace-skill"), "workspace"),
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{})
@@ -2324,7 +2324,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 
 		rewriteSkillFile(
 			t,
-			filepath.Join(workspace, ".agh", "skills", "workspace-skill", skillFileName),
+			filepath.Join(workspace, ".compozy", "skills", "workspace-skill", skillFileName),
 			skillWithDescription("workspace-skill", "Updated workspace description after rediscovery"),
 		)
 
@@ -2378,13 +2378,13 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 	additional := filepath.Join(root, "additional")
 	workspaceSkillPath := writeSkillFile(
 		t,
-		filepath.Join(workspace, ".agh", "skills"),
+		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("shared", skillFileName),
 		skillWithDescription("shared", "Workspace override"),
 	)
 	additionalSkillPath := writeSkillFile(
 		t,
-		filepath.Join(additional, ".agh", "skills"),
+		filepath.Join(additional, ".compozy", "skills"),
 		filepath.Join("shared", skillFileName),
 		skillWithDescription("shared", "Additional override"),
 	)

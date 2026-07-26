@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/marketplace"
-	"github.com/compozy/agh/internal/providers"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/windowmanager"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/marketplace"
+	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 func requireForceFailStatus(run Run) error {
@@ -19,7 +19,7 @@ func requireForceFailStatus(run Run) error {
 			"Task run is already terminal",
 			fmt.Sprintf("Run %s is already %s and cannot be force failed.", run.ID, run.Status.Normalize()),
 			diagnosticcontract.SeverityInfo,
-			fmt.Sprintf("agh task inspect %s", run.ID),
+			fmt.Sprintf("compozy task inspect %s", run.ID),
 			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
@@ -33,7 +33,7 @@ func requireForceFailStatus(run Run) error {
 				run.Status.Normalize(),
 			),
 			diagnosticcontract.SeverityError,
-			fmt.Sprintf("agh task cancel %s --reason %q", run.ID, "stop before force fail"),
+			fmt.Sprintf("compozy task cancel %s --reason %q", run.ID, "stop before force fail"),
 			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
@@ -58,7 +58,7 @@ func (m *Service) requireRetryChainDepth(ctx context.Context, source Run) error 
 				"Retry chain is too deep",
 				fmt.Sprintf("Run %s already has retry depth %d.", source.ID, depth),
 				diagnosticcontract.SeverityError,
-				fmt.Sprintf("agh task inspect %s", source.TaskID),
+				fmt.Sprintf("compozy task inspect %s", source.TaskID),
 				map[string]any{runEvidenceIDKey: source.ID, taskEvidenceIDKey: source.TaskID, "depth": depth},
 				ErrRetryChainTooDeep,
 			)
@@ -89,7 +89,7 @@ func normalizeForceFailRun(req ForceFailRun) (ForceFailRun, error) {
 			"Force fail requires a reason",
 			"Provide --reason so the recovery audit event explains why the run was failed.",
 			diagnosticcontract.SeverityError,
-			"agh task fail <run-id> --reason \"operator recovery\"",
+			"compozy task fail <run-id> --reason \"operator recovery\"",
 			nil,
 			ErrForceOpRequiresReason,
 		)
@@ -157,7 +157,7 @@ func normalizeBulkForceRunRequest(req BulkForceRunRequest, requireReason bool) (
 			"Force fail requires a reason",
 			"Provide a reason so every failed row has clear audit evidence.",
 			diagnosticcontract.SeverityError,
-			"agh task fail <run-id...> --reason \"operator recovery\"",
+			"compozy task fail <run-id...> --reason \"operator recovery\"",
 			nil,
 			ErrForceOpRequiresReason,
 		)

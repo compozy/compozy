@@ -1,6 +1,6 @@
 package session
 
-import "github.com/compozy/agh/internal/store"
+import "github.com/compozy/compozy/internal/store"
 
 // CreationProfileInput is the resolved, secret-free creation policy material.
 type CreationProfileInput struct {

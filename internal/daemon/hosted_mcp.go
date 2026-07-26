@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	"github.com/compozy/agh/internal/session"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
+	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type hostedMCPLauncherAdapter struct {

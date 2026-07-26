@@ -8,12 +8,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *Service) resolveWorkspace(

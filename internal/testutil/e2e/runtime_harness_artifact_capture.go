@@ -17,11 +17,11 @@ import (
 	"sort"
 	"strings"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 // CaptureSessionTranscript stores the session transcript artifact.

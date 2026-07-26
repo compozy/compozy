@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func networkThreadFromGenerated(row sqlcgen.GetNetworkThreadRow, queryErr error) (store.NetworkThreadSummary, error) {

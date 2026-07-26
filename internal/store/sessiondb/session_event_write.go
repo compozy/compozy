@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const canonicalEventSchema = "agh.session.event.v1"

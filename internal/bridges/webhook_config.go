@@ -3,7 +3,7 @@ package bridges
 import (
 	"net/netip"
 
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // WebhookPublicURL returns the configured full external provider callback URL.

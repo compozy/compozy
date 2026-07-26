@@ -29,7 +29,7 @@ and commits the complete topology atomically.
 Read the current revision before mutating:
 
 ```bash
-agh layout get --workspace <workspace-id> -o json
+compozy layout get --workspace <workspace-id> -o json
 ```
 
 Pass that value as `--revision` to each CLI mutation. On
@@ -41,11 +41,11 @@ blindly replay stale geometry.
 Desktop lifecycle:
 
 ```bash
-agh desktop list --workspace <workspace-id> -o json
-agh desktop create --workspace <workspace-id> --revision <revision> --name Build -o json
-agh desktop update --workspace <workspace-id> --revision <revision> --id <desktop-id> --name Review
-agh desktop reorder --workspace <workspace-id> --revision <revision> --id <desktop-id> --order 0
-agh desktop delete --workspace <workspace-id> --revision <revision> --id <desktop-id> \
+compozy desktop list --workspace <workspace-id> -o json
+compozy desktop create --workspace <workspace-id> --revision <revision> --name Build -o json
+compozy desktop update --workspace <workspace-id> --revision <revision> --id <desktop-id> --name Review
+compozy desktop reorder --workspace <workspace-id> --revision <revision> --id <desktop-id> --order 0
+compozy desktop delete --workspace <workspace-id> --revision <revision> --id <desktop-id> \
   --destination <desktop-id>
 ```
 
@@ -55,16 +55,16 @@ destination so the transfer and deletion remain one transaction.
 Client-local presentation:
 
 ```bash
-agh desktop clients register --workspace <workspace-id> --client <stable-client-id> -o json
-agh desktop switch --workspace <workspace-id> --revision <revision> \
+compozy desktop clients register --workspace <workspace-id> --client <stable-client-id> -o json
+compozy desktop switch --workspace <workspace-id> --revision <revision> \
   --client <stable-client-id> --id <desktop-id>
-agh window focus --workspace <workspace-id> --revision <revision> \
+compozy window focus --workspace <workspace-id> --revision <revision> \
   --client <stable-client-id> --direction right
-agh window zoom --workspace <workspace-id> --revision <revision> \
+compozy window zoom --workspace <workspace-id> --revision <revision> \
   --client <stable-client-id> --id <window-id>
 ```
 
-Use `agh desktop clients list|register|unregister` to manage live presentation identities. Browser
+Use `compozy desktop clients list|register|unregister` to manage live presentation identities. Browser
 clients persist only their random stable client ID locally; topology and revisions stay in the daemon.
 Each client view advances its own monotonic `presentation_revision`, independently of the workspace
 topology revision. Re-registering an existing stable ID without an active desktop preserves its
@@ -73,20 +73,20 @@ repaired view and is a no-op when nothing changed.
 Window lifecycle and placement:
 
 ```bash
-agh window list --workspace <workspace-id> -o json
-agh window open --workspace <workspace-id> --revision <revision> --app tasks \
+compozy window list --workspace <workspace-id> -o json
+compozy window open --workspace <workspace-id> --revision <revision> --app tasks \
   --pathname /tasks --search-json '{}'
-agh window navigate --workspace <workspace-id> --revision <revision> --id <window-id> \
+compozy window navigate --workspace <workspace-id> --revision <revision> --id <window-id> \
   --pathname /tasks/<task-id> --search-json '{"tab":"runs"}'
-agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --target <window-id> --placement right
-agh window move --workspace <workspace-id> --revision <revision> --id <window-id> \
+compozy window move --workspace <workspace-id> --revision <revision> --id <window-id> \
   --desktop <desktop-id> --group
-agh window float --workspace <workspace-id> --revision <revision> --id <window-id>
-agh window swap --workspace <workspace-id> --revision <revision> \
+compozy window float --workspace <workspace-id> --revision <revision> --id <window-id>
+compozy window swap --workspace <workspace-id> --revision <revision> \
   --first <window-id> --second <window-id>
-agh window close --workspace <workspace-id> --revision <revision> --id <window-id> --minimize
-agh window open --workspace <workspace-id> --revision <revision> --restore <window-id>
+compozy window close --workspace <workspace-id> --revision <revision> --id <window-id> --minimize
+compozy window open --workspace <workspace-id> --revision <revision> --restore <window-id>
 ```
 
 Structural placements are `before`, `after`, `left`, `right`, `top`, `bottom`, and `center`;
@@ -105,16 +105,16 @@ window's owning desktop for that client; `window swap` exchanges two windows' st
 Layout operations:
 
 ```bash
-agh layout arrange --workspace <workspace-id> --revision <revision> --desktop <desktop-id> \
+compozy layout arrange --workspace <workspace-id> --revision <revision> --desktop <desktop-id> \
   --window <window-a> --window <window-b> --arrangement horizontal
-agh layout arrange --workspace <workspace-id> --revision <revision> --resource <resource-id>
-agh layout resize --workspace <workspace-id> --revision <revision> \
+compozy layout arrange --workspace <workspace-id> --revision <revision> --resource <resource-id>
+compozy layout resize --workspace <workspace-id> --revision <revision> \
   --split <node-id> --boundary 0 --delta 0.05
-agh layout balance --workspace <workspace-id> --revision <revision> --group <group-id>
-agh layout undo --workspace <workspace-id> --revision <revision>
-agh layout redo --workspace <workspace-id> --revision <revision>
-agh layout watch --workspace <workspace-id> -o jsonl
-agh layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl
+compozy layout balance --workspace <workspace-id> --revision <revision> --group <group-id>
+compozy layout undo --workspace <workspace-id> --revision <revision>
+compozy layout redo --workspace <workspace-id> --revision <revision>
+compozy layout watch --workspace <workspace-id> -o jsonl
+compozy layout watch --workspace <workspace-id> --client <stable-client-id> -o jsonl
 ```
 
 `--resource` is exclusive with inline arrangement fields. Declarative `window_layout` resources are
@@ -146,11 +146,11 @@ and response contract.
 The CLI covers the same records:
 
 ```bash
-agh layout-profile list --workspace <workspace-id> -o json
-agh layout-profile get <profile-id> --workspace <workspace-id> -o json
-agh layout-profile put <profile-id> --workspace <workspace-id> \
+compozy layout-profile list --workspace <workspace-id> -o json
+compozy layout-profile get <profile-id> --workspace <workspace-id> -o json
+compozy layout-profile put <profile-id> --workspace <workspace-id> \
   --scope workspace|global --file profile.json --expected-version <n> -o json
-agh layout-profile delete <profile-id> --workspace <workspace-id> --expected-version <n> -o json
+compozy layout-profile delete <profile-id> --workspace <workspace-id> --expected-version <n> -o json
 ```
 
 `--expected-version 0` creates; a non-zero value replaces or deletes that exact version and fails on
@@ -173,9 +173,9 @@ Semantic commands are the normal path. Raw layout replacement is the validated r
 hatch:
 
 ```bash
-agh layout export --workspace <workspace-id> -o json > layout.json
-agh layout validate --workspace <workspace-id> --file layout.json -o json
-agh layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
+compozy layout export --workspace <workspace-id> -o json > layout.json
+compozy layout validate --workspace <workspace-id> --file layout.json -o json
+compozy layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
 ```
 
 Export omits history. Validate never writes. Apply binds the document to the requested workspace,
@@ -187,7 +187,7 @@ validated deep capture of its source group. For Zoom, an unchanged live source r
 restore that exact group identity, node order, weights, placement, and active stack member. If the
 source changed while the window was zoomed, AGH keeps those edits and uses the structural anchor
 fallback. Treat `source_group` as daemon-owned recovery state: preserve it during raw document round
-trips, and use `agh window zoom` or `agh__window_zoom` instead of fabricating or editing it.
+trips, and use `compozy window zoom` or `agh__window_zoom` instead of fabricating or editing it.
 
 ## Configuration And Hooks
 

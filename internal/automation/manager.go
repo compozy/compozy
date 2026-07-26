@@ -9,14 +9,14 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/vault"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var (

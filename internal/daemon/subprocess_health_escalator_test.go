@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/subprocess"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/subprocess"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestSubprocessHealthEscalator(t *testing.T) {

@@ -1,6 +1,6 @@
 package task
 
-import "github.com/compozy/agh/internal/store"
+import "github.com/compozy/compozy/internal/store"
 
 func mergeTokenStatsSummary(summary *RunOperationalSummary, stats []store.TokenStats) {
 	if summary == nil {

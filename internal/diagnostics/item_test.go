@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	contract "github.com/compozy/agh/internal/diagnosticcontract"
+	contract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 func TestNewItemRedactsDiagnosticFields(t *testing.T) {
@@ -25,7 +25,7 @@ func TestNewItemRedactsDiagnosticFields(t *testing.T) {
 			"Provider failed with Authorization: Bearer message-secret and claim agh_claim_live_secret_123",
 			contract.SeverityWarn,
 			contract.FreshnessLive,
-			WithSuggestedCommand("agh provider auth login claude"),
+			WithSuggestedCommand("compozy provider auth login claude"),
 			WithEvidence(map[string]any{
 				"api_key": "sk-live-secret",
 				"stderr":  "token=stderr-secret",
@@ -200,13 +200,13 @@ func TestStructuredErrorCarriesDiagnosticAndCause(t *testing.T) {
 			"socket token=message-secret",
 			contract.SeverityError,
 			contract.FreshnessOffline,
-			WithSuggestedCommand("agh daemon start"),
+			WithSuggestedCommand("compozy daemon start"),
 		)
 		err := NewStructuredError(item, cause)
 		if !errors.Is(err, cause) {
 			t.Fatalf("errors.Is() = false, want cause preserved")
 		}
-		if !strings.Contains(err.Error(), "agh daemon start") {
+		if !strings.Contains(err.Error(), "compozy daemon start") {
 			t.Fatalf("Error() = %q, want suggested command", err.Error())
 		}
 		if strings.Contains(err.Error(), "message-secret") {

@@ -6,9 +6,9 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func detachedHarnessReentryProcessed(state *detachedHarnessReentry) bool {

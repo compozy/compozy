@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	storepkg "github.com/compozy/agh/internal/store"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func (s *Store) markDreamPromoted(

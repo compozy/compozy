@@ -6,7 +6,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/skills"
 
 	"github.com/spf13/cobra"
 )
@@ -48,10 +48,10 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 		Use:   skillCommandsListKey,
 		Short: "List locally available skills",
 		Example: `  # List every skill visible in the current workspace
-  agh skill list
+  compozy skill list
 
   # Show only bundled skills
-  agh skill list --source bundled`,
+  compozy skill list --source bundled`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.list"))
@@ -115,10 +115,10 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 		Use:   "view <name>",
 		Short: "Read a skill or one of its resource files",
 		Example: `  # Render a skill as the XML block injected into agents
-  agh skill view code-review
+  compozy skill view code-review
 
   # Read a resource file inside a skill directory
-  agh skill view code-review --file references/checklist.md`,
+  compozy skill view code-review --file references/checklist.md`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSkillViewCommand(cmd, deps, args[0], filePath)

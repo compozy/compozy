@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/compozy/internal/diagnostics"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func terminalTaskPauseError(record Task) error {
@@ -24,7 +24,7 @@ func terminalTaskPauseError(record Task) error {
 		fmt.Sprintf("Task %s is %s and cannot be paused.", record.ID, status),
 		diagnosticcontract.SeverityInfo,
 		diagnosticcontract.FreshnessLive,
-		diagnosticitems.WithSuggestedCommand(fmt.Sprintf("agh task inspect %s", record.ID)),
+		diagnosticitems.WithSuggestedCommand(fmt.Sprintf("compozy task inspect %s", record.ID)),
 		diagnosticitems.WithEvidence(map[string]any{
 			taskEvidenceIDKey: record.ID,
 			"task_status":     string(status),

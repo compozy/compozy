@@ -13,11 +13,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 
-	"github.com/compozy/agh/internal/sse"
+	"github.com/compozy/compozy/internal/sse"
 )
 
 var _ DaemonClient = (*unixSocketClient)(nil)

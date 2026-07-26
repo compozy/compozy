@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	redactpkg "github.com/compozy/agh/internal/redact"
+	"github.com/compozy/compozy/internal/network/participation"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 const (

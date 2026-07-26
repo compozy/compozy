@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing.T) {

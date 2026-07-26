@@ -51,14 +51,14 @@ func enrichDocument(
 }
 
 // filenameToCommand converts a Cobra-generated filename to a command name.
-// e.g. "agh_session_list.md" → "agh session list"
+// e.g. "compozy_session_list.md" → "compozy session list"
 func filenameToCommand(filename string) string {
 	name := strings.TrimSuffix(filename, ".md")
 	return baseNameToCommand(name)
 }
 
 // extractDescription pulls the short description from Cobra markdown.
-// Cobra generates: ## agh session list\n\nShort description here\n\n### Synopsis
+// Cobra generates: ## compozy session list\n\nShort description here\n\n### Synopsis
 // We grab the first paragraph after the H2 heading.
 func extractDescription(raw string) string {
 	lines := strings.Split(raw, "\n")
@@ -123,7 +123,7 @@ func extractUsageLine(body string) string {
 		if !inFence {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "agh ") {
+		if strings.HasPrefix(trimmed, "compozy ") {
 			return trimmed
 		}
 	}

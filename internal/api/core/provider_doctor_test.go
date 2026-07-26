@@ -6,12 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	apitestutil "github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	authproviders "github.com/compozy/agh/internal/providers"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
 )
 

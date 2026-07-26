@@ -10,10 +10,10 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
 
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func waitForDaemonStop(

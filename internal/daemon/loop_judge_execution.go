@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/compozy/agh/internal/acp"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/acp"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/session"
 )
 
 type loopJudgeExecution struct {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	looppkg "github.com/compozy/agh/internal/loop"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func newGoalRunPolicyResolver(

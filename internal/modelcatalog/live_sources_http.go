@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/providerenv"
-	"github.com/compozy/agh/internal/vault"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/providerenv"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func defaultEndpointPath(endpoint string) string {

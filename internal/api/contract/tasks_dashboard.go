@@ -3,8 +3,8 @@ package contract
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // TaskDashboardPayload is the observer-backed task dashboard response payload.

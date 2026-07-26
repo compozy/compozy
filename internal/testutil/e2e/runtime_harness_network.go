@@ -12,9 +12,9 @@ import (
 
 	"strings"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // CreateNetworkChannel creates one network channel through the public operator surface.

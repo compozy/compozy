@@ -7,10 +7,10 @@ import (
 
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {

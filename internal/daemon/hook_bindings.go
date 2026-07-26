@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 const hookBindingManagedIDPrefix = "daemon.sync.hook_binding."

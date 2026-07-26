@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestAgentSoulCommands(t *testing.T) {
@@ -32,7 +32,7 @@ func TestAgentSoulCommands(t *testing.T) {
 					Valid:            true,
 					ValidationStatus: contract.AuthoredValidationValid,
 					Digest:           "sha256:soul",
-					SourcePath:       ".agh/agents/coder/SOUL.md",
+					SourcePath:       ".compozy/agents/coder/SOUL.md",
 				}, nil
 			},
 		}

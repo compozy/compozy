@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/bridges"
 )
 
 // ListBridgeCatalogRecords reads only metadata required to filter, count, and page the catalog.

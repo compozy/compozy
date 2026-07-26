@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestManagerSessionHealthTransitions(t *testing.T) {
@@ -907,7 +907,7 @@ func TestManagerSessionHealthTaskLeaseIsolation(t *testing.T) {
 			}
 			text := string(content)
 			for _, forbidden := range []string{
-				"github.com/compozy/agh/internal/task",
+				"github.com/compozy/compozy/internal/task",
 				"LeaseHeartbeat",
 				"HeartbeatRunLease",
 				"RenewRunLease",

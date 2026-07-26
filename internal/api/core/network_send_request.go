@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // NetworkSendRequestFromPayload validates and converts one shared send payload into the runtime request.

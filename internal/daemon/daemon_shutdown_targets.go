@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/compozy/agh/internal/clientstate"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/memory/consolidation"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/clientstate"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type shutdownTargets struct {

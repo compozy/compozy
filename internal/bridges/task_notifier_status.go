@@ -7,7 +7,7 @@ import (
 
 	"unicode/utf8"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func isTerminalTaskNotificationCandidate(eventType string) bool {

@@ -1,6 +1,6 @@
 package spec
 
-import "github.com/compozy/agh/internal/api/contract"
+import "github.com/compozy/compozy/internal/api/contract"
 
 func registryWorkspaceOperations() []OperationSpec {
 	return []OperationSpec{

@@ -24,9 +24,9 @@ import (
 	"time"
 	"unsafe"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/bridgesdk"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func TestVerifyDiscordSignatureRejectsInvalidPublicKeySignatures(t *testing.T) {
@@ -147,7 +147,7 @@ func TestMapDiscordInteractionPayloadsStableTargetIdentity(t *testing.T) {
 			},
 		},
 		Data: &discordInteractionData{
-			Name: "agh",
+			Name: "compozy",
 			Options: []discordInteractionOption{{
 				Name: "summarize",
 				Type: discordApplicationCommandOptionTypeSubcommand,
@@ -170,7 +170,7 @@ func TestMapDiscordInteractionPayloadsStableTargetIdentity(t *testing.T) {
 	if got, want := command.Envelope.ThreadID, "thread-1"; got != want {
 		t.Fatalf("ThreadID = %q, want %q", got, want)
 	}
-	if got, want := command.Envelope.Command.Command, "/agh summarize"; got != want {
+	if got, want := command.Envelope.Command.Command, "/compozy summarize"; got != want {
 		t.Fatalf("Command.Command = %q, want %q", got, want)
 	}
 	if got, want := command.Envelope.Command.Text, "release notes"; got != want {
@@ -1185,7 +1185,7 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 		ChannelID: "dm-1",
 		Channel:   &discordInteractionChannel{ID: "dm-1", Type: discordChannelTypeDM},
 		User:      &discordUser{ID: "user-1", Username: "alice"},
-		Data:      &discordInteractionData{Name: "agh"},
+		Data:      &discordInteractionData{Name: "compozy"},
 	}, now))
 	if err != nil {
 		t.Fatalf("handleInteractionWebhook() error = %v", err)

@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/compozy/agh/internal/api/contract"
+import "github.com/compozy/compozy/internal/api/contract"
 
 func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 	return outputBundle{

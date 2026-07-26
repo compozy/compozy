@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	core "github.com/compozy/agh/internal/api/core"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	goalpkg "github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/session"
+	core "github.com/compozy/compozy/internal/api/core"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // ListGoalTurns returns one workspace-owned run-wide Goal audit page.

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func TestHooksListCommandPassesFiltersAndRendersJSON(t *testing.T) {

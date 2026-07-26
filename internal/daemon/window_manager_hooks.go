@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/windowmanager"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func newWindowManagerHookObserver(state *bootState) windowmanager.EventObserver {

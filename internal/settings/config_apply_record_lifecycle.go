@@ -7,9 +7,9 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 type applyRecordInput struct {
@@ -77,7 +77,7 @@ func (s *service) recordFailedApply(
 		cause.Error(),
 		diagnosticcontract.SeverityError,
 		diagnosticcontract.FreshnessLive,
-		diagnostics.WithSuggestedCommand("agh config validate"),
+		diagnostics.WithSuggestedCommand("compozy config validate"),
 	)
 	record, err := s.createTerminalApplyRecord(ctx, applyRecordInput{
 		desiredHash: desiredHash,

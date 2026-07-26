@@ -7,7 +7,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (c *promptInputComposite) Augment(

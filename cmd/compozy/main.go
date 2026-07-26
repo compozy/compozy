@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/compozy/agh/internal/cli"
+	"github.com/compozy/compozy/internal/cli"
 )
 
 func main() {

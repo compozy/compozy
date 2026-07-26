@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestBridgeInstanceResourceCodecRejectsInvalidPayloads(t *testing.T) {

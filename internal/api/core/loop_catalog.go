@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/gin-gonic/gin"
 )
 

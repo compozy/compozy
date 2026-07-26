@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	registryclawhub "github.com/compozy/agh/internal/registry/clawhub"
-	"github.com/compozy/agh/internal/skills"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
-	skillbundled "github.com/compozy/agh/skills"
+	"github.com/compozy/compozy/internal/api/contract"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	registryclawhub "github.com/compozy/compozy/internal/registry/clawhub"
+	"github.com/compozy/compozy/internal/skills"
+	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	skillbundled "github.com/compozy/compozy/skills"
 )
 
 const (

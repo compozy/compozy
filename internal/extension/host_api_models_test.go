@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {

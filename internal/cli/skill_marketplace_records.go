@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func skillMarketplaceListingsFromRecords(

@@ -3,7 +3,7 @@ package bridgesdk
 import (
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // AckCommittedResultUnavailable acknowledges that a remote mutation committed

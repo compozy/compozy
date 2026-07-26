@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func (p *daytonaProvider) findByLabels(

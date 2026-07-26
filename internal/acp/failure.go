@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

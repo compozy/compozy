@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 var _ taskpkg.InboxReader = (*TaskRepo)(nil)

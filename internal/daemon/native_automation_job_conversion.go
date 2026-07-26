@@ -1,10 +1,10 @@
 package daemon
 
 import (
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func nativeAutomationJobFromCreateRequest(

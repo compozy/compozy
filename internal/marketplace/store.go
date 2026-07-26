@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	storepkg "github.com/compozy/agh/internal/store"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 const (

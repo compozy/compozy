@@ -18,9 +18,9 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 type lifecycleSource struct {
@@ -556,7 +556,7 @@ func assertMarketplacePostCommitCleanupFailure(
 	}
 	installDir := ManagedInstallPath(homePaths, "lifecycle-ext")
 	requireFileContains(t, filepath.Join(installDir, "VERSION.txt"), "2.0.0")
-	backups, err := filepath.Glob(installDir + ".agh-backup-*")
+	backups, err := filepath.Glob(installDir + ".compozy-backup-*")
 	if err != nil {
 		t.Fatalf("filepath.Glob(backup) error = %v", err)
 	}
@@ -761,7 +761,7 @@ func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
 			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/repository-orientation-v1.0.0.tar.gz"]),
 			RegistryTier:        ExtensionRegistryTierOfficial,
 			ArtifactURL:         server.URL + "/repository-orientation-v1.0.0.tar.gz",
-			Repository:          "https://github.com/compozy/agh",
+			Repository:          "https://github.com/compozy/compozy",
 		}
 		installed, err := InstallMarketplaceManaged(
 			t.Context(),
@@ -1190,7 +1190,7 @@ func TestMarketplaceTrustDiagnostics(t *testing.T) {
 		}
 		item := blocked.DiagnosticItem()
 		if item.Code != diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked ||
-			item.SuggestedCommand != "agh config set extensions.marketplace.allow_unverified true" {
+			item.SuggestedCommand != "compozy config set extensions.marketplace.allow_unverified true" {
 			t.Fatalf("ExtensionPolicyBlockedError.DiagnosticItem() = %#v", item)
 		}
 		if got := item.Evidence["settings_path"]; got != "/settings/extensions" {

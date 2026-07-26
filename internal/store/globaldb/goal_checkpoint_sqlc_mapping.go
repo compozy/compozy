@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func goalCheckpointInsertParams(checkpoint goal.Checkpoint) sqlcgen.InsertGoalCheckpointParams {

@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/resources"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/toolruntime"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 const (
@@ -228,7 +228,7 @@ type Manager struct {
 	logger                *slog.Logger
 	now                   func() time.Time
 	getenv                func(string) string
-	aghExecutable         func() (string, error)
+	compozyExecutable     func() (string, error)
 	secretResolver        SecretRefResolver
 	launch                processLauncher
 	toolCallTracker       ExtensionToolCallTracker
@@ -276,7 +276,7 @@ func newManagerDefaults(registry *Registry) *Manager {
 		logger:                    slog.Default(),
 		now:                       func() time.Time { return time.Now().UTC() },
 		getenv:                    os.Getenv,
-		aghExecutable:             os.Executable,
+		compozyExecutable:         os.Executable,
 		hostMethods:               make(map[string]subprocess.HandlerFunc),
 		protocolVersion:           defaultProtocolVersion,
 		supportedProtocolVersions: []string{defaultProtocolVersion},
@@ -313,8 +313,8 @@ func normalizeManagerDefaults(manager *Manager) {
 	if manager.getenv == nil {
 		manager.getenv = os.Getenv
 	}
-	if manager.aghExecutable == nil {
-		manager.aghExecutable = os.Executable
+	if manager.compozyExecutable == nil {
+		manager.compozyExecutable = os.Executable
 	}
 	if manager.launch == nil {
 		manager.launch = func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {

@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	eventspkg "github.com/compozy/agh/internal/events"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/api/contract"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func extensionEventSummaryStore(registry Registry) store.EventSummaryStore {

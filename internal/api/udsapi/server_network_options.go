@@ -1,9 +1,9 @@
 package udsapi
 
 import (
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/store"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WithNetworkService injects the runtime network manager.

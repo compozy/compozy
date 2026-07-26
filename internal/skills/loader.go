@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/filesnap"
+	"github.com/compozy/compozy/internal/filesnap"
 	yaml "gopkg.in/yaml.v3"
 )
 

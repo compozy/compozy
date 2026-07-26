@@ -1,6 +1,6 @@
 package spec
 
-import automationpkg "github.com/compozy/agh/internal/automation"
+import automationpkg "github.com/compozy/compozy/internal/automation"
 
 func automationSourceValues() []string {
 	return []string{

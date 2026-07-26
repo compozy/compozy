@@ -2,48 +2,48 @@
 
 Agent operation guidance for AGH Loops — the deterministic goal → verify → stop programs the daemon
 owns and runs. Use this reference when you author, configure, run, observe, approve, or stop a Loop
-from inside AGH. Prefer the native `agh__loop_*` tools; fall back to `agh loop` CLI or HTTP with
+from inside AGH. Prefer the native `agh__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
 structured output. Never guess a schema — resolve `agh__tool_info` for the exact descriptor first.
 
 ## The Tool Set And CLI Verbs
 
-Toolset `agh__loops` — 16 native tools. Thirteen definition/run controls have matching `agh loop`
-verbs; `agh__loop_turns` maps to `agh loop turns`; the two session-bound Goal tools use the session
+Toolset `agh__loops` — 16 native tools. Thirteen definition/run controls have matching `compozy loop`
+verbs; `agh__loop_turns` maps to `compozy loop turns`; the two session-bound Goal tools use the session
 command/native report surfaces. The CLI adds one verb (`edit`) that has no native tool.
 
-| Native tool           | Mode                            | CLI                  | Purpose                                                                      |
-| --------------------- | ------------------------------- | -------------------- | ---------------------------------------------------------------------------- |
-| `agh__loop_list`      | read                            | `agh loop list`      | List Loop definitions in the workspace.                                      |
-| `agh__loop_inspect`   | read                            | `agh loop inspect`   | Read one definition: inputs, contract, start bindings, version.              |
-| `agh__loop_validate`  | read                            | `agh loop validate`  | Lint + compile a definition without saving.                                  |
-| `agh__loop_status`    | read                            | `agh loop status`    | Read one run's status with generation detail.                                |
-| `agh__loop_runs`      | read                            | `agh loop runs`      | List runs in the workspace.                                                  |
-| `agh__loop_create`    | mutating                        | `agh loop create`    | Create/fork, or CAS-publish when `expected_version` is set.                  |
-| `agh__loop_run`       | mutating                        | `agh loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
-| `agh__loop_configure` | mutating                        | `agh loop configure` | Write per-Loop runtime config overrides.                                     |
-| `agh__loop_pause`     | mutating                        | `agh loop pause`     | Request a generation-boundary pause.                                         |
-| `agh__loop_resume`    | mutating                        | `agh loop resume`    | Resume a paused or pause-requested run.                                      |
-| `agh__loop_approve`   | mutating · **capability-gated** | `agh loop approve`   | Apply one human-gate decision.                                               |
-| `agh__loop_stop`      | destructive                     | `agh loop stop`      | Stop one active run.                                                         |
-| `agh__loop_delete`    | destructive                     | `agh loop delete`    | Delete a writable workspace definition.                                      |
-| `agh__goal_get`       | read · session-scoped           | `/goal status`       | Read the caller session's visible Goal, including terminal-until-clear.      |
-| `agh__goal_report`    | mutating · prompt-scoped        | —                    | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
-| `agh__loop_turns`     | read                            | `agh loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
+| Native tool           | Mode                            | CLI                      | Purpose                                                                      |
+| --------------------- | ------------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
+| `agh__loop_list`      | read                            | `compozy loop list`      | List Loop definitions in the workspace.                                      |
+| `agh__loop_inspect`   | read                            | `compozy loop inspect`   | Read one definition: inputs, contract, start bindings, version.              |
+| `agh__loop_validate`  | read                            | `compozy loop validate`  | Lint + compile a definition without saving.                                  |
+| `agh__loop_status`    | read                            | `compozy loop status`    | Read one run's status with generation detail.                                |
+| `agh__loop_runs`      | read                            | `compozy loop runs`      | List runs in the workspace.                                                  |
+| `agh__loop_create`    | mutating                        | `compozy loop create`    | Create/fork, or CAS-publish when `expected_version` is set.                  |
+| `agh__loop_run`       | mutating                        | `compozy loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
+| `agh__loop_configure` | mutating                        | `compozy loop configure` | Write per-Loop runtime config overrides.                                     |
+| `agh__loop_pause`     | mutating                        | `compozy loop pause`     | Request a generation-boundary pause.                                         |
+| `agh__loop_resume`    | mutating                        | `compozy loop resume`    | Resume a paused or pause-requested run.                                      |
+| `agh__loop_approve`   | mutating · **capability-gated** | `compozy loop approve`   | Apply one human-gate decision.                                               |
+| `agh__loop_stop`      | destructive                     | `compozy loop stop`      | Stop one active run.                                                         |
+| `agh__loop_delete`    | destructive                     | `compozy loop delete`    | Delete a writable workspace definition.                                      |
+| `agh__goal_get`       | read · session-scoped           | `/goal status`           | Read the caller session's visible Goal, including terminal-until-clear.      |
+| `agh__goal_report`    | mutating · prompt-scoped        | —                        | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
+| `agh__loop_turns`     | read                            | `compozy loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
 
 There is **no `agh__loop_edit` native tool**. Agents edit a definition through the authoring loop
 (validate → dry-run → `agh__loop_create` with `expected_version`) or by a filesystem write. The CLI
-`agh loop edit` is a `$EDITOR` convenience for operators and publishes through the same
+`compozy loop edit` is a `$EDITOR` convenience for operators and publishes through the same
 compare-and-swap path.
 
 ## Catalog Reads
 
-Use `agh loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces/{workspace_id}/loops`, or native `agh__loop_list`. Filters are name/contract-goal search (`--query` in CLI, `q` elsewhere), `kind` (`read_only` or `workspace`), exact category, exact latest-run status, name sort, cursor, and limit.
+Use `compozy loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces/{workspace_id}/loops`, or native `agh__loop_list`. Filters are name/contract-goal search (`--query` in CLI, `q` elsewhere), `kind` (`read_only` or `workspace`), exact category, exact latest-run status, name sort, cursor, and limit.
 
 The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `statuses`), and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Self-filtered means each facet omits its own active filter while respecting search and every other filter. Pages default to 50 and cap at 200.
 
 Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. AGH computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
-`agh loop runs` / `agh__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
+`compozy loop runs` / `agh__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 
 ## The Authoring Loop
 
@@ -119,8 +119,8 @@ limited to 16 KiB, and the daemon revalidates the current prompt/control/binding
 a durable boundary intent, not immediate completion or proof of provider-side effect uniqueness.
 Retry of the same intent deduplicates; conflict or revoke fails with a stable reason.
 
-`agh__loop_turns` and `agh loop turns --run <id> --after-seq <n>` read the run-wide monotonic audit;
-optional node/item filters narrow one instance. `agh loop runs --origin session
+`agh__loop_turns` and `compozy loop turns --run <id> --after-seq <n>` read the run-wide monotonic audit;
+optional node/item filters narrow one instance. `compozy loop runs --origin session
 --origin-session <id>` isolates conversational Runs. Turn result, reason, stop reason, verdict,
 evidence, usage, and end time remain nullable until durable evidence exists.
 
@@ -260,7 +260,7 @@ metadata such as `record_type`, `sequence`, `turn_id`, `agent_name`, and `sessio
 A Loop with a `watch-events` node is a watch Loop: it holds `watching` between wakes, defaults to
 `iteration_cap: 0`, and **never stalls on silence** — a quiet subscription is healthy dormancy. The
 parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
-detail (`agh loop runs show -o json`, HTTP/UDS parity) only while the Loop is dormant on events.
+detail (`compozy loop runs show -o json`, HTTP/UDS parity) only while the Loop is dormant on events.
 
 ## Harvesting A Channel Decision
 

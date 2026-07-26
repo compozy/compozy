@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestBuildHostedMCPServiceLogsDisabledConfiguration(t *testing.T) {

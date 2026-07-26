@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Harness lifecycle summaries stay on the existing global event-summary timeline so

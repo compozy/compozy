@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	looppkg "github.com/compozy/agh/internal/loop"
-	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
 )
 

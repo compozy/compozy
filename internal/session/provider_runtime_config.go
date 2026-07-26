@@ -1,6 +1,6 @@
 package session
 
-import aghconfig "github.com/compozy/agh/internal/config"
+import aghconfig "github.com/compozy/compozy/internal/config"
 
 func providerConfigFromResolvedAgent(resolved aghconfig.ResolvedAgent) aghconfig.ProviderConfig {
 	return aghconfig.ProviderConfig{

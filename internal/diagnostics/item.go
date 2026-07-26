@@ -9,8 +9,8 @@ import (
 	"maps"
 	"strings"
 
-	contract "github.com/compozy/agh/internal/diagnosticcontract"
-	redactpkg "github.com/compozy/agh/internal/redact"
+	contract "github.com/compozy/compozy/internal/diagnosticcontract"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // ItemOption customizes a DiagnosticItem built by NewItem.

@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/compozy/agh/internal/admission"
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // NewTaskValidationError wraps a task validation failure with the shared sentinel.

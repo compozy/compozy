@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/skills"
 )
 
 // RemoveSkill removes one installed marketplace skill.

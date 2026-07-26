@@ -3,7 +3,7 @@ package session
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Info returns a consistent snapshot of the current session state.

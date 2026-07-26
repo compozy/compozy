@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/skills"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/skills"
+	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type skillTestEnv struct {
@@ -2427,7 +2427,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 func newSkillTestEnv(t *testing.T, mutateConfig func(*aghconfig.Config)) skillTestEnv {
 	t.Helper()
 
-	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".agh-home"))
+	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

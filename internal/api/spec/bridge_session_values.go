@@ -1,10 +1,10 @@
 package spec
 
 import (
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func bridgeScopeValues() []string {

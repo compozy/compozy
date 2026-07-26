@@ -251,7 +251,7 @@ func directoryFiles(root fs.FS) ([]string, error) {
 func checkSQLCImportOwnership(root string) error {
 	generatedImports := make(map[string]string, len(sqlcPackagePaths))
 	for _, packagePath := range sqlcPackagePaths {
-		generatedImports[strconv.Quote("github.com/compozy/agh/"+packagePath+"/sqlcgen")] = packagePath
+		generatedImports[strconv.Quote("github.com/compozy/compozy/"+packagePath+"/sqlcgen")] = packagePath
 	}
 	rootFS := os.DirFS(root)
 	return fs.WalkDir(rootFS, ".", func(name string, entry fs.DirEntry, walkErr error) error {

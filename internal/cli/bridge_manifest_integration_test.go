@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 func TestBridgeSlackManifestIntegration(t *testing.T) {

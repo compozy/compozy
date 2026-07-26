@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 var nodeIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)

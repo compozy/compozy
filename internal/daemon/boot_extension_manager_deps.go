@@ -3,8 +3,8 @@ package daemon
 import (
 	"context"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func (d *Daemon) extensionManagerDeps(
@@ -46,15 +46,15 @@ func (d *Daemon) extensionManagerDeps(
 			}
 			return state.resourceReconcile.Trigger(ctx, kind, reason)
 		},
-		SoulAuthoring:   state.deps.SoulAuthoring,
-		SoulRefresher:   state.deps.SoulRefresher,
-		HeartbeatAuthor: state.deps.HeartbeatAuthor,
-		HeartbeatStatus: state.deps.HeartbeatStatus,
-		HeartbeatWake:   state.deps.HeartbeatWake,
-		SessionHealth:   state.deps.SessionHealth,
-		WakeEvents:      state.deps.WakeEvents,
-		ProcessRegistry: state.processRegistry,
-		SecretResolver:  state.providerVault,
-		AGHExecutable:   d.executable,
+		SoulAuthoring:     state.deps.SoulAuthoring,
+		SoulRefresher:     state.deps.SoulRefresher,
+		HeartbeatAuthor:   state.deps.HeartbeatAuthor,
+		HeartbeatStatus:   state.deps.HeartbeatStatus,
+		HeartbeatWake:     state.deps.HeartbeatWake,
+		SessionHealth:     state.deps.SessionHealth,
+		WakeEvents:        state.deps.WakeEvents,
+		ProcessRegistry:   state.processRegistry,
+		SecretResolver:    state.providerVault,
+		CompozyExecutable: d.executable,
 	}
 }

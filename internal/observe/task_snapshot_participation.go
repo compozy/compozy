@@ -3,7 +3,7 @@ package observe
 import (
 	"strings"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func taskSummaryIndex(

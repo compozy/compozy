@@ -29,7 +29,7 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
             root = Path(temp_dir)
             workspace = root / "workspace"
             qa_output = root / "qa-output"
-            tasks_dir = workspace / ".agh" / "tasks"
+            tasks_dir = workspace / ".compozy" / "tasks"
             tasks_dir.mkdir(parents=True)
             (tasks_dir / "open-tasks.json").write_text(
                 json.dumps(
@@ -77,7 +77,7 @@ class ActivatePlaybookTasksTest(unittest.TestCase):
                 workspace,
                 qa_output,
                 manifest,
-                "agh",
+                "compozy",
                 runner=runner,
                 recorder=lambda *_args: None,
             )

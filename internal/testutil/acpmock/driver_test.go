@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
@@ -236,7 +236,7 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 			MCPServers: []aghconfig.MCPServer{{
 				Name:      "agh-hosted-tools",
 				Transport: aghconfig.MCPServerTransportStdio,
-				Command:   "/bin/agh",
+				Command:   "/bin/compozy",
 				Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
 			}},
 		})
@@ -262,7 +262,7 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 			t.Fatalf("MCPServers = %#v, want hosted MCP entry", records[0].MCPServers)
 		}
 		stdio := records[0].MCPServers[0].Stdio
-		if stdio == nil || stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/agh" {
+		if stdio == nil || stdio.Name != "agh-hosted-tools" || stdio.Command != "/bin/compozy" {
 			t.Fatalf("diagnostic MCP server = %#v, want AGH hosted stdio entry", records[0].MCPServers[0])
 		}
 	})

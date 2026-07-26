@@ -3,8 +3,8 @@ package daemon
 import (
 	"errors"
 
-	"github.com/compozy/agh/internal/deadentity"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (d *Daemon) bootDeadEntityRegistry(state *bootState) error {

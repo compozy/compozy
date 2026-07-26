@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/heartbeat"
 )
 
 func (h *BaseHandlers) availableHeartbeatStatusForHealth(

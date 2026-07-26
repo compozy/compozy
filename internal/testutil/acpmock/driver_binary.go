@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 const driverBinaryEnvVar = "AGH_TEST_ACPMOCK_DRIVER_BIN"
@@ -42,7 +42,7 @@ func DefaultDriverPath() (string, error) {
 		return "", err
 	}
 
-	outputDir, err := os.MkdirTemp("", "agh-acpmock-driver-")
+	outputDir, err := os.MkdirTemp("", "compozy-acpmock-driver-")
 	if err != nil {
 		return "", fmt.Errorf("acpmock: create driver build directory: %w", err)
 	}

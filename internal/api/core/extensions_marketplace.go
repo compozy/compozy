@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	marketplacepkg "github.com/compozy/agh/internal/marketplace"
+	"github.com/compozy/compozy/internal/api/contract"
+	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
 func (h *BaseHandlers) joinInstalledExtensionMarketplace(

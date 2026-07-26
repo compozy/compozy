@@ -3,8 +3,8 @@ package bundles
 import (
 	"strings"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 type bundleRecordKey struct {

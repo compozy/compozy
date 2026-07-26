@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	envpkg "github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/acp"
+	envpkg "github.com/compozy/compozy/internal/sandbox"
 )
 
 func sandboxStartOpts(

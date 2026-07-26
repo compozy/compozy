@@ -3,7 +3,7 @@ package hooks
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // NetworkParticipationPreResolvePayload is dispatched before a participation snapshot persists.

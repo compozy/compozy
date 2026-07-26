@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	eventspkg "github.com/compozy/agh/internal/events"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
 const (

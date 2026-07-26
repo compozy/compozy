@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDaemonNativeToolApprovalGrants(t *testing.T) {

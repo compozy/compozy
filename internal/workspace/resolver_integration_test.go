@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
-	storepkg "github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
+	storepkg "github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestResolverIntegrationRegisterResolveAndMergeResources(t *testing.T) {
@@ -155,7 +155,7 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 
 	ctx := context.Background()
 	homePaths := newIntegrationHomePaths(t)
-	databasePath := filepath.Join(t.TempDir(), "agh.db")
+	databasePath := filepath.Join(t.TempDir(), "compozy.db")
 	db, err := globaldb.OpenGlobalDB(ctx, databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -343,7 +343,7 @@ func newIntegrationHomePaths(t *testing.T) aghconfig.HomePaths {
 func openTestGlobalDB(t *testing.T, ctx context.Context) *globaldb.GlobalDB {
 	t.Helper()
 
-	globalDB, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "agh.db"))
+	globalDB, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "compozy.db"))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

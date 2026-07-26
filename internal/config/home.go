@@ -31,7 +31,7 @@ const (
 	// LogsDirName is the directory used for structured logs.
 	LogsDirName = "logs"
 	// DatabaseName is the global database filename.
-	DatabaseName = "agh.db"
+	DatabaseName = "compozy.db"
 	// DaemonSocketName is the daemon UDS filename.
 	DaemonSocketName = "daemon.sock"
 	// DaemonLockName is the daemon file-lock name.
@@ -39,7 +39,7 @@ const (
 	// DaemonInfoName is the daemon metadata filename.
 	DaemonInfoName = "daemon.json"
 	// LogFileName is the structured daemon log filename.
-	LogFileName = "agh.log"
+	LogFileName = "compozy.log"
 	// NetworkAuditFileName is the append-only network audit filename.
 	NetworkAuditFileName = "network.audit"
 	// AgentDefinitionFileName is the canonical file name for persisted agent definitions.
@@ -227,10 +227,10 @@ func EnsureHomeLayout(paths HomePaths) error {
 			return errors.New("config: home path is required")
 		}
 		if err := os.MkdirAll(dir, privateDirMode); err != nil {
-			return fmt.Errorf("create agh directory %q: %w", dir, err)
+			return fmt.Errorf("create compozy directory %q: %w", dir, err)
 		}
 		if err := os.Chmod(dir, privateDirMode); err != nil {
-			return fmt.Errorf("secure agh directory %q: %w", dir, err)
+			return fmt.Errorf("secure compozy directory %q: %w", dir, err)
 		}
 	}
 

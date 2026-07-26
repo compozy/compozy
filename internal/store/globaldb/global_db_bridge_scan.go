@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func normalizeBridgeInstanceRecord(

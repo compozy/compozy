@@ -28,7 +28,7 @@ before:
 
 builds:
   - id: agh
-    main: ./cmd/agh
+    main: ./cmd/compozy
     binary: agh
     goos:
       - linux
@@ -42,9 +42,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/compozy/agh/internal/version.Version={{ .Version }}
-      - -X github.com/compozy/agh/internal/version.Commit={{ .ShortCommit }}
-      - -X github.com/compozy/agh/internal/version.BuildDate={{ .Date }}
+      - -X github.com/compozy/compozy/internal/version.Version={{ .Version }}
+      - -X github.com/compozy/compozy/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/compozy/compozy/internal/version.BuildDate={{ .Date }}
     env:
       - CGO_ENABLED=0
     flags:

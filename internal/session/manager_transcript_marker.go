@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 const transcriptMarkerEvidenceSourceKey = "source"

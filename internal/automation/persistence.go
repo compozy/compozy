@@ -1,6 +1,6 @@
 package automation
 
-import modelpkg "github.com/compozy/agh/internal/automation/model"
+import modelpkg "github.com/compozy/compozy/internal/automation/model"
 
 var (
 	// ErrJobNotFound reports that the requested automation job does not exist.

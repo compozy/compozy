@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 type EmbeddedJSONFields struct {

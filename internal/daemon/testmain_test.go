@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil/storeseed"
+	"github.com/compozy/compozy/internal/testutil/storeseed"
 )
 
 const deadEntityMCPHelperEnv = "AGH_TEST_DEAD_ENTITY_MCP_HELPER"

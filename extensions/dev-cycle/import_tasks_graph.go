@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/frontmatter"
-	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/frontmatter"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"gopkg.in/yaml.v3"
 )
 

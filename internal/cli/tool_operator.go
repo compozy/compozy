@@ -3,7 +3,7 @@ package cli
 import (
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -61,10 +61,10 @@ func newToolListCommand(deps commandDeps) *cobra.Command {
 		Use:   toolOperatorListKey,
 		Short: "List operator-visible registry tools",
 		Example: `  # List all operator-visible tools as JSON
-  agh tool list -o json
+  compozy tool list -o json
 
   # Inspect the session-scoped operator view for one agent
-  agh tool list --workspace ws-1 --session sess-1 --agent coder -o json`,
+  compozy tool list --workspace ws-1 --session sess-1 --agent coder -o json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
@@ -87,10 +87,10 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 		Use:   toolOperatorSearchQueryValue,
 		Short: "Search operator-visible registry tools",
 		Example: `  # Search tools by descriptor text
-  agh tool search skill -o json
+  compozy tool search skill -o json
 
   # Limit search results for automation
-  agh tool search task --limit 5 -o json`,
+  compozy tool search task --limit 5 -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.TrimSpace(args[0])
@@ -128,7 +128,7 @@ func newToolInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   "info <tool_id>",
 		Short: "Show one registry tool descriptor and diagnostics",
 		Example: `  # Show a tool descriptor and availability diagnostics
-  agh tool info agh__skill_view -o json`,
+  compozy tool info agh__skill_view -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolIDArg(args[0])
@@ -204,13 +204,13 @@ func newToolInvokeCommand(deps commandDeps) *cobra.Command {
 		Use:   "invoke <tool_id>",
 		Short: "Invoke one registry tool through daemon policy",
 		Example: `  # Invoke a tool with inline JSON input
-  agh tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
+  compozy tool invoke agh__tool_info --input '{"tool_id":"agh__skill_view"}' -o json
 
   # Invoke a tool with JSON read from a file
-  agh tool invoke agh__tool_info --input-file ./input.json -o json
+  compozy tool invoke agh__tool_info --input-file ./input.json -o json
 
   # Invoke a tool with JSON read from stdin
-  echo '{"tool_id":"agh__skill_view"}' | agh tool invoke agh__tool_info -o json`,
+  echo '{"tool_id":"agh__skill_view"}' | compozy tool invoke agh__tool_info -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolIDArg(args[0])
@@ -270,7 +270,7 @@ func newToolsetsListCommand(deps commandDeps) *cobra.Command {
 		Use:   toolOperatorListKey,
 		Short: "List registry toolsets",
 		Example: `  # List known toolsets and expansion diagnostics
-  agh toolsets list -o json`,
+  compozy toolsets list -o json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runToolCommand(cmd, deps, func(client DaemonClient) error {
@@ -292,7 +292,7 @@ func newToolsetsInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   "info <toolset_id>",
 		Short: "Show one registry toolset expansion",
 		Example: `  # Show one toolset and expanded tool ids
-  agh toolsets info agh__catalog -o json`,
+  compozy toolsets info agh__catalog -o json`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := parseToolsetIDArg(args[0])

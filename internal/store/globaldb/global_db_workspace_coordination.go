@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var _ workspacepkg.CoordinationSettings = (*WorkspaceRepo)(nil)

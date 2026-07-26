@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	"github.com/compozy/agh/internal/toolruntime"
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/toolruntime"
+	"github.com/compozy/compozy/internal/vault"
 	"golang.org/x/sys/execabs"
 )
 

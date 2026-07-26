@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
@@ -197,7 +197,7 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		}
 		assertDevCycleLoopCatalog(t, state.loopCatalog, true)
 
-		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh extension disable")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension disable")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext(disable) error = %v", err)
 		}
@@ -209,7 +209,7 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		}
 		assertDevCycleLoopCatalog(t, state.loopCatalog, false)
 
-		actor, err = taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh extension enable")
+		actor, err = taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension enable")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext(enable) error = %v", err)
 		}

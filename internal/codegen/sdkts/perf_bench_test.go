@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 func BenchmarkGenerate(b *testing.B) {

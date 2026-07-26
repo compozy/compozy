@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	memoryrecall "github.com/compozy/agh/internal/memory/recall"
-	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/diagnostics"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // RecordRecall persists live recall signals for later dreaming gates.

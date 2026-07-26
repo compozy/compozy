@@ -3,10 +3,10 @@ package transcript
 import (
 	"encoding/json"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/diagnostics"
-	redactpkg "github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/diagnostics"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const transcriptStdoutFieldKey = "stdout"

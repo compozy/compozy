@@ -162,7 +162,7 @@ def prepare_activation(
     manifest_env = manifest.get("env", {})
     if str(manifest_env.get("KICKOFF_POSTED", "false")).lower() == "true":
         raise RuntimeError("cannot prepare task activation after the operator kickoff")
-    tasks = read_tasks(workspace / ".agh" / "tasks" / "open-tasks.json")
+    tasks = read_tasks(workspace / ".compozy" / "tasks" / "open-tasks.json")
     playbook_ref = str(tasks[0].get("playbook_ref", "")).strip()
     if not playbook_ref or any(task.get("playbook_ref") != playbook_ref for task in tasks):
         raise RuntimeError("all open tasks must belong to one non-empty playbook_ref")
@@ -315,7 +315,7 @@ def main() -> int:
     parser.add_argument("--qa-output-path", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--kickoff-evidence", default="")
-    parser.add_argument("--agh-bin", default=os.environ.get("AGH_BIN", "agh"))
+    parser.add_argument("--agh-bin", default=os.environ.get("AGH_BIN", "compozy"))
     args = parser.parse_args()
 
     workspace = Path(args.workspace).resolve()

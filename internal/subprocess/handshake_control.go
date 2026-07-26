@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 // Validate checks that a v2 purpose-scoped bridge launch payload is internally consistent.

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	schedulerpkg "github.com/compozy/agh/internal/scheduler"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
+	"github.com/compozy/compozy/internal/session"
 )
 
 type schedulerPromptState interface {

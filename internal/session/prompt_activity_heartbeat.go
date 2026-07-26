@@ -5,7 +5,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (s *promptActivitySupervisor) recordWaitingHeartbeat(now time.Time, detail string) {

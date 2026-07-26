@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // Start loads every enabled extension through the six-phase pipeline.

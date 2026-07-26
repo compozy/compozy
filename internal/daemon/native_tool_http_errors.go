@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func nativeBundleConfirmationDenied(id toolspkg.ToolID) error {

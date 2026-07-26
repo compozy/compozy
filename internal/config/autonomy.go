@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	configdefaults "github.com/compozy/agh/internal/config/defaults"
+	configdefaults "github.com/compozy/compozy/internal/config/defaults"
 )
 
 const (

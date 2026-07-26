@@ -35,7 +35,7 @@ func layeredEnvLookup(primary envLookup, fallback envLookup) envLookup {
 // LoadOption customizes configuration loading.
 type LoadOption func(*loadOptions)
 
-// WithWorkspaceRoot loads the optional workspace overlay from `<root>/.agh/config.toml`.
+// WithWorkspaceRoot loads the optional workspace overlay from `<root>/.compozy/config.toml`.
 // When omitted, Load applies only the built-in defaults and the global AGH home config.
 func WithWorkspaceRoot(root string) LoadOption {
 	return func(opts *loadOptions) {

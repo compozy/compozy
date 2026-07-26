@@ -11,13 +11,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/compozy/agh/internal/acp"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/acp"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestCheckpointSummaryRuntime(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	bundlepkg "github.com/compozy/agh/internal/bundles"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 const bundleManagedIDPrefix = "daemon.sync.bundle."

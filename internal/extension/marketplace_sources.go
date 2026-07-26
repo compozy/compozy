@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 // LoadMarketplaceSources resolves marketplace sources and closes rejected sources.

@@ -21,7 +21,7 @@ Match the task to the row. Read the listed files in full before producing output
 | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Start, inspect, prompt, stop, resume, or debug AGH sessions and daemon state                                               | references/runtime-operations.md                                        |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing         | references/runtime-operations.md + references/agent-definitions.md      |
-| Expose one AGH workspace to an external MCP client with `agh mcp serve`                                                    | references/runtime-operations.md                                        |
+| Expose one AGH workspace to an external MCP client with `compozy mcp serve`                                                | references/runtime-operations.md                                        |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS  | references/window-management.md + references/native-tools.md            |
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                              | references/runtime-operations.md                                        |
 | Create or review AGH agent definitions, provider defaults, permissions, or MCP sidecars                                    | references/agent-definitions.md + references/tools-and-skills.md        |

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func validateActiveGoalPromptBinding(

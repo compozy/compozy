@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 	ErrWorkspaceHasSessions = errors.New("workspace has sessions")
 	// ErrWorkspaceHasActiveSessions reports that a workspace cannot be deleted because active sessions are running.
 	ErrWorkspaceHasActiveSessions = errors.New("workspace has active sessions")
-	// ErrWorkspaceIdentityInvalid reports a malformed .agh/workspace.toml identity file.
+	// ErrWorkspaceIdentityInvalid reports a malformed .compozy/workspace.toml identity file.
 	ErrWorkspaceIdentityInvalid = errors.New("workspace identity invalid")
 	// ErrWorkspaceIdentityPermissionDenied reports a fail-closed identity file permission failure.
 	ErrWorkspaceIdentityPermissionDenied = errors.New("workspace identity permission denied")

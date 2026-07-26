@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestBridgeSlackManifestCommand(t *testing.T) {
@@ -183,7 +183,7 @@ func testSlackManifestRecord() SlackManifestRecord {
 		Features: bridgepkg.SlackManifestFeatures{
 			BotUser: bridgepkg.SlackManifestBotUser{DisplayName: "Support agent"},
 			SlashCommands: []bridgepkg.SlackManifestSlashCommand{{
-				Command:     "/agh",
+				Command:     "/compozy",
 				URL:         "https://bridge.example.com/slack/support",
 				Description: "Send a command to AGH",
 			}},

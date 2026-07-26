@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func settingsInstalledExtensionPayloads(

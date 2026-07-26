@@ -4,7 +4,7 @@ import (
 	"maps"
 	"reflect"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 const windowManagerConfigRoot = "window_manager"

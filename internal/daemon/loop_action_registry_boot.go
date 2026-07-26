@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/gate"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 func newBootLoopActionRegistry(

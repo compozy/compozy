@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/compozy/agh/internal/store"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 // DB is an open per-workspace AGH database handle.
@@ -28,7 +28,7 @@ type Options struct {
 	WorkspaceRoot string
 }
 
-// Open resolves the workspace identity and opens <workspace>/.agh/agh.db.
+// Open resolves the workspace identity and opens <workspace>/.compozy/compozy.db.
 func Open(ctx context.Context, opts Options) (*DB, error) {
 	if ctx == nil {
 		return nil, errors.New("store: open workspace database context is required")

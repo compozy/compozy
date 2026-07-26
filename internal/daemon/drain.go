@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/compozy/agh/internal/admission"
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 // DrainState is the public daemon admission state.

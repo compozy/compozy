@@ -221,7 +221,7 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 		Short: "Create a runtime channel and start one session per selected agent",
 		Args:  cobra.MaximumNArgs(1),
 		Example: `  # Create a launch channel with two local agents
-  agh network --workspace ~/dev/ad8 channels create ad8_launch \
+  compozy network --workspace ~/dev/ad8 channels create ad8_launch \
     --purpose "Coordinate launch work" \
     --agent site_copywriter \
     --agent growth_marketer \

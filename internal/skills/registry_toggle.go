@@ -7,9 +7,9 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/filesnap"
+	"github.com/compozy/compozy/internal/filesnap"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SetEnabled updates the runtime enabled state for a named skill and keeps the

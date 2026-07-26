@@ -1,6 +1,6 @@
 package contract
 
-import "github.com/compozy/agh/internal/modelcatalog"
+import "github.com/compozy/compozy/internal/modelcatalog"
 
 // ReasoningEffort is the canonical model-catalog reasoning level exposed by API contracts.
 type ReasoningEffort = modelcatalog.ReasoningEffort

@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-const sessionDeleteTombstonePrefix = ".agh-delete-"
+const sessionDeleteTombstonePrefix = ".compozy-delete-"
 
 type stagedSessionDelete struct {
 	info          *Info

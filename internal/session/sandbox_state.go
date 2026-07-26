@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	envpkg "github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/store"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	envpkg "github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func initialSessionSandboxMeta(

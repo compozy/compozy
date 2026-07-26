@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (o *Observer) overviewUsage(

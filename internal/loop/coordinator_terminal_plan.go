@@ -1,6 +1,6 @@
 package loop
 
-import "github.com/compozy/agh/internal/task"
+import "github.com/compozy/compozy/internal/task"
 
 func noOpCoordinatorPlan(run Run) task.CoordinatorCompletionPlan {
 	return terminalCoordinatorPlan(run, &task.CoordinatorTerminal{

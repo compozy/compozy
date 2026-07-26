@@ -2,7 +2,7 @@
 
 package cli
 
-import "github.com/compozy/agh/internal/network/participation"
+import "github.com/compozy/compozy/internal/network/participation"
 
 func resolvedParticipationChannelID(spec *participation.Spec) string {
 	if spec == nil {

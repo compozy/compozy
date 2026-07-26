@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "catalog/**"
-      - "cmd/agh-catalog/**"
+      - "cmd/compozy-catalog/**"
       - "internal/marketplace/**"
       - ".github/workflows/catalog.yml"
 
@@ -26,4 +26,4 @@ jobs:
           install-tools: "false"
 
       - name: Validate catalog documents
-        run: go run ./cmd/agh-catalog validate ./catalog
+        run: go run ./cmd/compozy-catalog validate ./catalog

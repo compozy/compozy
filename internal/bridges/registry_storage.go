@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (s *Service) checkReady(ctx context.Context, action string) error {

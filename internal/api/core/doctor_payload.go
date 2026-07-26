@@ -3,9 +3,9 @@ package core
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/doctor"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions) (contract.DoctorPayload, error) {

@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func (c *unixSocketClient) ListProviders(ctx context.Context) (contract.ProviderListResponse, error) {

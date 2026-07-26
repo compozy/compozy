@@ -3,9 +3,9 @@ package settings
 import (
 	"fmt"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (s *service) deleteProvider(name string) (MutationResult, error) {

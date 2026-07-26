@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 const maxDetachedCommandErrorBytes = 4 * 1024

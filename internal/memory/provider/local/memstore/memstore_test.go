@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/provider/local/memstore"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/memory/provider/local/memstore"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/goccy/go-yaml"
 )
 
@@ -22,7 +22,7 @@ func TestAdapter(t *testing.T) {
 		workspaceRoot := baseDir + "/workspace"
 		store := memory.NewStore(
 			baseDir+"/agh-home/memory",
-			memory.WithCatalogDatabasePath(baseDir+"/agh.db"),
+			memory.WithCatalogDatabasePath(baseDir+"/compozy.db"),
 		).ForWorkspace(workspaceRoot)
 		openAdapterTestCatalog(t, store)
 		adapter := memstore.New(store)
@@ -172,7 +172,7 @@ func TestAdapterRejectsCanceledContext(t *testing.T) {
 		baseDir := t.TempDir()
 		adapter := memstore.New(memory.NewStore(
 			baseDir+"/agh-home/memory",
-			memory.WithCatalogDatabasePath(baseDir+"/agh.db"),
+			memory.WithCatalogDatabasePath(baseDir+"/compozy.db"),
 		))
 		ctx, cancel := context.WithCancel(testutil.Context(t))
 		cancel()

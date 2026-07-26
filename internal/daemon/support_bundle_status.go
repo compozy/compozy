@@ -1,6 +1,6 @@
 package daemon
 
-import "github.com/compozy/agh/internal/api/core"
+import "github.com/compozy/compozy/internal/api/core"
 
 func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandlers {
 	return core.NewBaseHandlers(&core.BaseHandlerConfig{

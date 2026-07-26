@@ -6,7 +6,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -25,16 +25,16 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 		Use:   "prompt <id> <message>",
 		Short: "Send a prompt to a session",
 		Example: `  # Send a follow-up prompt to an active session
-  agh session prompt sess_1234 "Summarize the current changes."
+  compozy session prompt sess_1234 "Summarize the current changes."
 
   # Queue input while the session is busy
-  agh session prompt sess_1234 "Run the next check." --queue
+  compozy session prompt sess_1234 "Run the next check." --queue
 
   # Steer the current turn after the next tool result
-  agh session prompt sess_1234 "Prefer the smaller patch." --steer
+  compozy session prompt sess_1234 "Prefer the smaller patch." --steer
 
   # Cancel queued input by entry id
-  agh session prompt sess_1234 --cancel queue_entry_1234`,
+  compozy session prompt sess_1234 --cancel queue_entry_1234`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			cancelChanged := cmd.Flags().Changed("cancel")
 			modeCount := 0
@@ -134,10 +134,10 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 		Use:   "events <id>",
 		Short: "Read session events",
 		Example: `  # Read the latest stored events
-  agh session events sess_1234 --last 20
+  compozy session events sess_1234 --last 20
 
   # Follow new events until interrupted
-  agh session events sess_1234 --follow`,
+  compozy session events sess_1234 --follow`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -213,10 +213,10 @@ func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 		Use:   sessionHistoryIDValue,
 		Short: "Show session history grouped by turn",
 		Example: `  # Show replayable turn history for one session
-  agh session history sess_1234
+  compozy session history sess_1234
 
   # Show turns after a known event sequence
-  agh session history sess_1234 --after 120 --last 10`,
+  compozy session history sess_1234 --after 120 --last 10`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 const (

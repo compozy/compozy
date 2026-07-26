@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func normalizeAgentToolPatterns(values []string) []string {

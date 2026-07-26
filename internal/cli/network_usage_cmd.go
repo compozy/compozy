@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 

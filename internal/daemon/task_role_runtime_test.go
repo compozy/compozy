@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
-	schedulerpkg "github.com/compozy/agh/internal/scheduler"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
+	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestShellQuoteSimpleAlwaysSingleQuotes(t *testing.T) {
@@ -88,7 +88,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Model; got != "" {
 			t.Fatalf("CreateOpts.Model = %q, want provider-native default model resolution", got)
 		}
-		for _, required := range []string{"agh task next --run-id 'run-frontend' --wait -o json", run.ID, "design-review"} {
+		for _, required := range []string{"compozy task next --run-id 'run-frontend' --wait -o json", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
@@ -412,7 +412,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
 		}
-		claimCommand := "agh task next --run-id 'run-profile-worker' --wait -o json --capability 'frontend'"
+		claimCommand := "compozy task next --run-id 'run-profile-worker' --wait -o json --capability 'frontend'"
 		if !strings.Contains(call.PromptOverlay, claimCommand) {
 			t.Fatalf("PromptOverlay missing required capability claim:\n%s", call.PromptOverlay)
 		}

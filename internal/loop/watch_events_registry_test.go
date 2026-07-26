@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 const (

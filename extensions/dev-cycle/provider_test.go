@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/subprocess"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/subprocess"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestRPCServerShouldCallImportTasksTool(t *testing.T) {

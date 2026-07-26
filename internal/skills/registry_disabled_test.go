@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestRegistryForWorkspaceDisabledOverlay(t *testing.T) {
@@ -49,13 +49,13 @@ func TestRegistryForWorkspaceDisabledOverlay(t *testing.T) {
 			if tt.withWorkspaceSkill {
 				writeSkillFile(
 					t,
-					filepath.Join(workspace, ".agh", "skills"),
+					filepath.Join(workspace, ".compozy", "skills"),
 					filepath.Join("local", skillFileName),
 					skillWithDescription("local", "Workspace skill"),
 				)
 				resolved.RootDir = workspace
 				resolved.Skills = []workspacepkg.SkillPath{
-					resolvedSkillPath(filepath.Join(workspace, ".agh", "skills", "local"), "workspace"),
+					resolvedSkillPath(filepath.Join(workspace, ".compozy", "skills", "local"), "workspace"),
 				}
 			}
 

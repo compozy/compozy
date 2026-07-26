@@ -17,20 +17,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	apitestutil "github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/session"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/transcript"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -1932,7 +1932,7 @@ func TestDaemonStatusHandlerReturnsUserHomeDir(t *testing.T) {
 		}
 		if response.Daemon.UserHomeDir == homePaths.HomeDir {
 			t.Fatalf(
-				"daemon.user_home_dir = %q, should not match agh home %q",
+				"daemon.user_home_dir = %q, should not match compozy home %q",
 				response.Daemon.UserHomeDir,
 				homePaths.HomeDir,
 			)
@@ -1943,7 +1943,7 @@ func TestDaemonStatusHandlerReturnsUserHomeDir(t *testing.T) {
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()
-	sharedSkillDir := filepath.Join(rootDir, ".agh", "skills", "review")
+	sharedSkillDir := filepath.Join(rootDir, ".compozy", "skills", "review")
 	resolved := workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:        "ws_alpha",

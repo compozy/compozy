@@ -1,6 +1,6 @@
 ---
-name: malformed-agh
-description: Skill with malformed agh metadata
+name: malformed-compozy
+description: Skill with malformed compozy metadata
 metadata:
   agh: definitely-not-a-map
 ---

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {

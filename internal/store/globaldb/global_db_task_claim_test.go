@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
@@ -5538,7 +5538,7 @@ func createCompletedLoopWorkerRunForTest(
 func writeInvalidSoulFixture(t *testing.T, workspaceRoot string) {
 	t.Helper()
 
-	soulDir := filepath.Join(workspaceRoot, ".agh", "agents", "coder")
+	soulDir := filepath.Join(workspaceRoot, ".compozy", "agents", "coder")
 	if err := os.MkdirAll(soulDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", soulDir, err)
 	}

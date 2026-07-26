@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // SkillsConfig controls skill loading and discovery.

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 type settingsGeneralUpdateConfigPayload struct {

@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 type noopConversationHooks struct{}

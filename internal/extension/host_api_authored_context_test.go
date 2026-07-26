@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/soul"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {
@@ -90,7 +90,7 @@ func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {
 		soulAuthoring.lastPut.Origin.Ref != string(extensioncontract.HostAPIMethodAgentsSoulPut) {
 		t.Fatalf("soul put request = %#v, want extension actor and host_api origin", soulAuthoring.lastPut)
 	}
-	if !strings.HasSuffix(soulAuthoring.lastPut.Target.AgentPath, ".agh/agents/coder/AGENT.md") {
+	if !strings.HasSuffix(soulAuthoring.lastPut.Target.AgentPath, ".compozy/agents/coder/AGENT.md") {
 		t.Fatalf("soul target path = %q, want managed agent path", soulAuthoring.lastPut.Target.AgentPath)
 	}
 }
@@ -544,7 +544,7 @@ func (s hostAPITestWakeEvents) ListHeartbeatWakeEvents(
 
 func hostAPITestSoulMutationResult(workspaceID string, agentName string, workspaceRoot string) soul.MutationResult {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
-	sourcePath := strings.TrimRight(workspaceRoot, "/") + "/.agh/agents/" + agentName + "/SOUL.md"
+	sourcePath := strings.TrimRight(workspaceRoot, "/") + "/.compozy/agents/" + agentName + "/SOUL.md"
 	return soul.MutationResult{
 		Soul: soul.ResolvedSoul{
 			Enabled:    true,

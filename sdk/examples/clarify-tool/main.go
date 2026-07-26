@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	aghsdk "github.com/compozy/agh/sdk/go"
+	aghsdk "github.com/compozy/compozy/sdk/go"
 )
 
 type askInput struct {

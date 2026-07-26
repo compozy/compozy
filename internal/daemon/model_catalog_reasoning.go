@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func effectiveCatalogReasoningApply(cfg *aghconfig.Config) (map[string]bool, error) {

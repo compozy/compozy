@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/compozy/agh/internal/toolmeta"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 // Tool is the cold desired-state resource spec for a registry tool.

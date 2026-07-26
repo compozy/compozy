@@ -1,6 +1,6 @@
 package loop
 
-import "github.com/compozy/agh/internal/hooks"
+import "github.com/compozy/compozy/internal/hooks"
 
 var phaseCWatchEvents = []WatchEventsContract{
 	// event_summaries is rowid-cursored and workspace-scoped directly by workspace_id.

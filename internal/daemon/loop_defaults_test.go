@@ -3,8 +3,8 @@ package daemon
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func TestLoopDefaultsFromConfigShouldMapDeliveryAndWatchDefaults(t *testing.T) {

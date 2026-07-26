@@ -24,7 +24,7 @@ func DaytonaSidecars() error {
 
 // DaytonaSidecarsCheck verifies embedded launcher sidecar assets are current.
 func DaytonaSidecarsCheck() error {
-	tmpDir, err := os.MkdirTemp("", "agh-daytona-sidecar-check-")
+	tmpDir, err := os.MkdirTemp("", "compozy-daytona-sidecar-check-")
 	if err != nil {
 		return fmt.Errorf("create Daytona sidecar check dir: %w", err)
 	}
@@ -60,13 +60,13 @@ func DaytonaSidecarsCheck() error {
 }
 
 func buildDaytonaSidecarAsset(ctx context.Context, asset daytonaSidecarAsset, outputPath string) error {
-	tmpDir, err := os.MkdirTemp("", "agh-daytona-sidecar-build-")
+	tmpDir, err := os.MkdirTemp("", "compozy-daytona-sidecar-build-")
 	if err != nil {
 		return fmt.Errorf("create Daytona sidecar build dir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	binaryPath := filepath.Join(tmpDir, "agh-daytona-sidecar")
+	binaryPath := filepath.Join(tmpDir, "compozy-daytona-sidecar")
 	if err := runCommandInDirWithEnv(
 		ctx,
 		".",

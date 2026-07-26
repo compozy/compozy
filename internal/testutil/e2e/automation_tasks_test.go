@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	coreapi "github.com/compozy/agh/internal/api/core"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	"github.com/compozy/agh/internal/network/participation"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/agentidentity"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	coreapi "github.com/compozy/compozy/internal/api/core"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/network/participation"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *testing.T) {

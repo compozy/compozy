@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/filesnap"
-	"github.com/compozy/agh/internal/frontmatter"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/frontmatter"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func TestParseSkillContentValidCases(t *testing.T) {
@@ -461,7 +461,7 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 			}},
 		},
 		{
-			name:    "without agh metadata",
+			name:    "without compozy metadata",
 			fixture: "no-agh",
 		},
 	}
@@ -641,7 +641,7 @@ func TestParseSkillFileWarnsOnMalformedAGHMetadata(t *testing.T) {
 	if skill.Hooks != nil {
 		t.Fatalf("ParseSkillFile() Hooks = %#v, want nil", skill.Hooks)
 	}
-	if !strings.Contains(logs.String(), "malformed metadata.agh block") {
+	if !strings.Contains(logs.String(), "malformed metadata.compozy block") {
 		t.Fatalf("expected malformed metadata warning in logs, got %q", logs.String())
 	}
 }
@@ -839,10 +839,15 @@ func TestScanDirectoryHonorsDepthAndSkips(t *testing.T) {
 		writeSkillFile(
 			t,
 			root,
-			filepath.Join(".agh", "agents", "shared", "skills", skillFileName),
+			filepath.Join(".compozy", "agents", "shared", "skills", skillFileName),
 			defaultSkillContent("agent-local"),
 		),
-		writeSkillFile(t, root, filepath.Join(".agh", "workspace", skillFileName), defaultSkillContent("workspace")),
+		writeSkillFile(
+			t,
+			root,
+			filepath.Join(".compozy", "workspace", skillFileName),
+			defaultSkillContent("workspace"),
+		),
 	}
 	writeSkillFile(t, root, filepath.Join("a", "b", "c", "d", "too-deep", skillFileName), defaultSkillContent("depth5"))
 	writeSkillFile(t, root, filepath.Join(".git", "ignored", skillFileName), defaultSkillContent("git"))

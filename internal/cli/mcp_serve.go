@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/compozy/internal/diagnostics"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/spf13/cobra"
 )
 

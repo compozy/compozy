@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // CachedInstances returns the current provider-owned instance snapshot without a Host API call.

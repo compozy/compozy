@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	aghconfig "github.com/compozy/agh/internal/config"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/skills"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/skills"
+	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -971,7 +971,7 @@ func TestGetSkill(t *testing.T) {
 
 		workspaceSkill := testSkill()
 		workspaceSkill.Source = skills.SourceWorkspace
-		workspaceSkill.Dir = "/workspace/.agh/skills/test-skill"
+		workspaceSkill.Dir = "/workspace/.compozy/skills/test-skill"
 
 		registry := &stubSkillsRegistry{
 			GetFn: func(_ string) (*skills.Skill, bool) {
@@ -1024,7 +1024,7 @@ func TestGetSkillShadows(t *testing.T) {
 
 		skill := testSkill()
 		skill.Source = skills.SourceWorkspace
-		skill.FilePath = "/workspace/.agh/skills/test-skill/SKILL.md"
+		skill.FilePath = "/workspace/.compozy/skills/test-skill/SKILL.md"
 		skill.Diagnostics.ShadowedDefinitions = []skills.SkillDefinitionRef{{
 			Source:     "marketplace",
 			Path:       "/home/agh/skills/test-skill/SKILL.md",
@@ -1107,7 +1107,7 @@ func TestGetSkillContent(t *testing.T) {
 
 		workspaceSkill := testSkill()
 		workspaceSkill.Source = skills.SourceWorkspace
-		workspaceSkill.Dir = "/workspace/.agh/skills/test-skill"
+		workspaceSkill.Dir = "/workspace/.compozy/skills/test-skill"
 
 		registry := &stubSkillsRegistry{
 			ForWorkspaceFn: func(_ context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {

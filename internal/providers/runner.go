@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/kballard/go-shellquote"
 	"golang.org/x/term"
 )

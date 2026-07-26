@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/modelcatalog"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type providerModelsListInput struct {

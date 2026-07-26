@@ -3,7 +3,7 @@ package automation
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func currentResourceActor(source resources.ResourceSource, fallback resources.MutationActor) resources.MutationActor {

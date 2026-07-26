@@ -3,7 +3,7 @@ package spec
 import (
 	"reflect"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func withGoalSchemaEnumValues(values map[reflect.Type][]string) map[reflect.Type][]string {

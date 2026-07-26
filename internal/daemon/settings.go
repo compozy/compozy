@@ -9,19 +9,19 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/api/contract"
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/deadentity"
-	"github.com/compozy/agh/internal/diagnostics"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/network"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	aghupdate "github.com/compozy/agh/internal/update"
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/diagnostics"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/network"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	aghupdate "github.com/compozy/compozy/internal/update"
+	"github.com/compozy/compozy/internal/version"
 )
 
 type settingsRuntimeSurface struct {

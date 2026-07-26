@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network"
 
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func sessionInfoMapByID(sessions []*session.Info) map[string]*session.Info {

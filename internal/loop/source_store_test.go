@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/loop"
+	"github.com/compozy/compozy/internal/loop"
 )
 
 func TestSourceStoreShouldValidateWriteForkAndDelete(t *testing.T) {

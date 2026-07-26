@@ -1,6 +1,6 @@
 # Internal Backend (Go)
 
-The Go runtime — `internal/*` packages composed by `internal/daemon`, plus the API transports under `internal/api/*`. ACP subprocess management, SQLite persistence, HTTP/SSE + UDS APIs, autonomy kernel, AGH Network. Entry binary lives in `cmd/agh`.
+The Go runtime — `internal/*` packages composed by `internal/daemon`, plus the API transports under `internal/api/*`. ACP subprocess management, SQLite persistence, HTTP/SSE + UDS APIs, autonomy kernel, AGH Network. Entry binary lives in `cmd/compozy`.
 
 Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memory & Skills RFC, CI/Release) live in the **root `CLAUDE.md`**. This file owns architecture, package boundaries, autonomy contracts, security invariants, and `internal/`-specific debugging/forensics.
 
@@ -81,7 +81,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 
 | Path                            | Responsibility                                                                |
 | ------------------------------- | ----------------------------------------------------------------------------- |
-| `cmd/agh`                       | Main entry point, CLI binary                                                  |
+| `cmd/compozy`                   | Main entry point, CLI binary                                                  |
 | `internal/config`               | TOML loading, validation, merge, home paths, agent def parsing                |
 | `internal/acp`                  | ACP client: subprocess spawn, JSON-RPC over stdio                             |
 | `internal/agentidentity`        | Caller-identity inference from `AGH_SESSION_ID`/`AGH_AGENT`                   |
@@ -121,7 +121,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `skills/` (repo-root)           | Embedded bundled skill definitions and resources                              |
 | `internal/sse`                  | Shared SSE helpers                                                            |
 | `internal/store`                | SQLite helpers, migration streams/engine, integrity validation                |
-| `internal/store/globaldb`       | Global catalog (`agh.db`): sessions, metadata                                 |
+| `internal/store/globaldb`       | Global catalog (`compozy.db`): sessions, metadata                             |
 | `internal/store/sessiondb`      | Per-session event store (`events.db`)                                         |
 | `internal/subprocess`           | Subprocess signaling primitives                                               |
 | `internal/task`                 | Task domain, `task_runs` ownership, `ClaimNextRun`                            |

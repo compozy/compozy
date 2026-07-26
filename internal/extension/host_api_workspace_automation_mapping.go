@@ -8,10 +8,10 @@ import (
 
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (h *HostAPIHandler) requireHostAPISessionWorkspace(

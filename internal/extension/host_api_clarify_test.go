@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestHostAPIClarifyAskDerivesScopeFromActiveInvocation(t *testing.T) {

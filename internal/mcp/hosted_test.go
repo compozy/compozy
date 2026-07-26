@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	burnttoml "github.com/BurntSushi/toml"
-	"github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/spf13/cobra"
 )

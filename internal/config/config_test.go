@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/sandbox"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
@@ -33,7 +33,7 @@ func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
 
 	writeFile(t, homePaths.ConfigFile, `
 [daemon]
-socket = "~/.agh/custom.sock"
+socket = "~/.compozy/custom.sock"
 
 [http]
 host = "127.0.0.1"
@@ -165,7 +165,7 @@ max_wakes = 80
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Daemon.Socket == "~/.agh/custom.sock" {
+	if cfg.Daemon.Socket == "~/.compozy/custom.sock" {
 		t.Fatalf("Load() did not normalize daemon socket path: %q", cfg.Daemon.Socket)
 	}
 	if cfg.HTTP.Host != "127.0.0.1" || cfg.HTTP.Port != 3030 {

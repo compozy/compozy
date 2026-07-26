@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/compozy/internal/api/contract"
+	aghdaemon "github.com/compozy/compozy/internal/daemon"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
 func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {

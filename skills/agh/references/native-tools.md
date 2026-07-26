@@ -46,10 +46,10 @@ Remembered approvals: `agh__tool_approvals_set`, `agh__tool_approvals_list`, and
 `agh__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact workspace + agent +
 tool + input-digest decision. Explicit set accepts only `agent` or `tool` scope and no input digest;
 an agent-wide set requires `agent_name`. Wider allows remain below the configured tool-policy
-ceiling. CLI: `agh tool approvals set|list|revoke --workspace <workspace>`.
+ceiling. CLI: `compozy tool approvals set|list|revoke --workspace <workspace>`.
 
 Clarification: `agh__clarify` asks one active-session question with at most four choices and returns
-zero-based `{choice,text,fallback}`. It is not approval. CLI: `agh session clarify pending|answer`
+zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
 `agh__session_list` returns one counted catalog page and accepts workspace, exact state, exact session `type`, exact agent, search, resumability, health, sort, cursor, and limit inputs. Use `type: "user"` when a workflow needs operator-created sessions without daemon-managed dream, system, coordinator, or spawned sessions.
@@ -60,13 +60,13 @@ Workspace tools: `agh__workspace_list`, `agh__workspace_info`, `agh__workspace_d
 
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `agh__workspace_list` should return at least that workspace on a clean install.
 
-A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `agh__workspace_list`, `agh workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
+A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `agh__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
 
 Workspace unregister is atomic with credential cleanup: it removes workspace-scoped MCP OAuth rows and their encrypted access/refresh values, preserves global and sibling-workspace credentials, and leaves all state intact when cleanup fails.
 
 Provider model tools: `agh__provider_models_list`, `agh__provider_models_curate`, `agh__provider_models_refresh`, `agh__provider_models_status`.
 
-`agh__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `agh provider models list` and `agh provider models list --all`. `agh__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `agh provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
+`agh__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `agh__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
 
@@ -89,7 +89,7 @@ for mutations. Resolve descriptors, pass the workspace, and use the current revi
 `window_navigate` changes presentation only when given one. Preview/validate never write;
 desktop delete, window close, and layout apply carry destructive risk. Discover `window_layout`
 resources with `agh__resources_list`; `resource_id` is exclusive with inline arrange fields. CLI
-fallbacks are `agh desktop|window|layout`; read `window-management.md` for multi-step changes.
+fallbacks are `compozy desktop|window|layout`; read `window-management.md` for multi-step changes.
 
 ## Skills And Memory Tools
 
@@ -115,7 +115,7 @@ Local caller receives `not_participating`; create a new explicitly Live executio
 retrying.
 
 Read references/network.md before sending or interpreting messages. Direct/mention `say` is the
-only current model-wake path; other messages may persist without activation. Use `agh network usage
+only current model-wake path; other messages may persist without activation. Use `compozy network usage
 -o json` through CLI/HTTP/UDS for usage because it is a management read, not a native coordination
 tool ID.
 
@@ -140,7 +140,7 @@ binding semantics.
 
 Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `agh__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
-Background-role inspection has no `agh__roles_*` native tool. Use `agh roles list|show -o json` or
+Background-role inspection has no `agh__roles_*` native tool. Use `compozy roles list|show -o json` or
 the HTTP/UDS `GET /api/roles` reads. Scalar `roles.<role>.*` routing and role-policy keys are exposed
 through the live `agh__config_set`/`agh__config_unset` descriptors, including coordinator limits and
 memory-controller call bounds. Fallback chains are structured arrays and must be changed through
@@ -173,7 +173,7 @@ The removal remains committed; use the warning's residual path for operator clea
 
 The `agh__automation_jobs_create` and `agh__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
 
-`agh__automation_jobs_create` and `agh__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped AGH daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `agh_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
+`agh__automation_jobs_create` and `agh__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped Compozy daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `agh_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
 
 Bundle tools live under `agh__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `agh__resources_*` for list/info/snapshot of desired-state resources.
 
@@ -185,7 +185,7 @@ and diagnostic instead of hiding them. Do not retry a dead tool blindly or inven
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.
-Curated install remains a management surface (`agh mcp install` or
+Curated install remains a management surface (`compozy mcp install` or
 `POST /api/settings/mcp-servers/install`); there is no `agh__mcp_install`.
 
 ## Observability And Bridge Tools
@@ -199,7 +199,7 @@ CLI/HTTP/UDS unless the live descriptor exposes a scoped native tool.
 
 ## CLI/HTTP-Only Management Surfaces
 
-CLI/HTTP/UDS owns diagnostics (`agh status`, `agh doctor`), session repair/recap/approval/inspect/soul
+CLI/HTTP/UDS owns diagnostics (`compozy status`, `compozy doctor`), session repair/recap/approval/inspect/soul
 refresh, task inspection/control, schedulers, config reload/history, notification presets, and support
 bundles. Task notification subscriptions are native; presets are not. Use management surfaces unless
 the live registry exposes a matching `agh__*` descriptor.

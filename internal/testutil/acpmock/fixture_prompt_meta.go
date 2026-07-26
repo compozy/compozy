@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 // Normalize returns an isolated, trimmed Goal matcher.

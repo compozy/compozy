@@ -15,7 +15,7 @@ import (
 
 const (
 	verifyLockEnvVar       = "AGH_VERIFY_LOCK"
-	verifyLockDirName      = "agh-dev"
+	verifyLockDirName      = "compozy-dev"
 	verifyLockFileName     = "verify.lock"
 	verifyLockPollInterval = 500 * time.Millisecond
 	verifyLockWaitLogEvery = 15 * time.Second

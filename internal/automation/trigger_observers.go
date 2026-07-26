@@ -3,8 +3,8 @@ package automation
 import (
 	"context"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (o *triggerSessionObserver) OnSessionCreated(ctx context.Context, sess *session.Session) {

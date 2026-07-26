@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
 func TestHostAPIMethodSpecsFollowProtocolWireOrder(t *testing.T) {

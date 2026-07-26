@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 // MemoryDreamPayload is one dreaming runtime record.

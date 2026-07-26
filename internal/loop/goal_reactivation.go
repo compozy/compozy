@@ -3,8 +3,8 @@ package loop
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
 )
 
 // GoalGrantKind classifies one checkpoint-local reactivation permit.

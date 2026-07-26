@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 var _ taskpkg.EventCommitObserverStore = (*TaskRepo)(nil)

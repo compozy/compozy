@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/providerauth"
-	authproviders "github.com/compozy/agh/internal/providers"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerauth"
+	authproviders "github.com/compozy/compozy/internal/providers"
 
 	"github.com/spf13/cobra"
 )

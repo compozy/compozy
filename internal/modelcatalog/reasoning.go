@@ -4,7 +4,7 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/compozy/agh/internal/reasoning"
+	"github.com/compozy/compozy/internal/reasoning"
 )
 
 // ReasoningEffort identifies one canonical model reasoning level.

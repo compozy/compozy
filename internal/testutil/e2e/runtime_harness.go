@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/procutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/procutil"
 
-	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 
 	"golang.org/x/sys/execabs"
 )
@@ -109,7 +109,7 @@ type RuntimeHarness struct {
 	processErr    error
 }
 
-// CLIClient shells out to the real `agh` binary against the isolated runtime.
+// CLIClient shells out to the real `compozy` binary against the isolated runtime.
 type CLIClient struct {
 	binaryPath string
 	env        []string
@@ -130,7 +130,7 @@ func StartRuntimeHarness(t testing.TB, opts *RuntimeHarnessOptions) *RuntimeHarn
 	layout := prepareRuntimeLayout(t, opts)
 	binaryPath := strings.TrimSpace(opts.BinaryPath)
 	if binaryPath == "" {
-		binaryPath = buildAGHBinary(t)
+		binaryPath = buildCompozyBinary(t)
 	}
 	env, err := withRuntimeCLIEnv(layout.HomePaths, layout.Env, binaryPath)
 	if err != nil {
@@ -270,7 +270,7 @@ func startDaemonProcess(t testing.TB, harness *RuntimeHarness, env []string) {
 		t.Fatalf("os.Create(%q) error = %v", processLogPath, err)
 	}
 
-	// #nosec G204 -- test harness intentionally executes the built agh binary against isolated test state.
+	// #nosec G204 -- test harness intentionally executes the built compozy binary against isolated test state.
 	cmd := execabs.CommandContext(
 		context.Background(),
 		harness.BinaryPath,

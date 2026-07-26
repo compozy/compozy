@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // ControlMethod identifies a provider control operation.

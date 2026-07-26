@@ -3,9 +3,9 @@ package daemon
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/controller"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/memory/controller"
 )
 
 func (d *Daemon) configureMemoryController(state *bootState, sessions SessionManager) {

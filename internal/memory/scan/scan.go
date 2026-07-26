@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	redactpkg "github.com/compozy/agh/internal/redact"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // Action is the strongest deterministic outcome produced by the scanner.

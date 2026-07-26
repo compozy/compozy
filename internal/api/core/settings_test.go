@@ -16,21 +16,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/api/testutil"
-	automationmodel "github.com/compozy/agh/internal/automation/model"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/resources"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/resources"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -1026,7 +1026,7 @@ func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
 			LatestVersion:  "v1.1.0",
 			Available:      true,
 			Status:         "available",
-			Recommendation: "Run `agh update`.",
+			Recommendation: "Run `compozy update`.",
 			ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
 			CheckedAt:      &checkedAt,
 		}, nil
@@ -1082,7 +1082,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					HomeDir:          "/tmp/home",
 					GlobalConfig:     "/tmp/home/config.toml",
 					GlobalMCPSidecar: "/tmp/home/mcp.json",
-					LogFile:          "/tmp/home/agh.log",
+					LogFile:          "/tmp/home/compozy.log",
 					DaemonInfo:       "/tmp/home/daemon.json",
 				},
 				Settings: settingspkg.GeneralSettings{
@@ -2205,7 +2205,7 @@ func validSettingsMemoryConfigPayload() contract.SettingsMemoryConfigPayload {
 			Cooldown:         "30s",
 		},
 		Workspace: contract.SettingsMemoryWorkspacePayload{
-			TOMLPath:   "<workspace>/.agh/workspace.toml",
+			TOMLPath:   "<workspace>/.compozy/workspace.toml",
 			AutoCreate: true,
 		},
 	}

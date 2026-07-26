@@ -19,24 +19,24 @@ import (
 	"unicode/utf8"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/admission"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/sandbox"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/toolruntime"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/transcript"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
-	skillbundled "github.com/compozy/agh/skills"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/sandbox"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func testLiveParticipation(workspaceID, channelID string) participation.Spec {
@@ -4517,7 +4517,7 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 		server: aghconfig.MCPServer{
 			Name:      "agh-hosted-tools",
 			Transport: aghconfig.MCPServerTransportStdio,
-			Command:   "/bin/agh",
+			Command:   "/bin/compozy",
 			Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
 		},
 	}
@@ -4531,7 +4531,7 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("start MCPServers = %#v, want one hosted entry", got)
 	}
-	if got[0].Name != "agh-hosted-tools" || got[0].Command != "/bin/agh" {
+	if got[0].Name != "agh-hosted-tools" || got[0].Command != "/bin/compozy" {
 		t.Fatalf("hosted MCP server = %#v, want AGH hosted stdio entry", got[0])
 	}
 
@@ -4563,7 +4563,7 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 			server: aghconfig.MCPServer{
 				Name:      "agh-hosted-tools",
 				Transport: aghconfig.MCPServerTransportStdio,
-				Command:   "/bin/agh",
+				Command:   "/bin/compozy",
 			},
 		}
 		h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
@@ -4615,7 +4615,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 		server: aghconfig.MCPServer{
 			Name:      "agh-hosted-tools",
 			Transport: aghconfig.MCPServerTransportStdio,
-			Command:   "/bin/agh",
+			Command:   "/bin/compozy",
 		},
 	}
 	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted), WithLogger(slog.New(logs)))

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/resources"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const benchmarkOperationsPerActivation = 6

@@ -8,22 +8,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/acp"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	observepkg "github.com/compozy/agh/internal/observe"
-	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
-	"github.com/compozy/agh/internal/session"
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	"github.com/compozy/agh/internal/subprocess"
-	aghtestutil "github.com/compozy/agh/internal/testutil"
+	observepkg "github.com/compozy/compozy/internal/observe"
+	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
+	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/subprocess"
+	aghtestutil "github.com/compozy/compozy/internal/testutil"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func buildHarnessRuntime(

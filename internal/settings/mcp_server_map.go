@@ -3,7 +3,7 @@ package settings
 import (
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func mcpServerMap(server aghconfig.MCPServer) map[string]any {

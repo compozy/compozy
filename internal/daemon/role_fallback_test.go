@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestInvokeRoleWithFallback(t *testing.T) {

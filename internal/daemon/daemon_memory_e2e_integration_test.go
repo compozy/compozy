@@ -17,13 +17,13 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	sessionpkg "github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	sessionpkg "github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 	_ "modernc.org/sqlite"
 )
@@ -505,7 +505,7 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 		"Remember me: auth migration uses sessions and workspace-scoped recall.",
 	)
 
-	indexPath := filepath.Join(harness.WorkspaceRoot, ".agh", "memory", "MEMORY.md")
+	indexPath := filepath.Join(harness.WorkspaceRoot, ".compozy", "memory", "MEMORY.md")
 	staleIndex := "- [Old](missing.md) - stale index entry\n"
 	if err := os.WriteFile(indexPath, []byte(staleIndex), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", indexPath, err)
@@ -665,8 +665,8 @@ Curate durable workspace knowledge.
 			cfg.Roles.MemoryExtractor.Enabled = false
 		}},
 		Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
-			".agh/agents/workspace-curator/AGENT.md": agentDocument,
-			".agh/config.toml": `[roles.dream]
+			".compozy/agents/workspace-curator/AGENT.md": agentDocument,
+			".compozy/config.toml": `[roles.dream]
 agent = "workspace-curator"
 provider = "role-dream"
 model = "routed-dream-model"
@@ -881,7 +881,7 @@ WHERE sig.promoted_at IS NULL AND e.injection = 1
 			}
 		}
 	}
-	identity, identityErr := os.ReadFile(filepath.Join(workspaceRoot, ".agh", "workspace.toml"))
+	identity, identityErr := os.ReadFile(filepath.Join(workspaceRoot, ".compozy", "workspace.toml"))
 	return fmt.Sprintf(
 		"eligible rows=%d recall_count=%d..%d recall_score=%g..%g workspaces=%q completed_session_files=%d session_scan_error=%v identity=%q identity_error=%v",
 		count,

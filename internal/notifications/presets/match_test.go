@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/testutil"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestNotificationPresetMatchingAndFilters(t *testing.T) {

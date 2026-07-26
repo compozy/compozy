@@ -3,7 +3,7 @@ package settings
 import (
 	"slices"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func diffRolesSettings(current *aghconfig.RolesConfig, desired *aghconfig.RolesConfig) []string {

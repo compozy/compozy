@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 // VaultSecretPayload is redacted vault metadata safe for public control surfaces.

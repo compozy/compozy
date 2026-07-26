@@ -11,13 +11,13 @@ import (
 
 	"strings"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/compozy/internal/memory"
 
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 

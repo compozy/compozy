@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 type hookConfigExecutorFields struct {

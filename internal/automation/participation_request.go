@@ -1,8 +1,8 @@
 package automation
 
 import (
-	modelpkg "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/network/participation"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // NormalizeDirectTaskParticipation canonicalizes the authored participation

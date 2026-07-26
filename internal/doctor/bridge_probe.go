@@ -8,9 +8,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/api/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 const bridgeProbeID = "runtime.bridges"
@@ -87,7 +87,7 @@ func bridgeControlErrorItem(instance bridgepkg.BridgeInstance, err error) contra
 		"The provider control process did not return bridge checks.",
 		contract.SeverityError,
 		contract.FreshnessLive,
-		diagnostics.WithSuggestedCommand("agh bridge verify "+instance.ID),
+		diagnostics.WithSuggestedCommand("compozy bridge verify "+instance.ID),
 		diagnostics.WithEvidence(map[string]any{
 			"bridge_instance_id": instance.ID,
 			"extension_name":     instance.ExtensionName,
@@ -113,7 +113,7 @@ func bridgeCheckDiagnosticItem(
 		message,
 		severity,
 		contract.FreshnessLive,
-		diagnostics.WithSuggestedCommand("agh bridge verify "+instance.ID),
+		diagnostics.WithSuggestedCommand("compozy bridge verify "+instance.ID),
 		diagnostics.WithEvidence(map[string]any{
 			"bridge_instance_id": instance.ID,
 			"platform":           instance.Platform,

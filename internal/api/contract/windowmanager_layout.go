@@ -1,6 +1,6 @@
 package contract
 
-import "github.com/compozy/agh/internal/windowmanager"
+import "github.com/compozy/compozy/internal/windowmanager"
 
 // WindowManagerDesktop is one ordered workspace desktop in the stable wire contract.
 type WindowManagerDesktop struct {

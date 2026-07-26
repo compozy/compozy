@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/admission"
-	configdefaults "github.com/compozy/agh/internal/config/defaults"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/admission"
+	configdefaults "github.com/compozy/compozy/internal/config/defaults"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/network/participation"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 // ToolContent is one typed content block returned by a tool.

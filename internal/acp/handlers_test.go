@@ -16,10 +16,10 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/toolruntime"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/toolruntime"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDriverOptionsAndNormalization(t *testing.T) {
@@ -312,7 +312,7 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 			},
 		},
 		{
-			name: "non-network agh subcommand",
+			name: "non-network compozy subcommand",
 			request: acpsdk.CreateTerminalRequest{
 				SessionId: "sess-direct",
 				Command:   "agh",

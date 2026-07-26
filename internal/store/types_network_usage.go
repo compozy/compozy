@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/listcursor"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const (

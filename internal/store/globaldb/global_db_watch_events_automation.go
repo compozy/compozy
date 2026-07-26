@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	modelpkg "github.com/compozy/agh/internal/automation/model"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type automationWatchEventRow struct {

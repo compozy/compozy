@@ -3,7 +3,7 @@ package clawhub
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 type clawhubDetailEnvelope struct {

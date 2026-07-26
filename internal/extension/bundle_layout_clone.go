@@ -3,7 +3,7 @@ package extensionpkg
 import (
 	"strings"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func cloneBundleLayouts(values []BundleLayout) []BundleLayout {

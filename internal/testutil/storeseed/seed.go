@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 type Seed struct {
@@ -45,7 +45,7 @@ func newSeed(
 	if ctx == nil {
 		return nil, errors.New("store seed context is required")
 	}
-	dir, err := os.MkdirTemp("", "agh-store-seed-*")
+	dir, err := os.MkdirTemp("", "compozy-store-seed-*")
 	if err != nil {
 		return nil, fmt.Errorf("create store seed directory: %w", err)
 	}

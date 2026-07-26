@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/resources"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/resources"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 )

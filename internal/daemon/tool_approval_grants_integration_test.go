@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 )

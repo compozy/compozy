@@ -9,7 +9,7 @@ import (
 
 	"time"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 func normalizeTurn(turn memcontract.TurnRecord, now func() time.Time) (memcontract.TurnRecord, error) {

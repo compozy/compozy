@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) prepareSessionStartStorage(spec *sessionStartSpec) (sessionStartStorage, error) {

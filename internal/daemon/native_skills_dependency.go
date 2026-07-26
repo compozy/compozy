@@ -1,6 +1,6 @@
 package daemon
 
-import skillspkg "github.com/compozy/agh/internal/skills"
+import skillspkg "github.com/compozy/compozy/internal/skills"
 
 func skillsRegistryAPI(registry *skillspkg.Registry) daemonNativeSkillsRegistry {
 	if registry == nil {

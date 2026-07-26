@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestRestartStoreRoundTripAndReadyTransition(t *testing.T) {
@@ -296,7 +296,7 @@ func TestRequestRestartPersistsHelperLaunchFailure(t *testing.T) {
 	d.sessions = &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
 	}
-	d.executable = func() (string, error) { return "/usr/bin/agh", nil }
+	d.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 	d.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
 		return nil, errors.New("helper exploded")
 	}
@@ -385,7 +385,7 @@ func TestRequestRestartWritesOperationBeforeShutdownSignal(t *testing.T) {
 	d.sessions = &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}, {ID: "sess-c"}},
 	}
-	d.executable = func() (string, error) { return "/usr/bin/agh", nil }
+	d.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 
 	var helperRequest detachedStartRequest
 	d.startDetached = func(_ context.Context, req detachedStartRequest) (restartProcess, error) {
@@ -448,7 +448,7 @@ func TestRequestRestartSignalFailurePersistsFailedOperation(t *testing.T) {
 	d.sessions = &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}},
 	}
-	d.executable = func() (string, error) { return "/usr/bin/agh", nil }
+	d.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 	d.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
 		return restartProcessStub{pid: 9001}, nil
 	}

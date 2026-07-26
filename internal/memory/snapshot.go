@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/session"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 const (

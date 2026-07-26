@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 )
 
 const (

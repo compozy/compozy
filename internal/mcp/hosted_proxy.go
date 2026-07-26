@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -38,7 +38,7 @@ type HostedProxyClient interface {
 	ReleaseHostedMCP(ctx context.Context, req HostedReleaseRequest) error
 }
 
-// HostedProxyOptions configures one `agh tool mcp` stdio proxy process.
+// HostedProxyOptions configures one `compozy tool mcp` stdio proxy process.
 type HostedProxyOptions struct {
 	SessionID string
 	Nonce     string

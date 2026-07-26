@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 // WorkspaceRef identifies the workspace scope that owns managed authoring history.

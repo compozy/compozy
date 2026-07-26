@@ -7,7 +7,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (m *Manager) applyJobToRuntime(ctx context.Context, job Job) error {

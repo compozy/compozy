@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 type mcpEntry struct {

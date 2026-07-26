@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/session"
-	builtintools "github.com/compozy/agh/internal/tools/builtin"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/session"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func (d *Daemon) applySessionManagerFactoryDefault() {

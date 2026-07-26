@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/compozy/internal/bridges"
 )
 
 // CountBridgeRoutes returns route totals for a bounded bridge catalog page in one query.

@@ -1,8 +1,8 @@
 package extensionpkg
 
 import (
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 const managedRemoveStatusRemoved = "removed"

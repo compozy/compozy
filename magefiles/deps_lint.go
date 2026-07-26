@@ -74,7 +74,7 @@ func runGolangCILint() error {
 	}
 	cacheDir := filepath.Join(
 		userCacheDir,
-		"agh-dev",
+		"compozy-dev",
 		"golangci-lint",
 		strings.TrimPrefix(golangciLintVersion, "v"),
 	)

@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/compozy/agh/internal/fileutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/oklog/ulid"
 )
 
@@ -24,7 +25,7 @@ const (
 
 var workspaceIDPattern = regexp.MustCompile(`^[0-9A-HJ-KMNP-TV-Z]{26}$`)
 
-// Identity is the stable workspace identity stored in <workspace>/.agh/workspace.toml.
+// Identity is the stable workspace identity stored in <workspace>/.compozy/workspace.toml.
 type Identity struct {
 	WorkspaceID        string
 	CreatedAt          time.Time
@@ -48,7 +49,7 @@ func IsWorkspaceID(value string) bool {
 	return workspaceIDPattern.MatchString(strings.TrimSpace(value))
 }
 
-// EnsureIdentity loads or creates <workspace>/.agh/workspace.toml.
+// EnsureIdentity loads or creates <workspace>/.compozy/workspace.toml.
 func EnsureIdentity(ctx context.Context, rootDir string) (Identity, error) {
 	return ensureIdentity(ctx, rootDir, time.Now, NewWorkspaceID)
 }
@@ -89,7 +90,7 @@ func ensureIdentity(
 }
 
 func identityPath(rootDir string) string {
-	return filepath.Join(rootDir, ".agh", workspaceIdentityFileName)
+	return filepath.Join(rootDir, aghconfig.DirName, workspaceIdentityFileName)
 }
 
 func loadIdentityFile(path string) (Identity, error) {

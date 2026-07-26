@@ -3,7 +3,7 @@ package settings
 import (
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 // GeneralSettings groups the editable general section config.

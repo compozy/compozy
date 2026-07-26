@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/compozy/internal/acp"
 )
 
 const (

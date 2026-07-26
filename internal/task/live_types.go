@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/store"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // LiveService exposes task-native live and run-detail reads for downstream API handlers.

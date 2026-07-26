@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func normalizeExpiredSessionAttach(info *Info, now time.Time) *Info {

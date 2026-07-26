@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	redactpkg "github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/toolruntime"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	redactpkg "github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func TestManagerCheckBridgeUsesRestrictedTransientRuntimeAndCleansUp(t *testing.T) {

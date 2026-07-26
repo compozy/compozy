@@ -128,7 +128,7 @@ def main() -> None:
         if (runtime_workspace_path / "workspaces" / "product-studio" / risk_memo).exists():
             raise AssertionError("scoped launch-hq knowledge leaked into product-studio")
 
-        open_tasks = json.loads((workspace_path / ".agh" / "tasks" / "open-tasks.json").read_text())
+        open_tasks = json.loads((workspace_path / ".compozy" / "tasks" / "open-tasks.json").read_text())
         runtime_ids = [task.get("runtime_id") for task in open_tasks]
         expected_ids = [f"task-northstar-pay-{index:03d}" for index in range(1, 13)]
         if runtime_ids != expected_ids:
@@ -145,7 +145,7 @@ def main() -> None:
         manifest_path = qa_root / "bootstrap-manifest.json"
         manifest = {
             "env": {
-                "AGH_HOME": str(workspace_path / ".agh" / "runtime"),
+                "AGH_HOME": str(workspace_path / ".compozy" / "runtime"),
                 "WORKSPACE_PATH": str(workspace_path),
                 "RUNTIME_WORKSPACE_PATH": str(runtime_workspace_path),
                 "KICKOFF_POSTED": "false",

@@ -3,7 +3,7 @@ package transcript
 import (
 	"encoding/json"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Entry pairs a UI message with the event sequence that last shaped it.

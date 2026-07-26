@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/extension/surfaces"
+	"github.com/compozy/compozy/internal/extension/surfaces"
 )
 
 // Validate ensures the skills configuration is internally consistent.

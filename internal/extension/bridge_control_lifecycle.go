@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
 type bridgeControlExtension struct {

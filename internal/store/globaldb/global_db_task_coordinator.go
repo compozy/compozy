@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func (b *Builder) addSnapshotArtifact(

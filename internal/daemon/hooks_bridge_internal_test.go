@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/skills"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestActiveSkillsForHookDeclarations(t *testing.T) {
@@ -18,7 +18,7 @@ func TestActiveSkillsForHookDeclarations(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		agentDir := filepath.Join(root, ".agh", "agents", "broken-agent")
+		agentDir := filepath.Join(root, ".compozy", "agents", "broken-agent")
 		if err := os.MkdirAll(filepath.Join(agentDir, "skills", "broken"), 0o755); err != nil {
 			t.Fatalf("MkdirAll(agent skills) error = %v", err)
 		}

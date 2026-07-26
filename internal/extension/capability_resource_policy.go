@@ -3,9 +3,9 @@ package extensionpkg
 import (
 	"slices"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/extension/surfaces"
-	"github.com/compozy/agh/internal/resources"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extension/surfaces"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 type sourceTierPolicy struct {

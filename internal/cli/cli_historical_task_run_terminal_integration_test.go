@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/session"
-	taskpkg "github.com/compozy/agh/internal/task"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *testing.T) {

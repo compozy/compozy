@@ -59,7 +59,7 @@ func writeTar(ctx context.Context, root string, dst io.Writer, excludePatterns [
 }
 
 func buildTarArchive(ctx context.Context, root string, excludePatterns []string) (*os.File, tarStats, error) {
-	file, err := os.CreateTemp("", "agh-daytona-sync-*.tar")
+	file, err := os.CreateTemp("", "compozy-daytona-sync-*.tar")
 	if err != nil {
 		return nil, tarStats{}, fmt.Errorf("sandbox/daytona: create tar archive temp file: %w", err)
 	}

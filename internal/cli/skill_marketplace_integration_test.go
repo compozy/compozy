@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/testutil"
-	skillbundled "github.com/compozy/agh/skills"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/testutil"
+	skillbundled "github.com/compozy/compozy/skills"
 )
 
 func TestSkillSearchInstallListRemoveIntegrationFlow(t *testing.T) {
@@ -65,7 +65,7 @@ func TestSkillSearchInstallListRemoveIntegrationFlow(t *testing.T) {
 		t.Fatalf("skill install error = %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(env.homePaths.SkillsDir, "review", ".agh-meta.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(env.homePaths.SkillsDir, "review", ".compozy-meta.json")); err != nil {
 		t.Fatalf("installed sidecar stat error = %v", err)
 	}
 
@@ -130,7 +130,7 @@ func TestSkillInstallCommandIntegrationCreatesSkillDirectoryAndSidecar(t *testin
 	if _, err := os.Stat(filepath.Join(skillDir, skillMarkdownFileName)); err != nil {
 		t.Fatalf("installed SKILL.md stat error = %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(skillDir, ".agh-meta.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(skillDir, ".compozy-meta.json")); err != nil {
 		t.Fatalf("installed sidecar stat error = %v", err)
 	}
 }

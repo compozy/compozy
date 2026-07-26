@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
-	"github.com/compozy/agh/internal/transcript"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 type projectionDB interface {

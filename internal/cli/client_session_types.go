@@ -3,7 +3,7 @@ package cli
 import (
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 // CreateSessionRequest captures the shared daemon session creation payload.

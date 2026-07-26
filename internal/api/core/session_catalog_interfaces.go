@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // SessionCatalogEventSubscriber exposes catalog wakes across workspaces.

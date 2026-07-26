@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/gofrs/flock"
 )
 

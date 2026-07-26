@@ -9,13 +9,13 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/memory/consolidation"
 
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 )
 
 // WithHomePaths overrides the resolved AGH home layout.

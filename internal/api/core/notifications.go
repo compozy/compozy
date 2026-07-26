@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/api/contract"
+	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/gin-gonic/gin"
 )
 

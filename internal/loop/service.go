@@ -9,9 +9,9 @@ import (
 	"maps"
 	"time"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/network/participation"
-	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 var _ Service = (*service)(nil)

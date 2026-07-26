@@ -168,6 +168,6 @@ func siblingBackupPath(targetPath string, now time.Time) string {
 	filename := filepath.Base(targetPath)
 	return filepath.Join(
 		filepath.Dir(targetPath),
-		fmt.Sprintf(".%s.agh-backup-%d", filename, now.UnixNano()),
+		fmt.Sprintf(".%s.compozy-backup-%d", filename, now.UnixNano()),
 	)
 }

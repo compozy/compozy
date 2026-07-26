@@ -3,7 +3,7 @@ package task
 import (
 	"fmt"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 func validateRecoverRunStatus(source *Run) error {
@@ -11,9 +11,9 @@ func validateRecoverRunStatus(source *Run) error {
 	if status == TaskRunStatusNeedsAttention {
 		return nil
 	}
-	suggested := fmt.Sprintf("agh task inspect %s", source.ID)
+	suggested := fmt.Sprintf("compozy task inspect %s", source.ID)
 	if status == TaskRunStatusFailed {
-		suggested = fmt.Sprintf("agh task retry %s", source.ID)
+		suggested = fmt.Sprintf("compozy task retry %s", source.ID)
 	}
 	return forceRunDiagnosticError(
 		diagnosticcontract.CodeTaskRunNotRecoverable,

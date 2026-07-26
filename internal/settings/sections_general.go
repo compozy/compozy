@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (s *service) buildGeneralSection(ctx context.Context, cfg *aghconfig.Config) (GeneralSection, error) {

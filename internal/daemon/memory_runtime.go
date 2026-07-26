@@ -16,15 +16,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/compozy/internal/fileutil"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	extractorpkg "github.com/compozy/agh/internal/memory/extractor"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	extractorpkg "github.com/compozy/compozy/internal/memory/extractor"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 const (

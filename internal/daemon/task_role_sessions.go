@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (r *taskRoleRuntime) activeRoleSession(
@@ -94,7 +94,7 @@ func (r *taskRoleRuntime) createRoleSession(
 }
 
 // activateForStarvation spawns a capability-matched worker for a starved run that no agent has
-// claimed. The worker self-claims via `agh task next`; the scheduler never claims. It carries a
+// claimed. The worker self-claims via `compozy task next`; the scheduler never claims. It carries a
 // TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, channel, scope) keeps the
 // effective per-workspace cap at one active worker per role.
 func (r *taskRoleRuntime) activateForStarvation(
@@ -345,7 +345,7 @@ func applyTaskRoleDesignation(activation *taskRoleActivation, run taskpkg.Run) {
 }
 
 func taskRoleClaimCommand(runID string, capabilities []string) string {
-	args := []string{"agh task next --run-id " + shellQuoteSimple(strings.TrimSpace(runID)) + " --wait -o json"}
+	args := []string{"compozy task next --run-id " + shellQuoteSimple(strings.TrimSpace(runID)) + " --wait -o json"}
 	for _, capability := range uniqueNonEmptyStrings(capabilities) {
 		args = append(args, "--capability "+shellQuoteSimple(capability))
 	}

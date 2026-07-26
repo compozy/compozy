@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	core "github.com/compozy/agh/internal/api/core"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/deadentity"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	memorypkg "github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	aghupdate "github.com/compozy/agh/internal/update"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	core "github.com/compozy/compozy/internal/api/core"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/deadentity"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	memorypkg "github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	aghupdate "github.com/compozy/compozy/internal/update"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
@@ -458,7 +458,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      true,
 						Status:         aghupdate.StatusAvailable,
-						Recommendation: "Run agh update.",
+						Recommendation: "Run compozy update.",
 						ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
 						CheckedAt:      &checkedAt,
 						LastError:      "cached upstream failure",
@@ -480,7 +480,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			LatestVersion:  "v1.1.0",
 			Available:      true,
 			Status:         string(aghupdate.StatusAvailable),
-			Recommendation: "Run agh update.",
+			Recommendation: "Run compozy update.",
 			ReleaseURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
 			CheckedAt:      &checkedAt,
 			LastError:      "cached upstream failure",

@@ -11,7 +11,7 @@ import (
 
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (m *Manager) waitBackoff(delay time.Duration) bool {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	taskpkg "github.com/compozy/agh/internal/task"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func applyLoopRunControlScan(run *looppkg.Run, values *loopRunScanValues) error {

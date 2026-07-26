@@ -15,7 +15,7 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/registry"
 )
 
 func joinErrors(errs ...error) error {

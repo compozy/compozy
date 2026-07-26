@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/controller"
-	"github.com/compozy/agh/internal/session"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/memory/controller"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func TestMemoryControllerRoleCallOptions(t *testing.T) {

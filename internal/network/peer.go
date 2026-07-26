@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	sessionpkg "github.com/compozy/agh/internal/session"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 )
 
 // LocalPeer is one daemon-local peer joined to one runtime channel.

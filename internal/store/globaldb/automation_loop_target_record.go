@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	automation "github.com/compozy/agh/internal/automation/model"
+	automation "github.com/compozy/compozy/internal/automation/model"
 )
 
 type automationLoopTargetEncoded struct {

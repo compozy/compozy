@@ -7,12 +7,12 @@ import (
 
 	"strings"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/soul"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func (s *ResourceStore) syncOwnedAgentResources(

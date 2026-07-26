@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -77,7 +77,7 @@ func remoteAdditionalDirs(runtimeRoot string, localAdditionalDirs []string) []st
 	if len(localAdditionalDirs) == 0 {
 		return nil
 	}
-	baseRoot := path.Join(runtimeRoot, ".agh-additional")
+	baseRoot := path.Join(runtimeRoot, ".compozy-additional")
 	dirs := make([]string, 0, len(localAdditionalDirs))
 	for i, localDir := range localAdditionalDirs {
 		base := path.Base(strings.TrimRight(localDir, "/"))

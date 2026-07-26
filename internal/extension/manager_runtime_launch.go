@@ -12,12 +12,12 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/toolruntime"
 
-	"github.com/compozy/agh/internal/version"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func (m *Manager) launchRuntime(

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	automationmodel "github.com/compozy/agh/internal/automation/model"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
 
-	settingspkg "github.com/compozy/agh/internal/settings"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 func settingsRestartStatusURL(operationID string) string {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	taskpkg "github.com/compozy/agh/internal/task"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // CreateBridgeRequest is the shared bridge-instance creation payload.

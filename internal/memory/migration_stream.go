@@ -1,8 +1,8 @@
 package memory
 
 import (
-	memoryschema "github.com/compozy/agh/internal/memory/schema"
-	storepkg "github.com/compozy/agh/internal/store"
+	memoryschema "github.com/compozy/compozy/internal/memory/schema"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 const memoryMigrationVersionTable = "goose_db_version_memory"

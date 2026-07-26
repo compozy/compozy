@@ -1,9 +1,9 @@
 package daemon
 
 import (
-	core "github.com/compozy/agh/internal/api/core"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	core "github.com/compozy/compozy/internal/api/core"
+	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (d *Daemon) nativeToolsDeps(

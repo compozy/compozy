@@ -11,10 +11,10 @@ import (
 
 	"unicode/utf8"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/fileutil"
-	"github.com/compozy/agh/internal/frontmatter"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/frontmatter"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	yaml "github.com/goccy/go-yaml"
 )
 

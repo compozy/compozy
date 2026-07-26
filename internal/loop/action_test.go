@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKinds(t *testing.T) {

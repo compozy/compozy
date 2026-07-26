@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
-	looppkg "github.com/compozy/agh/internal/loop"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/diagnostics"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const (

@@ -101,7 +101,7 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	case state.Available:
 		state.Status = StatusAvailable
 		state.Message = "A newer stable AGH release is available."
-		state.Recommendation = "Run `agh update`."
+		state.Recommendation = "Run `compozy update`."
 	default:
 		state.Status = StatusCurrent
 		state.Message = "AGH is already on the latest stable release."

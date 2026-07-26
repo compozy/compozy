@@ -1,6 +1,6 @@
 package globaldb
 
-import looppkg "github.com/compozy/agh/internal/loop"
+import looppkg "github.com/compozy/compozy/internal/loop"
 
 type loopConfigPatchFlags struct {
 	HumanGate        bool

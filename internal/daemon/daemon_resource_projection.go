@@ -3,18 +3,18 @@ package daemon
 import (
 	"context"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/windowmanager"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (d *Daemon) applyAutomationManagerFactoryDefault() {

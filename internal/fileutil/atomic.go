@@ -31,7 +31,7 @@ func AtomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	}
 
 	dir := filepath.Dir(path)
-	tempFile, err := os.CreateTemp(dir, ".agh-atomic-*")
+	tempFile, err := os.CreateTemp(dir, ".compozy-atomic-*")
 	if err != nil {
 		return fmt.Errorf("fileutil: create temp file for %q: %w", path, err)
 	}

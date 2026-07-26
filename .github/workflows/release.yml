@@ -230,7 +230,7 @@ jobs:
           name: e2e-nightly-artifacts
           path: |
             .tmp/playwright
-            /tmp/agh-e2e-*
+            /tmp/compozy-e2e-*
           if-no-files-found: ignore
           retention-days: 14
 
@@ -280,7 +280,7 @@ jobs:
           path: |
             coverage.out
             test-results.xml
-            /tmp/agh-e2e-*
+            /tmp/compozy-e2e-*
           if-no-files-found: ignore
           retention-days: 14
 

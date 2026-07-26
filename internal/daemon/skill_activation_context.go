@@ -3,8 +3,8 @@ package daemon
 import (
 	"context"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func newSkillActivationContextProvider(state *bootState) skillspkg.ActivationContextProvider {

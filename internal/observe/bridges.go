@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 )
 
 // BridgeSource exposes the daemon-owned bridge runtime data needed by

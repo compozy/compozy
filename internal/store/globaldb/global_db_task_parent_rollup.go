@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	taskpkg "github.com/compozy/agh/internal/task"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 const parentRollupResultKind = "children_completed"

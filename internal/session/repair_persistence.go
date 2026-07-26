@@ -7,8 +7,8 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) persistRepairActions(

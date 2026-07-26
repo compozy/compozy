@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestAppMetadataFreshDB(t *testing.T) {

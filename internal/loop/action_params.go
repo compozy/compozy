@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 func renderNodeParams(node dsl.Node, namespace map[string]any) (map[string]any, error) {

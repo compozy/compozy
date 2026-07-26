@@ -3,7 +3,7 @@ package task
 import (
 	"strings"
 
-	eventspkg "github.com/compozy/agh/internal/events"
+	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
 const (

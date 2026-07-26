@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	memoryrecall "github.com/compozy/agh/internal/memory/recall"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
 )
 
 // NewStore constructs a Store for the provided global memory directory.

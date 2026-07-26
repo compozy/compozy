@@ -3,7 +3,7 @@ package loop
 import (
 	"slices"
 
-	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 // SupportedWatchEvents returns the closed watch-events registry for shipped phases.

@@ -13,21 +13,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	loopdsl "github.com/compozy/agh/internal/loop/dsl"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
@@ -536,7 +536,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				TaskID:   "task-workspace",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  2,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-123",
@@ -556,7 +556,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				TaskID:   "task-global",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  2,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantPath:     globalPath,
@@ -673,7 +673,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				TaskID:   "task-profile",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 11, 30, 0, 0, time.UTC),
 			},
 			ExecutionProfile: &taskpkg.ExecutionProfile{
@@ -722,7 +722,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				TaskID:   "task-sandbox-ref",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC),
 			},
 			ExecutionProfile: &taskpkg.ExecutionProfile{
@@ -766,7 +766,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				TaskID:   "task-sandbox-none",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 12, 5, 0, 0, time.UTC),
 			},
 			ExecutionProfile: &taskpkg.ExecutionProfile{
@@ -809,7 +809,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				TaskID:   "task-evidence-sandbox",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 12, 20, 0, 0, time.UTC),
 			},
 			ExecutionProfile: &taskpkg.ExecutionProfile{
@@ -857,7 +857,7 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				TaskID:   "task-evidence-inherit",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 12, 25, 0, 0, time.UTC),
 			},
 			ExecutionProfile: &taskpkg.ExecutionProfile{
@@ -908,7 +908,7 @@ func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T
 				TaskID:   "task-context",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 12, 10, 0, 0, time.UTC),
 			},
 		})
@@ -951,7 +951,7 @@ func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T
 				TaskID:   "task-context-error",
 				Status:   taskpkg.TaskRunStatusStarting,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Date(2026, 5, 5, 12, 15, 0, 0, time.UTC),
 			},
 		})
@@ -1060,7 +1060,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 				TaskID:   "task-1",
 				Status:   taskpkg.TaskRunStatusClaimed,
 				Attempt:  1,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt: time.Now().UTC(),
 			},
 			wantAction: taskpkg.RunBootRecoveryRequeue,
@@ -1074,7 +1074,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 				Status:    taskpkg.TaskRunStatusStarting,
 				Attempt:   1,
 				SessionID: "sess-active",
-				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt:  time.Now().UTC(),
 			},
 			wantAction: taskpkg.RunBootRecoveryMarkRunning,
@@ -1088,7 +1088,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 				Status:    taskpkg.TaskRunStatusRunning,
 				Attempt:   1,
 				SessionID: "sess-stopping",
-				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt:  time.Now().UTC(),
 			},
 			wantNil: true,
@@ -1101,7 +1101,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 				Status:    taskpkg.TaskRunStatusStarting,
 				Attempt:   1,
 				SessionID: "sess-stopped",
-				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt:  time.Now().UTC(),
 			},
 			wantAction: taskpkg.RunBootRecoveryFail,
@@ -1115,7 +1115,7 @@ func TestPlanTaskRunRecoveryClassifiesClaimedStartingRunning(t *testing.T) {
 				Status:    taskpkg.TaskRunStatusRunning,
 				Attempt:   1,
 				SessionID: "sess-missing",
-				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt:  time.Now().UTC(),
 			},
 			wantAction: taskpkg.RunBootRecoveryFail,
@@ -1245,7 +1245,7 @@ func TestPlanTaskRunRecoveryClassifiesCrashedOrphanedAndStalledSessions(t *testi
 				Status:    taskpkg.TaskRunStatusRunning,
 				Attempt:   1,
 				SessionID: tc.sessionID,
-				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
 				QueuedAt:  now,
 			})
 			if err != nil {
@@ -2431,7 +2431,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		t.Fatalf("run metadata = %#v, want %#v", got, want)
 	}
 
-	readActor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task inspect")
+	readActor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task inspect")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -3065,7 +3065,7 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 	}
 
 	wrongOriginRun := matchingRun
-	wrongOriginRun.Origin = taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"}
+	wrongOriginRun.Origin = taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"}
 	if err := validateDetachedHarnessRunMatch(
 		wrongOriginRun,
 		req,

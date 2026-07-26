@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/compozy/internal/diagnostics"
 
 	"github.com/spf13/cobra"
 )
@@ -212,14 +212,14 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 		Use:   taskTaskKey,
 		Short: "Manage tasks and task runs",
 		Example: `  # Create durable task intent without starting execution
-  agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
+  compozy task create --scope workspace --workspace checkout-api --title "Audit auth flow"
 
   # Explicitly enqueue execution for an existing task
-  agh task start task-123 --network live \
+  compozy task start task-123 --network live \
     --network-channel-strategy named --network-channel coord-run-123
 
   # Let the current agent session claim work
-  agh task next --wait`,
+  compozy task next --wait`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},

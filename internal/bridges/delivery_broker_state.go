@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/agh/internal/toolmeta"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 type deliveryQueueKind string

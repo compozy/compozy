@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	modelpkg "github.com/compozy/agh/internal/automation/model"
-	taskpkg "github.com/compozy/agh/internal/task"
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func countEnabledJobs(jobs []Job) int {

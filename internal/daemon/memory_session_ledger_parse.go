@@ -16,13 +16,13 @@ import (
 
 	"time"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	extractorpkg "github.com/compozy/agh/internal/memory/extractor"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	extractorpkg "github.com/compozy/compozy/internal/memory/extractor"
 
-	localprovider "github.com/compozy/agh/internal/memory/provider/local"
+	localprovider "github.com/compozy/compozy/internal/memory/provider/local"
 )
 
 type sessionLedgerMetaLine struct {

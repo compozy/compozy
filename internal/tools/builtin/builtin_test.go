@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/network/participation"
-	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/compozy/internal/network/participation"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 

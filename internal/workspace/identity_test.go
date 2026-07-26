@@ -38,7 +38,7 @@ func TestEnsureIdentityCreatesLoadsAndValidatesWorkspaceToml(t *testing.T) {
 	if !created.CreatedAt.Equal(createdAt) {
 		t.Fatalf("created.CreatedAt = %s, want %s", created.CreatedAt, createdAt)
 	}
-	if got, want := created.Path, filepath.Join(canonical, ".agh", "workspace.toml"); got != want {
+	if got, want := created.Path, filepath.Join(canonical, ".compozy", "workspace.toml"); got != want {
 		t.Fatalf("created.Path = %q, want %q", got, want)
 	}
 
@@ -77,7 +77,7 @@ func TestEnsureIdentityFailsClosedForInvalidWorkspaceToml(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	identityPath := filepath.Join(root, ".agh", "workspace.toml")
+	identityPath := filepath.Join(root, ".compozy", "workspace.toml")
 	writeFile(t, identityPath, `workspace_id = "not-a-ulid"
 created_at = "2026-05-05T12:00:00Z"
 realpath_at_creation = "/tmp/workspace"
@@ -97,7 +97,7 @@ func TestEnsureIdentityFailsClosedForPermissionDeniedWorkspaceToml(t *testing.T)
 	}
 
 	root := t.TempDir()
-	identityPath := filepath.Join(root, ".agh", "workspace.toml")
+	identityPath := filepath.Join(root, ".compozy", "workspace.toml")
 	writeFile(t, identityPath, `workspace_id = "`+testWorkspaceULID+`"
 created_at = "2026-05-05T12:00:00Z"
 realpath_at_creation = "/tmp/workspace"

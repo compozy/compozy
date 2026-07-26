@@ -10,10 +10,10 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/store"
-	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
+	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestGlobalDBBridgeDeliverySchemaMigration(t *testing.T) {

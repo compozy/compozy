@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/agentidentity"
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
@@ -46,15 +46,15 @@ func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(t, deps, "me", "-o", "json")
 		if err != nil {
-			t.Fatalf("agh me error = %v", err)
+			t.Fatalf("compozy me error = %v", err)
 		}
 
 		var got AgentMeRecord
 		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
-			t.Fatalf("json.Unmarshal(agh me) error = %v", err)
+			t.Fatalf("json.Unmarshal(compozy me) error = %v", err)
 		}
 		if got.Self.SessionID != "sess-agent" || got.Self.AgentName != "coder" || got.Workspace.ID != "ws-1" {
-			t.Fatalf("agh me payload = %#v, want caller session/workspace identity", got)
+			t.Fatalf("compozy me payload = %#v, want caller session/workspace identity", got)
 		}
 	})
 }
@@ -97,7 +97,7 @@ func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(t, deps, "me", "context", "-o", "json")
 		if err != nil {
-			t.Fatalf("agh me context error = %v", err)
+			t.Fatalf("compozy me context error = %v", err)
 		}
 
 		assertJSONKeyOrder(t, stdout, []string{
@@ -199,7 +199,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			"json",
 		)
 		if err != nil {
-			t.Fatalf("agh spawn error = %v", err)
+			t.Fatalf("compozy spawn error = %v", err)
 		}
 		if gotRequest.AgentName != "coder" ||
 			gotRequest.Provider != "codex" ||
@@ -284,7 +284,7 @@ func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
 			}
 			_, _, err := executeRootCommand(t, tt.deps(t, client), tt.args...)
 			if err == nil {
-				t.Fatal("agh ch send error = nil, want validation/identity error")
+				t.Fatal("compozy ch send error = nil, want validation/identity error")
 			}
 		})
 	}
@@ -345,7 +345,7 @@ func TestChannelListCommandJSONReturnsVisibleChannels(t *testing.T) {
 
 		stdout, _, err := executeRootCommand(t, deps, "ch", "list", "-o", "json")
 		if err != nil {
-			t.Fatalf("agh ch list error = %v", err)
+			t.Fatalf("compozy ch list error = %v", err)
 		}
 
 		var channels []AgentChannelRecord
@@ -424,7 +424,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 					"-o", "json",
 				)
 				if err != nil {
-					t.Fatalf("agh ch send error = %v", err)
+					t.Fatalf("compozy ch send error = %v", err)
 				}
 			})
 		}
@@ -469,10 +469,10 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				}
 				_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, client), tt.args...)
 				if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
-					t.Fatalf("agh ch send error = %v, want ErrRawClaimTokenMetadata", err)
+					t.Fatalf("compozy ch send error = %v, want ErrRawClaimTokenMetadata", err)
 				}
 				if strings.Contains(err.Error(), "agh_claim_CLI_CHANNEL_123") {
-					t.Fatalf("agh ch send error leaked raw claim token: %v", err)
+					t.Fatalf("compozy ch send error leaked raw claim token: %v", err)
 				}
 			})
 		}
@@ -498,7 +498,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 			"--from", "alice@39f713d0a644253f04529421b9f51b9b",
 		)
 		if err == nil || !strings.Contains(err.Error(), "unknown flag: --from") {
-			t.Fatalf("agh ch send caller identity error = %v, want unsupported identity field rejection", err)
+			t.Fatalf("compozy ch send caller identity error = %v, want unsupported identity field rejection", err)
 		}
 	})
 }
@@ -564,7 +564,7 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"--body", `{"text":"ack"}`,
 			"-o", "json",
 		); err != nil {
-			t.Fatalf("agh ch reply error = %v", err)
+			t.Fatalf("compozy ch reply error = %v", err)
 		}
 		if _, _, err := executeRootCommand(
 			t,
@@ -578,7 +578,7 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"--correlation-id", "corr-1",
 			"-o", "json",
 		); err != nil {
-			t.Fatalf("agh ch reply with metadata error = %v", err)
+			t.Fatalf("compozy ch reply with metadata error = %v", err)
 		}
 
 		_, _, err := executeRootCommand(
@@ -590,7 +590,7 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"--kind", "status",
 		)
 		if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
-			t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
+			t.Fatalf("compozy ch reply --kind status error = %v, want reply-kind validation", err)
 		}
 
 		_, _, err = executeRootCommand(
@@ -605,7 +605,7 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"--kind", "status",
 		)
 		if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
-			t.Fatalf("agh ch reply --kind status error = %v, want reply-kind validation", err)
+			t.Fatalf("compozy ch reply --kind status error = %v, want reply-kind validation", err)
 		}
 	})
 }
@@ -643,7 +643,7 @@ func TestChannelRecvJSONLOutputEmitsOneObjectPerMessage(t *testing.T) {
 			"-o", "jsonl",
 		)
 		if err != nil {
-			t.Fatalf("agh ch recv error = %v", err)
+			t.Fatalf("compozy ch recv error = %v", err)
 		}
 
 		lines := strings.Split(strings.TrimSpace(stdout), "\n")

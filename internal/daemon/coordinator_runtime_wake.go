@@ -7,9 +7,9 @@ import (
 
 	"strings"
 
-	"github.com/compozy/agh/internal/coordinator"
+	"github.com/compozy/compozy/internal/coordinator"
 
-	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (r *coordinatorRuntime) beginCoordinatorWakeLocked(info *session.Info, decision coordinator.Decision) bool {
@@ -84,7 +84,7 @@ func coordinatorWakeMessage(decision coordinator.Decision) string {
 	return fmt.Sprintf(
 		"A task run is queued for this coordinator.\n\n"+
 			"Task: %s\nRun: %s\n\n"+
-			"Claim the run through the AGH task claim path by running `agh task next -o json` once without long-polling, then route from durable receipts. "+
+			"Claim the run through the AGH task claim path by running `compozy task next -o json` once without long-polling, then route from durable receipts. "+
 			"If the receipts require human input, park the run with the AGH task block path.",
 		taskID,
 		runID,

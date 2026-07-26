@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (m *Service) dispatchTaskStatusChanged(

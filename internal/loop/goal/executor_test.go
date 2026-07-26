@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func TestControlRevokedErrorShouldPublishSafeRecovery(t *testing.T) {

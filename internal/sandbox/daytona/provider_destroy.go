@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func (p *daytonaProvider) Destroy(ctx context.Context, state sandbox.SessionState) error {

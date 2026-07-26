@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/task"
 )
 
 // GoalPromptLease is the neutral identity required to revoke one managed Goal prompt lease.

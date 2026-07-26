@@ -3,8 +3,8 @@ package session
 import (
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/testutil"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestInvokeTransientModel(t *testing.T) {

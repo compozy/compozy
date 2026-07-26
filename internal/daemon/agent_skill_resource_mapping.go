@@ -6,13 +6,13 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/resources"
 
-	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
+	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func appendAgentResources(

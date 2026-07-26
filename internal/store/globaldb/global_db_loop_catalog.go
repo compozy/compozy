@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const loopCatalogLatestRunHeadColumnsSQL = `lr.id, lr.loop_name, lr.status, lr.created_at`

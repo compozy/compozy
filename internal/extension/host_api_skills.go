@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
-	skillspkg "github.com/compozy/agh/internal/skills"
+	apicontract "github.com/compozy/compozy/internal/api/contract"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 func (h *HostAPIHandler) handleSkillsList(ctx context.Context, raw json.RawMessage) (any, error) {

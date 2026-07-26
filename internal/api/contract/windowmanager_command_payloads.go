@@ -3,7 +3,7 @@ package contract
 import (
 	"encoding/json"
 
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type WindowManagerCreateDesktopPayload struct {

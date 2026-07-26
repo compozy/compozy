@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 // Launcher starts an ACP-capable agent process inside a sandbox.

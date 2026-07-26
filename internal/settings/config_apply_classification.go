@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	"github.com/compozy/agh/internal/config/lifecycle"
+	"github.com/compozy/compozy/internal/config/lifecycle"
 )
 
 func (s *service) classifyHooksExtensionsRequest(

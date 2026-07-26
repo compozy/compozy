@@ -18,27 +18,27 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/admission"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/memory/consolidation"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/testutil/acpmock"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	"github.com/compozy/agh/internal/vault"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -193,7 +193,7 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 
 	workspaceRoot := filepath.Join(t.TempDir(), "task-runtime-workspace")
 	resolved := resolveDaemonWorkspace(t, d.workspaceResolver, workspaceRoot)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task run")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task run")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -393,7 +393,7 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 		t.Fatalf("duplicate workspace run id = %q, want %q", got, want)
 	}
 
-	readActor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task inspect")
+	readActor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task inspect")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -1004,7 +1004,7 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("task.NewManager(seed) error = %v", err)
 	}
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task seed")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task seed")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -1031,7 +1031,7 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 			TaskID:          claimedTask.ID,
 			Status:          taskpkg.TaskRunStatusClaimed,
 			Attempt:         1,
-			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task seed"},
 			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
 			QueuedAt:        now,
 			ClaimedAt:       now.Add(30 * time.Second),
@@ -1042,7 +1042,7 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 			Status:          taskpkg.TaskRunStatusStarting,
 			Attempt:         1,
 			SessionID:       "sess-stopped",
-			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task seed"},
 			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
 			QueuedAt:        now,
 			StartedAt:       now.Add(time.Minute),
@@ -1053,7 +1053,7 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 			Status:          taskpkg.TaskRunStatusRunning,
 			Attempt:         1,
 			SessionID:       "sess-missing",
-			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task seed"},
+			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task seed"},
 			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
 			QueuedAt:        now,
 			StartedAt:       now.Add(2 * time.Minute),
@@ -2712,7 +2712,7 @@ name = "workspace-task-run"
 event = "task.run.enqueued"
 mode = "sync"
 command = "/bin/sh"
-args = [".agh/hooks/capture-task-run.sh", ".agh/task-run-enqueued.json"]
+args = [".compozy/hooks/capture-task-run.sh", ".compozy/task-run-enqueued.json"]
 `)
 
 		resolvedWorkspace := seedDaemonWorkspace(t, homePaths, workspaceRoot)
@@ -3458,7 +3458,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 }
 
 func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
-	aghExecutable := e2etest.BuildAGHBinary(t)
+	compozyExecutable := e2etest.BuildCompozyBinary(t)
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
@@ -3489,7 +3489,7 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 	d.executable = func() (string, error) {
-		return aghExecutable, nil
+		return compozyExecutable, nil
 	}
 	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)

@@ -51,10 +51,10 @@ func newVaultListCommand(deps commandDeps) *cobra.Command {
 		Use:   vaultListKey,
 		Short: "List redacted vault secret metadata",
 		Example: `  # List session-scoped vault entries
-  agh vault list --prefix vault:sessions/sess_123/
+  compozy vault list --prefix vault:sessions/sess_123/
 
   # List all provider vault entries as JSON
-  agh vault list --namespace providers -o json`,
+  compozy vault list --namespace providers -o json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -105,10 +105,10 @@ func newVaultPutCommand(deps commandDeps) *cobra.Command {
 		Use:   "put <ref>",
 		Short: "Store one write-only vault secret from stdin",
 		Example: `  # Store a session vault secret
-  printf "%s" "$TOKEN" | agh vault put vault:sessions/sess_123/github-token --kind token --value-stdin
+  printf "%s" "$TOKEN" | compozy vault put vault:sessions/sess_123/github-token --kind token --value-stdin
 
   # Rotate a value without changing its existing kind metadata
-  printf "%s" "$TOKEN" | agh vault put vault:sessions/sess_123/github-token --value-stdin`,
+  printf "%s" "$TOKEN" | compozy vault put vault:sessions/sess_123/github-token --value-stdin`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !valueStdin {

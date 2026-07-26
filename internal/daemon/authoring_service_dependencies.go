@@ -3,8 +3,8 @@ package daemon
 import (
 	"log/slog"
 
-	"github.com/compozy/agh/internal/heartbeat"
-	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/soul"
 )
 
 func soulAuthoringServiceDependency(store any, logger *slog.Logger) *soul.ManagedSoulAuthoringService {

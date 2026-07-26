@@ -16,9 +16,9 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func TestDaytonaProviderPrepareCreatesSandboxWithSnapshotLabelsAndRuntime(t *testing.T) {
@@ -736,9 +736,9 @@ func TestDaytonaDurationParsingAndShellHelpers(t *testing.T) {
 
 	dirs := remoteAdditionalDirs("/workspace/runtime", []string{"/tmp/one", "/", "/tmp/%%%/two three"})
 	for _, want := range []string{
-		"/workspace/runtime/.agh-additional/01-one",
-		"/workspace/runtime/.agh-additional/02-dir",
-		"/workspace/runtime/.agh-additional/03-two-three",
+		"/workspace/runtime/.compozy-additional/01-one",
+		"/workspace/runtime/.compozy-additional/02-dir",
+		"/workspace/runtime/.compozy-additional/03-two-three",
 	} {
 		if !containsString(dirs, want) {
 			t.Fatalf("remoteAdditionalDirs() = %#v, missing %q", dirs, want)

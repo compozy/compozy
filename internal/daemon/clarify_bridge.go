@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
 )
 

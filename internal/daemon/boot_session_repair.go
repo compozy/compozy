@@ -7,23 +7,23 @@ import (
 
 	"strings"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/agh/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/memory/consolidation"
 
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/sandbox/daytona"
-	"github.com/compozy/agh/internal/sandbox/local"
-	"github.com/compozy/agh/internal/session"
-	sessionledger "github.com/compozy/agh/internal/sessions/ledger"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox/daytona"
+	"github.com/compozy/compozy/internal/sandbox/local"
+	"github.com/compozy/compozy/internal/session"
+	sessionledger "github.com/compozy/compozy/internal/sessions/ledger"
 
-	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/compozy/internal/skills"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/toolruntime"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error {

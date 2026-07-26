@@ -11,7 +11,8 @@ import (
 
 	"unicode"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnostic) {
@@ -99,7 +100,7 @@ func safePathWithoutRoot(path string) string {
 	slashed := filepath.ToSlash(filepath.Clean(path))
 	parts := strings.Split(slashed, "/")
 	for idx := 0; idx < len(parts)-2; idx++ {
-		if parts[idx] == ".agh" && parts[idx+1] == "agents" {
+		if parts[idx] == aghconfig.DirName && parts[idx+1] == "agents" {
 			return strings.Join(parts[idx:], "/")
 		}
 	}

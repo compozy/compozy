@@ -9,21 +9,21 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/compozy/internal/diagnostics"
 
-	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (m *Manager) resolveCommand(rootDir string, value string) (string, error) {
-	return resolveManifestCommand(rootDir, value, m.getenv, m.aghExecutable)
+	return resolveManifestCommand(rootDir, value, m.getenv, m.compozyExecutable)
 }
 
 func (m *Manager) resolveStringSlice(rootDir string, values []string) ([]string, error) {
-	return resolveManifestStringSlice(rootDir, values, m.getenv, m.aghExecutable)
+	return resolveManifestStringSlice(rootDir, values, m.getenv, m.compozyExecutable)
 }
 
 func (m *Manager) resolveStringMap(rootDir string, env map[string]string) (map[string]string, error) {
-	return resolveManifestStringMap(rootDir, env, m.getenv, m.aghExecutable)
+	return resolveManifestStringMap(rootDir, env, m.getenv, m.compozyExecutable)
 }
 
 func (m *Manager) resolveEnvMap(
@@ -136,5 +136,5 @@ func runExtensionRedactionCleanups(cleanups []func()) {
 }
 
 func (m *Manager) resolveString(rootDir string, value string) (string, error) {
-	return resolveManifestString(rootDir, value, m.getenv, m.aghExecutable)
+	return resolveManifestString(rootDir, value, m.getenv, m.compozyExecutable)
 }

@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestTaskRunPostClaimHookDispatchesAfterAuditEventIntegration(t *testing.T) {
@@ -34,7 +34,7 @@ func TestTaskRunPostClaimHookDispatchesAfterAuditEventIntegration(t *testing.T) 
 		},
 	}))
 
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task run")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task run")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}

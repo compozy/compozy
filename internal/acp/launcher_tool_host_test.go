@@ -15,10 +15,10 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/testutil"
-	"github.com/compozy/agh/internal/toolruntime"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/sandbox"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {

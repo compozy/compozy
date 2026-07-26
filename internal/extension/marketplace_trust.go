@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
-	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/compozy/internal/api/contract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 )
 
 // MarketplaceCatalogRegistryName identifies feed-owned extension artifacts in installed provenance.
-const MarketplaceCatalogRegistryName = "agh-catalog"
+const MarketplaceCatalogRegistryName = "compozy-catalog"
 
 // MarketplaceTrustEvidence contains feed-authoritative install metadata.
 type MarketplaceTrustEvidence struct {
@@ -218,7 +218,7 @@ func newExtensionPolicyBlockedError(slug string, source string) *ExtensionPolicy
 			"Enable it in Settings › Extensions, then confirm the individual install.",
 		diagnosticcontract.SeverityError,
 		diagnosticcontract.FreshnessLive,
-		diagnostics.WithSuggestedCommand("agh config set extensions.marketplace.allow_unverified true"),
+		diagnostics.WithSuggestedCommand("compozy config set extensions.marketplace.allow_unverified true"),
 		diagnostics.WithEvidence(map[string]any{
 			"slug":                          strings.TrimSpace(slug),
 			extensionTrustEvidenceSourceKey: strings.TrimSpace(source),

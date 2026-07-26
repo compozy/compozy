@@ -11,7 +11,7 @@ import (
 func TestProcessInputValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject ambiguous agh-prefixed source filenames", func(t *testing.T) {
+	t.Run("Should reject ambiguous compozy-prefixed source filenames", func(t *testing.T) {
 		t.Parallel()
 
 		srcDir := t.TempDir()
@@ -22,10 +22,10 @@ func TestProcessInputValidation(t *testing.T) {
 		}
 
 		err := Process(context.Background(), srcDir, dstDir)
-		if err == nil || !strings.Contains(err.Error(), "must be 'agh.md' or start with 'agh_'") {
+		if err == nil || !strings.Contains(err.Error(), "must be 'compozy.md' or start with 'compozy_'") {
 			t.Fatalf("Process() error = %v, want ambiguous source filename rejection", err)
 		}
-		if _, statErr := os.Stat(filepath.Join(dstDir, "agh.mdx")); !os.IsNotExist(statErr) {
+		if _, statErr := os.Stat(filepath.Join(dstDir, "compozy.mdx")); !os.IsNotExist(statErr) {
 			t.Fatalf("Process() wrote root output for rejected filename, stat err = %v", statErr)
 		}
 	})
@@ -45,7 +45,7 @@ func TestProcessInputValidation(t *testing.T) {
 		seeded := map[string]string{
 			"index.mdx":       "editorial index",
 			"meta.json":       "{\"title\":\"CLI Reference\"}",
-			"agh.mdx":         "previous root",
+			"compozy.mdx":     "previous root",
 			"agent/index.mdx": "previous agent index",
 			"agent/list.mdx":  "previous agent list",
 			"agent/meta.json": "{\"title\":\"Agent\"}",
@@ -61,7 +61,7 @@ func TestProcessInputValidation(t *testing.T) {
 		}
 
 		err := Process(context.Background(), srcDir, dstDir)
-		if err == nil || !strings.Contains(err.Error(), "must be 'agh.md' or start with 'agh_'") {
+		if err == nil || !strings.Contains(err.Error(), "must be 'compozy.md' or start with 'compozy_'") {
 			t.Fatalf("Process() error = %v, want ambiguous source filename rejection", err)
 		}
 		for rel, want := range seeded {
@@ -78,7 +78,7 @@ func TestProcessInputValidation(t *testing.T) {
 	t.Run("Should reject invalid empty command segments", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := commandSegments("agh__list.md", "agh__list")
+		_, err := commandSegments("compozy__list.md", "compozy__list")
 		if err == nil || !strings.Contains(err.Error(), "invalid command segment") {
 			t.Fatalf("commandSegments() error = %v, want invalid segment rejection", err)
 		}
@@ -88,12 +88,12 @@ func TestProcessInputValidation(t *testing.T) {
 		t.Parallel()
 
 		inputs := []input{
-			{fileName: "agh.md", baseName: "agh"},
+			{fileName: "compozy.md", baseName: "compozy"},
 			{fileName: "aghost.md", baseName: "aghost"},
 		}
 
 		err := validateOutputPaths(inputs, map[string]bool{})
-		if err == nil || !strings.Contains(err.Error(), `output path collision "agh.mdx"`) {
+		if err == nil || !strings.Contains(err.Error(), `output path collision "compozy.mdx"`) {
 			t.Fatalf("validateOutputPaths() error = %v, want output path collision", err)
 		}
 	})
@@ -106,19 +106,19 @@ func TestLinkRewriteCodeRegionHandling(t *testing.T) {
 		t.Parallel()
 
 		raw := strings.Join([]string{
-			"See [agh agent](agh_agent.md).",
-			"Inline `[agh agent](agh_agent.md)` stays literal.",
+			"See [compozy agent](compozy_agent.md).",
+			"Inline `[compozy agent](compozy_agent.md)` stays literal.",
 			"```",
-			"[agh task](agh_task.md)",
+			"[compozy task](compozy_task.md)",
 			"```",
 		}, "\n")
 
 		got := rewriteLinks(raw)
 		want := strings.Join([]string{
-			"See [agh agent](agh_agent).",
-			"Inline `[agh agent](agh_agent.md)` stays literal.",
+			"See [compozy agent](compozy_agent).",
+			"Inline `[compozy agent](compozy_agent.md)` stays literal.",
 			"```",
-			"[agh task](agh_task.md)",
+			"[compozy task](compozy_task.md)",
 			"```",
 		}, "\n")
 		if got != want {
@@ -130,23 +130,23 @@ func TestLinkRewriteCodeRegionHandling(t *testing.T) {
 		t.Parallel()
 
 		targets := map[string]string{
-			"agh_agent": "/runtime/cli-reference/agent",
-			"agh_task":  "/runtime/cli-reference/task",
+			"compozy_agent": "/runtime/cli-reference/agent",
+			"compozy_task":  "/runtime/cli-reference/task",
 		}
 		raw := strings.Join([]string{
-			"See [agh agent](agh_agent).",
-			"Inline `[agh agent](agh_agent)` stays literal.",
+			"See [compozy agent](compozy_agent).",
+			"Inline `[compozy agent](compozy_agent)` stays literal.",
 			"```",
-			"[agh task](agh_task)",
+			"[compozy task](compozy_task)",
 			"```",
 		}, "\n")
 
 		got := remapLinks(raw, targets)
 		want := strings.Join([]string{
-			"See [agh agent](/runtime/cli-reference/agent).",
-			"Inline `[agh agent](agh_agent)` stays literal.",
+			"See [compozy agent](/runtime/cli-reference/agent).",
+			"Inline `[compozy agent](compozy_agent)` stays literal.",
 			"```",
-			"[agh task](agh_task)",
+			"[compozy task](compozy_task)",
 			"```",
 		}, "\n")
 		if got != want {

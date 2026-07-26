@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/compozy/internal/soul"
 
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WithSoulClaimLock runs fn while holding the session Soul lock used by refresh.

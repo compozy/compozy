@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/resources"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func TestCapabilityCheckerCheckShouldAllowGrantedCapability(t *testing.T) {

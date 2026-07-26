@@ -28,7 +28,7 @@ func newSessionClarifyPendingCommand(deps commandDeps) *cobra.Command {
 		Use:     "pending <session-id>",
 		Short:   "List live questions awaiting an operator answer",
 		Args:    exactOneNonBlankArg(),
-		Example: "  agh session clarify pending sess_123 -o json",
+		Example: "  compozy session clarify pending sess_123 -o json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -53,10 +53,10 @@ func newSessionClarifyAnswerCommand(deps commandDeps) *cobra.Command {
 		Short: "Answer one live session question",
 		Args:  exactTwoNonBlankArgs(),
 		Example: `  # Answer with the first offered choice
-  agh session clarify answer sess_123 req_123 --choice 1
+  compozy session clarify answer sess_123 req_123 --choice 1
 
   # Answer a free-text question
-  agh session clarify answer sess_123 req_123 --text "Use the staging workspace"`,
+  compozy session clarify answer sess_123 req_123 --text "Use the staging workspace"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request, err := sessionClarificationAnswerRequest(cmd, choice, text)
 			if err != nil {

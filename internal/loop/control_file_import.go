@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
 
 const fileImportParseRequiredMessage = "file-import parse is required (json|text)"

@@ -160,7 +160,7 @@ Repo layout — **open the surface's instructions file before working in it**:
 
 | Path            | Stack                                                               | Instructions              |
 | --------------- | ------------------------------------------------------------------- | ------------------------- |
-| `cmd/agh`       | Go binary entry point                                               | `internal/CLAUDE.md`      |
+| `cmd/compozy`   | Go binary entry point                                               | `internal/CLAUDE.md`      |
 | `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network) | `internal/CLAUDE.md`      |
 | `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                     | `web/CLAUDE.md`           |
 | `packages/site` | Fumadocs documentation site (Bun)                                   | `packages/site/CLAUDE.md` |

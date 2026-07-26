@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/toolmeta"
+	"github.com/compozy/compozy/internal/toolmeta"
 )
 
 // ExtensionToolRuntimeDescriptor is the runtime reconciliation proof for an extension tool.

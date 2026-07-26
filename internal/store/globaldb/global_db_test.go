@@ -21,16 +21,16 @@ import (
 	"testing"
 	"time"
 
-	looppkg "github.com/compozy/agh/internal/loop"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	memorypkg "github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	memorypkg "github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/pressly/goose/v3"
 )
 
@@ -773,7 +773,7 @@ func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
 			t.Fatalf("EvalSymlinks(legacy path) error = %v", err)
 		}
 		if !strings.Contains(openErr.Error(), canonicalPath) ||
-			!strings.Contains(openErr.Error(), "complete AGH_HOME or workspace .agh directory") {
+			!strings.Contains(openErr.Error(), "complete AGH_HOME or workspace .compozy directory") {
 			t.Fatalf("OpenGlobalDB(legacy) error = %q, want path and whole-family remediation", openErr)
 		}
 		after, err := os.ReadFile(path)
@@ -1169,7 +1169,7 @@ func TestGlobalDBTaskEventSequenceReads(t *testing.T) {
 	ctx := testutil.Context(t)
 	createdAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
 	actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user-1"}
-	origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task test"}
+	origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task test"}
 
 	if err := globalDB.CreateTask(ctx, taskpkg.Task{
 		ID:             "task-seq",

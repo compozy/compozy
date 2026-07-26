@@ -10,10 +10,10 @@ import (
 
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 )
 
 func (r *bridgeRuntime) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {

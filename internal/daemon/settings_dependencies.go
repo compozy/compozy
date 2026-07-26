@@ -1,8 +1,8 @@
 package daemon
 
 import (
-	settingspkg "github.com/compozy/agh/internal/settings"
-	"github.com/compozy/agh/internal/vault"
+	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func settingsProviderVaultDependency(service *vault.Service) settingspkg.ProviderSecretStore {

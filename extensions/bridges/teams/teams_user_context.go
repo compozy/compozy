@@ -3,7 +3,7 @@ package main
 import (
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	bridgepkg "github.com/compozy/compozy/internal/bridges/contract"
 )
 
 func bridgeHealthMessage(degradation *bridgepkg.BridgeDegradation) string {

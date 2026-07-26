@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	"github.com/compozy/agh/internal/memory/extractor"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/memory/extractor"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestRuntime(t *testing.T) {
@@ -542,7 +542,7 @@ func TestInbox(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		catalogPath := filepath.Join(t.TempDir(), "agh.db")
+		catalogPath := filepath.Join(t.TempDir(), "compozy.db")
 		memStore := memory.NewStore(root, memory.WithCatalogDatabasePath(catalogPath))
 		openMemoryCatalog(t, memStore)
 		if err := memStore.EnsureDirs(); err != nil {
@@ -770,7 +770,7 @@ func TestInbox(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		catalogPath := filepath.Join(t.TempDir(), "agh.db")
+		catalogPath := filepath.Join(t.TempDir(), "compozy.db")
 		memStore := memory.NewStore(root, memory.WithCatalogDatabasePath(catalogPath))
 		openMemoryCatalog(t, memStore)
 		if err := memStore.EnsureDirs(); err != nil {

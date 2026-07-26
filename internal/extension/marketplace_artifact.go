@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 func hasCuratedMarketplaceArtifact(trust *MarketplaceTrustEvidence) bool {

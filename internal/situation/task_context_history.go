@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	taskpkg "github.com/compozy/agh/internal/task"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (s *Service) priorRunSummaries(

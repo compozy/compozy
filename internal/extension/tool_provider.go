@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const extensionToolProviderOwner = "extensions"

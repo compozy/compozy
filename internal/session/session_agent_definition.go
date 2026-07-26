@@ -1,6 +1,6 @@
 package session
 
-import aghconfig "github.com/compozy/agh/internal/config"
+import aghconfig "github.com/compozy/compozy/internal/config"
 
 // AgentDefinition returns the concrete definition snapshot that owns this
 // session. The snapshot is immutable from callers' perspective.

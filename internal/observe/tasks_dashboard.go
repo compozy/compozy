@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // QueryTaskSummary returns the current task summary buckets filtered by the supplied view.

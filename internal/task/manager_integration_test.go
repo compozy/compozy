@@ -19,15 +19,15 @@ import (
 	"testing"
 	"time"
 
-	eventspkg "github.com/compozy/agh/internal/events"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/store/sessiondb"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	aghworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 type integrationStopCall struct {
@@ -383,7 +383,7 @@ func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 			db := openTaskManagerGlobalDB(t)
 			manager := newTaskManagerIntegration(t, db)
 
-			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
@@ -457,7 +457,7 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 	executor := &integrationSessionExecutor{}
 	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
 
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task publish")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task publish")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -549,7 +549,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	t.Parallel()
 
 	ctx := testutil.Context(t)
-	dbPath := filepath.Join(t.TempDir(), "agh.db")
+	dbPath := filepath.Join(t.TempDir(), "compozy.db")
 
 	first, err := globaldb.OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -558,7 +558,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 
 	executor := &integrationSessionExecutor{}
 	firstManager := newTaskManagerIntegration(t, first, taskpkg.WithSessionExecutor(executor))
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task publish")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task publish")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -681,7 +681,7 @@ func TestTaskManagerTriageMutationsRemainActorScopedAfterReload(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t)
-	dbPath := filepath.Join(t.TempDir(), "agh.db")
+	dbPath := filepath.Join(t.TempDir(), "compozy.db")
 
 	first, err := globaldb.OpenGlobalDB(ctx, dbPath)
 	if err != nil {
@@ -689,11 +689,11 @@ func TestTaskManagerTriageMutationsRemainActorScopedAfterReload(t *testing.T) {
 	}
 
 	firstManager := newTaskManagerIntegration(t, first)
-	alice, err := taskpkg.DeriveHumanActorContext("alice", taskpkg.OriginKindCLI, "agh task inbox")
+	alice, err := taskpkg.DeriveHumanActorContext("alice", taskpkg.OriginKindCLI, "compozy task inbox")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext(alice) error = %v", err)
 	}
-	bob, err := taskpkg.DeriveHumanActorContext("bob", taskpkg.OriginKindCLI, "agh task inbox")
+	bob, err := taskpkg.DeriveHumanActorContext("bob", taskpkg.OriginKindCLI, "compozy task inbox")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext(bob) error = %v", err)
 	}
@@ -759,7 +759,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	executor := &integrationSessionExecutor{}
 	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
 
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task run")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task run")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -846,7 +846,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		operator, err := taskpkg.DeriveHumanActorContext(
 			"approval-operator",
 			taskpkg.OriginKindCLI,
-			"agh task approve",
+			"compozy task approve",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -917,7 +917,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		operator, err := taskpkg.DeriveHumanActorContext(
 			"lease-recovery-operator",
 			taskpkg.OriginKindCLI,
-			"agh task recover",
+			"compozy task recover",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -1011,7 +1011,7 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 		taskpkg.WithParticipationResolver(newTaskParticipationResolver(t, db, nil)),
 	)
 
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task start")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task start")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -1103,7 +1103,7 @@ func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"global-operator",
 			taskpkg.OriginKindCLI,
-			"agh task approve",
+			"compozy task approve",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -1144,7 +1144,7 @@ func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"global-operator",
 			taskpkg.OriginKindCLI,
-			"agh task start",
+			"compozy task start",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -1184,7 +1184,7 @@ func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"global-operator",
 			taskpkg.OriginKindCLI,
-			"agh task start",
+			"compozy task start",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -1238,7 +1238,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 	actor, err := taskpkg.DeriveHumanActorContext(
 		"operator",
 		taskpkg.OriginKindCLI,
-		"agh task participation integration",
+		"compozy task participation integration",
 	)
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -1566,7 +1566,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			db := openTaskManagerGlobalDB(t)
 			manager := newTaskManagerIntegration(t, db)
 
-			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
@@ -1664,7 +1664,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			db := openTaskManagerGlobalDB(t)
 			manager := newTaskManagerIntegration(t, db)
 
-			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+			actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
@@ -1779,7 +1779,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"user-parent-rollup",
 			taskpkg.OriginKindCLI,
-			"agh task create",
+			"compozy task create",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -1942,7 +1942,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"user-parent-publication",
 			taskpkg.OriginKindCLI,
-			"agh task create",
+			"compozy task create",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2044,7 +2044,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"user-parent-concurrent",
 			taskpkg.OriginKindCLI,
-			"agh task create",
+			"compozy task create",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2139,7 +2139,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext(
 			"user-parent-unfenced",
 			taskpkg.OriginKindCLI,
-			"agh task complete",
+			"compozy task complete",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2202,7 +2202,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			actor, err := taskpkg.DeriveHumanActorContext(
 				"user-parent-negative-"+terminalStatus.String(),
 				taskpkg.OriginKindCLI,
-				"agh task create",
+				"compozy task create",
 			)
 			if err != nil {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2353,7 +2353,7 @@ func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) 
 		t.Fatalf("runs before approval = %d, want 0", len(runsBefore))
 	}
 
-	operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task approve")
+	operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task approve")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -2399,7 +2399,7 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 		filepath.Join(t.TempDir(), "workspace"),
 	)
 
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -2514,7 +2514,7 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	ctx := testutil.Context(t)
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task list")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task list")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -2609,7 +2609,7 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 		ctx := testutil.Context(t)
 		db := openTaskManagerGlobalDB(t)
 		manager := newTaskManagerIntegration(t, db)
-		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task list")
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task list")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -2680,7 +2680,7 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 	db := openTaskManagerGlobalDB(t)
 	executor := &integrationSessionExecutor{}
 	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task run")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task run")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -2790,7 +2790,7 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		ctx := testutil.Context(t)
 		db := openTaskManagerGlobalDB(t)
 		manager := newTaskManagerIntegration(t, db)
-		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task run")
+		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task run")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -2900,7 +2900,7 @@ func TestTaskManagerCancelTaskTreePersistsCancellationAudit(t *testing.T) {
 		taskpkg.WithSessionExecutor(executor),
 		taskpkg.WithCancelGracePeriod(0),
 	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task cancel")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task cancel")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -3027,7 +3027,7 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 			return prefix + "-timeline-" + strconv.Itoa(counter)
 		}),
 	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task timeline")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task timeline")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -3157,7 +3157,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 			return prefix + "-detail-" + strconv.Itoa(counter)
 		}),
 	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task run-detail")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task run-detail")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -3350,7 +3350,7 @@ func TestTaskManagerTreeLiveViewIntegration(t *testing.T) {
 			return prefix + "-tree-" + strconv.Itoa(counter)
 		}),
 	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task live-tree")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task live-tree")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -3452,7 +3452,7 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 			return prefix + "-stream-" + strconv.Itoa(counter)
 		}),
 	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task live-stream")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task live-stream")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -3702,7 +3702,7 @@ func TestTaskManagerBlockReleaseUnblockClaimableCycleIntegration(t *testing.T) {
 			"block-release-cycle",
 			filepath.Join(t.TempDir(), "workspace"),
 		)
-		operator, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "agh task block")
+		operator, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "compozy task block")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -3824,7 +3824,7 @@ func TestTaskManagerGlobalBlockReleaseUnblockClaimableCycleIntegration(t *testin
 		manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time {
 			return claimNow
 		}))
-		operator, err := taskpkg.DeriveHumanActorContext("operator-global", taskpkg.OriginKindCLI, "agh task block")
+		operator, err := taskpkg.DeriveHumanActorContext("operator-global", taskpkg.OriginKindCLI, "compozy task block")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -3935,7 +3935,7 @@ func openTaskManagerGlobalDB(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	dbPath := filepath.Join(t.TempDir(), "agh.db")
+	dbPath := filepath.Join(t.TempDir(), "compozy.db")
 	db, err := globaldb.OpenGlobalDB(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -4335,7 +4335,7 @@ func TestTaskManagerGetTaskRequiresReadAuthorityIntegration(t *testing.T) {
 	ctx := testutil.Context(t)
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task create")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -4364,7 +4364,7 @@ func TestTaskManagerBlockBreakerRecoverAndCompletionResetIntegration(t *testing.
 		ctx := testutil.Context(t)
 		db := openTaskManagerGlobalDB(t)
 		manager := newTaskManagerIntegration(t, db)
-		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task recover")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task recover")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -4501,7 +4501,7 @@ func TestTaskManagerExpireTransientBlocksAutoEnqueuesIntegration(t *testing.T) {
 		now := time.Date(2026, 6, 3, 13, 0, 0, 0, time.UTC)
 		db := openTaskManagerGlobalDB(t)
 		manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time { return now }))
-		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task block")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task block")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -4571,7 +4571,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		operator, err := taskpkg.DeriveHumanActorContext(
 			"operator-observability",
 			taskpkg.OriginKindCLI,
-			"agh task qa",
+			"compozy task qa",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -5084,13 +5084,13 @@ func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) 
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		dbPath := filepath.Join(t.TempDir(), "agh.db")
+		dbPath := filepath.Join(t.TempDir(), "compozy.db")
 		firstDB, err := globaldb.OpenGlobalDB(ctx, dbPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		firstManager := newTaskManagerIntegration(t, firstDB)
-		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task block")
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy task block")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -5175,7 +5175,7 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 		operator, err := taskpkg.DeriveHumanActorContext(
 			"operator-health",
 			taskpkg.OriginKindCLI,
-			"agh task run",
+			"compozy task run",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -5285,7 +5285,7 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 		operator, err := taskpkg.DeriveHumanActorContext(
 			"operator-terminal",
 			taskpkg.OriginKindCLI,
-			"agh task run",
+			"compozy task run",
 		)
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)

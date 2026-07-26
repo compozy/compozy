@@ -5,17 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 
-	automationpkg "github.com/compozy/agh/internal/automation"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 
-	bundlepkg "github.com/compozy/agh/internal/bundles"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
 
-	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	taskpkg "github.com/compozy/agh/internal/task"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {

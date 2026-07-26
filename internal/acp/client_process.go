@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout time.Duration) {

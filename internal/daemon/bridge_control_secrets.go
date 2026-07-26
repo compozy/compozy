@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func (r *bridgeRuntime) ListSecretBindings(

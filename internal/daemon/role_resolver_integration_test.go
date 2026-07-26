@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/compozy/agh/internal/api/contract"
-	aghconfig "github.com/compozy/agh/internal/config"
-	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/compozy/internal/api/contract"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
 
 func TestRoleResolverIntegration(t *testing.T) {
@@ -82,11 +82,11 @@ func TestRoleResolverIntegration(t *testing.T) {
 			},
 		})
 		workspaceA := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{Files: map[string]string{
-			".agh/config.toml": "[roles.dream]\nmodel = \"workspace-model\"\n",
+			".compozy/config.toml": "[roles.dream]\nmodel = \"workspace-model\"\n",
 		}})
 		workspaceB := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{})
 		workspaceC := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{Files: map[string]string{
-			".agh/config.toml": "[roles.dream]\nmodel = \"global-model\"\n",
+			".compozy/config.toml": "[roles.dream]\nmodel = \"global-model\"\n",
 		}})
 
 		global, err := aghconfig.LoadForHome(homePaths)
@@ -241,7 +241,7 @@ func TestRoleResolverIntegration(t *testing.T) {
 
 		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			Workspace: e2etest.WorkspaceSeedOptions{Files: map[string]string{
-				".agh/config.toml": `[roles.dream]
+				".compozy/config.toml": `[roles.dream]
 agent = "missing-curator"
 `,
 			}},

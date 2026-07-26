@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 )
 
 type countingTaskRegistry struct {
@@ -72,7 +72,7 @@ func TestHealthLoadsTaskDataOncePerSnapshot(t *testing.T) {
 		Title:       "Health once",
 		Status:      taskpkg.TaskStatusInProgress,
 		CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user"),
-		Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		Origin:      taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		CreatedAt:   h.now,
 		UpdatedAt:   h.now,
 	})
@@ -81,7 +81,7 @@ func TestHealthLoadsTaskDataOncePerSnapshot(t *testing.T) {
 		TaskID:    "task-health-once",
 		Status:    taskpkg.TaskRunStatusClaimed,
 		Attempt:   1,
-		Origin:    taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
 		QueuedAt:  h.now.Add(-10 * time.Minute),
 		ClaimedAt: h.now.Add(-6 * time.Minute),
 	})

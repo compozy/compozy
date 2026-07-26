@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 // LifecycleCase configures the shared Provider lifecycle compliance suite.

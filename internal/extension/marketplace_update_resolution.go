@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	registrypkg "github.com/compozy/agh/internal/registry"
+	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
 type marketplaceUpdateResolution struct {

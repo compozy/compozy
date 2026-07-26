@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestParseMarkdownOnlySoul(t *testing.T) {
@@ -18,7 +18,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 
 		cfg := testSoulConfig()
 		first, err := Parse(context.Background(), ParseRequest{
-			SourcePath: "/tmp/work/.agh/agents/coder/SOUL.md",
+			SourcePath: "/tmp/work/.compozy/agents/coder/SOUL.md",
 			Content:    []byte("# Persona\r\nLead with clarity.\n"),
 			Config:     cfg,
 		})
@@ -26,7 +26,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 			t.Fatalf("Parse(first) error = %v", err)
 		}
 		second, err := Parse(context.Background(), ParseRequest{
-			SourcePath: "/tmp/work/.agh/agents/coder/SOUL.md",
+			SourcePath: "/tmp/work/.compozy/agents/coder/SOUL.md",
 			Content:    []byte("# Persona\nLead with clarity.\n\n"),
 			Config:     cfg,
 		})
@@ -48,7 +48,7 @@ func TestParseMarkdownOnlySoul(t *testing.T) {
 		if got, want := first.Profile.Body, "# Persona\nLead with clarity."; got != want {
 			t.Fatalf("Profile.Body = %q, want %q", got, want)
 		}
-		if got, want := first.SourcePath, ".agh/agents/coder/SOUL.md"; got != want {
+		if got, want := first.SourcePath, ".compozy/agents/coder/SOUL.md"; got != want {
 			t.Fatalf("SourcePath = %q, want %q", got, want)
 		}
 	})
@@ -110,7 +110,7 @@ func TestParseWorkspaceRelativeSourcePath(t *testing.T) {
 
 		workspaceRoot := t.TempDir()
 		resolved, err := Parse(context.Background(), ParseRequest{
-			SourcePath:    ".agh/agents/coder/SOUL.md",
+			SourcePath:    ".compozy/agents/coder/SOUL.md",
 			WorkspaceRoot: workspaceRoot,
 			Content:       []byte("Lead with clarity."),
 			Config:        testSoulConfig(),
@@ -118,7 +118,7 @@ func TestParseWorkspaceRelativeSourcePath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
-		if got, want := resolved.SourcePath, ".agh/agents/coder/SOUL.md"; got != want {
+		if got, want := resolved.SourcePath, ".compozy/agents/coder/SOUL.md"; got != want {
 			t.Fatalf("SourcePath = %q, want %q", got, want)
 		}
 	})
@@ -179,7 +179,7 @@ func TestParseRejectsAuthorityClaims(t *testing.T) {
 			t.Parallel()
 
 			resolved, err := Parse(context.Background(), ParseRequest{
-				SourcePath: "/home/user/project/.agh/agents/reviewer/SOUL.md",
+				SourcePath: "/home/user/project/.compozy/agents/reviewer/SOUL.md",
 				Content:    []byte(tt.content),
 				Config:     testSoulConfig(),
 			})
@@ -433,7 +433,7 @@ func TestResolveMissingAndDisabledSoul(t *testing.T) {
 			t.Parallel()
 
 			workspaceRoot := t.TempDir()
-			agentDir := filepath.Join(workspaceRoot, ".agh", "agents", "coder")
+			agentDir := filepath.Join(workspaceRoot, ".compozy", "agents", "coder")
 			agentPath := filepath.Join(agentDir, "AGENT.md")
 			writeTestFile(t, agentPath, "---\nname: coder\nprovider: codex\n---\nBase prompt")
 			if tt.writeSoul {
@@ -486,7 +486,7 @@ func TestResolveClosedDiagnostics(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		agentDir := filepath.Join(workspaceRoot, ".agh", "agents", "coder")
+		agentDir := filepath.Join(workspaceRoot, ".compozy", "agents", "coder")
 		agentPath := filepath.Join(agentDir, "AGENT.md")
 		writeTestFile(t, agentPath, "---\nname: coder\nprovider: codex\n---\nBase prompt")
 		if err := os.Mkdir(filepath.Join(agentDir, FileName), 0o755); err != nil {
@@ -609,7 +609,7 @@ func TestResolvePathSafety(t *testing.T) {
 		outsideSoul := filepath.Join(outsideRoot, FileName)
 		writeTestFile(t, outsideSoul, "Escaped persona")
 
-		agentDir := filepath.Join(workspaceRoot, ".agh", "agents", "coder")
+		agentDir := filepath.Join(workspaceRoot, ".compozy", "agents", "coder")
 		agentPath := filepath.Join(agentDir, "AGENT.md")
 		writeTestFile(t, agentPath, "---\nname: coder\nprovider: codex\n---\nBase prompt")
 		if err := os.Symlink(outsideSoul, filepath.Join(agentDir, FileName)); err != nil {
@@ -651,7 +651,7 @@ func TestResolveAfterAgentLoad(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		agentDir := filepath.Join(workspaceRoot, ".agh", "agents", "reviewer")
+		agentDir := filepath.Join(workspaceRoot, ".compozy", "agents", "reviewer")
 		agentPath := filepath.Join(agentDir, "AGENT.md")
 		writeTestFile(t, agentPath, "---\nname: reviewer\nprovider: codex\n---\nReview code")
 		writeTestFile(t, filepath.Join(agentDir, FileName), "---\nrole: Reviewer\n---\nStay precise.")

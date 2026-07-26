@@ -5,23 +5,23 @@ import (
 	"errors"
 	"fmt"
 
-	core "github.com/compozy/agh/internal/api/core"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
-	aghconfig "github.com/compozy/agh/internal/config"
+	core "github.com/compozy/compozy/internal/api/core"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	bundlepkg "github.com/compozy/compozy/internal/bundles"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat"
 
-	looppkg "github.com/compozy/agh/internal/loop"
+	looppkg "github.com/compozy/compozy/internal/loop"
 
-	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/compozy/internal/resources"
 
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/soul"
-	"github.com/compozy/agh/internal/windowmanager"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/windowmanager"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (d *Daemon) buildResourceKernel(registry Registry) (*resources.Kernel, error) {

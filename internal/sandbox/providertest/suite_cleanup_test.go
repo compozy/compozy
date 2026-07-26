@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/compozy/internal/sandbox"
 )
 
 func TestRunLifecycleCleanupContract(t *testing.T) {

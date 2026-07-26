@@ -1,10 +1,10 @@
 package settings
 
 import (
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/providerauth"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/providerauth"
 )
 
 // ProviderSettings is the editable provider overlay payload.

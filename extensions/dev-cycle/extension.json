@@ -184,7 +184,7 @@
         }
     },
     "subprocess": {
-        "command": "{{agh_executable}}",
+        "command": "{{compozy_executable}}",
         "args": ["__internal", "extension-provider", "dev-cycle"],
         "health_check_interval": "30s",
         "shutdown_timeout": "5s"

@@ -8,9 +8,9 @@ Per playbook:
   - Creates logical workspace directories under WORKSPACE_PATH/project/workspaces/<workspace.name>/
   - Writes canonical knowledge under WORKSPACE_PATH/knowledge/
   - Projects global and declared workspace knowledge into each readable workspace root
-  - Writes a per-agent registration manifest at WORKSPACE_PATH/.agh/agents/<agent-id>.json
-  - Writes the open task tree with deterministic runtime ids at WORKSPACE_PATH/.agh/tasks/open-tasks.json
-  - Writes WORKSPACE_PATH/.agh/playbook.json with the resolved playbook spec for downstream tools
+  - Writes a per-agent registration manifest at WORKSPACE_PATH/.compozy/agents/<agent-id>.json
+  - Writes the open task tree with deterministic runtime ids at WORKSPACE_PATH/.compozy/tasks/open-tasks.json
+  - Writes WORKSPACE_PATH/.compozy/playbook.json with the resolved playbook spec for downstream tools
 
 This script never starts the daemon, never calls `agh ...`, and never sends a prompt. The bootstrap
 script and the real-scenario-qa skill drive registration and kickoff in subsequent steps.
@@ -117,7 +117,7 @@ def materialize_agents(
     runtime_workspace_root: Path,
     playbook: dict,
 ) -> list[str]:
-    base = workspace_root / ".agh" / "agents"
+    base = workspace_root / ".compozy" / "agents"
     written: list[str] = []
     workspace_paths = {
         ws["id"]: str(runtime_workspace_root / "workspaces" / ws["name"])
@@ -186,20 +186,20 @@ def materialize_open_tasks(
                 "playbook_ref": playbook["playbook_ref"],
             }
         )
-    target = workspace_root / ".agh" / "tasks" / "open-tasks.json"
+    target = workspace_root / ".compozy" / "tasks" / "open-tasks.json"
     write_json(target, payload)
     return str(target)
 
 
 def write_playbook_snapshot(workspace_root: Path, playbook: dict) -> str:
-    target = workspace_root / ".agh" / "playbook.json"
+    target = workspace_root / ".compozy" / "playbook.json"
     write_json(target, playbook)
     return str(target)
 
 
 def write_disruption_seeds(workspace_root: Path, playbook: dict) -> str:
     seeds = playbook.get("disruption_probe_seeds", [])
-    target = workspace_root / ".agh" / "disruption-seeds.json"
+    target = workspace_root / ".compozy" / "disruption-seeds.json"
     write_json(
         target,
         {

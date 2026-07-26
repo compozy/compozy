@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/network/participation"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 type hookAwareParticipationResolver struct {

@@ -1,6 +1,6 @@
 package daemon
 
-import "github.com/compozy/agh/internal/toolmeta"
+import "github.com/compozy/compozy/internal/toolmeta"
 
 type bridgeToolMetadataLookup struct {
 	state *bootState

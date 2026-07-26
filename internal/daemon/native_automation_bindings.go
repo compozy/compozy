@@ -1,6 +1,6 @@
 package daemon
 
-import toolspkg "github.com/compozy/agh/internal/tools"
+import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func (n *daemonNativeTools) automationToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,

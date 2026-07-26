@@ -3,8 +3,8 @@ package spec
 import (
 	"reflect"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

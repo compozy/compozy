@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // LatestSessionEventByType returns the newest persisted event for one session event type.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	eventspkg "github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/notifications"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/notifications"
 )
 
 func normalizeUpdateRequest(req UpdateRequest, now time.Time) UpdateRequest {

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 	"github.com/golang-jwt/jwt/v5"
 )
 

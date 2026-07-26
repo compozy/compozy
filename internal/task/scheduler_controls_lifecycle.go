@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	eventspkg "github.com/compozy/agh/internal/events"
+	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
 // PauseScheduler marks the daemon scheduler as paused for new dispatch and claims.

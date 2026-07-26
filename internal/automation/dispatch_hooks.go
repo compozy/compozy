@@ -6,7 +6,7 @@ import (
 
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func (d *Dispatcher) dispatchPreFireHook(

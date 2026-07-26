@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
-	builtintools "github.com/compozy/agh/internal/tools/builtin"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
 func (d *Daemon) bootToolRegistry(

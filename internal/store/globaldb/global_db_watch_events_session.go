@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (g *WatchEventsRepo) readSessionWatchEventsCursor(

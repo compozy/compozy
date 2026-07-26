@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/compozy/agh/internal/hooks"
-	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/compozy/internal/hooks"
+	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 )
 
 // WatchEventsLedger reads durable replay streams for watch-events evaluation.

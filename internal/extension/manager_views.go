@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
 
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	hookspkg "github.com/compozy/agh/internal/hooks"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // Get returns the current snapshot for one installed extension.

@@ -23,37 +23,37 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/agh/extensions/dev-cycle"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
-	"github.com/compozy/agh/internal/acp"
-	"github.com/compozy/agh/internal/api/contract"
-	automationpkg "github.com/compozy/agh/internal/automation"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/doctor"
-	eventspkg "github.com/compozy/agh/internal/events"
-	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
-	"github.com/compozy/agh/internal/heartbeat"
-	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/memory/consolidation"
-	"github.com/compozy/agh/internal/network"
-	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
-	"github.com/compozy/agh/internal/subprocess"
-	taskpkg "github.com/compozy/agh/internal/task"
-	"github.com/compozy/agh/internal/testutil"
-	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/transcript"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
+	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	aghconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/doctor"
+	eventspkg "github.com/compozy/compozy/internal/events"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/heartbeat"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/subprocess"
+	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gofrs/flock"
 	"go.uber.org/goleak"
 )
@@ -2091,7 +2091,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		),
 		withDaemonExtensionEventWriter(db),
 	)
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension install")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -2218,7 +2218,7 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 	db := openDaemonTestGlobalDB(t)
 	fixedNow := time.Date(2026, 7, 16, 18, 0, 0, 0, time.UTC)
 	service := &daemonExtensionService{eventWriter: db, now: func() time.Time { return fixedNow }}
-	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension update --all")
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension update --all")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
@@ -2342,7 +2342,7 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 				nil,
 			),
 		)
-		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension install")
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
@@ -2749,7 +2749,7 @@ func TestVerifyImportBoundariesReportsViolations(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/compozy/agh\n"),
+		[]byte("module github.com/compozy/compozy\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2761,7 +2761,7 @@ func TestVerifyImportBoundariesReportsViolations(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "worker.go"),
-		[]byte("package worker\n\nimport _ \"github.com/compozy/agh/internal/daemon\"\n"),
+		[]byte("package worker\n\nimport _ \"github.com/compozy/compozy/internal/daemon\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(worker.go) error = %v", err)
@@ -2780,7 +2780,7 @@ func TestVerifyImportBoundariesAllowsDaemonSubpackages(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/compozy/agh\n"),
+		[]byte("module github.com/compozy/compozy\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2792,7 +2792,7 @@ func TestVerifyImportBoundariesAllowsDaemonSubpackages(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "subsystem.go"),
-		[]byte("package subsystem\n\nimport _ \"github.com/compozy/agh/internal/cli\"\n"),
+		[]byte("package subsystem\n\nimport _ \"github.com/compozy/compozy/internal/cli\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(subsystem.go) error = %v", err)
@@ -2811,7 +2811,7 @@ func TestVerifyImportBoundariesDoesNotExemptHTTPPackages(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/compozy/agh\n"),
+		[]byte("module github.com/compozy/compozy\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2823,7 +2823,7 @@ func TestVerifyImportBoundariesDoesNotExemptHTTPPackages(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "handler.go"),
-		[]byte("package httpapi\n\nimport _ \"github.com/compozy/agh/internal/cli\"\n"),
+		[]byte("package httpapi\n\nimport _ \"github.com/compozy/compozy/internal/cli\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(handler.go) error = %v", err)
@@ -3388,7 +3388,7 @@ func TestBoundariesUsesConfiguredRoot(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/compozy/agh\n"),
+		[]byte("module github.com/compozy/compozy\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -3412,7 +3412,7 @@ func TestBoundariesReturnsViolations(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/compozy/agh\n"),
+		[]byte("module github.com/compozy/compozy\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -3423,7 +3423,7 @@ func TestBoundariesReturnsViolations(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(violatingDir, "worker.go"),
-		[]byte("package worker\n\nimport _ \"github.com/compozy/agh/internal/cli\"\n"),
+		[]byte("package worker\n\nimport _ \"github.com/compozy/compozy/internal/cli\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(worker.go) error = %v", err)
@@ -3444,7 +3444,7 @@ func TestBoundariesUsesWorkingDirectoryWhenRootUnset(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/compozy/agh\n"),
+		[]byte("module github.com/compozy/compozy\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -3796,7 +3796,7 @@ func TestWorkspaceRegistrationRefreshesHookBindings(t *testing.T) {
 		}
 
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-		writeDaemonFile(t, filepath.Join(workspaceRoot, ".agh", "config.toml"), `
+		writeDaemonFile(t, filepath.Join(workspaceRoot, ".compozy", "config.toml"), `
 [[hooks.declarations]]
 name = "workspace-register-hook"
 event = "session.post_create"

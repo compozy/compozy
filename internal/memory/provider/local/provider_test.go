@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/memory"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
-	localprovider "github.com/compozy/agh/internal/memory/provider/local"
-	"github.com/compozy/agh/internal/memory/provider/local/memstore"
-	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/compozy/internal/memory"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	localprovider "github.com/compozy/compozy/internal/memory/provider/local"
+	"github.com/compozy/compozy/internal/memory/provider/local/memstore"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/goccy/go-yaml"
 )
 
@@ -302,7 +302,7 @@ func TestProviderRecall(t *testing.T) {
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		store := memory.NewStore(
 			filepath.Join(baseDir, "agh-home", "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		).ForWorkspace(workspaceRoot)
 		openProviderTestCatalog(t, store)
 		if err := store.EnsureDirs(); err != nil {
@@ -344,7 +344,7 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 		ctx := testutil.Context(t)
 		store := memory.NewStore(
 			filepath.Join(t.TempDir(), "agh-home", "memory"),
-			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "compozy.db")),
 		)
 		openProviderTestCatalog(t, store)
 		provider := localprovider.New(memstore.New(store))
@@ -636,8 +636,8 @@ func TestProviderImportBoundary(t *testing.T) {
 				strings.HasSuffix(imported, "/internal/memory/recall") {
 				t.Fatalf("local provider imports runtime-private package %q", imported)
 			}
-			if strings.HasPrefix(imported, "github.com/compozy/agh/internal/") &&
-				imported != "github.com/compozy/agh/internal/memory/contract" {
+			if strings.HasPrefix(imported, "github.com/compozy/compozy/internal/") &&
+				imported != "github.com/compozy/compozy/internal/memory/contract" {
 				t.Fatalf("local provider imports non-contract internal package %q", imported)
 			}
 		}

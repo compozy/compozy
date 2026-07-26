@@ -1,6 +1,6 @@
 package globaldb
 
-import "github.com/compozy/agh/internal/store"
+import "github.com/compozy/compozy/internal/store"
 
 // OpenOption configures optional GlobalDB composition dependencies.
 type OpenOption func(*openConfig)

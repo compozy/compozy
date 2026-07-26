@@ -95,6 +95,16 @@ func TestResolveOperatorHomeDirWithLookupFallsBackFromAGHHome(t *testing.T) {
 }
 
 func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
+	if got, want := DirName, ".compozy"; got != want {
+		t.Fatalf("DirName = %q, want %q", got, want)
+	}
+	if got, want := DatabaseName, "compozy.db"; got != want {
+		t.Fatalf("DatabaseName = %q, want %q", got, want)
+	}
+	if got, want := LogFileName, "compozy.log"; got != want {
+		t.Fatalf("LogFileName = %q, want %q", got, want)
+	}
+
 	paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -102,6 +112,12 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 
 	if err := EnsureHomeLayout(paths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	if got, want := paths.DatabaseFile, filepath.Join(paths.HomeDir, "compozy.db"); got != want {
+		t.Fatalf("ResolveHomePathsFrom() DatabaseFile = %q, want %q", got, want)
+	}
+	if got, want := paths.LogFile, filepath.Join(paths.LogsDir, "compozy.log"); got != want {
+		t.Fatalf("ResolveHomePathsFrom() LogFile = %q, want %q", got, want)
 	}
 
 	for _, dir := range []string{

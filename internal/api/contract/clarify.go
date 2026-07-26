@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // ClarificationAnswerRequest resolves one live clarification through a public transport.

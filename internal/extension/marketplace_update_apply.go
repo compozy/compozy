@@ -3,7 +3,7 @@ package extensionpkg
 import (
 	"context"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 func applyResolvedMarketplaceUpdate(

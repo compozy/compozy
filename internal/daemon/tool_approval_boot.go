@@ -3,7 +3,7 @@ package daemon
 import (
 	"errors"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func (d *Daemon) bootToolApprovalServices(

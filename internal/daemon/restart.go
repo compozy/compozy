@@ -10,7 +10,7 @@ import (
 
 	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
+	aghconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -43,7 +43,7 @@ const (
 	RestartStatusFailed         RestartStatus = "failed"
 )
 
-// RestartOperation is the persisted restart status record stored under ~/.agh/restarts/.
+// RestartOperation is the persisted restart status record stored under ~/.compozy/restarts/.
 type RestartOperation struct {
 	OperationID        string        `json:"operation_id"`
 	Status             RestartStatus `json:"status"`

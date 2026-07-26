@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/compozy/agh/internal/api/contract"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/compozy/internal/api/contract"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
 // SettingsSectionResponseFromEnvelope converts one settings section envelope into the shared response payload.

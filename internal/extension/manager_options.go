@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/subprocess"
-	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/subprocess"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 // SecretRefResolver resolves env: and vault: refs for extension launch bindings.
@@ -75,10 +75,10 @@ func WithGetenv(getenv func(string) string) Option {
 	}
 }
 
-// WithAGHExecutableResolver overrides the binary used by {{agh_executable}} manifest templates.
-func WithAGHExecutableResolver(resolver func() (string, error)) Option {
+// WithCompozyExecutableResolver overrides the binary used by {{compozy_executable}} manifest templates.
+func WithCompozyExecutableResolver(resolver func() (string, error)) Option {
 	return func(manager *Manager) {
-		manager.aghExecutable = resolver
+		manager.compozyExecutable = resolver
 	}
 }
 

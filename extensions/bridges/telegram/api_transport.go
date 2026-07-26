@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/bridgesdk"
+	"github.com/compozy/compozy/internal/bridgesdk"
 )
 
 const telegramAPIResponseLimit = 1 << 20

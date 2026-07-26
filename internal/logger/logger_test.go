@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewWritesStructuredLogsToFile(t *testing.T) {
-	logFile := filepath.Join(t.TempDir(), "logs", "agh.log")
+	logFile := filepath.Join(t.TempDir(), "logs", "compozy.log")
 
 	log, closeFn, err := New(WithLevel("debug"), WithFile(logFile), WithMirrorToStderr(false))
 	if err != nil {
@@ -34,7 +34,7 @@ func TestNewWritesStructuredLogsToFile(t *testing.T) {
 func TestNewRedactsMessageAndContentAttributesWithoutChangingCorrelation(t *testing.T) {
 	t.Parallel()
 
-	logFile := filepath.Join(t.TempDir(), "logs", "agh.log")
+	logFile := filepath.Join(t.TempDir(), "logs", "compozy.log")
 	log, closeFn, err := New(WithFile(logFile), WithMirrorToStderr(false))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -112,7 +112,7 @@ func TestNewWithFileRotation(t *testing.T) {
 	t.Run("ShouldRotateStructuredLogFileWhenSizeCapIsReached", func(t *testing.T) {
 		t.Parallel()
 
-		logFile := filepath.Join(t.TempDir(), "logs", "agh.log")
+		logFile := filepath.Join(t.TempDir(), "logs", "compozy.log")
 		log, closeFn, err := New(
 			WithLevel("info"),
 			WithFile(logFile),
@@ -136,7 +136,9 @@ func TestNewWithFileRotation(t *testing.T) {
 		rotated := false
 		for _, entry := range entries {
 			name := entry.Name()
-			if name != filepath.Base(logFile) && strings.HasPrefix(name, "agh-") && strings.HasSuffix(name, ".log") {
+			if name != filepath.Base(logFile) &&
+				strings.HasPrefix(name, "compozy-") &&
+				strings.HasSuffix(name, ".log") {
 				rotated = true
 			}
 		}

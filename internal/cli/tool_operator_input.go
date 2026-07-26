@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	toolspkg "github.com/compozy/agh/internal/tools"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/spf13/cobra"
 )
 

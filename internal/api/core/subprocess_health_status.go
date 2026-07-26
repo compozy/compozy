@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/doctor"
-	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/subprocess"
 )
 
 func (h *BaseHandlers) subprocessHealthAggregate(

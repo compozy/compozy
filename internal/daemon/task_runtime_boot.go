@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/agh/internal/admission"
-	looppkg "github.com/compozy/agh/internal/loop"
-	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/compozy/internal/admission"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {

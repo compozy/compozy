@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // AgentCreateScope identifies where a newly authored AGENT.md definition is stored.
 type AgentCreateScope string
 
 const (
-	// AgentCreateScopeWorkspace writes the agent under one workspace's .agh directory.
+	// AgentCreateScopeWorkspace writes the agent under one workspace's .compozy directory.
 	AgentCreateScopeWorkspace AgentCreateScope = "workspace"
 	// AgentCreateScopeGlobal writes the agent under AGH_HOME.
 	AgentCreateScopeGlobal AgentCreateScope = "global"

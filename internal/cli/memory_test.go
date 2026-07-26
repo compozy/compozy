@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/api/contract"
-	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/compozy/internal/api/contract"
+	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
 func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
@@ -65,7 +65,7 @@ func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 		if len(remaining) != 0 {
 			t.Fatalf("Find(%v) remaining = %v, want none", args, remaining)
 		}
-		if got := strings.TrimSpace(cmd.CommandPath()); got != "agh "+strings.Join(args, " ") {
+		if got := strings.TrimSpace(cmd.CommandPath()); got != "compozy "+strings.Join(args, " ") {
 			t.Fatalf("CommandPath(%v) = %q", args, got)
 		}
 	}
@@ -73,7 +73,7 @@ func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {
 	for _, legacy := range [][]string{{"memory", "read"}, {"memory", "consolidate"}} {
 		cmd, remaining, err := root.Find(legacy)
 		if err == nil && len(remaining) == 0 &&
-			strings.TrimSpace(cmd.CommandPath()) == "agh "+strings.Join(legacy, " ") {
+			strings.TrimSpace(cmd.CommandPath()) == "compozy "+strings.Join(legacy, " ") {
 			t.Fatalf("legacy command %v resolved to a leaf", legacy)
 		}
 	}
