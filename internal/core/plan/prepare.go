@@ -506,6 +506,7 @@ func buildBatchJob(
 		SafeName:        safeName,
 		IDE:             jobRuntime.IDE,
 		Model:           jobRuntime.Model,
+		ModelExplicit:   jobRuntime.ExplicitRuntime.Model,
 		ReasoningEffort: jobRuntime.ReasoningEffort,
 		Prompt:          []byte(generated.promptText),
 		SystemPrompt:    generated.systemPrompt,
@@ -613,7 +614,7 @@ func dispatchPlanPreResolveTaskRuntime(
 	task model.TaskRuntimeTask,
 	runtimeCfg *model.RuntimeConfig,
 ) (*model.RuntimeConfig, error) {
-	payload, err := model.DispatchMutableHook(
+	payload, mutation, err := model.DispatchMutableHookWithStatus(
 		ctx,
 		manager,
 		"plan.pre_resolve_task_runtime",
@@ -627,7 +628,11 @@ func dispatchPlanPreResolveTaskRuntime(
 		return nil, err
 	}
 	updated := runtimeCfg.Clone()
-	model.ApplyTaskRuntime(updated, payload.Runtime)
+	model.ApplyTaskRuntime(updated, payload.Runtime, model.ExplicitRuntimeFlags{
+		IDE:             mutation.HasField("runtime.ide"),
+		Model:           mutation.HasField("runtime.model"),
+		ReasoningEffort: mutation.HasField("runtime.reasoning_effort"),
+	})
 	return updated, nil
 }
 
@@ -717,6 +722,7 @@ func validatePreparedJobRuntimeMutation(before []model.Job, after []model.Job) e
 func jobRuntimeChanged(before model.Job, after model.Job) bool {
 	return strings.TrimSpace(before.IDE) != strings.TrimSpace(after.IDE) ||
 		strings.TrimSpace(before.Model) != strings.TrimSpace(after.Model) ||
+		before.ModelExplicit != after.ModelExplicit ||
 		strings.TrimSpace(before.ReasoningEffort) != strings.TrimSpace(after.ReasoningEffort)
 }
 
@@ -757,6 +763,7 @@ func clonePreparedJobsForRuntimeGuard(src []model.Job) []model.Job {
 			SafeName:        job.SafeName,
 			IDE:             job.IDE,
 			Model:           job.Model,
+			ModelExplicit:   job.ModelExplicit,
 			ReasoningEffort: job.ReasoningEffort,
 			OutPromptPath:   job.OutPromptPath,
 		})
@@ -836,6 +843,7 @@ func buildExecJob(
 		SafeName:        safeName,
 		IDE:             cfg.IDE,
 		Model:           cfg.Model,
+		ModelExplicit:   cfg.ExplicitRuntime.Model,
 		ReasoningEffort: cfg.ReasoningEffort,
 		Prompt:          []byte(promptText),
 		SystemPrompt:    systemPrompt,

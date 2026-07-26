@@ -34,6 +34,10 @@ type SessionIdentity struct {
 	ACPSessionID   string `json:"acp_session_id"`
 	AgentSessionID string `json:"agent_session_id,omitempty"`
 	Resumed        bool   `json:"resumed,omitempty"`
+	// Model is the model the runtime actually accepted, which is not always the
+	// one requested: an inherited model the runtime does not advertise resolves
+	// to the runtime default. Recording it keeps that substitution auditable.
+	Model string `json:"model,omitempty"`
 }
 
 const (
@@ -282,6 +286,16 @@ func (s *sessionImpl) setAgentSessionID(agentSessionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.identity.AgentSessionID = trimmed
+}
+
+func (s *sessionImpl) setModel(modelName string) {
+	trimmed := strings.TrimSpace(modelName)
+	if trimmed == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.identity.Model = trimmed
 }
 
 func (s *sessionImpl) resumeUpdates() {

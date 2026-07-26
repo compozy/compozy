@@ -175,15 +175,20 @@ func applyTaskComplexityRuntimeRule(cfg *RuntimeConfig, rule TaskRuntimeRule) {
 	}
 }
 
+// applyTaskRuntimeRule applies a type or id rule, which outranks the run-wide
+// flags. A model it pins is therefore at least as deliberate as --model, so mark
+// it explicit: downstream resolution may not silently substitute it.
 func applyTaskRuntimeRule(cfg *RuntimeConfig, rule TaskRuntimeRule) {
 	if cfg == nil {
 		return
 	}
 	if rule.IDE != nil {
 		cfg.IDE = strings.TrimSpace(*rule.IDE)
+		cfg.ExplicitRuntime.IDE = true
 	}
 	if rule.Model != nil {
 		cfg.Model = strings.TrimSpace(*rule.Model)
+		cfg.ExplicitRuntime.Model = true
 	}
 	if rule.ReasoningEffort != nil {
 		cfg.ReasoningEffort = strings.TrimSpace(*rule.ReasoningEffort)
@@ -202,14 +207,27 @@ func TaskRuntimeFromConfig(cfg *RuntimeConfig) TaskRuntime {
 	}
 }
 
-// ApplyTaskRuntime copies task-scoped runtime fields onto cfg.
-func ApplyTaskRuntime(cfg *RuntimeConfig, runtime TaskRuntime) {
+// ApplyTaskRuntime copies task-scoped fields and preserves selection provenance.
+func ApplyTaskRuntime(cfg *RuntimeConfig, runtime TaskRuntime, selected ExplicitRuntimeFlags) {
 	if cfg == nil {
 		return
 	}
-	cfg.IDE = strings.TrimSpace(runtime.IDE)
-	cfg.Model = strings.TrimSpace(runtime.Model)
-	cfg.ReasoningEffort = strings.TrimSpace(runtime.ReasoningEffort)
+	ide := strings.TrimSpace(runtime.IDE)
+	modelName := strings.TrimSpace(runtime.Model)
+	reasoningEffort := strings.TrimSpace(runtime.ReasoningEffort)
+	if ide != "" && (selected.IDE || strings.TrimSpace(cfg.IDE) != ide) {
+		cfg.ExplicitRuntime.IDE = true
+	}
+	if modelName != "" && (selected.Model || strings.TrimSpace(cfg.Model) != modelName) {
+		cfg.ExplicitRuntime.Model = true
+	}
+	if reasoningEffort != "" &&
+		(selected.ReasoningEffort || strings.TrimSpace(cfg.ReasoningEffort) != reasoningEffort) {
+		cfg.ExplicitRuntime.ReasoningEffort = true
+	}
+	cfg.IDE = ide
+	cfg.Model = modelName
+	cfg.ReasoningEffort = reasoningEffort
 }
 
 func cloneTrimmedOptionalString(value *string) *string {

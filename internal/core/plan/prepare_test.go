@@ -481,6 +481,13 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve explicit model provenance", testPrepareJobsResolvesPerTaskRuntimeOverrides)
+}
+
+func testPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
 	workspaceRoot := t.TempDir()
 	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-runtime-test-run")
 	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
@@ -548,8 +555,14 @@ func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
 	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
 		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
 	}
+	if !jobs[0].ModelExplicit {
+		t.Fatalf("frontend type-rule model should remain explicit: %#v", jobs[0])
+	}
 	if jobs[1].IDE != model.IDEClaude || jobs[1].Model != "codex-fast" || jobs[1].ReasoningEffort != "low" {
 		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
+	}
+	if !jobs[1].ModelExplicit {
+		t.Fatalf("backend id-rule model should remain explicit: %#v", jobs[1])
 	}
 }
 
@@ -1457,12 +1470,13 @@ complexity: low
 func TestPreparePlanPreResolveTaskRuntimeMutationUpdatesPreparedJob(t *testing.T) {
 	t.Parallel()
 
-	workspaceRoot := t.TempDir()
-	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
-	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
-		t.Fatalf("mkdir tasks dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+	t.Run("Should preserve same-value hook model authority", func(t *testing.T) {
+		workspaceRoot := t.TempDir()
+		tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+		if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+			t.Fatalf("mkdir tasks dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
 status: pending
 title: Demo task
 type: frontend
@@ -1471,59 +1485,66 @@ complexity: low
 
 # Task 01: Demo task
 `), 0o600); err != nil {
-		t.Fatalf("write task file: %v", err)
-	}
+			t.Fatalf("write task file: %v", err)
+		}
 
-	manager := &planHookManager{
-		mutators: map[string]func(any) (any, error){
-			"plan.pre_resolve_task_runtime": func(input any) (any, error) {
-				payload := input.(planPreResolveTaskRuntimePayload)
-				if payload.Task.ID != "task_01" {
-					t.Fatalf("unexpected task id: %q", payload.Task.ID)
-				}
-				if !strings.HasPrefix(payload.Task.SafeName, "task_01") {
-					t.Fatalf("unexpected task safe name: %q", payload.Task.SafeName)
-				}
-				if payload.Task.Complexity != "low" {
-					t.Fatalf("unexpected task complexity: %q", payload.Task.Complexity)
-				}
-				payload.Runtime = model.TaskRuntime{
-					IDE:             model.IDECodex,
-					Model:           "gpt-5.5",
-					ReasoningEffort: "xhigh",
-				}
-				return payload, nil
+		manager := &planHookManager{
+			mutationFields: map[string][]string{
+				"plan.pre_resolve_task_runtime": {"runtime.model"},
 			},
-		},
-	}
+			mutators: map[string]func(any) (any, error){
+				"plan.pre_resolve_task_runtime": func(input any) (any, error) {
+					payload := input.(planPreResolveTaskRuntimePayload)
+					if payload.Task.ID != "task_01" {
+						t.Fatalf("unexpected task id: %q", payload.Task.ID)
+					}
+					if !strings.HasPrefix(payload.Task.SafeName, "task_01") {
+						t.Fatalf("unexpected task safe name: %q", payload.Task.SafeName)
+					}
+					if payload.Task.Complexity != "low" {
+						t.Fatalf("unexpected task complexity: %q", payload.Task.Complexity)
+					}
+					payload.Runtime = model.TaskRuntime{
+						IDE:             model.IDECodex,
+						Model:           "gpt-5.5",
+						ReasoningEffort: "xhigh",
+					}
+					return payload, nil
+				},
+			},
+		}
 
-	cfg := &model.RuntimeConfig{
-		Name:            "demo",
-		WorkspaceRoot:   workspaceRoot,
-		TasksDir:        tasksDir,
-		DryRun:          true,
-		IDE:             model.IDECodex,
-		Model:           "codex-fast",
-		ReasoningEffort: "medium",
-		Mode:            model.ExecutionModePRDTasks,
-		RunID:           "plan-pre-resolve-task-runtime",
-	}
-	prep, err := Prepare(
-		context.Background(),
-		cfg,
-		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
-	)
-	if err != nil {
-		t.Fatalf("prepare: %v", err)
-	}
-	defer closePreparedJournalForTest(t, prep)
+		cfg := &model.RuntimeConfig{
+			Name:            "demo",
+			WorkspaceRoot:   workspaceRoot,
+			TasksDir:        tasksDir,
+			DryRun:          true,
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "medium",
+			Mode:            model.ExecutionModePRDTasks,
+			RunID:           "plan-pre-resolve-task-runtime",
+		}
+		prep, err := Prepare(
+			context.Background(),
+			cfg,
+			&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+		)
+		if err != nil {
+			t.Fatalf("prepare: %v", err)
+		}
+		defer closePreparedJournalForTest(t, prep)
 
-	if got := prep.Jobs[0].Model; got != "gpt-5.5" {
-		t.Fatalf("prepared job model = %q, want %q", got, "gpt-5.5")
-	}
-	if got := prep.Jobs[0].ReasoningEffort; got != "xhigh" {
-		t.Fatalf("prepared job reasoning = %q, want %q", got, "xhigh")
-	}
+		if got := prep.Jobs[0].Model; got != "gpt-5.5" {
+			t.Fatalf("prepared job model = %q, want %q", got, "gpt-5.5")
+		}
+		if got := prep.Jobs[0].ReasoningEffort; got != "xhigh" {
+			t.Fatalf("prepared job reasoning = %q, want %q", got, "xhigh")
+		}
+		if !prep.Jobs[0].ModelExplicit {
+			t.Fatalf("hook-selected model should remain explicit: %#v", prep.Jobs[0])
+		}
+	})
 }
 
 func TestPreparePlanPostPrepareJobsRejectsRuntimeMutation(t *testing.T) {
@@ -2160,8 +2181,9 @@ func openRunScopeForTest(t *testing.T, cfg *model.RuntimeConfig) model.RunScope 
 }
 
 type planHookManager struct {
-	mutators     map[string]func(any) (any, error)
-	mutableHooks []string
+	mutators       map[string]func(any) (any, error)
+	mutationFields map[string][]string
+	mutableHooks   []string
 }
 
 func (*planHookManager) Start(context.Context) error { return nil }
@@ -2173,17 +2195,41 @@ func (m *planHookManager) DispatchMutableHook(
 	hook string,
 	input any,
 ) (any, error) {
+	updated, _, err := m.dispatchMutableHookWithStatus(hook, input)
+	return updated, err
+}
+
+func (m *planHookManager) DispatchMutableHookWithStatus(
+	_ context.Context,
+	hook string,
+	input any,
+) (any, model.HookMutation, error) {
+	return m.dispatchMutableHookWithStatus(hook, input)
+}
+
+func (m *planHookManager) dispatchMutableHookWithStatus(
+	hook string,
+	input any,
+) (any, model.HookMutation, error) {
 	if m == nil {
-		return input, nil
+		return input, model.HookMutation{}, nil
 	}
 	m.mutableHooks = append(m.mutableHooks, hook)
 	if m.mutators == nil {
-		return input, nil
+		return input, model.HookMutation{}, nil
 	}
 	if mutate := m.mutators[hook]; mutate != nil {
-		return mutate(input)
+		updated, err := mutate(input)
+		mutation := model.HookMutation{Applied: true}
+		if fields := m.mutationFields[hook]; len(fields) != 0 {
+			mutation.Fields = make(map[string]struct{}, len(fields))
+			for _, field := range fields {
+				mutation.Fields[field] = struct{}{}
+			}
+		}
+		return updated, mutation, err
 	}
-	return input, nil
+	return input, model.HookMutation{}, nil
 }
 
 func (*planHookManager) DispatchObserverHook(context.Context, string, any) {}

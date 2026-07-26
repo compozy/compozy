@@ -89,6 +89,10 @@ type SessionStartedPayload struct {
 	ACPSessionID   string `json:"acp_session_id"`
 	AgentSessionID string `json:"agent_session_id,omitempty"`
 	Resumed        bool   `json:"resumed,omitempty"`
+	// Model is the model the runtime accepted for this session. It differs from
+	// the requested model when an inherited model the runtime does not advertise
+	// falls back to the runtime default.
+	Model string `json:"model,omitempty"`
 }
 
 // SessionUpdatePayload carries one streamed session update.

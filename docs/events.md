@@ -234,6 +234,7 @@ Payload type: `kinds.SessionStartedPayload`
 - `acp_session_id`
 - `agent_session_id`
 - `resumed`
+- `model` — the model the runtime accepted, which differs from the requested model when an inherited model the runtime does not advertise falls back to the runtime default
 
 ### `session.update`
 

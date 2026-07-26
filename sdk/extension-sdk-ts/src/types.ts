@@ -434,6 +434,8 @@ export interface SessionIdentity {
   acp_session_id: string;
   agent_session_id?: string;
   resumed?: boolean;
+  /** The model the runtime accepted, which differs from the requested one when an inherited model falls back to the runtime default. */
+  model?: string;
 }
 
 /** Mirrors the terminal session outcome payload. */

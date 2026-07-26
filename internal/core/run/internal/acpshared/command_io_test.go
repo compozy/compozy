@@ -244,6 +244,65 @@ func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
 	}
 }
 
+// The ACP client decides whether an unadvertised model may fall back by reading
+// ClientConfig.ModelExplicit. Both run-wide and task-scoped pins must reach it.
+func TestCreateACPClientCarriesExplicitModelFlag(t *testing.T) {
+	tests := []struct {
+		name           string
+		configExplicit bool
+		job            *job
+		want           bool
+	}{
+		{
+			name:           "Should mark a run-wide model pin explicit",
+			configExplicit: true,
+			job:            &job{},
+			want:           true,
+		},
+		{
+			name: "Should mark a task-rule model pin explicit",
+			job: &job{
+				Model:         "task-rule-model",
+				ModelExplicit: true,
+			},
+			want: true,
+		},
+		{
+			name: "Should leave an inherited model correctable",
+			job:  &job{Model: "inherited-model"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var captured agent.ClientConfig
+			restore := SwapNewAgentClientForTest(
+				func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
+					captured = cfg
+					return &capturingCommandIOClient{}, nil
+				},
+			)
+			defer restore()
+
+			if _, err := createACPClient(
+				context.Background(),
+				&config{
+					IDE:           model.IDECodex,
+					Model:         "opus",
+					ModelExplicit: tt.configExplicit,
+				},
+				tt.job,
+				silentLogger(),
+			); err != nil {
+				t.Fatalf("create ACP client: %v", err)
+			}
+			if captured.ModelExplicit != tt.want {
+				t.Fatalf("ClientConfig.ModelExplicit = %v, want %v", captured.ModelExplicit, tt.want)
+			}
+		})
+	}
+}
+
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -21,6 +21,7 @@ type Config struct {
 	BatchSize              int
 	IDE                    string
 	Model                  string
+	ModelExplicit          bool // Model was pinned by the user, not inherited
 	AddDirs                []string
 	TailLines              int
 	ReasoningEffort        string
@@ -58,6 +59,7 @@ type Job struct {
 	SafeName        string
 	IDE             string
 	Model           string
+	ModelExplicit   bool
 	ReasoningEffort string
 	ReusableAgent   *ReusableAgentExecution
 	Prompt          []byte
@@ -132,6 +134,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		BatchSize:              src.BatchSize,
 		IDE:                    src.IDE,
 		Model:                  src.Model,
+		ModelExplicit:          src.ExplicitRuntime.Model,
 		AddDirs:                append([]string(nil), src.AddDirs...),
 		TailLines:              src.TailLines,
 		ReasoningEffort:        src.ReasoningEffort,
@@ -173,6 +176,7 @@ func NewJobs(src []model.Job) []Job {
 			SafeName:        item.SafeName,
 			IDE:             item.IDE,
 			Model:           item.Model,
+			ModelExplicit:   item.ModelExplicit,
 			ReasoningEffort: item.ReasoningEffort,
 			Prompt:          append([]byte(nil), item.Prompt...),
 			SystemPrompt:    item.SystemPrompt,

@@ -40,8 +40,13 @@ type Client interface {
 
 // ClientConfig describes how to bootstrap an ACP agent process.
 type ClientConfig struct {
-	IDE             string
-	Model           string
+	IDE   string
+	Model string
+	// ModelExplicit reports that Model was pinned by the caller, not inherited. It
+	// also governs a per-session SessionRequest.Model, which today always carries
+	// the same value; a caller that diverges the two must extend this flag to the
+	// request rather than rely on the client-wide one.
+	ModelExplicit   bool
 	AddDirs         []string
 	ReasoningEffort string
 	AccessMode      string
@@ -394,16 +399,18 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	session.setAgentSessionID(extractAgentSessionID(sessionResp.Meta))
 	c.storeSession(ctx, session)
 
-	if err := c.configureSession(
+	resolvedModel, err := c.configureSession(
 		setupCtx,
 		sessionResp.SessionId,
 		req.Model,
 		sessionResp.ConfigOptions,
 		sessionResp.Modes,
-	); err != nil {
+	)
+	if err != nil {
 		c.removeSession(session.id)
 		return nil, err
 	}
+	session.setModel(resolvedModel)
 
 	model.DispatchObserverHook(
 		ctx,
@@ -526,16 +533,18 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 		return nil, c.wrapACPSetupErrorWithDiagnostics(setupCtx, SessionSetupStageLoadSession, "load ACP session", err)
 	}
 	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
-	if err := c.configureSession(
+	resolvedModel, err := c.configureSession(
 		setupCtx,
 		acp.SessionId(sessionID),
 		req.Model,
 		loadResp.ConfigOptions,
 		loadResp.Modes,
-	); err != nil {
+	)
+	if err != nil {
 		c.removeSession(session.id)
 		return nil, err
 	}
+	session.setModel(resolvedModel)
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.resumeUpdates()
 

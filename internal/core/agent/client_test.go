@@ -675,8 +675,11 @@ func TestClientCreateSessionExplainsCursorCLIVersusACPModelNames(t *testing.T) {
 		ExpectedCWD:             t.TempDir(),
 		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
 	}
+	// A Cursor CLI model name reaches this path because the user typed --model, so
+	// the request is explicit and must fail loudly instead of falling back.
 	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
 		cfg.Model = "grok-4.5-fast-high"
+		cfg.ModelExplicit = true
 	})
 	client.(*clientImpl).spec.ID = model.IDECursor
 	t.Cleanup(func() {
@@ -697,6 +700,183 @@ func TestClientCreateSessionExplainsCursorCLIVersusACPModelNames(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("Cursor model error = %q, want %q", err, want)
 		}
+	}
+}
+
+func TestClientCreateSessionFallsBackWhenInheritedModelIsFromAnotherRuntime(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		runtimeID  string
+		current    string
+		advertised []acp.SessionConfigSelectOption
+	}{
+		{
+			name:      "Should fall back to the Codex runtime default",
+			runtimeID: model.IDECodex,
+			current:   "gpt-5.6-sol[reasoning=medium]",
+			advertised: []acp.SessionConfigSelectOption{
+				{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
+				{Value: "gpt-5.6-terra[reasoning=medium]", Name: "gpt-5.6-terra"},
+			},
+		},
+		{
+			name:      "Should fall back to the Cursor runtime default",
+			runtimeID: model.IDECursor,
+			current:   "default[]",
+			advertised: []acp.SessionConfigSelectOption{
+				{Value: "default[]", Name: "Auto"},
+				{Value: "grok-4.5[effort=high,fast=true]", Name: "grok-4.5"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modelOption := testSessionSelectOption(
+				"model",
+				acp.SessionConfigOptionCategoryModel,
+				tt.current,
+				tt.advertised,
+			)
+			scenario := helperScenario{
+				ExpectedCWD:             t.TempDir(),
+				ExpectedPrompt:          "run the council advisor",
+				NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+				ExpectedSessionConfig: []helperExpectedSessionConfig{
+					{ConfigID: "model", Value: tt.current},
+				},
+				StopReason: string(acp.StopReasonEndTurn),
+			}
+
+			client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+				cfg.Model = "opus"
+				cfg.ModelExplicit = false
+				cfg.ReasoningEffort = ""
+			})
+			client.(*clientImpl).spec.ID = tt.runtimeID
+			t.Cleanup(func() {
+				if err := client.Close(); err != nil {
+					t.Errorf("close client: %v", err)
+				}
+			})
+
+			session, err := client.CreateSession(context.Background(), SessionRequest{
+				Prompt:     []byte(scenario.ExpectedPrompt),
+				WorkingDir: scenario.ExpectedCWD,
+			})
+			if err != nil {
+				t.Fatalf("create session with inherited cross-runtime model: %v", err)
+			}
+			if got := session.Identity().Model; got != tt.current {
+				t.Fatalf("session identity model = %q, want runtime default %q", got, tt.current)
+			}
+			collectSessionUpdates(t, session)
+		})
+	}
+}
+
+func TestClientCreateSessionPreservesUnavailableModelErrorWhenRuntimeCurrentModelIsStale(t *testing.T) {
+	t.Parallel()
+
+	modelOption := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"stale-model",
+		[]acp.SessionConfigSelectOption{
+			{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
+		},
+	)
+	scenario := helperScenario{
+		ExpectedCWD:             t.TempDir(),
+		NewSessionConfigOptions: []acp.SessionConfigOption{{Select: modelOption}},
+	}
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.Model = "opus"
+		cfg.ModelExplicit = false
+	})
+	client.(*clientImpl).spec.ID = model.IDECodex
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("close client: %v", err)
+		}
+	})
+
+	_, err := client.CreateSession(context.Background(), SessionRequest{WorkingDir: scenario.ExpectedCWD})
+	if err == nil {
+		t.Fatal("expected inherited unavailable-model error")
+	}
+	if !strings.Contains(err.Error(), `model "opus" is not available`) {
+		t.Fatalf("create session error = %q, want original unavailable-model error", err)
+	}
+}
+
+func TestInheritedModelFallback(t *testing.T) {
+	t.Parallel()
+
+	option := testSessionSelectOption(
+		"model",
+		acp.SessionConfigOptionCategoryModel,
+		"gpt-5.6-sol[reasoning=medium]",
+		[]acp.SessionConfigSelectOption{
+			{Value: "gpt-5.6-sol[reasoning=medium]", Name: "gpt-5.6-sol"},
+		},
+	)
+
+	tests := []struct {
+		name      string
+		option    *acp.SessionConfigOptionSelect
+		explicit  bool
+		requested string
+		want      string
+		wantOK    bool
+	}{
+		{
+			name:      "Should fall back to the runtime default for an inherited model",
+			option:    option,
+			requested: "opus",
+			want:      "gpt-5.6-sol[reasoning=medium]",
+			wantOK:    true,
+		},
+		{
+			name:      "Should refuse to fall back for an explicitly pinned model",
+			option:    option,
+			explicit:  true,
+			requested: "opus",
+		},
+		{
+			name:      "Should refuse to fall back without an advertised current value",
+			option:    testSessionSelectOption("model", acp.SessionConfigOptionCategoryModel, "", nil),
+			requested: "opus",
+		},
+		{
+			name:      "Should refuse to fall back when the request already is the current value",
+			option:    option,
+			requested: "gpt-5.6-sol[reasoning=medium]",
+		},
+		{
+			name:      "Should refuse to fall back without an advertised model option",
+			requested: "opus",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &clientImpl{
+				spec: Spec{ID: model.IDECodex},
+				cfg:  ClientConfig{ModelExplicit: tt.explicit},
+			}
+			got, ok := client.inheritedModelFallback(tt.option, tt.requested)
+			if ok != tt.wantOK {
+				t.Fatalf("inheritedModelFallback() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if got != tt.want {
+				t.Fatalf("inheritedModelFallback() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
