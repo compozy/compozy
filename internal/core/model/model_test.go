@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestRuntimeConfigApplyDefaults(t *testing.T) {
@@ -31,6 +32,12 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 		}
 		if cfg.ReasoningEffort != "medium" {
 			t.Fatalf("unexpected reasoning default: %q", cfg.ReasoningEffort)
+		}
+		if cfg.Speed != kinds.SpeedNormal {
+			t.Fatalf("unexpected speed default: %q", cfg.Speed)
+		}
+		if cfg.ExplicitRuntime.Speed {
+			t.Fatal("defaulted speed must not become explicit")
 		}
 		if cfg.AccessMode != model.AccessModeFull {
 			t.Fatalf("unexpected access mode default: %q", cfg.AccessMode)
@@ -554,6 +561,74 @@ func TestRuntimeConfigRuntimeForTask(t *testing.T) {
 	})
 }
 
+func TestRuntimeConfigSpeedPreservation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve speed and explicitness through cloning", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			Speed: kinds.SpeedFast,
+			ExplicitRuntime: model.ExplicitRuntimeFlags{
+				Speed: true,
+			},
+		}
+
+		cloned := cfg.Clone()
+		if cloned == nil {
+			t.Fatal("Clone() = nil, want runtime config")
+		}
+		clonedSpeed := requireCanonicalSpeed(cloned.Speed)
+		if clonedSpeed != kinds.SpeedFast {
+			t.Fatalf("Clone().Speed = %q, want %q", clonedSpeed, kinds.SpeedFast)
+		}
+		if !cloned.ExplicitRuntime.Speed {
+			t.Fatal("Clone().ExplicitRuntime.Speed = false, want true")
+		}
+	})
+
+	t.Run("Should preserve parent speed while applying task runtime overrides", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			Model:           "base-model",
+			ReasoningEffort: "medium",
+			Speed:           kinds.SpeedFast,
+			ExplicitRuntime: model.ExplicitRuntimeFlags{
+				Speed: true,
+			},
+			TaskRuntimeRules: []model.TaskRuntimeRule{{
+				ID:              testStringPointer("task_01"),
+				Model:           testStringPointer("task-model"),
+				ReasoningEffort: testStringPointer("high"),
+			}},
+		}
+
+		resolved := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_01"})
+		resolvedSpeed := requireCanonicalSpeed(resolved.Speed)
+		if resolvedSpeed != kinds.SpeedFast {
+			t.Fatalf("resolved Speed = %q, want %q", resolvedSpeed, kinds.SpeedFast)
+		}
+		if !resolved.ExplicitRuntime.Speed {
+			t.Fatal("resolved ExplicitRuntime.Speed = false, want true")
+		}
+		if resolved.Model != "task-model" || resolved.ReasoningEffort != "high" {
+			t.Fatalf("task overrides not applied: %#v", resolved)
+		}
+	})
+
+	t.Run("Should not expose task-specific speed overrides", func(t *testing.T) {
+		t.Parallel()
+
+		if _, ok := reflect.TypeOf(model.TaskRuntimeRule{}).FieldByName("Speed"); ok {
+			t.Fatal("TaskRuntimeRule exposes a task-specific Speed override")
+		}
+		if _, ok := reflect.TypeOf(model.TaskRuntime{}).FieldByName("Speed"); ok {
+			t.Fatal("TaskRuntime exposes task-specific Speed state")
+		}
+	})
+}
+
 func TestRuntimeConfigClonePreservesTargetTaskNumber(t *testing.T) {
 	t.Parallel()
 
@@ -616,35 +691,72 @@ func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {
 func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve explicit runtime config values", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name  string
+		speed kinds.Speed
+	}{
+		{name: "explicit normal speed", speed: kinds.SpeedNormal},
+		{name: "explicit fast speed", speed: kinds.SpeedFast},
+	}
 
-		targetTaskNumber := 5
-		cfg := &model.RuntimeConfig{
-			Concurrent:             3,
-			BatchSize:              2,
-			IDE:                    model.IDEClaude,
-			TailLines:              10,
-			ReasoningEffort:        "high",
-			AccessMode:             model.AccessModeDefault,
-			Mode:                   model.ExecutionModePRDTasks,
-			OutputFormat:           model.OutputFormatJSON,
-			TargetTaskNumber:       &targetTaskNumber,
-			Timeout:                30 * time.Second,
-			RetryBackoffMultiplier: 2,
-		}
-		cfg.ApplyDefaults()
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		if cfg.Concurrent != 3 || cfg.BatchSize != 2 || cfg.IDE != model.IDEClaude ||
-			cfg.AccessMode != model.AccessModeDefault ||
-			cfg.Mode != model.ExecutionModePRDTasks ||
-			cfg.OutputFormat != model.OutputFormatJSON {
-			t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
-		}
-		if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
-			t.Fatalf("apply defaults changed TargetTaskNumber: %#v", cfg.TargetTaskNumber)
-		}
-	})
+			targetTaskNumber := 5
+			cfg := &model.RuntimeConfig{
+				Concurrent:             3,
+				BatchSize:              2,
+				IDE:                    model.IDEClaude,
+				TailLines:              10,
+				ReasoningEffort:        "high",
+				Speed:                  tc.speed,
+				AccessMode:             model.AccessModeDefault,
+				Mode:                   model.ExecutionModePRDTasks,
+				OutputFormat:           model.OutputFormatJSON,
+				TargetTaskNumber:       &targetTaskNumber,
+				Timeout:                30 * time.Second,
+				RetryBackoffMultiplier: 2,
+			}
+			cfg.ApplyDefaults()
+
+			if cfg.Concurrent != 3 || cfg.BatchSize != 2 || cfg.IDE != model.IDEClaude ||
+				cfg.AccessMode != model.AccessModeDefault ||
+				cfg.Mode != model.ExecutionModePRDTasks ||
+				cfg.OutputFormat != model.OutputFormatJSON {
+				t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
+			}
+			if cfg.Speed != tc.speed {
+				t.Fatalf("ApplyDefaults().Speed = %q, want %q", cfg.Speed, tc.speed)
+			}
+			if cfg.TargetTaskNumber == nil || *cfg.TargetTaskNumber != targetTaskNumber {
+				t.Fatalf("apply defaults changed TargetTaskNumber: %#v", cfg.TargetTaskNumber)
+			}
+		})
+	}
+}
+
+func TestRuntimeConfigLegacyJSONDefaultsSpeed(t *testing.T) {
+	t.Parallel()
+
+	var cfg model.RuntimeConfig
+	if err := json.Unmarshal([]byte(`{"Model":"legacy-model"}`), &cfg); err != nil {
+		t.Fatalf("unmarshal legacy runtime config: %v", err)
+	}
+	if cfg.Speed != "" {
+		t.Fatalf("legacy Speed before defaults = %q, want empty", cfg.Speed)
+	}
+
+	cfg.ApplyDefaults()
+
+	var speed = cfg.Speed
+	if speed != kinds.SpeedNormal {
+		t.Fatalf("legacy Speed after defaults = %q, want %q", speed, kinds.SpeedNormal)
+	}
+	if cfg.ExplicitRuntime.Speed {
+		t.Fatal("legacy omitted speed must remain non-explicit")
+	}
 }
 
 func TestRuntimeConfigSurfaceIncludesRecoveryRuntimeFields(t *testing.T) {
@@ -727,4 +839,8 @@ func TestTaskMetadataUsesV2Fields(t *testing.T) {
 
 func testStringPointer(value string) *string {
 	return &value
+}
+
+func requireCanonicalSpeed(speed kinds.Speed) kinds.Speed {
+	return speed
 }

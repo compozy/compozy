@@ -3,6 +3,8 @@ package model
 import (
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const DefaultReasoningEffort = "medium"
@@ -13,6 +15,7 @@ type ExplicitRuntimeFlags struct {
 	IDE             bool
 	Model           bool
 	ReasoningEffort bool
+	Speed           bool
 	AccessMode      bool
 }
 
@@ -35,6 +38,7 @@ type RuntimeConfig struct {
 	AddDirs                    []string
 	TailLines                  int
 	ReasoningEffort            string
+	Speed                      kinds.Speed
 	AccessMode                 string
 	AgentName                  string
 	ExplicitRuntime            ExplicitRuntimeFlags
@@ -82,6 +86,9 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	}
 	if cfg.ReasoningEffort == "" {
 		cfg.ReasoningEffort = DefaultReasoningEffort
+	}
+	if cfg.Speed == "" {
+		cfg.Speed = kinds.SpeedNormal
 	}
 	if cfg.AccessMode == "" {
 		cfg.AccessMode = AccessModeFull

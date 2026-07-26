@@ -123,6 +123,9 @@ type EventKind = events.EventKind
 // Usage is the public usage summary shape embedded in session updates.
 type Usage = eventkinds.Usage
 
+// Speed is the provider-neutral requested runtime speed.
+type Speed = eventkinds.Speed
+
 // HookInfo describes the current hook invocation metadata.
 type HookInfo struct {
 	Name      string   `json:"name"`
@@ -480,6 +483,7 @@ type ExplicitRuntimeFlags struct {
 	IDE             bool
 	Model           bool
 	ReasoningEffort bool
+	Speed           bool
 	AccessMode      bool
 }
 
@@ -526,6 +530,7 @@ type RuntimeConfig struct {
 	AddDirs                    []string
 	TailLines                  int
 	ReasoningEffort            string
+	Speed                      Speed
 	AccessMode                 string
 	AgentName                  string
 	ExplicitRuntime            ExplicitRuntimeFlags
